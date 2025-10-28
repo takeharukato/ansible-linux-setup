@@ -1,6 +1,6 @@
-# AnsibleによるDebian (Ubuntu) / RHEL (Alma Linux)環境構築
+# AnsibleによるDebian Linux (Ubuntu Linux) / Red Hat Enterprise Linux (Alma Linux)環境構築
 
-- [AnsibleによるDebian (Ubuntu) / RHEL (Alma Linux)環境構築](#ansibleによるdebian-ubuntu--rhel-alma-linux環境構築)
+- [AnsibleによるDebian Linux (Ubuntu Linux) / Red Hat Enterprise Linux (Alma Linux)環境構築](#ansibleによるdebian-linux-ubuntu-linux--red-hat-enterprise-linux-alma-linux環境構築)
   - [ディレクトリ構成](#ディレクトリ構成)
   - [使用法](#使用法)
     - [Makeターゲット](#makeターゲット)
@@ -9,11 +9,12 @@
       - [広域設定ファイル基本設定](#広域設定ファイル基本設定)
       - [users\_list定義](#users_list定義)
       - [ネットワーク設定](#ネットワーク設定)
-      - [クライアントのDomain Name Server関連設定](#クライアントのdomain-name-server関連設定)
+      - [クライアントのDomain Name System (DNS) サーバ関連設定](#クライアントのdomain-name-system-dns-サーバ関連設定)
       - [multicast Domain Name Server (mDNS)関連設定](#multicast-domain-name-server-mdns関連設定)
-      - [NTPクライアントの設定](#ntpクライアントの設定)
+      - [Network Time Protocol (NTP) クライアントの設定](#network-time-protocol-ntp-クライアントの設定)
       - [DNSサーバの設定](#dnsサーバの設定)
-      - [NFSサーバの設定](#nfsサーバの設定)
+      - [Network File System (NFS) サーバの設定](#network-file-system-nfs-サーバの設定)
+      - [Network Time Protocol (NTP)サーバの設定](#network-time-protocol-ntpサーバの設定)
       - [プロキシ設定](#プロキシ設定)
       - [Rancher 関連設定](#rancher-関連設定)
       - [Docker Community Edition関連設定](#docker-community-edition関連設定)
@@ -23,12 +24,13 @@
       - [Redmine関連設定](#redmine関連設定)
       - [Emacsパッケージ関連設定](#emacsパッケージ関連設定)
       - [Kubernetes関連設定](#kubernetes関連設定)
-        - [Cilum CNI](#cilum-cni)
+        - [Cilium CNI](#cilium-cni)
         - [Multus メタCNI](#multus-メタcni)
         - [Whereabouts CNI](#whereabouts-cni)
     - [Netgauge](#netgauge)
     - [host\_vars/ ディレクトリ配下のホスト設定ファイル](#host_vars-ディレクトリ配下のホスト設定ファイル)
       - [ホスト設定ファイル中でのネットワークインターフェース設定](#ホスト設定ファイル中でのネットワークインターフェース設定)
+  - [用語](#用語)
   - [参考サイト](#参考サイト)
 
 ## ディレクトリ構成
@@ -45,7 +47,7 @@
 |-- inventory/hosts    サーバ種別単位とホスト名の対応関係定義
 |-- k8s-ctrl-plane.yml Kubernetes コントロールプレイン実施ロール定義
 |-- k8s-worker.yml     Kubernetes ワーカーノード実施ロール定義
-|-- kitting            VMイメージ作成関連スクリプト格納ディレクトリ
+|-- kitting            Virtual Machine (VM)イメージ作成関連スクリプト格納ディレクトリ
 |-- rancher.yml        Rancherノード実施ロール定義
 |-- roles              各種ロール定義
 |-- server.yml         管理サーバノード実施ロール定義
@@ -55,8 +57,7 @@
 
 ## 使用法
 
-シェルのコマンドラインから以下のコマンドを実行することで, ansibleによる
-構築作業が実施される。
+シェルのコマンドラインから以下のコマンドを実行することで, ansibleによる構築作業が実施される。
 
 ```:shell
 make
@@ -102,12 +103,12 @@ playbook実行, アーカイブ作成用Makefileでは, 以下のターゲット
 
 |変数名|意味|設定値の例|
 |---|---|---|
-|use_vmware|VMWare環境上のゲストOSを設定する場合はtureを指定|true|
+|use_vmware|VMware環境上のゲストOSを設定する場合はtrueを指定|true|
 |force_reboot|設定作業完了後にリブートする場合はtrueを指定|false|
 |common_timezone|タイムゾーンの名前|"Asia/Tokyo"|
-|common_disable_cron_mails|CRONジョブ完了後のメール送信を抑止する|true|
-|common_selinux_state|SE Linuxの動作モード('enforcing', 'permissive', 'disabled' のいずれかを指定)|"permissive"|
-|enable_firewall|Firewall (firewalld/ufw) を使用する場合はtrueを指定|false|
+|common_disable_cron_mails|Cronジョブ完了後のメール送信を抑止する|true|
+|common_selinux_state|Security-Enhanced Linuxの動作モード('enforcing', 'permissive', 'disabled' のいずれかを指定)|"permissive"|
+|enable_firewall|Firewall (firewalld / Uncomplicated Firewall (UFW) ) を使用する場合はtrueを指定|false|
 |users_list|作成するユーザのリスト|users_list定義参照|
 |sudo_nopasswd_users|パスワード入力なしに, sudoコマンドを実行可能なユーザのリストを指定する|['user1']|
 |sudo_nopasswd_groups_extra|パスワード入力なしに, sudoコマンドを実行可能なユーザグループのリストを指定する| ['adm', 'cdrom', 'sudo', 'dip', 'plugdev', 'lxd', 'systemd-journal']|
@@ -124,9 +125,9 @@ users_listには, 以下の要素からなる辞書のリストを記述する.
 - update_password パスワード設定タイミングを指定する。通常, 'on\_create'を指定する。
 - shell ログインシェルを指定する (/bin/bash など)。
 - home ホームディレクトリ名を指定する。
-- comment GECOSフィールドに書き込むフルネームやコメントを記載する。
+- comment General Electric Comprehensive Operating Supervisor ( GECOS ) フィールドに書き込むフルネームやコメントを記載する。
 - email 電子メールアドレスを記載する。
-- github GitHubのアカウント名を記載する。アカウント名を記載すると, 本項目に記載されたGitHubアカウントから公開鍵を取り込み, 作成したユーザのssh公開鍵として使用する。
+- github GitHubのアカウント名を記載する。アカウント名を記載すると, 本項目に記載されたGitHubアカウントから公開鍵を取り込み, 作成したユーザのSecure Shell (SSH) 公開鍵として使用する。
 
 記載例は以下の通り。
 
@@ -136,7 +137,7 @@ users_listには, 以下の要素からなる辞書のリストを記述する.
 
 #### ネットワーク設定
 
-以下で管理サーバは, NTPサーバ, DNSサーバ, LDAPサーバなどを担うホストを表す。
+以下で管理サーバは, Network Time Protocol (NTP) サーバ, Domain Name System (DNS) サーバ, Lightweight Directory Access Protocol (LDAP) サーバなどを担うホストを表す。
 これらの役割を別のホストに割り当てる場合は, それぞれのサーバごとに個別のアドレスやホスト名を設定する。
 
 |変数名|意味|設定値の例|
@@ -145,7 +146,7 @@ users_listには, 以下の要素からなる辞書のリストを記述する.
 |router_ipv4_address|ルータのIPv4アドレスを指定する|"192.168.20.1"|
 |router_ipv6_address|ルータのIPv6アドレスを指定する|"fd69:6684:61a:1::1"|
 |devserver_ipv4_address|管理サーバのIPv4アドレスを指定する|"192.168.20.11"|
-|devserver_ipv6_address|管理サーバのIPv6アドレスを指定する|"192.168.20.11"|
+|devserver_ipv6_address|管理サーバのIPv6アドレスを指定する|"fd69:6684:61a:1::11"|
 |network_ipv4_prefix_len|物理サーバ/管理用VMネットワークのIPv4ネットワークプレフィクス長|24|
 |network_ipv6_prefix_len|物理サーバ/管理用VMネットワークのIPv6ネットワークプレフィクス長|64|
 |network_ipv4_prefix|物理サーバ/管理用VMネットワークのIPv4ネットワークのプレフィクスアドレス|"{{router_ipv4_prefix}}"|
@@ -157,7 +158,7 @@ users_listには, 以下の要素からなる辞書のリストを記述する.
 |gateway6|IPv6ゲートウエイアドレス|"{{router_ipv6_address}}"|
 |mgmt_nic|デフォルトの管理用ネットワークインターフェース名|"ens160"|
 
-#### クライアントのDomain Name Server関連設定
+#### クライアントのDomain Name System (DNS) サーバ関連設定
 
 |変数名|意味|設定値の例|
 |---|---|---|
@@ -167,11 +168,11 @@ users_listには, 以下の要素からなる辞書のリストを記述する.
 |ipv6_name_server2|DNSサーバのIPv6アドレス2|"2606:4700:4700::1111"|
 |dns_search|DNSサーチドメインを;で区切って指定する|"example.com;sub.example.com"|
 
-ipv4_name_server1, ipv4_name_server2の両方を設定した場合は両方設定される。ipv4_name_server1, ipv4_name_server2のいずれか一方のみを設定した場合は, その1つのみ設定される。ipv4_name_server1, ipv4_name_server2のいずれも設定しなかった場合は, DHCPで取得したDNSサーバが設定される。
+ipv4_name_server1, ipv4_name_server2の両方を設定した場合は両方設定される。ipv4_name_server1, ipv4_name_server2のいずれか一方のみを設定した場合は, その1つのみ設定される。ipv4_name_server1, ipv4_name_server2のいずれも設定しなかった場合は, Dynamic Host Configuration Protocol (DHCP) で取得したDNSサーバが設定される。
 
 実装上は, dns_searchには, DNSサーチドメインをセミコロン(;)またはカンマ(,)で区切って指定するほか, リストで指定することも可能だが, 仕様としては, セミコロン(;)で区切るものとする。
 
-注意:systemd-resolvedがLAN内のドメイン名を外部のDNS(フォールバックDNS)に問い合わせに行かないようにするためipv4_name_server1, ipv4_name_server2にはLAN内のDNSサーバを設定する。
+注意:systemd-resolvedが Local Area Network (LAN) 内のドメイン名を外部のDNS ( フォールバックDNS ) に問い合わせに行かないようにするためipv4_name_server1, ipv4_name_server2にはLAN内のDNSサーバを設定する。
 
 dns_host_listに以下の要素からなる辞書のリストを記述することで,
 静的IPv4アドレスを持つホストのホスト名とIPv4アドレスをDNSのゾーン情報に記録することが
@@ -202,7 +203,7 @@ mdns_host_list:
   - { name: 'vmlinux2'}
 ```
 
-#### NTPクライアントの設定
+#### Network Time Protocol (NTP) クライアントの設定
 
 ntp_servers_listにNTPクライアントから参照するNTPサーバのIPアドレス, または, ホスト名をリスト形式で指定する。
 
@@ -235,7 +236,7 @@ ntp_servers_list:
 |dns_ddns_key_secret|Dynamic DNS updateで使用する。共通鍵(`ddns-confgen -a hmac-sha256 -k ddns-clients`で生成された値を指定)|"Kdi362s+dCkToqo4F+JfwMK6yILQyn1mrqI1xfGqDfk="|
 |use_nm_ddns_update_scripts|ip monitorコマンドでIPv6アドレス変更を監視する機能とNetwork Manager dispatcher経由でDynamic DNSでホスト名とIPアドレスをDNSに自動登録する機能を有効にする場合はtrueに設定。|true|
 
-#### NFSサーバの設定
+#### Network File System (NFS) サーバの設定
 
 以下の項目を設定する。
 
@@ -244,6 +245,14 @@ ntp_servers_list:
 |nfs_export_directory|NFSで公開するディレクトリ|"/home/nfsshare"|
 |nfs_network|NFSのクライアントアドレス(ネットワークアドレスを指定)|"{{ network_ipv4_network_address }}/{{ network_ipv4_prefix_len }}"|
 |nfs_options|NFS exportのオプション|"rw,no_root_squash,sync,no_subtree_check,no_wdelay"|
+
+
+#### Network Time Protocol (NTP)サーバの設定
+
+以下の項目を設定する。
+
+|変数名|意味|設定値の例|
+|---|---|---|
 |ntp_allow|NTPサーバにアクセス可能なホストが所属するネットワークのネットワークアドレス|"{{ network_ipv4_network_address }}/{{ network_ipv4_prefix_len }}"|
 
 上記の他に, external_ntp_servers_listに参照する外部NTPサーバをリスト形式で指定する。
@@ -440,18 +449,18 @@ Kubernetes (以下K8sと記す)関連の設定を以下に記載する。
 
 |変数名|意味|設定値の例|
 |---|---|---|
-|k8s_major_minor|Kubernetes バージョン (先頭にvをつけないことに注意)|"1.31"|
-|k8s_pod_ipv4_service_subnet|K8sのIPv4サービスネットワークのCIDR|"10.245.0.0/16"|
+|k8s_major_minor|K8s バージョン (先頭にvをつけないことに注意)|"1.31"|
+|k8s_pod_ipv4_service_subnet|K8sのIPv4サービスネットワークのClassless Inter-Domain Routing ( CIDR ) |"10.245.0.0/16"|
 |k8s_pod_ipv6_service_subnet|K8sのIPv6サービスネットワークのCIDR|"fdb6:6e92:3cfb:feed::/112"|
-|k8s_reserved_system_cpus_default|K8sのシステムCPU予約範囲。未定義時は, システム用CPUを予約しない。|"0-1"|
-|k8s_worker_enable_nodeport|NodePortによるサービスネットワーク公開を行う場合は, tureに設定(将来対応)|false|
+|k8s_reserved_system_cpus_default|K8sのシステムCentral Processing Unit ( CPU ) 予約範囲。未定義時は, システム用CPUを予約しない。|"0-1"|
+|k8s_worker_enable_nodeport|NodePortによるサービスネットワーク公開を行う場合は, trueに設定(将来対応)|false|
 |k8s_worker_nodeport_range|NodePortの範囲|"30000-32767"|
 
 k8s_operator_github_key_listにk8sの各ノードへログインするために使用する公開鍵を得る方式を表す辞書をリスト形式で指定する。
 
 |キー名|設定値|設定値の例|
 |---|---|---|
-|github|GitHubのアカウント名を記載する。アカウント名を記載すると, 本項目に記載されたGitHubアカウントから公開鍵を取り込み, 作成したユーザのssh公開鍵として使用する。|'sampleuser'|
+|github|GitHubのアカウント名を記載する。アカウント名を記載すると, 本項目に記載されたGitHubアカウントから公開鍵を取り込み, 作成したユーザのSSH公開鍵として使用する。|'sampleuser'|
 
 記載例は以下の通り:
 
@@ -460,12 +469,12 @@ k8s_operator_github_key_list:
   - { github: 'sampleuser' }
 ```
 
-その他, Cilum CNI, Multus メタCNI, Whereabouts IPアドレスマネージャの
+その他, Cilium CNI, Multus メタCNI, Whereabouts IPアドレスマネージャの
 バージョン, Helmのチャートバージョン, イメージバージョンなどを指定できる。
 
-##### Cilum CNI
+##### Cilium CNI
 
-Cilum CNI関連の設定を以下に記載する。
+Cilium CNI関連の設定を以下に記載する。
 
 |変数名|意味|設定値の例|
 |---|---|---|
@@ -517,7 +526,7 @@ K8sノードは, 管理用ネットワークと運用ネットワーク(K8sのPo
 |mgmt_nic|管理用のネットワークインターフェース名|"ens160"|
 |k8s_ctrlplane_host|Kubernetes コントロールプレインのホスト名|"k8sctrlplane01.local"|
 |k8s_ctrlplane_endpoint|K8sコントロールプレインのAPI広告エンドポイントアドレス|"fd69:6684:61a:1::41"|
-|k8s_kubelet_nic|K8sのkubeletが使用するNICを指定, 未指定時はmgmt_nicが使用される。運用ネットワーク(K8sネットワーク)内でK8s間の通信を閉じるなら, K8sネットワーク側のNICを指定する。|"ens194"|
+|k8s_kubelet_nic|K8sのkubeletが使用するNetwork Interface Card (NIC) を指定, 未指定時はmgmt_nicが使用される。運用ネットワーク(K8sネットワーク)内でK8s間の通信を閉じるなら, K8sネットワーク側のNICを指定する。|"ens194"|
 |k8s_pod_ipv4_network_cidr|K8s IPv4 PodネットワークアドレスのCIDR|"10.244.0.0/16"|
 |k8s_pod_ipv6_network_cidr|K8s IPv6 PodネットワークアドレスのCIDR|"fdb6:6e92:3cfb:0100::/56"|
 |k8s_cilium_cm_cluster_name|Clium Cluster Meshのクラスタ名|"cluster1"|
@@ -556,13 +565,13 @@ netif_list変数は, 以下の要素からなる辞書のリストである。
 - DNS サーバが指定されていない場合は自動取得した DNS サーバを使用する
 - DNS サーチドメインが指定されていない場合は自動取得したサーチドメインを使用する
 - グローバル変数 ipv4_name_server1, ipv4_name_server2, ipv6_name_server1, ipv6_name_server2 が
-  定義されている場合は、各インターフェースの DNS サーバ指定がない場合に使用する
+  定義されている場合は, 各インターフェースの DNS サーバ指定がない場合に使用する
 - DNSサーバ項目の出力有無については, 以下のロジックで決定する。
    1. 各インターフェースの ignore_auto_ipv4_dns, ignore_auto_ipv6_dns フラグを確認する
-   2. フラグが true の場合は、name_server_ipv4_1, name_server_ipv4_2,
-      name_server_ipv6_1, name_server_ipv6_2 の値を確認し、設定されていれば
+   2. フラグが true の場合は, name_server_ipv4_1, name_server_ipv4_2,
+      name_server_ipv6_1, name_server_ipv6_2 の値を確認し, 設定されていれば
       それらをDNSサーバのリストに追加する
-   3. DNSサーバのリストを事前に算出し, ネームサーバの項目出力要否を判断の上, DNSサーバの設定を出力する。IPv4DNSサーバが一切設定されていない場合, ignore_auto_ipv4_dnsの設定に関わらず, dhcpから取得したDNSサーバの使用を受け入れるよう設定する。同様に, IPv4DNSサーバが一切設定されていない場合, ignore_auto_ipv6_dnsの設定に関わらず, ルータ広告やdhcpv6から取得したDNSサーバの使用を受け入れるよう設定する。
+   3. DNSサーバのリストを事前に算出し, ネームサーバの項目出力要否を判断の上, DNSサーバの設定を出力する。IPv4 DNSサーバが一切設定されていない場合は DHCP を, IPv6 DNSサーバが一切設定されていない場合は Router Advertisement (RA) / DHCPv6 を使用する (ignore_auto_* の設定に関わらず受け入れる)。
 - DNS サーチドメインの決定ロジック
   netif_listのdns_searchを優先し, 無ければvars/all-config.ymlで設定された
   dns_search変数の値を採用する。どちらも無ければ設定しない。
@@ -570,12 +579,30 @@ netif_list変数は, 以下の要素からなる辞書のリストである。
 ルートメトリックについては, ネットワークの設計方針に応じて適切に設定する。
 例えば, 運用系ネットワークを通して外部ネットワークにつなぐ場合は, 運用系NIC以外のNICのメトリックを高めに設定する。
 
+## 用語
+
+- Virtual Machine ( VM ) : 物理マシン上で仮想的に動作する計算機環境。
+- Security-Enhanced Linux ( SELinux ) : カーネルレベルの強制アクセス制御によりプロセス／リソース隔離を強化する仕組み。
+- Uncomplicated Firewall ( UFW ) : Linux のパケットフィルタ ( iptables / nftables ) を簡便に操作するためのフロントエンド。Ubuntu Linuxで使用されるファイアウォール機能を提供するパッケージ。
+- General Electric Comprehensive Operating Supervisor (GECOS)フィールド: /etc/passwd のコメント欄 ( フルネーム等 ) を表すフィールド名。
+- Secure Shell (SSH): リモートログイン／ファイル転送／コマンド実行のための暗号化プロトコル, および, コマンド。
+- Application Programming Interface ( API ) : ソフトウェア間連携のための呼び出し規約, インターフェース。
+- Network Interface Card ( NIC ) : ネットワークに接続するためのハードウェア。
+- Classless Inter-Domain Routing ( CIDR ) : IP アドレスの表記と経路集約の方式 ( 例: 10.0.0.0/16 ) 。
+- Central Processing Unit ( CPU ) : 中央演算処理装置。スケジューリングや割り当ての対象となる計算資源。
+- Internet Protocol ( IP ) :インターネットでデータを送受信するための通信規約。
+- Dynamic Host Configuration Protocol ( DHCP ) : IPv4 端末にアドレス等のネットワーク設定を自動配布するプロトコル。
+- Dynamic Host Configuration Protocol for IPv6  ( DHCPv6 ) : IPv6 向けの DHCP。
+- Router Advertisement ( RA ) : IPv6 のプレフィクスやデフォルトルータ情報を周知する ICMPv6 機構。
+- Local Area Network ( LAN ) : 建物やフロア等の限定範囲で構成されるローカルネットワーク。
+- Kubernetes ( K8s ) : コンテナオーケストレーションのためのプラットフォーム。
+
 ## 参考サイト
 
 - [【Ansible】メンテナンスしやすいPlaybookの書き方](https://densan-hoshigumi.com/server/playbook-maintainability)
 - [Ansible 変数の優先順位と書き方をまとめてみた](https://qiita.com/answer_d/items/b8a87aff8762527fb319)
 - [[Ansible] service モジュールの基本的な使い方 ( サービスの起動・停止・
-  自動起動の有効化など）](https://tekunabe.hatenablog.jp/entry/2019/02/24/ansible_service_intro)
+  自動起動の有効化など ) ](https://tekunabe.hatenablog.jp/entry/2019/02/24/ansible_service_intro)
 - [【Ansible】with_itemsループまとめ](https://qiita.com/Tocyuki/items/3efdf4cfcfd9bea056d9)
 - [Jinja2: Check If Variable ? Empty | Exists | Defined | True](https://www.shellhacks.com/jinja2-check-if-variable-empty-exists-defined-true/)
 jinja2で変数定義の有無の確認と中身が空で無いことの確認方法
