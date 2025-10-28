@@ -447,7 +447,11 @@ Kubernetes (以下K8sと記す)関連の設定を以下に記載する。
 |k8s_worker_enable_nodeport|NodePortによるサービスネットワーク公開を行う場合は, tureに設定(将来対応)|false|
 |k8s_worker_nodeport_range|NodePortの範囲|"30000-32767"|
 
-k8s_operator_github_key_listにk8sの各ノードへログインするために使用する公開鍵を得るためのgithubアカウントのリストをリスト形式で指定する。
+k8s_operator_github_key_listにk8sの各ノードへログインするために使用する公開鍵を得る方式を表す辞書をリスト形式で指定する。
+
+|キー名|設定値|設定値の例|
+|---|---|---|
+|github|GitHubのアカウント名を記載する。アカウント名を記載すると, 本項目に記載されたGitHubアカウントから公開鍵を取り込み, 作成したユーザのssh公開鍵として使用する。|'sampleuser'|
 
 記載例は以下の通り:
 
