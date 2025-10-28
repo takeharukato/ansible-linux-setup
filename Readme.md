@@ -10,9 +10,9 @@
       - [users\_list定義](#users_list定義)
       - [ネットワーク設定](#ネットワーク設定)
       - [クライアントのDomain Name System (DNS) サーバ関連設定](#クライアントのdomain-name-system-dns-サーバ関連設定)
-      - [multicast Domain Name Server (mDNS)関連設定](#multicast-domain-name-server-mdns関連設定)
+      - [multicast Domain Name Server (mDNS) 関連設定](#multicast-domain-name-server-mdns-関連設定)
       - [Network Time Protocol (NTP) クライアントの設定](#network-time-protocol-ntp-クライアントの設定)
-      - [DNSサーバの設定](#dnsサーバの設定)
+      - [Domain Name System (DNS) サーバの設定](#domain-name-system-dns-サーバの設定)
       - [Network File System (NFS) サーバの設定](#network-file-system-nfs-サーバの設定)
       - [Network Time Protocol (NTP)サーバの設定](#network-time-protocol-ntpサーバの設定)
       - [プロキシ設定](#プロキシ設定)
@@ -190,10 +190,14 @@ dns_host_list
   - { name: 'nas', ipv4_addr: '31'}
 ```
 
-#### multicast Domain Name Server (mDNS)関連設定
+#### multicast Domain Name Server (mDNS) 関連設定
 
 mdns_host_listに以下の要素からなる辞書のリストを記述することで,
 ユーザの.ssh/configファイルに`ホスト名.local`のホスト情報を追記する。
+
+|キー名|設定値|設定値の例|
+|---|---|---|
+|name|ホスト名を指定する。|'vmlinux1'|
 
 記載例は以下の通り:
 
@@ -215,7 +219,7 @@ ntp_servers_list:
   - "ntp.nict.jp"
 ```
 
-#### DNSサーバの設定
+#### Domain Name System (DNS) サーバの設定
 
 以下の項目を設定する。
 
@@ -581,21 +585,27 @@ netif_list変数は, 以下の要素からなる辞書のリストである。
 
 ## 用語
 
-- Virtual Machine ( VM ) : 物理マシン上で仮想的に動作する計算機環境。
-- Security-Enhanced Linux ( SELinux ) : カーネルレベルの強制アクセス制御によりプロセス／リソース隔離を強化する仕組み。
-- Uncomplicated Firewall ( UFW ) : Linux のパケットフィルタ ( iptables / nftables ) を簡便に操作するためのフロントエンド。Ubuntu Linuxで使用されるファイアウォール機能を提供するパッケージ。
-- General Electric Comprehensive Operating Supervisor (GECOS)フィールド: /etc/passwd のコメント欄 ( フルネーム等 ) を表すフィールド名。
-- Secure Shell (SSH): リモートログイン／ファイル転送／コマンド実行のための暗号化プロトコル, および, コマンド。
 - Application Programming Interface ( API ) : ソフトウェア間連携のための呼び出し規約, インターフェース。
-- Network Interface Card ( NIC ) : ネットワークに接続するためのハードウェア。
 - Classless Inter-Domain Routing ( CIDR ) : IP アドレスの表記と経路集約の方式 ( 例: 10.0.0.0/16 ) 。
-- Central Processing Unit ( CPU ) : 中央演算処理装置。スケジューリングや割り当ての対象となる計算資源。
-- Internet Protocol ( IP ) :インターネットでデータを送受信するための通信規約。
-- Dynamic Host Configuration Protocol ( DHCP ) : IPv4 端末にアドレス等のネットワーク設定を自動配布するプロトコル。
+- Central Processing Unit ( CPU ) : 中央演算処理装置。
+- Domain Name System ( DNS ) : コンピュータネットワーク上のホスト名や電子メールのアドレスに使われるドメイン名と, IPアドレスとの対応づけ ( 正引き, 逆引き ) を管理するシステム。
+- Dynamic Host Configuration Protocol ( DHCP ) : IPv4 端末にアドレス等のネットワーク設定を自動配布する通信規約。
 - Dynamic Host Configuration Protocol for IPv6  ( DHCPv6 ) : IPv6 向けの DHCP。
-- Router Advertisement ( RA ) : IPv6 のプレフィクスやデフォルトルータ情報を周知する ICMPv6 機構。
-- Local Area Network ( LAN ) : 建物やフロア等の限定範囲で構成されるローカルネットワーク。
+- General Electric Comprehensive Operating Supervisor (GECOS)フィールド: /etc/passwd のコメント欄 ( フルネーム等 ) を表すフィールド名。
+- Internet Control Message Protocol ( ICMP ) : IP通信における誤りの通知や通信に関する情報の通知などのために使用される通信規約。
+- Internet Protocol ( IP ) :インターネットでデータを送受信するための通信規約。
 - Kubernetes ( K8s ) : コンテナオーケストレーションのためのプラットフォーム。
+- Lightweight Directory Access Protocol ( LDAP ) : ネットワーク内のユーザー、デバイス、ファイルなどの情報を一元管理し、検索や認証を行うための通信規約。
+- Local Area Network ( LAN ) : 建物やフロア等の限定範囲で構成されるローカルネットワーク。
+- Multicast DNS ( mDNS ) : ユニキャストDNSサーバーが存在しない環境において, ローカルリンク上でDNSに類似した 操作を実行する機能を提供するための通信規約。
+- Network File System ( NFS ) : ネットワーク経由でファイルを共有するための通信規約。
+- Network Interface Card ( NIC ) : ネットワークに接続するためのハードウェア。
+- Network Time Protocol ( NTP ) : ネットワークに接続されたコンピューターなどの機器の時計を、正確な時刻に同期させるための通信規約。
+- Router Advertisement ( RA ) : IPv6 のプレフィクスやデフォルトルータ情報を周知する ICMPv6 通信規約。
+- Security-Enhanced Linux ( SELinux ) : カーネルレベルの強制アクセス制御によりプロセス／リソース隔離を強化する仕組み。
+- Secure Shell (SSH): リモートログイン／ファイル転送／コマンド実行のための暗号化プロトコル, および, コマンド。
+- Uncomplicated Firewall ( UFW ) : Linux のパケットフィルタ ( iptables / nftables ) を簡便に操作するためのフロントエンド。Ubuntu Linuxで使用されるファイアウォール機能を提供するパッケージ。
+- Virtual Machine ( VM ) : 物理マシン上で仮想的に動作する計算機環境。
 
 ## 参考サイト
 
