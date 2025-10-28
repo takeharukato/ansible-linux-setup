@@ -1,0 +1,451 @@
+# -*- coding: utf-8 mode: yaml -*-
+# cross-distro.yml — Cross‑distro variables for Debian and RHEL
+# 方針:
+# - タスク側は OS 非依存モジュール（package/systemd など）＋ when 条件のみを記述し、
+#   OS 差分（パッケージ名・リポジトリURL・サービス名・コマンド）は本ファイルに集約します。
+# - 参照例:
+#     name: "{{ (ansible_facts.os_family == 'Debian') | ternary(pkgs_dns_server_debian, pkgs_dns_server_rhel) }}"
+#     when: ansible_facts.os_family in ['Debian','RedHat']
+
+########################################################################################
+# 共通の基本設定
+########################################################################################
+pkg_autoremove_handler: "pkg-autoremove"
+
+# パッケージマネージャ検出に依存した判定をタスクで行いやすくする補助
+pkg_mgr_family_map:
+  apt: debian
+  aptitude: debian
+  dnf: rhel
+  yum: rhel
+
+pkg_mgr: "{{ ansible_pkg_mgr | default('unknown') }}"
+pkg_mgr_family: "{{ pkg_mgr_family_map[pkg_mgr] | default('unknown') }}"
+pkg_mgr_is_debian: "{{ pkg_mgr_family == 'debian' }}"
+pkg_mgr_is_rhel:   "{{ pkg_mgr_family == 'rhel' }}"
+
+########################################################################################
+# コンフィグレーションディレクトリ
+########################################################################################
+
+# OS 固有の設定ファイル配置ディレクトリ
+# /etc/default or /etc/sysconfig
+etc_default_dir: >-
+  {{
+    ((ansible_facts.os_family | default('RedHat')) == 'Debian')
+      | ternary('/etc/default', '/etc/sysconfig')
+  }}
+
+# GRUB 設定ファイルパス
+grub_default_cfg_path_rhel: "/etc/default/grub"
+grub_default_cfg_path_debian: "{{ etc_default_dir }}/grub"
+
+grub_default_cfg_path: "{{ (ansible_facts.os_family == 'Debian') | ternary(grub_default_cfg_path_debian, grub_default_cfg_path_rhel) }}"
+grub_cmdline_var_name_debian: "GRUB_CMDLINE_LINUX"
+grub_cmdline_var_name_rhel:   "GRUB_CMDLINE_LINUX"
+grub_cmdline_var_name: "{{ (ansible_facts.os_family == 'Debian') | ternary(grub_cmdline_var_name_debian, grub_cmdline_var_name_rhel) }}"
+irq_balance_package_rhel: "irqbalance"
+irq_balance_package_debian: "irqbalance"
+irq_balance_package: "{{ (ansible_facts.os_family == 'Debian') | ternary(irq_balance_package_debian, irq_balance_package_rhel) }}"
+########################################################################################
+# ユーザ・グループ関連
+########################################################################################
+adm_groups_debian:
+  - "adm"
+  - "sudo"
+adm_groups_rhel:
+  - "wheel"
+
+adm_groups: "{{ (ansible_facts.os_family == 'Debian') | ternary(adm_groups_debian, adm_groups_rhel) }}"
+
+##################################################################################
+# ネットワーク設定関連
+##################################################################################
+
+# ネットワーク設定ファイル配置ディレクトリ
+netconfig_prefix: "{{ (ansible_facts.os_family == 'Debian') | ternary('/etc/netplan', '/etc/NetworkManager/system-connections') }}"
+
+# ネットワークインターフェース用 systemd .link ファイル関連
+# RHELとDebianで配置先が同一だが, 将来の差分に備えて分離して定義
+netif_nm_link_dir_rhel: "/etc/systemd/network"
+netif_nm_link_dir_debian: "/etc/systemd/network"
+netif_nm_link_dir: "{{ (ansible_facts.os_family == 'Debian') | ternary(netif_nm_link_dir_debian, netif_nm_link_dir_rhel) }}"
+
+# Debian系で自動ネットワーク設定ファイルを削除する際のファイル名リスト
+common_autonetconfig_files_debian:
+  - '00-installer-config.yaml'
+  - '50-cloud-init.yaml'
+
+# 管理系 NIC の単一要素から成るデフォルト netif_list を定義する。
+# 静的アドレスは空とし, IPv4 は DHCP, IPv6 は SLAAC を利用する。
+
+# 管理系 NIC の単一要素から成るデフォルト netif_list。静的アドレスは空とする。
+_netif_list_default:
+  - netif: "{{ (mgmt_nic | default('', true)) if (mgmt_nic | default('', true) | length) > 0 else (common_default_nic | default('', true)) }}"
+    mac: ""
+    static_ipv4_addr: ""
+    network_ipv4_prefix_len: 0
+    gateway4: "{{ gateway4 | default('', true) }}"
+    static_ipv6_addr: ""
+    network_ipv6_prefix_len: 0
+    gateway6: "{{ gateway6 | default('', true) }}"
+    ignore_auto_ipv4_dns: "{{ _mgmt_ignore_auto_ipv4_dns }}"
+    ignore_auto_ipv6_dns: "{{ _mgmt_ignore_auto_ipv6_dns }}"
+    name_server_ipv4_1: "{{ ipv4_name_server1 | default('', true) }}"
+    name_server_ipv4_2: "{{ ipv4_name_server2 | default('', true) }}"
+    name_server_ipv6_1: "{{ ipv6_name_server1 | default('', true) }}"
+    name_server_ipv6_2: "{{ ipv6_name_server2 | default('', true) }}"
+    dns-search: ""
+
+# 実効 netif_list。ユーザ定義が空または未定義なら YAML のデフォルトをそのまま採用する。
+_netif_list_effective: "{{ (netif_list | default([], true)) if ((netif_list | default([], true) | length) > 0) else (_netif_list_default) }}"
+
+########################################################################################
+# ルート CA / 信頼ストア
+########################################################################################
+ca_trust_update_debian: "update-ca-certificates"
+ca_trust_update_rhel:   "update-ca-trust extract"
+
+########################################################################################
+# Firewall / ネットワーク
+########################################################################################
+# Debian(Ubuntu) では ufw を既定、RHEL では firewalld を既定とする想定
+firewall_backend_debian:
+  - ufw
+firewall_backend_rhel:
+  - firewalld
+
+firewall_backend: "{{ (ansible_facts.os_family == 'Debian') | ternary(firewall_backend_debian, firewall_backend_rhel) }}"
+
+########################################################################################
+# リポジトリ
+########################################################################################
+# リポジトリ登録時のコードネーム
+# 例: noble (24.04), jammy (22.04), focal (20.04), bionic (18.04)
+repo_codename_debian: "{{ ansible_lsb.codename | default('noble') }}"
+repo_codename_rhel:   "{{ ansible_distribution_major_version | default('9') }}"
+
+repo_repository_path_debian: "/etc/apt/sources.list.d"
+repo_repository_path_rhel:   "/etc/yum.repos.d"
+
+repo_keyring_path_debian: "/etc/apt/keyrings"
+
+########################################################################################
+# Docker CE リポジトリと鍵
+########################################################################################
+# Debian/Ubuntu — apt keyring 方式
+docker_repo_gpg_debian: "https://download.docker.com/linux/ubuntu/gpg"
+docker_repo_url_debian: "https://download.docker.com/linux/ubuntu"
+docker_keyring_path_debian: "{{ repo_keyring_path_debian }}/docker.gpg"
+
+# RHEL/AlmaLinux — yum repository 方式
+docker_repo_gpg_rhel:   "https://download.docker.com/linux/centos/gpg"
+docker_repo_url_rhel:   "https://download.docker.com/linux/centos/9/$basearch/stable"
+docker_repo_name_rhel:  "docker-ce-stable"
+
+# Docker CE パッケージ群
+docker_ce_remove_packages_debian:
+  - docker.io
+  - docker-doc
+  - docker-compose
+  - docker-compose-v2
+  - podman-docker
+  - containerd
+  - runc
+  - docker-ce
+  - docker
+  - docker-engine
+
+docker_ce_remove_packages_rhel:
+  - docker
+  - docker-client
+  - docker-client-latest
+  - docker-common
+  - docker-latest
+  - docker-latest-logrotate
+  - docker-logrotate
+  - docker-engine
+  - docker-compose
+  - docker-compose-plugin
+  - podman-docker
+  - containerd
+  - runc
+  - docker-ce
+  - docker-ce-cli
+  - docker-doc
+  - docker.io
+
+docker_ce_prereq_packages_debian:
+  - apt-transport-https
+  - ca-certificates
+  - curl
+  - gnupg
+  - lsb-release
+
+docker_ce_prereq_packages_rhel:
+  - ca-certificates
+  - curl
+  - gnupg2
+
+
+docker_ce_packages:
+  - docker-ce
+  - docker-ce-cli
+  - containerd.io
+  - docker-buildx-plugin
+  - docker-compose-plugin
+
+docker_ce_remove_packages: "{{ (ansible_facts.os_family == 'Debian') | ternary(docker_ce_remove_packages_debian, docker_ce_remove_packages_rhel) }}"
+docker_ce_prereq_packages: "{{ (ansible_facts.os_family == 'Debian') | ternary(docker_ce_prereq_packages_debian, docker_ce_prereq_packages_rhel) }}"
+
+########################################################################################
+# Kubernetes (pkgs.k8s.io) リポジトリと鍵
+########################################################################################
+# 必要に応じて固定（例: "1.31" )
+
+# Kubernetes 公開鍵 URL
+k8s_pubkey_url_debian: "https://pkgs.k8s.io/core:/stable:/v{{ k8s_major_minor }}/deb/Release.key"
+k8s_pubkey_url_rhel:   "https://pkgs.k8s.io/core:/stable:/v{{ k8s_major_minor }}/rpm/repodata/repomd.xml.key"
+k8s_pubkey_url: "{{ (ansible_facts.os_family == 'Debian') | ternary(k8s_pubkey_url_debian, k8s_pubkey_url_rhel) }}"
+
+# Kubernetes リポジトリ URL
+k8s_repo_url_debian: "https://pkgs.k8s.io/core:/stable:/v{{ k8s_major_minor }}/deb/"
+k8s_repo_url_rhel:   "https://pkgs.k8s.io/core:/stable:/v{{ k8s_major_minor }}/rpm/"
+k8s_repo_url: "{{ (ansible_facts.os_family == 'Debian') | ternary(k8s_repo_url_debian, k8s_repo_url_rhel) }}"
+
+# kubelet 用 resolv.conf パス
+kubelet_resolv_conf_path_debian: "/run/systemd/resolve/resolv.conf"
+kubelet_resolv_conf_path_rhel:   "/etc/resolv.conf"
+kubelet_resolv_conf_path: "{{ (ansible_facts.os_family == 'Debian') | ternary(kubelet_resolv_conf_path_debian, kubelet_resolv_conf_path_rhel) }}"
+
+# RHEL/AlmaLinux は yum repository 方式のため不要
+k8s_keyring_path_debian: "{{ repo_keyring_path_debian }}/kubernetes-apt-keyring.gpg"
+
+k8s_prereq_debian:
+  - apt-transport-https
+  - ca-certificates
+  - curl
+  - gpg
+
+k8s_prereq_rhel:
+  - ca-certificates
+  - curl
+  - gnupg2
+
+pkgs_k8s_common_common:
+  - kubelet
+  - kubeadm
+  - kubectl
+
+pkgs_k8s_common_rhel: "{{ pkgs_k8s_common_common }}"
+pkgs_k8s_common_debian: "{{ pkgs_k8s_common_common }}"
+pkgs_k8s_common: "{{ (ansible_facts.os_family == 'Debian') | ternary(pkgs_k8s_common_debian, pkgs_k8s_common_rhel) }}"
+
+########################################################################################
+# Google Chrome リポジトリと鍵
+########################################################################################
+google_dl_google_pubkey_file: "linux_signing_key.pub"
+google_dl_google_pubkey: "https://dl.google.com/linux/{{ google_dl_google_pubkey_file }}"
+google_dl_google_pubkey_path_debian: "{{ repo_keyring_path_debian }}/google-linux.gpg"
+
+google_chrome_repo_debian: "https://dl.google.com/linux/chrome/deb/"
+google_chrome_repo_rhel:  "https://dl.google.com/linux/chrome/rpm/stable/x86_64"
+
+google_chrome_repo: "{{ (ansible_facts.os_family == 'Debian') | ternary(google_chrome_repo_debian, google_chrome_repo_rhel) }}"
+
+########################################################################################
+# 時刻同期（クライアント/サーバ）
+########################################################################################
+# クライアントは systemd-timesyncd か chrony を選択可能だが, chrony に統一可能にする
+# サーバは chrony を使用
+ntp_client_choice: "chrony"  # "systemd-timesyncd" or "chrony"
+ntp_client_is_chrony: "{{ ntp_client_choice == 'chrony' }}"
+ntp_client_is_systemd_timesyncd: "{{ ntp_client_choice == 'systemd-timesyncd' }}"
+
+# 基本パス
+ntp_client_chrony_conf_dir_debian: "/etc/chrony"
+ntp_client_chrony_conf_dir_rhel:   "/etc"
+ntp_client_chrony_conf_path_debian: "{{ ntp_client_chrony_conf_dir_debian }}/chrony.conf"
+ntp_client_chrony_conf_path_rhel:   "{{ ntp_client_chrony_conf_dir_rhel }}/chrony.conf"
+
+# サービス名
+ntp_client_chrony_service_debian: "chrony"
+ntp_client_chrony_service_rhel:   "chronyd"
+ntp_client_systemd_timesyncd_conf_path: "/etc/systemd/timesyncd.conf.d/99-timesyncd.conf"
+ntp_client_systemd_timesyncd_service: "systemd-timesyncd"
+ntp_server_service_debian:  "chrony"
+ntp_server_service_rhel:    "chronyd"
+ntp_server_chrony_service: "{{ (ansible_facts.os_family == 'Debian') | ternary(ntp_server_service_debian, ntp_server_service_rhel) }}"
+ntp_client_service: "{{ (ansible_facts.os_family == 'Debian') | ternary(ntp_client_is_chrony | ternary(ntp_client_chrony_service_debian, ntp_client_systemd_timesyncd_service), ntp_client_chrony_service_rhel) }}"
+
+# OS別に確定
+ntp_client_chrony_conf_path: "{{ (ansible_facts.os_family == 'Debian') | ternary(ntp_client_chrony_conf_path_debian, ntp_client_chrony_conf_path_rhel) }}"
+ntp_client_chrony_service: "{{ (ansible_facts.os_family == 'Debian') | ternary(ntp_client_chrony_service_debian, ntp_client_chrony_service_rhel) }}"
+ntp_client_chrony_conf_dir: "{{ (ansible_facts.os_family == 'Debian') | ternary(ntp_client_chrony_conf_dir_debian, ntp_client_chrony_conf_dir_rhel) }}"
+
+# drop-in ディレクトリ
+ntp_chrony_conf_drop_in_dir_debian: "/etc/chrony/chrony.d"
+ntp_chrony_conf_drop_in_dir_rhel:   "/etc/chrony.d"
+
+ntp_client_chrony_conf_drop_in_dir: "{{ (ansible_facts.os_family == 'Debian') | ternary(ntp_chrony_conf_drop_in_dir_debian, ntp_chrony_conf_drop_in_dir_rhel) }}"
+ntp_server_chrony_conf_drop_in_dir: "{{ (ansible_facts.os_family == 'Debian') | ternary(ntp_chrony_conf_drop_in_dir_debian, ntp_chrony_conf_drop_in_dir_rhel) }}"
+
+
+# confdir 用に“drop-in 側”をエスケープ
+ntp_client_chrony_confdir_escaped: "{{ ntp_client_chrony_conf_drop_in_dir | regex_escape() }}"
+
+# drop-in 配下に自前ファイルを置く場合のパス
+ntp_client_chrony_conf_drop_in_path: "{{ ntp_client_chrony_conf_drop_in_dir }}/99-custom.conf"
+
+ntp_server_service: "{{ (ansible_facts.os_family == 'Debian') | ternary(ntp_server_service_debian, ntp_server_service_rhel) }}"
+
+ntp_client_packages_debian: "{{ntp_client_is_chrony | ternary(['chrony'], ['systemd-timesyncd'])}}"
+ntp_client_packages_rhel:
+  - chrony
+
+ntp_client_packages: "{{ (ansible_facts.os_family == 'Debian') | ternary(ntp_client_packages_debian, ntp_client_packages_rhel) }}"
+
+ntp_server_packages_debian:
+  - chrony
+ntp_server_packages_rhel:
+  - chrony
+ntp_server_packages: "{{ (ansible_facts.os_family == 'Debian') | ternary(ntp_server_packages_debian, ntp_server_packages_rhel) }}"
+
+
+########################################################################################
+# 役割別パッケージ（Debian/RHEL で名称差あり）
+########################################################################################
+
+# common（最低限ユーティリティ）
+pkgs_common_debian:
+  - ca-certificates
+  - curl
+  - apt-file
+  - gpg
+  - gnupg
+  - lsb-release
+
+pkgs_common_rhel:
+  - ca-certificates
+  - curl
+  - gnupg2
+  - redhat-lsb-core
+
+# devel-packages（開発ツール）
+pkgs_devel_debian: #[build-essential, git, make, gcc, g++, pkg-config, python3, python3-pip]
+  - build-essential
+  - git
+  - make
+  - gcc
+  - g++
+  - pkg-config
+  - python3
+  - python3-pip
+
+pkgs_devel_rhel:  # [gcc, gcc-c++, make, git, pkgconfig, python3, python3-pip]
+  - gcc
+  - gcc-c++
+  - make
+  - git
+  - pkgconfig
+  - python3
+  - python3-pip
+
+# k8s-ctrlplane / k8s-worker で追加
+pkgs_k8s_ctrlplane_extra_debian: []
+pkgs_k8s_ctrlplane_extra_rhel:   []
+pkgs_k8s_worker_extra_debian:    []
+pkgs_k8s_worker_extra_rhel:      []
+
+########################################################################################
+# nfs-server
+########################################################################################
+# NFSサーバーパッケージ
+pkgs_nfs_server_debian:
+  - nfs-kernel-server
+
+pkgs_nfs_server_rhel:
+  - nfs-utils
+
+########################################################################################
+# DNS サーバー（BIND）
+########################################################################################
+
+# === パッケージ名 ===
+# dns-server（BIND）
+dns_bind_package_debian:
+  - bind9
+  - bind9-utils
+
+dns_bind_package_rhel:
+  - bind
+  - bind-utils
+
+dns_bind_packages: "{{ (ansible_facts.os_family == 'Debian') | ternary(dns_bind_package_debian, dns_bind_package_rhel) }}"
+
+# === 実行ユーザ/グループ/サービス名 ===
+dns_bind_user:  "{{ (ansible_facts.os_family == 'Debian') | ternary('bind',  'named') }}"
+dns_bind_group: "{{ (ansible_facts.os_family == 'Debian') | ternary('bind',  'named') }}"
+dns_bind_service:   "named"
+
+# === ディレクトリ/主要ファイル ===
+# 設定ディレクトリ
+dns_bind_conf_dir:  "{{ (ansible_facts.os_family == 'Debian') | ternary('/etc/bind', '/etc/named') }}"
+# メイン設定ファイル
+dns_bind_main_conf: "{{ (ansible_facts.os_family == 'Debian') | ternary('/etc/bind/named.conf', '/etc/named.conf') }}"
+# ゾーン格納ディレクトリ
+dns_bind_zone_dir:  "{{ (ansible_facts.os_family == 'Debian') | ternary('/var/lib/bind', '/var/named/zone') }}"
+# ランタイム（PID 等）ディレクトリ（存在しなければ作成）
+dns_bind_run_dir:   "{{ (ansible_facts.os_family == 'Debian') | ternary('/run/named', '/run/named') }}"
+# キャッシュディレクトリ
+dns_bind_cache_dir: "{{ (ansible_facts.os_family == 'Debian') | ternary('/var/cache/bind', '/var/named') }}"
+# オプションファイル
+dns_bind_options_conf_path: "{{ dns_bind_conf_dir }}/named.conf.options"
+dns_bind_options_conf_path_escaped: "{{ dns_bind_options_conf_path | regex_escape() }}"
+# === systemd 関連 ===
+dns_bind_systemd_dropin_dir: "/etc/systemd/system/{{ dns_bind_service }}.service.d"
+dns_bind_systemd_dropin_file: "90-override.conf"
+
+# === SELinux 関連（RHEL 系のみ使用） ===
+# SELinux のゾーン用タイプ
+dns_bind_selinux_type: "named_zone_t"
+# SELinux fcontext を適用するパス（RHEL 系で /var/named 配下のみ）
+dns_bind_selinux_target: "/var/named(/.*)?"
+########################################################################################
+# rancher（要 Docker; Helm はバイナリ導入前提が多いため OS パッケージは任意）
+pkgs_rancher_debian: []
+pkgs_rancher_rhel:   []
+
+# user-settings（OSパッケージに依らない前提のため空）
+pkgs_user_settings_debian: []
+pkgs_user_settings_rhel:   []
+
+########################################################################################
+# サービス名など（差異が出やすいもの）
+########################################################################################
+
+# SSH デーモンは両系とも "sshd" で共通だが、明示変数として定義しておく
+sshd_service_name_debian: sshd
+sshd_service_name_rhel:   sshd
+sshd_service_name: "{{ (ansible_facts.os_family == 'Debian') | ternary(sshd_service_name_debian, sshd_service_name_rhel) }}"
+
+# firewall サービス名
+firewalld_service_name: firewalld
+ufw_service_name:       ufw
+firewall_service_name: "{{ (ansible_facts.os_family == 'Debian') | ternary(ufw_service_name, firewalld_service_name) }}"
+
+# netcat コマンド名
+nc_command_debian: "nc"
+# RHEL 系では nmap-ncat パッケージに含まれる nc (netcatへのシンボリックリンク) を使用
+nc_command_rhel:   "nc"
+nc_command: "{{ (ansible_facts.os_family == 'Debian') | ternary(nc_command_debian, nc_command_rhel) }}"
+
+########################################################################################
+# 便利ユーティリティ
+########################################################################################
+# sysctl の永続ファイル（両系とも /etc/sysctl.d/*.conf を利用可能）
+sysctl_dropin_path: "/etc/sysctl.d/99-custom.conf"
+
+# 汎用テンプレートで使える OS 判定の糖衣
+is_debian: "{{ ansible_facts.os_family == 'Debian' }}"
+is_rhel:   "{{ ansible_facts.os_family == 'RedHat' }}"

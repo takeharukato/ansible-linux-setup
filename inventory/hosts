@@ -1,0 +1,21 @@
+#
+#  -*- coding:utf-8 mode:yaml -*-
+#
+[server]
+# devserver.local
+[rancher]
+# rancher01.local
+[k8s-ctrl-plane]
+# k8sctrlplane01.local
+# k8sctrlplane02.local
+[k8s-worker]
+# k8sworker0101.local
+# k8sworker0102.local
+# k8sworker0201.local
+# k8sworker0202.local
+[devel]
+# vmlinux1.local
+# vmlinux2.local
+# vmlinux3.local
+# vmlinux4.local
+# vmlinux5.local

@@ -1,0 +1,22 @@
+$TTL 86400
+@       IN      SOA     {{ dns_server }}. root.{{ dns_domain }}. (
+        {{ bind_serial }} ;Serial
+        3600            ;Refresh
+        1800            ;Retry
+        604800          ;Expire
+        86400           ;Minimum TTL
+)
+
+       IN      NS       {{ dns_server }}.
+
+{# 各行は, 先頭にインデントを入れてはいけないことに注意 #}
+{#- Jinja2の'-'を使用して前後の空白を削除すると末尾の改行が削除されるので使用していない #}
+{% for host in dns_host_list %}
+{% set oct = (host.ipv4_addr | default('',true) | string | trim) %}
+{% set name = (host.name | default('',true) | string | trim) %}
+{% if name and oct|regex_search('^[0-9]{1,3}$') and (oct|int >= 0) and (oct|int <= 255) %}
+; {{ oct }} IN PTR {{ name }}.{{ dns_domain }}.
+{{ oct }} IN PTR {{ name }}.{{ dns_domain }}.
+
+{% endif %}
+{% endfor %}

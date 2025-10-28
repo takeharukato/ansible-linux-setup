@@ -1,0 +1,216 @@
+# -------- 基本設定（キーボード/言語/タイムゾーン/インストール方式） --------
+text
+lang en_US.UTF-8
+keyboard us
+timezone Asia/Tokyo --utc
+cmdline
+
+# ディスク自動構成 ( 全領域使用 : 最小構成 )
+zerombr
+clearpart --all --initlabel
+autopart --type=plain
+
+# ネットワーク : IPv4 は DHCP, 自動起動, 有効化
+#
+network --device=link --bootproto=dhcp --activate --hostname=rhel-vm
+
+# インストール元 : DVD
+cdrom
+
+# root アカウント無効化時は以下のコマンドを実行
+# rootpw --lock
+
+# ansible ユーザを作成 ( yescrypt/SHA-512 いずれのハッシュでも可 )
+# 例: yescrypt は whois の mkpasswd:   mkpasswd -m yescrypt '${USER_NAME}'
+#     sha512   は openssl: openssl passwd -6 '${USER_NAME}'
+user --name="${USER_NAME}" --gecos="${USER_NAME_GECOS}" --groups=wheel --iscrypted --password="${USER_PASSWD_HASH}"
+
+# SELinux/Firewall ( mDNS を許可 )
+selinux --permissive
+firewall --enabled --service=ssh --service=mdns
+
+# 必要サービス  ※start は初回ブート時に systemd が行うので enable だけでOK
+services --enabled="avahi-daemon"
+
+# -------- 導入パッケージ --------
+#
+%packages
+@core
+avahi
+avahi-tools
+open-vm-tools
+curl
+%end
+
+# -------- 追加設定 ( インストール先 chroot 内で実行 )  --------
+%post --nochroot --log=/mnt/sysimage/root/ks-post.nochroot.log --interpreter=/bin/bash
+# -e/-u は必ず有効化。pipefail は対応していれば有効化。
+set -eu
+exec >>/mnt/sysimage/root/ks-post.nochroot.trace 2>&1
+(set -o pipefail) 2>/dev/null && set -o pipefail || true
+set -x
+
+# ---- GitHub鍵をインストール環境で取得し, ターゲットへ一時保存 ----
+u="${USER_NAME}"
+tmp="/tmp/authorized_keys.github"
+# ネットワーク事情で失敗しても続行 ( 空ファイルは作らない )
+if curl -fsSL -H 'User-Agent: ks' -o "$tmp" "https://github.com/${GITHUB_USER}.keys" && [ -s "$tmp" ]; then
+  install -D -m 600 "$tmp" "/mnt/sysimage/var/tmp/authorized_keys.github"
+fi
+rm -f "$tmp" || true
+%end
+
+%post --log=/root/ks-post.log --interpreter=/bin/bash
+# -e/-u は必ず有効化。pipefail は対応していれば有効化。
+set -eu
+exec >>/root/ks-post.trace 2>&1
+(set -o pipefail) 2>/dev/null && set -o pipefail || true
+set -x
+
+# open-vm-toolsのサービスの有効化
+systemctl enable vmtoolsd.service || true
+
+# wheel の NOPASSWD 化 ( 必要なければ外す )
+echo '%wheel ALL=(ALL) NOPASSWD:ALL' > /etc/sudoers.d/99-wheel-nopw
+chmod 440 /etc/sudoers.d/99-wheel-nopw
+
+# ansible ユーザの SSH 公開鍵 ( nochroot 側で取得済みのものがあれば配置 )
+u="${USER_NAME}"
+home="/home/$u"
+# ユーザー作成タイミングに依存しないよう, まずは所有者指定なしで作成 から 後で chown
+mkdir -p "${home}/.ssh"
+chmod 700 "${home}/.ssh"
+if [ -s "/var/tmp/authorized_keys.github" ]; then
+  install -m 600 "/var/tmp/authorized_keys.github" "${home}/.ssh/authorized_keys"
+  rm -f "/var/tmp/authorized_keys.github" || true
+fi
+# ここでまとめて所有権を設定 ( ユーザー未作成でも失敗させない )
+chown -R "${u}:${u}" "${home}/.ssh" || true
+# 将来, SE LinuxをEnforcingにした場合に備えて, セキュリティコンテキストを再設定する
+command -v restorecon >/dev/null 2>&1 && restorecon -R /home/ansible/.ssh || true
+
+# mDNS ホスト名確認・変更用スクリプト ( /home/ansible/update-hostname.sh )
+mkdir -p "${home}"
+chmod 755 "${home}"
+cat > "${home}/update-hostname.sh" <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+
+if [[ ${EUID} -ne 0 ]]; then echo "Use sudo: sudo $0 <new-hostname>" >&2; exit 1; fi
+if [[ $# -lt 1 ]]; then echo "Usage: $0 <new-hostname>" >&2; exit 2; fi
+NEW="$1"
+
+# 簡易なホスト名バリデーション
+if ! [[ "${NEW}" =~ ^[A-Za-z0-9]([-A-Za-z0-9]{0,62})(\.[A-Za-z0-9]([-A-Za-z0-9]{0,62}))*$ ]]; then
+  echo "Invalid hostname: ${NEW}" >&2; exit 3
+fi
+
+# 必要なパッケージのインストール
+echo "Ensure avahi, avahi-tools, open-vm-tools"
+dnf -y install avahi avahi-tools open-vm-tools || true
+
+# open-vm-toolsのサービスの有効化
+echo "Enable vmtoolsd.service ( open-vm-tools ) ..."
+systemctl enable vmtoolsd.service || true
+
+# ホスト名の変更
+hostnamectl set-hostname "${NEW}"
+
+# avahi-daemonのサービスの有効化
+echo "Enable avahi-daemon ..."
+systemctl enable avahi-daemon || true
+
+# avahi-daemonサービスの有効化
+echo "Restarting avahi-daemon..."
+
+echo "=== Hostname ==="
+echo "Hostname (static): $(hostnamectl --static)"
+SYSTEMD_PAGER= systemctl restart avahi-daemon || true
+echo
+
+echo "=== IP Addresses (global) ==="
+if command -v ip >/dev/null 2>&1; then
+
+  set +e
+  ip -4 addr show scope global | awk '/inet/{print "  IPv4: "$2" dev "$7}'
+  ip -6 addr show scope global | awk '/inet6/{print "  IPv6: "$2" dev "$7}'
+  set -e
+  echo
+
+fi
+
+echo "=== Media Access Control (MAC) Addresses ==="
+
+if command -v ip >/dev/null 2>&1; then
+
+  PHYS_IFACES=()
+
+  # NICの一覧を_all_ifacesに格納
+  set +e
+  mapfile -t _all_ifaces < <(ip -o link show | awk -F': ' '{print $2}')
+  set -e
+
+  for IF in "${_all_ifaces[@]}"
+  do
+    # @の前を切り出す. 例ens160@if3 をens160に変換
+    _base_if="${IF%%@*}"
+    if [[ -e "/sys/class/net/${_base_if}/device" ]]; then
+
+      # 重複がない様にしてPHYS_IFACES配列に追加
+      [[ " ${PHYS_IFACES[*]} " =~ " ${_base_if} " ]] || PHYS_IFACES+=("${_base_if}")
+    fi
+  done
+
+  for _nic in "${PHYS_IFACES[@]}"; do
+
+    set +e
+    _mac="$(cat "/sys/class/net/${_nic}/address" 2>/dev/null)"
+    set -e
+    [[ -n "${_mac}" ]] && printf "%s : %s\n" "${_nic}" "${_mac}"
+  done
+
+  echo
+
+fi
+
+
+if command -v avahi-resolve >/dev/null 2>&1; then
+
+  echo "=== mDNS resolution via Avahi ==="
+
+  set +e
+  avahi-resolve -4 -n "${NEW}.local" || true
+  avahi-resolve -6 -n "${NEW}.local" || true
+  set -e
+elif command -v getent >/dev/null 2>&1; then
+
+  echo "=== mDNS resolution via getent ==="
+  set +e
+  getent ahosts "${NEW}.local" || true
+  set -e
+else
+  echo "  (no avahi-resolve/getent; skip check)"
+fi
+
+echo
+echo "Done. Try:  ssh ansible@${NEW}.local"
+
+EOF
+
+# 実行権を付与
+chmod 0755 "${home}/update-hostname.sh" || true
+# スクリプトの所有者設定 ( ユーザー未作成でも失敗させない )
+chown "${u}:${u}" "${home}/update-hostname.sh" || true
+# 将来, SE LinuxをEnforcingにした場合に備えて, セキュリティコンテキストを再設定する
+command -v restorecon >/dev/null 2>&1 && restorecon /home/ansible/update-hostname.sh || true
+
+# firewalld で mDNS を念のため明示許可(上の --service=mdns と二重でも問題なし)
+# ※失敗しても無視 ( firewalld が無効化されている場合など )
+if command -v firewall-cmd >/dev/null 2>&1; then
+  firewall-cmd --permanent --add-service=mdns || true
+  firewall-cmd --reload || true
+fi
+
+%end
+
+reboot

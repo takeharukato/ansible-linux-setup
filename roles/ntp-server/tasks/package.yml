@@ -1,0 +1,14 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  パッケージ関連処理
+#
+
+# ntpサーバ
+- name: Install chrony
+  package:
+    pkg:
+      '{{ ntp_server_packages }}'
+    state: latest
+  notify: disable_gui

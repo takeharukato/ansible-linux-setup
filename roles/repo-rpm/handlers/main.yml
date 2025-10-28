@@ -1,0 +1,31 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  リポジトリ関連ハンドラ
+#
+
+# RPMキャッシュのクリア
+- name: rpm clean
+  listen: "rpm clean"
+  ansible.builtin.command: dnf -q -y clean all
+  changed_when: true
+
+# RPMメタデータキャッシュの作成
+- name: rpm makecache
+  listen: "rpm makecache"
+  ansible.builtin.command: dnf -q -y makecache
+  changed_when: true
+  notify: "rpm validate"
+
+# インストール可能パッケージの検証
+- name: rpm validate
+  listen: "rpm validate"
+  ansible.builtin.shell: |
+    set -euo pipefail
+    for p in {{ validate_packages_rpm | join(' ') }}; do
+      repoquery --pkgnarrow=available "$p" >/dev/null 2>&1 || true
+    done
+  args:
+    executable: /bin/bash
+  changed_when: false

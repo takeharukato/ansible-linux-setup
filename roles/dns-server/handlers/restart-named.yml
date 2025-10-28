@@ -1,0 +1,18 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+# notify の Reload systemd & restart named に対応
+- name: systemd daemon-reload
+  listen: "Reload systemd & restart named"
+  become: true
+  systemd:
+    daemon_reload: true
+
+- name: restart named
+  listen: "Reload systemd & restart named"
+  become: true
+  systemd:
+    name: "{{ dns_bind_service }}"
+    state: restarted
+    enabled: true

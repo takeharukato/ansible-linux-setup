@@ -1,0 +1,36 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+
+#
+# 基本コマンド関連処理
+# kubectl導入の関係上リポジトリ登録を事前に実施しておくことを想定
+
+# SELinux ( RHEL 系＋SELinux 有効時のみ）
+- name: Ensure semanage is available (RHEL/Alma)
+  ansible.builtin.package:
+    name: policycoreutils-python-utils
+    state: present
+  when:
+    - ansible_facts.os_family == "RedHat"
+
+# 基本コマンドのインストール
+- name: Install common packages
+  package:
+    pkg:
+      '{{ common_packages }}'
+    state: latest
+  notify:
+    - disable_gui
+    - "{{ pkg_autoremove_handler }}"
+
+# apt file update
+- name: apt-file update
+  shell: |
+    apt-file update
+  become: true
+  when: ansible_facts.os_family == 'Debian'
+  notify:
+    - disable_gui
+    - "{{ pkg_autoremove_handler }}"

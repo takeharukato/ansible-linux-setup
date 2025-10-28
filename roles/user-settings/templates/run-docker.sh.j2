@@ -1,0 +1,10 @@
+#!/bin/bash
+if [ $# -gt 0 ]; then
+    docker run \
+	   -it \
+	   -u "$(id -u $(whoami)):$(id -g $(whoami))" \
+	   -v /etc:/etc:ro \
+	   -v /usr:/usr:ro \
+	   -v /home:/home \
+	   $@
+fi

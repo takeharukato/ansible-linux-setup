@@ -1,0 +1,71 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  kubelet設定タスク
+#
+
+# ネットワークインターフェース定義を設定
+- name: Normalize multi NIC items
+  ansible.builtin.set_fact:
+    _k8s_common_netif_items: "{{ _netif_list_effective }}"
+
+# 1) kubelet が使う NIC 名を決定（k8s_kubelet_nic > mgmt_nic）
+- name: Decide interface name for kubelet (prefer k8s_kubelet_nic, else mgmt_nic)
+  ansible.builtin.set_fact:
+    _kubelet_if_name: "{{ k8s_kubelet_nic if (k8s_kubelet_nic is defined and (k8s_kubelet_nic|length)>0) else (mgmt_nic if (mgmt_nic is defined and (mgmt_nic|length)>0) else '') }}"
+
+# 2) 未指定なら即エラー
+- name: Ensure kubelet interface name is specified
+  ansible.builtin.assert:
+    that:
+      - _kubelet_if_name is defined
+      - _kubelet_if_name | length > 0
+    fail_msg: "No kubelet interface name specified. Set k8s_kubelet_nic or mgmt_nic."
+
+# 3) _k8s_common_netif_items から“該当する項目のみ”を取得
+- name: Pick interface item from _k8s_common_netif_items (no fallback)
+  ansible.builtin.set_fact:
+    _kubelet_item: "{{ (_k8s_common_netif_items | selectattr('netif','equalto', _kubelet_if_name) | list) | first }}"
+
+# 4) 指定名が一覧に無ければエラー
+- name: Ensure chosen interface exists in _k8s_common_netif_items
+  ansible.builtin.assert:
+    that:
+      - _kubelet_item is defined
+      - _kubelet_item.netif is defined
+      - _kubelet_item.netif | length > 0
+    fail_msg: "Specified interface '{{ _kubelet_if_name }}' not found in _k8s_common_netif_items."
+
+# 5) IPv4/IPv6 を抽出
+- name: Extract node IPv4/IPv6 from the picked item
+  ansible.builtin.set_fact:
+    node_ipv4_addr: "{{ _kubelet_item.static_ipv4_addr | default('') }}"
+    node_ipv6_addr: "{{ _kubelet_item.static_ipv6_addr | default('') }}"
+
+# 6) IPv4/IPv6いずれかが無ければエラー
+- name: Ensure at least one static IP is available for the chosen interface
+  ansible.builtin.assert:
+    that:
+      - (node_ipv4_addr | length) > 0 or (node_ipv6_addr | length) > 0
+    fail_msg: "Interface '{{ _kubelet_if_name }}' has no static IPv4 or IPv6 address."
+
+# 7) コントロールプレイン広告用アドレス順序で並べ替え
+- name: Order node IPs to match control-plane advertisement (list only)
+  ansible.builtin.set_fact:
+    node_ips_ordered: "{{ ( [node_ipv6_addr, node_ipv4_addr] if (k8s_ctrlplane_is_ipv6 | default(false)) else [node_ipv4_addr, node_ipv6_addr] ) | reject('equalto','') | list }}"
+
+# 8) --node-ip引数文字列を構築
+- name: Build --node-ip argument string
+  ansible.builtin.set_fact:
+    node_ip_arg: "{{ node_ips_ordered | join(',') }}"
+
+# kubelet config
+- name: "setup {{etc_default_dir}}/kubelet"
+  template:
+    src: default-kubelet-config.j2
+    dest: "{{etc_default_dir}}/kubelet"
+    owner: root
+    group: root
+    mode: 0644
+    backup: no

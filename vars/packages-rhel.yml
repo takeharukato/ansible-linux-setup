@@ -1,0 +1,244 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+# -*- coding:utf-8 mode:yaml -*-
+
+#
+# RHELパッケージ群変数定義
+#
+
+common_vmware_packages:
+  - open-vm-tools
+
+common_packages:
+  - dnf-plugins-core
+  - ksh
+  - zsh
+  - curl
+  - wget
+  - net-tools
+  - util-linux
+  - sudo
+  - passwd
+  - bzip2
+  - nano
+  - tar
+  - xz
+  - tmux
+  - screen
+  - emacs
+  - vim-enhanced
+  - tree
+  - ansible-core
+  - nfs-utils
+  - bind-utils
+  - nmap-ncat
+  - genisoimage
+  - cloud-utils-growpart
+  - whois
+  - NetworkManager
+  - policycoreutils-python-utils
+  - ipvsadm
+  - nftables
+  - tcpdump
+  - pssh
+  - kubectl
+
+common_langpack_packages:
+  - glibc-langpack-ja
+  - langpacks-ja
+  - nkf
+  - google-noto-sans-cjk-ttc-fonts
+  - google-noto-serif-cjk-ttc-fonts
+
+k8s_containerd_packages:
+  - containerd.io
+
+k8s_common_packages:
+  - kubectl
+  - kubeadm
+  - kubelet
+
+k8s_common_prerequisite_packages:
+  - ca-certificates
+  - curl
+  - gnupg2
+  - dnf-plugins-core
+  - yq
+  - jq
+
+k8s_netgauge_packages:
+  - gnuplot
+  - python3-pip
+  - python3-matplotlib
+  - python3-numpy
+
+common_mdns_packages:
+  - avahi
+  - avahi-tools
+  - nss-mdns
+
+devel_packages:
+  - Lmod
+  - aspell
+  - aspell-en
+  - dbus
+  - evince
+  - patchutils
+  - ninja-build
+  - gcc
+  - gcc-c++
+  - make
+  - gdb
+  - bash
+  - gawk
+  - gzip
+  - bzip2
+  - tar
+  - perl
+  - libmpc-devel
+  - glibc-devel.i686
+  - libgcc.i686
+  - libstdc++-devel.i686
+  - automake
+  - autoconf
+  - gettext
+  - libtool
+  - libtool-ltdl-devel
+  - gperf
+  - guile30
+  - texinfo
+  - texlive
+  - texlive-collection-basic
+  - texlive-collection-latexrecommended
+  - texlive-collection-fontsrecommended
+  - pandoc
+  - ruby-devel
+  - python3-sphinx
+  - git
+  - diffutils
+  - patch
+  - rsync
+  - elfutils
+  - gmp-devel
+  - mpfr-devel
+  - binutils
+  - zstd
+  - openssl
+  - libedit-devel
+  - libxml2-devel
+  - cmake
+  - boost-devel
+  - perl-Regexp-Common
+  - python3
+  - python3-devel
+  - python3-pip
+  - swig
+  - subversion
+  - flex
+  - bison
+  - graphviz
+  - doxygen
+  - docbook-utils
+  - docbook-style-xsl
+  - valgrind
+  - nasm
+  - acpica-tools
+  - giflib-devel
+  - libpng-devel
+  - libtiff-devel
+  - gtk3-devel
+  - ncurses
+  - ncurses-devel
+  - gnutls
+  - nettle-devel
+  - libgcrypt-devel
+  - SDL2-devel
+  - libguestfs-tools
+  - python3-brlapi
+  - bluez
+  - libusb-devel
+  - libcap-devel
+  - libcap-ng-devel
+  - libiscsi-devel
+  - libnfs-devel
+  - libguestfs-devel
+  - libcacard-devel
+  - lzo-devel
+  - xz-devel
+  - libseccomp-devel
+  - libssh-devel
+  - libssh2-devel
+  - mesa-libGLU-devel
+  - mesa-libGL-devel
+  - mesa-libEGL-devel
+  - freeglut-devel
+  - libattr-devel
+  - libaio-devel
+  - libtasn1-devel
+  - gperftools
+  - gperftools-devel
+  - device-mapper-multipath
+  - cyrus-sasl-devel
+  - libpmem-devel
+  - libpmem2-devel
+  - libpmemobj-devel
+  - libpmemblk-devel
+  - libpmempool-devel
+  - libpmemobj++-devel
+  - systemd-devel
+  - rdma-core-devel
+  - libvirt-devel
+  - libffi-devel
+  - daxctl-devel
+  - mesa-libgbm-devel
+  - lua
+  - lasi-devel
+  - poppler-utils
+  - librsvg2-tools
+  - librsvg2-devel
+  - gd-devel
+  - libwebp-devel
+  - libXaw-devel
+  - tcl
+  - ruby
+  - R
+  - ocaml
+  - php
+  - xorriso
+  - lcms2-devel
+  - libjpeg-turbo-devel
+  - freetype-devel
+  - libpaper-devel
+  - golang
+  - llvm
+  - clang
+  - mercurial
+  - google-chrome-stable
+  - fuse3-devel
+  - SDL_image-devel
+  - pam-devel
+  - libcurl-devel
+  - snappy-devel
+  - java-17-openjdk-devel
+  - intltool
+  - nodejs
+  - npm
+
+ldap_utils_packages:
+  - openldap-clients
+
+dns_bind_packages:
+  - bind
+  - bind-utils
+
+nfs_server_packages:
+  - nfs-utils
+
+ntp_server_packages:
+  - chrony
+
+rancher_pyopenssl_packages:
+  - python3-pip
+  - python3-pyOpenSSL

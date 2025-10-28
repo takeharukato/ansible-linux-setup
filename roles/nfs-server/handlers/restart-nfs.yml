@@ -1,0 +1,12 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+
+# NFSを再起動する
+- name: restart_nfs
+  listen: "restart_nfs"
+  systemd:
+    name: nfs-server
+    state: restarted
+    enabled: true
+  become: true

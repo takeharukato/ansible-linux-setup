@@ -1,0 +1,16 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  muticast DNS サービス起動処理実体
+#
+
+# notify の avahi_restarted_and_enabled に対応するハンドラ
+- name: avahi_restarted_and_enabled
+  listen: avahi_restarted_and_enabled
+  systemd:
+    name: avahi-daemon
+    state: restarted
+    daemon_reload: true
+    enabled: true
+  become: true

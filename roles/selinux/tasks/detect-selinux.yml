@@ -1,0 +1,23 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  SE Linux 検出処理実装部
+#
+---
+# ランタイム切替フラグ
+- name: Check /sys/fs/selinux/enforce
+  ansible.builtin.stat:
+    path: /sys/fs/selinux/enforce
+  register: se_enforce_file
+
+# 永続設定ファイル
+- name: Check /etc/selinux/config
+  ansible.builtin.stat:
+    path: /etc/selinux/config
+  register: se_config_file
+
+- name: Set fact selinux_present
+  ansible.builtin.set_fact:
+    selinux_present: "{{ (se_enforce_file.stat.exists | default(false)) or
+                         (se_config_file.stat.exists | default(false)) }}"

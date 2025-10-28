@@ -1,0 +1,80 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  ロール固有変数のデフォルト値
+#  group_vars/all/all.yml やhost_varsで上書き可能とするため,
+#  ロール名/defaults/main.yml に定義している
+
+# 有効化フラグ ( 標準 )
+# BaseOS
+repo_enable_base: true
+# AppStream
+repo_enable_appstream: true
+# Code Ready Builder
+repo_enable_crb: true
+
+# Extra Packages for Enterprise Linux
+repo_enable_epel: true
+# Kubernetes
+repo_enable_kubernetes: true
+# Chrome
+repo_enable_chrome: true
+# Docker CE
+repo_enable_docker_ce: true
+
+# 検証/通信
+repo_sslverify: true
+repo_gpgcheck: true
+repo_repogpgcheck: true
+
+# 優先度 ( 小さいほど優先 )
+priority_baseos: 1
+priority_appstream: 2
+priority_crb: 5
+priority_epel: 90
+priority_kubernetes: 80
+priority_chrome: 85
+priority_docker_ce: 70
+
+# Alma/Rocky ミラー
+almalinux_mirror_baseos: "https://mirrors.almalinux.org/mirrorlist/{{ansible_distribution_major_version}}/baseos"
+almalinux_mirror_appstream: "https://mirrors.almalinux.org/mirrorlist/{{ansible_distribution_major_version}}/appstream"
+almalinux_mirror_crb: "https://mirrors.almalinux.org/mirrorlist/{{ansible_distribution_major_version}}/crb"
+almalinux_gpgkey_file: "/etc/pki/rpm-gpg/RPM-GPG-KEY-AlmaLinux-9"
+
+# EPEL
+epel_gpgkey_url: "https://dl.fedoraproject.org/pub/epel/RPM-GPG-KEY-EPEL-{{ansible_distribution_major_version}}"
+epel_gpgkey_file: "/etc/pki/rpm-gpg/RPM-GPG-KEY-EPEL-{{ansible_distribution_major_version}}"
+epel_mirrorlist: "https://mirrors.fedoraproject.org/metalink?repo=epel-{{ansible_distribution_major_version}}&arch=$basearch"
+
+# Kubernetes (pkgs.k8s.io)
+k8s_major_minor: "1.31"
+k8s_repo_name: "kubernetes"
+k8s_baseurl: "https://pkgs.k8s.io/core:/stable:/v{{k8s_major_minor}}/rpm/"
+k8s_gpgkey_url: "https://pkgs.k8s.io/core:/stable:/v{{k8s_major_minor}}/rpm/repodata/repomd.xml.key"
+k8s_gpgkey_file: "/etc/pki/rpm-gpg/RPM-GPG-KEY-kubernetes"
+
+# Chrome
+chrome_keyring_url: "https://dl.google.com/linux/linux_signing_key.pub"
+chrome_rpm_baseurl: "https://dl.google.com/linux/chrome/rpm/stable/$basearch"
+chrome_rpm_gpg_file: "/etc/pki/rpm-gpg/google-chrome-archive-keyring.gpg"
+
+# Docker CE
+docker_ce_keyring_url: "https://download.docker.com/linux/centos/gpg"
+docker_ce_rpm_baseurl: "https://download.docker.com/linux/centos/$releasever/$basearch/stable"
+docker_ce_rpm_gpg_file: "/etc/pki/rpm-gpg/docker-archive-keyring.gpg"
+docker_ce_includepkgs:
+  - 'docker-ce'
+  - 'docker-ce-cli'
+  - 'containerd.io'
+  - 'docker-buildx-plugin'
+  - 'docker-compose-plugin'
+
+# 到達性検証 ( 代表 )
+validate_packages_rpm:
+  - bash
+  - coreutils
+  - containerd.io
+  - google-chrome-stable
+  - kubelet

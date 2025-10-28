@@ -1,0 +1,34 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  VM/言語パッケージ関連処理
+#
+
+# multicast DNS
+- name: Install multicast DNS packages
+  package:
+    pkg:
+      '{{ common_mdns_packages }}'
+    state: latest
+  notify:
+    - avahi_restarted_and_enabled
+
+# 言語パッケージのインストール
+- name: Install language packages
+  package:
+    pkg:
+      '{{ common_langpack_packages }}'
+    state: latest
+  notify: disable_gui
+
+# VMware packages
+- name: Install VMware packages
+  package:
+    pkg:
+      '{{ common_vmware_packages }}'
+    state: latest
+  when: use_vmware|bool
+  notify:
+    - disable_gui
+    - pkg-autoremove

@@ -1,0 +1,20 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+# 設定値チェックタスク群
+#
+
+# mgmt_nic 変数の正規化
+- name: "Normalize mgmt_nic from {{common_default_nic}}"
+  ansible.builtin.set_fact:
+    mgmt_nic: "{{ common_default_nic | default('', true) }}"
+  when: mgmt_nic is not defined or (mgmt_nic | default('', true) | length) == 0
+  changed_when: false
+
+- name: Assert mgmt_nic is resolved
+  ansible.builtin.assert:
+    that:
+      - (mgmt_nic | default('', true) | length) > 0
+    fail_msg: 'Setting either "mgmt_nic" or "common_default_nic" is necessary.'
+  changed_when: false

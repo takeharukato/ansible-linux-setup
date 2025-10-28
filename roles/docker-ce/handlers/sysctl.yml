@@ -1,0 +1,10 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  sysctl設定適用ハンドラ
+#
+
+- name: apply_sysctl
+  ansible.builtin.command: sysctl --system
+  listen: "apply_sysctl"

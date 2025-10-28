@@ -1,0 +1,192 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  設定関連タスク
+#
+
+#
+# k8s-ctrlplane の kubeadm 設定ファイルを生成する
+#
+
+#
+# k8s-ctrlplane_endpoint が IPv4 か IPv6 かで API のファミリを決定する
+#
+- name: Decide API family (IPv6 or IPv4)
+  set_fact:
+    api_is_v6: "{{ ':' in k8s_ctrlplane_endpoint | string }}"
+
+# k8s_pod_network_cidr, k8s_service_subnet を変数に設定
+- name: Decide podSubnet and serviceSubnet
+  set_fact:
+    k8s_pod_network_cidr: "{{ k8s_pod_ipv4_network_cidr }},{{ k8s_pod_ipv6_network_cidr }}"
+    k8s_service_subnet: "{{ k8s_pod_ipv4_service_subnet }},{{ k8s_pod_ipv6_service_subnet }}"
+
+# 設定値の正規化
+
+# CSV -> list（空白除去）
+- name: Normalize network CIDR inputs
+  set_fact:
+    _pods_list:    "{{ (k8s_pod_network_cidr | default('',true) | regex_replace('\\s','')).split(',') | reject('equalto','') | list }}"
+    _services_list: "{{ (k8s_service_subnet  | default('',true) | regex_replace('\\s','')).split(',') | reject('equalto','') | list }}"
+
+# v6 と v4 に分割
+- name: Split v6/v4 for pods and services
+  set_fact:
+    _pods_v6:     "{{ _pods_list     | select('search', ':')         | list }}"
+    _pods_v4:     "{{ _pods_list     | reject('search', ':')         | list }}"
+    _svc_v6:      "{{ _services_list | select('search', ':')         | list }}"
+    _svc_v4:      "{{ _services_list | reject('search', ':')         | list }}"
+
+# API のファミリに合わせて IPv6, IPv4 か IPv4 から IPv6 に並べ替え
+# 本項目を実施しないと, kubeadm init 時にAPIサーバが起動しない
+# service IP family "IPv4アドレス" must match public address family "IPv6アドレス"
+# または
+# service IP family "IPv6アドレス" must match public address family "IPv4アドレス"
+# というエラーになる
+# 例: APIがIPv6のとき, IPv4, IPv6の順に並んでいると以下のようなエラーになる
+# service IP family "10.245.0.0/16" must match public address family "fd69:6684:61a:1::41"
+- name: Order subnets to match API family
+  set_fact:
+    podSubnet_ordered:     "{{ (k8s_ctrlplane_is_ipv6 | bool) | ternary(_pods_v6 + _pods_v4, _pods_v4 + _pods_v6) | join(',') }}"
+    serviceSubnet_ordered: "{{ (k8s_ctrlplane_is_ipv6 | bool) | ternary(_svc_v6  + _svc_v4,  _svc_v4  + _svc_v6)  | join(',') }}"
+
+# bind-address も条件で作る (v6 のときは ::, v4 のときは 0.0.0.0)
+- name: Decide bind-address by API family
+  set_fact:
+    bind_address: "{{ '::' if k8s_ctrlplane_is_ipv6 else '0.0.0.0' }}"
+
+# kubelet の node-ip も明示 (リンクローカル/複数NICでの誤設定防止)
+- name: Decide kubelet node-ip
+  set_fact:
+    kubelet_node_ip: "{{ k8s_ctrlplane_endpoint }}"
+
+# コントロールプレインセットアップファイルの生成
+- name: Generate setup file
+  template:
+    src: ctrlplane-kubeadm.config.j2
+    dest: "{{ k8s_kubeadm_config_store }}/ctrlplane-kubeadm.config.yml"
+    owner: root
+    group: root
+    mode: 0644
+    backup: no
+
+- block:
+  - name: reset configuration
+    shell: |
+      kubeadm reset -f
+    become: true
+
+  - name: stop kubelet
+    systemd:
+      name: kubelet
+      state: stopped
+    become: true
+
+  - name: remove /etc/kubernetes/manifests
+    file:
+      path: /etc/kubernetes/manifests
+      state: absent
+    become: true
+
+  - name: kubeadm configuration file
+    shell: |
+      cat "{{ k8s_kubeadm_config_store }}/ctrlplane-kubeadm.config.yml"
+
+  - name: remove /var/lib/kubelet/cpu_manager_state
+    file:
+      path: /var/lib/kubelet/cpu_manager_state
+      state: absent
+    become: true
+
+  # setup control plane with kubeadm
+  - name: setup control plane
+    shell: |
+      kubeadm init --config="{{ k8s_kubeadm_config_store }}/ctrlplane-kubeadm.config.yml" "{{ k8s_kubeadm_ignore_preflight_errors_arg }}"
+    become: true
+
+# containerd と kubelet を有効化
+# 念のため, 片方未導入でも他方は進めるようにfailed_when: false を指定
+- name: Enable containerd and kubelet
+  ansible.builtin.service:
+    name: "{{ item }}"
+    enabled: true
+  loop:
+    - containerd
+    - kubelet
+  failed_when: false
+  become: true
+  notify:
+    - "kubelet_restarted_and_enabled"
+    - "reboot_node_handler"
+
+
+- block:
+
+  - name: make .kube dir for root
+    file:
+      path: "/root/.kube"
+      state: directory
+      owner: "root"
+      group: "root"
+      mode: "0755"
+
+  - name: make .kube dir for ansible
+    file:
+      path: "{{ ansible_home_dir }}/.kube"
+      state: directory
+      owner: "ansible"
+      group: "ansible"
+      mode: "0755"
+
+  - name: "make .kube dir for {{ k8s_operator_user }}"
+    file:
+      path: "/home/{{ k8s_operator_user }}/.kube"
+      state: directory
+      owner: "{{ k8s_operator_user }}"
+      group: "{{ k8s_operator_user }}"
+      mode: "0755"
+
+  - name: copy admin config
+    shell: |
+      cp /etc/kubernetes/admin.conf /root/.kube/config
+    become: true
+
+  - name: copy admin config to ansible
+    shell: |
+      cp "/etc/kubernetes/admin.conf" "{{ ansible_home_dir }}/.kube/config"
+    become: true
+
+  - name: change owner for ansible
+    file:
+      path: "{{ ansible_home_dir }}/.kube/config"
+      owner: ansible
+      group: ansible
+      mode: "0644"
+      state: file
+
+  - name: copy admin config to /home/{{ k8s_operator_user }}/.kube directory
+    shell: |
+      cp /etc/kubernetes/admin.conf "/home/{{ k8s_operator_user }}/.kube/config"
+    become: true
+
+  - name: change owner of "/home/{{ k8s_operator_user }}/.kube/config"
+    file:
+      path: "/home/{{ k8s_operator_user }}/.kube/config"
+      mode: "0644"
+      owner: "{{ k8s_operator_user }}"
+      group: "{{ k8s_operator_user }}"
+      state: file
+    become: true
+
+# マシンをリブートする
+- name: Reboot host gracefully
+  reboot:
+    reboot_timeout: 600
+    msg: "Reboot triggered by role: common"
+    pre_reboot_delay: 2
+
+# ssh が使えるようになるのを待つ
+- name: Wait for connection after reboot
+  wait_for_connection:
+    timeout: 300

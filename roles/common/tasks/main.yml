@@ -1,0 +1,26 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#  タスクメイン部
+#  include_tasksで他のタスクを読み込む
+
+# 最初に変数設定を読み直す ( role単独で実行可能とするため )
+- include_tasks: load-params.yml
+- include_tasks: config-pre-check.yml
+- include_tasks: config-timezone.yml
+- include_tasks: config-disable-firewall.yml
+  when: not enable_firewall | default(false,true)
+- include_tasks: config-prepare-nm.yml
+- include_tasks: config-network-multi.yml
+- include_tasks: config-sudoer.yml
+- include_tasks: sysctl.yml
+- include_tasks: cron-setting.yml
+- include_tasks: package.yml
+- include_tasks: kubectl-repositories.yml
+- include_tasks: common-packages.yml
+- include_tasks: directory.yml
+- include_tasks: directory-dns-client.yml
+  when: use_nm_ddns_update_scripts | default(false)
+- include_tasks: service.yml
+- include_tasks: user_group.yml
+- include_tasks: reboot.yml

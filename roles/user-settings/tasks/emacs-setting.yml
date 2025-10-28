@@ -1,0 +1,230 @@
+# aspell-settings.elの導入
+- name: Deploy /etc/skel/.emacs.d/user_settings/aspell-settings.el
+  template:
+    src: _emacs_d__aspell-settings.el.j2
+    dest: /etc/skel/.emacs.d/user_settings/aspell-settings.el
+    owner: root
+    group: root
+    mode: 0644
+    backup: no
+
+# auctex-mode-settings.elの導入
+- name: Deploy /etc/skel/.emacs.d/user_settings/auctex-mode-settings.el
+  template:
+    src: _emacs_d__auctex-mode-settings.el.j2
+    dest: /etc/skel/.emacs.d/user_settings/auctex-mode-settings.el
+    owner: root
+    group: root
+    mode: 0644
+    backup: no
+
+# basic-settings.elの導入
+- name: Deploy /etc/skel/.emacs.d/user_settings/basic-settings.el
+  template:
+    src: _emacs_d__basic-settings.el.j2
+    dest: /etc/skel/.emacs.d/user_settings/basic-settings.el
+    owner: root
+    group: root
+    mode: 0644
+    backup: no
+
+# bsdc-mode-settings.elの導入
+- name: Deploy /etc/skel/.emacs.d/user_settings/bsdc-mode-settings.el
+  template:
+    src: _emacs_d__bsdc-mode-settings.el.j2
+    dest: /etc/skel/.emacs.d/user_settings/bsdc-mode-settings.el
+    owner: root
+    group: root
+    mode: 0644
+    backup: no
+
+# c-mode-settings.elの導入
+- name: Deploy /etc/skel/.emacs.d/user_settings/c-mode-settings.el
+  template:
+    src: _emacs_d__c-mode-settings.el.j2
+    dest: /etc/skel/.emacs.d/user_settings/c-mode-settings.el
+    owner: root
+    group: root
+    mode: 0644
+    backup: no
+
+# c-sharp-mode-settings.elの導入
+- name: Deploy /etc/skel/.emacs.d/user_settings/c-sharp-mode-settings.el
+  template:
+    src: _emacs_d__c-sharp-mode-settings.el.j2
+    dest: /etc/skel/.emacs.d/user_settings/c-sharp-mode-settings.el
+    owner: root
+    group: root
+    mode: 0644
+    backup: no
+
+# cmake-settings.elの導入
+- name: Deploy /etc/skel/.emacs.d/user_settings/cmake-settings.el
+  template:
+    src: _emacs_d__cmake-settings.el.j2
+    dest: /etc/skel/.emacs.d/user_settings/cmake-settings.el
+    owner: root
+    group: root
+    mode: 0644
+    backup: no
+
+# docker-compose-mode-settings.elの導入
+- name: Deploy /etc/skel/.emacs.d/user_settings/docker-compose-mode-settings.el
+  template:
+    src: _emacs_d__docker-compose-mode-settings.el.j2
+    dest: /etc/skel/.emacs.d/user_settings/docker-compose-mode-settings.el
+    owner: root
+    group: root
+    mode: 0644
+    backup: no
+
+# docker-tramp-mode-settings.elの導入
+- name: Deploy /etc/skel/.emacs.d/user_settings/docker-tramp-mode-settings.el
+  template:
+    src: _emacs_d__docker-tramp-mode-settings.el.j2
+    dest: /etc/skel/.emacs.d/user_settings/docker-tramp-mode-settings.el
+    owner: root
+    group: root
+    mode: 0644
+    backup: no
+
+# dockerfile-mode-settings.elの導入
+- name: Deploy /etc/skel/.emacs.d/user_settings/dockerfile-mode-settings.el
+  template:
+    src: _emacs_d__dockerfile-mode-settings.el.j2
+    dest: /etc/skel/.emacs.d/user_settings/dockerfile-mode-settings.el
+    owner: root
+    group: root
+    mode: 0644
+    backup: no
+
+# gnu-global-settings.elの導入
+- name: Deploy /etc/skel/.emacs.d/user_settings/gnu-global-settings.el
+  template:
+    src: _emacs_d__gnu-global-settings.el.j2
+    dest: /etc/skel/.emacs.d/user_settings/gnu-global-settings.el
+    owner: root
+    group: root
+    mode: 0644
+    backup: no
+
+# gud-settings.elの導入
+- name: Deploy /etc/skel/.emacs.d/user_settings/gud-settings.el
+  template:
+    src: _emacs_d__gud-settings.el.j2
+    dest: /etc/skel/.emacs.d/user_settings/gud-settings.el
+    owner: root
+    group: root
+    mode: 0644
+    backup: no
+
+# hos-c-mode-settings.elの導入
+- name: Deploy /etc/skel/.emacs.d/user_settings/hos-c-mode-settings.el
+  template:
+    src: _emacs_d__hos-c-mode-settings.el.j2
+    dest: /etc/skel/.emacs.d/user_settings/hos-c-mode-settings.el
+    owner: root
+    group: root
+    mode: 0644
+    backup: no
+
+# japanese-environment.elの導入
+- name: Deploy /etc/skel/.emacs.d/user_settings/japanese-environment.el
+  template:
+    src: _emacs_d__japanese-environment.el.j2
+    dest: /etc/skel/.emacs.d/user_settings/japanese-environment.el
+    owner: root
+    group: root
+    mode: 0644
+    backup: no
+
+# linux-c-mode-settings.elの導入
+- name: Deploy /etc/skel/.emacs.d/user_settings/linux-c-mode-settings.el
+  template:
+    src: _emacs_d__linux-c-mode-settings.el.j2
+    dest: /etc/skel/.emacs.d/user_settings/linux-c-mode-settings.el
+    owner: root
+    group: root
+    mode: 0644
+    backup: no
+
+# markdown-mode-settings.elの導入
+- name: Deploy /etc/skel/.emacs.d/user_settings/markdown-mode-settings.el
+  template:
+    src: _emacs_d__markdown-mode-settings.el.j2
+    dest: /etc/skel/.emacs.d/user_settings/markdown-mode-settings.el
+    owner: root
+    group: root
+    mode: 0644
+    backup: no
+
+# package-settings.elの導入
+- name: Deploy /etc/skel/.emacs.d/user_settings/package-settings.el
+  template:
+    src: _emacs_d__package-settings.el.j2
+    dest: /etc/skel/.emacs.d/user_settings/package-settings.el
+    owner: root
+    group: root
+    mode: 0644
+    backup: no
+
+# proxy-settings.elの導入
+- name: Deploy /etc/skel/.emacs.d/user_settings/proxy-settings.el
+  template:
+    src: _emacs_d__proxy-settings.el.j2
+    dest: /etc/skel/.emacs.d/user_settings/proxy-settings.el
+    owner: root
+    group: root
+    mode: 0644
+    backup: no
+
+# python3-settings.elの導入
+- name: Deploy /etc/skel/.emacs.d/user_settings/python3-settings.el
+  template:
+    src: _emacs_d__python3-settings.el.j2
+    dest: /etc/skel/.emacs.d/user_settings/python3-settings.el
+    owner: root
+    group: root
+    mode: 0644
+    backup: no
+
+# rust-settings.elの導入
+- name: Deploy /etc/skel/.emacs.d/user_settings/rust-settings.el
+  template:
+    src: _emacs_d__rust-settings.el.j2
+    dest: /etc/skel/.emacs.d/user_settings/rust-settings.el
+    owner: root
+    group: root
+    mode: 0644
+    backup: no
+
+# screen-settings.elの導入
+- name: Deploy /etc/skel/.emacs.d/user_settings/screen-settings.el
+  template:
+    src: _emacs_d__screen-settings.el.j2
+    dest: /etc/skel/.emacs.d/user_settings/screen-settings.el
+    owner: root
+    group: root
+    mode: 0644
+    backup: no
+
+# yaml-mode-settings.elの導入
+- name: Deploy /etc/skel/.emacs.d/user_settings/yaml-mode-settings.el
+  template:
+    src: _emacs_d__yaml-mode-settings.el.j2
+    dest: /etc/skel/.emacs.d/user_settings/yaml-mode-settings.el
+    owner: root
+    group: root
+    mode: 0644
+    backup: no
+
+# yatex-mode-setting.elの導入
+- name: Deploy /etc/skel/.emacs.d/user_settings/yatex-mode-setting.el
+  template:
+    src: _emacs_d__yatex-mode-setting.el.j2
+    dest: /etc/skel/.emacs.d/user_settings/yatex-mode-setting.el
+    owner: root
+    group: root
+    mode: 0644
+    backup: no
+

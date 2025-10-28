@@ -1,0 +1,196 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+# Kubernetes ワーカーノード用 firewall 設定タスク
+#
+
+# 必須変数チェック
+- name: Assert ctrlplane endpoint provided
+  ansible.builtin.assert:
+    that:
+      - k8s_ctrlplane_endpoint | length > 0
+    fail_msg: "k8s_ctrlplane_endpoint must be set to the control-plane API address (IPv4 or IPv6)."
+
+# 解析したコントロールプレーン関連の変数をまとめて表示
+- name: Show parsed control-plane endpoint vars
+  ansible.builtin.debug:
+    msg: "{{ item }} = {{ lookup('vars', item) | default('<<undefined>>', true) }}"
+  loop:
+    - k8s_ctrlplane_endpoint
+    - k8s_ctrlplane_endpoint_norm
+    - k8s_ctrlplane_host
+    - k8s_ctrlplane_is_ipv6
+    - k8s_ctrlplane_is_ipv4
+    - k8s_ctrlplane_host_bracketed
+    - k8s_ctrlplane_port_br
+    - k8s_ctrlplane_port_unbr
+    - k8s_ctrlplane_port
+  run_once: true
+
+# ---- firewall (Debian: UFW) ------------------------------------------------
+
+# UFW の有無は ufw コマンドの存在で判定
+- name: Ensure UFW is installed (Debian family only, when backend=ufw)
+  ansible.builtin.package:
+    name: ufw
+    state: present
+  when:
+    - ansible_facts.os_family == "Debian"
+    - "'ufw' in firewall_backend"
+
+# UFW を有効化 (非対話モード)
+- name: Ensure UFW enabled (non-interactive)
+  ansible.builtin.shell: |
+    set -e
+    if ufw status | grep -iq '^Status: inactive'; then
+      ufw --force enable
+    fi
+  args:
+    executable: /bin/bash
+  changed_when: false
+  when:
+    - ansible_facts.os_family == "Debian"
+    - "'ufw' in firewall_backend"
+
+# kubelet 用ポートを UFW で許可
+- name: "Allow worker node ports ( {{ k8s_worker_node_ports_from_ctrlplane }} ) from control plane via UFW"
+  ansible.builtin.shell: |
+    set -e
+    p_raw="{{ item }}"
+    p_ufw="${p_raw/-/:}"
+    ufw allow from {{ k8s_ctrlplane_endpoint }}  to any port "${p_ufw}" proto tcp || true
+  args:
+    executable: /bin/bash
+  loop: "{{ k8s_worker_node_ports_from_ctrlplane }}"
+  become: true
+  notify: "reload ufw"
+  when:
+    - ansible_facts.os_family == "Debian"
+    - "'ufw' in firewall_backend"
+
+# NodePort 範囲（UFW は 30000:32767 の “コロン” 表記）
+- name: Allow worker inbound ports (UFW)
+  ansible.builtin.command: >
+    ufw allow {{ item }}
+  args:
+    executable: /bin/bash
+  loop: "{{ k8s_worker_node_ports_ufw }}"
+  notify: "reload ufw"
+  when:
+    - ansible_facts.os_family == "Debian"
+    - "'ufw' in firewall_backend"
+
+# UFWをリロード
+- name: "reload ufw"
+  ansible.builtin.command: ufw reload
+  when:
+    - ansible_facts.os_family == "Debian"
+    - "'ufw' in firewall_backend"
+# ---- firewall (RHEL: firewalld) --------------------------------------------
+
+# firewalld の有無をservice の存在で確認
+- name: Check if firewalld service exists
+  ansible.builtin.shell: systemctl status firewalld.service >/dev/null 2>&1
+  register: firewalld_present
+  changed_when: false
+  failed_when: false
+  when:
+    - ansible_facts.os_family == "RedHat"
+    - "'firewalld' in firewall_backend"
+
+# firewalld のインストールを保証
+- name: Ensure firewalld is installed (RHEL family only, when backend=firewalld)
+  ansible.builtin.package:
+    name: firewalld
+    state: present
+  when:
+    - ansible_facts.os_family == "RedHat"
+    - "'firewalld' in firewall_backend"
+
+# firewalld を起動・有効化
+- name: Ensure firewalld is running and enabled
+  ansible.builtin.service:
+    name: firewalld
+    state: started
+    enabled: true
+  when:
+    - ansible_facts.os_family == "RedHat"
+    - "'firewalld' in firewall_backend"
+
+# コントロールプレインのみに許可するポートを開放 (10250/tcp ( kubelet )など)
+# IPv4版
+- name: "Allow {{k8s_worker_node_ports_from_ctrlplane}} from control-plane (IPv4) via firewalld"
+  ansible.builtin.command: >
+    firewall-cmd --permanent
+    --add-rich-rule='rule family="ipv4"
+      source address="{{ k8s_ctrlplane_endpoint }}/32"
+      port port="{{ item.split('/')[0] }}"
+      protocol="{{ item.split('/')[1] }}"
+      accept'
+  loop: "{{k8s_worker_node_ports_from_ctrlplane}}"
+  notify: "reload firewalld"
+  when:
+    - ansible_facts.os_family == "RedHat"
+    - "'firewalld' in firewall_backend"
+    - k8s_ctrlplane_is_ipv4
+
+# コントロールプレインのみに許可するポートを開放 (10250/tcp ( kubelet )など)
+# IPv6版
+- name: "Allow {{k8s_worker_node_ports_from_ctrlplane}} from control-plane (IPv6) via firewalld"
+  ansible.builtin.command: >
+    firewall-cmd --permanent
+    --add-rich-rule='rule family="ipv6"
+      source address="{{ k8s_ctrlplane_endpoint }}/128"
+      port port="{{ item.split('/')[0] }}"
+      protocol="{{ item.split('/')[1] }}"
+      accept'
+  loop: "{{ k8s_worker_node_ports_from_ctrlplane }}"
+  notify: "reload firewalld"
+  when:
+    - ansible_facts.os_family == "RedHat"
+    - "'firewalld' in firewall_backend"
+    - k8s_ctrlplane_is_ipv6
+
+# NodePort 解放 ( 範囲, プロトコルをそのまま add-portに渡す )
+- name: "Allow worker inbound ports ( {{ k8s_worker_node_ports }} ) permanently via firewalld"
+  become: true
+  ansible.builtin.command: >
+    firewall-cmd --permanent --add-port={{ item }}
+  loop: "{{ k8s_worker_node_ports }}"
+  notify: "reload firewalld"
+  when:
+    - ansible_facts.os_family == "RedHat"
+    - "'firewalld' in firewall_backend"
+
+# firewalldをリロード
+- name: Always reload firewalld after port updates
+  become: true
+  ansible.builtin.command: firewall-cmd --reload
+  when:
+    - ansible_facts.os_family == "RedHat"
+    - "'firewalld' in firewall_backend"
+
+# UFWの状態を表示
+- name: Show UFW status
+  ansible.builtin.shell: ufw status verbose
+  args:
+    executable: /bin/bash
+  changed_when: false
+  when:
+    - ansible_facts.os_family == "Debian"
+    - "'ufw' in firewall_backend"
+
+# firewalldの状態を表示
+- name: Show firewalld port list and direct rules
+  ansible.builtin.shell: |
+    echo '--- ports ---'
+    firewall-cmd --list-ports || true
+    echo '--- direct rules ---'
+    firewall-cmd --direct --get-all-rules || true
+  args:
+    executable: /bin/bash
+  changed_when: false
+  when:
+    - ansible_facts.os_family == "RedHat"
+    - "'firewalld' in firewall_backend"

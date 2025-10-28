@@ -1,0 +1,40 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#  設定関連タスク
+
+#
+# cronメールを無効にする
+#
+- block:
+
+  - name: check if MAILTO= is configured in /etc/crontab
+    lineinfile:
+      backup: true
+      path: /etc/crontab
+      regexp: '^[[:space:]]*MAILTO='
+      state: absent
+    check_mode: true
+    register: crontab_check_mailto_line
+
+  - name: replace MAILTO line if present
+    lineinfile:
+      path: /etc/crontab
+      backrefs: true
+      regexp: '^[[:space:]]*MAILTO=.*'
+      line: 'MAILTO=""'
+      backup: true
+    when:
+      - crontab_check_mailto_line.found | int > 0
+
+  - name: insert MAILTO="" if missing
+    lineinfile:
+      backrefs: true
+      path: /etc/crontab
+      regexp: "^[[:space:]]*MAILTO=.*"
+      line: 'MAILTO=""'
+      backup: true
+    when:
+      - crontab_check_mailto_line.found | int == 0
+  when:
+    - common_disable_cron_mails | default(false)

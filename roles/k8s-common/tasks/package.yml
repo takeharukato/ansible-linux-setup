@@ -1,0 +1,30 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  パッケージ関連処理
+#
+- name: remove containerd
+  package:
+    pkg:
+      '{{ k8s_containerd_packages }}'
+    state: absent
+
+- name: Install transport-https ca-certificates curl
+  package:
+    pkg:
+      "{{ k8s_common_prerequisite_packages }}"
+    state: latest
+
+- name: install containerd
+  package:
+    pkg:
+      '{{ k8s_containerd_packages }}'
+    state: latest
+
+- name: install kubectl/kubeadm/kubelet
+  package:
+    pkg:
+      '{{ k8s_common_packages  }}'
+    state: latest
+  become: true

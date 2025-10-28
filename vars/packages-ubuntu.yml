@@ -1,0 +1,268 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+
+#
+#  Ubuntuパッケージ群変数定義
+#
+
+common_vmware_packages:
+  - open-vm-tools
+
+common_packages:
+  - apt-file
+  - ksh
+  - zsh
+  - curl
+  - wget
+  - net-tools
+  - util-linux
+  - sudo
+  - passwd
+  - bzip2
+  - nano
+  - tar
+  - xz-utils
+  - wget
+  - tmux
+  - screen
+  - emacs
+  - vim
+  - connect-proxy
+  - tree
+  - ansible
+  - nfs-common
+  - bind9-dnsutils
+  - netcat-openbsd
+  - genisoimage
+  - cloud-image-utils
+  - whois
+  - network-manager
+  - ipvsadm
+  - nftables
+  - tcpdump
+  - pssh
+  - kubectl
+
+
+common_langpack_packages:
+  - language-pack-ja-base
+  - language-pack-ja
+  - manpages-ja
+  - manpages-ja-dev
+  - nkf
+  - fonts-noto-cjk
+  - fonts-ipafont
+  - fonts-ipaexfont
+
+k8s_containerd_packages:
+  - containerd
+
+k8s_common_packages:
+  - kubectl
+  - kubeadm
+  - kubelet
+
+k8s_common_prerequisite_packages:
+  - apt-transport-https
+  - ca-certificates
+  - curl
+  - software-properties-common
+  - gnupg
+  - lsb-release
+  - yq
+  - jq
+
+# ノイズ測定グラフ作成用にgnuplot, python3-pip, python3-matplotlibを導入している
+# 本来は, グラフ作成作業ノードだけに導入すればよいが, ここでは,
+# 全コントロールプレインに導入している
+# 詳細は, roles/netgauge/Readme.md を参照
+k8s_netgauge_packages:
+  - gnuplot
+  - python3-pip
+  - python3-matplotlib
+  - python3-numpy
+
+common_mdns_packages:
+  - avahi-daemon
+  - avahi-utils
+
+devel_packages:
+  - lmod
+  - aspell
+  - aspell-en
+  - retext
+  - cmigemo
+  - dbus
+  - evince
+  - patchutils
+  - ninja-build
+  - build-essential
+  - gdb
+  - bash
+  - gawk
+  - gzip
+  - bzip2
+  - make
+  - tar
+  - perl
+  - libmpc-dev
+  - gcc-multilib
+  - automake
+  - autoconf
+  - gettext
+  - libtool
+  - libltdl-dev
+  - gperf
+  - autogen
+  - guile-3.0
+  - texinfo
+  - texlive-full
+  - pandoc
+  - rake
+  - python3-sphinx
+  - git
+  - git-filter-repo
+  - diffutils
+  - patch
+  - rsync
+  - elfutils
+  - libgmp-dev
+  - libmpfr-dev
+  - binutils
+  - zstd
+  - openssl
+  - libedit-dev
+  - libxml2
+  - cmake
+  - libboost-all-dev
+  - libalgorithm-diff-perl
+  - libregexp-common-perl
+  - libparallel-forkmanager-perl
+  - python3
+  - python3-dev
+  - pip
+  - swig
+  - subversion
+  - flex
+  - bison
+  - re2c
+  - graphviz
+  - doxygen
+  - docbook-utils
+  - docbook-xsl
+  - valgrind
+  - patchelf
+  - nasm
+  - acpica-tools
+  - giflib-tools
+  - libpng-dev
+  - libtiff-dev
+  - libgtk-3-dev
+  - libncursesw6
+  - libncurses5-dev
+  - libncursesw5-dev
+  - libgnutls30
+  - nettle-dev
+  - libgcrypt20-dev
+  - libsdl2-dev
+  - libguestfs-tools
+  - python3-brlapi
+  - bluez-tools
+  - bluez-hcidump
+  - bluez
+  - libusb-dev
+  - libcap-dev
+  - libcap-ng-dev
+  - libiscsi-dev
+  - libnfs-dev
+  - libguestfs-dev
+  - libcacard-dev
+  - liblzo2-dev
+  - liblzma-dev
+  - libseccomp-dev
+  - libssh-dev
+  - libssh2-1-dev
+  - libglu1-mesa-dev
+  - mesa-common-dev
+  - freeglut3-dev
+  - ngspice-dev
+  - libattr1-dev
+  - libaio-dev
+  - libtasn1-dev
+  - google-perftools
+  - libvirglrenderer-dev
+  - multipath-tools
+  - libsasl2-dev
+  - libpmem-dev
+  - libudev-dev
+  - libcapstone-dev
+  - librdmacm-dev
+  - libibverbs-dev
+  - libibumad-dev
+  - libvirt-dev
+  - libffi-dev
+  - libbpfcc-dev
+  - libdaxctl-dev
+  - libcephfs-dev
+  - librbd-dev
+  - librados-dev
+  - libglu1-mesa-dev
+  - mesa-common-dev
+  - freeglut3-dev
+  - libgbm-dev
+  - guile-3.0
+  - lua5.3
+  - liblasi-dev
+  - poppler-utils
+  - librsvg2-bin
+  - librsvg2-dev
+  - libgd-dev
+  - libwebp-dev
+  - libxaw7-dev
+  - tcl
+  - ruby
+  - r-base
+  - ocaml
+  - php
+  - xorriso
+  - liblcms2-dev
+  - libjpeg-dev
+  - libfreetype6-dev
+  - libpng-dev
+  - libpaper-dev
+  - golang
+  - llvm
+  - clang
+  - ruby
+  - scala
+  - mercurial
+  - google-chrome-stable
+  - global
+  - libfuse-dev
+  - libsdl-image1.2-dev
+  - libtasn1-dev
+  - libpam0g-dev
+  - libcurl4-openssl-dev
+  - libsnappy-dev
+  - zstd
+  - default-jdk
+  - wkhtmltopdf
+  - intltool
+  - cloc
+  - nodejs
+  - npm
+
+ldap_utils_packages:
+  - ldap-utils
+dns_bind_packages:
+  - bind9
+  - bind9utils
+nfs_server_packages:
+  - nfs-kernel-server
+ntp_server_packages:
+  - chrony
+rancher_pyopenssl_packages:
+  - pip
+  - pyopenssl

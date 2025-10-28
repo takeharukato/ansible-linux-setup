@@ -1,0 +1,118 @@
+# =====================================================================
+# .gitattributes for Ansible repositories (Linux)
+# 目的:
+#  - 改行/EOL を LF に強制 ( 混在やCRLF混入事故の防止 )
+#  - 機密(Ansible Vault)ファイルは diff 不可 & バイナリ扱いで漏洩防止
+#  - バイナリ類は確実に -text / -diff ( 誤ったEOL変換や巨大差分を防止 )
+#  - 生成物や開発補助系は export-ignore ( 配布アーカイブをクリーンに )
+#  - 文字エンコーディングは UTF-8 を前提
+# =====================================================================
+
+# --- デフォルト方針: テキストは LF, UTF-8 前提 ---
+*               text=auto eol=lf working-tree-encoding=UTF-8
+
+# --- Ansible コアファイル群 ( 常にテキスト/LF ) ---
+*.yml          text eol=lf
+*.yaml         text eol=lf
+# Jinja2 templates
+*.j2           text eol=lf
+*.jinja2       text eol=lf
+*.json         text eol=lf
+*.ini          text eol=lf
+*.cfg          text eol=lf
+*.conf         text eol=lf
+*.env          text eol=lf
+# 単一ファイル名の在来 inventory
+inventory      text eol=lf
+# ディレクトリ運用の inventory
+inventory/*    text eol=lf
+
+# --- ドキュメント/コード/スクリプト ( テキスト/LF ) ---
+*.md           text eol=lf
+*.txt          text eol=lf
+*.adoc         text eol=lf
+*.rst          text eol=lf
+
+*.sh           text eol=lf
+*.bash         text eol=lf
+*.zsh          text eol=lf
+*.py           text eol=lf
+# Linuxでもテキストとして保持 ( WSL等考慮 )
+*.ps1          text eol=lf
+
+*.service      text eol=lf
+*.socket       text eol=lf
+*.timer        text eol=lf
+*.target       text eol=lf
+
+# --- Ansible Vault ( 機密 ) はバイナリ扱い & diff禁止 ( 秘匿性優先 ) ---
+#  ここでは自動暗号/復号の filter は使いません ( 運用事故防止 ) 。
+#  vault を触る際は ansible-vault コマンドを明示的に使用してください。
+*.vault                        binary -diff
+*vault.yml                     binary -diff
+*vault.yaml                    binary -diff
+group_vars/**/vault.yml        binary -diff
+group_vars/**/vault.yaml       binary -diff
+host_vars/**/vault.yml         binary -diff
+host_vars/**/vault.yaml        binary -diff
+
+# --- 構成管理で混入しがちなバイナリ ( 確実に -text / -diff ) ---
+# 画像
+*.png           binary
+*.jpg           binary
+*.jpeg          binary
+*.gif           binary
+*.svgz          binary
+*.webp          binary
+
+# アーカイブ/パッケージ
+*.zip           binary
+*.tar           binary
+*.tgz           binary
+*.gz            binary
+*.bz2           binary
+*.xz            binary
+*.zst           binary
+*.7z            binary
+*.iso           binary
+*.rpm           binary
+*.deb           binary
+
+# DB/キャプチャ/その他
+*.sqlite        binary
+*.db            binary
+*.pcap          binary
+*.pcapng        binary
+*.cer           binary
+*.crt           binary
+*.key           binary
+*.p12           binary
+*.der           binary
+
+# --- 生成物やローカル開発系は配布アーカイブから除外 ( 任意 ) ---
+# git archive / GitHub Release のソースアーカイブをクリーンにする
+.gitignore               export-ignore
+.gitattributes           export-ignore
+.github/                 export-ignore
+.devcontainer/           export-ignore
+.vscode/                 export-ignore
+.idea/                   export-ignore
+tests/                   export-ignore
+test/                    export-ignore
+tmp/                     export-ignore
+scripts/dev/             export-ignore
+docs/drafts/             export-ignore
+
+# ---  GitHub Linguist チューニング ---
+# ドキュメント多めのリポジトリで言語比率の誤認を防ぐ
+docs/**                 linguist-documentation
+**/*.generated.*        linguist-generated
+
+# ---  ( 任意 ) Git LFS を使う場合 ( コメント解除して利用 ) ---
+# 大きなイメージやディスクイメージ類は LFS で管理推奨
+#*.iso filter=lfs diff=lfs merge=lfs -text
+#*.qcow2 filter=lfs diff=lfs merge=lfs -text
+#*.vmdk  filter=lfs diff=lfs merge=lfs -text
+#*.tar   filter=lfs diff=lfs merge=lfs -text
+#*.zip   filter=lfs diff=lfs merge=lfs -text
+#*.gz    filter=lfs diff=lfs merge=lfs -text

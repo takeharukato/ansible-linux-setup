@@ -1,0 +1,105 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+# Firewall無効化設定
+#
+
+# すべてのサービス情報を取得
+- name: Gather service facts
+  ansible.builtin.service_facts:
+
+- name: Disable firewall(s) if present
+  ansible.builtin.systemd:
+    name: "{{ item }}"
+    state: stopped
+    enabled: false
+    masked: true
+  become: true
+  loop:
+    - firewalld
+    - ufw
+  when: >
+    (item ~ '.service') in (ansible_facts.services | default({})) or
+    (item) in (ansible_facts.services | default({}))
+
+# rpfilter-bypass.service 無効化
+- name: Stop & disable rpfilter-bypass.service if present
+  ansible.builtin.systemd:
+    name: rpfilter-bypass.service
+    state: stopped
+    enabled: false
+    daemon_reload: true
+  become: true
+  when:
+    - "'rpfilter-bypass.service' in ansible_facts.services"
+
+# nft コマンド存在確認（PATH 上を探索）
+- name: Check if nft command exists
+  become: true
+  ansible.builtin.shell: "command -v nft"
+  args:
+    executable: /bin/bash
+  register: nft_cmd
+  changed_when: false
+  failed_when: false
+
+# nftables: 既存 rpfix テーブルの存在確認し,
+# あれば削除（ip/ip6/inet）
+- name: Check rpfix table existence (ip/ip6/inet)
+  become: true
+  ansible.builtin.command: nft list table {{ item }} rpfix
+  register: nft_check
+  changed_when: false
+  failed_when: false
+  loop:
+    - ip
+    - ip6
+    - inet
+  when:
+    - nft_cmd is defined
+    - nft_cmd.rc == 0
+
+# nftables: rpfix テーブル削除
+- name: Delete rpfix table(s) safely
+  become: true
+  ansible.builtin.command: nft delete table {{ item.item }} rpfix
+  loop: "{{ nft_check.results|default([], true) }}"
+  loop_control:
+    label: "{{ item.item|default('', true) }}"
+  when:
+    - item.rc == 0
+    - nft_cmd is defined
+    - nft_cmd.rc == 0
+
+# ufw コマンド存在確認（PATH 上を探索）
+# Debian系想定
+- name: Check if ufw command exists
+  ansible.builtin.shell: "command -v ufw"
+  args:
+    executable: /bin/bash
+  register: ufw_cmd
+  changed_when: false
+  failed_when: false
+  become: true
+
+# UFWのステータス取得
+- name: Get UFW status (only if ufw exists)
+  ansible.builtin.command: ufw status
+  register: ufw_status
+  changed_when: false
+  failed_when: false
+  become: true
+  when:
+    - ufw_cmd.rc is defined
+    - ufw_cmd.rc == 0
+
+# UFWの無効化
+- name: Disable UFW if active
+  ansible.builtin.command: ufw --force disable
+  become: true
+  when:
+    - ufw_cmd.rc is defined
+    - ufw_cmd.rc == 0
+    - ufw_status.stdout is defined
+    - "'Status: active' in ufw_status.stdout"

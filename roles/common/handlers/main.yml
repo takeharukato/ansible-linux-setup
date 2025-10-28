@@ -1,0 +1,10 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#  サービス起動ハンドラ
+- import_tasks: avahi.yml
+- import_tasks: disable-gui.yml
+- import_tasks: auto-remove.yml
+- import_tasks: nm-handlers-rhel.yml
+- import_tasks: netplan-handlers-debian.yml
+- import_tasks: netplan.yml

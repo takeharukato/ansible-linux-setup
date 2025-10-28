@@ -1,0 +1,836 @@
+#!/usr/bin/env bash
+# -*- coding: utf-8 mode: bash -*-
+# Copyright 2025 Takeharu KATO  All Rights Reserved.
+# SPDX-License-Identifier: BSD-2-Clause
+# Notes: Portions of this codebase were initially drafted with ChatGPT assistance.
+#
+# /etc/NetworkManager/dispatcher.d/90-nm-ns-update
+#
+# DNSエントリを更新するスクリプト
+#
+# 本スクリプトはNetworkManagerのdispatcherスクリプトとして動作する
+#
+# 依存コマンド・ランタイム:
+#
+#  本スクリプトの動作には, 以下のコマンド・ランタイムが必要
+#
+#  - NetworkManager (version 1.36.0 以降, dispatcher機能)
+#  - bash (version 4.3 以降)
+#  - GNU sed (version 3.02 以降)
+#  - GNU coreutils (version 6.10 以降)
+#  - util-linux (version 2.13 以降, loggerコマンド)
+#
+# 配置先ディレクトリに関する注意事項:
+#
+#   本スクリプトは, /etc/NetworkManager/dispatcher.d 直下に配置すること。
+#
+#   NetworkManager dispatcher は /etc/NetworkManager/dispatcher.d 直下のスクリプトを
+#   1本ずつ実行キューに積むことで排他を実現している。
+#   /etc/NetworkManager/dispatcher.d/no-wait.d 配下のスクリプトは並行して実行される可能性があるため,
+#   本スクリプトは, (シンボリックリンクで配置する場合も含み) /etc/NetworkManager/dispatcher.d/no-wait.d に
+#   配置しないこと。
+#
+#   なお, dispatcher以外の経路からの同時実行は防げないことから, 本スクリプトから呼び出されるスクリプト
+#   ( {{ ddns_client_update_sh_path }} )でも排他を取り, 他経路からの同時実行も直列化する必要がある。
+#   また, 本スクリプトから呼び出されるスクリプトは, 以下のパスのいずれかに配置するか,
+#   NetworkManager-dispatcherがスクリプトを実行する際に設定される環境変数PATHに含まれるディレクトリに配置すること。
+#
+#    - /usr/local/sbin
+#    - /usr/sbin
+#    - /usr/bin
+#    - /sbin
+#    - /bin
+#
+# 説明:
+#
+# FQDN環境変数で指定されたFully Qualified Domain Name (FQDN)に対する
+# A/AAAA/PTR/PTR6レコードを, 現在インターフェースに設定されている
+# IPアドレスに合わせて更新する
+#
+# 引数:
+#   $1: IFACE (インターフェース名)
+#   $2: STATE (状態)
+#
+# 状態が以下の場合に実行
+#   - "up" : インターフェースがupになった場合
+#   - "dhcp6-change" : Dynamic Host Configuration Protocol version 6 (DHCPv6)でアドレスが変更された場合
+#   - "dhcp4-change" : Dynamic Host Configuration Protocol version 4 (DHCPv4)でアドレスが変更された場合
+#   - "hostname" : ホスト名が変更された場合
+#   - "reapply" : 設定が再適用された場合 (ディストリビューション同梱の NetworkManager が dispatcher の reapply アクションを実装している場合に有効)
+#   - "ra-addr-change" : netlink 監視による IPv6 アドレス変化検知時の擬似状態
+#      - 本状態は, 本スクリプトで追加, 拡張したものであり, NetworkManager 本体が生成する状態ではない
+#      - 本状態は, /usr/local/libexec/nm-ra-addr-watch で,
+#        Router Advertisement (RA) / Stateless Address Autoconfiguration (SLAAC) による
+#        アドレス変更を検知した場合にのみ発生する
+# その他の状態の場合は何もしない
+#
+# 環境変数ファイルは, {{ nm_ns_update_sysconfig_path }} に配置する
+# ( 環境変数ファイルは, systemdのEnvironmentFileの形式で記述すること)。
+#
+# 注意: NetworkManagerのバージョンによっては, "reapply", "dhcp4-change", "dhcp6-change",
+#       "hostname"がサポートされていない場合がある
+# 使用例
+#
+# ens160がupになった場合
+#   /etc/NetworkManager/dispatcher.d/90-nm-ns-update ens160 up
+# ens160のIPv6アドレスがDHCPv6で変更された場合
+#   /etc/NetworkManager/dispatcher.d/90-nm-ns-update ens160 dhcp6-change
+# ens160のホスト名が変更された場合
+#   /etc/NetworkManager/dispatcher.d/90-nm-ns-update ens160 hostname
+# ens160の設定が変更され, 再適用された場合
+#   /etc/NetworkManager/dispatcher.d/90-nm-ns-update ens160 reapply
+# ens160のIPv6アドレスがRA/SLAACで変更された場合
+#   /etc/NetworkManager/dispatcher.d/90-nm-ns-update ens160 ra-addr-change
+#
+# 環境変数:
+#   FQDN: 更新対象のFully Qualified Domain Name (FQDN) (例: myhost.example.com.)
+#         指定がない場合は, ホスト名からFQDN (ホスト名.{{dns_domain}}.)を生成する
+#         FQDNを指定した場合は, 簡易チェックと以下の正規化を行う
+#           - 先頭にドットがある場合はエラーメッセージを出力して本スクリプトの実行を終了
+#           - 連続するドットがある場合はエラーメッセージを出力して本スクリプトの実行を終了
+#           - 末尾にドットがない場合は, 末尾にドットを追加
+#   IFACE_ALLOW_REGEX  : 許可するIF名の正規表現(未設定時は全IF許可)
+#   IFACE_DENY_REGEX   : 除外するIF名の正規表現(未設定時は除外なし)
+#                        注意: IFACE_ALLOW_REGEXやIFACE_DENY_REGEXで指定する正規表現は, 'や"で囲まないこと(囲むと, それらも正規表現の一部として扱われる)
+#                              例: ens.* を許可したい場合
+#                                  誤: IFACE_ALLOW_REGEX='^ens.*$'
+#                                  正: IFACE_ALLOW_REGEX=^ens.*$
+#   TAG        : logger のタグ(default: ns-update)
+#   STATE_DIR  : ステートファイルのディレクトリ (default: /var/lib/ddns)
+#   DRY_RUN    : (大文字小文字の区別なしで)'yes'の場合は実際の更新は行わない (default: no)
+#   LOG_LEVEL  : ログレベル 以下の出力条件に基づいてメッセージ出力を制御する (default: 2)
+#               出力メッセージの前に, ログ種別を示すプレフィックスが付与される
+#               0以上の整数値を指定可能
+#                - LOG_LEVEL=0,1 は将来予約
+#                - LOG_LEVEL=2 (デフォルト値)では Errorのみ出力 (Info/Warningは出ない)。
+#                - LOG_LEVEL=3 では Warning と Error が出力 (Info/Debugは出ない)。
+#                - LOG_LEVEL=4 では Info, Warning と Error が出力 (Debugは出ない)。
+#                - LOG_LEVEL=5 で 全レベル (Debug/Info/Warning/Error)が出力。
+#
+# ログ種別, プレフィックス, 出力条件:
+#
+#               ログ種別   プレフィックス    出力条件 (この条件を満たす場合に出力される)
+#               Debug      [Debug]           LOG_LEVEL > 4
+#               Info       [Info]            LOG_LEVEL > 3
+#               Warning    [Warning]         LOG_LEVEL > 2
+#               Error      [Error]           LOG_LEVEL > 1
+#               Assert     [Assert]          スクリプトの動作に致命的な影響を及ぼす前提条件/前提環境条件に
+#                                            関わるメッセージであることから, LOG_LEVEL に関係なく出力される
+#
+# ログは, systemd-journald に出力されるので以下のコマンドで確認可能
+#
+#  journalctl -t ns-update -b
+#
+# 例:
+#   journalctl -t ns-update -b  # ブート以降のログを表示
+#   journalctl -t ns-update -n 50  # 最新50行を表示 (過去のログは表示されない)
+#   journalctl -t ns-update --since "2024-01-01 00:00:00"  # 指定日時以降のログを表示
+#   journalctl -t ns-update --since "2024-01-01 00:00:00" --until "2024-01-02 00:00:00"  # 指定日時範囲のログを表示
+#   journalctl -t ns-update -f  # リアルタイムにログを表示
+#
+# 注意: 過去のログを表示するには, systemd-journaldの設定で永続化が有効になっている必要がある
+#       (/var/log/journal が存在することを確認)。
+#       永続化が無効な場合, ブート以降のログしか表示されない。
+#
+# 補足事項:
+#   呼び出し元の NetworkManager (dispatcher を含む)のログを確認する場合は, 以下のコマンドを実行する。
+#   なお NetworkManager 本体のログ出力量は NM 側の設定に依存し, 本スクリプトの LOG_LEVEL とは無関係である。
+#
+#  journalctl -t NetworkManager-dispatcher -b
+#
+# 保守作業向け注意事項:
+#  - NetworkManagerのdispatcherスクリプトは, root権限で実行される
+#  - NetworkManagerのdispatcherスクリプトは, 並行して実行される可能性がある
+#    (複数のインターフェースが同時に状態変更された場合など)
+#    そのため, スクリプト内での状態管理や一時ファイルの使用には注意が必要
+#    (配置先ディレクトリに関する注意事項も参照)
+#  - STATE_DIRの定義を修正した場合, {{ ddns_client_update_sh_path }} の
+#    STATE_DIRも同様に修正する必要がある
+#  - "hostname" は IFACE=none で通知される場合がある。
+{% if mgmt_nic|default('',true)|length %}
+#    本スクリプトはその場合, 監視対象のインターフェースを {{mgmt_nic}} に補正してから処理する。
+{% else %}
+#    本スクリプトはその場合, 監視対象のインターフェースを {{common_default_nic}} に補正してから処理する。
+{% endif %}
+# メッセージ一覧:
+#
+# [Info] start <script_path> <args...>
+#     スクリプトの処理開始メッセージ。
+#     スクリプトのパスと引数が表示される。
+#     LOG_LEVEL > 3 の場合に出力される。
+#
+# [Info] Using IFACE=<IFACE>, STATE=<STATE>, FQDN=<FQDN>, DRY_RUN=<DRY_RUN>, LOG_LEVEL=<LOG_LEVEL>, STATE_FILE_IPV6=<STATE_FILE_IPV6>, STATE_FILE_IPV4=<STATE_FILE_IPV4>, STATE_DIR=<STATE_DIR>
+#     スクリプトの設定値を表示するメッセージ。
+#     対象のインターフェース名(<IFACE>), 状態(<STATE>), FQDN, DRY_RUN, LOG_LEVEL,
+#     STATE_FILE_IPV6, STATE_FILE_IPV4, STATE_DIRが表示される。
+#     LOG_LEVEL > 3 の場合に出力される。
+#
+# [Info] end <script_path> <args...>
+#     スクリプトの処理終了メッセージ。
+#     スクリプトのパスと引数が表示される。
+#     LOG_LEVEL > 3 の場合に出力される。
+#     注意: IFACE不一致の場合は, 本終了メッセージを
+#           出力せず本スクリプトは終了する。
+#
+# [Info] Determined FQDN=<FQDN> from HOSTNAME=<HOSTNAME>
+#     FQDNとホスト名が表示される。
+#     LOG_LEVEL > 3 の場合に出力される。
+#
+# [Info] Triggering DNS update for IFACE=<IFACE> STATE=<STATE> FQDN=<FQDN>
+#     DNS更新を実行することを示すメッセージ。
+#     対象のインターフェース名(<IFACE>), 状態(<STATE>), FQDNが表示される。
+#     LOG_LEVEL > 3 の場合に出力される。
+#
+# [Info] Dry run mode: DNS update skipped
+#     DRY_RUNモードであることを示すメッセージ。
+#     実際のDNS更新はスキップされたことが表示される。
+#     LOG_LEVEL > 3 の場合, かつ, DRY_RUNに'yes'(大文字小文字区別なし)が設定されている場合に出力される。
+#
+# [Info] No action for IFACE=<IFACE> STATE=<STATE> (not allowed interface IFACE_ALLOW_REGEX=<allow_regex> IFACE_DENY_REGEX=<deny_regex>)
+#     対象のインターフェース名(<IFACE>), 状態(<STATE>)に対して, 何もアクションを実行しなかったことを示すメッセージ。
+#      - <IFACE>: IFACEの値 (インターフェース名)
+#      - <STATE>: STATEの値 (状態)
+#      - <allow_regex>: IFACE_ALLOW_REGEXの値 (操作対象インターフェース名を表す正規表現)
+#      - <deny_regex>: IFACE_DENY_REGEXの値 (操作非対象インターフェース名を表す正規表現)
+#     IFACE_ALLOW_REGEX, IFACE_DENY_REGEXの設定値も表示される。
+#     <allow_regex>, <deny_regex>の両方が空文字列の場合は, すべてのインターフェースが対象となる
+#     IFACEがIFACE_ALLOW_REGEXにマッチしない場合, またはIFACEがIFACE_DENY_REGEXにマッチする場合に出力される。
+#
+#     LOG_LEVEL > 3 の場合に出力される。
+#
+# [Error] Usage: スクリプトのベース名 <IFACE> <STATE> (args=<args...>)
+#     スクリプトの呼び出し引数が不正であることを示すエラーメッセージ。
+#     本スクリプトは何もせず終了する。
+#     スクリプトの使用方法と呼び出し時の引数がargs=以降に表示される。
+#     LOG_LEVEL > 1 の場合に出力される。
+#
+#     NetworkManagerのdispatcherスクリプトとして実行された場合で,
+#     本メッセージが出た場合は, NetworkManagerのディスパッチャインターフェースが
+#     変更された可能性があるため, NetworkManagerのバージョンアップデート内容を確認し,
+#     本スクリプトを修正する必要がある。
+#
+#     NetworkManagerのディスパッチャインターフェースの詳細は以下を参照:
+#       [NetworkManager-dispatcher](https://networkmanager.dev/docs/api/1.44.4/NetworkManager-dispatcher.html)
+#
+# [Warning] Failed to remove state file <file_path>
+#     IFACEのup時, ホスト名変更時, 再適用時は, 本スクリプトは, STATE_DIRにある
+#     ステートファイルを削除し, 強制的にDNS更新を行う。
+#     この際, ステートファイルの削除に失敗したことを示す警告メッセージ。
+#     削除に失敗したステートファイルのパスが表示される。
+#     ステートファイルの削除に失敗しても, 処理は継続される。
+#     LOG_LEVEL > 2 の場合に出力される。
+#
+# [Info] Removing state file <file_path>
+#     IFACE の up/hostname/reapply 時に, 強制更新のためステートファイルを削除したことを示す情報メッセージ。
+#     削除対象のステートファイルのパスが表示される。
+#     LOG_LEVEL > 3 の場合に出力される。
+#
+# [Error] Child script failed (exit=<code>): <子スクリプトのpath>
+#     子スクリプトの実行が非0で終了したことを示すエラーメッセージ。
+#     当該スクリプトの実行権限, FQDN, IFACEの設定, ネットワーク接続状態,
+#     DNSサーバーの到達性, DNSサーバーの設定などを確認の上,
+#     子スクリプト側の実行ログを確認し, 対処する。
+#     LOG_LEVEL > 1 の場合に出力される。
+#
+# [Error] Child stdout: <line>
+#     子スクリプトの標準出力の1行を示すエラーログ(失敗時のみ行単位で出力)。
+#     LOG_LEVEL > 1 の場合に出力される。
+#
+# [Error] Child stderr: <line>
+#     子スクリプトの標準エラー出力の1行を示すエラーログ(失敗時のみ行単位で出力)。
+#     LOG_LEVEL > 1 の場合に出力される。
+#
+# [Error] Invalid argument: write_log <level> <message> args=<args...>
+#   write_log関数の引数が不正であることを示すエラーメッセージ。
+#   関数の使用方法と引数が表示される。LOG_LEVEL > 1 の場合に出力される。
+#   内部整合性エラーなので, スクリプトの修正が必要。
+#
+# [Error] Failed to determine hostname; cannot build FQDN automatically.
+#   ホスト名の取得に失敗し, FQDNを自動生成できなかったことを示すエラーメッセージ。
+#   内部整合性エラーなので, ホスト名の取得方法を確認し, スクリプトを修正する必要がある。
+#   LOG_LEVEL > 1 の場合に出力される。
+#
+# [Error] Invalid FQDN (starts with a dot): <FQDN>
+#   環境変数FQDNに不正な値が設定されていることを示すエラーメッセージ。
+#   <FQDN>がドットで始まっていることが表示される。
+#   FQDNの設定を確認し, FQDNを正しく指定する必要がある。
+#   LOG_LEVEL > 1 の場合に出力される。
+#
+# [Error] Invalid FQDN (contains empty label): <FQDN>
+#   環境変数FQDNに不正な値が設定されていることを示すエラーメッセージ。
+#   <FQDN>に空のラベル(連続するドット)が含まれていることが表示される。
+#   FQDNの設定を確認し, FQDNを正しく指定する必要がある。
+#   LOG_LEVEL > 1 の場合に出力される。
+#
+# [Debug] <message>
+#   デバッグメッセージ。
+#   LOG_LEVEL > 4 の場合に出力される。
+#   運用環境で出力されないメッセージであり,
+#   LOG_LEVELの設定を4以下になっていることを確認する必要がある。
+#
+# アサーションエラー, 到達不可能コード到達メッセージについて:
+#
+# 本スクリプトでは, 内部整合性エラーを検出した場合に, アサーションエラー,
+# 到達不可能コード到達メッセージを出力してスクリプトを終了する。
+#
+# メッセージの形式は以下の通り。
+#
+# [Assert] Assertion error: <条件式文字列> file=<呼び出し元ファイル> line=<呼び出し元の行番号>
+# [Assert] Assertion error: <条件式文字列> file=<呼び出し元ファイル> line=<呼び出し元の行番号> <補足メッセージ>
+# [Assert] Assertion error: <empty expression> file=<呼び出し元ファイル> line=<呼び出し元の行番号>
+# [Assert] Reached unreachable code: file=<呼び出し元ファイル> line=<呼び出し元の行番号>
+#
+# これらのメッセージが出力された場合, スクリプトの修正が必要。
+# なお, これらのメッセージは, スクリプトのバグに起因するため, LOG_LEVEL に関係なく出力される。
+set -euo pipefail
+
+ENV_FILE="{{ nm_ns_update_sysconfig_path }}"  # 環境変数ファイル
+if [[ -f "$ENV_FILE" ]]; then
+  while IFS= read -r line; do
+    # コメント/空行を除外
+    [[ $line =~ ^[[:space:]]*# || -z $line ]] && continue
+    # export を剥がす
+    line="${line#export }"
+    # key=value だけ許可
+    [[ $line =~ ^([A-Za-z_][A-Za-z0-9_]*)=(.*)$ ]] || continue
+    k="${BASH_REMATCH[1]}"
+    v="${BASH_REMATCH[2]}"
+    # 既に環境にあるなら触らない
+    [[ -n "${!k+x}" ]] && continue
+    # 外側の引用を剥がさず, そのまま文字列として設定
+    printf -v "$k" '%s' "$v"
+    export "$k"
+  done < "$ENV_FILE"
+fi
+
+LC_ALL=C    # ロケールをCに設定
+export LC_ALL  # LC_ALLをエクスポート (外部コマンドにも適用)
+
+# コマンド検索パス
+SAFE_PATH="/usr/local/sbin:/usr/sbin:/usr/bin:/sbin:/bin"
+PATH="${SAFE_PATH}"
+export PATH # PATHをエクスポート
+
+# ログの識別用タグ
+TAG="${TAG:-ns-update}"
+
+DRY_RUN="${DRY_RUN:-no}"  # yes の場合は実際の更新は行わない
+LOG_LEVEL="${LOG_LEVEL:-2}"  # debug=5, info=4, warning=3, error=2 (default=2)
+STATE_DIR="${STATE_DIR:-/var/lib/ddns}"
+IFACE_ALLOW_REGEX="${IFACE_ALLOW_REGEX:-}"
+IFACE_DENY_REGEX="${IFACE_DENY_REGEX:-}"
+STATE_FILE_IPV6="${STATE_DIR}/ipv6-published"
+STATE_FILE_IPV4="${STATE_DIR}/ipv4-published"
+CHILD_SCRIPT="{{ ddns_client_update_sh_path }}"
+
+#
+# Ansibleの事前定義変数からホスト名を取得するための変数
+#
+# 以下の順にフォールバックして取得を試み, テンプレート展開時に文字列として埋め込む
+#   1. ansible_facts.hostname : ホスト名 (短縮名)
+#   2. inventory_hostname_short : インベントリに登録されたホスト名 (DNS命名と一致している環境でのみ有効)
+#
+# 注意: nodename や inventory_hostname はDNSと一致しないことがあるため使用しない
+#
+#   いずれも利用できない場合は空文字列を使用する
+#   取得したホスト名から, 最初のラベル(ドメイン部分を除去)を抜き出し,
+#   前後の空白を除去する(いずれも利用できない場合は空文字列になる)。
+#   ただし, ホスト名にドメイン部分が含まれている場合は, ドメイン部分を除去する。
+ANSIBLE_HOSTNAME_FALLBACK="{{ (ansible_facts.hostname
+  | default(inventory_hostname_short)
+  | default('',true)) | regex_replace('\\..*$','') | trim }}"
+
+#
+# 終了コード
+#
+EXIT_SUCCESS=0                    # 正常終了
+EXIT_FAILURE=1                    # 一般的なエラー
+EXIT_HOSTNAME_CANNOT_DETERMINE=2  # ホスト名の取得に失敗
+EXIT_INV_FQDN=3                   # 環境変数FQDNに不正な値が設定されている
+EXIT_NR_ARGS=64                   # 引数不正/Usageエラー(EX_USAGE相当)
+EXIT_INV_ARG=65                   # 関数の引数の値が規定外(内部整合性エラー)
+EXIT_ASSERT_ERROR=128             # アサーションエラー(内部整合性エラー)
+EXIT_ASSERT_NO_REACH=129          # 到達不可能コードに到達(内部整合性エラー)
+
+# ログレベル文字列の正規化
+# LOG_LEVELが整数値でない場合, または 0~5 の範囲外の場合はデフォルト値2に設定する
+[[ ${LOG_LEVEL} =~ ^[0-9]+$ ]] || LOG_LEVEL=2
+if (( LOG_LEVEL < 0 )) || (( LOG_LEVEL > 5 )); then
+    LOG_LEVEL=2
+fi
+
+#
+# アサーション関数
+#
+# 引数で与えられた条件式を eval で評価し, 偽の場合は
+# "[Assert] Assertion error: <条件式文字列> file=<呼び出し元ファイル> line=<呼び出し元の行番号>"を
+# ログと標準エラー出力とに出力してexit(${EXIT_ASSERT_ERROR})でスクリプト全体を終了する。
+#
+# 引数1: 評価される条件式文字列
+# 引数2以降: 任意の補足メッセージ (省略可)
+#
+# 返却値/終了コード:
+#   - 条件式が真の場合は0を返す。
+#   - 条件式が偽の場合は, exit(${EXIT_ASSERT_ERROR})でスクリプト全体を終了する。
+#   - 引数が無い場合は, exit(${EXIT_ASSERT_ERROR})でスクリプト全体を終了する。
+# 動作:
+#   - 条件式が真の場合は何も出力せず, 0を返す。
+#   - 条件式文字列 を eval で評価し, 偽の場合は, 以下のメッセージをログと標準エラー出力とに出力して,
+#     exit(${EXIT_ASSERT_ERROR})でスクリプト全体を終了する。
+#     "[Assert] Assertion error: <条件式文字列> file=<呼び出し元ファイル> line=<呼び出し元の行番号>"を
+#     ログと標準エラー出力とに出力してexit(${EXIT_ASSERT_ERROR})でスクリプト全体を終了する。
+#   - 2つ目以降の引数がある場合は, それらを空白で連結したものを補足メッセージとして,
+#     "[Assert] Assertion error: <条件式文字列> file=<呼び出し元ファイル> line=<呼び出し元の行番号> msg=<補足メッセージ>"
+#     をログと標準エラー出力とに出力してexit(${EXIT_ASSERT_ERROR})でスクリプト全体を終了する。
+#   - 引数が無い場合は,
+#     "[Assert] Assertion error: <empty expression> file=<呼び出し元ファイル> line=<呼び出し元の行番号>"を
+#     ログと標準エラー出力とに出力してexit(${EXIT_ASSERT_ERROR})でスクリプト全体を終了する。
+#   - ログのタグは, 環境変数 TAG が設定されていればその値を使用し, 未設定の場合は "ns-update" を使用する。
+#
+# 注意事項:
+#   - 引数の条件式文字列は, シングルクォートで囲むことを推奨。
+#     例: assert '[ "$x" -gt 0 ]'
+#   - 条件式内で変数を使用する場合は, 変数をダブルクォートで囲むことを推奨。
+#
+# 補足事項:
+#   set -e でも if 内評価なので安全に使用可能。
+# 例:
+#   assert 'test -f /etc/hosts'      # /etc/hosts が存在することをtestコマンドで確認
+#   assert '[ "$x" -gt 0 ]'          # 変数xが0より大きいことを確認
+#   assert 'my_func_returns_success' # my_func_returns_success関数が成功を返すことを確認
+assert() {
+    local expr="$1"
+    local note="${2:-}"  # 任意の補足メッセージ
+    local file="${BASH_SOURCE[1]:-$(basename -- "$0")}"
+    local line="${BASH_LINENO[0]:-0}"
+    local tag="${TAG:-ns-update}"
+    local msg
+
+    # 引数なしは関数の使い方ミス
+    if [[ -z "${expr}" ]]; then
+        msg="[Assert] Assertion error: <empty expression> file=${file} line=${line}"
+        logger -t "${tag}" -- "${msg}"
+        echo "${msg}" >&2
+        exit ${EXIT_ASSERT_ERROR}
+    fi
+
+    # 条件評価
+    if ! eval -- "${expr}"; then
+        msg="[Assert] Assertion error: ${expr} file=${file} line=${line}"
+
+        # 引数2以降を空白連結して補足メッセージとする
+        if (( $# >= 2 )); then
+
+            note="${*:2}"
+            msg="${msg} msg=${note}"
+        fi
+
+        logger -t "${tag}" -- "${msg}"
+        echo "${msg}" >&2
+        exit ${EXIT_ASSERT_ERROR}
+    fi
+    return 0
+}
+
+#
+# 到達不可能コード到達関数
+#
+# 終了コード:
+#   exit(${EXIT_ASSERT_NO_REACH})でスクリプト全体を終了する。
+# 動作:
+#   - "[Assert] Reached unreachable code: file=<呼び出し元ファイル> line=<呼び出し元の行番号>"
+#     をログと標準エラー出力とに出力してexit(${EXIT_ASSERT_NO_REACH})でスクリプト全体を終了する。
+#   - ログのタグは, 環境変数 TAG が設定されていればその値を使用し, 未設定の場合は "bash" を使用する。
+# 例:
+#   assert_no_reach
+assert_no_reach() {
+    local file="${BASH_SOURCE[1]:-$(basename -- "$0")}"
+    local line="${BASH_LINENO[0]:-0}"
+    local tag="${TAG:-ns-update}"
+    local msg="[Assert] Reached unreachable code: file=${file} line=${line}"
+
+    logger -t "${tag}" -- "${msg}"
+    echo "${msg}" >&2
+    exit ${EXIT_ASSERT_NO_REACH}
+}
+
+#
+# ログ出力関数
+#
+#
+# 引数1: ログレベル文字列
+#
+#   "dbg": Debug
+#   "inf": Info
+#   "war": Warning
+#   "err": Error
+#
+#   それ以外の文字列を指定した場合は無視される
+#
+# 引数2: ログメッセージ
+# 例:
+#   write_log "inf" "This is an info message"
+#   write_log "err" "This is an error message"
+#
+write_log() {
+    local prefix
+
+    if [ "$#" -ne 2 ]; then
+        logger -t "${TAG}" -- "[Error] Invalid argument: write_log <level> <message> args=$*";
+        echo "[Error] Invalid argument: write_log <level> <message> args=$*" >&2;
+        exit ${EXIT_NR_ARGS}
+    fi
+
+    case "$1" in
+        "dbg")
+            (( "${LOG_LEVEL}" > 4 )) || return 0
+            prefix="[Debug]"
+            ;;
+        "inf")
+            (( "${LOG_LEVEL}" > 3 )) || return 0
+            prefix="[Info]"
+            ;;
+        "war")
+            (( "${LOG_LEVEL}" > 2 )) || return 0
+            prefix="[Warning]"
+            ;;
+        "err")
+            (( "${LOG_LEVEL}" > 1 )) || return 0
+            prefix="[Error]"
+            ;;
+        *)
+            return 0 # 無視
+            ;;
+    esac
+
+    logger -t "${TAG}" -- "${prefix} $2";
+    echo "${prefix} $2" >&2;
+
+    return 0
+}
+
+#
+# デバッグログ出力関数
+#
+# 第1引数: ログメッセージ
+#
+dbg_log() {
+
+    write_log "dbg" "$*"
+    return 0
+}
+
+#
+# 情報ログ出力関数
+#
+# 第1引数: ログメッセージ
+#
+inf_log() {
+
+    write_log "inf" "$*"
+    return 0
+}
+
+#
+# 警告ログ出力関数
+#
+# 第1引数: ログメッセージ
+#
+war_log() {
+
+    write_log "war" "$*"
+    return 0
+}
+
+#
+# エラーログ出力関数
+#
+# 第1引数: ログメッセージ
+#
+err_log() {
+
+    write_log "err" "$*"
+    return 0
+}
+
+#
+# 処理対象インターフェースかを判定する
+#
+# 引数1: IFACE (インターフェース名)
+# 復帰値:
+#   0: 処理対象 (Ethernet系の実インターフェースと判断)
+#   1: 非対象 (無線/仮想/VLANサブIF等)
+# 注意事項:
+#   - 本関数は「名前による一次スクリーニング」 から 「物理NIC判定(/sys)」の順に判定する
+#   - VLANサブIF(例: enp0s3.100)は除外する
+#   - 既知の仮想IF接頭辞(br, bond, veth 等)は除外する
+#
+should_handle_iface() {
+    local ifname
+
+    if [ "$#" -ne 1 ]; then
+        err_log "Invalid argument: should_handle_iface <IFACE> args=$*"
+        exit ${EXIT_NR_ARGS}
+    fi
+    ifname="$1"
+
+    # -------- 1) ユーザ指定フィルタ ( deny/allow ) を適用 --------
+    # deny がマッチすれば除外 ( 優先 )
+    if [[ -n "${IFACE_DENY_REGEX:-}" && "${ifname}" =~ ${IFACE_DENY_REGEX} ]]; then
+        dbg_log "IF ${ifname}: excluded by IFACE_DENY_REGEX"
+        return 1
+    fi
+    # allow が非空なら, allow にマッチしたもののみ許可
+    if [[ -n "${IFACE_ALLOW_REGEX:-}" && ! "${ifname}" =~ ${IFACE_ALLOW_REGEX} ]]; then
+        dbg_log "IF ${ifname}: excluded (not matched to IFACE_ALLOW_REGEX)"
+        return 1
+    fi
+
+    # -------- 2) 早期除外: VLANサブIFや '@' を含む特殊名は除外 --------
+    #   - VLANサブIFは '.' を含む (例: enp1s0.200)
+    #   - veth等で '@' を含む表記が来た場合も除外 ( 念のため )
+    if [[ "${ifname}" == *.* ]] || [[ "${ifname}" == *"@"* ]]; then
+        dbg_log "IF ${ifname}: excluded (VLAN/subinterface or special name)"
+        return 1
+    fi
+
+    # -------- 3) 名前で Ethernet 系かをスクリーニング --------
+    # systemd predictable names の Ethernet は en* ( eno*/enp*/ens*/enx* )
+    # 旧来の ethN も許容 ( 実機で残っているケースに対応 )
+    # 既知の仮想IFや非Ethernet接頭辞は除外
+    #
+    # 許可候補:  ^en(o|p|s|x).*$  or  ^eth[0-9]+$
+    # 除外候補:  ^(veth|br|bond|team|tun|tap|virbr|docker|vboxnet|vmnet|vnet|wg|tailscale|zt|lo|wl|ww).*
+    if [[ ! "${ifname}" =~ ^en(o|p|s|x).*$|^eth[0-9]+$ ]]; then
+        dbg_log "IF ${ifname}: excluded by name filter (not Ethernet-like)"
+        return 1
+    fi
+    if [[ "${ifname}" =~ ^(veth|br|bond|team|tun|tap|virbr|docker|vboxnet|vmnet|vnet|wg|tailscale|zt|lo|wl|ww).* ]]; then
+        dbg_log "IF ${ifname}: excluded (known virtual/non-Ethernet prefix)"
+        return 1
+    fi
+
+    # -------- 4) 物理NICかを sysfs で確定 --------
+    # /sys/class/net/<if>/device が存在すればPCI/USB等のデバイスにひも付き, 物理NICとみなす
+    # macvlan/macvtap などの仮想IFは通常ここが存在しないため除外される
+    if [[ -e "/sys/class/net/${ifname}/device" ]]; then
+        dbg_log "IF ${ifname}: accepted (Ethernet-like name & has /sys device)"
+        return 0
+    else
+        dbg_log "IF ${ifname}: excluded (no /sys/class/net/${ifname}/device)"
+        return 1
+    fi
+}
+
+main() {
+    local IFACE STATE
+    local _hn _cmd
+    local _f _f_no_dot
+    local HOSTNAME
+    local rc
+    local _tmp_out _tmp_err
+    local _line
+    local _file
+    local state_file_ipv6
+    local state_file_ipv4
+
+    inf_log  "start $0 $*"
+
+    if [ "$#" -ne 2 ]; then
+        err_log "Usage: $(basename -- "$0") <IFACE> <STATE> (args=$*)"
+        exit ${EXIT_NR_ARGS}
+    fi
+
+    IFACE="$1" # インターフェース名
+    STATE="$2" # 状態
+
+    # IFACE=none の補正 ( hostname/reapply のとき )
+    if [[ "${IFACE}" == "none" || -z "${IFACE}" ]]; then
+        case "${STATE}" in
+            hostname|reapply)
+                # Ansible 既定値 から 環境ファイル から 最後に common_default_nic の順でフォールバック
+                IFACE="{{ (mgmt_nic | default(common_default_nic) ) | trim }}"
+
+                    if [[ -z "${IFACE}" ]]; then
+                        err_log "Cannot determine IFACE to handle for STATE=${STATE}; IFACE was '${IFACE}'"
+                        exit ${EXIT_FAILURE}
+                    fi
+
+                    inf_log "IFACE was none; normalized to '${IFACE}' for STATE=${STATE}"
+                ;;
+            *)
+                inf_log "No action for IFACE='${IFACE}' STATE=${STATE}"
+                inf_log "end $0 $*"
+                exit ${EXIT_SUCCESS}
+                ;;
+        esac
+    fi
+
+    # IFACEのallow/denyフィルタリング
+    if ! should_handle_iface "${IFACE}"; then
+        inf_log "No action for IFACE=${IFACE} STATE=${STATE} (not allowed interface IFACE_ALLOW_REGEX=${IFACE_ALLOW_REGEX:-} IFACE_DENY_REGEX=${IFACE_DENY_REGEX:-})"
+        inf_log "end $0 $*"
+        exit ${EXIT_SUCCESS}
+    fi
+
+    # FQDN未指定時のみ, ホスト名から既定のFQDNを組み立てる
+    if [[ -z "${FQDN:-}" ]]; then
+        # 堅牢なホスト名取得(順次フォールバック)
+        _hn=""
+        for _cmd in /usr/bin/hostname /bin/hostname; do
+            if [ -x "${_cmd}" ]; then
+                _hn="$("${_cmd}" -s 2>/dev/null || true)"
+                [ -n "${_hn}" ] && break
+            fi
+        done
+
+        # ホスト名が見つからなかった場合は, フォールバックする
+        # /proc/sys/kernel/hostname からホスト名を取得
+        if [ -z "${_hn}" ]; then
+            _hn="$(cat /proc/sys/kernel/hostname 2>/dev/null || true)"
+        fi
+
+        # 実行環境で hostname 取得に失敗しても, ansibleのテンプレート展開時に
+        # 得られた値があればそれを用いる
+        if [ -z "${_hn}" ] && [ -n "${ANSIBLE_HOSTNAME_FALLBACK:-}" ]; then
+            _hn="${ANSIBLE_HOSTNAME_FALLBACK}"
+        fi
+
+        # ドメイン部分や空白を除去
+        _hn="${_hn%%.*}"
+        _hn="$(printf '%s' "${_hn}" | tr -d ' \t\r\n')"
+
+        # 許容外文字(DNS非推奨文字)を除去(英数字とハイフン以外は落とす)
+        # IDN/Punycodeには対応しない
+        # IDN/Punycodeに対応する場合は, ここでの除去は行わず,
+        # 本スクリプトで A-label に正規化してから子スクリプトに渡すか,
+        # 方針で修正することを検討すること
+        _hn="$(printf '%s' "${_hn}" | sed 's/[^A-Za-z0-9-]//g')"
+
+        #
+        # DNSラベルの慣例に合わせて, 先頭と末尾のハイフンを削除し,
+        # 小文字化し, 最大63文字に丸める
+        #
+
+        # 先頭/末尾ハイフンを連続含めて削除
+        _hn="$(printf '%s' "${_hn}" | sed -e 's/^-*//' -e 's/-*$//')"
+
+        # 小文字化
+        _hn="$(printf '%s' "${_hn}" | tr 'A-Z' 'a-z')"
+
+        # 最大 63 文字に丸める
+        _hn="${_hn:0:63}"
+
+        if [ -z "${_hn}" ]; then
+            err_log "Failed to determine hostname; cannot build FQDN automatically."
+            exit ${EXIT_HOSTNAME_CANNOT_DETERMINE}
+        fi
+
+        HOSTNAME="${_hn}"
+        FQDN="${HOSTNAME}.{{dns_domain}}."
+    else
+
+        # 環境変数でFQDN指定がある場合は, 簡易チェック/正規化を行い, 使用する
+        _f="${FQDN}"
+
+        # 末尾ドットがなければ付与(ゾーン名として明示)
+        [[ "${_f}" == *"." ]] || _f="${_f}."
+
+        _f_no_dot="${_f%.}"
+
+        # 先頭ドット禁止
+        if [[ "${_f_no_dot}" == .* ]]; then
+            err_log "Invalid FQDN (starts with a dot): ${FQDN}"
+            exit ${EXIT_INV_FQDN}
+        fi
+
+        # 空ラベル(連続ドット)禁止
+        if [[ "${_f_no_dot}" == *..* ]]; then
+            err_log "Invalid FQDN (contains empty label): ${FQDN}"
+            exit ${EXIT_INV_FQDN}
+        fi
+
+        FQDN="${_f}"
+
+        # ログの見やすさのため, HOSTNAMEが未設定ならFQDNの第1ラベルを補完。
+        if [ -z "${HOSTNAME:-}" ]; then
+            # 末尾ドットを仮に外してから第1ラベルを抜き出し
+            _f="${FQDN%.}"
+            HOSTNAME="${_f%%.*}"
+        fi
+    fi
+
+    inf_log  "Determined FQDN=${FQDN} from HOSTNAME=${HOSTNAME}"
+
+    state_file_ipv6="${STATE_FILE_IPV6}-${IFACE}"
+    state_file_ipv4="${STATE_FILE_IPV4}-${IFACE}"
+
+    # 設定値確認
+    inf_log "Using IFACE=${IFACE}, STATE=${STATE}, FQDN=${FQDN}, DRY_RUN=${DRY_RUN}, LOG_LEVEL=${LOG_LEVEL}, STATE_FILE_IPV6=${state_file_ipv6}, STATE_FILE_IPV4=${state_file_ipv4}, STATE_DIR=${STATE_DIR}"
+
+
+    # 強制更新 ( ステート削除 ) は up / hostname / reapply のみ
+    case "${STATE}" in
+        up|hostname|reapply)
+            for _file in "${state_file_ipv6}" "${state_file_ipv4}"; do
+                if [ -f "${_file}" ]; then
+                    inf_log "Removing state file ${_file}"
+                    if rm -f -- "${_file}"; then
+                        dbg_log "Removed ${_file}"
+                    else
+                        war_log "Failed to remove state file ${_file}"
+                    fi
+                else
+                    dbg_log "State file not present: ${_file}"
+                fi
+            done
+            ;;
+        ra-addr-change|dhcp6-change|dhcp4-change)
+            :
+            ;;
+        *)
+            inf_log "No action for IFACE=${IFACE} STATE=${STATE}"
+            inf_log "end $0 $*"
+            exit ${EXIT_SUCCESS}
+            ;;
+    esac
+
+    # 実行フェーズ
+    inf_log "Triggering DNS update for IFACE=${IFACE} STATE=${STATE} FQDN=${FQDN}"
+    if [ "${DRY_RUN,,}" = "yes" ]; then
+        inf_log "Dry run mode: DNS update skipped"
+    else
+        _tmp_out="$(mktemp -t ns-update-child-stdout.XXXXXXXX 2>/dev/null || mktemp)"
+        _tmp_err="$(mktemp -t ns-update-child-stderr.XXXXXXXX 2>/dev/null || mktemp)"
+        trap 'rm -f -- "${_tmp_out}" "${_tmp_err}" >/dev/null 2>&1 || true' EXIT
+
+        if ! env FQDN="${FQDN}" IFACE="${IFACE}" STATE_DIR="${STATE_DIR}" DRY_RUN="${DRY_RUN}" LOG_LEVEL="${LOG_LEVEL}" \
+             "${CHILD_SCRIPT}" >"${_tmp_out}" 2>"${_tmp_err}"
+        then
+            rc=$?
+            err_log "Child script failed (exit=${rc}): ${CHILD_SCRIPT}"
+            if [ -s "${_tmp_out}" ]; then
+                while IFS= read -r _line; do err_log "Child stdout: ${_line}"; done < "${_tmp_out}"
+            else
+                err_log "Child stdout: <empty>"
+            fi
+            if [ -s "${_tmp_err}" ]; then
+                while IFS= read -r _line; do err_log "Child stderr: ${_line}"; done < "${_tmp_err}"
+            else
+                err_log "Child stderr: <empty>"
+            fi
+            rm -f -- "${_tmp_out}" "${_tmp_err}" || true
+            trap - EXIT
+            exit ${EXIT_FAILURE}
+        fi
+        rm -f -- "${_tmp_out}" "${_tmp_err}" || true
+        trap - EXIT
+    fi
+
+    inf_log  "end $0 $*"
+
+    return ${EXIT_SUCCESS}
+}
+
+main "$@"
+exit $?

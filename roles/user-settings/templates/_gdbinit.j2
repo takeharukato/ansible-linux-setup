@@ -1,0 +1,41 @@
+#  -*- coding:utf-8 mode:jinja2 -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+{# 日付の取得 #}
+# last update: {{ '%Y-%m-%d %H:%M:%S %Z' | strftime(ansible_date_time.epoch) }}
+#
+
+#
+#
+#.gdbinit
+#
+#
+set radix 16
+add-auto-load-safe-path ~/
+python
+import os
+sys.path.insert(0, os.path.join(os.environ['HOME'],'gdb'))
+import offsets
+end
+
+define riscv64-setup
+target remote localhost:1234
+symbol-file kernel-dbg.elf
+end
+
+define remote_target
+target remote localhost:1234
+end
+
+define aarch64_target
+set architecture aarch64
+end
+
+define x64_target
+set architecture i386:x86-64:intel
+end
+
+define six
+si
+x /i $pc
+end

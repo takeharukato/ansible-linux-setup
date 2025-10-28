@@ -1,0 +1,14 @@
+[Unit]
+Description=RA/SLAAC address monitor for notifying to 90-nm-ns-update of address changes via a custom ra-addr-change event
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+EnvironmentFile=-{{ nm_ra_addr_watch_sysconfig_path }}
+ExecStart={{ nm_ra_addr_watch_path | to_json }}
+Restart=always
+RestartSec={{ nm_ra_addr_watch_interval }}s
+
+[Install]
+WantedBy=multi-user.target

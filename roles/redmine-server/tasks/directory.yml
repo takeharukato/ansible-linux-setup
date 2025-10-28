@@ -1,0 +1,78 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  ファイル・ディレクトリ作成関連タスク
+#
+
+- name: Ensure Redmine volumes exist via Docker CLI commands
+  become: true
+  ansible.builtin.command: >
+    sh -c "docker volume inspect {{ item }} >/dev/null 2>&1
+    || docker volume create --label managed_by=ansible {{ item }}"
+  loop:
+    - "{{ redmine_files_volume }}"
+    - "{{ redmine_database_volume }}"
+  register: vol_results
+  changed_when: vol_results.stdout |default('',true)|length > 0
+  failed_when: vol_results.rc != 0
+
+- name: "Create {{redmine_docker_dir}}"
+  file:
+    path: "{{redmine_docker_dir}}"
+    state: directory
+    mode: "755"
+  become: true
+
+- name: "Create {{redmine_scripts_dir}}"
+  file:
+    path: "{{redmine_scripts_dir}}"
+    state: directory
+    mode: "755"
+  become: true
+
+- name: "Create {{redmine_backup_dir}}"
+  file:
+    path: "{{redmine_backup_dir}}"
+    state: directory
+    mode: "755"
+  become: true
+
+- name: "Create {{redmine_docker_dir}}/docker-compose.yml"
+  template:
+    src: docker-compose.yml.j2
+    dest: "{{redmine_docker_dir}}/docker-compose.yml"
+    owner: root
+    group: root
+    mode: 0644
+    backup: no
+
+# バックアップ作業用スクリプトを作成
+- name: "Create {{redmine_scripts_dir}}/backup-redmine-data.sh"
+  template:
+    src: backup-redmine-data.sh.j2
+    dest: "{{redmine_scripts_dir}}/backup-redmine-data.sh"
+    owner: root
+    group: root
+    mode: 0755
+    backup: no
+
+# リストア作業用スクリプトを作成
+- name: "Create {{redmine_scripts_dir}}/restore-redmine-data.sh"
+  template:
+    src: restore-redmine-data.sh.j2
+    dest: "{{redmine_scripts_dir}}/restore-redmine-data.sh"
+    owner: root
+    group: root
+    mode: 0755
+    backup: no
+
+# デイリーバックアップスクリプトを作成
+- name: "Create {{redmine_scripts_dir}}/daily-backup-redmine.sh"
+  template:
+    src: daily-backup-redmine.sh.j2
+    dest: "{{redmine_scripts_dir}}/daily-backup-redmine.sh"
+    owner: root
+    group: root
+    mode: 0755
+    backup: no

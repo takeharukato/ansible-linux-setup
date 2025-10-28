@@ -1,0 +1,47 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  sudoer path 設定関連タスク
+#
+
+# sudoがインストールされていることを確認
+- name: Ensure sudo is present
+  become: true
+  ansible.builtin.package:
+    name: sudo
+    state: present
+
+# /etc/sudoers.d ディレクトリが存在することを確認
+- name: Ensure /etc/sudoers.d exists
+  become: true
+  ansible.builtin.file:
+    path: /etc/sudoers.d
+    state: directory
+    owner: root
+    group: root
+    mode: "0750"
+
+# /etc/sudoers に includedir 行が存在することを確認
+- name: Ensure includedir line exists in /etc/sudoers
+  become: true
+  ansible.builtin.lineinfile:
+    path: /etc/sudoers
+    regexp: '^#includedir\s+/etc/sudoers\.d$'
+    line: '#includedir /etc/sudoers.d'
+    state: present
+    validate: 'visudo -cf %s'
+    backup: true
+
+# Set secure_path via drop-in (RHEL/Debian 共通)
+# /usr/local/sbin,/usr/local/binを追加し, helm 等のコマンドが sudo 実行時に見つかるようにする
+- name: "Set secure_path via drop-in file /etc/sudoers.d/99-secure-path"
+  become: true
+  ansible.builtin.copy:
+    dest: /etc/sudoers.d/99-secure-path
+    owner: root
+    group: root
+    mode: "0440"
+    content: |
+      Defaults secure_path=/sbin:/bin:/usr/sbin:/usr/bin:/usr/local/sbin:/usr/local/bin
+    validate: 'visudo -cf %s'

@@ -1,0 +1,30 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+- hosts: devel
+  remote_user:  '{{ ansible_user }}'
+  become: true
+  roles:
+    - role: selinux
+      tags: selinux
+    - role: repo-deb
+      tags: repo-deb
+      when: ansible_facts.os_family == "Debian"
+    - role: repo-rpm
+      tags: repo-rpm
+      when: ansible_facts.os_family == "RedHat"
+    - role: common
+      tags: common
+    - role: ntp-client
+      tags: ntp-client
+    - role: user-settings
+      tags: user-settings
+    - role: devel-packages
+      tags: devel-packages
+    - role: create-users
+      tags: create-users
+    - role: docker-ce
+      tags: docker-ce
+    - role: force-reboot # 最後に実行するようにすること
+      tags: force-reboot

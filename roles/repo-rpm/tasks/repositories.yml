@@ -1,0 +1,135 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  リポジトリ関連処理
+#
+
+# リポジトリ関連処理の方針:
+# 1. Red Hat Enterprise Linux (RHEL) 9 環境で最初に Extra Packages for Enterprise Linux (EPEL) を再生成する
+# 2. 既存の /etc/yum.repos.d/epel*.repo は完全に削除する
+# 3. epel-release の導入後に再度 epel*.repo を削除し重複キーの混入を防ぐ
+# 4. ansible.builtin.yum_repository で epel を新規生成する
+# 5. Extra Packages for Enterprise Linux (EPEL) は gpgcheck=1 を維持し repo_gpgcheck=0 とする
+# 6. 固定の http(s) baseurl は使用せず metalink を使用する
+# 7. CodeReady Linux Builder (CRB) または CodeReady Builder を有効化する
+# 8. 以降で dnf-plugins-core を導入する
+#
+
+# (A) RHEL 9 での事前健全化処理
+- name: Sanitize repository settings on RHEL 9 before any package operations
+  when:
+    - ansible_facts.os_family == "RedHat"
+    - ansible_facts.pkg_mgr == "dnf"
+    - (ansible_facts.distribution_major_version | int) == 9
+  block:
+
+    - name: remove epel repo files if present
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: absent
+      loop: "{{ lookup('ansible.builtin.fileglob', '/etc/yum.repos.d/epel*.repo', wantlist=True) | default([],true) }}"
+      loop_control:
+        label: "{{ item }}"
+
+    # /etc/dnf/dnf.conf の repo_gpgcheck=1 は Extra Packages for Enterprise Linux (EPEL) で失敗の原因となるため削除する
+    - name: Remove global repo_gpgcheck enforcement if present
+      ansible.builtin.lineinfile:
+        path: /etc/dnf/dnf.conf
+        regexp: '^repo_gpgcheck='
+        state: absent
+
+    # Red Hat Enterprise Linux (RHEL) 9 の CodeReady Builder を有効化する
+    - name: Enable CodeReady Builder on Red Hat Enterprise Linux (RHEL) 9
+      ansible.builtin.command: >
+        subscription-manager repos
+        --enable codeready-builder-for-rhel-9-{{ ansible_facts.architecture }}-rpms
+      register: _crb_rhel
+      changed_when: "'enabled' in (_crb_rhel.stdout | default('',true))"
+      failed_when: false
+      when: ansible_distribution | lower == 'redhat'
+
+    # AlmaLinux 9 または Rocky Linux 9 の CodeReady Linux Builder (CRB) を有効化する
+    - name: Enable CodeReady Linux Builder (CRB) on AlmaLinux or Rocky Linux 9
+      ansible.builtin.command: dnf config-manager --set-enabled crb
+      register: _crb_extra
+      changed_when: "'enabled' in (_crb_extra.stdout | default('',true))"
+      failed_when: false
+      when: ansible_distribution | lower in ['almalinux', 'rocky']
+
+    # 既存の epel*.repo を徹底的に削除する
+    - name: Purge any existing EPEL repo files before installing epel-release
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: absent
+      loop: "{{ lookup('ansible.builtin.fileglob', '/etc/yum.repos.d/epel*.repo', wantlist=True) | default([],true) }}"
+      loop_control:
+        label: "{{ item }}"
+      failed_when: false
+
+    # epel-release を Extra Packages for Enterprise Linux (EPEL) を参照せずに導入する
+    - name: Ensure epel-release is present on RHEL 9 without contacting EPEL
+      ansible.builtin.dnf:
+        name: epel-release
+        state: present
+        disablerepo: "epel*"
+
+    # epel-release により作成された epel.repo を一度削除し重複キーの混入を防ぐ
+    - name: Purge any EPEL repo files created by epel-release
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: absent
+      loop: "{{ lookup('ansible.builtin.fileglob', '/etc/yum.repos.d/epel*.repo', wantlist=True) | default([],true) }}"
+      loop_control:
+        label: "{{ item }}"
+      failed_when: false
+
+    # ansible.builtin.yum_repository で Extra Packages for Enterprise Linux (EPEL) を新規生成する
+    - name: Configure Extra Packages for Enterprise Linux (EPEL)
+      ansible.builtin.yum_repository:
+        name: epel
+        description: "Extra Packages for Enterprise Linux 9 - $basearch"
+        metalink: "https://mirrors.fedoraproject.org/metalink?repo=epel-9&arch=$basearch"
+        enabled: true
+        gpgcheck: true
+        repo_gpgcheck: false
+        gpgkey: "file:///etc/pki/rpm-gpg/RPM-GPG-KEY-EPEL-9"
+        skip_if_unavailable: true
+        state: present
+        file: epel
+
+    # メタデータキャッシュを再生成する
+    - name: Rebuild DNF metadata cache after EPEL reconfiguration
+      ansible.builtin.command: dnf -y makecache
+      register: _makecache0
+      changed_when: false
+      retries: 3
+      delay: 10
+      until: _makecache0.rc == 0
+
+# (B) dnf-plugins-core のインストール
+# 優先度設定に必要なため上記の健全化後に実行する
+- name: Ensure dnf-plugins-core (priority support)
+  ansible.builtin.package:
+    name: dnf-plugins-core
+    state: present
+  register: _dnf_plugins_core
+  retries: 3
+  delay: 5
+  until: _dnf_plugins_core is succeeded
+
+# RPMディストリビューション固有タスクの読み込み
+- name: Include RPM distro specific tasks
+  ansible.builtin.include_tasks: "{{ lookup('ansible.builtin.first_found', params) }}"
+  vars:
+    params:
+      files:
+        - "{{ ansible_distribution | lower }}.yml"   # redhat.yml など
+        - "redhat.yml"                               # 安全のため明示
+        - "alma_rocky.yml"                           # Alma/Rocky 共通
+      paths:
+        - "tasks"
+
+# 外部リポジトリの読み込み
+- name: Include external repositories (RPM)
+  ansible.builtin.include_tasks: external.yml

@@ -1,0 +1,16 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+# docker groupが存在することを確認
+- name: Ensure group "docker" exists
+  ansible.builtin.group:
+    name: docker
+    state: present
+
+# ansible ユーザをdockerグループに追加
+- name: Add ansible user into docker group
+  user:
+    name: ansible
+    groups: docker
+    append: true

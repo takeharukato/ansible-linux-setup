@@ -1,0 +1,242 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  Firewall設定タスク
+#
+# ---- firewall (Debian: UFW) ------------------------------------------------
+
+# UFW の有無は ufw コマンドの存在で判定
+- name: Ensure UFW is installed (Debian family only, when backend=ufw)
+  ansible.builtin.package:
+    name: ufw
+    state: present
+  when:
+    - ansible_facts.os_family == "Debian"
+    - "'ufw' in firewall_backend"
+
+# UFW を有効化 (非対話モード)
+- name: Ensure UFW enabled (non-interactive)
+  ansible.builtin.shell: |
+    set -e
+    if ufw status | grep -iq '^Status: inactive'; then
+      ufw --force enable
+    fi
+  args:
+    executable: /bin/bash
+  changed_when: false
+  when:
+    - ansible_facts.os_family == "Debian"
+    - "'ufw' in firewall_backend"
+
+# UFW でポート開放
+- name: Allow common ports via UFW
+  ansible.builtin.shell: |
+    set -e
+    p_raw="{{ item }}"
+    p_ufw="${p_raw/-/:}"
+    ufw allow "${p_ufw}" || true
+  args:
+    executable: /bin/bash
+  loop: "{{ k8s_common_ports | default([], true) }}"
+  become: true
+  notify:
+    - "reload ufw"
+  when:
+    - ansible_facts.os_family == "Debian"
+    - "'ufw' in firewall_backend"
+    - k8s_common_ports | default([], true) | length > 0
+
+# Pod CIDR を in/out で許可 ( ネットワーク到達用 )
+- name: Allow Pod CIDR (IN/OUT) via UFW
+  ansible.builtin.shell: |
+    set -e
+    cidr="{{ item.cidr }}"
+    ufw allow in from "${cidr}"
+    ufw allow out to "${cidr}"
+  args:
+    executable: /bin/bash
+  loop: "{{ k8s_pod_cidrs | default([], true) }}"
+  when:
+    - ansible_facts.os_family == "Debian"
+    - "'ufw' in firewall_backend"
+    - (k8s_pod_cidrs | default([], true) | length) > 0
+  become: true
+  notify:
+    - "reload ufw"
+
+# ---- firewall (RHEL: firewalld) --------------------------------------------
+
+# firewalld の有無をservice の存在で判定
+- name: Check if firewalld service exists
+  ansible.builtin.shell: systemctl status firewalld.service >/dev/null 2>&1
+  register: firewalld_present
+  changed_when: false
+  failed_when: false
+  when:
+    - ansible_facts.os_family == "RedHat"
+    - "'firewalld' in firewall_backend"
+
+- name: Ensure firewalld is installed (RHEL family only, when backend=firewalld)
+  ansible.builtin.package:
+    name: firewalld
+    state: present
+  when:
+    - ansible_facts.os_family == "RedHat"
+    - "'firewalld' in firewall_backend"
+
+- name: Ensure firewalld is running and enabled
+  ansible.builtin.service:
+    name: firewalld
+    state: started
+    enabled: true
+  when:
+    - ansible_facts.os_family == "RedHat"
+    - "'firewalld' in firewall_backend"
+
+# firewalld が nftables backend の場合のみ実施
+- name: Ensure firewalld uses nftables backend (fact guard only)
+  ansible.builtin.debug:
+    msg: "firewalld backend={{ firewall_backend | default('unknown') }}"
+  when:
+    - ansible_facts.os_family == "RedHat"
+    - "'firewalld' in firewall_backend"
+
+# --- rpfilter 影響の完全無効化（firewalld 非依存・前段 accept） ---
+
+- name: Install rpfilter-bypass ensure script
+  become: true
+  ansible.builtin.template:
+    src: rpfilter-bypass-ensure.sh.j2
+    dest: /usr/local/sbin/rpfilter-bypass-ensure.sh
+    owner: root
+    group: root
+    mode: '0755'
+  when:
+    - ansible_facts.os_family == "RedHat"
+    - "'firewalld' in firewall_backend"
+
+- name: Install systemd unit for rpfilter-bypass
+  become: true
+  ansible.builtin.template:
+    src: rpfilter-bypass.service.j2
+    dest: /etc/systemd/system/rpfilter-bypass.service
+    owner: root
+    group: root
+    mode: '0644'
+  when:
+    - ansible_facts.os_family == "RedHat"
+    - "'firewalld' in firewall_backend"
+
+- name: daemon-reload for rpfilter-bypass unit
+  become: true
+  ansible.builtin.systemd:
+    daemon_reload: true
+  when:
+    - ansible_facts.os_family == "RedHat"
+    - "'firewalld' in firewall_backend"
+
+- name: Enable & start rpfilter-bypass (runs now and on every boot/reload)
+  become: true
+  ansible.builtin.systemd:
+    name: rpfilter-bypass.service
+    enabled: true
+    state: started
+  when:
+    - ansible_facts.os_family == "RedHat"
+    - "'firewalld' in firewall_backend"
+
+# 検証：firewalld の rpfilter ルールが存在しても、前段 accept により影響しないことを担保
+- name: Assert rpfilter-bypass chains exist and are above firewalld
+  become: true
+  ansible.builtin.shell: |
+    set -euo pipefail
+    nft list chain ip  rpfix pre  >/dev/null
+    nft list chain ip6 rpfix pre  >/dev/null
+    # firewalld の drop は priority "filter + 10"。当方は "filter - 20" で先行。
+    exit 0
+  changed_when: false
+  when:
+    - ansible_facts.os_family == "RedHat"
+    - "'firewalld' in firewall_backend"
+
+# 状態確認（デバッグ）
+- name: Show nftables firewalld filter_PREROUTING after rpfilter purge
+  become: true
+  ansible.builtin.shell: |
+    for fam in inet ip ip6; do
+      echo "=== ${fam} firewalld filter_PREROUTING ==="
+      nft list chain "${fam}" firewalld filter_PREROUTING 2>/dev/null || true
+      echo
+    done
+  args:
+    executable: /bin/bash
+  changed_when: false
+  when:
+    - ansible_facts.os_family == "RedHat"
+    - "'firewalld' in firewall_backend"
+
+# firewalld でポート開放
+- name: Open common ports permanently (firewalld)
+  become: true
+  ansible.builtin.command: >
+    firewall-cmd --permanent --add-port="{{ item }}"
+  loop: "{{ k8s_common_ports| default([], true) }}"
+  when:
+    - ansible_facts.os_family == "RedHat"
+    - "'firewalld' in firewall_backend"
+    - k8s_common_ports | default([], true) | length > 0
+  notify:
+    - "reload firewalld"
+
+# Pod CIDR を direct ルールで許可（INPUT/OUTPUT）
+#    - IPv4: family=ipv4、IPv6: family=ipv6
+- name: Allow Pod CIDR ingress/egress via firewalld direct rules
+  become: true
+  ansible.builtin.shell: |
+    set -e
+    fam="{{ item.family | lower }}"
+    cidr="{{ item.cidr }}"
+    firewall-cmd --permanent --direct --add-rule "${fam}" filter OUTPUT 0 -d "${cidr}" -j ACCEPT
+    firewall-cmd --permanent --direct --add-rule "${fam}" filter INPUT  0 -s "${cidr}" -j ACCEPT
+  args:
+    executable: /bin/bash
+  loop: "{{ k8s_pod_cidrs | default([], true) }}"
+  when:
+    - ansible_facts.os_family == "RedHat"
+    - "'firewalld' in firewall_backend"
+    - (k8s_pod_cidrs | default([], true) | length) > 0
+  notify:
+    - "reload firewalld"
+
+# firewalldをリロード
+- name: Always reload firewalld after port updates
+  become: true
+  ansible.builtin.command: firewall-cmd --reload
+  when:
+    - ansible_facts.os_family == "RedHat"
+    - "'firewalld' in firewall_backend"
+
+# UFWの状態を表示
+- name: Show UFW status
+  ansible.builtin.shell: ufw status verbose
+  args:
+    executable: /bin/bash
+  changed_when: false
+  when:
+    - ansible_facts.os_family == "Debian"
+    - "'ufw' in firewall_backend"
+
+# firewalldの状態を表示
+- name: Show firewalld port list and direct rules
+  ansible.builtin.shell: |
+    echo '--- ports ---'
+    firewall-cmd --list-ports || true
+    echo '--- direct rules ---'
+    firewall-cmd --direct --get-all-rules || true
+  args:
+    executable: /bin/bash
+  changed_when: false
+  when:
+    - ansible_facts.os_family == "RedHat"
+    - "'firewalld' in firewall_backend"

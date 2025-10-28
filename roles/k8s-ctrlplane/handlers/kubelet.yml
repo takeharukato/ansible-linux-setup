@@ -1,0 +1,15 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  kubelet サービス起動処理実体
+#
+# notify の kubelet_restarted_and_enabled に対応
+- name: "kubelet_restarted_and_enabled"
+  listen: "kubelet_restarted_and_enabled"
+  systemd:
+    name: kubelet
+    state: restarted
+    daemon_reload: true
+    enabled: true
+  become: true

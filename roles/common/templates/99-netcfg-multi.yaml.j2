@@ -1,0 +1,193 @@
+#  -*- coding:utf-8 mode:jinja2 -*-
+#
+# Ansible playbook
+# Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+# last update: {{ '%Y-%m-%d %H:%M:%S %Z' | strftime(ansible_date_time.epoch) }}
+#
+# 概要: 複数インターフェース用 netplan 設定ファイルテンプレート
+#
+# 設置先: /etc/netplan/99-netcfg.yaml
+#
+# テンプレート変数:
+#
+#   mgmt_nic                管理用インターフェース名 (例: eth0, ens3 など)
+#
+#   _netif_items タスク側で設定されるネットワークインターフェース定義リスト
+#                   各要素は以下のキーを持つ辞書とする
+#
+#      netif                   インターフェース名 (例: eth0, ens3 など)
+#      mac                     インターフェースの MAC アドレス
+#      static_ipv4_addr        静的 IPv4 アドレス (例: 192.168.1.100) (省略可)
+#      network_ipv4_prefix_len IPv4 プレフィックス長 (例: 24) (省略可)
+#      gateway4                IPv4 デフォルトゲートウェイ (例: 192.168.1.1) (省略可)
+#      static_ipv6_addr        静的 IPv6 アドレス (例: 2001:db8::100) (省略可)
+#      network_ipv6_prefix_len IPv6 プレフィックス長 (例: 64) (省略可)
+#      gateway6                IPv6 デフォルトゲートウェイ (例: 2001:db8::1) (省略可)
+#      ignore_auto_ipv4_dns    自動取得した IPv4 DNS サーバを無視するか (true/false) (省略可)
+#      ignore_auto_ipv6_dns    自動取得した IPv6 DNS サーバを無視するか (true/false) (省略可)
+#      name_server_ipv4_1      優先 IPv4 DNS サーバ (例: 8.8.8.8) (省略可)
+#      name_server_ipv4_2      代替 IPv4 DNS サーバ (例: 1.1.1.1) (省略可)
+#      name_server_ipv6_1      優先 IPv6 DNS サーバ (例: 2001:4860:4860::8888) (省略可)
+#      name_server_ipv6_2      代替 IPv6 DNS サーバ (例: 2606:4700:4700::1111) (省略可)
+#      dns_search              DNS サーチドメイン (カンマ区切りの文字列, セミコロン区切りの文字列, または, リスト)
+#                              (例: example.com;sub.example.com) (省略可)
+#
+# 注意:
+# - root:root, 0600 のパーミッションで設置すること (netplanの仕様)
+# - Jinja2 は trim_blocks=True/lstrip_blocks=True なので, ブロック構文の直前・直後の改行が折りたたまれるため,
+#   改行を入れている箇所があることに注意
+# - netif_list に定義されているインターフェースのみ設定される
+# - 静的 IP アドレスが設定されていないインターフェースは DHCP で取得する
+# - DNS サーバが指定されていない場合は自動取得した DNS サーバを使用する
+# - DNS サーチドメインが指定されていない場合は自動取得したサーチドメインを使用する
+# - グローバル変数 ipv4_name_server1, ipv4_name_server2, ipv6_name_server1, ipv6_name_server2 が
+#   定義されている場合は、各インターフェースの DNS サーバ指定がない場合に使用する
+# - DNSサーバ項目の出力有無については, 以下のロジックで決定する。
+#   1. 各インターフェースの ignore_auto_ipv4_dns, ignore_auto_ipv6_dns フラグを確認する
+#   2. フラグが true の場合は、name_server_ipv4_1, name_server_ipv4_2,
+#      name_server_ipv6_1, name_server_ipv6_2 の値を確認し、設定されていれば
+#      それらを v4dns, v6dns リストに追加する
+#   3. すでに構築済みの v4dns, v6dns を前提に, nameservers を出すかどうかを決める処理としている。
+#      v4dns, v6dnsの双方が空だった場合は, nameservers 項目は出力しない
+# - DNS サーチドメインの決定ロジック
+#   netif_listのdns_searchを優先し, 無ければvars/all-config.ymlで設定された
+#   dns_search変数の値を採用する。どちらも無ければ設定しない。
+network:
+  version: 2
+  renderer: NetworkManager
+  ethernets:
+
+{% for item in (_netif_items | default([], true)) if item.netif | default('', true) | length %}
+    {{ item.netif }}:
+
+{% set has_v4_addr = (item.static_ipv4_addr | default('', true) | length)
+                      and (item.network_ipv4_prefix_len is defined)
+                      and (1 <= (item.network_ipv4_prefix_len | int) <= 32) %}
+{% set has_v6_addr = (item.static_ipv6_addr | default('', true) | length)
+                      and (item.network_ipv6_prefix_len is defined)
+                      and (1 <= (item.network_ipv6_prefix_len | int) <= 128) %}
+
+# DHCP/ SLAAC によるアドレス設定
+      dhcp4: {{ 'false' if has_v4_addr else 'true' }}
+      dhcp6: {{ 'false' if has_v6_addr else 'true' }}
+
+# 静的アドレス設定
+{% if has_v4_addr or has_v6_addr %}
+      addresses:
+{% if has_v4_addr %}
+        - {{ item.static_ipv4_addr }}/{{ item.network_ipv4_prefix_len }}
+{% endif %}
+
+{% if has_v6_addr %}
+        - {{ item.static_ipv6_addr }}/{{ item.network_ipv6_prefix_len }}
+{% endif %}
+{% endif %}
+
+# ルート設定
+{% set has_v4_route = has_v4_addr and (item.gateway4 | default('', true) | length) %}
+{% set has_v6_route = has_v6_addr and (item.gateway6 | default('', true) | length) %}
+
+{% if has_v4_route or has_v6_route %}
+      routes:
+{% if has_v4_route %}
+        - to: default
+          via: {{ item.gateway4 }}
+{% endif %}
+
+{% if has_v6_route %}
+        - to: default
+          via: {{ item.gateway6 }}
+        - to: {{ item.gateway6 }}/128
+          scope: link
+{% endif %}
+{% endif %}
+
+# DNS設定
+{% set v4dns = [] %}
+{% set v6dns = [] %}
+{% if item.ignore_auto_ipv4_dns | default(false) %}
+{% if item.name_server_ipv4_1 | default('', true) | length %}{% set _ = v4dns.append(item.name_server_ipv4_1) %}{% endif %}
+{% if item.name_server_ipv4_2 | default('', true) | length %}{% set _ = v4dns.append(item.name_server_ipv4_2) %}{% endif %}
+
+{# netifにIPv4ネームサーバが指定されていなかった場合, グローバル変数ipv4_name_server1, ipv4_name_server2を使う #}
+
+{% if not v4dns and ipv4_name_server1 | default('', true) | length %}{% set _ = v4dns.append(ipv4_name_server1) %}{% endif %}
+{% if not v4dns and ipv4_name_server2 | default('', true) | length %}{% set _ = v4dns.append(ipv4_name_server2) %}{% endif %}
+{% else %}
+# IPv4で自動 DNS を採用するため, IPv4 DNS項目は出力しない
+{% endif %}
+{% if item.ignore_auto_ipv6_dns | default(false) %}
+{% if item.name_server_ipv6_1 | default('', true) | length %}{% set _ = v6dns.append(item.name_server_ipv6_1) %}{% endif %}
+{% if item.name_server_ipv6_2 | default('', true) | length %}{% set _ = v6dns.append(item.name_server_ipv6_2) %}{% endif %}
+
+{# netifにIPv6ネームサーバが指定されていなかった場合, グローバル変数ipv6_name_server1, ipv6_name_server2を使う #}
+
+{% if not v6dns and ipv6_name_server1 | default('', true) | length %}{% set _ = v6dns.append(ipv6_name_server1) %}{% endif %}
+{% if not v6dns and ipv6_name_server2 | default('', true) | length %}{% set _ = v6dns.append(ipv6_name_server2) %}{% endif %}
+{% else %}
+#  IPv6で自動 DNS を採用するため, IPv6 DNS項目は出力しない
+{% endif %}
+
+{# DNS search 最終値のソース ( item優先, all-configのdns_search, 無設定 ) #}
+
+{# 候補を型を保ったまま評価して最初の有効値を採用 #}
+{% if item.dns_search is defined and item.dns_search is not none
+      and ((item.dns_search is string and (item.dns_search|trim)|length)
+           or (item.dns_search is sequence and item.dns_search is not string and (item.dns_search|length)>0)) %}
+  {% set _dns_search_raw = item.dns_search %}
+{% elif item['dns_search'] is defined and item['dns_search'] is not none
+      and ((item['dns_search'] is string and (item['dns_search']|trim)|length)
+           or (item['dns_search'] is sequence and item['dns_search'] is not string and (item['dns_search']|length)>0)) %}
+  {% set _dns_search_raw = item['dns_search'] %}
+{% elif dns_search is defined and dns_search is not none
+      and ((dns_search is string and (dns_search|trim)|length)
+           or (dns_search is sequence and dns_search is not string and (dns_search|length)>0)) %}
+  {% set _dns_search_raw = dns_search %}
+{% else %}
+  {% set _dns_search_raw = '' %}
+{% endif %}
+
+{# --- 配列化: リストならそのまま, 文字列なら ; / , で分割しトリム, 空要素除去 --- #}
+
+{% if _dns_search_raw is sequence and _dns_search_raw is not string %}
+  {% set _dns_search_list = (_dns_search_raw | select('string') | map('trim') | reject('equalto','') | list) %}
+{% else %}
+  {% set _dns_search_list = (
+       (_dns_search_raw | string | replace(';', ',')).split(',')
+       | map('trim') | reject('equalto','') | list
+     ) %}
+{% endif %}
+
+{% set dns_all = ( v4dns + v6dns ) | unique | list %}
+{% set need_nameservers = (dns_all | length > 0) or ( _dns_search_list | length > 0) %}
+
+{% if need_nameservers %}
+      nameservers:
+{%   if dns_all | length > 0 %}
+        addresses: [{{ dns_all | map('quote') | join(', ') }}]
+{%   endif %}
+
+{% if _dns_search_list | length %}
+        search: [{{ _dns_search_list | map('quote') | join(', ') }}]
+{% endif %}
+
+{% endif %}
+
+# NetworkManager の auto-dns 抑止設定
+{% set need_ipv4_ignore = (not has_v4_addr) and (item.ignore_auto_ipv4_dns | default(false)) and (v4dns | length > 0) %}
+{% set need_ipv6_ignore = (not has_v6_addr) and (item.ignore_auto_ipv6_dns | default(false)) and (v6dns | length > 0) %}
+{% if need_ipv4_ignore or need_ipv6_ignore %}
+      networkmanager:
+        passthrough:
+{% if need_ipv4_ignore %}
+          ipv4.ignore-auto-dns: "true"
+{% endif %}
+
+{% if need_ipv6_ignore %}
+          ipv6.ignore-auto-dns: "true"
+{% endif %}
+
+{% endif %}
+
+{% endfor %}

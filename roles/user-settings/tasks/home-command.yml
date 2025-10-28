@@ -1,0 +1,51 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#  各ユーザディレクトリ用コマンド
+
+#
+# binのディレクトリスケルトン
+#
+- name: Create /etc/skel/bin
+  file:
+    path: "/etc/skel/bin"
+    state: directory
+    owner: "root"
+    group: "root"
+    mode: "755"
+
+#
+# install-emacs-packages.sh
+#
+- name: Create bin/install-emacs-packages.sh
+  template:
+    src: install-emacs-packages.sh.j2
+    dest: /etc/skel/bin/install-emacs-packages.sh
+    owner: root
+    group: root
+    mode: 0755
+    backup: no
+
+#
+# clean-all-docker-images.sh
+#
+- name: Create bin/clean-all-docker-images.sh
+  template:
+    src: clean-all-docker-images.sh.j2
+    dest: /etc/skel/bin/clean-all-docker-images.sh
+    owner: root
+    group: root
+    mode: 0755
+    backup: no
+
+#
+# run-docker.sh
+#
+- name: Create bin/run-docker.sh
+  template:
+    src: run-docker.sh.j2
+    dest: /etc/skel/bin/run-docker.sh
+    owner: root
+    group: root
+    mode: 0755
+    backup: no

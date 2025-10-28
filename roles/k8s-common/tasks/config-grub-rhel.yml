@@ -1,0 +1,22 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  GRUB設定関連タスク Redhat系
+#
+
+# ===== grub.cfg 再生成 ( UEFI/BIOS 自動判定） =====
+- name: Detect EFI mode
+  ansible.builtin.stat:
+    path: /sys/firmware/efi
+  register: _efi
+
+- name: Set grub2 target (UEFI vs BIOS)
+  ansible.builtin.set_fact:
+    grub2_out: "{{ (_efi.stat.exists | bool) | ternary('/boot/efi/EFI/redhat/grub.cfg', '/boot/grub2/grub.cfg') }}"
+
+- name: Regenerate grub2 config
+  ansible.builtin.command: >
+    grub2-mkconfig -o {{ grub2_out }}
+  register: grub_mkconfig_out
+  changed_when: "'Saved' in grub_mkconfig_out.stdout or 'Saving' in grub_mkconfig_out.stdout or grub_mkconfig_out.rc == 0"

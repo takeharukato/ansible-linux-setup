@@ -1,0 +1,67 @@
+# -*- coding: utf-8 mode: yaml -*-
+#
+# Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+# Kubernetes コントロールプレーンエンドポイント変数定義
+#
+---
+
+# Kubernetes コントロールプレーンエンドポイントを正規化
+# 文字列として扱い , 前後の空白を削除(trim) する
+k8s_ctrlplane_endpoint_norm: "{{ k8s_ctrlplane_endpoint | string | trim }}"
+
+# Kubernetes コントロールプレーンホスト部抽出
+# [IPv6] 形式や host:port 形式から“ホスト  ( またはIP  ) だけ”を取り出す
+#
+#regex_replace('^\\[([^\\]]+)\\](?::\\d+)?$', '\\1')
+#  対象: [...] で括られたIPv6リテラル  ( 例: [2001:db8::1] や [2001:db8::1]:6443  ) 。
+#  正規表現の意味:
+#  ^…$ で全体一致。
+#  \\[([^\\]]+)\\] は角括弧内の “] 以外の文字1文字以上” を第1キャプチャに格納。   IPv6本体を拾う。
+#  (?::\\d+)? は末尾の :ポート番号 を任意で許容。
+#  置換: \\1  ( = 括弧の中身だけ  )  括弧とポートを除去し , 2001:db8::1 だけにする。
+#
+#regex_replace('^([^:\\[\\]]+)(?::\\d+)?$', '\\1')
+#
+#  対象: コロンや角括弧を含まない通常のホスト名/IPv4に , 任意で :ポート が付く形  ( 例: example.com:8080, 192.168.0.1:6443, example.com  ) 。
+#  正規表現の意味:
+#  ^…$ で全体一致。
+#  ([^:\\[\\]]+) は :, [, ] を含まない連続文字を第1キャプチャに格納  ( ＝ホスト部分  ) 。
+#  (?::\\d+)? は末尾の :ポート を任意で許容。
+#  置換: \\1  ( = ホストだけ  )   :ポート を落とす。
+k8s_ctrlplane_host_part: "{{ k8s_ctrlplane_endpoint_norm | regex_replace('^\\[([^\\]]+)\\](?::\\d+)?$', '\\1') | regex_replace('^([^:\\[\\]]+)(?::\\d+)?$', '\\1') }}"
+
+# Kubernetes コントロールプレーンホスト部が IPv6であることを判定
+# ':' の数 ( regex_findall(':') ) が 2 個以上なら IPv6 とみなす
+k8s_ctrlplane_is_ipv6: "{{ (k8s_ctrlplane_host_part | regex_findall(':') | length) >= 2 }}"
+
+# Kubernetes コントロールプレーンホスト部が IPv4であることを判定
+# regex_search("^(25[0-5]|2[0-4]\\d|1?\\d?\\d)(\\.(25[0-5]|2[0-4]\\d|1?\\d?\\d)){3}$") の意味
+# - ^ と $
+#  文字列の先頭・末尾にアンカー。全体がこの形に一致したときだけマッチします  ( 部分一致を防ぐ  ) 。
+# - (25[0-5] | 2[0-4]\d | 1?\d?\d) ← 1 個のオクテット  ( 0–255  )
+#    3 つの選択肢のどれかに一致します。
+#    - 25[0-5] : 250–255
+#    - 2[0-4]\d : 200–249  ( \d は 0–9 の数字1桁  )
+#    - 1?\d?\d : 0–199
+#       先頭の 1? は「1 があれば採用する」の意  ( 100–199 をカバー  )
+# - 次の \d? は「任意の数字 0〜1 桁」
+# - 最後の \d は「必ず数字 1 桁」
+#   これにより 0–99  ( 1〜2 桁  ) と 100–199  ( 3 桁  ) を表せます。
+#   なお, 先頭 1 桁のゼロは 1 個まで許されます  ( 例: 0, 00, 09 は可 , 001 は不可  ) 。
+k8s_ctrlplane_is_ipv4: '{{ ((k8s_ctrlplane_host_part | default("") | string) | regex_search("^(25[0-5]|2[0-4]\\d|1?\\d?\\d)(\\.(25[0-5]|2[0-4]\\d|1?\\d?\\d)){3}$")) is not none }}'
+
+# Kubernetes コントロールプレーンホスト部 ( IPv6 の場合は角括弧付き )
+# 例: IPv6の場合, [2001:db8::1]
+#     IPv4の場合, 192.168.20.41
+# ~は, jinja2の文字列連結演算子
+k8s_ctrlplane_host_bracketed: "{{ k8s_ctrlplane_is_ipv6 | ternary('[' ~ k8s_ctrlplane_host_part ~ ']', k8s_ctrlplane_host_part) }}"
+
+# Kubernetes コントロールプレーンポート部抽出 ( 指定がなければ 6443 )
+k8s_ctrlplane_port_br: "{{ k8s_ctrlplane_endpoint_norm | regex_replace('^\\[[^\\]]+\\]:(\\d+)$','\\1') }}"
+
+# Kubernetes コントロールプレーンポート部抽出 ( 指定がなければ 6443 ) --- IGNORE ---
+k8s_ctrlplane_port_unbr: "{{ k8s_ctrlplane_endpoint_norm | regex_replace('^[^:\\[\\]]+:(\\d+)$','\\1') }}"
+
+# Kubernetes コントロールプレーンポート番号 ( 指定がなければ 6443 )
+k8s_ctrlplane_port: "{{ (k8s_ctrlplane_port_br != k8s_ctrlplane_endpoint_norm) | ternary(k8s_ctrlplane_port_br, (k8s_ctrlplane_port_unbr != k8s_ctrlplane_endpoint_norm) | ternary(k8s_ctrlplane_port_unbr, '6443') ) }}"

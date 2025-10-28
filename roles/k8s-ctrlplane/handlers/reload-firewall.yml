@@ -1,0 +1,15 @@
+# firewalld 再読込
+- name: "reload firewalld"
+  listen: "reload firewalld"
+  ansible.builtin.command: firewall-cmd --reload
+  when:
+    - ansible_facts.os_family == "RedHat"
+    - "'firewalld' in firewall_backend"
+
+# UFW 再読込
+- name: "reload ufw"
+  listen: "reload ufw"
+  ansible.builtin.command: ufw reload
+  when:
+    - ansible_facts.os_family == "Debian"
+    - "'ufw' in firewall_backend"

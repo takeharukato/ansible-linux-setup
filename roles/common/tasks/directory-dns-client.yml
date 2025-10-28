@@ -1,0 +1,163 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#  ファイル・ディレクトリ作成関連タスク
+#  common/tasks/directory-dns-clients.yml
+
+# /etc/nsupdate を作成する
+- name: create /etc/nsupdate
+  file:
+    path: "/etc/nsupdate"
+    state: directory
+    owner: "root"
+    group: "root"
+    mode: "0755"
+
+# hostname関連のfactが存在しない場合、最低限のfactを収集する
+#
+- name: Ensure hostname-related facts are present
+  setup:
+    gather_subset:
+      - '!all'
+      - 'min'
+    filter:
+      - 'ansible_hostname'
+  when: ansible_hostname is not defined
+
+# /etc/nsupdate/ddns-clients.key を作成する
+- name: "Create {{ dns_ddns_key_file }}"
+  template:
+    src: ddns-clients-key-file.j2
+    dest: "{{ dns_ddns_key_file }}"
+    owner: root
+    group: root
+    mode: 0600
+    backup: true
+
+# /usr/local/sbin を作成する
+- name: "create {{ ddns_client_update_sh_dest_dir }}"
+  file:
+    path: "{{ ddns_client_update_sh_dest_dir }}"
+    state: directory
+    owner: "root"
+    group: "root"
+    mode: "0755"
+
+# /usr/local/sbin/ddns-client-update.sh を作成する
+- name: "Create {{ ddns_client_update_sh_path }}"
+  template:
+    src: ddns-client-update.sh.j2
+    dest: "{{ ddns_client_update_sh_path }}"
+    owner: root
+    group: root
+    mode: 0755
+    backup: true
+
+# ddns-update-clientの環境ファイルを作成する
+- name: "create {{ ddns_client_update_sh_sysconfig_path }}"
+  template:
+    src: sysconfig-ddns-update-client.j2
+    dest: "{{ ddns_client_update_sh_sysconfig_path }}"
+    owner: root
+    group: root
+    mode: 0644
+    backup: true
+
+# /etc/systemd/system/nm-ra-addr-watch.service を作成する
+- name: create /etc/systemd/system/nm-ra-addr-watch.service
+  template:
+    src: nm-ra-addr-watch.service.j2
+    dest: "/etc/systemd/system/nm-ra-addr-watch.service"
+    owner: root
+    group: root
+    mode: 0644
+    backup: true
+
+# /usr/local/libexec を作成する
+- name: "create {{ nm_ra_addr_watch_dest_dir }}"
+  file:
+    path: "{{ nm_ra_addr_watch_dest_dir }}"
+    state: directory
+    owner: "root"
+    group: "root"
+    mode: "0755"
+
+# /usr/local/libexec/nm-ra-addr-watch を作成する
+- name: "create {{ nm_ra_addr_watch_path }}"
+  template:
+    src: nm-ra-addr-watch.j2
+    dest: "{{ nm_ra_addr_watch_path }}"
+    owner: root
+    group: root
+    mode: 0755
+    backup: false
+
+# /etc/sysconfig/nm-ra-addr-watch を作成する
+- name: "create {{ nm_ra_addr_watch_sysconfig_path }}"
+  template:
+    src: sysconfig-nm-ra-addr-watch.j2
+    dest: "{{ nm_ra_addr_watch_sysconfig_path }}"
+    owner: root
+    group: root
+    mode: "0644"
+    backup: true
+
+
+# /etc/NetworkManager/dispatcher.dを作成する
+- name: "create {{ nm_dispatcher_path }}"
+  file:
+    path: "{{ nm_dispatcher_path }}"
+    state: directory
+    owner: "root"
+    group: "root"
+    mode: "0755"
+
+## 90-nm-ns-update の本体を配置（実行属性）
+- name: "create {{ nm_ns_update_path }}"
+  template:
+    src: 90-nm-ns-update.j2
+    dest: "{{ nm_ns_update_path }}"
+    owner: root
+    group: root
+    mode: "0755"
+    backup: true
+
+## 90-nm-ns-update の環境ファイルを配置
+- name: "create {{ nm_ns_update_sysconfig_path }}"
+  template:
+    src: sysconfig-nm-ns-update.j2
+    dest: "{{ nm_ns_update_sysconfig_path }}"
+    owner: root
+    group: root
+    mode: "0644"
+    backup: true
+
+# nm-ra-addr-watchサービスを有効にする
+- name: Enable nm-ra-addr-watch service
+  systemd:
+    name: nm-ra-addr-watch
+    enabled: true
+    daemon_reload: true
+
+#  NetworkManager-dispatcherサービスを有効にする
+- name: Enable NetworkManager-dispatcher service
+  systemd:
+    name: NetworkManager-dispatcher
+    enabled: true
+    daemon_reload: true
+
+#
+# NetworkManager-dispatcherの設定を更新したらリブート
+#
+
+# マシンをリブートする
+- name: Reboot host gracefully
+  reboot:
+    reboot_timeout: 600
+    msg: "Reboot triggered by role: common"
+    pre_reboot_delay: 2
+
+# ssh が使えるようになるのを待つ
+- name: Wait for connection after reboot
+  wait_for_connection:
+    timeout: 300

@@ -1,0 +1,167 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#  ロール固有変数のデフォルト値
+#  group_vars/all/all.yml やhost_varsで上書き可能とするため,
+#  ロール名/defaults/main.yml に定義している
+---
+# タイムゾーン
+common_timezone: "Asia/Tokyo"
+
+# VMWare 使用有無
+use_vmware: false
+
+# Firewall設定
+enable_firewall: false
+
+# SE Linux の設定
+# 'enforcing', 'permissive', 'disabled' のいずれかを指定
+common_selinux_state: "permissive"
+
+# cronメールを無効にする
+common_disable_cron_mails: false
+
+# 環境ファイルの格納ディレクトリ ( OSで切替）
+common_envdir: "{{ etc_default_dir | default( (ansible_facts.os_family | default('RedHat')) == 'Debian' | ternary('/etc/default', '/etc/sysconfig') ) }}"
+
+# DNSサーバに登録しないIF名の正規表現
+common_iface_deny_regex: "^(docker|br-|veth|virbr|vboxnet|vmnet|vnet|tun|tap|wg|tailscale|zt|lo)"
+
+# 自動ネットワーク設定ディレクトリのプレフィックス
+common_autonetconfig_prefix: "{{ netconfig_prefix }}"
+
+# Network Manager経由でDynamic DNSでホスト名とIPアドレスを自動登録する
+use_nm_ddns_update_scripts: false
+
+###############################################################################
+# sudoers設定
+################################################################################
+
+# sudoをパスワード無しで実行可能なグループのリスト
+# 例: ['adm', 'cdrom', 'sudo', 'dip', 'plugdev', 'lxd', 'systemd-journal']
+sudo_nopasswd_groups_extra: ['adm', 'cdrom', 'sudo', 'dip', 'plugdev', 'lxd', 'systemd-journal']
+# 自動検出（存在する方だけ採用:Debian/Ubuntu=sudo, RHEL/Alma=wheel）
+sudo_nopasswd_groups_autodetect: true
+# 生成ではなく削除（ロールバック）したい場合は true
+sudo_nopasswd_absent: false
+# 生成する drop-in ファイル名の接頭辞（競合しにくい高番を使用）
+sudo_dropin_prefix: "99-nopasswd"
+
+###############################################################################
+# ネットワークインターフェース関連変数定義
+################################################################################
+
+# 管理用NICのデフォルト定義
+common_default_nic: "ens160"
+
+#
+# systemd .link の配置ディレクトリOS別定義
+#
+netif_nm_link_dir_rhel: "/etc/systemd/network"
+netif_nm_link_dir_debian: "/etc/systemd/network"
+netif_nm_link_dir: "{{ (ansible_facts.os_family == 'RedHat') | ternary(netif_nm_link_dir_rhel, netif_nm_link_dir_debian) }}"
+
+# netif_list変数(リスト形式)のデフォルト値定義
+# netif_list変数が未定義または空リストの場合, 管理系NIC(mgmt_nic)を
+# 1 件だけを含むnetif_listを自動構成する。
+#
+# 管理系NIC名をvars/all-config.yml, または, host_vars/ホスト名.yml
+# で指定してすることを想定, 未指定時は空文字とし, 後続タスクで
+# 補正する。
+mgmt_nic: ""
+
+# ゲートウエイのフォールバック値。未指定の場合は空文字とします。
+gateway4: ""
+gateway6: ""
+
+# フォールバック DNS。未指定の場合は空文字とします。
+ipv4_name_server1: ""
+ipv4_name_server2: ""
+ipv6_name_server1: ""
+ipv6_name_server2: ""
+
+# DHCP 由来の DNS を無視するかどうかを、フォールバック DNS の有無から自動判定する。
+# 少なくとも一つの DNS が与えられていれば true とする。
+_mgmt_ignore_auto_ipv4_dns: "{{ ( (ipv4_name_server1 | default('', true) | length) > 0 or (ipv4_name_server2 | default('', true) | length) > 0 ) | bool }}"
+_mgmt_ignore_auto_ipv6_dns: "{{ ( (ipv6_name_server1 | default('', true) | length) > 0 or (ipv6_name_server2 | default('', true) | length) > 0 ) | bool }}"
+
+# 各種スクリプトで参照するデフォルトNIC
+_common_network_iface: "{{ mgmt_nic | default(common_default_nic, true) }}"
+
+################################################################################
+# ここまでネットワークインターフェース関連変数定義
+################################################################################
+
+#
+# ddns-client.sh 関連変数
+#
+
+# ddns-client-update の名前
+ddns_client_update_base: "ddns-client-update"
+# ddns-client-update.shのベース名
+ddns_client_update_sh_basename: "{{ddns_client_update_base}}.sh"
+# ddns-client-update.shの配置先ディレクトリ
+ddns_client_update_sh_dest_dir: "/usr/local/sbin"
+# ddns-client-update.sh のパス
+ddns_client_update_sh_path: "{{ ddns_client_update_sh_dest_dir }}/{{ ddns_client_update_sh_basename }}"
+# 環境ファイルの格納パス
+ddns_client_update_sh_sysconfig_path: "{{ common_envdir }}/{{ ddns_client_update_base }}"
+
+#
+# DNS サーバ関連変数 (Dynamic DNS nsupdate 関連)
+#
+
+# Dynamic DNS update key file path
+dns_ddns_key_file: "/etc/nsupdate/ddns-clients.key"
+
+#
+# 以下はクライアント側とサーバ側で共通
+#
+# Dynamic DNS update key name
+dns_ddns_key_name: "ddns-clients"
+
+#
+# nm-ra-addr-watch 関連変数
+#
+# nm-ra-addr-watch の名前
+nm_ra_addr_watch_base: "nm-ra-addr-watch"
+# nm-ra-addr-watch のベース名
+nm_ra_addr_watch_basename: "{{ nm_ra_addr_watch_base }}"
+# nm-ra-addr-watch の配置先ディレクトリ
+nm_ra_addr_watch_dest_dir: "/usr/local/libexec"
+# nm-ra-addr-watch のパス
+nm_ra_addr_watch_path: "{{ nm_ra_addr_watch_dest_dir }}/{{ nm_ra_addr_watch_basename }}"
+# nm-ra-addr-watch の監視間隔(秒)
+nm_ra_addr_watch_interval: 10
+# nm-ra-addr-watch の監視対象インターフェースの正規表現式
+nm_ra_addr_watch_iface_allow_regex: "^{{ _common_network_iface }}$"
+# nm-ra-addr-watch の監視対象外インターフェースの正規表現式
+nm_ra_addr_watch_iface_deny_regex: "{{ common_iface_deny_regex }}"
+# nm-ra-addr-watch のデバウンス時間(ミリ秒)
+nm_ra_addr_watch_debounce_ms: 800
+# 環境ファイルのパス
+nm_ra_addr_watch_sysconfig_path: "{{ common_envdir }}/{{ nm_ra_addr_watch_basename }}"
+# NetworkManager dispatcher スクリプトのパス
+#  NetworkManager dispatcher は /etc/NetworkManager/dispatcher.d 直下のスクリプトを
+#  1本ずつ実行キューに積むことで排他を実現している。
+#  /etc/NetworkManager/dispatcher.d/no-wait.d 配下のスクリプトは並行して実行される可能性があるため,
+#  各スクリプトは, (シンボリックリンクで配置する場合も含み) /etc/NetworkManager/dispatcher.d/no-wait.d に
+#  配置しないこと。
+nm_dispatcher_path: "/etc/NetworkManager/dispatcher.d"
+
+#
+# 90-nm-ns-update 関連変数
+#
+# 90-nm-ns-update の名前
+nm_ns_update_base: "nm-ns-update"
+# 90-nm-ns-update の連番
+nm_ns_update_num: "90"
+# 90-nm-ns-update のベース名
+nm_ns_update_basename: "{{ nm_ns_update_num }}-{{ nm_ns_update_base }}"
+# 90-nm-ns-update のパス
+nm_ns_update_path: "{{ nm_dispatcher_path }}/{{ nm_ns_update_basename }}"
+# 90-nm-ns-update 環境ファイルのパス
+nm_ns_update_sysconfig_path: "{{ common_envdir }}/{{ nm_ns_update_base }}"
+# 90-nm-ns-update 用 IF フィルタ
+nm_ns_update_iface_allow_regex: "^{{ _common_network_iface }}$"
+nm_ns_update_iface_deny_regex: "{{ common_iface_deny_regex }}"

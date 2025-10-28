@@ -1,0 +1,295 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#  ファイル・ディレクトリ作成関連タスク
+
+#
+# bash用のプロキシ設定ファイルの生成
+#
+- name: Deploy a proxy setting file for Bash
+  template:
+    src: _bshrc.proxy.j2
+    dest: /etc/skel/.bashrc.proxy
+    owner: root
+    group: root
+    mode: 0644
+    backup: no
+
+#
+# bash用のLmod設定ファイルの生成
+#
+- name: Deploy a Lmod setting file for Bash
+  template:
+    src: _bshrc.lmod.j2
+    dest: /etc/skel/.bashrc.lmod
+    owner: root
+    group: root
+    mode: 0644
+    backup: no
+
+#
+# zsh用のプロキシ設定ファイルの生成
+#
+- name: Deploy a proxy setting file for zsh
+  template:
+    src: _bshrc.proxy.j2
+    dest: /etc/skel/.zshrc.proxy
+    owner: root
+    group: root
+    mode: 0644
+    backup: no
+
+#
+# zprofileのスケルトンファイル
+#
+- name: Deploy a zprofile skeleton
+  template:
+    src: _zprofile.j2
+    dest: /etc/skel/.zprofile
+    owner: root
+    group: root
+    mode: 0644
+    backup: no
+
+#
+# zshrcのスケルトンファイル
+#
+- name: Deploy a zshrc skeleton
+  template:
+    src: _zshrc.j2
+    dest: /etc/skel/.zshrc
+    owner: root
+    group: root
+    mode: 0644
+    backup: no
+
+#
+# sshのディレクトリスケルトン
+#
+- name: Create /etc/skel/.ssh
+  file:
+    path: "/etc/skel/.ssh"
+    state: directory
+    owner: "root"
+    group: "root"
+    mode: "700"
+
+#
+# sshのauthorized_keys
+#
+- name: Create empty /etc/skel/.ssh/authorized_keys
+  template:
+    src: _ssh__authorized_keys.j2
+    dest: /etc/skel/.ssh/authorized_keys
+    owner: root
+    group: root
+    mode: 0600
+    backup: no
+
+#
+# sshのconfig
+#
+- name: Create /etc/skel/.ssh/config
+  template:
+    src: _ssh__config.j2
+    dest: /etc/skel/.ssh/config
+    owner: root
+    group: root
+    mode: 0600
+    backup: no
+
+#
+# .curlrc
+#
+- name: Create /etc/skel/.curlrc
+  template:
+    src: _curlrc.j2
+    dest: /etc/skel/.curlrc
+    owner: root
+    group: root
+    mode: 0644
+    backup: no
+
+#
+# wgetrc
+#
+- name: Create /etc/skel/.wgetrc
+  template:
+    src: _wgetrc.j2
+    dest: /etc/skel/.wgetrc
+    owner: root
+    group: root
+    mode: 0644
+    backup: no
+
+#
+# .bashrcのスケルトンにプロキシ設定読込行を追加する
+# [ -f ~/.bashrc.proxy ] && source ~/.bashrc.proxy
+#
+- name: Add sourcing proxy setting line into /etc/skel/.bashrc
+  lineinfile:
+    path: /etc/skel/.bashrc
+    regexp: '^[ -f ${HOME}/.bashrc.proxy ] && source ${HOME}/.bashrc.proxy'
+    insertafter: EOF
+    line: '[ -f ${HOME}/.bashrc.proxy ] && source ${HOME}/.bashrc.proxy # load proxy settings'
+    backup: no
+
+#
+# .bashrcのスケルトンに個人設定ファイル読込行を追加する
+# [ -f ~/.bashrc.mine ] && source ~/.bashrc.mine
+#
+- name: Add sourcing personal setting line into /etc/skel/.bashrc
+  lineinfile:
+    path: /etc/skel/.bashrc
+    regexp: '^[ -f ${HOME}/.bashrc.mine ] && source ${HOME}/.bashrc.mine'
+    insertafter: EOF
+    line: '[ -f ${HOME}/.bashrc.mine ] && source ${HOME}/.bashrc.mine # load personal settings'
+    backup: no
+
+#
+# .bashrcのスケルトンにLmod設定ファイル読込行を追加する
+# [ -f ~/.bashrc.lmod ] && source ~/.bashrc.lmod
+#
+- name: Add sourcing Lmod setting line into /etc/skel/.bashrc
+  lineinfile:
+    path: /etc/skel/.bashrc
+    regexp: '^[ -f ${HOME}/.bashrc.lmod ] && source ${HOME}/.bashrc.lmod'
+    insertafter: EOF
+    line: '[ -f ${HOME}/.bashrc.lmod ] && source ${HOME}/.bashrc.lmod # load Lmod settings'
+    backup: no
+
+- name: update .ssh/config
+  shell: |
+    cp /etc/skel/.ssh/config .ssh/config
+
+#
+# screenrcのスケルトン
+#
+- name: Deploy a screenrc
+  template:
+    src: _screenrc.j2
+    dest: /etc/skel/.screenrc
+    owner: root
+    group: root
+    mode: 0644
+    backup: no
+
+#
+# tmux.confのスケルトン
+#
+- name: Deploy a tmux.conf
+  template:
+    src: _tmux.conf.j2
+    dest: /etc/skel/.tmux.conf
+    owner: root
+    group: root
+    mode: 0644
+    backup: no
+
+#
+# aspell.confのスケルトン
+#
+- name: Deploy a aspell.conf
+  template:
+    src: _aspell.conf.j2
+    dest: /etc/skel/.aspell.conf
+    owner: root
+    group: root
+    mode: 0644
+    backup: no
+
+#
+# .gitconfigのスケルトン
+#
+- name: Deploy a .gitconfig
+  template:
+    src: _gitconfig.j2
+    dest: /etc/skel/.gitconfig
+    owner: root
+    group: root
+    mode: 0644
+    backup: no
+
+#
+# .gitignoreのスケルトン
+#
+- name: Deploy a .gitignore
+  template:
+    src: _gitignore.j2
+    dest: /etc/skel/.gitignore
+    owner: root
+    group: root
+    mode: 0644
+    backup: no
+
+#
+# .gdbinitのスケルトン
+#
+- name: Deploy a .gdbinit
+  template:
+    src: _gdbinit.j2
+    dest: /etc/skel/.gdbinit
+    owner: root
+    group: root
+    mode: 0644
+    backup: no
+
+#
+# /usr/local/binが存在することを保証
+#
+- name: Create /usr/local/bin
+  file:
+    path: "/usr/local/bin"
+    state: directory
+    owner: "root"
+    group: "root"
+    mode: "755"
+
+#
+# ホームディレクトリバックアップスクリプト
+#
+- name: Deploy home directory backup script on /usr/local/bin
+  template:
+    src: backup-home.j2
+    dest: /usr/local/bin/backup-home
+    owner: root
+    group: root
+    mode: 0755
+    backup: no
+
+#
+# emacs.dのディレクトリスケルトン
+#
+- name: Create /etc/skel/.emacs.d
+  file:
+    path: "/etc/skel/.emacs.d"
+    state: directory
+    owner: "root"
+    group: "root"
+    mode: "700"
+
+#
+# emacs.d/user_settings/のディレクトリスケルトン
+#
+- name: Create /etc/skel/.emacs.d/user_settings
+  file:
+    path: "/etc/skel/.emacs.d/user_settings"
+    state: directory
+    owner: "root"
+    group: "root"
+    mode: "700"
+
+#
+#  init.elのスケルトン
+#
+- name: Deploy a .emacs.d/init.el
+  template:
+    src: _emacs_d__init.el.j2
+    dest: /etc/skel/.emacs.d/init.el
+    owner: root
+    group: root
+    mode: 0644
+    backup: no
+
+# emacs初期化ファイル
+- include_tasks: emacs-setting.yml

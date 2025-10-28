@@ -1,0 +1,72 @@
+{% set raw = (dns_network_ipv6_prefix | trim) %}
+{% set cidr = (raw.split('/', 1)[1] if '/' in raw else dns_network_ipv6_prefix_len) %}
+{% set base = (raw.split('/', 1)[0] | regex_replace('::?$', '')) ~ '::' %}
+
+// ACL(Access Contorol List)で, ネットワークの範囲を定義する。
+acl internal-network {
+        {{ dns_network }}/{{ dns_network_ipv4_prefix_len }};
+};
+
+# IPv6 ネットワークの範囲を定義する
+acl internal6 { {{ base }}/{{ cidr }}; };
+
+options {
+        directory "{{ dns_bind_cache_dir }}";
+
+        // If there is a firewall between you and nameservers you want
+        // to talk to, you may need to fix the firewall to allow multiple
+        // ports to talk.  See http://www.kb.cert.org/vuls/id/800113
+
+        // If your ISP provided one or more IP addresses for stable
+        // nameservers, you probably want to use them as forwarders.
+        // Uncomment the following block, and insert the addresses replacing
+        // the all-0's placeholder.
+
+       // 問い合わせを受け付けるネットワークおよびホスト
+        allow-query {
+                localhost;
+                internal-network;
+        };
+
+       // 再起問い合わせを許可（キャッシュDNSサーバ（リゾルバ）として動作させる）。無効にする場合は, 「none」。
+        recursion yes;
+
+        allow-recursion { internal-network; localhost; };
+        allow-transfer { none; };   // 権威ゾーンの無断 AXFR を防ぐ
+
+        // 断片化対策
+        edns-udp-size 1232;
+        max-udp-size 1232;
+
+        // 上位へ転送 ( フォワーダー ) の設定
+        // docker.io などの検証で弾かれる問題を回避するためにフォワーダーを設定
+        {% if (dns_bind_forwarders | default([],true)) | length > 0 -%}
+        forwarders { {%- for ip in dns_bind_forwarders %} {{ ip }};{%- endfor %} };
+        forward first;
+        {%- endif %}
+
+        //========================================================================
+        // If BIND logs error messages about the root key being expired,
+        // you will need to update your keys.  See https://www.isc.org/bind-keys
+        //========================================================================
+        dnssec-validation auto;
+
+        # trust anchorを明示的に指定
+        bindkeys-file "{{dns_bind_keyfile}}";
+        managed-keys-directory "{{dns_bind_cache_dir}}/dynamic";
+
+        listen-on port {{ dns_bind_port }} { any; };
+        listen-on-v6 port {{ dns_bind_port }} { any; };
+
+        geoip-directory "/usr/share/GeoIP";
+
+        pid-file "{{dns_bind_run_dir}}/named.pid";
+        session-keyfile "{{dns_bind_run_dir}}/session.key";
+
+        // RHELの暗号ポリシーは options{} の中で include する
+        // RHELの暗号ポリシーは RSASHA1 / SHA-1 を禁止しているが,
+        // RSASHA1 / SHA-1 を禁止するとdocker.ioなどの検証で弾かれる
+        // 問題を回避するため
+        // 以下をコメントにしている
+        //include "/etc/crypto-policies/back-ends/bind.config";
+};

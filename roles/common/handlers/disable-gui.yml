@@ -1,0 +1,10 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+
+# GUIを無効化する
+- name: disable_gui
+  listen: disable_gui
+  shell: |
+    systemctl set-default multi-user.target
+  become: true

@@ -1,0 +1,8 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  サービス起動ハンドラ
+#
+- import_tasks: restart-timesyncd.yml
+- import_tasks: restart-chrony.yml

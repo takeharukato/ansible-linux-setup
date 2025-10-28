@@ -1,0 +1,13 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  パッケージ関連処理
+
+# bind9パッケージをインストール
+- name: Install bind9 packages
+  package:
+    pkg:
+      '{{ dns_bind_packages }}'
+    state: latest
+  notify: disable_gui

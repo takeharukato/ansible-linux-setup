@@ -1,0 +1,56 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  AlmaLinux / Rocky Linux リポジトリ関連処理
+#
+# 方針:
+# 1. 過去に本ロールが生成した baseos/appstream/crb のカスタム定義を削除して重複を解消する
+# 2. ディストリビューション標準の repo 定義を使用し, dnf config-manager で有効化する
+# 3. メタデータ再生成で整合性を取る
+
+# ディストリビューションの release パッケージを導入する
+- name: Ensure release package present (AlmaLinux/Rocky)
+  when: ansible_facts.distribution | lower in ['almalinux','rocky']
+  ansible.builtin.dnf:
+    name: "{{ 'almalinux-release' if (ansible_facts.distribution | lower) == 'almalinux' else 'rocky-release' }}"
+    state: present
+
+# 本ロールが作った可能性のある重複定義を削除する
+- name: Remove custom BaseOS repo definition if exists
+  when: ansible_facts.distribution | lower in ['almalinux','rocky']
+  ansible.builtin.yum_repository:
+    name: baseos
+    state: absent
+
+- name: Remove custom AppStream repo definition if exists
+  when: ansible_facts.distribution | lower in ['almalinux','rocky']
+  ansible.builtin.yum_repository:
+    name: appstream
+    state: absent
+
+- name: Remove custom CRB repo definition if exists
+  when: ansible_facts.distribution | lower in ['almalinux','rocky']
+  ansible.builtin.yum_repository:
+    name: crb
+    state: absent
+
+# 標準の BaseOS/AppStream/CRB を有効化する
+- name: Enable BaseOS, AppStream, CRB (AlmaLinux/Rocky)
+  when:
+    - ansible_facts.distribution | lower in ['almalinux','rocky']
+    - repo_enable_base or repo_enable_appstream or repo_enable_crb
+  ansible.builtin.command: >
+    dnf config-manager
+    {{ repo_enable_base      | ternary('--set-enabled baseos',    '') }}
+    {{ repo_enable_appstream | ternary('--set-enabled appstream', '') }}
+    {{ repo_enable_crb       | ternary('--set-enabled crb',       '') }}
+  register: _enable_std_repos
+  changed_when: "'enabled' in (_enable_std_repos.stdout | default('',true)) or (_enable_std_repos.stderr | default('',true))"
+
+# メタデータキャッシュ再生成
+- name: Rebuild DNF metadata cache (AlmaLinux/Rocky)
+  when: ansible_facts.distribution | lower in ['almalinux','rocky']
+  ansible.builtin.command: dnf -y makecache
+  changed_when: false
+  notify: "rpm makecache"

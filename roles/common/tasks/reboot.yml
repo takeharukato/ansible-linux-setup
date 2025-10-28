@@ -1,0 +1,36 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#  リブートタスク
+
+# 再起動要求があることを確認する
+- name: stat /var/run/reboot-required
+  stat: path=/var/run/reboot-required
+  register: reboot_required
+
+#
+# 設定を更新したらリブート
+#
+
+- block:
+
+  # GUIを無効化する
+  - name: disable_gui
+    shell: |
+      systemctl set-default multi-user.target
+    become: true
+
+  # マシンをリブートする
+  - name: Reboot host gracefully
+    reboot:
+      reboot_timeout: 600
+      msg: "Reboot triggered by role: common"
+      pre_reboot_delay: 2
+
+  # ssh が使えるようになるのを待つ
+  - name: Wait for connection after reboot
+    wait_for_connection:
+      timeout: 300
+
+  when:
+    - reboot_required.stat.exists

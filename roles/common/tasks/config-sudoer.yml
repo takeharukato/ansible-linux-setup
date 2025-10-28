@@ -1,0 +1,156 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2025 Takeharu KATO All Rights Reserved.
+#  Source: Generated with ChatGPT (model: GPT-5 Thinking)
+#  設定関連タスク
+
+#
+# sudoers設定
+# - ユーザ/グループ単位でパスワード無しsudoを設定する
+# - 既存のsudoers設定を壊さないようにする
+# - /etc/sudoers.d 以下にドロップインファイルを配置することで実現する
+# - 既存の /etc/sudoers が /etc/sudoers.d を取り込んでいるかを確認する（変更はしない）
+# 変数
+# - sudo_nopasswd_users: パスワード無しsudoを許可するユーザ名のリスト
+# - sudo_nopasswd_groups_autodetect: trueにすると, sudo/wheelグループが存在する場合に自動的に採用する
+# - sudo_nopasswd_groups_extra: sudo/wheel以外にパスワード無しsudoを許可するグループ名のリスト
+# - sudo_nopasswd_absent: trueにすると, 上記で設定したユーザ/グループのパスワード無しsudo設定を削除する
+# - sudo_dropin_prefix: ドロップインファイル名の接頭辞 ( デフォルト: 'zz' )
+#
+# 注意:
+# - sudo_nopasswd_users, sudo_nopasswd_groups_autodetect, sudo_nopasswd_groups_extra のいずれかが指定されていない場合は何もしない
+# - sudo_nopasswd_absent が true の場合は, 上記3つの変数は無視される
+# - sudo_nopasswd_groups_autodetect が true の場合, sudo/wheelグループが存在しない場合は警告を出す
+# - sudo_nopasswd_users に存在しないユーザ名が指定された場合は無視する
+# - sudo_nopasswd_groups_extra に存在しないグループ名が指定された場合は無視する
+
+
+## 事前準備
+- name: Ensure sudo is installed
+  package:
+    name: sudo
+    state: present
+
+- name: Ensure /etc/sudoers.d exists with safe perms
+  file:
+    path: /etc/sudoers.d
+    state: directory
+    owner: root
+    group: root
+    mode: '0755'
+
+#  ( 参考 ) /etc/sudoers が /etc/sudoers.d を取り込んでいるかを確認 ( 変更はしない )
+- name: Check that /etc/sudoers includes /etc/sudoers.d (warn-only)
+  shell: "grep -E '^[#]*\\s*includedir\\s+/etc/sudoers\\.d' /etc/sudoers || true"
+  register: _includedir_chk
+  changed_when: false
+
+- name: Warn if /etc/sudoers.d is not included
+  debug:
+    msg: "WARNING: /etc/sudoers does not include /etc/sudoers.d; drop-ins may not take effect."
+  when: _includedir_chk.stdout | default('',true)|length == 0
+
+# 変更前バリデーション
+- name: Validate sudoers syntax BEFORE changes
+  command: visudo -cf /etc/sudoers
+  changed_when: false
+
+# --- グループの自動検出 ( sudo / wheel が存在するものだけ採用 )  ---
+- name: Detect presence of 'sudo' group
+  getent:
+    database: group
+    key: sudo
+  register: getent_sudo
+  failed_when: false
+
+- name: Detect presence of 'wheel' group
+  getent:
+    database: group
+    key: wheel
+  register: getent_wheel
+  failed_when: false
+
+- name: Build final target groups (autodetect + extra)
+  set_fact:
+    sudo_nopasswd_groups_final: >-
+      {{
+        (
+          (
+            ([ 'sudo' ] if (sudo_nopasswd_groups_autodetect | bool and (getent_sudo.ansible_facts.getent_group.sudo is defined)) else [])
+            +
+            ([ 'wheel' ] if (sudo_nopasswd_groups_autodetect | bool and (getent_wheel.ansible_facts.getent_group.wheel is defined)) else [])
+          )
+          | unique
+        )
+        + (sudo_nopasswd_groups_extra | default([],true))
+      | unique }}
+
+#=========================
+# 1) ユーザ単位の設定
+#=========================
+- name: Check existing users via getent
+  getent:
+    database: passwd
+    key: "{{ item }}"
+  loop: "{{ sudo_nopasswd_users | default([],true) }}"
+  register: _getent_users
+  failed_when: false
+  when: (sudo_nopasswd_users | default([],true)) | length > 0
+
+- name: Filter only users that actually exist
+  set_fact:
+    sudo_nopasswd_users_existing: >-
+      {{
+        _getent_users.results
+        | selectattr('ansible_facts.getent_passwd', 'defined')
+        | rejectattr('ansible_facts.getent_passwd', 'equalto', {})
+        | map(attribute='item')
+        | list
+      }}
+  when: (sudo_nopasswd_users | default([],true)) | length > 0
+
+- name: Create user drop-ins with visudo validation
+  template:
+    src: nopasswd-user.sudoers.j2
+    dest: "/etc/sudoers.d/{{ sudo_dropin_prefix }}-user-{{ item }}"
+    owner: root
+    group: root
+    mode: '0440'
+    validate: 'visudo -cf %s'
+  loop: "{{ sudo_nopasswd_users_existing | default([],true) }}"
+  when: not sudo_nopasswd_absent | bool
+
+- name: Remove user drop-ins when rollback requested
+  file:
+    path: "/etc/sudoers.d/{{ sudo_dropin_prefix }}-user-{{ item }}"
+    state: absent
+  loop: "{{ sudo_nopasswd_users_existing | default([],true) }}"
+  when: sudo_nopasswd_absent | bool
+
+#=========================
+# 2) グループ単位の設定
+#=========================
+- name: Create group drop-ins with visudo validation
+  template:
+    src: nopasswd-group.sudoers.j2
+    dest: "/etc/sudoers.d/{{ sudo_dropin_prefix }}-group-{{ item }}"
+    owner: root
+    group: root
+    mode: '0440'
+    validate: 'visudo -cf %s'
+  loop: "{{ sudo_nopasswd_groups_final | default([],true) }}"
+  when: not sudo_nopasswd_absent | bool
+
+- name: Remove group drop-ins when rollback requested
+  file:
+    path: "/etc/sudoers.d/{{ sudo_dropin_prefix }}-group-{{ item }}"
+    state: absent
+  loop: "{{ sudo_nopasswd_groups_final | default([],true) }}"
+  when: sudo_nopasswd_absent | bool
+
+#=========================
+# 最終検証
+#=========================
+- name: Validate sudoers syntax AFTER changes
+  command: visudo -cf /etc/sudoers
+  changed_when: false

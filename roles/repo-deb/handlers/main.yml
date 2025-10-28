@@ -1,0 +1,24 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  apt関連起動ハンドラ
+#
+- name: apt update
+  listen: "apt update"
+  ansible.builtin.command: apt-get update
+  changed_when: true
+  notify: "apt validate"
+
+- name: apt validate
+  listen: "apt validate"
+
+  ansible.builtin.shell: |
+    set -euo pipefail
+    for p in {{ validate_packages_apt | join(' ') }}; do
+      apt-cache policy "$p" >/dev/null
+    done
+    apt-get -s install {{ validate_packages_apt | join(' ') }} >/dev/null
+  args:
+    executable: /bin/bash
+  changed_when: false

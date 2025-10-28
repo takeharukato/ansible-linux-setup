@@ -1,0 +1,67 @@
+#!/usr/bin/env bash
+# -*- coding: utf-8 mode: bash -*-
+# Copyright 2025 Takeharu KATO  All Rights Reserved.
+# SPDX-License-Identifier: BSD-2-Clause
+# Notes: Portions of this codebase were initially drafted with ChatGPT assistance.
+#
+# NASをマウントする
+#
+# 引数:
+#  $1: マウントポイント (省略時は /mnt)
+set -euo pipefail
+
+NAS="{{user_settings_backup_home_nfs_server}}:/share"
+DEFAULT_MNT=/mnt
+
+#!/usr/bin/env bash
+set -euo pipefail
+
+main() {
+  local mnt_point="${1:-}"
+  local nas="${NAS:-}"
+
+  # 引数が空の場合, デフォルト値を適用
+  if [[ -z "$mnt_point" ]]; then
+    mnt_point="${DEFAULT_MNT:-/mnt}"
+  fi
+
+  # 入力検証
+  if [[ -z "${nas}" ]]; then
+    echo "ERROR: NAS is empty (expected format: host:/export/path)" >&2
+    return 2
+  fi
+
+  if [[ -z "${mnt_point}" ]]; then
+    echo "ERROR: mount point is empty" >&2
+    return 2
+  fi
+
+  if [[ ! -d "${mnt_point}" ]]; then
+    echo "ERROR: mount point does not exist: ${mnt_point}" >&2
+    return 2
+  fi
+
+  # 既にマウント済みなら何もしない
+  if mountpoint -q -- "${mnt_point}"; then
+    echo "Already mounted: ${mnt_point}, nothing to do."
+    return 0
+  fi
+
+  # マウント実行
+  if ! sudo mount -t nfs -- "$nas" "$mnt_point"; then
+    echo "ERROR: mount failed: NAS=:{nas}, mount point: ${mnt_point}" >&2
+    return 1
+  fi
+
+  # 検証
+  if ! mountpoint -q -- "${mnt_point}"; then
+    echo "ERROR: mounted but not recognized as a mountpoint: ${mnt_point}" >&2
+    return 1
+  fi
+
+  echo "Success, mounted ${nas} on ${mnt_point}."
+  return 0
+}
+
+main "$@"
+exit $?

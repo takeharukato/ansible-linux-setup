@@ -1,0 +1,79 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  ロール固有変数のデフォルト値
+#  group_vars/all/all.yml やhost_varsで上書き可能とするため,
+#  ロール名/defaults/main.yml に定義している
+
+# ベース
+repo_enable_main: true
+# アップデート
+repo_enable_updates: true
+# セキュリティ
+repo_enable_security: true
+# バックポート ( 必要時に true )
+repo_enable_backports: false
+
+# Debian固有
+debian_archive_uris:
+  - "http://deb.debian.org/debian/"
+debian_security_uris:
+  - "http://security.debian.org/debian-security/"
+debian_backports_uris:
+  - "http://deb.debian.org/debian-backports/"
+debian_archive_keyring: "/usr/share/keyrings/debian-archive-keyring.gpg"
+
+# Ubuntu固有
+ubuntu_archive_uris:
+  - "http://archive.ubuntu.com/ubuntu/"
+ubuntu_security_uris:
+  - "http://security.ubuntu.com/ubuntu/"
+ubuntu_backports_uris:
+  - "http://archive.ubuntu.com/ubuntu/"
+ubuntu_archive_keyring: "/usr/share/keyrings/ubuntu-archive-keyring.gpg"
+
+# 外部
+repo_enable_docker: true
+repo_enable_kubernetes: true
+repo_enable_chrome: true
+
+# 検証/通信
+apt_sslverify: true
+
+# Pinning
+pin_main: 1001
+pin_external: 90
+
+# Docker ( APT）
+docker_apt_keyring_url: "https://download.docker.com/linux/{{ 'debian' if ansible_distribution == 'Debian' else 'ubuntu' }}/gpg"
+docker_apt_keyring: "/usr/share/keyrings/docker-archive-keyring.gpg"
+docker_apt_uri: "https://download.docker.com/linux/{{ 'debian' if ansible_distribution == 'Debian' else 'ubuntu' }}/"
+docker_apt_suite: "{{ repo_codename_debian }}"
+docker_apt_components: "stable"
+docker_arch_apt: "amd64"
+
+# Kubernetes ( APT )
+k8s_major_minor: "1.31"
+k8s_apt_keyring_url: "https://pkgs.k8s.io/core:/stable:/v{{ k8s_major_minor }}/deb/Release.key"
+k8s_apt_keyring: "/usr/share/keyrings/kubernetes-apt-keyring.gpg"
+k8s_apt_uri: "https://pkgs.k8s.io/core:/stable:/v{{ k8s_major_minor }}/deb/"
+k8s_apt_suites: "/"
+k8s_apt_components: ""
+k8s_arch_apt: ""
+
+# Chrome ( APT )
+chrome_keyring_url: "https://dl.google.com/linux/linux_signing_key.pub"
+chrome_keyring_path: "/usr/share/keyrings/google-chrome-archive-keyring.gpg"
+chrome_apt_uri: "https://dl.google.com/linux/chrome/deb/"
+chrome_apt_suite: "stable"         # noble/jammy ではなく "stable"
+chrome_apt_components: "main"
+chrome_arch_apt: "amd64"
+
+# 到達性検証
+validate_packages_apt:
+  - bash
+  - coreutils
+  - docker-ce-cli
+  - google-chrome-stable
+  - kubelet

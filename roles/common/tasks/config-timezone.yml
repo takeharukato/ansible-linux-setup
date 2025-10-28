@@ -1,0 +1,16 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+# 共通設定タスク群
+#   - タイムゾーン設定
+#
+
+#
+# タイムゾーン設定
+#
+
+- name: "Setup time zone {{ common_timezone }}"
+  timezone:
+    name: "{{ common_timezone }}"
+  when: common_timezone is defined and ( (common_timezone|default('',true)|length) > 0 )

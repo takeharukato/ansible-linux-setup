@@ -1,0 +1,54 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#  ロール固有変数のデフォルト値
+#  group_vars/all/all.yml やhost_varsで上書き可能とするため,
+#  ロール名/defaults/main.yml に定義している
+---
+# Redmineサーバ関連ディレクトリ
+redmine_dir_prefix: "/data/redmine"
+# docker-compose.yml格納先ディレクトリ
+redmine_docker_dir: "{{redmine_dir_prefix}}/docker"
+# Redmineサーバ保守用スクリプト格納先ディレクトリ
+redmine_scripts_dir: "{{redmine_dir_prefix}}/scripts"
+# Redmineサーバデータバックアップ格納先ディレクトリ
+redmine_backup_dir: "{{redmine_dir_prefix}}/backup"
+# コンテナ内でのRedmineサーバデータファイル(添付ファイルなど)格納先ディレクトリ
+redmine_files_volume: "redmine_vol_files"
+# コンテナ内でのPostgreSQLデータ格納先ディレクトリ
+redmine_database_volume: "redmine_vol_pgdata"
+# コンテナ内でのRedmineサーバログファイル格納先ディレクトリ
+redmine_files_base_name: "redmine_files"
+# Redmineサーバデータバックアップファイル名
+redmine_files_backup_name: "{{redmine_files_base_name}}.tgz"
+# PostgreSQLデータバックアップファイル名
+redmine_dbdata_backup_name: "redmine.dump"
+# PostgreSQLデータバックアップ圧縮ファイル名
+redmine_dbdata_backup_gzip: "{{redmine_dbdata_backup_name}}.gz"
+# Redmineサーバ用Dockerイメージ
+redmine_image: "redmine:5.0.4-bullseye"
+# Redmineサーバサービス名
+redmine_service: "redmine"
+# Redmineサーバサービスポート
+redmine_service_port: 8080
+
+# PostgreSQL用Dockerイメージ
+redmine_db_image: "postgres:15.1-bullseye"
+# PostgreSQLサービス名
+redmine_db_service: "redmine-db"
+# PostgreSQLデータベース名
+redmine_db_name: "redmine"
+# PostgreSQLデータベースユーザ名
+redmine_db_user: "redmine_user"
+# PostgreSQLデータベースユーザパスワード
+redmine_db_password: "redmine_password"
+
+#
+# デイリーバックアップ関連設定
+#
+# バックアップ世代数
+redmine_backup_rotation: 7
+# デイリーバックアップ時のNFSマウントポイント(NFSのマウント/アンマウント時に使用)
+redmine_backup_mount_point: "/mnt"
+# デイリーバックアップ時のNFSマウントポイント配下のバックアップ配置先ディレクトリ
+redmine_backup_output_dir: "{{redmine_backup_mount_point}}{{ redmine_backup_dir_on_nfs }}"

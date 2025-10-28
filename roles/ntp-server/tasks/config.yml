@@ -1,0 +1,18 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  設定関連タスク
+#
+
+# NTPサーバを指定
+- name: "setup ntp server configuration in {{ ntp_server_chrony_conf_drop_in_dir }}/99-ntp-servers.conf"
+  template:
+    src: 99-ntp-servers.conf.j2
+    dest: "{{ ntp_server_chrony_conf_drop_in_dir }}/99-ntp-servers.conf"
+    owner: root
+    group: root
+    mode: 0644
+    backup: no
+  notify:
+    - restart_chrony

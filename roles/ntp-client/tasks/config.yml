@@ -1,0 +1,110 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  設定関連タスク
+#
+
+- name: Gather service facts
+  service_facts:
+
+#
+# systemd-timesyncd の設定
+#
+- name: "setup ntp servers in {{ ntp_client_systemd_timesyncd_conf_path }}"
+  template:
+    src: 99-timesyncd.conf.j2
+    dest: "{{ ntp_client_systemd_timesyncd_conf_path }}"
+    owner: root
+    group: root
+    mode: 0644
+    backup: no
+  become: true
+  notify:
+    - "restart_timesyncd"
+  when:
+    - ntp_client_is_systemd_timesyncd
+    - ansible_facts.os_family == 'Debian'
+    - "'systemd-timesyncd.service' in ansible_facts.services"
+
+- name: Disable chrony service if systemd-timesyncd is used
+  systemd:
+    name: "{{ ntp_client_chrony_service }}"
+    enabled: false
+  become: true
+  when:
+    - ntp_client_is_systemd_timesyncd
+    - ansible_facts.os_family == 'Debian'
+    - "'{{ ntp_client_chrony_service_debian }}' in ansible_facts.services"
+
+
+- name: Ensure systemd-timesyncd is enabled
+  systemd:
+    name: "{{ ntp_client_systemd_timesyncd_service }}"
+    enabled: true
+  become: true
+  notify:
+    - "restart_timesyncd"
+  when:
+    - ntp_client_is_systemd_timesyncd
+    - ansible_facts.os_family == 'Debian'
+    - "'{{ ntp_client_systemd_timesyncd_service }}' in ansible_facts.services"
+
+
+#
+# chrony の設定
+#
+
+- name: "Ensure chrony drop-in directory:{{ ntp_client_chrony_conf_drop_in_dir }} exists"
+  file:
+    path: "{{ ntp_client_chrony_conf_drop_in_dir }}"
+    state: directory
+    mode: "0755"
+  when:
+    - ntp_client_is_chrony
+
+- name: "Add confdir line into {{ ntp_client_chrony_conf_path }} only if not present (RHEL/Debian)"
+  lineinfile:
+    path: "{{ ntp_client_chrony_conf_path }}"
+    regexp: "^[ \\t]*confdir[ \\t]+{{ ntp_client_chrony_confdir_escaped }}(?:[ \\t].*|)$"
+    line: "confdir {{ ntp_client_chrony_conf_drop_in_dir }}"
+    state: present
+    insertafter: EOF
+    backup: true
+  notify:
+    - "restart_chrony"
+  become: true
+  when:
+    - ntp_client_is_chrony
+
+- name: "setup ntp server file in {{ ntp_client_chrony_conf_drop_in_path }}"
+  template:
+    src: 99-chrony.conf.j2
+    dest: "{{ ntp_client_chrony_conf_drop_in_path }}"
+    owner: root
+    group: root
+    mode: 0644
+    backup: no
+  notify:
+    - "restart_chrony"
+  become: true
+  when:
+    - ntp_client_is_chrony
+
+- name: Disable systemd-timesyncd service if chrony is used
+  systemd:
+    name: "{{ ntp_client_systemd_timesyncd_service }}"
+    enabled: false
+  become: true
+  when:
+    - ntp_client_is_chrony
+    - ansible_facts.os_family == 'Debian'
+    - "'{{ ntp_client_systemd_timesyncd_service }}' in ansible_facts.services"
+
+- name: Ensure chrony is enabled
+  systemd:
+    name: "{{ ntp_client_chrony_service }}"
+    enabled: true
+  become: true
+  when:
+    - ntp_client_is_chrony

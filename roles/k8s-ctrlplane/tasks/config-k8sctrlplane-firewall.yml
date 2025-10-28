@@ -1,0 +1,123 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+# Kubernetes コントロールプレーンノード用 firewall 設定タスク
+#
+
+
+# ---- firewall (Debian: UFW) ------------------------------------------------
+
+# UFW の有無は ufw コマンドの存在で判定
+- name: Ensure UFW is installed (Debian family only, when backend=ufw)
+  ansible.builtin.package:
+    name: ufw
+    state: present
+  when:
+    - ansible_facts.os_family == "Debian"
+    - "'ufw' in firewall_backend"
+
+# UFW を有効化 (非対話モード)
+- name: Ensure UFW enabled (non-interactive)
+  ansible.builtin.shell: |
+    set -e
+    if ufw status | grep -iq '^Status: inactive'; then
+      ufw --force enable
+    fi
+  args:
+    executable: /bin/bash
+  changed_when: false
+  when:
+    - ansible_facts.os_family == "Debian"
+    - "'ufw' in firewall_backend"
+
+# K8s コントロールプレーン用ポートを UFW で許可
+# 6443/tcp, 10250/tcp, 10257/tcp, 10259/tcp, 2379-2380/tcp を許可
+- name: Allow control-plane ports via UFW
+  ansible.builtin.shell: |
+    set -e
+    p_raw="{{ item }}"
+    p_ufw="${p_raw/-/:}"
+    ufw allow "${p_ufw}" || true
+  args:
+    executable: /bin/bash
+  loop: "{{ k8s_control_plane_ports }}"
+  become: true
+  notify:
+    - "reload ufw"
+  when:
+    - ansible_facts.os_family == "Debian"
+    - "'ufw' in firewall_backend"
+
+# ---- firewall (RHEL: firewalld) --------------------------------------------
+
+# firewalld の有無をservice の存在で判定
+- name: Check if firewalld service exists
+  ansible.builtin.shell: systemctl status firewalld.service >/dev/null 2>&1
+  register: firewalld_present
+  changed_when: false
+  failed_when: false
+  when:
+    - ansible_facts.os_family == "RedHat"
+    - "'firewalld' in firewall_backend"
+
+- name: Ensure firewalld is installed (RHEL family only, when backend=firewalld)
+  ansible.builtin.package:
+    name: firewalld
+    state: present
+  when:
+    - ansible_facts.os_family == "RedHat"
+    - "'firewalld' in firewall_backend"
+
+- name: Ensure firewalld is running and enabled
+  ansible.builtin.service:
+    name: firewalld
+    state: started
+    enabled: true
+  when:
+    - ansible_facts.os_family == "RedHat"
+    - "'firewalld' in firewall_backend"
+
+# firewalld でポート開放
+- name: Open control-plane ports permanently (firewalld)
+  become: true
+  ansible.builtin.command: >
+    firewall-cmd --permanent --add-port={{ item }}
+  loop: "{{ k8s_control_plane_ports }}"
+  when:
+    - ansible_facts.os_family == "RedHat"
+    - "'firewalld' in firewall_backend"
+  notify:
+    - "reload firewalld"
+
+# firewalldをリロード
+- name: Always reload firewalld after port updates
+  become: true
+  ansible.builtin.command: firewall-cmd --reload
+  when:
+    - ansible_facts.os_family == "RedHat"
+    - "'firewalld' in firewall_backend"
+
+# UFWの状態を表示
+- name: Show UFW status
+  ansible.builtin.shell: ufw status verbose
+  args:
+    executable: /bin/bash
+  changed_when: false
+  when:
+    - ansible_facts.os_family == "Debian"
+    - "'ufw' in firewall_backend"
+
+# firewalldの状態を表示
+- name: Show firewalld port list and direct rules
+  ansible.builtin.shell: |
+    echo '--- ports ---'
+    firewall-cmd --list-ports || true
+    echo '--- direct rules ---'
+    firewall-cmd --direct --get-all-rules || true
+  args:
+    executable: /bin/bash
+  changed_when: false
+  when:
+    - ansible_facts.os_family == "RedHat"
+    - "'firewalld' in firewall_backend"

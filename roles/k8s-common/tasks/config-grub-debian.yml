@@ -1,0 +1,14 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  GRUB設定関連タスク Debian系
+
+
+# update Grub
+- name: update grub
+  shell: |
+    update-grub
+  when:
+    - ansible_facts.os_family == 'Debian'
+  become: true

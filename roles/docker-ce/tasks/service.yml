@@ -1,0 +1,22 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+
+- name: Create bridge relevant module config
+  template:
+    src: docker-bridge.conf.j2
+    dest: /etc/modules-load.d/99-docker-bridge.conf
+    mode: '0644'
+  notify: "apply_sysctl"
+
+- name: Apply bridge relevant sysctl config
+  ansible.builtin.command: sysctl --system
+
+# Dockerサービスを有効化
+- name: Enable docker service
+  ansible.builtin.service:
+    name: docker
+    enabled: true
+    state: restarted
+  become: true

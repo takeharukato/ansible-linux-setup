@@ -1,0 +1,40 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#  ロール固有変数のデフォルト値
+#  group_vars/all/all.yml やhost_varsで上書き可能とするため,
+#  ロール名/defaults/main.yml に定義している
+---
+
+# 物理サーバ/管理用VMネットワークのIPv4CIDR
+network_ipv4_cidr: "{{network_ipv4_network_address}}/{{network_ipv4_prefix_len}}"
+# 物理サーバ/管理用VMネットワークのIPv6CIDR
+network_ipv6_cidr: "{{network_ipv6_network_address}}/{{ network_ipv6_prefix_len }}"
+
+# Kubernetesオペレータユーザ設定
+k8s_operator_user: "kube"
+
+# kubeadm preflight ignore errors argumentの指定値
+k8s_kubeadm_ignore_preflight_errors_arg: "--ignore-preflight-errors=all"
+
+# Kubernetes コントロールプレインノード使用ポート
+k8s_control_plane_ports:
+  - "6443/tcp"        # kube-apiserver
+  - "10250/tcp"       # kubelet HTTPS
+  - "10257/tcp"       # controller-manager
+  - "10259/tcp"       # scheduler
+  - "2379-2380/tcp"   # etcd (ローカル etcd の場合)
+
+# ノイズ測定グラフ作成用にgnuplot, python3-pip, python3-matplotlibを導入している
+# 本来は, グラフ作成作業ノードだけに導入すればよいが, ここでは,
+# 全コントロールプレインに導入している
+k8s_netgauge_packages:
+  - python3-pip
+  - gnuplot
+  - python3-matplotlib
+  - python3-numpy
+
+# Kubernetes Cilium, Multus, Whereabouts 各種設定ディレクトリパス
+k8s_cilium_config_dir: "{{ k8s_kubeadm_config_store }}/cilium"
+k8s_multus_config_dir: "{{ k8s_kubeadm_config_store }}/multus"
+k8s_whereabouts_config_dir: "{{ k8s_kubeadm_config_store }}/whereabouts"

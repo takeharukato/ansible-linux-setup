@@ -1,0 +1,14 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  netplanを適用するハンドラ
+#
+
+# notify の netplan_apply に対応するハンドラ
+- name: "netplan_apply"
+  listen: "netplan_apply"
+  ansible.builtin.command: "netplan apply"
+  when: ansible_facts.os_family == "Debian"
+  changed_when: true
+  become: true

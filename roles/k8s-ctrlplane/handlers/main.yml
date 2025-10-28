@@ -1,0 +1,7 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+- import_tasks: kubelet.yml
+- import_tasks: reboot-node.yml
+- import_tasks: reload-firewall.yml

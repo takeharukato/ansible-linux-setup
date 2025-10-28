@@ -1,0 +1,27 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  Debian/Ubuntu リポジトリ関連処理
+#
+
+# 基本パッケージのインストール
+- name: Ensure base deps
+  ansible.builtin.package:
+    name:
+    - ca-certificates
+    - gpg
+    state: present
+
+# ディストリビューション固有タスクの読み込み
+- name: Include distro specific tasks
+  ansible.builtin.include_tasks: "{{ ansible_distribution | lower }}.yml"
+
+# 外部リポジトリの読み込み
+- name: Include external repositories
+  ansible.builtin.include_tasks: external.yml
+
+# パッケージの更新情報を取得する
+- name: apt update forcefully
+  ansible.builtin.command: apt-get update -o Acquire::https::Verify-Peer={{ 'true' if apt_sslverify else 'false' }}
+  changed_when: true

@@ -1,0 +1,77 @@
+#cloud-config
+
+#  Copyright (c) 2024 Takeharu KATO
+#  SPDX-License-Identifier: BSD-2-Clause
+#  Notes: Portions of this codebase were initially drafted with ChatGPT assistance.
+
+autoinstall:
+  version: 1
+  interactive-sections: []
+  ssh:
+    install-server: true
+    allow-pw: false
+  storage:
+    # ディスクは全領域を使用(標準の "direct" レイアウト)
+    layout:
+      name: direct
+  packages:
+    - avahi-daemon
+    - avahi-utils
+    - open-vm-tools
+    - curl
+
+  user-data:
+    # Cloud-Init 設定
+    hostname: ubuntu-vm
+    locale: ja_JP.UTF-8
+    keyboard:
+      layout: us
+      variant: ""
+    timezone: Asia/Tokyo
+
+    users:
+      - name: ${USER_NAME}
+        gecos: "${USER_NAME_GECOS}"
+        shell: /bin/bash
+        groups: [adm, cdrom, sudo, dip, plugdev, lxd, systemd-journal]
+        sudo: "ALL=(ALL) NOPASSWD:ALL"
+        lock_passwd: false
+        # whois パッケージの mkpasswd コマンドで生成
+        # 例: mkpasswd -m yescrypt 'ansible'
+        passwd: "${USER_PASSWD_HASH}"
+        # GitHub アカウントの公開鍵を自動取り込み
+        ssh_import_id:
+          - gh:${GITHUB_USER}
+    write_files:
+      - path: /var/tmp/update-hostname.sh
+        owner: root:root
+        permissions: '0644'
+        encoding: b64
+        # Base64 エンコードしたスクリプトを指定
+        content: "DUMMY"
+    runcmd:
+      # .ssh ディレクトリ
+      - [ bash, -lc, 'install -d -m 700 -o ${USER_NAME} -g ${USER_NAME} "/home/${USER_NAME}/.ssh"' ]
+      # GitHub鍵を取得, 成功した時だけ配置 ( 0バイト回避）, 重複排除して配置
+      # - ak に既存 authorized_keys のパス, t に GitHub から取得した一時ファイルをセット
+      # - curl で GitHub から鍵を取得し t に保存, 取得に失敗しても空ファイルを用意し, 既存の鍵を追記して結合
+      # - 既存の authorized_keys が存在すれば t に追記
+      # - awk で重複排除しつつ整形して t.dedup に保存し,
+      #   オプション付き行,コメント差異によらず, 鍵本体が同じなら一意化
+      #   - awk スクリプトの動作:
+      #     -  変数 line に行全体を保存
+      #     -  行を空白・タブで分割し配列 a に保存
+      #     -  配列 a を走査し, 鍵タイプにマッチする最初のインデックスを type_idx に保存
+      #     -  鍵タイプが見つからなければ, その行をそのまま出力
+      #     -  鍵タイプが見つかれば, その直後のフィールド(鍵本体 base64)をキーにして, 重複行を除外, 鍵本体をkeyに保存
+      #     -  鍵本体が空でなければ, seen 配列で重複をチェックし, 初出ならその行を出力
+      # - 有効な鍵が存在している場合は, install コマンドでt.dedupをauthorized_keysに配置, 配置時に所有者・権限を同時設定
+      # - 有効な鍵が存在しない場合は, "no ssh keys to install, keep existing"を表示し, 既存のauthorized_keysを維持, 既存のauthorized_keysが存在しない場合は何もしない
+      # - 一時ファイルを削除
+      - [ bash, -lc, 'ak="/home/${USER_NAME}/.ssh/authorized_keys"; t=$(mktemp); curl -fsSL --retry 5 --retry-connrefused --connect-timeout 5 -o "$t" "https://github.com/${GITHUB_USER}.keys" || :; [ -s "$ak" ] && cat "$ak" >> "$t" || true; awk "BEGIN{OFS=\" \"} function is_type(t){ return (t ~ /^(ssh-(rsa|dss|ed25519)|ecdsa-sha2-nistp(256|384|521)|sk-ssh-(ed25519|ecdsa-sha2-nistp256)@openssh.com)$/) } { line=\$0; n=split(\$0, a, /[ \t]+/); type_idx=0; for(i=1;i<=n;i++){ if (is_type(a[i])) { type_idx=i; break } } if (type_idx==0){ if(length(line)) print line; next } key=a[type_idx+1]; if (key==\"\"){ if(length(line)) print line; next } if (seen[key]++) next; print line }" "$t" > "$t.dedup"; if [ -s "$t.dedup" ]; then install -m 600 -o ${USER_NAME} -g ${USER_NAME} "$t.dedup" "$ak"; else echo "no ssh keys to install, keep existing"; fi; rm -f "$t" "$t.dedup"' ]
+      # ホスト名設定スクリプトをユーザディレクトリに配置 ( 所有者・実行権を同時設定 )
+      - [ bash, -lc, 'install -m 0755 -o ${USER_NAME} -g ${USER_NAME} "/var/tmp/update-hostname.sh" "/home/${USER_NAME}/update-hostname.sh"' ]
+      # 一時ファイルを削除
+      - [ bash, -lc, 'rm -f "/var/tmp/update-hostname.sh"' ]
+      # avahi-daemon と open-vm-tools を自動起動設定 ( 失敗しても無視 )
+      - [ bash, -lc, 'systemctl enable --now avahi-daemon open-vm-tools || true' ]

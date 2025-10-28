@@ -1,0 +1,57 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#  ロール固有変数デフォルト値
+
+#
+# 以下はクライアント側とサーバ側で共通
+#
+# Dynamic DNS update key name
+dns_ddns_key_name: "ddns-clients"
+
+#
+# 以下はサーバ側のみ
+#
+
+# === 実行ユーザ/グループ/サービス名 ===
+dns_bind_user:  "{{ (ansible_facts.os_family == 'Debian') | ternary('bind',  'named') }}"
+dns_bind_group: "{{ (ansible_facts.os_family == 'Debian') | ternary('bind',  'named') }}"
+dns_bind_service:   "named"
+
+# === ディレクトリ/主要ファイル ===
+# 設定ディレクトリ
+dns_bind_conf_dir:  "{{ (ansible_facts.os_family == 'Debian') | ternary('/etc/bind', '/etc/named') }}"
+# メイン設定ファイル
+dns_bind_main_conf: "{{ (ansible_facts.os_family == 'Debian') | ternary('/etc/bind/named.conf', '/etc/named.conf') }}"
+# ゾーン格納ディレクトリ
+dns_bind_zone_dir:  "{{ (ansible_facts.os_family == 'Debian') | ternary('/var/lib/bind', '/var/named/zone') }}"
+# ランタイム ( PID 等）ディレクトリ ( 存在しなければ作成）
+dns_bind_run_dir:   "{{ (ansible_facts.os_family == 'Debian') | ternary('/run/named', '/run/named') }}"
+# キャッシュディレクトリ
+dns_bind_cache_dir: "{{ (ansible_facts.os_family == 'Debian') | ternary('/var/cache/bind', '/var/named') }}"
+# オプションファイル
+dns_bind_options_conf_path: "{{ dns_bind_conf_dir }}/named.conf.options"
+dns_bind_options_conf_path_escaped: "{{ dns_bind_options_conf_path | regex_escape() }}"
+# === systemd 関連 ===
+dns_bind_systemd_dropin_dir: "/etc/systemd/system/{{ dns_bind_service }}.service.d"
+dns_bind_systemd_dropin_file: "90-override.conf"
+
+# === SELinux 関連 ( RHEL 系のみ使用 )  ===
+# SELinux のゾーン用タイプ
+dns_bind_selinux_type: "named_zone_t"
+# SELinux fcontext を適用するパス ( RHEL 系で /var/named 配下のみ )
+dns_bind_selinux_target: "/var/named(/.*)?"
+# bind key ファイルパス ( RHEL 系 )
+dns_bind_keyfile_rhel: "/etc/named.root.key"
+# bind key ファイルパス ( Debian 系 )
+dns_bind_keyfile_debian: "/usr/share/dns/root.key"
+# bind key ファイルパス
+dns_bind_keyfile: "{{ (ansible_facts.os_family == 'Debian') | ternary(dns_bind_keyfile_debian, dns_bind_keyfile_rhel) }}"
+# DNSポート番号
+dns_bind_port: 53
+# デフォルトゾーンを使用
+dns_bind_firewall_zone: null
+# DNSフォワーダー
+dns_bind_forwarders:
+  - 1.1.1.1
+  - 8.8.8.8

@@ -1,0 +1,119 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  外部リポジトリ関連処理
+#
+
+# 鍵配置先ディレクトリを作成する
+- name: Ensure RPM GPG dir exists for Google Chrome
+  when: repo_enable_chrome
+  ansible.builtin.file:
+    path: "{{ chrome_rpm_gpg_file | dirname }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+# --- Kubernetes (pkgs.k8s.io) ---
+
+# Kubernetes GPG keyを配置・登録する
+- name: Fetch Kubernetes GPG key
+  when: repo_enable_kubernetes
+  shell: |
+    curl -fsSL "{{ k8s_gpgkey_url }}" > "{{ k8s_gpgkey_file }}"
+    chmod 0644 "{{ k8s_gpgkey_file }}"
+
+# Kubernetes GPG keyをインポートする
+- name: Import Kubernetes GPG key
+  when: repo_enable_kubernetes
+  ansible.builtin.rpm_key:
+    state: present
+    key: "{{ k8s_gpgkey_file }}"
+
+# Kubernetes リポジトリを設定する
+- name: Configure Kubernetes repo
+  when: repo_enable_kubernetes
+  ansible.builtin.yum_repository:
+    name: "{{ k8s_repo_name }}"
+    description: "Kubernetes"
+    baseurl: "{{ k8s_baseurl }}"
+    enabled: true
+    gpgcheck: "{{ repo_gpgcheck }}"
+    repo_gpgcheck: "{{ repo_repogpgcheck }}"
+    sslverify: "{{ repo_sslverify }}"
+    gpgkey:
+      - "file://{{ k8s_gpgkey_file }}"
+    priority: "{{ priority_kubernetes }}"
+    module_hotfixes: true
+  notify: "rpm makecache"
+
+# --- Google Chrome ---
+
+# Google Chrome GPG key を取得する
+- name: Fetch Google RPM GPG key
+  when: repo_enable_chrome
+  ansible.builtin.get_url:
+    url: "{{ chrome_keyring_url }}"
+    dest: "{{ chrome_rpm_gpg_file }}"
+    mode: "0644"
+    force: true
+    validate_certs: true
+
+# Google Chrome GPG key をインポートする
+- name: Import Google RPM GPG key
+  when: repo_enable_chrome
+  ansible.builtin.rpm_key:
+    state: present
+    key: "{{ chrome_rpm_gpg_file }}"
+
+# Google Chrome リポジトリを設定する
+- name: Configure Google Chrome repo
+  when: repo_enable_chrome
+  ansible.builtin.yum_repository:
+    name: "google-chrome"
+    description: "Google Chrome - stable"
+    baseurl: "{{ chrome_rpm_baseurl }}"
+    enabled: true
+    gpgcheck: true
+    repo_gpgcheck: false
+    gpgkey:
+      - "file://{{ chrome_rpm_gpg_file }}"
+    priority: "{{ priority_chrome }}"
+    sslverify: true
+  notify: "rpm makecache"
+
+# --- Docker CE ---
+
+# Docker CE GPG keyを配置・登録する
+- name: Fetch Docker CE RPM GPG key
+  when: repo_enable_docker
+  ansible.builtin.get_url:
+    url: "{{ docker_ce_keyring_url }}"
+    dest: "{{ docker_ce_rpm_gpg_file }}"
+    mode: "0644"
+    force: true
+    validate_certs: true
+
+# Docker CE GPG keyをインポートする
+- name: Import Docker RPM GPG key
+  when: repo_enable_docker
+  ansible.builtin.rpm_key:
+    state: present
+    key: "{{ docker_ce_rpm_gpg_file }}"
+
+# Docker CE リポジトリを設定する
+- name: Configure Docker CE repo
+  when: repo_enable_docker
+  ansible.builtin.yum_repository:
+    name: "docker-ce"
+    description: "Docker CE"
+    baseurl: "{{ docker_ce_rpm_baseurl }}"
+    enabled: true
+    gpgcheck: true
+    repo_gpgcheck: false
+    gpgkey:
+      - "file://{{ docker_ce_rpm_gpg_file }}"
+    priority: "{{ priority_docker_ce }}"
+    sslverify: true
+  notify: "rpm makecache"

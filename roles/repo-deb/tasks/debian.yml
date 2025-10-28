@@ -1,0 +1,63 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  Debian固有リポジトリ関連タスク
+#
+
+#  Debian deb822 リポジトリ設定
+- name: Configure Debian deb822 sources
+  vars:
+    suite: "{{ ansible_distribution_release }}"
+  block:
+    - name: main
+      ansible.builtin.deb822_repository:
+        name: "debian-main"
+        types: "deb"
+        uris: "{{ debian_archive_uris | default(['http://deb.debian.org/debian']) }}"
+        suites: "{{ suite }}"
+        components:
+          - "main"
+          - "universe"
+        enabled: "{{ repo_enable_main }}"
+        signed_by: "{{ debian_archive_keyring }}"
+      notify: "apt update"
+
+    - name: updates
+      ansible.builtin.deb822_repository:
+        name: "debian-updates"
+        types: "deb"
+        uris: "{{ debian_updates_uris | default(['http://deb.debian.org/debian']) }}"
+        suites: "{{ suite }}-updates"
+        components:
+          - "main"
+          - "universe"
+        enabled: "{{ repo_enable_updates }}"
+        signed_by: "{{ debian_archive_keyring }}"
+      notify: "apt update"
+
+    - name: security
+      ansible.builtin.deb822_repository:
+        name: "debian-security"
+        types: "deb"
+        uris: "{{ debian_security_uris | default(['http://security.debian.org/debian-security']) }}"
+        suites: "{{ suite }}-security"
+        components:
+          - "main"
+          - "universe"
+        enabled: "{{ repo_enable_security }}"
+        signed_by: "{{ debian_archive_keyring }}"
+      notify: "apt update"
+
+    - name: backports
+      ansible.builtin.deb822_repository:
+        name: "debian-backports"
+        types: "deb"
+        uris: "{{ debian_backports_uris | default(['http://deb.debian.org/debian']) }}"
+        suites: "{{ suite }}-backports"
+        components:
+          - "main"
+          - "universe"
+        enabled: "{{ repo_enable_backports }}"
+        signed_by: "{{ debian_archive_keyring }}"
+      notify: "apt update"

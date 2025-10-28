@@ -1,0 +1,10 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#  サービス起動ハンドラ
+
+# 処理を直接書かずにincludeする
+# 例:
+# - import_tasks: docker.yml
+- import_tasks: disable-gui.yml
+- import_tasks: restart-nfs.yml

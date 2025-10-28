@@ -1,0 +1,22 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  ファイル・ディレクトリ作成関連タスク
+#
+- name: make kubeadm config file dir
+  file:
+    path: "{{ k8s_kubeadm_config_store }}"
+    state: directory
+    owner: "ansible"
+    group: "ansible"
+    mode: "0755"
+
+# 環境構築用コマンド配置先ディレクトリを作成
+- name: "make {{ k8s_node_setup_tools_dir }}"
+  file:
+    path: "{{ k8s_node_setup_tools_dir }}"
+    state: directory
+    owner: "root"
+    group: "root"
+    mode: "0755"

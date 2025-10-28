@@ -1,0 +1,148 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  SE Linux 設定関連タスク
+#
+---
+# SE Linux環境での処理
+
+# SELinux設定値の妥当性確認
+- name: Validate desired state
+  ansible.builtin.assert:
+    that:
+      - common_selinux_state in ['enforcing','permissive','disabled']
+    fail_msg: "common_selinux_state must be enforcing|permissive|disabled (got: {{ common_selinux_state }})"
+
+# 現在のSELinux設定確認
+# Disabled 環境でも失敗にしないようにfailed_when: false としている
+- name: Read current runtime mode
+  ansible.builtin.command: getenforce
+  register: getenforce_out
+  changed_when: false
+  failed_when: false
+
+# 変更前の設定値を取得
+- name: Read /etc/selinux/config before change (if exists)
+  ansible.builtin.slurp:
+    path: /etc/selinux/config
+  register: se_config_slurp
+  when: se_config_file.stat.exists
+
+# 変更前の永続設定値を解析（ファイルがある場合にのみ実施）
+- name: Extract previous SELINUX= value
+  ansible.builtin.set_fact:
+    se_configured_state_old: >-
+      {{
+        (se_config_slurp.content | b64decode).splitlines()
+        | select('match', '^\\s*SELINUX\\s*=')
+        | map('regex_replace', '^\\s*SELINUX\\s*=\\s*', '')
+        | map('lower')
+        | first
+        | default('')
+      }}
+  when: se_config_file.stat.exists
+
+# 永続設定 (ファイルがある場合にのみ実施)
+- name: "Persist SELINUX={{ common_selinux_state }} in /etc/selinux/config"
+  ansible.builtin.lineinfile:
+    path: /etc/selinux/config
+    regexp: '^SELINUX='
+    line: "SELINUX={{ common_selinux_state }}"
+    backup: true
+  when: se_config_file.stat.exists
+  register: persist_selinux
+
+# targeted ポリシー設定
+- name: Ensure SELINUXTYPE=targeted if the key exists
+  ansible.builtin.lineinfile:
+    path: /etc/selinux/config
+    regexp: '^SELINUXTYPE='
+    line: 'SELINUXTYPE=targeted'
+    create: false
+  when: se_config_file.stat.exists
+  ignore_errors: true
+  register: persist_type
+
+# ランタイム切替 (Disabled では setenforce は不可)
+- name: Set runtime to Enforcing (if possible)
+  ansible.builtin.command: setenforce 1
+  when:
+    - common_selinux_state == 'enforcing'
+    - getenforce_out.stdout is defined
+    - getenforce_out.stdout not in ['Enforcing','Disabled']
+  changed_when: true
+  failed_when: false
+
+- name: Set runtime to Permissive (if possible)
+  ansible.builtin.command: setenforce 0
+  when:
+    - common_selinux_state == 'permissive'
+    - getenforce_out.stdout is defined
+    - getenforce_out.stdout not in ['Permissive','Disabled']
+  changed_when: true
+  failed_when: false
+
+# (D) /.autorelabel (SELinuxのラベルを再設定)を必要時だけ作成
+# 旧 config が disabled から enabled(enforcing/permissive) に変わる
+# ランタイムが Disabled で, これから enabled にしたい場合
+# force_relabel 変数が true に設定されている場合は, 明示的に強制リラベル
+- name: Decide whether full relabel is required
+  ansible.builtin.set_fact:
+    need_full_relabel: >-
+      {{
+        (
+          (se_config_file.stat.exists and
+           ( (se_configured_state_old | default('')) == 'disabled' ) and
+           (common_selinux_state in ['enforcing','permissive']))
+          or
+          ( (getenforce_out.stdout | default('') == 'Disabled') and
+           (common_selinux_state in ['enforcing','permissive']) )
+          or
+          (force_relabel | default(false) | bool)
+        )
+      }}
+
+# /.autorelabel (SELinuxのラベルを再設定)を必要時だけ作成
+- name: Create /.autorelabel to trigger full relabel on next boot
+  ansible.builtin.file:
+    path: /.autorelabel
+    state: touch
+    owner: root
+    group: root
+    mode: '0000'
+  when:
+    - se_config_file.stat.exists
+    - need_full_relabel | bool
+
+# マシンをリブートする
+# 「リラベルが必要」or「disabled へ変更が入った」場合
+# マシンをリブートする
+- name: Reboot host gracefully to disable SELinux
+  reboot:
+    reboot_timeout: 600
+    msg: "Reboot triggered by role: selinux"
+    pre_reboot_delay: 2
+  when:
+    - se_config_file.stat.exists
+    - (
+        need_full_relabel | bool
+        or
+        (
+          common_selinux_state == 'disabled'
+          and getenforce_out.stdout is defined
+          and getenforce_out.stdout != 'Disabled'
+          and (persist_selinux is defined and persist_selinux is changed)
+        )
+      )
+
+# Reboot 後の接続待ち
+- name: Wait for connection after reboot
+  wait_for_connection:
+    timeout: 300
+  when:
+    - common_selinux_state == 'disabled'
+    - getenforce_out.stdout is defined
+    - getenforce_out.stdout != 'Disabled'
+    - se_config_file.stat.exists
+    - (persist_selinux is defined and persist_selinux is changed)

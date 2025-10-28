@@ -1,0 +1,21 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  SELinux 処理フロータスク
+#
+
+# ホストに SELinux が「存在」するかを判定
+- name: Detect SELinux presence
+  ansible.builtin.include_tasks: detect-selinux.yml
+
+# 存在するホストだけ設定タスクを読む ( Ubuntu は自然にスキップ）
+- name: Configure SELinux if present
+  ansible.builtin.include_tasks: config-selinux.yml
+  when: selinux_present | bool
+
+# SELinuxがない環境では通知だけ実施
+- name: Skip note when SELinux not present (e.g., Ubuntu/AppArmor)
+  ansible.builtin.debug:
+    msg: "SELinux not present on this host. Skipping SELinux configuration."
+  when: not selinux_present | bool

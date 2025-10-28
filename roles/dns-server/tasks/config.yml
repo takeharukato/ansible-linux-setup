@@ -1,0 +1,210 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#  設定関連タスク
+
+# named.conf および ゾーンファイルの配置
+- name: "Deploy {{dns_bind_conf_dir}}"
+  file:
+    path: "{{dns_bind_conf_dir}}"
+    state: directory
+    owner: root
+    group: root
+    mode: 0755
+
+# ゾーンファイル格納ディレクトリの配置
+- name: "Deploy {{dns_bind_zone_dir}}"
+  file:
+    path: "{{dns_bind_zone_dir}}"
+    state: directory
+    owner: "{{ dns_bind_user }}"
+    group: "{{ dns_bind_group }}"
+    mode: 0775
+
+# RHEL 系の場合, named.conf を「最小で安全な形」に置換する前にバックアップを取得
+- name: "Backup current {{ dns_bind_main_conf }}"
+  become: true
+  ansible.builtin.copy:
+    src: "{{ dns_bind_main_conf }}"
+    dest: "{{ dns_bind_main_conf }}.bak-{{ ansible_date_time.epoch }}"
+    remote_src: true
+    mode: '0644'
+  when:
+    - ansible_facts.os_family == "RedHat"
+
+# named.conf を「最小で安全な形」に置換（裸のディレクティブを排除）
+- name: "Write clean {{dns_bind_main_conf}} (include options file first)"
+  become: true
+  template:
+    src: rhel-named.conf.j2
+    dest: "{{dns_bind_main_conf}}"
+    owner: root
+    group: "{{ dns_bind_group }}"
+    mode: '0644'
+  when:
+    - ansible_facts.os_family == "RedHat"
+
+# named.confに自ドメインのゾーンファイル定義の読込み処理を追加する
+- name: "Add zone configuration line into {{ dns_bind_main_conf }}"
+  lineinfile:
+    path: "{{ dns_bind_main_conf }}"
+    regexp: 'include .+{{dns_bind_conf_dir}}/named\.conf\.zones.+;'
+    line: 'include "{{dns_bind_conf_dir}}/named.conf.zones";'
+
+# namedの動作オプションファイルを作成する  ( Debian系専用 )
+- name: "Deploy {{ dns_bind_options_conf_path }}"
+  template:
+    src: named.conf.options.j2
+    dest: "{{ dns_bind_options_conf_path }}"
+    owner: root
+    group: "{{ dns_bind_group }}"
+    mode: 0640
+    backup: true
+  when:
+    - ansible_facts.os_family == "Debian"
+
+# namedの動作オプションファイルを作成する ( RHEL系専用 )
+- name: "Deploy {{ dns_bind_options_conf_path }} (RHEL only)"
+  template:
+    src: rhel-named.conf.options.j2
+    dest: "{{ dns_bind_options_conf_path }}"
+    owner: root
+    group: "{{ dns_bind_group }}"
+    mode: 0640
+    backup: true
+  when:
+    - ansible_facts.os_family == "RedHat"
+
+# ゾーンファイル定義を作成する
+- name: "Deploy {{dns_bind_conf_dir}}/named.conf.zones"
+  template:
+    src: named.conf.zones.j2
+    dest: "{{dns_bind_conf_dir}}/named.conf.zones"
+    owner: root
+    group: "{{ dns_bind_group }}"
+    mode: 0640
+    backup: true
+
+# シリアル番号が設定されていなければ日付と時刻から生成
+- set_fact:
+    bind_serial: "{{ '%Y%m%d%H' | strftime() }}"
+  when:
+    - bind_serial is not defined
+
+# ゾーンファイルを作成する
+- name: "Deploy {{dns_bind_zone_dir}}/db.{{dns_domain}}"
+  template:
+    src: db.forward.conf.j2
+    dest: "{{dns_bind_zone_dir}}/db.{{dns_domain}}"
+    owner: "{{ dns_bind_user }}"
+    group: "{{ dns_bind_group }}"
+    mode: 0644
+    backup: true
+
+# 逆引きゾーンファイルを作成する
+- name: "Deploy {{dns_bind_zone_dir}}/db.{{dns_ipv4_reverse}}"
+  template:
+    src: db.reverse.j2
+    dest: "{{dns_bind_zone_dir}}/db.{{dns_ipv4_reverse}}"
+    owner: "{{ dns_bind_user }}"
+    group: "{{ dns_bind_group }}"
+    mode: 0644
+    backup: true
+
+# 逆引きIPv6ゾーンファイルを作成する
+- name: "Deploy {{dns_bind_zone_dir}}/db.{{dns_network_ipv6_prefix_filename}}"
+  template:
+    src: db.reverse.ipv6.j2
+    dest: "{{dns_bind_zone_dir}}/db.{{dns_network_ipv6_prefix_filename}}"
+    owner: "{{ dns_bind_user }}"
+    group: "{{ dns_bind_group }}"
+    mode: 0644
+    backup: true
+
+# named.conf に named.conf.options の include 行がなければ追加する
+- name: "Ensure include for named.conf.options is present in {{ dns_bind_main_conf }}"
+  become: true
+  ansible.builtin.lineinfile:
+    path: "{{ dns_bind_main_conf }}"
+    regexp: '^\s*include\s+"{{ dns_bind_options_conf_path_escaped }}";\s*$'
+    line: 'include "{{ dns_bind_options_conf_path }}";'
+    insertafter: EOF
+    state: present
+    backup: yes
+  notify:
+    - "named_check_conf"
+    - "Reload systemd & restart named"
+
+- name: "Check if options file {{ dns_bind_options_conf_path }} exists"
+  become: true
+  ansible.builtin.stat:
+    path: "{{ dns_bind_options_conf_path }}"
+  register: optfile
+  when:
+    - ansible_facts.os_family == "RedHat"
+    - ansible_selinux is defined and ansible_selinux.status != "disabled"
+
+- name: Restore SELinux context (only if file exists)
+  become: true
+  ansible.builtin.command: restorecon -v "{{ dns_bind_options_conf_path }}"
+  changed_when: false
+  when:
+    - ansible_facts.os_family == "RedHat"
+    - optfile.stat.exists
+    - ansible_selinux is defined and ansible_selinux.status != "disabled"
+
+# RHEL 系かつ zone ディレクトリが /var/named 配下の場合のみ SELinux fcontext を設定
+- name: Persist SELinux fcontext for named zones (RHEL only)
+  ansible.builtin.command:
+    cmd: "semanage fcontext -a -t {{ dns_bind_selinux_type }} '{{ dns_bind_selinux_target }}'"
+  register: _semanage_add
+  changed_when: _semanage_add.rc == 0
+  failed_when: _semanage_add.rc not in [0,1]
+  when:
+    - ansible_facts.os_family == "RedHat"
+    - ansible_selinux is defined and ansible_selinux.status != "disabled"
+    - dns_bind_zone_dir is match('^/var/named(/|$)') or dns_bind_zone_dir is match('^/var/named/.*')
+
+- name: Ensure SELinux fcontext rule exists (modify if already present)
+  ansible.builtin.command:
+    cmd: "semanage fcontext -m -t {{ dns_bind_selinux_type }} '{{ dns_bind_selinux_target }}'"
+  register: _semanage_mod
+  changed_when: _semanage_mod.rc == 0
+  failed_when: _semanage_mod.rc not in [0,1]
+  when:
+    - ansible_facts.os_family == "RedHat"
+    - ansible_selinux is defined and ansible_selinux.status != "disabled"
+    - dns_bind_zone_dir is match('^/var/named(/|$)') or dns_bind_zone_dir is match('^/var/named/.*')
+
+- name: Apply SELinux contexts to /var/named (RHEL only)
+  ansible.builtin.command:
+    cmd: restorecon -Rv /var/named
+  changed_when: false
+  when:
+    - ansible_facts.os_family == "RedHat"
+    - ansible_selinux is defined and ansible_selinux.status != "disabled"
+
+# named.conf の構文とゾーンをチェック
+- name: named-checkconf (syntax & zones)
+  become: true
+  ansible.builtin.command: named-checkconf -z
+  when:
+    - ansible_facts.os_family == "RedHat"
+
+# namedを起動する
+- block:
+    - name: systemd daemon-reload
+      systemd:
+        daemon_reload: true
+    - name: restart named
+      systemd:
+        name: "{{ dns_bind_service }}"
+        state: restarted
+        enabled: true
+  become: true
+
+# ゾーンファイルをリロードする
+- name: "Reload zone files"
+  shell: |
+    rndc reload
+  become: true

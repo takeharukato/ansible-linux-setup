@@ -1,0 +1,26 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#  設定関連タスク
+
+# ドメイン名を設定
+- name: setup domain name in /etc/idmapd.conf
+  lineinfile:
+    path: /etc/idmapd.conf
+    regexp: '^\s*Domain\s*=.*'
+    line: 'Domain = {{dns_domain}}'
+
+# 共有ディレクトリを設定
+- name: "export {{ nfs_export_directory }}"
+  lineinfile:
+    path: /etc/exports
+    regexp: '{{ nfs_export_directory }} .*'
+    line: '{{ nfs_export_directory }} {{ nfs_network }}({{ nfs_options }})'
+
+# NFSを起動する
+- name: restart_nfs
+  systemd:
+    name: nfs-server
+    state: restarted
+    enabled: true
+  become: true

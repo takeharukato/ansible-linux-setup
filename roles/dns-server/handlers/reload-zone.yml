@@ -1,0 +1,10 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+
+- name: reload_zone  # notify の reload_zone に対応
+  listen: reload_zone
+  shell: |
+    rndc reload
+  become: true

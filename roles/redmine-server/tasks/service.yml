@@ -1,0 +1,25 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  サービス関連処理
+#
+- name: Stop redmine container
+  shell: |
+    cd "{{ redmine_docker_dir }}"
+    docker compose down
+  ignore_errors: true
+
+# コンテナの停止を待ち合わせる
+- name: Wait for stop redmine container
+  local_action: wait_for host={{ inventory_hostname }} port={{ redmine_service_port }} state=stopped
+
+- name: Start redmine container
+  shell: |
+    cd "{{ redmine_docker_dir }}"
+    docker compose up -d
+  ignore_errors: true
+
+# コンテナの開始を待ち合わせる
+- name: Wait for start redmine container
+  local_action: wait_for host={{ inventory_hostname }} port={{ redmine_service_port }} state=started

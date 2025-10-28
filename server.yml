@@ -1,0 +1,38 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+- hosts: server
+  remote_user:  '{{ ansible_user }}'
+  become: true
+  roles:
+    - role: selinux
+      tags: selinux
+    - role: repo-deb
+      tags: repo-deb
+      when: ansible_facts.os_family == "Debian"
+    - role: repo-rpm
+      tags: repo-rpm
+      when: ansible_facts.os_family == "RedHat"
+    - role: common
+      tags: common
+    - role: user-settings
+      tags: user-settings
+    - role: create-users
+      tags: create-users
+    - role: ntp-server
+      tags: ntp-server
+    - role: dns-server
+      tags: dns-server
+# Docker CEのインストールと設定時にDNSサーバーが必要になるためDNSサーバーの後に実行
+    - role: docker-ce
+      tags: docker-ce
+    - role: nfs-server
+      tags: nfs-server
+    - role: ldap-server
+      tags: ldap-server
+    - role: redmine-server
+      tags: redmine-server
+# 最後に実行するようにすること
+    - role: force-reboot
+      tags: force-reboot

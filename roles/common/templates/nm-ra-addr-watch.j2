@@ -1,0 +1,552 @@
+#!/usr/bin/env bash
+# -*- coding: utf-8 mode: bash -*-
+# Copyright 2025 Takeharu KATO  All Rights Reserved.
+# SPDX-License-Identifier: BSD-2-Clause
+# Notes: Portions of this codebase were initially drafted with ChatGPT assistance.
+#
+# /usr/local/libexec/nm-ra-addr-watch
+#
+# Stateless Address Autoconfiguration (SLAAC) / IPv6 Router Advertisement (RA) に起因するアドレス変更を netlink で検知し,
+# NetworkManager dispatcher スクリプト(/etc/NetworkManager/dispatcher.d/90-nm-ns-update)へ
+# 独自ステート "ra-addr-change" で通知するワーカー
+#
+# 環境変数ファイルは, {{ nm_ra_addr_watch_sysconfig_path }} に配置する
+# ( 環境変数ファイルは, systemd unitファイルからも, EnvironmentFileで読み込まれるため, systemdのEnvironmentFileの形式で記述すること)。
+#
+# 依存コマンド・ランタイム:
+#
+#  - bash (version 4.3 以降, 連想配列を使用)
+#  - iproute2 (ip monitor address機能)
+#  - util-linux (logger コマンド)
+#  - systemd (version 249, 本ワーカーを常駐させるために systemd サービスを利用)
+#
+# 説明:
+#
+#   ip monitor address の出力から inet6 イベントを監視し,
+#   複数IF環境であっても, 対象IF(フィルタ可)ごとに適切に間引き(デバウンス)して
+#   dispatcher スクリプトを "ra-addr-change" で起動する。
+#
+# 注意事項:
+#   - dispatcher スクリプトが非ゼロ終了コードで終了した場合でも, 本ワーカーは継続して動作を続ける。
+#   - dispatcher スクリプトの終了コードは本ワーカーには伝播しない。
+#
+# 環境変数:
+#   DISPATCHER_PATH    : dispatcher スクリプトのパス(default: /etc/NetworkManager/dispatcher.d/90-nm-ns-update)
+#   IFACE_ALLOW_REGEX  : 許可するIF名の正規表現(未設定時は全IF許可)
+#   IFACE_DENY_REGEX   : 除外するIF名の正規表現(未設定時は除外なし)
+#                        注意: IFACE_ALLOW_REGEXやIFACE_DENY_REGEXで指定する正規表現は, 'や"で囲まないこと(囲むと, それらも正規表現の一部として扱われる)
+#                              例: ens.* を許可したい場合
+#                                  誤: IFACE_ALLOW_REGEX='^ens.*$'
+#                                  正: IFACE_ALLOW_REGEX=^ens.*$
+#   DEBOUNCE_MS        : 同一IFでの連続イベントを抑制する間隔(ミリ秒, default: 800)
+#                         (非数や負値は既定に丸める)
+#   TAG                : logger のタグ(default: nm-ra-addr-watch)
+#   LOG_LEVEL          : ログレベル 以下の出力条件に基づいてメッセージ出力を制御する (default: 2)
+#                        出力メッセージの前に, ログ種別を示すプレフィックスが付与される
+#                        0以上の整数値を指定可能
+#                         - LOG_LEVEL=0,1 は将来予約
+#                         - LOG_LEVEL=2 (デフォルト値)では Errorのみ出力 (Info/Warningは出ない)。
+#                         - LOG_LEVEL=3 では Warning と Error が出力 (Info/Debugは出ない)。
+#                         - LOG_LEVEL=4 では Info, Warning と Error が出力 (Debugは出ない)。
+#                         - LOG_LEVEL=5 で 全レベル (Debug/Info/Warning/Error)が出力。
+#
+# ログ種別, プレフィックス, 出力条件:
+#
+#               ログ種別   プレフィックス    出力条件 (この条件を満たす場合に出力される)
+#               Debug      [Debug]           LOG_LEVEL > 4
+#               Info       [Info]            LOG_LEVEL > 3
+#               Warning    [Warning]         LOG_LEVEL > 2
+#               Error      [Error]           LOG_LEVEL > 1
+#               Assert     [Assert]          スクリプトの動作に致命的な影響を及ぼす前提条件/前提環境条件に
+#                                            関わるメッセージであることから, LOG_LEVEL に関係なく出力される
+#
+# ログは, systemd-journald に出力されるので以下のコマンドで確認可能
+#
+#   journalctl -t nm-ra-addr-watch -b
+#
+# 例:
+#   journalctl -t nm-ra-addr-watch -b  # ブート以降のログを表示
+#   journalctl -t nm-ra-addr-watch -n 50  # 最新50行を表示 (過去のログは表示されない)
+#   journalctl -t nm-ra-addr-watch --since "2024-01-01 00:00:00"  # 指定日時以降のログを表示
+#   journalctl -t nm-ra-addr-watch --since "2024-01-01 00:00:00" --until "2024-01-02 00:00:00"  # 指定日時範囲のログを表示
+#   journalctl -t nm-ra-addr-watch -f  # リアルタイムにログを表示
+#
+# 注意: 過去のログを表示するには, systemd-journaldの設定で永続化が有効になっている必要がある
+#       (/var/log/journal が存在することを確認)。
+#       永続化が無効な場合, ブート以降のログしか表示されない。
+#
+# メッセージ一覧:
+#
+#   [Info] start (DISPATCHER_PATH=<dispatcher-path> ALLOW=<iface-allow-regex> DENY=<iface-deny-regex> DEBOUNCE_MS=<debounce-ms>)
+#          動作開始メッセージ 以下の動作パラメタを出力する
+#          <dispatcher-path> : dispatcher スクリプトのパス
+#          <iface-allow-regex> : 許可するIF名の正規表現 (未設定時は <none>)
+#          <iface-deny-regex> : 除外するIF名の正規表現 (未設定時は <none>)
+#          <debounce-ms> : 同一IFでの連続イベントを抑制する間隔(ミリ秒, default: 800)
+#          Info なので, ログレベル4以上で出力される
+#
+#   [Info] "event captured -> dispatcher (IFACE=<iface> state=ra-addr-change)"
+#          RAアドレス変更イベントを検知し, dispatcher スクリプトを起動したことを示す
+#          <iface> : イベントを検知したインターフェース名
+#          Info なので, ログレベル4以上で出力される
+#
+#   [Warning] dispatcher returned non-zero (IFACE=<iface> rc=<rc> dispatcher=<dispatcher-path>)
+#          dispatcher スクリプトが非ゼロ終了コードで終了したことを示す
+#          <iface> : dispatcher スクリプトを起動したインターフェース名
+#          <rc> : dispatcher スクリプトの終了コード
+#          <dispatcher-path> : dispatcher スクリプトのパス
+#          Warning なので, ログレベル3以上で出力される。
+#          dispatcher 側のログを確認のうえ対処する。
+#          本ワーカーは終了せず監視を継続する。
+#
+#   [Warning] ip monitor exited; retrying in <retry-interval>s
+#          ip monitor address が何らかの理由で終了した場合に出力される。
+#          <retry-interval>秒後にip monitor を再起動する。
+#          Warning なので, ログレベル3以上で出力される。
+#
+#   [Debug] <message>
+#          デバッグメッセージ。
+#          LOG_LEVEL > 4 の場合に出力される。
+#          運用環境で出力されないメッセージであり,
+#          LOG_LEVELの設定を4以下になっていることを確認する必要がある。
+#
+# アサーションエラー, 到達不可能コード到達メッセージについて:
+#
+# 本スクリプトでは, 内部整合性エラーを検出した場合に, アサーションエラー,
+# 到達不可能コード到達メッセージを出力してスクリプトを終了する。
+#
+# メッセージの形式は以下の通り。
+#
+# [Assert] Assertion error: <条件式文字列> file=<呼び出し元ファイル> line=<呼び出し元の行番号>
+# [Assert] Assertion error: <条件式文字列> file=<呼び出し元ファイル> line=<呼び出し元の行番号> <補足メッセージ>
+# [Assert] Assertion error: <empty expression> file=<呼び出し元ファイル> line=<呼び出し元の行番号>
+# [Assert] Reached unreachable code: file=<呼び出し元ファイル> line=<呼び出し元の行番号>
+#
+# これらのメッセージが出力された場合, スクリプトの修正が必要。
+# なお, これらのメッセージは, スクリプトのバグに起因する可能性が高いため, LOG_LEVEL に関係なく出力される。
+#
+set -euo pipefail
+
+ENV_FILE="{{ nm_ra_addr_watch_sysconfig_path }}"
+if [[ -f "$ENV_FILE" ]]; then
+  while IFS= read -r line; do
+    # コメント/空行を除外
+    [[ $line =~ ^[[:space:]]*# || -z $line ]] && continue
+    # export を剥がす
+    line="${line#export }"
+    # key=value だけ許可
+    [[ $line =~ ^([A-Za-z_][A-Za-z0-9_]*)=(.*)$ ]] || continue
+    k="${BASH_REMATCH[1]}"
+    v="${BASH_REMATCH[2]}"
+    # 既に環境にあるなら触らない
+    [[ -n "${!k+x}" ]] && continue
+    # 外側の引用を剥がさず, そのまま文字列として設定
+    printf -v "$k" '%s' "$v"
+    export "$k"
+  done < "$ENV_FILE"
+fi
+
+LC_ALL=C
+export LC_ALL
+
+# PATH を明示 ( ip/awk等の所在差を吸収 )
+# コマンド検索パス
+SAFE_PATH="/usr/local/sbin:/usr/sbin:/usr/bin:/sbin:/bin"
+PATH="${SAFE_PATH}"
+export PATH
+
+# ログの識別用タグ
+TAG="${TAG:-nm-ra-addr-watch}"
+
+# retry 間隔(秒)
+RETRY_INTERVAL=2
+
+declare -A last_ms_map=() # IFごとの最後のイベント時刻(ms)
+
+#
+# 終了コード
+#
+EXIT_SUCCESS=0                # 正常終了
+EXIT_NO_FQDN=1                # FQDN未設定
+EXIT_INV_FQDN=2               # FQDN書式不正
+EXIT_CANT_CREATE_STATE_DIR=3  # ステートディレクトリ作成失敗
+EXIT_NR_ARGS=64               # 関数の引数個数が規定と異なる(内部整合性エラー)
+EXIT_INV_ARG=65               # 関数の引数の値が規定外(内部整合性エラー)
+EXIT_ASSERT_ERROR=128         # アサーションエラー(内部整合性エラー)
+EXIT_ASSERT_NO_REACH=129      # 到達不可能コードに到達(内部整合性エラー)
+
+# ログレベル設定
+LOG_LEVEL="${LOG_LEVEL:-2}"  # debug=5, info=4, warning=3, error=2 (default=2)
+# ログレベル文字列の正規化
+# LOG_LEVELが整数値でない場合, または 0~5 の範囲外の場合はデフォルト値2に設定する
+[[ ${LOG_LEVEL} =~ ^[0-9]+$ ]] || LOG_LEVEL=2
+if (( LOG_LEVEL < 0 )) || (( LOG_LEVEL > 5 )); then
+    LOG_LEVEL=2
+fi
+
+#
+# アサーション関数
+#
+# 引数で与えられた条件式を eval で評価し, 偽の場合は
+# "[Assert] Assertion error: <条件式文字列> file=<呼び出し元ファイル> line=<呼び出し元の行番号>"を
+# ログと標準エラー出力とに出力してexit(${EXIT_ASSERT_ERROR})でスクリプト全体を終了する。
+#
+# 引数1: 評価される条件式文字列
+# 引数2以降: 任意の補足メッセージ (省略可)
+#
+# 返却値/終了コード:
+#   - 条件式が真の場合は0を返す。
+#   - 条件式が偽の場合は, exit(${EXIT_ASSERT_ERROR})でスクリプト全体を終了する。
+#   - 引数が無い場合は, exit(${EXIT_ASSERT_ERROR})でスクリプト全体を終了する。
+# 動作:
+#   - 条件式が真の場合は何も出力せず, 0を返す。
+#   - 条件式文字列 を eval で評価し, 偽の場合は, 以下のメッセージをログと標準エラー出力とに出力して,
+#     exit(${EXIT_ASSERT_ERROR})でスクリプト全体を終了する。
+#     "[Assert] Assertion error: <条件式文字列> file=<呼び出し元ファイル> line=<呼び出し元の行番号>"を
+#     ログと標準エラー出力とに出力してexit(${EXIT_ASSERT_ERROR})でスクリプト全体を終了する。
+#   - 2つ目以降の引数がある場合は, それらを空白で連結したものを補足メッセージとして,
+#     "[Assert] Assertion error: <条件式文字列> file=<呼び出し元ファイル> line=<呼び出し元の行番号> msg=<補足メッセージ>"
+#     をログと標準エラー出力とに出力してexit(${EXIT_ASSERT_ERROR})でスクリプト全体を終了する。
+#   - 引数が無い場合は,
+#     "[Assert] Assertion error: <empty expression> file=<呼び出し元ファイル> line=<呼び出し元の行番号>"を
+#     ログと標準エラー出力とに出力してexit(${EXIT_ASSERT_ERROR})でスクリプト全体を終了する。
+#   - ログのタグは, 環境変数 TAG が設定されていればその値を使用し, 未設定の場合は "nm-ra-addr-watch" を使用する。
+#
+# 注意事項:
+#   - 引数の条件式文字列は, シングルクォートで囲むことを推奨。
+#     例: assert '[ "$x" -gt 0 ]'
+#   - 条件式内で変数を使用する場合は, 変数をダブルクォートで囲むことを推奨。
+#
+# 補足事項:
+#   set -e でも if 内評価なので安全に使用可能。
+# 例:
+#   assert 'test -f /etc/hosts'      # /etc/hosts が存在することをtestコマンドで確認
+#   assert '[ "$x" -gt 0 ]'          # 変数xが0より大きいことを確認
+#   assert 'my_func_returns_success' # my_func_returns_success関数が成功を返すことを確認
+assert() {
+    local expr="$1"
+    local note="${2:-}"  # 任意の補足メッセージ
+    local file="${BASH_SOURCE[1]:-$(basename -- "$0")}"
+    local line="${BASH_LINENO[0]:-0}"
+    local tag="${TAG}"
+    local msg
+
+    # 引数なしは関数の使い方ミス
+    if [[ -z "${expr}" ]]; then
+        msg="[Assert] Assertion error: <empty expression> file=${file} line=${line}"
+        logger -t "${tag}" -- "${msg}"
+        echo "${msg}" >&2
+        exit ${EXIT_ASSERT_ERROR}
+    fi
+
+    # 条件評価
+    if ! eval -- "${expr}"; then
+        msg="[Assert] Assertion error: ${expr} file=${file} line=${line}"
+
+        # 引数2以降を空白連結して補足メッセージとする
+        if (( $# >= 2 )); then
+
+            note="${*:2}"
+            msg="${msg} msg=${note}"
+        fi
+
+        logger -t "${tag}" -- "${msg}"
+        echo "${msg}" >&2
+        exit ${EXIT_ASSERT_ERROR}
+    fi
+    return 0
+}
+
+#
+# 到達不可能コード到達関数
+#
+# 終了コード:
+#   exit(${EXIT_ASSERT_NO_REACH})でスクリプト全体を終了する。
+# 動作:
+#   - "[Assert] Reached unreachable code: file=<呼び出し元ファイル> line=<呼び出し元の行番号>"
+#     をログと標準エラー出力とに出力してexit(${EXIT_ASSERT_NO_REACH})でスクリプト全体を終了する。
+#   - ログのタグは, 環境変数 TAG が設定されていればその値を使用し, 未設定の場合は "bash" を使用する。
+# 例:
+#   assert_no_reach
+assert_no_reach() {
+    local file="${BASH_SOURCE[1]:-$(basename -- "$0")}"
+    local line="${BASH_LINENO[0]:-0}"
+    local tag="${TAG:-nm-ra-addr-watch}"
+    local msg="[Assert] Reached unreachable code: file=${file} line=${line}"
+
+    logger -t "${tag}" -- "${msg}"
+    echo "${msg}" >&2
+    exit ${EXIT_ASSERT_NO_REACH}
+}
+
+#
+# ログ出力関数
+#
+#
+# 引数1: ログレベル文字列
+#
+#   "dbg": Debug
+#   "inf": Info
+#   "war": Warning
+#   "err": Error
+#
+#   それ以外の文字列を指定した場合は無視される
+#
+# 引数2: ログメッセージ
+# 例:
+#   write_log "inf" "This is an info message"
+#   write_log "err" "This is an error message"
+#
+write_log() {
+    local prefix
+
+    if [ "$#" -ne 2 ]; then
+        logger -t "${TAG}" -- "[Error] Invalid argument: write_log <level> <message> args=$*";
+        echo "[Error] Invalid argument: write_log <level> <message> args=$*" >&2;
+        exit ${EXIT_NR_ARGS}
+    fi
+
+    case "$1" in
+        "dbg")
+            (( "${LOG_LEVEL}" > 4 )) || return 0
+            prefix="[Debug]"
+            ;;
+        "inf")
+            (( "${LOG_LEVEL}" > 3 )) || return 0
+            prefix="[Info]"
+            ;;
+        "war")
+            (( "${LOG_LEVEL}" > 2 )) || return 0
+            prefix="[Warning]"
+            ;;
+        "err")
+            (( "${LOG_LEVEL}" > 1 )) || return 0
+            prefix="[Error]"
+            ;;
+        *)
+            return 0 # 無視
+            ;;
+    esac
+
+    logger -t "${TAG}" -- "${prefix} $2";
+    echo "${prefix} $2" >&2;
+
+    return 0
+}
+
+#
+# デバッグログ出力関数
+#
+# 第1引数: ログメッセージ
+#
+dbg_log() {
+
+    write_log "dbg" "$*"
+    return 0
+}
+
+#
+# 情報ログ出力関数
+#
+# 第1引数: ログメッセージ
+#
+inf_log() {
+
+    write_log "inf" "$*"
+    return 0
+}
+
+#
+# 警告ログ出力関数
+#
+# 第1引数: ログメッセージ
+#
+war_log() {
+
+    write_log "war" "$*"
+    return 0
+}
+
+#
+# エラーログ出力関数
+#
+# 第1引数: ログメッセージ
+#
+err_log() {
+
+    write_log "err" "$*"
+    return 0
+}
+
+now_ms() {
+  date +%s%3N 2>/dev/null || printf '%(%s)T000\n' -1
+}
+
+debounced() {
+    local ifc="$1"
+    local now;
+    local last
+    local delta
+
+
+    # 現在時刻(ms)と最後のイベント時刻(ms)の差分を計算し,
+    # 差分が DEBOUNCE_MS 未満なら 1 (通知を抑制)を返す
+    #
+    # "$ifc" のダブルクォートは 添字の中だけに効き,
+    # 外側の " ( 全体を包んでいるダブルクォート ) を
+    # 終了させないことに注意
+    now="$(now_ms)"
+    last="${last_ms_map["${ifc}"]:-0}"
+    delta=$(( now - last ))
+
+    if (( delta < DEBOUNCE_MS )); then
+        return 1
+    fi
+
+    last_ms_map["${ifc}"]="${now}"
+
+    return 0
+}
+
+#
+# 処理対象インターフェースかを判定する
+#
+# 引数1: IFACE (インターフェース名)
+# 復帰値:
+#   0: 処理対象 (Ethernet系の実インターフェースと判断)
+#   1: 非対象 (無線/仮想/VLANサブIF等)
+# 注意事項:
+#   - 本関数は「名前による一次スクリーニング」 から 「物理NIC判定(/sys)」の順に判定する
+#   - VLANサブIF(例: enp0s3.100)は除外する
+#   - 既知の仮想IF接頭辞(br, bond, veth 等)は除外する
+#
+should_handle_iface() {
+    local ifname
+
+    if [ "$#" -ne 1 ]; then
+        err_log "Invalid argument: should_handle_iface <IFACE> args=$*"
+        exit ${EXIT_NR_ARGS}
+    fi
+    ifname="$1"
+
+    # -------- 1) ユーザ指定フィルタ ( deny/allow ) を適用 --------
+    # deny がマッチすれば除外 ( 優先 )
+    if [[ -n "${IFACE_DENY_REGEX:-}" && "${ifname}" =~ ${IFACE_DENY_REGEX} ]]; then
+        dbg_log "IF ${ifname}: excluded by IFACE_DENY_REGEX"
+        return 1
+    fi
+    # allow が非空なら, allow にマッチしたもののみ許可
+    if [[ -n "${IFACE_ALLOW_REGEX:-}" && ! "${ifname}" =~ ${IFACE_ALLOW_REGEX} ]]; then
+        dbg_log "IF ${ifname}: excluded (not matched to IFACE_ALLOW_REGEX)"
+        return 1
+    fi
+
+    # -------- 2) 早期除外: VLANサブIFや '@' を含む特殊名は除外 --------
+    #   - VLANサブIFは '.' を含む (例: enp1s0.200)
+    #   - veth等で '@' を含む表記が来た場合も除外 ( 念のため )
+    if [[ "${ifname}" == *.* ]] || [[ "${ifname}" == *"@"* ]]; then
+        dbg_log "IF ${ifname}: excluded (VLAN/subinterface or special name)"
+        return 1
+    fi
+
+    # -------- 3) 名前で Ethernet 系かをスクリーニング --------
+    # systemd predictable names の Ethernet は en* ( eno*/enp*/ens*/enx* )
+    # 旧来の ethN も許容 ( 実機で残っているケースに対応 )
+    # 既知の仮想IFや非Ethernet接頭辞は除外
+    #
+    # 許可候補:  ^en(o|p|s|x).*$  or  ^eth[0-9]+$
+    # 除外候補:  ^(veth|br|bond|team|tun|tap|virbr|docker|vboxnet|vmnet|vnet|wg|tailscale|zt|lo|wl|ww).*
+    if [[ ! "${ifname}" =~ ^en(o|p|s|x).*$|^eth[0-9]+$ ]]; then
+        dbg_log "IF ${ifname}: excluded by name filter (not Ethernet-like)"
+        return 1
+    fi
+    if [[ "${ifname}" =~ ^(veth|br|bond|team|tun|tap|virbr|docker|vboxnet|vmnet|vnet|wg|tailscale|zt|lo|wl|ww).* ]]; then
+        dbg_log "IF ${ifname}: excluded (known virtual/non-Ethernet prefix)"
+        return 1
+    fi
+
+    # -------- 4) 物理NICかを sysfs で確定 --------
+    # /sys/class/net/<if>/device が存在すればPCI/USB等のデバイスにひも付き, 物理NICとみなす
+    # macvlan/macvtap などの仮想IFは通常ここが存在しないため除外される
+    if [[ -e "/sys/class/net/${ifname}/device" ]]; then
+        dbg_log "IF ${ifname}: accepted (Ethernet-like name & has /sys device)"
+        return 0
+    else
+        dbg_log "IF ${ifname}: excluded (no /sys/class/net/${ifname}/device)"
+        return 1
+    fi
+}
+
+#
+# メイン処理
+#
+main() {
+    local ifname
+    local rc
+    local line
+
+    # DEBOUNCE_MS の既定値を解決してから簡易バリデーション ( set -u でも安全 )
+    DEBOUNCE_MS="${DEBOUNCE_MS:-{{ nm_ra_addr_watch_debounce_ms }}}"
+    if ! [[ "${DEBOUNCE_MS}" =~ ^[0-9]+$ ]] || (( DEBOUNCE_MS < 0 )); then
+        DEBOUNCE_MS="{{ nm_ra_addr_watch_debounce_ms }}"
+    fi
+
+    readonly DISPATCHER_PATH="${DISPATCHER_PATH:-{{ nm_ns_update_path }}}"
+    readonly IFACE_ALLOW_REGEX="${IFACE_ALLOW_REGEX:-{{ nm_ra_addr_watch_iface_allow_regex }}}"
+    readonly IFACE_DENY_REGEX="${IFACE_DENY_REGEX:-{{ nm_ra_addr_watch_iface_deny_regex }}}"
+    readonly DEBOUNCE_MS
+    readonly TAG
+
+    inf_log "start (DISPATCHER_PATH=${DISPATCHER_PATH} ALLOW=${IFACE_ALLOW_REGEX:-<none>} DENY=${IFACE_DENY_REGEX:-<none>} DEBOUNCE_MS=${DEBOUNCE_MS})"
+
+    #
+    # 永続的に動作
+    #
+    while :; do
+
+        # ip monitor address は root での常駐を想定
+        while IFS= read -r line; do
+        # 例:
+        #   "2: ens160    inet6 2001:db8::123/64 scope global dynamic ..."
+        #   "Deleted 2: ens224  inet6 2001:db8::456/64 ..."
+        # inet6 かつ scope global のみ対象 ( link-local 等を除外 )
+        [[ "${line}" == *" inet6 "* ]] || continue
+        [[ "${line}" == *" scope global "* ]] || continue
+        # tentative / deprecated / optimistic / dadfailed はノイズになりやすいので除外
+        [[ "${line}" == *" tentative"*  || \
+            "${line}" == *" deprecated"* || \
+            "${line}" == *" optimistic"* || \
+            "${line}" == *" dadfailed"* ]] && continue
+
+        # IF名の抽出:先頭の「<idx>: <ifname>  inet6 ...」
+        # フィールド2がIF名である想定(ip -o と異なり monitor は可変だが, 多くの環境で安定)
+        # より堅牢にするため, 最初の「:」の後のトークンをIFとみなす
+        ifname="$(printf '%s\n' "${line#*: }" | awk '{print $1}')"
+        [ -n "${ifname:-}" ] || continue
+
+        if ! should_handle_iface "${ifname}"; then
+            continue
+        fi
+
+        if ! debounced "${ifname}"; then
+            continue
+        fi
+
+        inf_log "event captured -> dispatcher (IFACE=${ifname} state=ra-addr-change)"
+
+        "${DISPATCHER_PATH}" "${ifname}" "ra-addr-change" || {
+
+            rc=$?
+            war_log "dispatcher returned non-zero (IFACE=${ifname} rc=${rc} dispatcher=${DISPATCHER_PATH})"
+        }
+
+        done < <(ip monitor address)
+
+        # ループを抜けた場合は ip monitor address が終了したことを意味する
+        # 何らかの理由で ip monitor address が終了した場合は, 警告メッセージを出して2秒後に再起動する
+        war_log "ip monitor exited; retrying in ${RETRY_INTERVAL}s"
+        sleep "${RETRY_INTERVAL}"
+    done
+}
+
+main "$@"

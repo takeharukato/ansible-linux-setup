@@ -1,0 +1,17 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  ファイル・ディレクトリ作成関連タスク
+#
+
+#
+#  /etc/systemd/timesyncd.conf.dを作成
+#
+- name: Create /etc/systemd/timesyncd.conf.d
+  file:
+    path: "/etc/systemd/timesyncd.conf.d"
+    state: directory
+    owner: "root"
+    group: "root"
+    mode: "755"

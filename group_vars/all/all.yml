@@ -1,0 +1,13 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+# vars/配下のファイルをプレイブックから選択的に読み込むため
+# all.ymlには, 設定変更に関わる変数を定義しないこと
+# include_vars で読み込んだ変数は一般に play変数レベル で,
+# group_vars より高いことが多く, 上書き用に有用であるため。
+
+# ansibleユーザ名
+ansible_user: "ansible"
+# ansibleのhomeディレクトリ
+ansible_home_dir: "/home/{{ ansible_user }}"

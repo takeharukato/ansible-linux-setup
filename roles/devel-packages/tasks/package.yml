@@ -1,0 +1,14 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  パッケージ関連処理
+#
+
+# 開発パッケージのインストール
+- name: Install devel packages
+  package:
+    pkg:
+      '{{ devel_packages }}'
+    state: latest
+  notify: disable_gui

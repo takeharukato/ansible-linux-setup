@@ -1,0 +1,52 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  設定関連タスク
+#
+#
+# Helm導入
+#
+- name: Install Helm
+  shell: |
+    curl -fsSL https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
+  become: true
+
+- name: Install CiliumCLI
+  shell: |
+    curl -fsSL --remote-name-all https://github.com/cilium/cilium-cli/releases/latest/download/cilium-linux-amd64.tar.gz{,.sha256sum}
+    sha256sum --check cilium-linux-amd64.tar.gz.sha256sum
+    tar xzvfC cilium-linux-amd64.tar.gz /usr/local/bin
+    rm cilium-linux-amd64.tar.gz cilium-linux-amd64.tar.gz.sha256sum
+    cilium version
+  become: true
+
+#
+# リポジトリの追加
+#
+- name: Clear all repositories
+  shell: |
+    helm repo list -o yaml | yq '.[].name' | xargs -n1 helm repo remove
+  ignore_errors: true
+
+- name: Add Cilium Repository
+  shell: |
+    helm repo add cilium https://helm.cilium.io/
+    helm repo update
+
+- name: Add Cilium Repository for "{{k8s_operator_user}}"
+  shell: |
+    sudo -u "{{k8s_operator_user}}" helm repo add cilium https://helm.cilium.io/
+    sudo -u "{{k8s_operator_user}}" helm repo update
+  become: true
+
+- name: Add Bitnami Repository
+  shell: |
+    helm repo add bitnami https://charts.bitnami.com/bitnami
+    helm repo update
+
+- name: Add Bitnami Repository for "{{k8s_operator_user}}"
+  shell: |
+    sudo -u "{{k8s_operator_user}}" helm repo add bitnami https://charts.bitnami.com/bitnami
+    sudo -u "{{k8s_operator_user}}" helm repo update
+  become: true

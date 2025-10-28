@@ -1,0 +1,43 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#  ロール固有変数のデフォルト値
+#  group_vars/all/all.yml やhost_varsで上書き可能とするため,
+#  ロール名/defaults/main.yml に定義している
+---
+
+# Kubernetesオペレータユーザ設定
+k8s_operator_user: "kube"
+# Kubernetesオペレータユーザのデフォルトシェル
+k8s_operator_shell: "/bin/bash"
+# Kubernetesオペレータユーザの所属グループ
+k8s_operator_groups_list: "{{ adm_groups }}"
+
+# kubeadm設定ファイル格納ディレクトリ
+k8s_kubeadm_config_store: "{{ ansible_home_dir }}/kubeadm"
+
+# 環境セットアップ時のスクリプト格納先ディレクトリ
+k8s_node_setup_tools_dir: "/opt/k8snodes/sbin"
+
+# kubeletの共通起動オプション
+# jinja2でテンプレートファイルからファイル生成時に使用するので指定オプションがない場合でも,
+# 空文字列として変数は定義しておくこと
+k8s_kubelet_extra_args_common: "--cgroup-driver=systemd"
+
+# Kubernetes 共通ノード使用ポート
+k8s_common_ports: []
+
+# Pod CIDR リスト
+k8s_pod_cidrs:
+  - { family: "ipv4", cidr: "{{ k8s_pod_ipv4_network_cidr }}" }
+  - { family: "ipv6", cidr: "{{ k8s_pod_ipv6_network_cidr }}" }
+
+# kubepodsスライスのcpusetをアプリケーションCPUに寄せる
+# 以下をtrueにすると, Ciliumなどのkube-system 名前空間のpodも
+# アプリケーションコアで動作してしまうため, 有効にすべきかは要検討
+# K8s側でSystem Reseved CPUを設定しているため, kube-system以外のpodは
+# それ以外のCPUに割り付けられるはずであるため, SystemDのkubepodsスライスは
+# 設定しない(以下をfalseに設定するか, k8s_use_kubepods_cpuset変数を定義しない)
+# が正しいと考えられる
+# (参考: https://kubernetes.io/docs/tasks/administer-cluster/reserve-compute-resources/)
+k8s_use_kubepods_cpuset: false

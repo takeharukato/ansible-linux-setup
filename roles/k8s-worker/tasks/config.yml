@@ -1,0 +1,186 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  設定関連タスク
+#
+
+# kube-apiが使えるようになるのを待ち合わせる
+- name: wait for kube-api-server
+  local_action: wait_for host={{ k8s_ctrlplane_endpoint }} port=6443 state=started
+
+# ジョイントークンを変数に格納
+#ssh 192.168.20.41 "sudo kubeadm token list|grep -v TOKEN"|awk -F' ' '{print $1}'
+- name: get join token in token list
+  shell: |
+    sudo kubeadm token list|grep -v TOKEN|awk -F' ' '{print $1}'|head -1
+  delegate_to: "{{ k8s_ctrlplane_host }}"
+  register: k8s_join_token_list
+  changed_when: false
+
+- name: create new join token
+  shell: |
+    sudo kubeadm token create
+  delegate_to: "{{ k8s_ctrlplane_host }}"
+  changed_when: false
+  when:
+    - k8s_join_token_list.stdout is defined and k8s_join_token_list.stdout == ''
+
+- name: get join token in token list
+  shell: |
+    sudo kubeadm token list|grep -v TOKEN|awk -F' ' '{print $1}'|head -1
+  delegate_to: "{{ k8s_ctrlplane_host }}"
+  register: k8s_join_token_from_ctrlplane
+  changed_when: false
+
+# cert hashを変数に格納
+- name: get join discovery hash
+  shell: |
+    sudo openssl x509 -pubkey -in /etc/kubernetes/pki/ca.crt | openssl rsa -pubin -outform der 2>/dev/null | openssl dgst -sha256 -hex | sed 's/^.* //'
+  delegate_to: "{{ k8s_ctrlplane_host }}"
+  register: k8s_join_discovery_hash_from_ctrlplane
+  changed_when: false
+
+# kube-apiが使えるようになるのを待ち合わせる
+- name: wait for kube-api-server
+  local_action: wait_for host={{ k8s_ctrlplane_endpoint }} port=6443 state=started
+
+# 既にjoin済みだった場合は, 対象コントロールプレインに対して以下を実行して, ノード登録を抹消すること
+# 参考) http://stackoverflow.com/questions/35757620/how-to-gracefully-remove-a-node-from-kubernetes
+# 1) スケジュール対象から除外
+# kubectl cordon "ノード名"
+# 2) ノードのシャットダウン
+# kubectl drain "ノード名" --ignore-daemonsets  --delete-emptydir-data
+# 3) ノード登録の削除
+# kubectl delete node "ノード名"
+# 例
+# kubectl cordon "k8sworker01"
+# kubectl drain "k8sworker01"  --ignore-daemonsets  --delete-emptydir-data
+# kubectl delete node "k8sworker01"
+
+# ホスト名を得る
+- name: get hostname
+  shell: |
+    hostname
+  register: k8s_worker_hostname
+  changed_when: false
+
+#
+# ワーカーノードkubeadm設定
+#
+
+#
+# k8s-ctrlplane_endpoint が IPv4 か IPv6 かで API のファミリを決定する
+#
+
+
+# ワーカーセットアップファイルの生成
+- name: Generate setup file
+  template:
+    src: worker-kubeadm.config.j2
+    dest: "{{ k8s_kubeadm_config_store }}/kubeadm.config.yml"
+    owner: root
+    group: root
+    mode: 0644
+    backup: no
+
+# 既に登録済みのワーカーをスケジュール対象から外す
+- name: make "{{ k8s_worker_hostname.stdout }}" cordon
+  shell: |
+    kubectl cordon "{{ k8s_worker_hostname.stdout }}"
+  delegate_to: "{{ k8s_ctrlplane_host }}"
+  changed_when: False
+  ignore_errors: true
+
+# 既に登録済みのワーカーをシャットダウンする
+- name: drain "{{ k8s_worker_hostname.stdout }}"
+  shell: |
+    kubectl drain "{{ k8s_worker_hostname.stdout }}" --ignore-daemonsets  --delete-emptydir-data -v=6 --timeout={{ k8s_drain_timeout_minutes|default(5,true)|int }}m
+  delegate_to: "{{ k8s_ctrlplane_host }}"
+  changed_when: False
+  ignore_errors: true
+
+# 既に登録済みのワーカーを削除する
+- name: delete "{{ k8s_worker_hostname.stdout }}"
+  shell: |
+    kubectl delete node "{{ k8s_worker_hostname.stdout }}"
+  delegate_to: "{{ k8s_ctrlplane_host }}"
+  changed_when: False
+  ignore_errors: true
+
+- name: "Wait {{ k8s_worker_delete_wait_sec }} seconds for the worker node deletion to complete."
+  shell: "sleep {{ k8s_worker_delete_wait_sec|default(5,true)|int }}"
+  async: 1
+  poll: 0
+
+- block:
+
+  - name: reset configuration
+    shell: |
+      kubeadm reset -f
+    become: true
+
+  - name: stop kubelet
+    systemd:
+      name: kubelet
+      state: stopped
+    become: true
+
+  - name: stop containerd
+    systemd:
+      name: kubelet
+      state: stopped
+    become: true
+
+  - name: remove /etc/kubernetes/manifests
+    file:
+      path: /etc/kubernetes/manifests
+      state: absent
+    become: true
+
+  - name: remove /etc/cni/net.d
+    file:
+      path: /etc/cni/net.d
+      state: absent
+    become: true
+
+  - name: kubeadm configuration file
+    shell: |
+      cat "{{ k8s_kubeadm_config_store }}/kubeadm.config.yml"
+
+  - name: remove /var/lib/kubelet/cpu_manager_state
+    file:
+      path: /var/lib/kubelet/cpu_manager_state
+      state: absent
+    become: true
+
+  - name: setup worker node
+    shell: |
+      kubeadm join --config "{{ k8s_kubeadm_config_store }}/kubeadm.config.yml" "{{ k8s_kubeadm_ignore_preflight_errors_arg }}"
+    become: true
+
+# containerd と kubelet を有効化
+# 念のため, 片方未導入でも他方は進めるようにfailed_when: false を指定
+- name: Enable containerd and kubelet
+  ansible.builtin.service:
+    name: "{{ item }}"
+    enabled: true
+  loop:
+    - containerd
+    - kubelet
+  failed_when: false
+  become: true
+  notify:
+    - "kubelet_restarted_and_enabled"
+    - "reboot_node_handler"
+
+# マシンをリブートする
+- name: Reboot host gracefully
+  reboot:
+    reboot_timeout: 600
+    msg: "Reboot triggered by role: common"
+    pre_reboot_delay: 2
+
+- name: Wait for connection after reboot
+  wait_for_connection:
+    timeout: 300

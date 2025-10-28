@@ -1,0 +1,1694 @@
+#!/usr/bin/env bash
+# -*- coding: utf-8 mode: bash -*-
+# Copyright 2025 Takeharu KATO  All Rights Reserved.
+# SPDX-License-Identifier: BSD-2-Clause
+#
+# Notes: Portions of this codebase were initially drafted with ChatGPT assistance.
+#
+# {{ ddns_client_update_sh_path }} (ddns-client-update.sh)
+#
+# DNSエントリを更新するスクリプト
+#
+# NetworkManager dispatcherとの連携に関する注意事項:
+#
+#   本スクリプトを呼び出すスクリプトは, /etc/NetworkManager/dispatcher.d 直下に配置すること。
+#   なお, dispatcher以外の経路からの同時実行は防げないことから, 本スクリプト側でも排他を取り,
+#   他経路からの同時実行も直列化する。 具体的には, flockコマンドを用いて, /run/lock/ddns-client.lock
+#   (存在しない場合は/tmp/ddns-client.lock)をブロッキングでロックを獲得してから処理を行う。
+#
+#   NetworkManager dispatcher は /etc/NetworkManager/dispatcher.d 直下のスクリプトを
+#   1本ずつ実行キューに積むことで排他を実現している。
+#   /etc/NetworkManager/dispatcher.d/no-wait.d 配下のスクリプトは並行して実行される可能性があるため,
+#   本スクリプトを呼び出すスクリプトは, (シンボリックリンクで配置する場合も含み) /etc/NetworkManager/dispatcher.d/no-wait.d に
+#   配置しないこと。
+#
+# 環境変数ファイルは, {{ddns_client_update_sh_sysconfig_path}} に配置する
+# ( 環境変数ファイルは, systemdのEnvironmentFileと同様の形式で記述すること)。
+#
+# 依存コマンド・ランタイム:
+#
+#  本スクリプトの動作には, 以下のコマンド・ランタイムが必要
+#
+#  - bash (version 4.3 以降)
+#  - iproute2 (2009 年以降のリリース相当)
+#  - BIND9パッケージ (version 9.0 以降, nsupdateコマンド)
+#  - python3 (python 3.3 以降, 標準ライブラリ ipaddress)
+#  - GNU AWK (version 3.1 以降)
+#  - GNU sed (version 3.02 以降)
+#  - GNU coreutils (version 6.10 以降)
+#  - util-linux (version 2.13 以降, flockコマンド, loggerコマンド)
+#  - grep (GNU grep 推奨, POSIX grep 互換機能 (-v オプション)を使用)
+#
+# 利用方法:
+{% if mgmt_nic|default('',true)|length %}
+#   env FQDN=host1.{{dns_domain}}. IFACE={{mgmt_nic}} ZONE_FWD={{dns_domain}} ZONE_REV4={{dns_ipv4_reverse}}.in-addr.arpa ./ddns-client-update.sh
+{% else %}
+#   env FQDN=host1.{{dns_domain}}. IFACE={{common_default_nic}} ZONE_FWD={{dns_domain}} ZONE_REV4={{dns_ipv4_reverse}}.in-addr.arpa ./ddns-client-update.sh
+{% endif %}
+# 環境変数で以下を設定可能(FQDN以外は省略可)
+#       FQDN       : 更新対象ホストのFully Qualified Domain Name (FQDN) (末尾ドット付きで指定, 例: host1.{{dns_domain}}.)
+#                    FQDN末尾のドットは, スクリプト中で自動付与しない。
+{% if mgmt_nic|default('',true)|length %}
+#       IFACE      : IPアドレスを取得するインターフェース名 (default: {{mgmt_nic}})
+{% else %}
+#       IFACE      : IPアドレスを取得するインターフェース名 (default: {{common_default_nic}})
+{% endif %}
+#       DNS_PORT   : DNSサーバーの接続ポート番号 (default: 53)
+#                    1 以上, 65535 以下の整数以外を指定した場合は内部整合性エラー(65: EXIT_INV_ARG)で終了する。
+#       ZONE_FWD   : フォワードゾーン (default: {{dns_domain}})
+#       ZONE_REV4  : IPv4逆引きゾーン (default: {{dns_ipv4_reverse}}.in-addr.arpa)
+#       ZONE_REV6  : IPv6逆引きゾーン (default: {{dns_ipv6_reverse}}.ip6.arpa)
+#          ZONE_FWD / ZONE_REV4 / ZONE_REV6 は, 指定値の末尾ドット有無に関わらず
+#          スクリプト内で「末尾ドットをちょうど1個だけ付与」して正規化する。
+#          例: "example.com" -> "example.com." / "example.com." -> "example.com."
+#              "1.168.192.in-addr.arpa" -> "1.168.192.in-addr.arpa."
+#              "8.b.d.0.1.0.0.2.ip6.arpa." -> "8.b.d.0.1.0.0.2.ip6.arpa."
+#          注意: ZONE_FWD/ZONE_REV4/ZONE_REV6 を空文字にすると正規化後に "." となる。
+#                本スクリプトでは, 危険な更新を避けるため, エラーメッセージを出力し,
+#                内部整合性エラー(65: EXIT_INV_ARG)によりスクリプト全体を終了する。
+#                併せて, FQDN は ZONE_FWD の配下(もしくはゾーン頂点)である必要がある(大文字小文字は区別しない)。
+#                これに違反する場合(クロスゾーン操作の恐れがある場合)は内部整合性エラー
+#                (65: EXIT_INV_ARG)で終了する。
+#       NS         : DNSサーバーのアドレス (default: {{dns_server_ipv4_address}})
+#       KEYFILE    : TSIGキーのファイルパス (default: {{dns_ddns_key_file}})
+#       NS_UPDATE_TTL : nsupdateで指定するTTL値 (default: 300)
+#                       0 以上の整数以外を指定した場合は内部整合性エラー(65: EXIT_INV_ARG)で終了する。
+#       STATE_DIR  : ステートファイルのディレクトリ (default: /var/lib/ddns)
+#                    本スクリプトは, 以下のステートファイルに直前に更新したIPアドレスを保存する
+#
+#                      - IPv6アドレスのステートファイルパス: ${STATE_DIR}/ipv6-published
+#                      - IPv4アドレスのステートファイルパス: ${STATE_DIR}/ipv4-published
+#
+#                    ステートファイルの更新日時を(ls -l などで)確認することで,
+#                    直前に更新したアドレスの更新日時を確認できる。
+#                    ステートファイルの内容を確認することで, DNSサーバに通知した
+#                    IPアドレスを確認できる。
+#       DRY_RUN    : (大文字小文字の区別なしで)'yes' の場合は, DNSサーバーへの更新・削除を行わない
+#                    (ステートファイル更新は実施)。 (default: no)
+#       LOG_LEVEL  : ログレベル 以下の出力条件に基づいてメッセージ出力を制御する (default: 2)
+#                    出力メッセージの前に, ログ種別を示すプレフィックスが付与される
+#                    指定可能な値は以下の通り:
+#
+#         - LOG_LEVEL=0,1 は将来予約
+#         - LOG_LEVEL=2 (デフォルト値)では Error のみ出力 (Info/Warning は出ない)。
+#         - LOG_LEVEL=3 では Warning と Error が出力 (Info/Debug は出ない)。
+#         - LOG_LEVEL=4 では Info, Warning と Error が出力 (Debug は出ない)。
+#         - LOG_LEVEL=5 で 全レベル (Debug/Info/Warning/Error) を出力。
+#
+# ログ種別, プレフィックス, 出力条件:
+#
+#           ログ種別  プレフィックス  出力条件 (この条件を満たす場合に出力される)
+#           Debug     [Debug]         LOG_LEVEL > 4
+#           Info      [Info]          LOG_LEVEL > 3
+#           Warning   [Warning]       LOG_LEVEL > 2
+#           Error     [Error]         LOG_LEVEL > 1
+#           Assert    [Assert]        スクリプトの動作に致命的な影響を及ぼす前提条件/前提環境条件に
+#                                     関わるメッセージであることから, LOG_LEVEL に関係なく出力される
+#
+# 注意事項: 引数の数に関する異常や引数の内容に関する異常は, 入力によって発生する可能性もあるため,
+#           これらの異常は, Error の一種(内部整合性エラー)として扱う。
+#
+# 本スクリプトから出力されるログの確認方法:
+#
+# ログは logger により syslog に送出される。
+# systemd 環境では, タグ名`ddns-client`でsystemd-journald に出力される。
+# systemd 環境では, 以下のjournalctlコマンドにより確認可能。
+#
+#  journalctl -t ddns-client [オプション]
+#
+# 例:
+#   journalctl -t ddns-client -b  # ブート以降のログを表示
+#   journalctl -t ddns-client -n 50  # 最新50行を表示 (過去のログは表示されない)
+#   journalctl -t ddns-client --since "2024-01-01 00:00:00"  # 指定日時以降のログを表示
+#   journalctl -t ddns-client --since "2024-01-01 00:00:00" --until "2024-01-02 00:00:00"  # 指定日時範囲のログを表示
+#   journalctl -t ddns-client -f  # リアルタイムにログを表示
+#
+# 注意: journaldで, 過去のログを表示する場合, systemd-journaldの設定で永続化が有効になっている必要がある
+#  (通常は, /var/log/journal ディレクトリが存在することを確認すること)。
+#  永続化が有効になっていない場合, ブート以降のログしか表示されない。
+#
+# スクリプトの終了コード:
+#
+# 環境変数で引き渡されるFQDN入力値の書式誤り有無をログを参照することなく識別できるように,
+# 終了コードを定義している(括弧内は終了コードに対応するシェル変数名)。
+#
+#   0: 正常終了 (EXIT_SUCCESS)
+#      全処理が想定どおり完了した場合に返却される。
+#
+#   1-63: 入力値/実行環境に関する異常検出コード
+#
+#     1: FQDN未設定 (EXIT_NO_FQDN)
+#        FQDNが設定されていない場合に返却される。
+#
+#     2: FQDN書式不正 (EXIT_INV_FQDN)
+#        FQDNの書式が不正な場合に返却される。
+#        返却条件は以下の通り:
+#          - 末尾ドットが欠如している
+#          - 連続したドットが含まれている
+#          - 先頭がドットで始まっている
+#          - 末尾ドット直前に空ラベル(連続したドット)がある
+#          - 許可されない文字が含まれている
+#          - 全体長が253文字を超えている(末尾ドットを除いた本体長)
+#          - ラベル長が1-63文字の範囲外である
+#          - ラベルの先頭または末尾がハイフンである
+#          - ラベルに許可されない文字が含まれている
+#
+#     3: ステートディレクトリ作成失敗 (EXIT_CANT_CREATE_STATE_DIR)
+#        ステートディレクトリの作成に失敗した場合に返却される。
+#
+#   64-255: 内部整合性エラー検出コード
+#
+#     64: 関数の引数個数不正 (EXIT_NR_ARGS)
+#         スクリプト内の関数間で引き渡される引数の個数に誤りがある場合の内部整合性異常検出コード
+#
+#     65: 関数の引数内容不正 (EXIT_INV_ARG)
+#         スクリプト内の関数間で引き渡される引数の内容に誤りがある場合の内部整合性異常検出コード
+#
+#    128: アサーションエラー (EXIT_ASSERT_ERROR)
+#         内部整合性異常検出コード
+#         スクリプト内でアサーションエラーが検出された場合に返却される
+#
+#    129: 到達不可能コードに到達 (EXIT_ASSERT_NO_REACH)
+#         内部整合性異常検出コード
+#         スクリプト内で到達不可能コードに到達した場合に返却される
+#
+#
+# 保守作業向け注意事項:
+#
+#  - スクリプトの終了コードについて
+#    bashの仕様上, スクリプトの終了コードは, 0-255の範囲に収められることから,
+#    終了コードの定義にあたっては, 1以上64未満の終了コードをスクリプトへの
+#    入力値に関する異常検出用, 64以上の終了コードを内部整合性エラー検出用に割り当てている。
+#
+#    これにより, スクリプトの利用者が, ログを参照することなく, 終了コードを確認するだけで,
+#    入力値に関する異常検出であるのか, 内部整合性エラー検出であるのかを識別できるようにしている。
+#
+# メッセージ一覧:
+#
+#  本スクリプトでは, 運用時に Debug ログを有効にすることは想定していないことから, Debug ログの説明は省略する。
+#
+#  [1] 動作開始終了メッセージ,スクリプト引数異常エラー
+#
+#     [Info] start IFACE=<iface> FQDN=<fqdn or <unset>>
+#            スクリプト開始宣言。Info なので LOG_LEVEL > 3 の時だけ出力。
+#
+#     [Error] Failed to create state directory: <state_dir>(直後に処理中断)
+#             ステートディレクトリの作成に失敗した。
+#             Error なので LOG_LEVEL > 1 の時だけ出力。
+#             /var/lib/ddns などのデフォルト値を使用する場合,
+#             ディレクトリの親ディレクトリ(/var/lib)の書き込み権限がない場合などが考えられる。
+#             ステートディレクトリのパスを変更するか, 親ディレクトリの書き込み権限を確認のうえ,
+#             対処する。
+#
+#     [Error] FQDN is outside forward zone: FQDN=<fqdn> ZONE_FWD=<zone_fwd>(直後に処理中断)
+#             FQDN がフォワードゾーン(ZONE_FWD)の配下(または頂点)ではない。
+#             例: FQDN=host1.example.com. ZONE_FWD=example.org. の場合など。
+#             クロスゾーン操作防止のためエラー終了する。
+#             Error なので LOG_LEVEL > 1 の時だけ出力。
+#             FQDN, ZONE_FWD の設定値を確認のうえ, 対処する。
+#
+#     [Error] Invalid DNS_PORT (1-65535 expected): DNS_PORT=<dns_port>(直後に処理中断)
+#             DNS_PORT が 1〜65535 の整数ではない。
+#             Error なので LOG_LEVEL > 1 の時だけ出力。
+#             設定値を修正のうえ, 再実行する。
+#
+#     [Error] Invalid NS_UPDATE_TTL (non-negative integer expected): NS_UPDATE_TTL=<ns_update_ttl>(直後に処理中断)
+#             NS_UPDATE_TTL が 0 以上の整数ではない。
+#             Error なので LOG_LEVEL > 1 の時だけ出力。
+#             設定値を修正のうえ, 再実行する。
+#
+#     [Error] Zone value must not be empty (normalized to '.'): ZONE_FWD=<zone_fwd> ZONE_REV4=<zone_rev4> ZONE_REV6=<zone_rev6>(直後に処理中断)
+#             ゾーン設定が空文字列であることを示すエラーメッセージ。
+#             Error なので LOG_LEVEL > 1 の時だけ出力。
+#             空文字や不正値で正規化されると "." となり, 危険な更新を招くためエラー終了する。
+#             ZONE_FWD, ZONE_REV4, ZONE_REV6 の設定値を確認のうえ, 対処する。
+#
+#     [Info] Using IFACE=<iface>, FQDN=<fqdn>, DRY_RUN=<dry_run>,
+#                  LOG_LEVEL=<log_level>, ZONE_FWD=<zone_fwd>, ZONE_REV4=<zone_rev4>,
+#                  ZONE_REV6=<zone_rev6>, NS=<ns>, NS_UPDATE_TTL=<ns_update_ttl>,
+#                  KEYFILE=<keyfile>, STATE_FILE_IPV6=<state_file_ipv6>, STATE_FILE_IPV4=<state_file_ipv4>,
+#                  STATE_DIR=<state_dir>
+#            実行パラメータのダンプ。Info なので LOG_LEVEL > 3 の時だけ出力。
+#            本メッセージ出力後, 一定時間待機(DAD/RA安定待ち)の後, IPv6 -> IPv4の順に更新処理。
+#
+#     [Info] end IFACE=<iface> FQDN=<fqdn>
+#            正常終了宣言。Info なので LOG_LEVEL > 3 の時だけ出力。
+#
+#     [Warning] handle_ipv4 failed
+#             IPv4更新処理(handle_ipv4)失敗を表す警告メッセージ。
+#             Warning なので LOG_LEVEL > 2 の時だけ出力。
+#             失敗原因は, IPv4 更新処理で出力されるメッセージを参照のこと。
+#
+#     [Warning] handle_ipv6 failed
+#             IPv6更新処理(handle_ipv6)失敗を表す警告メッセージ。
+#             Warning なので LOG_LEVEL > 2 の時だけ出力。
+#             失敗原因は, IPv6 更新処理で出力されるメッセージを参照のこと。
+#
+#  [2] FQDN検証メッセージ
+#
+#     [Error] FQDN is not set.
+#             FQDN未設定。
+#             Error なので LOG_LEVEL > 1 の時だけ出力。
+#             FQDNを指定することで対処する。
+#
+#     [Error] FQDN must end with a dot: FQDN=<value>
+#             FQDNの末尾ドット欠如。
+#             Error なので LOG_LEVEL > 1 の時だけ出力。
+#             RFC 1035/1123の規定により, FQDNの末尾にはドット(.)をつける必要がある。
+#             FQDNの末尾にドットをつけるよう修正することで対処する。
+#
+#     [Error] FQDN has consecutive dots: FQDN=<value>
+#             FQDNに連続ドットが含まれている。
+#             Error なので LOG_LEVEL > 1 の時だけ出力。
+#             RFC 1035/1123の規定により, FQDNのラベルは, 空であってはならない。
+#             FQDNを修正することで対処する。
+#
+#     [Error] FQDN must not start with a dot: FQDN=<value>
+#             FQDNの先頭がドットで始まっている。
+#             Error なので LOG_LEVEL > 1 の時だけ出力。
+#             RFC 1035/1123の規定により, FQDNの先頭の文字は, ドット(.)であってはならない。
+#             FQDNを修正することで対処する。
+#
+#     [Error] FQDN has trailing empty label before final dot: FQDN=<value>
+#             FQDNの末尾ドット直前がドットで終わっている。
+#             Error なので LOG_LEVEL > 1 の時だけ出力。
+#             RFC 1035/1123の規定により, FQDNのラベルは, 空であってはならない。
+#             FQDNを修正することで対処する。
+#
+#             仕様策定の経緯: 末尾ドットの直前のドットは, 連続ドットと末尾直前の
+#               空ラベルは実装的に重複検出可能だが, 末尾ドット直前のドットは,
+#               典型的に誤りやすいことから, 修正箇所を明確にする目的から, 個別に
+#               エラーメッセージを出す仕様とした。
+#
+#     [Error] FQDN has illegal characters: FQDN=<value>
+#             FQDNに許可されない文字が含まれている。
+#             Error なので LOG_LEVEL > 1 の時だけ出力。
+#             RFC 1035/1123の規定により, FQDNに使用できる文字は, ドット(.), 大文字小文字の英数字とハイフン(-)である。
+#             FQDNを修正することで対処する。
+#
+#     [Error] FQDN too long (>253 chars without trailing dot): length=<length> FQDN=<value>
+#             FQDNの全体長が長すぎる(末尾ドットを除いた本体は最大253文字)。
+#             Error なので LOG_LEVEL > 1 の時だけ出力。
+#             備考: RFC 1035/1123 におけるFQDNは255文字以下だが, 実用上は末尾のドットを除いた
+#                  本体長を253以下とする(本スクリプトはこれに従い253超をエラーとする)。
+#             FQDNを修正することで対処する。
+#
+#     [Error] FQDN label length invalid (1-63): label=<label> length=<length>
+#             FQDNラベルの長さが無効である。
+#             Error なので LOG_LEVEL > 1 の時だけ出力。
+#             RFC 1035/1123の規定により, FQDNのラベル長は, 1文字以上63文字以下である必要がある。
+#             FQDNを修正することで対処する。
+#
+#     [Error] FQDN label must not start or end with hyphen: label=<label>
+#             FQDNラベルの先頭または末尾がハイフンである。
+#             Error なので LOG_LEVEL > 1 の時だけ出力。
+#             RFC 1035/1123の規定により, FQDNのラベルの先頭と末尾は, ハイフンであってはならない。
+#             FQDNを修正することで対処する。
+#
+#     [Error] FQDN label contains invalid characters: label=<label>
+#             FQDNラベルに許可されない文字が含まれている。
+#             Error なので LOG_LEVEL > 1 の時だけ出力。
+#             RFC 1035/1123の規定により, FQDNに使用できる文字は, ドット(.), 大文字小文字の英数字とハイフン(-)である。
+#             FQDNを修正することで対処する。
+#
+#     [Error] FQDN format is invalid: FQDN=<value>
+#             FQDNの形式が不正である。
+#             Error なので LOG_LEVEL > 1 の時だけ出力。
+#             本スクリプトでは, 具体的理由を個別に出力した上で,
+#             本行を総括メッセージとして追加出力する。
+#             詳細な理由を, 本メッセージ以前に出力された
+#             FQDN検証メッセージを元に確認のうえ,
+#             FQDNを修正することで対処する。
+#
+#  [3] アドレス選定
+#
+#       [Error] Invalid argument: get_preferable_addr addr_var lft_var <addr_type_opt> args=<実引数列>(直後に処理中断)
+#               引数数が3でない。
+#               Error なので LOG_LEVEL > 1 の時だけ出力。
+#               内部整合性エラーなので, スクリプトの修正が必要。
+#
+#       [Error] Invalid argument: get_preferable_addr <addr_type_opt> arg=<値>(直後に処理中断)
+#               第3引数が -4 / -6 以外。
+#               Error なので LOG_LEVEL > 1 の時だけ出力。
+#               内部整合性エラーなので, スクリプトの修正が必要。
+#
+#       [Error] Failed to create temporary file
+#               一時ファイル作成失敗。/tmpの空き容量不足等が考えられる。
+#               Error なので LOG_LEVEL > 1 の時だけ出力。
+#               /tmpの空き容量を確認し, 対処する。
+#
+#       [Error] get_preferable_addr failed
+#               一時ファイルの作成に失敗した等の致命的な要因で, アドレス選定処理を継続できなかったことを示す。
+#               Error なので LOG_LEVEL > 1 の時だけ出力。
+#                 /tmp の空き容量などを確認し, 対処する。 これらの要因は, 呼び出し元でエラー処理への分岐を行う
+#               ために必要な情報が得られない要因となるため, 致命的要因とみなす。
+#                 IFACE の指定ミスや ip コマンドの一時的失敗等は, (処理対象IFなしと判断するなど)呼び出し元で
+#               適切にエラー分岐可能であることから, 非致命的要因とみなし, 正常復帰する。
+#               get_preferable_addr関数から復帰後, 呼び出し側で参照変数の内容に応じた処理を行う。
+#               Error なので LOG_LEVEL > 1 の時だけ出力。
+#
+#  [4] ステートファイル更新処理メッセージ
+#
+#       [Error] Invalid argument: update_state_file <address_type> <addr> <state_file> args=<実引数列>(直後に処理中断)
+#               引数数が3でない。
+#               Error なので LOG_LEVEL > 1 の時だけ出力。
+#               内部整合性エラーなので, スクリプトの修正が必要。
+#
+#       [Error] Invalid address_type argument:<値> should be 4 or 6.
+#               address_type が 4/6 以外。
+#               Error なので LOG_LEVEL > 1 の時だけ出力。
+#               内部整合性エラーなので, スクリプトの修正が必要。
+#
+#       [Info] IPv<4|6> address <addr> already published; no update needed.
+#              既存のステートファイル内容と同一アドレス(既更新済みアドレス)のため,
+#              DNS更新不要であること(更新処理を実施しないこと)を通知。
+#              Info なので LOG_LEVEL > 3 の時だけ出力。
+#
+#       [Info] Updated state file: <更新したステートファイルパス>
+#              ステートファイル更新成功。Info なので LOG_LEVEL > 3 の時だけ出力。
+#
+#       [Info] State file content: <line>
+#              ステートファイル内容ダンプ。Info なので LOG_LEVEL > 3 の時だけ出力。
+#
+#  [5] IPv6 更新処理
+#
+#       [Warning] No eligible global non-temporary IPv6 found on <IFACE>; nothing to do.
+#                 処理対象アドレスなし(temporary/tentative/deprecated/preferred_lft=0sec しか無い等)により,
+#                 処理を終了した。IFACE指定を見直すか, インターフェースの状態を確認すること。
+#                 Warning なので LOG_LEVEL > 2 の時だけ出力。
+#
+#       [Info] Selected IPv6 address: <addr> (preferred_lft=<秒>)
+#              更新対象IPv6アドレス表示. Info なので LOG_LEVEL > 3 の時だけ出力。
+#              既に更新済みのアドレスの場合,DNS更新を行わない。
+#
+#       [Info] Updating AAAA record with IPv6 address: <addr>
+#              AAAAレコードのnsupdate 発行開始ログ。Info なので LOG_LEVEL > 3 の時だけ出力。
+#              DRY_RUN拒否かつステート更新発生時のDNS更新ログ。
+#              nsupdate の標準出力は成功時のみ Info として行単位で転記する。
+#              失敗時は [Error] 1行に nsupdate の出力全体を添えて記録する。
+#
+#       [Warning] Failed to update AAAA record for <FQDN> with <addr>
+#               AAAAレコードの更新に失敗した。
+#               Warning なので LOG_LEVEL > 2 の時だけ出力。
+#               AAAAレコードの更新に失敗した場合でも, スクリプトの実行は継続する。
+#               失敗原因は, AAAAレコードのnsupdate発行失敗, または, AAAAレコードの内容が不正であったことが考えられる。
+#               ステートファイルの内容とDNSのレコードを照らし合わせ, 対処する。
+#
+#       [Error] nsupdate for AAAA record failed: <nsupdateの出力>
+#               AAAAレコードのnsupdate 発行失敗。nsupdateコマンドの出力が表示される。
+#               Error なので LOG_LEVEL > 1 の時だけ出力。
+#               nsupdate の出力内容を確認し, 権限, ゾーン名, TSIG設定, 到達性等を
+#               確認のうえ, 対処する。
+#
+#       [Error] Failed to generate PTR6 name for address: <addr>
+#               IPv6アドレス(<addr>)からPTR6名(ニブル(nibble)逆順)の生成失敗。
+#               Error なので LOG_LEVEL > 1 の時だけ出力。
+#               内部整合性エラーのため, 実装(IPv6ニブル(nibble)逆順変換処理)を見直し修正する。
+#
+#       [Info] Updating PTR record for IPv6: <ニブル(nibble)逆順>.ip6.arpa. to <FQDN>
+#               PTR6レコードのnsupdate 発行開始ログ。Info なので LOG_LEVEL > 3 の時だけ出力。
+#               DRY_RUN拒否かつステート更新発生時のDNS更新ログ。
+#               nsupdate の標準出力は成功時のみ Info 行として転記し, 失敗時は [Error] 1行で全出力を記録する。
+#
+#       [Warning] Failed to update PTR6 record for <PTR6> with <FQDN>
+#               PTR6レコードの更新に失敗した。
+#               Warning なので LOG_LEVEL > 2 の時だけ出力。
+#               PTR6レコードの更新に失敗した場合でも, スクリプトの実行は継続する。
+#               失敗原因は, PTR6レコードのnsupdate発行失敗, または, PTR6レコードの内容が不正であったことが考えられる。
+#               ステートファイルの内容とDNSのレコードを照らし合わせ, 対処する。
+#
+#       [Error] nsupdate for PTR6 record failed: <nsupdateの出力>
+#               PTR6レコードのnsupdate 発行失敗。nsupdateコマンドの出力が表示される。
+#               Error なので LOG_LEVEL > 1 の時だけ出力。
+#               nsupdate の出力内容を確認し, 権限, ゾーン名, TSIG設定, 到達性等を
+#               確認のうえ, 対処する。
+#
+#       [Info] Deleting old PTR6: <ニブル(nibble)逆順>.ip6.arpa.
+#              旧 IPv6(ステートファイルに保存の前回値)が新IPv6アドレスと異なる場合に,
+#              旧オーナー名(owner)を計算して update delete <owner> PTR を実行する開始ログ。
+#              Info なので LOG_LEVEL > 3 の時だけ出力。
+#
+#       [Info] No previous IPv6 published; skip old PTR6 deletion.
+#              ステートファイルが存在しない/空などで 前回のIPv6アドレスが不明なため,
+#              旧 PTR6 の削除をスキップ。
+#              Info なので LOG_LEVEL > 3 の時だけ出力。
+#
+#       [Info] Previous IPv6 equals new; no old PTR6 deletion needed.
+#              前回 IPv6 と今回 IPv6 が同一のため, 旧 PTR6 削除は不要。
+#              Info なので LOG_LEVEL > 3 の時だけ出力。
+#
+#       [Warning] Old PTR6 owner is outside zone; skip deletion: <owner> not under <ZONE_REV6>
+#              旧オーナー名が管理ゾーン外(ZONE_REV6 の配下でない)のため,
+#              誤削除防止のため, 削除処理を行わなかった。
+#              DNSサーバーの設定ミス等で, 誤って他ゾーンのPTRレコードを登録してしまうことを防止するため
+#              の措置。DNSサーバーの設定を含めてゾーンに関する設定を見直すことで対処する。
+#              Warning なので LOG_LEVEL > 2 の時だけ出力。
+#
+#       [Error] Failed to generate old PTR6 owner from previous address: <addr>
+#               前回 IPv6 から ニブル(nibble)逆順の owner 名生成に失敗した。
+#               内部整合性エラーの可能性が高いので, スクリプトの修正が必要。
+#               Error なので LOG_LEVEL > 1 の時だけ出力。
+#
+#       [Warning] Failed to delete old PTR6: <ニブル(nibble)逆順>.ip6.arpa.
+#               旧PTR6レコードの削除に失敗した。
+#               Warning なので LOG_LEVEL > 2 の時だけ出力。
+#               旧PTR6レコード削除に失敗した場合でも, スクリプトの実行は継続する。
+#               失敗原因は, PTR6レコードのnsupdate発行失敗, または, 旧PTR6レコードの内容が不正であったことが考えられる。
+#               ステートファイルの内容とDNSのレコードを照らし合わせ, 対処する。
+#
+#       [Error] nsupdate for PTR6 record to delete old entry failed: <nsupdateの出力>
+#              旧PTR6削除を行うためのnsupdateコマンド実行に失敗した。
+#              Error なので LOG_LEVEL > 1 の時だけ出力。
+#              nsupdate の出力内容を確認し, 権限, ゾーン名, TSIG設定, 到達性等を
+#              確認のうえ, 対処する。
+#
+#  [6] IPv4 更新処理
+#
+#       [Error] get_preferable_addr failed
+#               IPv6 更新処理(handle_ipv6)の同メッセージ参照。
+#
+#       [Warning] No eligible global non-temporary IPv4 found on <IFACE>; nothing to do.
+#                 処理対象アドレスなし(有効なIPv4アドレスが設定されていない)により,
+#                 処理を終了した。IFACE指定を見直すか, インターフェースの状態を確認すること。
+#                 Warning なので LOG_LEVEL > 2 の時だけ出力。
+#
+#       [Info] Selected IPv4 address: <addr> (preferred_lft=<秒>)
+#              更新対象IPv4アドレス表示. Info なので LOG_LEVEL > 3 の時だけ出力。
+#              既に更新済みのアドレスの場合,DNS更新を行わない。
+#
+#       [Info] Updating A record with IPv4 address: <addr>
+#              Aレコードのnsupdate 発行開始ログ。Info なので LOG_LEVEL > 3 の時だけ出力。
+#              DRY_RUN拒否かつステート更新発生時のDNS更新ログ。
+#              nsupdate の標準出力は成功時のみ Info 行として転記し, 失敗時は [Error] 1行で全出力を記録する。
+#
+#       [Warning] Failed to update A record for <FQDN> with <addr>
+#               Aレコードの更新に失敗した。
+#               Warning なので LOG_LEVEL > 2 の時だけ出力。
+#               Aレコードの更新に失敗した場合でも, スクリプトの実行は継続する。
+#               失敗原因は, Aレコードのnsupdate発行失敗, または, Aレコードの内容が不正であったことが考えられる。
+#               ステートファイルの内容とDNSのレコードを照らし合わせ, 対処する。
+#
+#       [Error] nsupdate for A record failed: <nsupdateの出力>
+#               Aレコードのnsupdate 発行失敗。nsupdateコマンドの出力が表示される。
+#               Error なので LOG_LEVEL > 1 の時だけ出力。
+#               nsupdate の出力内容を確認し, 権限, ゾーン名, TSIG設定, 到達性等を
+#               確認のうえ, 対処する。
+#
+#       [Info] Updating PTR record for IPv4: <d.c.b.a.in-addr.arpa.> to <FQDN>
+#               PTRレコードのnsupdate 発行開始ログ。Info なので LOG_LEVEL > 3 の時だけ出力。
+#               DRY_RUN拒否かつステート更新発生時のDNS更新ログ。
+#               nsupdate の標準出力は成功時のみ Info 行として転記し, 失敗時は [Error] 1行で全出力を記録する。
+#
+#       [Warning] Failed to update PTR4 record for <PTR4> with <FQDN>
+#               PTR4レコードの更新に失敗した。
+#               Warning なので LOG_LEVEL > 2 の時だけ出力。
+#               PTR4レコードの更新に失敗した場合でも, スクリプトの実行は継続する。
+#               失敗原因は, PTR4レコードのnsupdate発行失敗, または, PTR4レコードの内容が不正であったことが考えられる。
+#               ステートファイルの内容とDNSのレコードを照らし合わせ, 対処する。
+#
+#       [Error] nsupdate for PTR4 record failed: <nsupdateの出力>
+#              PTRレコードのnsupdate 発行失敗。nsupdateコマンドの出力が表示される。
+#              Error なので LOG_LEVEL > 1 の時だけ出力。
+#              nsupdate の出力内容を確認し, 権限, ゾーン名, TSIG設定, 到達性等を
+#              確認のうえ, 対処する。
+#
+#       [Info] Deleting old PTR4: <d.c.b.a.in-addr.arpa.>
+#              旧 IPv4(状態ファイルの前回値)が 新 IPv4 と異なる場合に, 旧オーナー名を a.b.c.d, d.c.b.a.in-addr.arpa. へ整形して update delete <owner> PTR を実行する開始ログ。
+#              Info なので LOG_LEVEL > 3 の時だけ出力。
+#
+#       [Info] No previous IPv4 published; skip old PTR4 deletion.
+#              前回 IPv4 が不明のため旧PTR4削除を行わなかった。
+#              Info なので LOG_LEVEL > 3 の時だけ出力。
+#
+#       [Info] Previous IPv4 equals new; no old PTR4 deletion needed.
+#              前回 IPv4 と今回 IPv4 が同一のため, 旧 PTR4 削除不要。
+#              Info なので LOG_LEVEL > 3 の時だけ出力。
+#
+#       [Warning] Old PTR4 owner is outside zone; skip deletion: <owner> not under <ZONE_REV4>
+#              旧オーナー名が管理ゾーン外(ZONE_REV4 配下でない)ため削除を行わなかった。
+#              Warning なので LOG_LEVEL > 2 の時だけ出力。
+#              DNSサーバーの設定ミス等で, 誤って他ゾーンのPTRレコードを登録してしまうことを防止するため
+#              の措置。DNSサーバーの設定を含めてゾーンに関する設定を見直すことで対処する。
+#
+#       [Warning] Failed to delete old PTR4: <d.c.b.a.in-addr.arpa.>
+#               旧PTR4レコードの削除に失敗した。
+#               Warning なので LOG_LEVEL > 2 の時だけ出力。
+#               旧PTR4レコード削除に失敗した場合でも, スクリプトの実行は継続する。
+#               失敗原因は, PTR4レコードのnsupdate発行失敗, または, 旧PTR4レコードの内容が不正であったことが考えられる。
+#               ステートファイルの内容とDNSのレコードを照らし合わせ, 対処する。
+#
+#       [Error] nsupdate for PTR4 record to delete old entry failed: <nsupdateの出力>
+#              旧PTR4削除を行うためのnsupdateコマンド実行に失敗した。
+#              Error なので LOG_LEVEL > 1 の時だけ出力。
+#              nsupdate の出力内容を確認し, 権限, ゾーン名, TSIG設定, 到達性等を
+#              確認のうえ, 対処する。
+#
+#  [7] ログAPI自体, 共通処理部のエラー (write_log, update_forward_record, update_ptr4_record, update_ptr6_record)
+#
+#       [Error] Invalid argument: write_log <level> <message> args=<実引数列>(直後に処理中断)
+#          引数数が2で呼ばれていない。
+#          Error なので LOG_LEVEL > 1 の時だけ出力。
+#          内部整合性エラーなので, スクリプトの修正が必要。
+#
+#       [Error] nsupdate for <record_type> record failed: <nsupdateの出力>
+#          <record_type> レコードに対するnsupdate発行失敗。
+#          nsupdateコマンドの出力が表示される。
+#          <record_type> は A, AAAA, PTR4, PTR6 のいずれかとなる。
+#          Error なので LOG_LEVEL > 1 の時だけ出力。
+#          nsupdate の出力内容を確認し, 権限, ゾーン名, TSIG設定, 到達性等を
+#          確認のうえ, 対処する。
+#
+#       [Error] Invalid argument: update_forward_record <name> <ip> args=<実引数列>(直後に処理中断)
+#          引数数が2でない。
+#          Error なので LOG_LEVEL > 1 の時だけ出力。
+#          内部整合性エラーなので, スクリプトの修正が必要。
+#
+#       [Error] Invalid argument: update_ptr6_record <owner> <fqdn> args=<実引数列>(直後に処理中断)
+#          引数数が2でない。
+#          Error なので LOG_LEVEL > 1 の時だけ出力。
+#          内部整合性エラーなので, スクリプトの修正が必要。
+#
+#       [Error] Invalid argument: update_ptr4_record <owner> <fqdn> args=<実引数列>(直後に処理中断)
+#          引数数が2でない。
+#          Error なので LOG_LEVEL > 1 の時だけ出力。
+#          内部整合性エラーなので, スクリプトの修正が必要。
+#
+#       [Error] Invalid IP address format: <addr>
+#          IPアドレスの書式が不正。当該レコード更新処理を中断し, スクリプト自体の実行は, 継続するよう試みる。
+#          Error なので LOG_LEVEL > 1 の時だけ出力。
+#          内部整合性エラーや外部コマンド間のIF不整合の可能性があるため, スクリプトの修正が必要。
+#          (例: IPv4アドレスに対してIPv6用の処理を行おうとした場合など)。
+#
+#  [8] アサーションエラー, 到達不可能コード到達
+#       アサーションエラーは, スクリプトのバグに起因するため, スクリプトの修正が必要。
+#       メッセージの形式は以下の通り。
+#
+#       [Assert] Assertion error: <条件式文字列> file=<呼び出し元ファイル> line=<呼び出し元の行番号>
+#       [Assert] Assertion error: <条件式文字列> file=<呼び出し元ファイル> line=<呼び出し元の行番号> <補足メッセージ>
+#       [Assert] Assertion error: <empty expression> file=<呼び出し元ファイル> line=<呼び出し元の行番号>
+#       [Assert] Reached unreachable code: file=<呼び出し元ファイル> line=<呼び出し元の行番号>
+#
+#       これらのメッセージが出力された場合, スクリプトの修正が必要。
+#       なお, これらのメッセージは, スクリプトのバグに起因するため, LOG_LEVEL に関係なく出力される。
+#
+set -euo pipefail
+shopt -s extglob
+
+# 環境変数読み込み
+# (設定ファイルが存在する場合のみ)
+ENV_FILE="${ENV_FILE:-{{ddns_client_update_sh_sysconfig_path}}}"
+if [[ -f "$ENV_FILE" ]]; then
+  while IFS= read -r line; do
+    # コメント/空行を除外
+    [[ $line =~ ^[[:space:]]*# || -z $line ]] && continue
+    # export を剥がす
+    line="${line#export }"
+    # key=value だけ許可
+    [[ $line =~ ^([A-Za-z_][A-Za-z0-9_]*)=(.*)$ ]] || continue
+    k="${BASH_REMATCH[1]}"
+    v="${BASH_REMATCH[2]}"
+    # 既に環境にあるなら触らない
+    [[ -n "${!k+x}" ]] && continue
+    # 外側の引用を剥がさず, そのまま文字列として設定
+    printf -v "$k" '%s' "$v"
+    export "$k"
+  done < "$ENV_FILE"
+fi
+
+LC_ALL=C # 文字列比較をバイト単位で行うためにロケールをCに設定
+export LC_ALL
+
+# 安全なPATHを再設定
+SAFE_PATH="/usr/sbin:/usr/bin:/sbin:/bin"
+export PATH="${SAFE_PATH}"
+
+TAG=${TAG:-ddns-client} # ログの識別用タグ
+
+# DNSサーバへの接続ポート番号(既定: 53)
+DNS_PORT=${DNS_PORT:-53}
+# アドレス安定化のための待ち時間 (秒)
+DAD_SLEEP_SEC=2
+
+# ===== 設定(必要に応じて環境変数で上書き可)=====
+{% if mgmt_nic|default('',true)|length %}
+IFACE="${IFACE:-{{mgmt_nic}}}"
+{% else %}
+IFACE="${IFACE:-{{common_default_nic}}}"
+{% endif %}
+ZONE_FWD="${ZONE_FWD:-{{dns_domain}}}"
+ZONE_REV4="${ZONE_REV4:-{{dns_ipv4_reverse}}.in-addr.arpa}"
+ZONE_REV6="${ZONE_REV6:-{{dns_ipv6_reverse}}.ip6.arpa}"
+NS="${NS:-{{dns_server_ipv4_address}}}"
+KEYFILE="${KEYFILE:-{{dns_ddns_key_file}}}"
+
+# nsupdateで指定するTTL値
+NS_UPDATE_TTL=${NS_UPDATE_TTL:-300}
+
+STATE_DIR="${STATE_DIR:-/var/lib/ddns}"
+STATE_FILE_IPV6="${STATE_DIR}/ipv6-published"
+STATE_FILE_IPV4="${STATE_DIR}/ipv4-published"
+DRY_RUN="${DRY_RUN:-no}"  # yes の場合は実際の更新は行わない
+
+#
+# 各zoneのFully Qualified Domain Name (末尾ドット付き)の正規化
+# 末尾ドットをちょうど1個付与し, 末尾の余分なドットを削除する
+#
+ZONE_FWD="${ZONE_FWD%%+(.)}."
+ZONE_REV4="${ZONE_REV4%%+(.)}."
+ZONE_REV6="${ZONE_REV6%%+(.)}."
+
+#
+# 終了コード
+#
+EXIT_SUCCESS=0                # 正常終了
+EXIT_NO_FQDN=1                # FQDN未設定
+EXIT_INV_FQDN=2               # FQDN書式不正
+EXIT_CANT_CREATE_STATE_DIR=3  # ステートディレクトリ作成失敗
+EXIT_NR_ARGS=64               # 関数の引数個数が規定と異なる(内部整合性エラー)
+EXIT_INV_ARG=65               # 関数の引数の値が規定外(内部整合性エラー)
+EXIT_ASSERT_ERROR=128         # アサーションエラー(内部整合性エラー)
+EXIT_ASSERT_NO_REACH=129      # 到達不可能コードに到達(内部整合性エラー)
+
+# ログレベル設定
+LOG_LEVEL="${LOG_LEVEL:-2}"  # debug=5, info=4, warning=3, error=2 (default=2)
+# ログレベル文字列の正規化
+# LOG_LEVELが整数値でない場合, または 0~5 の範囲外の場合はデフォルト値2に設定する
+[[ ${LOG_LEVEL} =~ ^[0-9]+$ ]] || LOG_LEVEL=2
+if (( LOG_LEVEL < 0 )) || (( LOG_LEVEL > 5 )); then
+    LOG_LEVEL=2
+fi
+
+#
+# アサーション関数
+#
+# 引数で与えられた条件式を eval で評価し, 偽の場合は
+# "[Assert] Assertion error: <条件式文字列> file=<呼び出し元ファイル> line=<呼び出し元の行番号>"を
+# ログと標準エラー出力とに出力してexit(${EXIT_ASSERT_ERROR})でスクリプト全体を終了する。
+#
+# 引数1: 評価される条件式文字列
+# 引数2以降: 任意の補足メッセージ (省略可)
+#
+# 返却値/終了コード:
+#   - 条件式が真の場合は0を返す。
+#   - 条件式が偽の場合は, exit(${EXIT_ASSERT_ERROR})でスクリプト全体を終了する。
+#   - 引数が無い場合は, exit(${EXIT_ASSERT_ERROR})でスクリプト全体を終了する。
+# 動作:
+#   - 条件式が真の場合は何も出力せず, 0を返す。
+#   - 条件式文字列 を eval で評価し, 偽の場合は, 以下のメッセージをログと標準エラー出力とに出力して,
+#     exit(${EXIT_ASSERT_ERROR})でスクリプト全体を終了する。
+#     "[Assert] Assertion error: <条件式文字列> file=<呼び出し元ファイル> line=<呼び出し元の行番号>"を
+#     ログと標準エラー出力とに出力してexit(${EXIT_ASSERT_ERROR})でスクリプト全体を終了する。
+#   - 2つ目以降の引数がある場合は, それらを空白で連結したものを補足メッセージとして,
+#     "[Assert] Assertion error: <条件式文字列> file=<呼び出し元ファイル> line=<呼び出し元の行番号> msg=<補足メッセージ>"
+#     をログと標準エラー出力とに出力してexit(${EXIT_ASSERT_ERROR})でスクリプト全体を終了する。
+#   - 引数が無い場合は,
+#     "[Assert] Assertion error: <empty expression> file=<呼び出し元ファイル> line=<呼び出し元の行番号>"を
+#     ログと標準エラー出力とに出力してexit(${EXIT_ASSERT_ERROR})でスクリプト全体を終了する。
+#   - ログのタグは, 環境変数 TAG が設定されていればその値を使用し, 未設定の場合は "bash" を使用する。
+#
+# 注意事項:
+#   - 引数の条件式文字列は, シングルクォートで囲むことを推奨。
+#     例: assert '[ "$x" -gt 0 ]'
+#   - 条件式内で変数を使用する場合は, 変数をダブルクォートで囲むことを推奨。
+#
+# 補足事項:
+#   set -e でも if 内評価なので安全に使用可能。
+# 例:
+#   assert 'test -f /etc/hosts'      # /etc/hosts が存在することをtestコマンドで確認
+#   assert '[ "$x" -gt 0 ]'          # 変数xが0より大きいことを確認
+#   assert 'my_func_returns_success' # my_func_returns_success関数が成功を返すことを確認
+assert() {
+    local expr="$1"
+    local note="${2:-}"  # 任意の補足メッセージ
+    local file="${BASH_SOURCE[1]:-$(basename -- "$0")}"
+    local line="${BASH_LINENO[0]:-0}"
+    local tag="${TAG:-bash}"
+    local msg
+
+    # 引数なしは関数の使い方ミス
+    if [[ -z "${expr}" ]]; then
+        msg="[Assert] Assertion error: <empty expression> file=${file} line=${line}"
+        logger -t "${tag}" -- "${msg}"
+        echo "${msg}" >&2
+        exit ${EXIT_ASSERT_ERROR}
+    fi
+
+    # 条件評価
+    if ! eval -- "${expr}"; then
+        msg="[Assert] Assertion error: ${expr} file=${file} line=${line}"
+
+        # 引数2以降を空白連結して補足メッセージとする
+        if (( $# >= 2 )); then
+
+            note="${*:2}"
+            msg="${msg} msg=${note}"
+        fi
+
+        logger -t "${tag}" -- "${msg}"
+        echo "${msg}" >&2
+        exit ${EXIT_ASSERT_ERROR}
+    fi
+    return 0
+}
+
+#
+# 到達不可能コード到達関数
+#
+# 終了コード:
+#   exit(${EXIT_ASSERT_NO_REACH})でスクリプト全体を終了する。
+# 動作:
+#   - "[Assert] Reached unreachable code: file=<呼び出し元ファイル> line=<呼び出し元の行番号>"
+#     をログと標準エラー出力とに出力してexit(${EXIT_ASSERT_NO_REACH})でスクリプト全体を終了する。
+#   - ログのタグは, 環境変数 TAG が設定されていればその値を使用し, 未設定の場合は "bash" を使用する。
+# 例:
+#   assert_no_reach
+assert_no_reach() {
+    local file="${BASH_SOURCE[1]:-$(basename -- "$0")}"
+    local line="${BASH_LINENO[0]:-0}"
+    local tag="${TAG:-bash}"
+    local msg="[Assert] Reached unreachable code: file=${file} line=${line}"
+
+    logger -t "${tag}" -- "${msg}"
+    echo "${msg}" >&2
+    exit ${EXIT_ASSERT_NO_REACH}
+}
+
+#
+# ログ出力関数
+#
+#
+# 引数1: ログレベル文字列
+#
+#   "dbg": Debug
+#   "inf": Info
+#   "war": Warning
+#   "err": Error
+#
+#   それ以外の文字列を指定した場合は無視される
+#
+# 引数2: ログメッセージ
+# 例:
+#   write_log "inf" "This is an info message"
+#   write_log "err" "This is an error message"
+#
+write_log() {
+    local prefix
+
+    if [ "$#" -ne 2 ]; then
+        logger -t "${TAG}" -- "[Error] Invalid argument: write_log <level> <message> args=$*";
+        echo "[Error] Invalid argument: write_log <level> <message> args=$*" >&2;
+        exit ${EXIT_NR_ARGS}
+    fi
+
+    case "$1" in
+        "dbg")
+            (( "${LOG_LEVEL}" > 4 )) || return 0
+            prefix="[Debug]"
+            ;;
+        "inf")
+            (( "${LOG_LEVEL}" > 3 )) || return 0
+            prefix="[Info]"
+            ;;
+        "war")
+            (( "${LOG_LEVEL}" > 2 )) || return 0
+            prefix="[Warning]"
+            ;;
+        "err")
+            (( "${LOG_LEVEL}" > 1 )) || return 0
+            prefix="[Error]"
+            ;;
+        *)
+            return 0 # 無視
+            ;;
+    esac
+
+    logger -t "${TAG}" -- "${prefix} $2";
+    echo "${prefix} $2" >&2;
+
+    return 0
+}
+
+#
+# デバッグログ出力関数
+#
+# 第1引数: ログメッセージ
+#
+dbg_log() {
+
+    write_log "dbg" "$*"
+    return 0
+}
+
+#
+# 情報ログ出力関数
+#
+# 第1引数: ログメッセージ
+#
+inf_log() {
+
+    write_log "inf" "$*"
+    return 0
+}
+
+#
+# 警告ログ出力関数
+#
+# 第1引数: ログメッセージ
+#
+war_log() {
+
+    write_log "war" "$*"
+    return 0
+}
+
+#
+# エラーログ出力関数
+#
+# 第1引数: ログメッセージ
+#
+err_log() {
+
+    write_log "err" "$*"
+    return 0
+}
+
+#
+# 処理対象アドレスを選定する
+#
+# 第1引数: 参照変数名 (処理対象アドレスを返す)。
+# 第2引数: 参照変数名 (処理対象アドレスの preferred_lft 値を返す)。
+# 第3引数: アドレス種別オプション (-4 or -6)
+#      -4: IPv4 アドレスを対象とする。
+#      -6: IPv6 アドレスを対象とする。
+# 参照変数:
+#      第1引数で指定した変数に処理対象アドレスをセットする。
+#      第2引数で指定した変数に処理対象アドレスの preferred_lft 値をセットする。
+#      - 処理対象アドレスが無い場合は, 第1引数で指定した変数に空文字列をセットする。
+#      - preferred_lft が forever の場合, preferred_lft=99999999 として扱う。
+#      - preferred_lft 非表示(IPv4 の一般ケース)の場合, preferred_lft=1 として扱う。
+# 復帰値:
+#        0: 成功
+#   その他: 致命的な要因(一時ファイル作成失敗など)により失敗。
+# 注意事項:
+#   引数不正時は exit(${EXIT_NR_ARGS}/${EXIT_INV_ARG}) によりスクリプト全体を終了。
+# 例:
+#   IPv6アドレスを選定する場合
+#     get_preferable_addr addr_var lft_var "-6"
+#   IPv4アドレスを選定する場合
+#     get_preferable_addr addr_var lft_var "-4"
+# 補足事項 (エラーハンドリング方針):
+#   引数異常の場合はスクリプト全体を終了する。
+#   本関数は, IFACEの指定誤りにより適切な処理対象アドレスが検出されなかった場合(例えば, グローバルアドレスのないIFを指定した場合)や外部コマンドの一時的失敗など,
+#   呼び出し元でエラーを判定し, 分岐可能な事象は, 非致命的事象とみなし, 0(正常復帰)の復帰値で呼び出し元に復帰する。
+#   一方で, 一時ファイル生成失敗等, 上位が適切に分岐するための情報自体が得られない事象は, 致命的事象とみなし, 非0の復帰値で呼び出し元に復帰する。
+#   致命的事象で復帰した場合, 呼び出し元はエラーを記録したうえで当該フェーズを中止する。
+#   呼び出し元の制御フローは, 原則として障害を局所化し, 独立フェーズの処理継続を優先するよう設計・実装する
+#   (例：IPv6系の失敗があっても, IPv4系は可能なら継続)。
+get_preferable_addr(){
+    local -n _ret_addr=$1
+    local -n _ret_lft=$2
+    local addr_type_opt
+    local temp_file
+    local addr
+    local lft
+    local line
+    local inet_kw
+
+    if [ "$#" -ne 3 ]; then
+        err_log "Invalid argument: get_preferable_addr addr_var lft_var <addr_type_opt> args=$*"
+        exit ${EXIT_NR_ARGS}
+    fi
+
+    addr_type_opt=$3
+
+    if [ "${addr_type_opt}" != "-4" ] && [ "${addr_type_opt}" != "-6" ]; then
+        err_log "Invalid argument: get_preferable_addr <addr_type_opt> arg=${addr_type_opt}"
+        exit ${EXIT_INV_ARG}
+    fi
+
+    # アドレス系キーワード(inet/inet6)を決定
+    if [ "${addr_type_opt}" = "-6" ]; then
+        inet_kw="inet6"
+    else
+        inet_kw="inet"
+    fi
+
+    # 一時ファイル作成
+    temp_file=$(mktemp /tmp/ddns-client-update.XXXXXX) || {
+        err_log "Failed to create temporary file"
+        return 1
+    }
+
+    _ret_addr=""
+    _ret_lft=0
+
+    # =====  global & 非 temporary かつ non-tentative / non-deprecated の中で preferred_lft 最大を選ぶ =====
+    # ip -6(または-4) -o で 1行出力にし, temporary/tentative/deprecated を除外
+    # 出力例:
+    # 2: ens160    inet6 fd69:6684:61a:1:20c:29ff:febe:9fd9/64 scope global dynamic mngtmpaddr noprefixroute \       valid_lft 2591999sec preferred_lft 604799sec
+    # 2: ens160    inet6 fe80::20c:29ff:febe:9fd9/64 scope link \       valid_lft forever preferred_lft forever
+    #
+    ip "${addr_type_opt}" -o addr show dev "${IFACE}" scope global \
+        | grep -v ' temporary' \
+        | grep -v ' tentative' \
+        | grep -v ' deprecated' \
+        | grep -v ' preferred_lft 0sec' > "${temp_file}" 2>/dev/null || true
+
+    # 例:
+    # ipv6: ip -6 -o addr show dev ens160 scope globalの出力
+    # "2: ens160    inet6 fd69:6684:61a:1:20c:29ff:febe:9fd9/64 scope global dynamic mngtmpaddr ..."
+    # ipv4: ip -4 -o addr show dev ens160 scope globalの出力
+    # "2: ens160    inet 192.168.20.102/24 metric 100 brd 192.168.20.255 scope global dynamic ens160 ..."
+    while IFS= read -r line;
+    do
+        # "inet/inet6" の直後のフィールド(アドレス/マスク)から IP を抽出して / 以降を除去
+        addr=$(echo "${line}" | awk -v kw="${inet_kw}" '{for(i=1;i<=NF;i++) if($i==kw){print $(i+1); exit}}' | cut -d/ -f1)
+        # preferred_lft を拾う(最後の "preferred_lft Nsec", foreverは, 99999999として扱う)
+        lft=$(echo "${line}" | sed -n -e 's/.*preferred_lft \([0-9]\+\)sec.*/\1/p' -e 's/.*preferred_lft forever.*/99999999/p')
+        # 上記のgrepで, preferred_lft 0secは除外されているので, preferred_lftがあるエントリは, 1以上の値になる
+        # IPv4 では preferred_lft が出ないことが多いため, preferred_lftが無い場合は1として扱う
+        # IPv6では, 1以上, 99999999(forever)以下の値になる.
+        lft=${lft:-1}
+
+        if (( lft > _ret_lft )); then
+            (( _ret_lft = lft ))
+            _ret_addr="${addr}"
+        fi
+    done < "${temp_file}"
+
+    rm -f -- "${temp_file}"
+
+    return 0
+}
+
+#
+# ステートファイルに指定されたアドレスを記録, 更新する
+#
+# 引数1: アドレス種別 (4 or 6)
+# 引数2: アドレス
+# 引数3: ステートファイル名
+# 復帰値:
+#   0: ステート更新成功
+#   1: 既に更新済みアドレス (ステートファイル内容と同じアドレス)
+# 注意事項:
+#   引数不正時は exit(${EXIT_NR_ARGS}/${EXIT_INV_ARG}) によりスクリプト全体を終了。
+# 例:
+# IPv6アドレスをステートファイルに記録, 更新する場合
+#   update_state_file "6" "2001:db8::1" "ipv6-published-ens160"
+# IPv4アドレスをステートファイルに記録, 更新する場合
+#   update_state_file "4" "192.168.20.101" "ipv4-published-ens160"
+#
+update_state_file() {
+    local address_type="$1"
+    local addr="$2"
+    local state_file="$3"
+
+    if [ "$#" -ne 3 ]; then
+        err_log "Invalid argument: update_state_file <address_type> <addr> <state_file> args=$*"
+        exit ${EXIT_NR_ARGS}
+    fi
+
+    case "${address_type}" in
+        4|6)
+            ;;
+        *)
+            err_log "Invalid address_type argument:${address_type} should be 4 or 6.";
+            exit ${EXIT_INV_ARG}
+            ;;
+    esac
+
+    # 前回と同じなら何もしない
+    if [ -f "${state_file}" ] && [ "$(cat "${state_file}")" = "${addr}" ]; then
+        inf_log "IPv${address_type} address ${addr} already published; no update needed."
+        return 1
+    fi
+
+    # ステート更新
+    echo "${addr}" > "${state_file}"
+
+    inf_log "Updated state file: ${state_file}"
+    while IFS= read -r line; do inf_log "State file content: $line"; done < "${state_file}"
+
+    return 0
+}
+
+#
+# フォワードレコード更新(A/AAAAを自動判別)
+#
+# 引数1: FQDN(末尾ドット付き)
+# 引数2: IPアドレス (IPv4 or IPv6)
+# 復帰値:
+#        0: 成功
+#        1: nsupdate失敗
+#        2: IPアドレス不正
+#   その他: 失敗
+# 例:
+#   update_forward_record "host1.example.com." "192.168.20.100"
+#   update_forward_record "host1.example.com." "2001:db8::1"
+update_forward_record() {
+    local name="$1"
+    local ip="$2"
+    local type
+    local ttl
+    local _out
+    local line
+
+    if [ "$#" -ne 2 ]; then
+        err_log "Invalid argument: update_forward_record <name> <ip> args=$*"
+        exit ${EXIT_NR_ARGS}
+    fi
+
+    ttl="${NS_UPDATE_TTL}"
+    case "${ip}" in
+        *:* )
+            type="AAAA" # IPv6
+            ;;
+        *.* )
+            type="A"    # IPv4
+            ;;
+        * )
+            err_log "Invalid IP address format: ${ip}";
+            return 2
+            ;;
+    esac
+
+    # A/AAAA レコードを更新
+    if ! _out=$( nsupdate -k "${KEYFILE}" 2>&1 <<EOF
+server ${NS} ${DNS_PORT}
+zone ${ZONE_FWD}
+update delete ${name} ${type}
+update add ${name} ${ttl} ${type} ${ip}
+send
+EOF
+    ); then
+        err_log "nsupdate for ${type} record failed: ${_out}"
+        return 1
+    fi
+
+    while IFS= read -r line;
+    do
+        inf_log "${line}";
+    done <<< "${_out}"
+
+    return 0
+}
+
+#
+# 逆引き(IPv4)
+#
+# 引数1: オーナー名 (PTRレコードのオーナー名, 例: d.c.b.a.in-addr.arpa.)
+# 引数2: FQDN (PTRレコードの値, 例: host1.example.com.)
+# 復帰値:
+#        0: 成功
+#        1: nsupdate失敗
+#   その他: 失敗
+# 例:
+#   update_ptr4_record "d.c.b.a.in-addr.arpa." "host1.example.com."
+#
+update_ptr4_record() {
+    local owner="$1"
+    local fqdn="$2"
+    local ttl
+    local _out
+    local line
+
+    if [ "$#" -ne 2 ]; then
+        err_log "Invalid argument: update_ptr4_record <owner> <fqdn> args=$*"
+        exit ${EXIT_NR_ARGS}
+    fi
+
+    ttl="${NS_UPDATE_TTL}"
+    if ! _out=$( nsupdate -k "${KEYFILE}" 2>&1 <<EOF
+server ${NS} ${DNS_PORT}
+zone ${ZONE_REV4}
+update delete ${owner} PTR
+update add ${owner} ${ttl} PTR ${fqdn}
+send
+EOF
+    ); then
+        err_log "nsupdate for PTR4 record failed: ${_out}"
+        return 1
+    fi
+
+    while IFS= read -r line;
+    do
+        inf_log "${line}";
+    done <<< "${_out}"
+
+    return 0
+}
+
+#
+# 逆引き(IPv6)
+#
+# 引数1: オーナー名 (PTRレコードのオーナー名, 例: ニブル(nibble)逆順.ip6.arpa.)
+# 引数2: FQDN (PTRレコードの値, 例: host1.example.com.)
+# 復帰値:
+#        0: 成功
+#        1: nsupdate失敗
+#   その他: 失敗
+# 例:
+#   update_ptr6_record "ニブル(nibble)逆順.ip6.arpa." "host1.example.com."
+#
+update_ptr6_record() {
+    local owner="$1"
+    local fqdn="$2"
+    local ttl
+    local _out
+    local line
+
+    if [ "$#" -ne 2 ]; then
+        err_log "Invalid argument: update_ptr6_record <owner> <fqdn> args=$*"
+        exit ${EXIT_NR_ARGS}
+    fi
+
+    ttl="${NS_UPDATE_TTL}"
+
+    if ! _out=$( nsupdate -k "${KEYFILE}" 2>&1 <<EOF
+server ${NS} ${DNS_PORT}
+zone ${ZONE_REV6}
+update delete ${owner} PTR
+update add ${owner} ${ttl} PTR ${fqdn}
+send
+EOF
+    ); then
+        err_log "nsupdate for PTR6 record failed: ${_out}"
+        return 1
+    fi
+
+    while IFS= read -r line;
+    do
+        inf_log "${line}";
+    done <<< "${_out}"
+
+    return 0
+}
+
+#
+# 逆引き(IPv6)レコード削除
+#
+# 引数1: オーナー名 (PTRレコードのオーナー名, 例: ニブル(nibble)逆順.ip6.arpa.)
+# 復帰値:
+#   0: 成功
+#   1: nsupdate失敗
+# 例:
+#   delete_ptr6_record "ニブル(nibble)逆順.ip6.arpa."
+delete_ptr6_record() {
+    local owner="$1"
+    local _out
+    local line
+
+    if [ -z "${owner}" ]; then
+        return 0;
+    fi
+
+    if ! _out=$( nsupdate -k "${KEYFILE}" 2>&1 <<EOF
+server ${NS} ${DNS_PORT}
+zone ${ZONE_REV6}
+update delete ${owner} PTR
+send
+EOF
+    ); then
+        err_log "nsupdate for PTR6 record to delete old entry failed: ${_out}"
+        return 1
+    fi
+
+    # ログ出力
+    while IFS= read -r line;
+    do
+        inf_log "${line}";
+    done <<< "${_out}"
+
+    return 0
+}
+
+#
+# 逆引き(IPv4)レコード削除
+#
+# 引数1: オーナー名 (PTRレコードのオーナー名, 例: d.c.b.a.in-addr.arpa.)
+# 復帰値:
+#   0: 成功
+#   1: nsupdate失敗
+# 例:
+#   delete_ptr4_record "d.c.b.a.in-addr.arpa."
+delete_ptr4_record() {
+    local owner="$1"
+    local _out
+    local line
+
+    if [ -z "${owner}" ]; then
+        return 0;
+    fi
+
+    if ! _out=$( nsupdate -k "${KEYFILE}" 2>&1 <<EOF
+server ${NS} ${DNS_PORT}
+zone ${ZONE_REV4}
+update delete ${owner} PTR
+send
+EOF
+    ); then
+        err_log "nsupdate for PTR4 record to delete old entry failed: ${_out}"
+        return 1
+    fi
+
+    # ログ出力
+    while IFS= read -r line;
+    do
+        inf_log "${line}";
+    done <<< "${_out}"
+
+    return 0
+}
+
+#
+# IPv6アドレスの更新処理
+#
+# 復帰値:
+#   0: 成功
+#   1: get_preferable_addr失敗
+# 例:
+#   handle_ipv6
+handle_ipv6() {
+    local best_addr
+    local best_lft
+    local PTR6
+    local prev_addr6=""
+    local old6_lc
+    local zone6_lc
+    local old_ptr6
+    local state_file
+
+    state_file="${STATE_FILE_IPV6}-${IFACE}"
+    # 前回更新済みアドレスの読み込み
+    [ -f "${state_file}" ] && prev_addr6="$(cat "${state_file}")" || true
+
+    get_preferable_addr best_addr best_lft "-6"
+    if [ $? -ne 0 ]; then
+        err_log "get_preferable_addr failed"
+        return 1
+    fi
+
+    if [ -z "${best_addr}" ]; then
+        war_log "No eligible global non-temporary IPv6 found on ${IFACE}; nothing to do."
+        return 0
+    fi
+
+    # ステート更新
+    inf_log "Selected IPv6 address: ${best_addr} (preferred_lft=${best_lft})"
+
+    if update_state_file "6" "${best_addr}" "${state_file}"; then
+
+        # DRY_RUNの内容を小文字に変換して比較
+        if [[ ${DRY_RUN,,} != "yes" ]]; then
+
+            # 旧アドレスがあり, かつ新アドレスと異なる場合は旧アドレスのPTR6レコードを削除
+            if [[ -n "${prev_addr6}" && "${prev_addr6}" != "${best_addr}" ]]; then
+
+                # 旧オーナー名を生成(ニブル(nibble)逆順)
+                if old_ptr6="$(
+                    python3 - "${prev_addr6}" <<'PY'
+import ipaddress,sys
+ip = ipaddress.IPv6Address(sys.argv[1])
+print('.'.join('{:032x}'.format(int(ip))[::-1]) + '.ip6.arpa.')
+PY
+                )"; then
+
+                    old6_lc="${old_ptr6,,}";
+                    zone6_lc="${ZONE_REV6,,}"
+                    # 厳密な「ゾーン直下/配下」判定 ( 末尾一致 or 完全一致 )
+                    case "${old6_lc}" in
+                        "${zone6_lc}"|*."${zone6_lc}")
+                            inf_log "Deleting old PTR6: ${old_ptr6}"
+                            delete_ptr6_record "${old_ptr6}" || war_log "Failed to delete old PTR6: ${old_ptr6}"
+                            ;;
+                        *)
+                            war_log "Old PTR6 owner is outside zone; skip deletion: ${old_ptr6} not under ${ZONE_REV6}"
+                            ;;
+                    esac
+                else
+
+                    # 旧アドレスから ニブル(nibble)逆順のオーナー名生成に失敗した場合
+                    err_log "Failed to generate old PTR6 owner from previous address: ${prev_addr6}"
+                fi
+            elif [[ -z "${prev_addr6}" ]]; then
+
+                # ステートファイルが存在しない, または空ファイルの場合
+                inf_log "No previous IPv6 published; skip old PTR6 deletion."
+            else
+
+                # 旧アドレスと新アドレスが同じ場合
+                inf_log "Previous IPv6 equals new; no old PTR6 deletion needed."
+            fi
+
+            #
+            # AAAA レコードを更新
+            #
+            inf_log "Updating AAAA record with IPv6 address: ${best_addr}"
+            update_forward_record "${FQDN}" "${best_addr}" || war_log "Failed to update AAAA record for ${FQDN} with ${best_addr}"
+
+            #
+            # IPv6 PTR 名を生成(ニブル(nibble)逆順)
+            #
+            if PTR6="$(
+                python3 - "${best_addr}" <<'PY'
+import ipaddress,sys
+ip = ipaddress.IPv6Address(sys.argv[1])
+print('.'.join('{:032x}'.format(int(ip))[::-1]) + '.ip6.arpa.')
+PY
+            )"; then
+                #
+                #  PTR(ip6.arpa)レコード更新
+                #
+                inf_log "Updating PTR record for IPv6: ${PTR6} to ${FQDN}"
+                update_ptr6_record "${PTR6}" "${FQDN}" || war_log "Failed to update PTR6 record for ${PTR6} with ${FQDN}"
+          else
+              err_log "Failed to generate PTR6 name for address: ${best_addr}"
+          fi
+      fi # DRY_RUN
+    fi # ステート更新
+  return 0
+}
+
+#
+# IPv4アドレスの更新処理
+#
+# 復帰値:
+#   0: 成功
+#   1: get_preferable_addr失敗
+# 例:
+#   handle_ipv4
+handle_ipv4() {
+    local best_addr
+    local best_lft
+    local PTR4
+    local prev_addr4=""
+    local old_ptr4
+    local old4_lc
+    local zone4_lc
+    local state_file
+
+    # 前回更新済みアドレスの読み込み
+    state_file="${STATE_FILE_IPV4}-${IFACE}"
+    [ -f "${state_file}" ] && prev_addr4="$(cat "${state_file}")" || true
+
+    get_preferable_addr best_addr best_lft "-4"
+    if [ $? -ne 0 ]; then
+        err_log "get_preferable_addr failed"
+        return 1
+    fi
+
+    if [ -z "${best_addr}" ]; then
+        war_log "No eligible global non-temporary IPv4 found on ${IFACE}; nothing to do."
+        return 0
+    fi
+
+    # ステート更新
+    inf_log "Selected IPv4 address: ${best_addr} (preferred_lft=${best_lft})"
+
+    if update_state_file "4" "${best_addr}" "${state_file}"; then
+
+        # DRY_RUNの内容を小文字に変換して比較
+        if [[ ${DRY_RUN,,} != "yes" ]]; then
+
+            # 旧アドレスがあり, かつ新アドレスと異なる場合は旧アドレスのPTR4レコードを削除
+            if [[ -n "${prev_addr4}" && "${prev_addr4}" != "${best_addr}" ]]; then
+
+                # 旧オーナー名を生成(d.c.b.a.in-addr.arpa.)
+                old_ptr4="$(echo "${prev_addr4}" | awk -F. '{print $4"."$3"."$2"."$1".in-addr.arpa."}')"
+
+                old4_lc="${old_ptr4,,}";
+                zone4_lc="${ZONE_REV4,,}"
+                # 厳密な「ゾーン直下/配下」判定 ( 末尾一致 or 完全一致 )
+                case "${old4_lc}" in
+                    "${zone4_lc}"|*."${zone4_lc}")
+                        inf_log "Deleting old PTR4: ${old_ptr4}"
+                        delete_ptr4_record "${old_ptr4}" || war_log "Failed to delete old PTR4: ${old_ptr4}"
+                        ;;
+                    *)
+                        war_log "Old PTR4 owner is outside zone; skip deletion: ${old_ptr4} not under ${ZONE_REV4}"
+                        ;;
+                esac
+
+            elif [[ -z "${prev_addr4}" ]]; then
+
+                # ステートファイルが存在しない, または空ファイルの場合
+                inf_log "No previous IPv4 published; skip old PTR4 deletion."
+            else
+
+                # 旧アドレスと新アドレスが同じ場合
+                inf_log "Previous IPv4 equals new; no old PTR4 deletion needed."
+            fi
+
+            #
+            # A レコード更新
+            #
+            inf_log "Updating A record with IPv4 address: ${best_addr}"
+            update_forward_record "${FQDN}" "${best_addr}" || war_log "Failed to update A record for ${FQDN} with ${best_addr}"
+
+            #
+            # PTR(in-addr.arpa)レコード更新
+            #
+            PTR4=$(echo "${best_addr}" | awk -F. '{print $4"."$3"."$2"."$1".in-addr.arpa."}')
+            inf_log "Updating PTR record for IPv4: ${PTR4} to ${FQDN}"
+            update_ptr4_record "${PTR4}" "${FQDN}" || war_log "Failed to update PTR4 record for ${PTR4} with ${FQDN}"
+        fi # DRY_RUN
+    fi # update_state_file
+
+  return 0
+}
+
+#
+# FQDN 検証(未設定・書式検査・長さ/ラベル制約)
+#
+# 引数1: FQDN文字列
+# 復帰値:
+#     0: 成功
+#   非0: 不正なFQDN
+# 注意事項:
+#   引数不正時は exit(${EXIT_NR_ARGS}) によりスクリプト全体を終了。
+#   本関数は, FQDNに空文字列が渡されることはないことを想定している。
+#   空文字列が渡された場合は, 内部整合性異常とみなし, exit(${EXIT_ASSERT_NO_REACH}) により
+#   スクリプト全体を終了する。
+#   FQDN変数は, 外部から与えられるため, 内部整合性エラーではなく, 入力値エラーとして扱う。
+#   そのため, FQDNの書式エラー時は, exit(${EXIT_INV_FQDN}) によりスクリプト全体を終了するのではなく,
+#   当該関数から復帰し, 呼び出し元で適切に処理されることを想定している。
+# 例:
+#   validate_fqdn "${FQDN}"
+#
+validate_fqdn() {
+    local _fqdn="$1"
+    local base
+    local fqdn_body
+    local -a labels=()
+    local lab
+    local arg_len
+    local len
+    local lab_len
+
+    if [ "$#" -ne 1 ]; then
+        err_log "Invalid argument: validate_fqdn <fqdn> args=$*"
+        exit ${EXIT_NR_ARGS}
+    fi
+
+    # 未設定/空文字列
+    arg_len=$(expr length "$_fqdn")
+    if (( arg_len == 0 )); then
+        assert_no_reach # 本関数に空文字列が渡されないことを呼び出し元で保証する
+    fi
+
+    # 末尾ドット必須
+    if [[ ${_fqdn: -1} != '.' ]]; then
+        err_log "FQDN must end with a dot: FQDN=${_fqdn}";
+        return ${EXIT_INV_FQDN}
+    fi
+
+    # 連続ドット禁止 / 先頭ドット禁止 / 末尾ドット直前のドット禁止
+    if [[ ${_fqdn} =~ \.\. ]]; then
+        err_log "FQDN has consecutive dots: FQDN=${_fqdn}";
+        return ${EXIT_INV_FQDN}
+    fi
+
+    # 先頭ドット禁止
+    if [[ ${_fqdn} == .* ]]; then
+        err_log "FQDN must not start with a dot: FQDN=${_fqdn}";
+        return ${EXIT_INV_FQDN}
+    fi
+
+    # 末尾ドット直前のドット禁止
+    # 例: example.com.. など
+    base=${_fqdn%.}
+    if [[ ${base} == *"." ]]; then
+        err_log "FQDN has trailing empty label before final dot: FQDN=${_fqdn}";
+        return ${EXIT_INV_FQDN}
+    fi
+
+    # 文字種(全体・末尾はドット)
+    if [[ ! ${_fqdn} =~ ^[A-Za-z0-9.-]+\.$ ]]; then
+        err_log "FQDN has illegal characters: FQDN=${_fqdn}";
+        return ${EXIT_INV_FQDN}
+    fi
+
+    fqdn_body="${_fqdn%.}" # 末尾ドットを除いた本体
+
+    # 全体長(末尾ドットを除く) 253
+    len=$(expr length "$fqdn_body")
+    if (( len > 253 )); then
+        err_log "FQDN too long (>253 chars without trailing dot): length=${len} FQDN=${_fqdn}";
+        return ${EXIT_INV_FQDN}
+    fi
+
+    # 各ラベル検査:
+    # - 長さ 1–63
+    # - 先頭/末尾ハイフン不可
+    # - 文字種は [A-Za-z0-9-]
+    IFS='.' read -r -a labels <<< "${fqdn_body}"
+    for lab in "${labels[@]}"; do
+
+        # ラベル長
+        lab_len=$(expr length "$lab")
+        if (( lab_len < 1 || lab_len > 63 )); then
+            err_log "FQDN label length invalid (1-63): label=${lab} length=${lab_len} FQDN=${_fqdn}";
+            return ${EXIT_INV_FQDN}
+        fi
+
+        # 先頭/末尾ハイフン禁止
+        if [[ ${lab} == -* || ${lab} == *- ]]; then
+            err_log "FQDN label must not start or end with hyphen: label=${lab} FQDN=${_fqdn}";
+            return ${EXIT_INV_FQDN}
+        fi
+
+        # 文字種(ラベル単位)
+        if [[ ! ${lab} =~ ^[A-Za-z0-9-]+$ ]]; then
+            err_log "FQDN label contains invalid characters: label=${lab} FQDN=${_fqdn}";
+            return ${EXIT_INV_FQDN}
+        fi
+    done
+
+    return 0 # 正常終了
+}
+
+#
+# メイン処理
+#
+# 終了コード (非成功時はexitによりスクリプト全体を終了):
+#   0: 成功
+#   1: FQDN未設定 (exit ${EXIT_NO_FQDN}でスクリプト全体を終了)
+#   2: FQDNの形式エラー (exit ${EXIT_INV_FQDN}でスクリプト全体を終了)
+# 注意事項: 内部関数の引数不正時は当該関数がexit ${EXIT_NR_ARGS}/${EXIT_INV_ARG}でプロセス終了するため,
+#           本関数からは復帰せず, 本スクリプトの終了コード${EXIT_NR_ARGS}/${EXIT_INV_ARG}として観測される。
+# 例:
+#   main
+main() {
+    local _fqdn_lc
+    local _zone_fwd_lc
+    local __lock_t0
+    local __lock_t1
+    local state_file_ipv6
+    local state_file_ipv4
+
+    #
+    # 多重起動防止
+    #
+    # 多重起動防止 (NetworkManager dispatcher からの同時呼び出しや手動実行の直列化)
+    #
+    # NetworkManager dispatcher は /etc/NetworkManager/dispatcher.d 直下のスクリプトを1本ずつ
+    # 実行キューに積むことで排他を実現しているが, dispatcher以外の経路からの同時実行は防げない。
+    # このため, 本スクリプト側でも排他を取り, 他経路からの同時実行も直列化する。
+    # flockを用いて, ロックファイル /run/lock/ddns-client.lock (なければ /tmp/ddns-client.lock)を
+    # ブロッキングでロックを獲得してから処理を行う。
+
+    # ロック取得前
+    dbg_log "Attempting to acquire lock: fd=9 path=/run/lock/ddns-client.lock (fallback:/tmp/ddns-client.lock)"
+    __lock_t0=$(date +%s%3N 2>/dev/null )
+
+    mkdir -p -m 0750 /run/lock >/dev/null 2>&1 || true # /run/lock が無ければ作成(権限エラーは無視)
+
+    # ロック取得
+    exec 9>"/run/lock/ddns-client.lock" 2>/dev/null || exec 9>"/tmp/ddns-client.lock"
+    flock 9
+
+    # ロック取得後
+    __lock_t1=$(date +%s%3N 2>/dev/null )
+    if [[ "$__lock_t0" != "$__lock_t1" ]]; then
+    dbg_log "Lock acquired (wait=$(($__lock_t1-__lock_t0)) ms)"
+    else
+    dbg_log "Lock acquired (no wait)"
+    fi
+
+    inf_log "start IFACE=${IFACE-?} FQDN=${FQDN-<unset>}"
+
+    #
+    # ===== 必須設定 =====
+    #
+
+    # FQDN未設定
+    if [[ -z ${FQDN:-} ]]; then
+        err_log "FQDN is not set.";
+        exit ${EXIT_NO_FQDN}
+    fi
+
+    # FQDN 書式検査
+    if ! validate_fqdn "${FQDN:-}"; then
+        err_log "FQDN format is invalid: FQDN=${FQDN}";
+        exit ${EXIT_INV_FQDN}
+    fi
+
+    # ゾーン設定の検証(正規化後に "." になっていないこと)
+    # 空文字や不正値で正規化されると "." となり, 危険な更新を招くためエラー終了する
+    if [[ "${ZONE_FWD}" = "." || "${ZONE_REV4}" = "." || "${ZONE_REV6}" = "." ]]; then
+        err_log "Zone value must not be empty (normalized to '.'): ZONE_FWD=${ZONE_FWD} ZONE_REV4=${ZONE_REV4} ZONE_REV6=${ZONE_REV6}";
+        exit ${EXIT_INV_ARG}
+    fi
+
+    # FQDN がフォワードゾーン配下(または頂点)であることを検証(クロスゾーン操作防止)
+    # 大文字小文字は区別しない。例: ZONE_FWD=example.com. のとき, FQDN は "host.example.com." または "example.com." を許容
+    _fqdn_lc="${FQDN,,}"
+    _zone_fwd_lc="${ZONE_FWD,,}"
+    case "${_fqdn_lc}" in
+        "${_zone_fwd_lc}"|*".${_zone_fwd_lc}") : ;;  # OK
+        *)
+            err_log "FQDN is outside forward zone: FQDN=${FQDN} ZONE_FWD=${ZONE_FWD}";
+            exit ${EXIT_INV_ARG}
+            ;;
+    esac
+
+    # DNS_PORT の形式検証(1 以上, 65535 以下の整数)
+    if ! [[ ${DNS_PORT} =~ ^[0-9]+$ ]] || (( DNS_PORT < 1 || DNS_PORT > 65535 )); then
+        err_log "Invalid DNS_PORT (1-65535 expected): DNS_PORT=${DNS_PORT}";
+        exit ${EXIT_INV_ARG}
+    fi
+
+    # NS_UPDATE_TTL の形式検証(0 以上の整数)
+    if ! [[ ${NS_UPDATE_TTL} =~ ^[0-9]+$ ]]; then
+        err_log "Invalid NS_UPDATE_TTL (non-negative integer expected): NS_UPDATE_TTL=${NS_UPDATE_TTL}";
+        exit ${EXIT_INV_ARG}
+    fi
+
+    # ステートディレクトリ作成
+    mkdir -p -m 0750 "${STATE_DIR}" || {
+        err_log "Failed to create state directory: ${STATE_DIR}";
+        exit ${EXIT_CANT_CREATE_STATE_DIR}
+    }
+
+    # 設定値確認
+    state_file_ipv6="${STATE_FILE_IPV6}-${IFACE}"
+    state_file_ipv4="${STATE_FILE_IPV4}-${IFACE}"
+    inf_log "Using IFACE=${IFACE}, FQDN=${FQDN}, DRY_RUN=${DRY_RUN}, LOG_LEVEL=${LOG_LEVEL}, ZONE_FWD=${ZONE_FWD}, ZONE_REV4=${ZONE_REV4}, ZONE_REV6=${ZONE_REV6}, NS=${NS}, NS_UPDATE_TTL=${NS_UPDATE_TTL}, KEYFILE=${KEYFILE}, STATE_FILE_IPV6=${state_file_ipv6}, STATE_FILE_IPV4=${state_file_ipv4}, STATE_DIR=${STATE_DIR}"
+
+    # Duplicate Address Detection (DAD)やRouter Advertisement (RA)直後に実行した場合を考慮し,
+    # 少し待ってアドレスが安定するのを待つ
+    sleep "${DAD_SLEEP_SEC}"
+
+    # IPv6 アドレスを取得してDNS更新
+    handle_ipv6 || war_log "handle_ipv6 failed"
+
+    # IPv4 アドレスを取得してDNS更新
+    handle_ipv4 || war_log "handle_ipv4 failed"
+
+    inf_log "end IFACE=${IFACE-?} FQDN=${FQDN-<unset>}"
+
+    return ${EXIT_SUCCESS} # 正常終了, 呼び出し元で, exit $? でスクリプト終了する
+}
+
+main "$@"
+exit $?

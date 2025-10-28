@@ -1,0 +1,20 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+mgmt_nic: "ens160"
+netif_list:
+  - netif: "ens160"
+    static_ipv4_addr: "{{devserver_ipv4_address}}"
+    network_ipv4_prefix_len: "{{network_ipv4_prefix_len}}"
+    static_ipv6_addr: "{{devserver_ipv6_address}}"
+    network_ipv6_prefix_len: "{{network_ipv6_prefix_len}}"
+    gateway4: "{{gateway4}}"
+    gateway6: "{{gateway6}}"
+    ignore_auto_ipv4_dns: true
+    ignore_auto_ipv6_dns: true
+    name_server_ipv4_1: "{{ipv4_name_server1}}"
+    name_server_ipv4_2: "{{ipv4_name_server2}}"
+    name_server_ipv6_1: "{{ipv6_name_server1}}"
+    name_server_ipv6_2: "{{ipv6_name_server2}}"
+    dns_search: "example.com"

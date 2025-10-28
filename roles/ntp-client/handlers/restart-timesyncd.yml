@@ -1,0 +1,13 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+
+# systemd-timesyncdを再起動する
+- name: restart_timesyncd
+  listen: "restart_timesyncd"
+  systemd:
+    name: systemd-timesyncd
+    state: restarted
+    enabled: true
+  become: true
+  when: ntp_client_is_systemd_timesyncd

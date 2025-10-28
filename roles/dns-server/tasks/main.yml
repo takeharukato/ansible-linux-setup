@@ -1,0 +1,16 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#  タスクメイン部
+#  include_tasksで他のタスクを読み込む
+
+# 最初に変数設定を読み直す ( role単独で実行可能とするため )
+- include_tasks: load-params.yml
+- include_tasks: package.yml
+- include_tasks: directory.yml
+- include_tasks: user_group.yml
+- include_tasks: service.yml
+- include_tasks: config.yml
+- include_tasks: config-systemd-ipv4-only.yml
+- include_tasks: config-firewall.yml
+  when: enable_firewall | default(false,true)

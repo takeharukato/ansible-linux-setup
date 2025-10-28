@@ -1,0 +1,15 @@
+#  -*- coding:utf-8 mode:jinja2 -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+# 概要: ネットワークインターフェースの固定化用 systemd .link ファイルテンプレート
+#
+#  設置先: /etc/systemd/network/10-{{ item.netif }}.link
+#  テンプレート変数: item.mac - 対象インターフェースのMACアドレス
+#                    item.netif - 対象インターフェース名
+
+[Match]
+MACAddress={{ item.mac }}
+
+[Link]
+Name={{ item.netif }}

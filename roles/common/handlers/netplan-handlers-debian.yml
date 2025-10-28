@@ -1,0 +1,43 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+# Debian 系で netplan generate が成功した場合にのみ apply を行います。
+
+- name: netplan generate
+  listen: "netplan_apply"
+  when:
+    - ansible_facts.os_family == "Debian"
+  ansible.builtin.command: netplan generate
+  register: netplan_generate
+  changed_when: false
+  failed_when: netplan_generate.rc != 0
+
+- name: netplan apply (only after valid generate)
+  listen: "netplan_apply"
+  when:
+    - ansible_facts.os_family == "Debian"
+    - netplan_generate is defined
+    - netplan_generate.rc == 0
+  ansible.builtin.command: netplan apply
+  register: netplan_apply
+  changed_when: netplan_apply.rc == 0
+  failed_when: netplan_apply.rc != 0
+
+- name: Verify current interface configuration
+  listen: "netplan_apply"
+  when:
+    - ansible_facts.os_family == "Debian"
+  ansible.builtin.command: ip -br addr
+  register: before_netplan_apply
+  changed_when: false
+
+- name: Show route metrics after apply
+  listen: "netplan_apply"
+  when:
+    - ansible_facts.os_family == "Debian"
+  ansible.builtin.shell: |
+    echo "[IPv4 Routes]" && ip -4 route show | grep -E 'metric|default' || true
+    echo "[IPv6 Routes]" && ip -6 route show | grep -E 'metric|default' || true
+  register: route_check
+  changed_when: false

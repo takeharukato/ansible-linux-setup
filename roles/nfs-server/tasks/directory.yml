@@ -1,0 +1,13 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#  ファイル・ディレクトリ作成関連タスク
+
+# 公開ディレクトリを作成
+- name: create nfs export directory
+  file:
+    path: "{{ nfs_export_directory }}"
+    state: directory
+    owner: "root"
+    group: "root"
+    mode: "1777"

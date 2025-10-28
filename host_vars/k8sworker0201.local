@@ -1,0 +1,80 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+
+# 管理ネットワークのNIC
+mgmt_nic: "ens160"
+
+# K8sコントロールプレインのホスト名
+k8s_ctrlplane_host: "k8sctrlplane02.local"
+
+# K8sコントロールプレインのAPI広告エンドポイントアドレス
+# k8s_ctrlplane_endpoint: "192.168.20.51"
+k8s_ctrlplane_endpoint: "fd69:6684:61a:1::51"
+
+# K8sのkubeletが使用するNICを指定, 未指定時はmgnt_nicが使用される
+# K8sネットワークないでK8s間の通信を閉じるなら, 以下のように
+# K8sネットワーク側のNICを指定する
+#
+# k8s_kubelet_nic: "ens194"
+
+# IPv4ネットマスクサイズは, 16ビット
+k8s_pod_ipv4_network_cidr: "10.243.0.0/16"
+# IPv6ネットマスクサイズは, 56ビット
+k8s_pod_ipv6_network_cidr: "fdb6:6e92:3cfb:0200::/56"
+
+# Clium Cluster Meshのクラスタ名
+k8s_cilium_cm_cluster_name: "cluster2"
+# Clium Cluster MeshのクラスタID
+k8s_cilium_cm_cluster_id: "2"
+
+# NICリスト
+# 管理系IF(ens160)
+# ipv4 addr: 192.168.20.52
+# ipv6 addr: fd69:6684:61a:1::52
+# DNSは, LAN内のDNSを使用
+#
+# K8sネットワーク(ens194)
+# 本サーバは, デュアルホーム構成としており, 管理系IFが接続されたスイッチ
+# とK8sクラスタ用IFが接続されたスイッチの2系統のスイッチに接続される
+# K8sクラスタ用IFが接続されたスイッチのネットワークは以下を使用する
+#  IPv4: 192.168.40.0
+#  IPv6: fd69:6684:61a:3::
+#
+# 管理系IF経由で外部に出す方針のため, メトリクスは管理系より高めに設定
+# 管理系IF, K8sネットワークともインターフェース名を固定するために,
+# macにそれぞれのIFのMACアドレスを指定
+# (MACアドレスを指定すると.linkファイルによるインターフェース名固定処理が
+# 実施される)
+netif_list:
+  - netif: "ens160"
+    mac: "00:0c:29:96:d3:9e"
+    static_ipv4_addr: "192.168.20.52"
+    network_ipv4_prefix_len: 24
+    static_ipv6_addr: "fd69:6684:61a:1::52"
+    network_ipv6_prefix_len: 64
+    gateway4: "{{gateway4}}"
+    gateway6: "{{gateway6}}"
+    ignore_auto_ipv4_dns: true
+    ignore_auto_ipv6_dns: true
+    name_server_ipv4_1: "{{ipv4_name_server1}}"
+    name_server_ipv4_2: "{{ipv4_name_server2}}"
+    name_server_ipv6_1: "{{ipv6_name_server1}}"
+    name_server_ipv6_2: "{{ipv6_name_server2}}"
+    dns_search: "example.com"
+  - netif: "ens194"
+    mac: "00:0c:29:96:d3:a8"
+    static_ipv4_addr: "192.168.40.52"
+    network_ipv4_prefix_len: 24
+    static_ipv6_addr: "fd69:6684:61a:3::52"
+    network_ipv6_prefix_len: 64
+    ignore_auto_ipv4_dns: true
+    ignore_auto_ipv6_dns: true
+    name_server_ipv4_1: "{{ipv4_name_server1}}"
+    name_server_ipv4_2: "{{ipv4_name_server2}}"
+    name_server_ipv6_1: "{{ipv6_name_server1}}"
+    name_server_ipv6_2: "{{ipv6_name_server2}}"
+    route_metric_ipv4: 300
+    route_metric_ipv6: 300
+    dns_search: "example.com"

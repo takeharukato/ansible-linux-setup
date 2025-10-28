@@ -1,0 +1,57 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  Swap設定無効化タスク
+#
+
+# /etc/fstab の swap 行を全部コメントアウト（既に # の行は触らない）
+- name: Comment out all swap entries in /etc/fstab
+  ansible.builtin.replace:
+    path: /etc/fstab
+    # 非コメント行で, 第3フィールドが 'swap' の行を丸ごとマッチ
+    regexp: '^(?!#)(\S+\s+\S+\s+swap\s+.*)$'
+    replace: '#\1'
+    backup: true
+
+# 有効なswap があることを確認
+- name: Count active swap devices
+  ansible.builtin.command: awk 'NR>1{c++} END{print c+0}' /proc/swaps
+  register: swap_active_count
+  changed_when: false
+
+# アクティブなswapがあれば即時無効化
+- name: Swapoff (runtime)
+  ansible.builtin.command: swapoff -a
+  when: swap_active_count.stdout | int > 0
+  changed_when: true
+
+# zram ベースの swap (.swap ユニット)があれば停止, 無効化
+- name: List systemd swap units (e.g., dev-zram0.swap)
+  ansible.builtin.shell: |
+    systemctl list-units --type=swap --all --no-legend | awk '{print $1}'
+  register: swap_units
+  changed_when: false
+  failed_when: false
+
+- name: Stop & mask zram swap units
+  ansible.builtin.systemd:
+    name: "{{ item }}"
+    state: stopped
+    enabled: false
+    masked: true
+  loop: "{{ (swap_units.stdout_lines | default([],true)) | select('match', '^dev-zram.*\\.swap$') | list }}"
+  when: swap_units.stdout is defined and (swap_units.stdout | length) > 0
+  failed_when: false
+
+# 念のため, スワップしないチューニング：vm.swappiness=0
+- name: Set vm.swappiness=0 persistently
+  ansible.builtin.lineinfile:
+    path: /etc/sysctl.d/99-disable-swap.conf
+    create: true
+    line: 'vm.swappiness = 0'
+
+# 設定を反映
+- name: Apply sysctl
+  ansible.builtin.command: sysctl --system
+  changed_when: false

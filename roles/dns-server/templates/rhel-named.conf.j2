@@ -1,0 +1,19 @@
+      // Minimal, clean named.conf for RHEL family
+
+      logging {
+          channel default_debug {
+              file "data/named.run";
+              severity dynamic;
+          };
+      };
+
+      zone "." IN {
+          type hint;
+          file "named.ca";
+      };
+
+      // All options live in: {{dns_bind_options_conf_path}}
+      include "{{dns_bind_options_conf_path}}";
+
+      include "/etc/named.rfc1912.zones";
+      include "/etc/named.root.key";

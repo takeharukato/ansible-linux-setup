@@ -1,0 +1,33 @@
+key "{{dns_ddns_key_name}}" {
+        algorithm hmac-sha256;
+        secret "{{dns_ddns_key_secret}}";
+};
+
+// === 順引き(forward) ===
+zone "{{dns_domain}}" IN {       // ""内にドメイン名を記載
+        type    master;
+        file    "{{dns_bind_zone_dir}}/db.{{dns_domain}}";
+        update-policy {
+                // ゾーン配下の A/AAAA を 更新可能にする
+                grant ddns-clients zonesub ANY A AAAA;
+        };
+
+};
+
+// === 逆引き IPv4 (/24) ===
+zone "{{dns_ipv4_reverse}}.in-addr.arpa" IN {
+        type    master;
+        file    "{{dns_bind_zone_dir}}/db.{{dns_ipv4_reverse}}";
+        update-policy {
+                grant ddns-clients zonesub ANY PTR;
+        };
+};
+
+// === 逆引き IPv6 (/64) ===
+zone "{{dns_ipv6_reverse}}.ip6.arpa" IN {
+        type    master;
+        file    "{{dns_bind_zone_dir}}/db.{{dns_network_ipv6_prefix_filename}}";
+        update-policy {
+                grant ddns-clients zonesub ANY PTR;
+        };
+};

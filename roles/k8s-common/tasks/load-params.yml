@@ -1,0 +1,23 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  設定関連タスク
+#
+
+- name: include ubuntu package names
+  include_vars: ../vars/packages-ubuntu.yml
+  when: ansible_facts.os_family == 'Debian'
+
+- name: include RHEL package names
+  include_vars: ../vars/packages-rhel.yml
+  when: ansible_facts.os_family == 'RedHat'
+
+- name: include cross-distro.yml
+  include_vars: ../vars/cross-distro.yml
+
+- name: include config vars
+  include_vars: ../vars/all-config.yml
+
+- name: include k8s api address vars
+  include_vars: ../vars/k8s-api-address.yml

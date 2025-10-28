@@ -1,0 +1,10 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+
+- name: named_check_conf  # notify の named_check_conf に対応
+  listen: "named_check_conf"
+  shell: |
+      named-checkconf -z
+  become: true

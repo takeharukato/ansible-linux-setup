@@ -1,0 +1,63 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  Ubuntu固有リポジトリ関連タスク
+#
+
+# Ubuntu deb822 ソースを設定する
+- name: Configure Ubuntu deb822 sources
+  vars:
+    suite: "{{ ansible_distribution_release }}"
+  block:
+    - name: main
+      ansible.builtin.deb822_repository:
+        name: "ubuntu-main"
+        types: "deb"
+        uris: "{{ ubuntu_archive_uris | default(['http://archive.ubuntu.com/ubuntu/']) }}"
+        suites: "{{ suite }}"
+        components:
+          - "main"
+          - "universe"
+        enabled: "{{ repo_enable_main }}"
+        signed_by: "{{ ubuntu_archive_keyring }}"
+      notify: "apt update"
+
+    - name: updates
+      ansible.builtin.deb822_repository:
+        name: "ubuntu-updates"
+        types: "deb"
+        uris: "{{ ubuntu_archive_uris | default(['http://archive.ubuntu.com/ubuntu/']) }}"
+        suites: "{{ suite }}-updates"
+        components:
+          - "main"
+          - "universe"
+        enabled: "{{ repo_enable_updates|bool }}"
+        signed_by: "{{ ubuntu_archive_keyring }}"
+      notify: "apt update"
+
+    - name: security
+      ansible.builtin.deb822_repository:
+        name: "ubuntu-security"
+        types: "deb"
+        uris: "{{ ubuntu_security_uris | default(['http://security.ubuntu.com/ubuntu/']) }}"
+        suites: "{{ suite }}-security"
+        components:
+          - "main"
+          - "universe"
+        enabled: "{{ repo_enable_security|bool }}"
+        signed_by: "{{ ubuntu_archive_keyring }}"
+      notify: "apt update"
+
+    - name: backports
+      ansible.builtin.deb822_repository:
+        name: "ubuntu-backports"
+        types: "deb"
+        uris: "{{ ubuntu_backports_uris | default(['http://archive.ubuntu.com/ubuntu/']) }}"
+        suites: "{{ suite }}-backports"
+        components:
+          - "main"
+          - "universe"
+        enabled: "{{ repo_enable_backports|bool }}"
+        signed_by: "{{ ubuntu_archive_keyring }}"
+      notify: "apt update"

@@ -1,0 +1,13 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  パッケージ関連処理
+#
+#
+# - name: Install nfs-kernel-server packages
+#   package:
+#     pkg:
+#       - nfs-kernel-server
+#     state: latest
+#   notify: disable_gui

@@ -1,0 +1,14 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  パッケージ関連処理
+#
+# ldap utilsのパッケージをインストール
+- name: Install ldap utils packages
+  package:
+    pkg:
+      '{{ ldap_utils_packages }}'
+    state: latest
+  environment:
+    DEBIAN_FRONTEND: noninteractive

@@ -1,0 +1,438 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+
+# VMWareを使用する場合はtrueに設定する
+use_vmware: true
+
+# ノード設定後に再起動するための指示
+force_reboot: false
+
+# タイムゾーン
+common_timezone: "Asia/Tokyo"
+
+# cronメールを無効にする
+common_disable_cron_mails: true
+
+# SE Linux の設定
+# 'enforcing', 'permissive', 'disabled' のいずれかを指定
+common_selinux_state: "permissive"
+
+#
+# Firewall設定
+#
+enable_firewall: false
+
+#
+# ユーザ設定
+#
+users_list:
+  - { name: 'user1', group: 'user1', password: "{{ 'user1'|password_hash('sha512') }}", update_password: 'on_create', shell: "/bin/zsh", home: "/home/user1", comment: 'Sample User', email: "user1@example.org", github: 'sampleuser' }
+
+#
+# sudoers設定
+#
+# 無パスワード sudo を許可するユーザ / 追加グループ
+# 例: ['alice', 'bob']
+sudo_nopasswd_users: ['user1']
+# 例: ['adm', 'cdrom', 'sudo', 'dip', 'plugdev', 'lxd', 'systemd-journal']
+sudo_nopasswd_groups_extra: ['adm', 'cdrom', 'sudo', 'dip', 'plugdev', 'lxd', 'systemd-journal']
+# 自動検出（存在する方だけ採用：Debian/Ubuntu=sudo, RHEL/Alma=wheel）
+sudo_nopasswd_groups_autodetect: true
+# 生成ではなく削除（ロールバック）したい場合は true
+sudo_nopasswd_absent: false
+
+#
+# ネットワーク設定
+#
+
+# ルータ設定
+router_host: 'router'
+router_ipv4_prefix: "192.168.20"
+router_ipv4_addr_octet: "1"
+router_ipv4_address: "{{router_ipv4_prefix}}.{{router_ipv4_addr_octet}}"
+router_ipv6_prefix: "fd69:6684:61a:1::"
+router_ipv6_addr_field: "1"
+router_ipv6_address: "{{router_ipv6_prefix}}{{router_ipv6_addr_field}}"
+
+# 管理サーバ設定
+devserver_ipv4_addr_octet: "11"
+devserver_ipv6_addr_field: "11"
+devserver_ipv4_address: "{{router_ipv4_prefix}}.{{devserver_ipv4_addr_octet}}"
+devserver_ipv6_address: "{{router_ipv6_prefix}}{{devserver_ipv6_addr_field}}"
+
+#
+# 物理サーバ/管理用VMネットワークの設定
+#
+# 物理サーバ/管理用VMネットワークのIPv4ネットワークプレフィクス長
+network_ipv4_prefix_len: 24
+# 物理サーバ/管理用VMネットワークのIPv6ネットワークプレフィクス長
+network_ipv6_prefix_len: 64
+# 物理サーバ/管理用VMネットワークのIPv4ネットワークのプレフィクスアドレス
+network_ipv4_prefix: "{{router_ipv4_prefix}}"
+# 物理サーバ/管理用VMネットワークのIPv6ネットワークのプレフィクスアドレス
+network_ipv6_prefix: "{{router_ipv6_prefix}}"
+# 物理サーバ/運用系用VMネットワークのIPv6ネットワークのプレフィクス
+network_ipv6_prefix_extra: "fd69:6684:61a:2::"
+# 物理サーバ/管理用VMネットワークのIPv4ネットワークアドレス
+network_ipv4_network_address: "{{router_ipv4_prefix}}.0"
+# 物理サーバ/管理用VMネットワークのIPv6ネットワークアドレス
+network_ipv6_network_address: "{{router_ipv6_prefix}}"
+# 物理サーバ/管理用VMネットワークのIPv4/Gatewayアドレス
+gateway4: "{{router_ipv4_address}}"
+# 物理サーバ/管理用VMネットワークのIPv6/Gatewayアドレス
+gateway6: "{{router_ipv6_address}}"
+
+# 管理用VMデフォルトのネットワークインターフェース
+mgmt_nic: "ens160"
+
+
+#
+# クライアントのDNSサーバの設定
+#
+# ipv4_name_server1, ipv4_name_server2の両方を設定した場合は両方設定される
+# ipv4_name_server1, ipv4_name_server2のいずれか一方のみを設定した場合は, その1つのみ設定される
+# ipv4_name_server1, ipv4_name_server2のいずれも設定しなかった場合は, DHCPで取得したDNSサーバが設定される
+# 注意:systemd-resolvedがLAN内のドメイン名を外部のDNS(フォールバックDNS)に問い合わせに行かないようにするため
+# ipv4_name_server1, ipv4_name_server2にはLAN内のDNSサーバを設定する。
+#
+# 外部のDNSサーバへの問い合わせは, DNSサーバ内でフォワーダとして設定する。
+#
+# DNSサーバのIPv4アドレス
+ipv4_name_server1: "{{devserver_ipv4_address}}"
+# DNSサーバのIPv4アドレス(代替)
+ipv4_name_server2: "{{router_ipv4_address}}"
+# DNSサーバのIPv6アドレス
+ipv6_name_server1: "{{devserver_ipv6_address}}"
+# DNSサーバのIPv6アドレス(代替)
+# CloudflareのパブリックDNSリゾルバ
+ipv6_name_server2: "2606:4700:4700::1111"
+# DNSサーチドメイン (;で区切って指定)
+# 例: example.com;sub.example.com
+dns_search: "example.org"
+
+#
+# DNSレコード設定
+# IPv6 AAAAレコード対応は未
+#
+dns_host_list:
+  - { name: "{{ router_host }}",  ipv4_addr: '{{router_ipv4_addr_octet}}'}
+  - { name: 'devserver', ipv4_addr: '{{devserver_ipv4_addr_octet}}'}
+  - { name: 'nas', ipv4_addr: '31'}
+
+#
+# multicast DNS (mDNS) ホスト名登録設定
+#
+mdns_host_list:
+  - { name: 'vmlinux1'}
+  - { name: 'vmlinux2'}
+  - { name: 'vmlinux3'}
+  - { name: 'vmlinux4'}
+  - { name: 'vmlinux5'}
+
+
+#
+# NTPクライアントの設定
+#
+
+ntp_servers_list:
+  - "{{devserver_ipv4_address}}"
+
+#
+# DNSサーバの設定
+#
+# DNSサーバ名
+dns_server: "devserver.example.org"
+# DNSサーバのIPv4アドレス
+dns_server_ipv4_address: "{{devserver_ipv4_address}}"
+# DNSサーバのIPv6アドレス (未使用)
+dns_server_ipv6_address: "{{devserver_ipv6_address}}"
+# ドメイン名
+dns_domain: "example.org"
+# namedのACLに設定するIPv4ネットワークアドレス
+dns_network: "{{ network_ipv4_network_address }}"
+# ネットワークプレフィクス(IPv4)
+# 設定例: 192.168.20
+# 上記の後にドットをつけて, 固定IPアドレスのDNS登録を行うため,
+# 末尾にドットなどを付けないこと
+dns_network_ipv4_prefix: "{{ network_ipv4_prefix }}"
+# ネットワークプレフィクス長(IPv4)
+dns_network_ipv4_prefix_len: "{{ network_ipv4_prefix_len }}"
+# ネットワークプレフィクス(IPv6)
+dns_network_ipv6_prefix: "{{ network_ipv6_network_address }}"
+# ネットワークプレフィクス長(IPv6)
+dns_network_ipv6_prefix_len: "{{ network_ipv6_prefix_len }}"
+
+# IPv6逆引きファイル名
+dns_network_ipv6_prefix_filename: "fd69-6684-61a-1"
+# 逆引きネットワーク(IPv4)
+dns_ipv4_reverse: "20.168.192"
+# 逆引きネットワーク(IPv6)
+dns_ipv6_reverse: "1.0.0.0.a.1.6.0.4.8.6.6.9.6.d.f"
+# Dynamic DNS update key secret
+# 生成コマンド例:
+# ddns-confgen -a hmac-sha256 -k ddns-clients
+dns_ddns_key_secret: "Kdi362s+dCkToqo4F+JfwMK6yILQyn1mrqI1xfGqDfk="
+
+# Dynamic DNSによるホスト名登録機能の有効化
+# ip monitorコマンドでIPv6アドレス変更を監視する機能と
+# Network Manager dispatcher経由でDynamic DNSでホスト名と
+# IPアドレスをDNSに自動登録する機能を有効にする場合はtrueに設定する
+use_nm_ddns_update_scripts: true
+
+#
+# NFSサーバ
+#
+
+# NFSで公開するディレクトリ
+nfs_export_directory: "/home/nfsshare"
+# NFSのクライアントアドレス(ネットワークアドレスを指定)
+nfs_network: "{{ network_ipv4_network_address }}/{{ network_ipv4_prefix_len }}"
+# NFS exportのオプション
+nfs_options: "rw,no_root_squash,sync,no_subtree_check,no_wdelay"
+
+#
+#NTPサーバ
+#
+external_ntp_servers_list:
+  - ntp.nict.jp
+  - jp.pool.ntp.org
+  - ntp.jst.mfeed.ad.jp
+  - ntp.ring.gr.jp
+  - time.google.com
+ntp_allow: "{{ network_ipv4_network_address }}/{{ network_ipv4_prefix_len }}"
+
+#
+#プロキシ設定
+#
+no_proxy: ""
+proxy_server: ""
+proxy_port: ""
+proxy_user: ""
+proxy_password: ""
+
+#
+# Rancher
+#
+rancher_host: "rancher01"
+rancher_cert_domain_name: "example.org"
+rancher_cert_subject_country: ""
+rancher_cert_subject_state: ""
+rancher_cert_subject_locality: ""
+rancher_cert_subject_org: ""
+
+
+#
+# Docker Community Edition
+#
+
+# docker利用ユーザリスト
+docker_ce_users:
+  - user1
+
+#
+# コンテナイメージのバックアップ設定
+#
+# NFSマウントは以下のように行われる。
+#   mount -t nfs {{docker_ce_backup_nfs_server}}:{{docker_ce_backup_nfs_dir}} {{ docker_ce_backup_mount_point }}
+#  例:
+#   docker_ce_backup_nfs_server: "nas.example.org"
+#   docker_ce_backup_nfs_dir: "/share"
+#   docker_ce_backup_mount_point: "/mnt"
+#   上記の場合は以下のようにマウントされる
+#   mount -t nfs nas.example.org:/share /mnt
+#  その後, コンテナイメージのバックアップは, マウントポイント配下の
+#  以下のバックアップ配置先ディレクトリに保存される。
+#   {{ docker_ce_backup_mount_point }}{{ docker_ce_backup_dir_on_nfs }}
+#  例:
+#   docker_ce_backup_mount_point: "/mnt"
+#   docker_ce_backup_dir_on_nfs: "/Linux/containers"
+#  上記の場合は, /mnt/Linux/containers 配下にバックアップされる
+#
+
+# デイリーバックアップの世代数
+docker_ce_backup_rotation: "5"
+# コンテナイメージのデイリーバックアップ時にマウントするNFSサーバ
+docker_ce_backup_nfs_server: "nas.example.org"
+# マウントする共有ディレクトリ
+docker_ce_backup_nfs_dir: "/share"
+# デイリーバックアップ時のNFSマウントポイント(NFSのマウント/アンマウント時に使用)
+docker_ce_backup_mount_point: "/mnt"
+# デイリーバックアップ時のNFSマウントポイント配下のバックアップ配置先ディレクトリ
+docker_ce_backup_dir_on_nfs: "/Linux/containers"
+
+#
+# ホームディレクトリのバックアップ
+#
+# NFSマウントは以下のように行われる。
+#   mount -t nfs {{user_settings_backup_home_nfs_server}}:{{user_settings_backup_home_nfs_dir}} {{ user_settings_backup_home_mount_point }}
+#  例:
+#   user_settings_backup_home_nfs_server: "nas.example.org"
+#   user_settings_backup_home_nfs_dir: "/share"
+#   user_settings_backup_home_mount_point: "/mnt"
+#   上記の場合は以下のようにマウントされる
+#   mount -t nfs nas.example.org:/share /mnt
+#  その後, ホームディレクトリのバックアップは, マウントポイント配下の
+#  以下のバックアップ配置先ディレクトリに保存される。
+#   {{ user_settings_backup_home_mount_point }}{{ user_settings_backup_dir_on_nfs }}
+#  例:
+#   user_settings_backup_home_mount_point: "/mnt"
+#   user_settings_backup_dir_on_nfs: "/Linux/Devel"
+#  上記の場合は, /mnt/Linux/Devel 配下にバックアップされる
+#  ファイル名は, home-{{ user_settings_backup_users_list.item }}-ホスト名-世代数.tar.xz となる
+#  例:
+#     ユーザ user1, ホスト名 devserver, 世代数 0の場合: home-user1-devserver-0.tar.xz
+#
+# バックアップ世代数
+user_settings_backup_home_rotation: 2
+# マウントするNFSサーバ
+user_settings_backup_home_nfs_server: "nas.example.org"
+# マウントする共有ディレクトリ
+user_settings_backup_home_nfs_dir: "/share"
+# デイリーバックアップ時のNFSマウントポイント(NFSのマウント/アンマウント時に使用)
+user_settings_backup_home_mount_point: "/mnt"
+# デイリーバックアップ時のNFSマウントポイント配下のバックアップ配置先ディレクトリ
+user_settings_backup_dir_on_nfs: "/Linux/Devel"
+# バックアップ対象ユーザ
+user_settings_backup_users_list:
+    - user1
+
+#
+# LDAP
+#
+# LDAPの組織名
+ldap_organization: "user1-private"
+# LDAPのドメイン名
+ldap_domain: "example.org"
+# LDAP管理者のパスワード
+ldap_admin_password: "ldap"
+# LDAP管理WEB画面ポート番号
+ldap_admin_port: 10443
+
+#
+# Redmine
+#
+# デイリーバックアップ関連設定
+# NFSマウントは以下のように行われる。
+#   mount -t nfs {{redmine_backup_nfs_server}}:{{redmine_backup_nfs_dir}} {{ redmine_backup_mount_point }}
+#  例:
+#   redmine_backup_nfs_server: "nas.example.org"
+#   redmine_backup_nfs_dir: "/share"
+#   redmine_backup_mount_point: "/mnt"
+#   上記の場合は以下のようにマウントされる
+#   mount -t nfs nas.example.org:/share /mnt
+#  その後, Redmineのデイリーバックアップは, マウントポイント配下の
+#  以下のバックアップ配置先ディレクトリに保存される。
+#   {{ redmine_backup_mount_point }}{{ redmine_backup_dir_on_nfs }}
+#  例:
+#   redmine_backup_mount_point: "/mnt"
+#   redmine_backup_dir_on_nfs: "/Linux/Redmine"
+#  上記の場合は, /mnt/Linux/Redmine 配下にバックアップされる。
+#  ファイル名は,
+#   Redmineの添付ファイルバックアップ: redmine_files-世代数.tgz
+#   Redmineのデータベースバックアップ: redmine.dump-世代数.gz
+#  となる。
+#  例:
+#    世代数 0の場合:
+#      Redmineの添付ファイルバックアップ: redmine_files-0.tgz
+#      Redmineのデータベースバックアップ: redmine.dump-0.gz
+#
+# バックアップ世代数
+redmine_backup_rotation: 7
+# マウントするNFSサーバ
+redmine_backup_nfs_server: "nas.example.org"
+# マウントする共有ディレクトリ
+redmine_backup_nfs_dir: "/share"
+# デイリーバックアップ時のNFSマウントポイント(NFSのマウント/アンマウント時に使用)
+redmine_backup_mount_point: "/mnt"
+# NFSマウントポイント配下のRedmineバックアップ配置先ディレクトリ
+redmine_backup_dir_on_nfs: "/Linux/Redmine"
+
+#
+# emacsのパッケージ(ユーザ毎にインストールする)
+#
+create_user_emacs_package_list:
+  - docker
+  - dockerfile-mode
+  - docker-compose-mode
+  - tramp-container
+  - counsel-tramp
+  - rust-mode
+  - csharp-mode
+  - auctex
+  - cmake-mode
+  - migemo
+  - plantuml-mode
+  - yaml-mode
+
+#
+# Kubernetes
+#
+# Kubernetes バージョン (先頭にvをつけないこと)
+k8s_major_minor: "1.31"
+
+# 物理MAC: 04:92:26:c1:b5:d2 からIPv6 Unique Local Addressを生成
+# 参考) https://yoshi0808.github.io/new-technology/2020/04/18/ipv6/
+#    https://www.jdoodle.com/a/20tR を使用して生成
+# ULA Prefix        -> fdb6:6e92:3cfb::/48
+# First Subnet      -> fdb6:6e92:3cfb::/64
+# Last Subnet       -> fdb6:6e92:3cfb:ffff::/64
+# First IPv6 Address-> fdb6:6e92:3cfb::1/64
+# PodネットワークのIPv4/IPv6 CIDR設定は, host_varsに記載すること
+# 例:
+#   k8s_pod_ipv4_network_cidr: "10.244.0.0/16"
+#   k8s_pod_ipv6_network_cidr: "fdb6:6e92:3cfb::/56"
+
+# K8sサービスネットワークのIPv4/IPv6 CIDR設定
+k8s_pod_ipv4_service_subnet: "10.245.0.0/16"
+k8s_pod_ipv6_service_subnet: "fdb6:6e92:3cfb:feed::/112"
+# システム予約CPU値 (未定義時はシステムCPUを予約しない)
+k8s_reserved_system_cpus_default: "0-1"
+# NodePort を使うなら true（使わないなら false）
+k8s_worker_enable_nodeport: false
+# NodePort のポート範囲
+k8s_worker_nodeport_range: "30000-32767"
+# k8sの各ノードへログインするために使用する公開鍵を得るためのgithubアカウントのリスト
+k8s_operator_github_key_list:
+  - { github: 'sampleuser' }
+
+#
+# Cilium
+#
+# Cilium CNIのバージョン
+k8s_cilium_version: "1.16.0"
+# Cilium Helm Chartのバージョン
+k8s_cilium_helm_chart_version: "{{ k8s_cilium_version }}"
+# Ciliumコンテナイメージのバージョン
+k8s_cilium_image_version: "v{{ k8s_cilium_version }}"
+
+#
+# Multus CNI
+#
+# Multus CNIのバージョン
+k8s_multus_version: "4.2.2"
+# Multus Helm Chartのバージョン
+k8s_multus_helm_chart_version: "1.0.1"
+# Multusコンテナイメージのバージョン
+k8s_multus_image_version: "{{ k8s_multus_version }}"
+
+#
+# Whereabouts CNI
+#
+# Whereabouts CNIのバージョン
+k8s_whereabouts_version: "0.9.2"
+# Whereabouts Helm Chartのバージョン
+k8s_whereabouts_helm_chart_version: "{{ k8s_whereabouts_version }}"
+# Whereaboutsコンテナイメージのバージョン
+k8s_whereabouts_image_version: "{{ k8s_whereabouts_version }}"
+
+#
+# Netgauge
+#
+# Netgaugeのバージョン
+netgauge_version: "2.4.6"
+# Netgaugeインストールディレクトリ
+netgauge_dir: "/opt/netgauge"
+# Netgauge configureオプション
+netgauge_configure: "--with-mpi=no --prefix={{ netgauge_dir }}"

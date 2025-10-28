@@ -1,0 +1,53 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#  sysctl関連タスク
+
+# ユーザ資格でのptrace有効化
+- name: "Enable ptrace from user processes"
+  lineinfile:
+    path: /etc/sysctl.d/10-ptrace.conf
+    regexp: '^\s*kernel.yama.ptrace_scope\s*=.*'
+    line: 'kernel.yama.ptrace_scope = 0'
+  when:
+    - ansible_facts.os_family == "Debian"
+
+# ユーザ資格でのdmesg有効化
+- name: "Enable dmesg from user processes"
+  lineinfile:
+    path: /etc/sysctl.d/10-kernel-hardening.conf
+    regexp: '^\s*kernel.dmesg_restrict\s*=.*'
+    line: 'kernel.dmesg_restrict=0'
+  when:
+    - ansible_facts.os_family == "Debian"
+
+# ユーザ資格での ptrace を有効化する (RHEL)
+- name: Enable ptrace from user processes (RHEL)
+  ansible.builtin.sysctl:
+    name: kernel.yama.ptrace_scope
+    value: "0"
+    state: present
+    sysctl_file: /etc/sysctl.d/10-ptrace.conf
+    reload: yes
+    ignoreerrors: yes  # カーネルによっては当該 sysctl が未提供の場合があるため
+  when: ansible_facts.os_family == "RedHat"
+
+# ユーザ資格での dmesg を有効化する (RHEL)
+- name: Enable dmesg from user processes (RHEL)
+  ansible.builtin.sysctl:
+    name: kernel.dmesg_restrict
+    value: "0"
+    state: present
+    sysctl_file: /etc/sysctl.d/10-kernel-hardening.conf
+    reload: yes
+    ignoreerrors: yes  # カーネルによっては当該 sysctl が未提供の場合があるため
+  when: ansible_facts.os_family == "RedHat"
+
+# ファイル監視
+- name: "Enlarge file observation limit"
+  lineinfile:
+    path: /etc/sysctl.d/99-sysctl.conf
+    regexp: '^\s*fs.inotify.max_user_watches\s*=.*'
+    line: 'fs.inotify.max_user_watches=524288'
+  when:
+    - ansible_facts.os_family in ["Debian", "RedHat"]

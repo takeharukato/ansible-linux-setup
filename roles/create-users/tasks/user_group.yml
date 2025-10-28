@@ -1,0 +1,88 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#  ユーザ・グループ作成関連タスク
+# 例:
+
+# グループ作成
+- name: Create group
+  ansible.builtin.group:
+    name: "{{ item.group }}"
+    state: present
+  with_items:
+    - "{{ users_list }}"
+  become: true
+
+# ユーザ作成
+- name: Create user
+  user:
+    name: "{{ item.name }}"
+    password: "{{ item.password }}"
+    group: "{{ item.group }}"
+    groups:
+      - "{{ item.group }}"
+    comment:  "{{ item.comment }}"
+    home:  "{{ item.home }}"
+    shell: "{{ item.shell }}"
+  with_items:
+    - "{{ users_list }}"
+  when:
+    - users_list is defined
+
+# authorized_key
+- name: Import authorized key from GitHub
+  shell: |
+    curl -fsSL https://github.com/"{{ item.github }}".keys|sudo -u "{{ item.name }}" tee -a "{{ item.home }}"/.ssh/authorized_keys
+    cat "{{ item.home }}"/.ssh/authorized_keys|sort|uniq|sudo -u "{{ item.name }}" tee "{{ item.home }}"/.ssh/authorized_keys.tmp
+    sudo -u "{{ item.name }}" mv "{{ item.home }}"/.ssh/authorized_keys.tmp "{{ item.home }}"/.ssh/authorized_keys
+    sudo chmod 600 "{{ item.home }}"/.ssh/authorized_keys
+    sudo chown "{{ item.name }}:{{ item.group }}" "{{ item.home }}"/.ssh/authorized_keys
+  with_items:
+    - "{{ users_list }}"
+  when:
+    - users_list is defined
+  become: true
+
+# .gitconfig
+- name: .gitconfig for user
+  template:
+    src: _gitconfig.j2
+    dest: "{{ item.home }}/.gitconfig"
+    owner: "{{ item.name }}"
+    group: "{{ item.name }}"
+    backup: no
+  with_items:
+    - "{{ users_list }}"
+  when:
+    - users_list is defined
+  become: true
+
+# docker groupが存在することを確認
+- name: Ensure group "docker" exists
+  ansible.builtin.group:
+    name: docker
+    state: present
+
+# ユーザをdockerグループに追加
+- name: Add users into docker group
+  shell: |
+    usermod -aG docker '{{ item.name }}'
+  with_items:
+    - "{{ users_list }}"
+  become: true
+  ignore_errors: true
+
+# 管理系グループを作成しておく ( 存在していれば無変更）
+- name: Ensure admin groups exist
+  ansible.builtin.group:
+    name: "{{ item }}"
+    state: present
+  loop: "{{ adm_groups }}"
+
+# 各ユーザを adm_groups のすべてに所属させる ( 既存の所属は保持 )
+- name: Ensure users are members of admin groups
+  ansible.builtin.user:
+    name: "{{ item.name }}"
+    groups: "{{ adm_groups | join(',') }}"
+    append: yes
+  loop: "{{ users_list }}"

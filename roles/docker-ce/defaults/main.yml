@@ -1,0 +1,23 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#  ロール固有変数のデフォルト値
+#  group_vars/all/all.yml やhost_varsで上書き可能とするため,
+#  ロール名/defaults/main.yml に定義している
+---
+# デイリーバックアップの世代数
+docker_ce_backup_rotation: "5"
+# デイリーバックアップ時のNFSマウントポイント(NFSのマウント/アンマウント時に使用)
+docker_ce_backup_mount_point: "/mnt"
+# マウントする共有ディレクトリ
+docker_ce_backup_nfs_dir: "/share"
+# デイリーバックアップ時のNFSマウントポイント配下のバックアップ配置先ディレクトリ
+docker_ce_backup_dir_on_nfs: "/containers/docker-ce/daily-backup"
+# デイリーバックアップ時のNFSマウントポイント配下のバックアップ配置先ディレクトリ
+docker_ce_backup_output_dir: "{{docker_ce_backup_mount_point}}{{ docker_ce_backup_dir_on_nfs }}"
+# バックアップ用コンテナイメージ名
+docker_ce_backup_container_image_name: "local-boombatower-docker-backup"
+# バックアップ用コンテナイメージ
+docker_ce_backup_container_image: "{{ docker_ce_backup_container_image_name }}:latest"
+# docker fileの場所
+docker_ce_backup_dockerfile_dir: "/usr/local/share/docker-backup"

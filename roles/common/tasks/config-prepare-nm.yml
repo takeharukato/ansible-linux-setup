@@ -1,0 +1,187 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#
+#  ネットワーク設定 (NetworkManager 導入と有効化)
+#
+
+# NetworkManagerのインストール
+- name: Ensure NetworkManager installed (Debian/Ubuntu)
+  package:
+    name: network-manager
+    state: present
+  when: ansible_facts.os_family == "Debian"
+
+# NetworkManagerの有効化と起動
+- name: Enable & start NetworkManager (Ubuntu)
+  systemd:
+    name: NetworkManager
+    state: started
+    enabled: true
+    daemon_reload: true
+  when: ansible_facts.os_family == "Debian"
+
+# facts 取得
+- name: Gather service facts
+  service_facts:
+
+# systemd-networkd の wait-online だけを止める
+- name: "Disable/mask systemd-networkd-wait-online service"
+  systemd:
+    name: systemd-networkd-wait-online.service
+    enabled: false
+    masked: true
+    # state は明示しない
+  when:
+    - ansible_facts.os_family == "Debian"
+    - ansible_facts.services['systemd-networkd-wait-online.service'] is defined
+
+# network-online.target の wants からsystemd-networkd-wait-online.service へのリンクを除去
+- name: Ensure network-online target does not want networkd wait-online
+  file:
+    path: /etc/systemd/system/network-online.target.wants/systemd-networkd-wait-online.service
+    state: absent
+  when: ansible_facts.os_family == "Debian"
+
+# networkd は “起動中のまま” で enable を落とす
+- name: Disable systemd-networkd
+  systemd:
+    name: systemd-networkd.service
+    enabled: false
+  when:
+    - ansible_facts.os_family == "Debian"
+    - ansible_facts.services['systemd-networkd.service'] is defined
+
+#
+# RHEL系の場合のネットワーク設定
+#
+
+# NetworkManagerのインストール
+- name: Ensure NetworkManager installed (RedHat)
+  package:
+    name: NetworkManager
+    state: present
+  when:
+    - ansible_facts.os_family == "RedHat"
+
+# NetworkManagerの有効化と起動
+- name: Stop/disable legacy network-scripts (RHEL legacy)
+  systemd:
+    name: network
+    state: stopped
+    enabled: false
+  when:
+    - ansible_facts.os_family == "RedHat"
+  ignore_errors: true
+
+# ディレクトリは root:root 0700 が推奨
+- name: Ensure system-connections directory exists
+  ansible.builtin.file:
+    path: /etc/NetworkManager/system-connections
+    state: directory
+    owner: root
+    group: root
+    mode: "0700"
+  when:
+    - ansible_facts.os_family == "RedHat"
+
+# 1) /etc/NetworkManager/NetworkManager.conf の有無を確認
+- name: Stat NetworkManager.conf
+  ansible.builtin.stat:
+    path: /etc/NetworkManager/NetworkManager.conf
+  register: nm_conf_stat
+
+# 2) ない場合は最小構成で新規作成（[main] + no-auto-default=*）
+- name: Create minimal NetworkManager.conf with no-auto-default=*
+  ansible.builtin.copy:
+    dest: /etc/NetworkManager/NetworkManager.conf
+    owner: root
+    group: root
+    mode: "0644"
+    backup: true
+    content: |
+      # Managed by Ansible
+      [main]
+      no-auto-default=*
+  when: not nm_conf_stat.stat.exists
+  notify:
+    - "nm_reload_and_activate"
+
+# 3) ある場合：既存ファイルに no-auto-default=* が既にあるか確認
+#    - セクション [main] 内の no-auto-default を抽出
+- name: Read current no-auto-default in [main]
+  ansible.builtin.shell: |
+    awk '
+      BEGIN{ in_main=0 }
+      /^\[/ {
+        in_main = ($0 ~ /^\[main\]/) ? 1 : 0
+      }
+      in_main && /^[[:space:]]*no-auto-default[[:space:]]*=/ {
+        print $0
+      }
+    ' /etc/NetworkManager/NetworkManager.conf
+  args:
+    executable: /bin/bash
+  register: nm_no_auto_line
+  changed_when: false
+  failed_when: false
+  when: nm_conf_stat.stat.exists
+
+# 4) 既に no-auto-default が * を含んでいるなら何もしない
+- name: Set fact whether star already present
+  ansible.builtin.set_fact:
+    _nm_no_auto_has_star: "{{ (nm_no_auto_line.stdout | regex_search('=\\s*\\*')) is not none }}"
+  when: nm_conf_stat.stat.exists
+
+# 5) [main] セクションがあるかどうか判定
+- name: Check if [main] section exists
+  ansible.builtin.shell: "grep -qE '^\\s*\\[main\\]\\s*$' /etc/NetworkManager/NetworkManager.conf"
+  register: nm_has_main
+  changed_when: false
+  failed_when: false
+  when: nm_conf_stat.stat.exists
+
+# 6-a) [main] セクションがあり、かつ * が無い → 末尾に安全に追記
+- name: Append no-auto-default=* into existing [main] section
+  ansible.builtin.blockinfile:
+    path: /etc/NetworkManager/NetworkManager.conf
+    marker: "# {mark} ANSIBLE no-auto-default"
+    insertafter: "^[[:space:]]*\\[main\\][[:space:]]*$"
+    block: |
+      no-auto-default=*
+  when:
+    - nm_conf_stat.stat.exists
+    - nm_has_main.rc == 0
+    - not _nm_no_auto_has_star
+  notify:
+    - "nm_reload_and_activate"
+
+# 6-b) [main] セクション自体が無い → [main] セクションごと追記
+- name: Add [main] section with no-auto-default=*
+  ansible.builtin.blockinfile:
+    path: /etc/NetworkManager/NetworkManager.conf
+    marker: "# {mark} ANSIBLE main section"
+    block: |
+      [main]
+      no-auto-default=*
+  when:
+    - nm_conf_stat.stat.exists
+    - nm_has_main.rc != 0
+  notify:
+    - "nm_reload_and_activate"
+
+#
+# NetworkManagerの設定を更新したらリブート
+#
+
+# マシンをリブートする
+- name: Reboot host gracefully
+  reboot:
+    reboot_timeout: 600
+    msg: "Reboot triggered by role: common"
+    pre_reboot_delay: 2
+
+- name: Wait for connection after reboot
+  wait_for_connection:
+    timeout: 300

@@ -1,0 +1,21 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+# 管理ネットワークのNIC
+mgmt_nic: "ens160"
+netif_list:
+  - netif: "ens160"
+    static_ipv4_addr: "192.168.20.61"
+    network_ipv4_prefix_len: 24
+    static_ipv6_addr: "fd69:6684:61a:1::61"
+    network_ipv6_prefix_len: 64
+    gateway4: "{{gateway4}}"
+    gateway6: "{{gateway6}}"
+    ignore_auto_ipv4_dns: true
+    ignore_auto_ipv6_dns: true
+    name_server_ipv4_1: "{{ipv4_name_server1}}"
+    name_server_ipv4_2: "{{ipv4_name_server2}}"
+    name_server_ipv6_1: "{{ipv6_name_server1}}"
+    name_server_ipv6_2: "{{ipv6_name_server2}}"
+    dns_search: "example.com"

@@ -1,0 +1,69 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  RedHat Enterprise Linuxリポジトリ関連処理
+#
+
+# BaseOS detection
+- name: Detect BaseOS enabled (RHEL)
+  when: ansible_facts.distribution | lower == 'redhat'
+  ansible.builtin.shell: |
+    set -o pipefail
+    subscription-manager repos --list-enabled \
+      | awk -F': *' '/Repo ID:/ {print $2}' \
+      | grep -qx "rhel-{{ ansible_distribution_major_version }}-for-{{ ansible_architecture }}-baseos-rpms"
+  register: baseos_enabled
+  changed_when: false
+  failed_when: false
+
+- name: Enable BaseOS (RHEL)
+  when:
+    - ansible_facts.distribution | lower == 'redhat'
+    - repo_enable_base
+    - baseos_enabled.rc != 0
+  ansible.builtin.command:
+    cmd: "subscription-manager repos --enable=rhel-{{ ansible_distribution_major_version }}-for-{{ ansible_architecture }}-baseos-rpms"
+  notify: "rpm makecache"
+
+# AppStream detection
+- name: Detect AppStream enabled (RHEL)
+  when: ansible_facts.distribution | lower == 'redhat'
+  ansible.builtin.shell: |
+    set -o pipefail
+    subscription-manager repos --list-enabled \
+      | awk -F': *' '/Repo ID:/ {print $2}' \
+      | grep -qx "rhel-{{ ansible_distribution_major_version }}-for-{{ ansible_architecture }}-appstream-rpms"
+  register: appstream_enabled
+  changed_when: false
+  failed_when: false
+
+- name: Enable AppStream (RHEL)
+  when:
+    - ansible_facts.distribution | lower == 'redhat'
+    - repo_enable_appstream
+    - appstream_enabled.rc != 0
+  ansible.builtin.command:
+    cmd: "subscription-manager repos --enable=rhel-{{ ansible_distribution_major_version }}-for-{{ ansible_architecture }}-appstream-rpms"
+  notify: "rpm makecache"
+
+# CRB detection
+- name: Detect CodeReady Builder enabled (RHEL)
+  when: ansible_facts.distribution | lower == 'redhat'
+  ansible.builtin.shell: |
+    set -o pipefail
+    subscription-manager repos --list-enabled \
+      | awk -F': *' '/Repo ID:/ {print $2}' \
+      | grep -qx "codeready-builder-for-rhel-{{ ansible_distribution_major_version }}-{{ ansible_architecture }}-rpms"
+  register: crb_enabled
+  changed_when: false
+  failed_when: false
+
+- name: Enable CodeReady Builder (RHEL)
+  when:
+    - ansible_facts.distribution | lower == 'redhat'
+    - repo_enable_crb
+    - crb_enabled.rc != 0
+  ansible.builtin.command:
+    cmd: "subscription-manager repos --enable=codeready-builder-for-rhel-{{ ansible_distribution_major_version }}-{{ ansible_architecture }}-rpms"
+  notify: "rpm makecache"

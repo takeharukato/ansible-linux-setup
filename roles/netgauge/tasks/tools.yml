@@ -1,0 +1,95 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  データ収集スクリプトタスク
+#
+- name: "Create {{netgauge_dir}}/bin"
+  file:
+    path: "{{netgauge_dir}}/bin"
+    state: directory
+    owner: "root"
+    group: "root"
+    mode: "0755"
+  become: true
+
+- name: "Create {{netgauge_dir}}/bin/00_detect_cpus.sh"
+  template:
+    src: 00_detect_cpus.sh.j2
+    dest: "{{netgauge_dir}}/bin/00_detect_cpus.sh"
+    owner: root
+    group: root
+    mode: 0755
+    backup: no
+
+- name: "Create {{netgauge_dir}}/bin/10_prepare_cgroup.sh"
+  template:
+    src: 10_prepare_cgroup.sh.j2
+    dest: "{{netgauge_dir}}/bin/10_prepare_cgroup.sh"
+    owner: root
+    group: root
+    mode: 0755
+    backup: no
+
+- name: "Create {{netgauge_dir}}/bin/20_launch_netgauge.sh"
+  template:
+    src: 20_launch_netgauge.sh.j2
+    dest: "{{netgauge_dir}}/bin/20_launch_netgauge.sh"
+    owner: root
+    group: root
+    mode: 0755
+    backup: no
+
+- name: "Create {{netgauge_dir}}/bin/25_flatten_values.sh"
+  template:
+    src: 25_flatten_values.sh.j2
+    dest: "{{netgauge_dir}}/bin/25_flatten_values.sh"
+    owner: root
+    group: root
+    mode: 0755
+    backup: no
+
+- name: "Create {{netgauge_dir}}/bin/30_plot_all.sh"
+  template:
+    src: 30_plot_all.sh.j2
+    dest: "{{netgauge_dir}}/bin/30_plot_all.sh"
+    owner: root
+    group: root
+    mode: 0755
+    backup: no
+
+- name: "Create {{netgauge_dir}}/bin/50_cpu_list.py"
+  template:
+    src: 50_cpu_list.py.j2
+    dest: "{{netgauge_dir}}/bin/50_cpu_list.py"
+    owner: root
+    group: root
+    mode: 0755
+    backup: no
+
+- name: "Create {{netgauge_dir}}/bin/60_fft_plot.py"
+  template:
+    src: 60_fft_plot.py.j2
+    dest: "{{netgauge_dir}}/bin/60_fft_plot.py"
+    owner: root
+    group: root
+    mode: 0755
+    backup: no
+
+- name: "Create {{netgauge_dir}}/bin/90_get_app_cpu_noise.sh"
+  template:
+    src: 90_get_app_cpu_noise.sh.j2
+    dest: "{{netgauge_dir}}/bin/90_get_app_cpu_noise.sh"
+    owner: root
+    group: root
+    mode: 0755
+    backup: no
+
+- name: "Create {{netgauge_dir}}/bin/plot_hist.gp"
+  template:
+    src: plot_hist.gp
+    dest: "{{netgauge_dir}}/bin/plot_hist.gp"
+    owner: root
+    group: root
+    mode: 0644
+    backup: no

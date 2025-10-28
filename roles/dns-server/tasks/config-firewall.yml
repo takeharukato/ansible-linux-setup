@@ -1,0 +1,159 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#  DNS Firewall 設定関連タスク
+---
+
+# firewalld zone 引数を構築 (dns_bind_firewall_zoneがnull/未設定時に対応)
+- name: Build firewalld zone arg (safe for None)
+  ansible.builtin.set_fact:
+    fw_zone_arg: "{{ '--zone=' + dns_bind_firewall_zone
+                    if (dns_bind_firewall_zone | default('',true) | length) > 0
+                    else '' }}"
+
+# service_facts モジュールでサービス状態を収集
+- name: Collect service facts
+  become: true
+  ansible.builtin.service_facts:
+
+# firewalld が動いているか検出
+- name: Detect firewalld running
+  ansible.builtin.set_fact:
+    firewalld_running: >-
+      {{ ('firewalld.service' in ansible_facts.services) and
+          (ansible_facts.services['firewalld.service'].state == 'running') }}
+
+# ufw が使えるか検出
+- name: Detect ufw usable
+  become: true
+  ansible.builtin.command: ufw status
+  register: _ufw_status
+  changed_when: false
+  failed_when: false
+
+# ufw 使用可否を記録
+- name: Set ufw flag
+  ansible.builtin.set_fact:
+    ufw_usable: "{{ _ufw_status.rc == 0 }}"
+
+####################################################################
+# firewalld 経由（RHEL/Alma, または firewalld が動いている Debian/Ubuntu）
+####################################################################
+
+# firewalld で DNS サービスが有効か確認
+- name: Query firewalld service=dns
+  become: true
+  ansible.builtin.command: >
+    firewall-cmd {{ fw_zone_arg }} --query-service=dns
+  register: fw_query_dns
+  changed_when: false
+  failed_when: false
+  when: firewalld_running and (dns_bind_port | int == 53)
+
+# DNS サービス有効時はfirewalld 経由で有効化 (永続化)
+- name: Enable firewalld service=dns (permanent)
+  become: true
+  ansible.builtin.command: >
+    firewall-cmd {{ fw_zone_arg }} --add-service=dns --permanent
+  when: firewalld_running and (dns_bind_port | int == 53) and (fw_query_dns.stdout | lower != 'yes')
+
+# DNS サービス有効時はfirewalld 経由で有効化 (ランタイム)
+- name: Enable firewalld service=dns (runtime)
+  become: true
+  ansible.builtin.command: >
+    firewall-cmd {{ fw_zone_arg }} --add-service=dns
+  when: firewalld_running and (dns_bind_port | int == 53) and (fw_query_dns.stdout | lower != 'yes')
+
+# 非標準ポートの場合, TCPポート開放状況を確認
+- name: Query firewalld custom TCP port
+  become: true
+  ansible.builtin.command: >
+    firewall-cmd {{ fw_zone_arg }} --query-port={{ dns_bind_port }}/tcp
+  register: fw_q_tcp
+  changed_when: false
+  failed_when: false
+  when: firewalld_running and (dns_bind_port | int != 53)
+
+# TCPポートが開放されていない場合, 開放する (永続化)
+- name: Open firewalld custom TCP port (permanent)
+  become: true
+  ansible.builtin.command: >
+    firewall-cmd {{ fw_zone_arg }} --add-port={{ dns_bind_port }}/tcp --permanent
+  when: firewalld_running and (dns_bind_port | int != 53) and (fw_q_tcp.stdout | lower != 'yes')
+
+# TCPポートが開放されていない場合, 開放する (ランタイム)
+- name: Open firewalld custom TCP port (runtime)
+  become: true
+  ansible.builtin.command: >
+    firewall-cmd {{ fw_zone_arg }} --add-port={{ dns_bind_port }}/tcp
+  when: firewalld_running and (dns_bind_port | int != 53) and (fw_q_tcp.stdout | lower != 'yes')
+
+# 非標準ポートの場合, UDPポート開放状況を確認
+- name: Query firewalld custom UDP port
+  become: true
+  ansible.builtin.command: >
+    firewall-cmd {{ fw_zone_arg }} --query-port={{ dns_bind_port }}/udp
+  register: fw_q_udp
+  changed_when: false
+  failed_when: false
+  when: firewalld_running and (dns_bind_port | int != 53)
+
+# UDPポートが開放されていない場合, 開放する (永続化)
+- name: Open firewalld custom UDP port (permanent)
+  become: true
+  ansible.builtin.command: >
+    firewall-cmd {{ fw_zone_arg }} --add-port={{ dns_bind_port }}/udp --permanent
+  when: firewalld_running and (dns_bind_port | int != 53) and (fw_q_udp.stdout | lower != 'yes')
+
+# UDPポートが開放されていない場合, 開放する (ランタイム)
+- name: Open firewalld custom UDP port (runtime)
+  become: true
+  ansible.builtin.command: >
+    firewall-cmd {{ fw_zone_arg }} --add-port={{ dns_bind_port }}/udp
+  when: firewalld_running and (dns_bind_port | int != 53) and (fw_q_udp.stdout | lower != 'yes')
+
+####################################################################
+# ufw 経由 ( Debian/Ubuntu。firewalld が動いていない場合のみ )
+####################################################################
+
+# ufw 経由で対象TCP ポート開放済みか確認
+- name: Check if ufw rule for TCP exists
+  become: true
+  ansible.builtin.shell: |
+    set -o pipefail
+    ufw status | grep -E "^\s*{{ dns_bind_port }}/tcp\s+ALLOW\b"
+  args: { executable: /bin/bash }
+  register: ufw_tcp_rule
+  changed_when: false
+  failed_when: false
+  when: not firewalld_running and ufw_usable
+
+# ufw経由でTCPポートが開放されていない場合, 開放する
+- name: Allow TCP via ufw
+  become: true
+  ansible.builtin.command: ufw allow {{ dns_bind_port }}/tcp
+  when: not firewalld_running and ufw_usable and (ufw_tcp_rule.rc != 0)
+
+# ufw 経由で対象UDP ポートが開放済みか確認
+- name: Check if ufw rule for UDP exists
+  become: true
+  ansible.builtin.shell: |
+    set -o pipefail
+    ufw status | grep -E "^\s*{{ dns_bind_port }}/udp\s+ALLOW\b"
+  args: { executable: /bin/bash }
+  register: ufw_udp_rule
+  changed_when: false
+  failed_when: false
+  when: not firewalld_running and ufw_usable
+
+# ufw経由でUDPポートが開放されていない場合, 開放する
+- name: Allow UDP via ufw
+  become: true
+  ansible.builtin.command: ufw allow {{ dns_bind_port }}/udp
+  when: not firewalld_running and ufw_usable and (ufw_udp_rule.rc != 0)
+
+# どちらも無い場合の通知
+- name: No firewall backend detected
+  ansible.builtin.debug:
+    msg: "No firewalld/ufw detected. Skipping firewall rules."
+  when: not firewalld_running and not ufw_usable

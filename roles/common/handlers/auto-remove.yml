@@ -1,0 +1,18 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+# autoremove
+
+- name: apt autoremove (Debian)
+  listen: "pkg-autoremove"
+  shell: |
+    apt autoremove -y
+  become: true
+  when: ansible_facts.os_family == 'Debian'
+
+- name: dnf autoremove (RHEL)
+  listen: "pkg-autoremove"
+  shell: |
+    dnf autoremove -y
+  become: true
+  when: ansible_facts.os_family == 'RedHat'

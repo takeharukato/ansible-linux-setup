@@ -1,0 +1,62 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#  ロール固有変数のデフォルト値
+#  group_vars/all/all.yml やhost_varsで上書き可能とするため,
+#  ロール名/defaults/main.yml に定義している
+---
+
+# 環境セットアップ時のスクリプト格納先ディレクトリ
+k8s_node_setup_tools_dir: "/opt/k8snodes/sbin"
+
+# kubeadm設定ファイル格納ディレクトリ
+k8s_kubeadm_config_store: "{{ ansible_home_dir }}/kubeadm"
+
+# kubeadm preflight ignore errors argumentの指定値
+k8s_kubeadm_ignore_preflight_errors_arg: "--ignore-preflight-errors=all"
+
+# ワーカーノードドレイン待ち時間(単位:分)
+k8s_drain_timeout_minutes: 5
+# ワーカーノード削除待ち時間(単位:秒)
+k8s_worker_delete_wait_sec: 5
+
+# NodePort を使うなら true（使わないなら false）
+k8s_worker_enable_nodeport: false
+# NodePort のポート範囲指定 (デフォルト: 30000-32767)
+k8s_worker_nodeport_range: "30000-32767"
+
+# ワーカー用基本開放ポート (Cilium native routing 前提)
+# - 10250/tcp(kubelet)は コントロールプレインからのみ許可にするので、
+#   ここのリストはノードへ外部から入ってくる可能性があるものに限定。
+#   例えば、Pod へのサービス公開用 NodePort ポートはここには含めない。
+k8s_worker_node_ports_from_ctrlplane:
+  - "10250/tcp"
+
+# NodePort 用（有効時にだけ使う）
+k8s_worker_node_ports_nodeport:
+  - "{{ k8s_worker_nodeport_range }}/tcp"
+  - "{{ k8s_worker_nodeport_range }}/udp"
+
+# Kubernetes ワーカーノード使用ポート
+# 最終的に開ける “ポート範囲・プロトコル” のリスト
+# (10250/tcp は個別処理なので含めない)
+k8s_worker_node_ports: >-
+  {{
+    (k8s_worker_enable_nodeport | bool)
+      | ternary(k8s_worker_node_ports_nodeport, [])
+  }}
+
+# UFW はポート範囲が 30000:32767 表記、firewalld は 30000-32767
+# 後続の UFW ループでこれを使う
+k8s_worker_node_ports_ufw: >-
+  {{
+    (k8s_worker_node_ports | map('regex_replace','-',':') | list)
+  }}
+
+
+# systemd スライス
+k8s_systemd_slices:
+  - init.scope.d
+  - system.slice.d
+  - user.slice.d
+  - "user-.slice.d"
