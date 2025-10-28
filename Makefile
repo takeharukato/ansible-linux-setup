@@ -22,7 +22,7 @@ OPT_COMMON=${VERBOSE} -i ${INVENTORY} ${TOP_PLAYBOOK}
 
 # cloc の除外ディレクトリ
 # ここに列挙したディレクトリは cloc の集計対象から除外される
-CLOC_EXCLUDES=--exclude-dir=.git,create-users,devel-packages,ntp-server,docker-ce,dns-server,ldap-server,redmine-server
+CLOC_EXCLUDES=--exclude-dir=.git
 CLOC_EXCLUDE_EXTS=--exclude-ext=md,txt
 # 先頭の "./" を取り除くユーティリティ
 normalize = $(patsubst ./%,%,$(1))
