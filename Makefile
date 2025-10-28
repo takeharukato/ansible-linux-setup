@@ -20,6 +20,8 @@ TOP_PLAYBOOK=site.yml
 # 共通オプション
 OPT_COMMON=${VERBOSE} -i ${INVENTORY} ${TOP_PLAYBOOK}
 
+# cloc の言語指定オプション
+CLOC_LANG_OPT=--force-lang=YAML,j2
 # cloc の除外ディレクトリ
 # ここに列挙したディレクトリは cloc の集計対象から除外される
 CLOC_EXCLUDES=--exclude-dir=.git
@@ -175,7 +177,7 @@ run_netgauge:
 	ansible-playbook --tags "netgauge" ${OPT_COMMON} 2>&1 |tee build-netgauge.log
 
 cloc:
-	cloc "${CLOC_EXCLUDES}" "${CLOC_EXCLUDE_EXTS}" .
+	cloc "${CLOC_LANG_OPT}" "${CLOC_EXCLUDES}" "${CLOC_EXCLUDE_EXTS}" .
 
 clean:
 	${RM} -f *.log
