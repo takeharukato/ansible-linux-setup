@@ -1,0 +1,21 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#  ロール固有変数のデフォルト値
+#  group_vars/all/all.yml やhost_varsで上書き可能とするため,
+#  ロール名/defaults/main.yml に定義している
+---
+
+# ユーザごとに任意の公開鍵を追記する場合に使用
+# 形式: ユーザ名文字列から.ssh/authorized_keysに追記する公開鍵文字列のリストへのマッピング
+# users_authorized_keys:
+#  "ユーザ名":
+#    - "公開鍵文字列1 (.ssh/authorized_keysに追記する形式)"
+# 例:
+# users_authorized_keys:
+#   "alice":
+#     - "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIExampleKeyForAlice alice@example"
+#   "bob":
+#     - "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIExampleKeyForBobOne bob@example"
+#     - "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQDBExampleKeyForBobTwo bob@workstation"
+users_authorized_keys: {}
