@@ -13,6 +13,8 @@ common_vmware_packages:
 
 common_packages:
   - dnf-plugins-core
+  - bash
+  - bash-completion
   - ksh
   - zsh
   - curl
@@ -44,6 +46,9 @@ common_packages:
   - tcpdump
   - pssh
   - kubectl
+  - acl
+  - attr
+
 
 common_langpack_packages:
   - glibc-langpack-ja
@@ -91,7 +96,6 @@ devel_packages:
   - gcc-c++
   - make
   - gdb
-  - bash
   - gawk
   - gzip
   - bzip2
@@ -103,7 +107,7 @@ devel_packages:
   - libstdc++-devel.i686
   - automake
   - autoconf
-  - gettext
+  - gettext-devel
   - libtool
   - libtool-ltdl-devel
   - gperf

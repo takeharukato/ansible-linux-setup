@@ -4,13 +4,29 @@
 #
 #  設定関連タスク
 #
+
 #
 # Helm導入
 #
-- name: Install Helm
+
+- name: Install Helm latest version
   shell: |
     curl -fsSL https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
   become: true
+  when: k8s_helm_version is not defined or k8s_helm_version == 'latest'
+
+- name: "Install Helm {{ k8s_helm_version }}"
+  shell: |
+    curl -fsSL -o /tmp/helm.tar.gz "{{ k8s_helm_download_url }}"
+    curl -fsSL -o /tmp/helm.tar.gz.sha256sum "{{ k8s_helm_checksum_download_url }}"
+    tar -zxvf /tmp/helm.tar.gz -C /tmp linux-amd64/helm
+    mv /tmp/linux-amd64/helm /usr/local/bin/helm
+    chmod +x /usr/local/bin/helm
+    helm version
+  become: true
+  when:
+    - k8s_helm_version is defined
+    - k8s_helm_version != 'latest'
 
 - name: Install CiliumCLI
   shell: |

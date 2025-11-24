@@ -9,19 +9,23 @@
 - name: Gather service facts
   ansible.builtin.service_facts:
 
-- name: Disable firewall(s) if present
+- name: Disable firewall
   ansible.builtin.systemd:
-    name: "{{ item }}"
+    name: firewalld
     state: stopped
     enabled: false
     masked: true
   become: true
-  loop:
-    - firewalld
-    - ufw
-  when: >
-    (item ~ '.service') in (ansible_facts.services | default({})) or
-    (item) in (ansible_facts.services | default({}))
+  when: ansible_facts.os_family == "RedHat"
+
+- name: Disable UFW
+  ansible.builtin.systemd:
+    name: ufw
+    state: stopped
+    enabled: false
+    masked: true
+  become: true
+  when: ansible_facts.os_family == "Debian"
 
 # rpfilter-bypass.service 無効化
 - name: Stop & disable rpfilter-bypass.service if present

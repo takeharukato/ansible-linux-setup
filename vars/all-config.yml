@@ -30,6 +30,20 @@ enable_firewall: false
 users_list:
   - { name: 'user1', group: 'user1', password: "{{ 'user1'|password_hash('sha512') }}", update_password: 'on_create', shell: "/bin/zsh", home: "/home/user1", comment: 'Sample User', email: "user1@example.org", github: 'sampleuser' }
 
+# ユーザごとの追加公開鍵 (必要に応じて設定)
+# 形式: ユーザ名文字列から.ssh/authorized_keysに追記する公開鍵文字列のリストへのマッピング
+# users_authorized_keys:
+#  "ユーザ名":
+#    - "公開鍵文字列1 (.ssh/authorized_keysに追記する形式)"
+# 例:
+# users_authorized_keys:
+#   "alice":
+#     - "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIExampleKeyForAlice alice@example"
+#   "bob":
+#     - "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIExampleKeyForBobOne bob@example"
+#     - "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQDBExampleKeyForBobTwo bob@workstation"
+users_authorized_keys: {}
+
 #
 # sudoers設定
 #
@@ -407,6 +421,13 @@ k8s_cilium_helm_chart_version: "{{ k8s_cilium_version }}"
 # Ciliumコンテナイメージのバージョン
 k8s_cilium_image_version: "v{{ k8s_cilium_version }}"
 
+#
+# Helm
+#
+# Helmのバージョン
+# 未指定時, または, "latest" を指定すると
+# 最新バージョンをインストールする
+# k8s_helm_version: "3.19.0"
 #
 # Multus CNI
 #

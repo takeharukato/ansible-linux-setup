@@ -12,6 +12,8 @@ common_vmware_packages:
 
 common_packages:
   - apt-file
+  - bash
+  - bash-completion
   - ksh
   - zsh
   - curl
@@ -44,7 +46,8 @@ common_packages:
   - tcpdump
   - pssh
   - kubectl
-
+  - acl
+  - attr
 
 common_langpack_packages:
   - language-pack-ja-base
@@ -100,7 +103,6 @@ devel_packages:
   - ninja-build
   - build-essential
   - gdb
-  - bash
   - gawk
   - gzip
   - bzip2
@@ -112,6 +114,7 @@ devel_packages:
   - automake
   - autoconf
   - gettext
+  - autopoint
   - libtool
   - libltdl-dev
   - gperf

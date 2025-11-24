@@ -1,0 +1,52 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#  ユーザごとの公開鍵を authorized_keys に追加登録するタスク
+---
+# users_authorized_keys から鍵リストを抽出し, 処理対象ユーザを組み立てる
+- name: Build manual authorized key entries
+  ansible.builtin.set_fact:
+    # manual_users_with_keys: users_authorized_keys で設定された鍵を持つユーザ情報の一時リスト
+    manual_users_with_keys: "{{ (manual_users_with_keys | default([])) + [ item | combine({'manual_keys': manual_key_list}) ] }}"
+  vars:
+    # manual_key_list: 該当ユーザに定義された users_authorized_keys の鍵リスト
+    manual_key_list: "{{ users_authorized_keys.get(item.name, []) | default([], true) }}"
+  loop: "{{ users_list | default([]) }}"
+  loop_control:
+    label: "{{ item.name }}"
+  when:
+    - manual_key_list | length > 0
+  changed_when: false
+
+# 抽出した鍵を authorized_keys に追記する
+- name: Ensure manual authorized keys are present
+  ansible.builtin.authorized_key:
+    # item.0: users_list のユーザ情報 (辞書)
+    user: "{{ item.0.name }}"
+    # item.1: users_authorized_keys で定義された公開鍵文字列
+    key: "{{ item.1 }}"
+    state: present
+    path: "{{ item.0.home }}/.ssh/authorized_keys"
+  loop: "{{ manual_users_with_keys | default([]) | subelements('manual_keys') }}"
+  loop_control:
+    label: "{{ item.0.name }}"
+  when:
+    - manual_users_with_keys | default([]) | length > 0
+  become: true
+
+# 追記後にソート・重複排除と権限整備を行う
+- name: Normalize authorized_keys after manual additions
+  ansible.builtin.shell: |
+    set -o pipefail
+    cat "{{ item.home }}/.ssh/authorized_keys" | sort | uniq | sudo -u "{{ item.name }}" tee "{{ item.home }}/.ssh/authorized_keys.tmp" >/dev/null
+    sudo -u "{{ item.name }}" mv "{{ item.home }}/.ssh/authorized_keys.tmp" "{{ item.home }}/.ssh/authorized_keys"
+    sudo chmod 600 "{{ item.home }}/.ssh/authorized_keys"
+    sudo chown "{{ item.name }}:{{ item.group }}" "{{ item.home }}/.ssh/authorized_keys"
+  args:
+    executable: /bin/bash
+  loop: "{{ manual_users_with_keys | default([]) }}"
+  loop_control:
+    label: "{{ item.name }}"
+  when:
+    - manual_users_with_keys | default([]) | length > 0
+  become: true
