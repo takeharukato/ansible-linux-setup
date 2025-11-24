@@ -160,40 +160,12 @@ users_listには, 以下の要素からなる辞書のリストを記述する.
 #     - "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQDBExampleKeyForBobTwo bob@workstation"
 ```
 
-上記の例では, 以下のようにSSH公開鍵の設定を行う。- [AnsibleによるDebian Linux (Ubuntu Linux) / Red Hat Enterprise Linux (Alma Linux)環境構築](#ansibleによるdebian-linux-ubuntu-linux--red-hat-enterprise-linux-alma-linux環境構築)
-- [AnsibleによるDebian Linux (Ubuntu Linux) / Red Hat Enterprise Linux (Alma Linux)環境構築](#ansibleによるdebian-linux-ubuntu-linux--red-hat-enterprise-linux-alma-linux環境構築)
-  - [ディレクトリ構成](#ディレクトリ構成)
-  - [使用法](#使用法)
-    - [Makeターゲット](#makeターゲット)
-  - [設定方法](#設定方法)
-    - [広域設定ファイル (vars/all-config.yml) の設定値](#広域設定ファイル-varsall-configyml-の設定値)
-      - [広域設定ファイル基本設定](#広域設定ファイル基本設定)
-      - [users\_list定義](#users_list定義)
-      - [users\_authorized\_keys定義](#users_authorized_keys定義)
-      - [ネットワーク設定](#ネットワーク設定)
-      - [クライアントのDomain Name System (DNS) サーバ関連設定](#クライアントのdomain-name-system-dns-サーバ関連設定)
-      - [multicast Domain Name Server (mDNS) 関連設定](#multicast-domain-name-server-mdns-関連設定)
-      - [Network Time Protocol (NTP) クライアントの設定](#network-time-protocol-ntp-クライアントの設定)
-      - [Domain Name System (DNS) サーバの設定](#domain-name-system-dns-サーバの設定)
-      - [Network File System (NFS) サーバの設定](#network-file-system-nfs-サーバの設定)
-      - [Network Time Protocol (NTP)サーバの設定](#network-time-protocol-ntpサーバの設定)
-      - [プロキシ設定](#プロキシ設定)
-      - [Rancher 関連設定](#rancher-関連設定)
-      - [Docker Community Edition関連設定](#docker-community-edition関連設定)
-        - [コンテナイメージのバックアップ設定](#コンテナイメージのバックアップ設定)
-      - [ホームディレクトリのバックアップ](#ホームディレクトリのバックアップ)
-      - [Lightweight Directory Access Protocol (LDAP) サーバ関連設定](#lightweight-directory-access-protocol-ldap-サーバ関連設定)
-      - [Redmine関連設定](#redmine関連設定)
-      - [Emacsパッケージ関連設定](#emacsパッケージ関連設定)
-      - [Kubernetes関連設定](#kubernetes関連設定)
-        - [Cilium CNI](#cilium-cni)
-        - [Multus メタCNI](#multus-メタcni)
-        - [Whereabouts CNI](#whereabouts-cni)
-    - [Netgauge](#netgauge)
-    - [host\_vars/ ディレクトリ配下のホスト設定ファイル](#host_vars-ディレクトリ配下のホスト設定ファイル)
-      - [ホスト設定ファイル中でのネットワークインターフェース設定](#ホスト設定ファイル中でのネットワークインターフェース設定)
-  - [用語](#用語)
-  - [参考サイト](#参考サイト)
+上記の例では, 以下のようにSSH公開鍵の設定を行う。
+
+- ユーザ "alice"の公開鍵に, `ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIExampleKeyForAlice alice@example` (ed25519鍵, `AAAAC3NzaC1lZDI1NTE5AAAAIExampleKeyForAlice`を追加, コメントとして, `alice@example`を記載)
+- ユーザ "bob"の公開鍵に以下の2つの鍵を追加
+  - `ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIExampleKeyForBobOne bob@example` (ed25519鍵, `AAAAC3NzaC1lZDI1NTE5AAAAIExampleKeyForBobOne`を追加, コメントとして, `bob@example`を記載)
+  - `ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQDBExampleKeyForBobTwo bob@workstation` (RSA鍵, `AAAAB3NzaC1yc2EAAAADAQABAAABAQDBExampleKeyForBobTwo`を追加, コメントとして, `bob@workstation`を記載)
 
 #### ネットワーク設定
 
