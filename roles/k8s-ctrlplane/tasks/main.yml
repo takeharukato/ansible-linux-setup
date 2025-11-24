@@ -20,4 +20,5 @@
 - include_tasks: config-cilium.yml
 - include_tasks: config-multus.yml
 - include_tasks: config-whereabouts.yml
+- include_tasks: config-cluster-mesh-tools.yml
 - include_tasks: package-netgauge.yml

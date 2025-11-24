@@ -1,0 +1,42 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  クラスタメッシュ関連ツール作成タスク
+#
+# 環境構築用コマンド配置先ディレクトリを作成
+- name: "make {{ k8s_node_setup_tools_dir }}"
+  file:
+    path: "{{ k8s_node_setup_tools_dir }}"
+    state: directory
+    owner: "root"
+    group: "root"
+    mode: "0755"
+
+# 証明書埋め込み版kubeconfigファイル作成用スクリプトを配置
+- name: "Deploy script to create embedded certification kubeconfig to {{ k8s_embed_kubeconfig_script_path }}"
+  template:
+    src: "create-embedded-kubeconfig.sh.j2"
+    dest: "{{ k8s_embed_kubeconfig_script_path }}"
+    owner: "root"
+    group: "root"
+    mode: "0755"
+
+# クラスタメッシュ構築用に証明書埋め込み版kubeconfigファイルを作成
+- name: "Create embedded kubeconfig file for {{ k8s_cilium_cm_cluster_name }} ({{ k8s_cilium_cm_cluster_name }}{{ k8s_embed_kubeconfig_file_postfix }})"
+  shell: |
+    env LOG_LEVEL=5 OUTPUT_DIR="{{ k8s_operator_home }}/.kube" CLUSTER_NAME="{{ k8s_cilium_cm_cluster_name }}" "{{ k8s_embed_kubeconfig_script_path }}"
+  args:
+    executable: /bin/bash
+  when:
+    - k8s_cilium_cm_cluster_name | default('',true) | length > 0
+    - k8s_cilium_cm_cluster_id | default('',true) | int > 0
+    - k8s_cilium_cm_cluster_id | default('',true) | int < 256
+
+# パーミッションを修正
+- name: "Set owner {{ k8s_operator_home }}/.kube/{{ k8s_cilium_cm_cluster_name }}{{ k8s_embed_kubeconfig_file_postfix }}"
+  ansible.builtin.file:
+    path: "{{ k8s_operator_home }}/.kube/{{ k8s_cilium_cm_cluster_name }}{{ k8s_embed_kubeconfig_file_postfix }}"
+    mode: 0600
+    owner: "{{ k8s_operator_user }}"
+    group: "{{ k8s_operator_user }}"

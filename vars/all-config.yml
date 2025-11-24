@@ -408,6 +408,13 @@ k8s_cilium_helm_chart_version: "{{ k8s_cilium_version }}"
 k8s_cilium_image_version: "v{{ k8s_cilium_version }}"
 
 #
+# Helm
+#
+# Helmのバージョン
+# 未指定時, または, "latest" を指定すると
+# 最新バージョンをインストールする
+# k8s_helm_version: "3.19.0"
+#
 # Multus CNI
 #
 # Multus CNIのバージョン
