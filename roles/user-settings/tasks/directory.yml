@@ -64,6 +64,18 @@
     backup: no
 
 #
+# zshrc.commonのスケルトンファイル
+#
+- name: Deploy a zshrc.common skeleton
+  template:
+    src: _zshrc_common.j2
+    dest: /etc/skel/.zshrc.common
+    owner: root
+    group: root
+    mode: 0644
+    backup: no
+
+#
 # sshのディレクトリスケルトン
 #
 - name: Create /etc/skel/.ssh
@@ -123,13 +135,25 @@
     backup: no
 
 #
+# .bashrcのスケルトンに補完設定処理を追加する
+# [ -f ~/.bashrc.proxy ] && source ~/.bashrc.proxy
+#
+- name: Add sourcing completion setting line into /etc/skel/.bashrc
+  lineinfile:
+    path: /etc/skel/.bashrc
+    regexp: '^\[ \-f /usr/share/bash-completion/bash_completion \] && source /usr/share/bash-completion/bash_completion'
+    insertafter: EOF
+    line: '[ -f /usr/share/bash-completion/bash_completion ] && source /usr/share/bash-completion/bash_completion # load bash completion'
+    backup: no
+
+#
 # .bashrcのスケルトンにプロキシ設定読込行を追加する
 # [ -f ~/.bashrc.proxy ] && source ~/.bashrc.proxy
 #
 - name: Add sourcing proxy setting line into /etc/skel/.bashrc
   lineinfile:
     path: /etc/skel/.bashrc
-    regexp: '^[ -f ${HOME}/.bashrc.proxy ] && source ${HOME}/.bashrc.proxy'
+    regexp: '^\[ \-f ${HOME}/.bashrc.proxy \] && source ${HOME}/.bashrc.proxy'
     insertafter: EOF
     line: '[ -f ${HOME}/.bashrc.proxy ] && source ${HOME}/.bashrc.proxy # load proxy settings'
     backup: no
@@ -141,7 +165,7 @@
 - name: Add sourcing personal setting line into /etc/skel/.bashrc
   lineinfile:
     path: /etc/skel/.bashrc
-    regexp: '^[ -f ${HOME}/.bashrc.mine ] && source ${HOME}/.bashrc.mine'
+    regexp: '^\[ \-f ${HOME}/.bashrc.mine \] && source ${HOME}/.bashrc.mine'
     insertafter: EOF
     line: '[ -f ${HOME}/.bashrc.mine ] && source ${HOME}/.bashrc.mine # load personal settings'
     backup: no
@@ -153,7 +177,7 @@
 - name: Add sourcing Lmod setting line into /etc/skel/.bashrc
   lineinfile:
     path: /etc/skel/.bashrc
-    regexp: '^[ -f ${HOME}/.bashrc.lmod ] && source ${HOME}/.bashrc.lmod'
+    regexp: '^\[ \-f ${HOME}/.bashrc.lmod \] && source ${HOME}/.bashrc.lmod'
     insertafter: EOF
     line: '[ -f ${HOME}/.bashrc.lmod ] && source ${HOME}/.bashrc.lmod # load Lmod settings'
     backup: no

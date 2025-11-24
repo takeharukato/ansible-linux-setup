@@ -1,0 +1,187 @@
+# Common settings for zsh
+
+# RHEL互換のlesspipe.shがあれば設定
+# lesspipe.sh
+#
+[ -x ${HOME}/bin/mylesspipe.sh ] && export LESSOPEN="|${HOME}/bin/mylesspipe.sh %s"
+
+#
+# expand aliases before completing
+#
+setopt complete_aliases # aliased ls needs if file/dir completions work
+
+alias where="command -v"
+alias j="jobs -l"
+
+case "${OSTYPE}" in
+freebsd*|darwin*)
+  alias ls="ls -G -w"
+  ;;
+linux*)
+  alias ls="ls --color"
+  ;;
+esac
+
+alias la="ls -a"
+alias lf="ls -F"
+alias ll="ls -l"
+
+alias du="du -h"
+alias df="df -h"
+
+alias su="su -l"
+
+
+# Lines configured by zsh-newuser-install
+HISTFILE=~/.histfile
+HISTSIZE=100000
+SAVEHIST=100000
+bindkey -e
+
+# End of lines configured by zsh-newuser-install
+
+#
+#プロンプトの設定
+#
+RPROMPT=""
+PROMPT="[%n@%m %c] [%h] "
+#プロンプトの自動改行を抑制する
+unsetopt promptcr
+
+# プロンプトのカラー表示を有効
+autoload -U colors
+colors
+
+# エスケープシーケンスを使う。
+#setopt prompt_subst
+
+# 補完侯補をEmacsのキーバインドで動き回る
+zstyle ':completion:*:default' menu select=1
+
+# 補完の時に大文字小文字を区別しない
+zstyle ':completion:*' matcher-list 'm:{a-z}={A-Z}'
+
+###
+# Set shell options
+###
+#setopt auto_menu auto_cd correct auto_name_dirs auto_remove_slash
+#setopt extended_history hist_ignore_dups hist_ignore_space prompt_subst
+#setopt pushd_ignore_dups rm_star_silent sun_keyboard_hack
+#setopt extended_glob list_types no_beep always_last_prompt
+#setopt cdable_vars sh_word_split auto_param_keys
+
+# C-s, C-qを無効にする。
+setopt no_flow_control
+
+# 先頭がスペースならヒストリーに追加しない。
+setopt hist_ignore_space
+
+# リダイレクトで上書きする事を許可しない。
+setopt no_clobber
+
+# ベルを鳴らさない。
+setopt no_beep
+
+# ^Dでログアウトしないようにする。
+#setopt ignore_eof
+
+# ^Iで補完可能な一覧を表示する。(曖昧補完)
+setopt auto_list
+
+# cdでpushdする。
+setopt auto_pushd
+
+# pushdで同じディレクトリを重複してpushしない。
+setopt pushd_ignore_dups
+
+# globを拡張する。
+setopt extended_glob
+
+# 補完時にスペルチェックをする。
+setopt correct
+
+# リターンを押す度にスペルチェックをする。
+#setopt correct_all
+
+# 補完時にヒストリを自動的に展開する。
+setopt hist_expand
+
+# pushd を引数無しで実行した時に pushd ~ とする。
+setopt pushd_to_home
+
+# ディレクトリ名だけで移動できる。
+setopt auto_cd
+
+# rm * を実行する前に確認される。
+unsetopt rmstar_wait
+
+# カレントディレクトリ中にサブディレクトリが
+# 見付からなかった場合に cd が検索する
+# ディレクトリのリスト
+#cdpath=($HOME)
+
+# ログインとログアウトを監視する。
+#watch=(all all)
+# 全部監視
+#watch="all"
+# 10分おき(デフォルトは1分おき)
+#LOGCHECK="$[10 * 60]"
+# 取りあえず表示してみる
+#log
+
+# 10分後に自動的にログアウトする。
+#setopt autologout=10
+
+# 10分おきにメールをチェックする。
+#setopt mail 600 /var/spool/mail/$USER
+#setopt mail 600 $MAIL
+# メールをチェックする。
+#setopt mail $MAIL
+
+# バックグラウンドジョブが終了したらすぐに知らせる。
+setopt no_tify
+
+# 履歴ファイルに時刻を記録
+setopt extended_history
+
+# 履歴をインクリメンタルに追加
+setopt inc_append_history
+
+# 履歴の共有
+setopt share_history
+
+# ヒストリに追加されるコマンド行が古いものと同じなら古いものを削除
+setopt hist_ignore_all_dups
+
+# 直前と同じコマンドラインはヒストリに追加しない
+setopt hist_ignore_dups
+
+# スペースで始まるコマンド行はヒストリリストから削除
+setopt hist_ignore_space
+
+# ヒストリを呼び出してから実行する間に一旦編集可能
+setopt hist_verify
+
+# coreのサイズ
+#limit coredumpsize 0
+
+# compacked complete list display
+#
+setopt list_packed
+
+# no remove postfix slash of command line
+#
+setopt noautoremoveslash
+
+# no beep sound when complete list displayed
+#
+setopt nolistbeep
+
+#
+#env/default-path.shがあれば読み込む
+#
+if [ -f ${HOME}/env/default-path.sh ]; then
+    source ${HOME}/env/default-path.sh
+else
+    export PATH="${SAFE_PATH}"
+fi

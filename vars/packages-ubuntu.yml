@@ -12,6 +12,8 @@ common_vmware_packages:
 
 common_packages:
   - apt-file
+  - bash
+  - bash-completion
   - ksh
   - zsh
   - curl
@@ -101,7 +103,6 @@ devel_packages:
   - ninja-build
   - build-essential
   - gdb
-  - bash
   - gawk
   - gzip
   - bzip2
