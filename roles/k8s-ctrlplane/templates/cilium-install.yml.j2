@@ -63,7 +63,7 @@ enable-ipv6-masquerade: false
 
 {% set have_cluster = (k8s_cilium_cm_cluster_name | default('', true) | length)
                        and (k8s_cilium_cm_cluster_id is defined)
-                       and (1 <= (k8s_cilium_cm_cluster_id | int) <= 255) %}
+                       and (1 <= (k8s_cilium_cm_cluster_id | int) ) %}
 
 {% if have_cluster %}
 cluster:

@@ -26,13 +26,30 @@ pip install PyYAML
 2. 統合対象となる`kubeconfig`ファイルへのパスを位置引数に指定して, コマンドを実行します。指定した順番に処理されるため, 優先したい設定を前に配置してください。
 
 ```bash
-python create-uniq-kubeconfig.py kube1.config kube2.config kube3.config
+create-uniq-kubeconfig.py kube1.config kube2.config kube3.config
 ```
 
 `-o/--output` を指定しない場合, 出力ファイルは `merged-kubeconfig.config` になります。出力ファイル名を指定する場合は, 以下のように, `-o` オプションで出力ファイル名を明示します。
 
 ```bash
-python create-uniq-kubeconfig.py -o my-mesh.config kube1.config kube2.config
+create-uniq-kubeconfig.py -o my-mesh.config kube1.config kube2.config
+```
+
+## 書式
+
+```:plaintext
+ create-uniq-kubeconfig.py [-h] [-o OUTPUT] [-v] KUBECONFIG [KUBECONFIG ...]
+
+Merge multiple kubeconfig files into one output file.
+
+positional arguments:
+  KUBECONFIG            Paths to kubeconfig files to merge (will be processed in order).
+
+options:
+  -h, --help            show this help message and exit
+  -o OUTPUT, --output OUTPUT
+                        Destination kubeconfig path (default: merged-kubeconfig.config).
+  -v, --verbose         Increase log verbosity (repeat for more detail).
 ```
 
 ## オプション
@@ -44,16 +61,16 @@ python create-uniq-kubeconfig.py -o my-mesh.config kube1.config kube2.config
 | `-v` | ログを INFO レベルで表示します。 |
 | `-vv` | ログを DEBUG レベルまで表示します。 |
 
-ログ出力は, python標準の`logger`モジュールの仕様に従って出力されます。
-
 ## ログ出力
+
+ログ出力は, python標準の`logger`モジュールの仕様に従って出力されます。
 
 - `-v` を付与すると結合したクラスタ数などの進捗が INFO ログで表示されます。
 - 統合後のファイルパスは `Merged <count> kubeconfig files into <path>` というログで確認できます。`<path>`に出力ファイルへのパスが表示されます。
 
 ### 出力メッセージと条件
 
-以下の表は, 本プログラムが標準出力・標準エラー・プロンプトとして発するメッセージを網羅し, 発生条件と推奨対応を整理したものです。ログの表示レベルは `-v`（INFO）/`-vv`（DEBUG）で切り替わります。
+以下の表は, 本プログラムが標準出力, 標準エラー出力, プロンプトとして発するメッセージを網羅し, 発生条件と推奨対応を整理したものです。ログの表示レベルは `-v`（INFO）/`-vv`（DEBUG）で切り替わります。
 
 | メッセージ | 区分 | 出力条件 | 推奨対応 |
 | --- | --- | --- | --- |

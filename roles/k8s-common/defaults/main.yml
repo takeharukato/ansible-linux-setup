@@ -48,5 +48,8 @@ k8s_pod_cidrs:
 # (参考: https://kubernetes.io/docs/tasks/administer-cluster/reserve-compute-resources/)
 k8s_use_kubepods_cpuset: false
 
-k8s_embed_kubeconfig_script_path: "{{ k8s_node_setup_tools_dir }}/create-embedded-kubeconfig.sh"
+k8s_embed_kubeconfig_script_path: "{{ k8s_node_setup_tools_dir }}/create-embedded-kubeconfig.py"
+k8s_embed_kubeconfig_admin_conf: "/etc/kubernetes/admin.conf"
+k8s_embed_kubeconfig_output_dir: "{{ k8s_operator_home }}/.kube"
+k8s_embed_kubeconfig_file_postfix: "-embedded.kubeconfig"
 k8s_create_unique_kubeconfig_script_path: "{{ k8s_node_setup_tools_dir }}/create-uniq-kubeconfig.py"
