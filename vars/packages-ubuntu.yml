@@ -253,6 +253,7 @@ devel_packages:
   - default-jdk
   - wkhtmltopdf
   - intltool
+  - rpm # rpmパッケージの確認操作などの使用
   - cloc
   - nodejs
   - npm

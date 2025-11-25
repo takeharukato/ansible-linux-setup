@@ -1,48 +1,11 @@
 # Common settings for zsh
 
-# RHEL互換のlesspipe.shがあれば設定
-# lesspipe.sh
-#
-[ -x ${HOME}/bin/mylesspipe.sh ] && export LESSOPEN="|${HOME}/bin/mylesspipe.sh %s"
-
-#
-# expand aliases before completing
-#
-setopt complete_aliases # aliased ls needs if file/dir completions work
-
-alias where="command -v"
-alias j="jobs -l"
-
-case "${OSTYPE}" in
-freebsd*|darwin*)
-  alias ls="ls -G -w"
-  ;;
-linux*)
-  alias ls="ls --color"
-  ;;
-esac
-
-alias la="ls -a"
-alias lf="ls -F"
-alias ll="ls -l"
-
-alias du="du -h"
-alias df="df -h"
-
-alias su="su -l"
-
-
-# Lines configured by zsh-newuser-install
-HISTFILE=~/.histfile
-HISTSIZE=100000
-SAVEHIST=100000
+# Emacsキーバインドを使用
 bindkey -e
 
-# End of lines configured by zsh-newuser-install
-
-#
-#プロンプトの設定
-#
+# ------------------------------------------------
+# プロンプト設定
+# ------------------------------------------------
 RPROMPT=""
 PROMPT="[%n@%m %c] [%h] "
 #プロンプトの自動改行を抑制する
@@ -52,8 +15,35 @@ unsetopt promptcr
 autoload -U colors
 colors
 
-# エスケープシーケンスを使う。
-#setopt prompt_subst
+# ------------------------------------------------------
+# 補完処理
+# ------------------------------------------------------
+
+# -------------------------------------------------
+# コマンドライン補完基本設定
+# -------------------------------------------------
+
+#
+# fpath に必要な site-functions を追加する
+# /opt/share => /usr/local/share => /usr/share の順で確認し、未登録なら先頭に追加
+#
+zsh_site_function_dirs=(
+    /opt/share/zsh/site-functions
+    /usr/local/share/zsh/site-functions
+    /usr/share/zsh/site-functions
+)
+
+for _zf_dir in ${zsh_site_function_dirs[@]}; do
+    if [ -d "${_zf_dir}" ]; then
+        if (( ${fpath[(Ie)${_zf_dir}]} == 0 )); then
+            fpath=("${_zf_dir}" ${fpath})
+        fi
+    fi
+done
+unset _zf_dir zsh_site_function_dirs
+
+# 補完の zstyle 設定
+zstyle :compinstall filename "${HOME}/.zshrc"
 
 # 補完侯補をEmacsのキーバインドで動き回る
 zstyle ':completion:*:default' menu select=1
@@ -61,32 +51,37 @@ zstyle ':completion:*:default' menu select=1
 # 補完の時に大文字小文字を区別しない
 zstyle ':completion:*' matcher-list 'm:{a-z}={A-Z}'
 
-###
-# Set shell options
-###
-#setopt auto_menu auto_cd correct auto_name_dirs auto_remove_slash
-#setopt extended_history hist_ignore_dups hist_ignore_space prompt_subst
-#setopt pushd_ignore_dups rm_star_silent sun_keyboard_hack
-#setopt extended_glob list_types no_beep always_last_prompt
-#setopt cdable_vars sh_word_split auto_param_keys
+# ^Iで補完可能な一覧を表示する。(曖昧補完)
+setopt auto_list
+
+# 補完時にスペルチェックをする。
+setopt correct
+
+# 補完時に履歴を自動的に展開する。
+setopt hist_expand
+
+# 圧縮済み補完リストの表示
+setopt list_packed
+
+# 補完リスト表示時にビープ音を鳴らさない。
+setopt nolistbeep
+
+# 補完前にエイリアスを展開する
+# ( ファイル/ディレクトリ補完のために, 後述のlsのエイリアスを展開する必要があるため )
+setopt complete_aliases
+
+# -------------------------------------------------
+# シェル動作のカスタマイズ
+# -------------------------------------------------
 
 # C-s, C-qを無効にする。
 setopt no_flow_control
-
-# 先頭がスペースならヒストリーに追加しない。
-setopt hist_ignore_space
 
 # リダイレクトで上書きする事を許可しない。
 setopt no_clobber
 
 # ベルを鳴らさない。
 setopt no_beep
-
-# ^Dでログアウトしないようにする。
-#setopt ignore_eof
-
-# ^Iで補完可能な一覧を表示する。(曖昧補完)
-setopt auto_list
 
 # cdでpushdする。
 setopt auto_pushd
@@ -97,15 +92,6 @@ setopt pushd_ignore_dups
 # globを拡張する。
 setopt extended_glob
 
-# 補完時にスペルチェックをする。
-setopt correct
-
-# リターンを押す度にスペルチェックをする。
-#setopt correct_all
-
-# 補完時にヒストリを自動的に展開する。
-setopt hist_expand
-
 # pushd を引数無しで実行した時に pushd ~ とする。
 setopt pushd_to_home
 
@@ -115,31 +101,19 @@ setopt auto_cd
 # rm * を実行する前に確認される。
 unsetopt rmstar_wait
 
-# カレントディレクトリ中にサブディレクトリが
-# 見付からなかった場合に cd が検索する
-# ディレクトリのリスト
-#cdpath=($HOME)
+# コマンドラインの最後のスラッシュを自動的に削除しない。
+setopt noautoremoveslash
 
-# ログインとログアウトを監視する。
-#watch=(all all)
-# 全部監視
-#watch="all"
-# 10分おき(デフォルトは1分おき)
-#LOGCHECK="$[10 * 60]"
-# 取りあえず表示してみる
-#log
+# -------------------------------------------------
+# 履歴の設定
+# -------------------------------------------------
 
-# 10分後に自動的にログアウトする。
-#setopt autologout=10
-
-# 10分おきにメールをチェックする。
-#setopt mail 600 /var/spool/mail/$USER
-#setopt mail 600 $MAIL
-# メールをチェックする。
-#setopt mail $MAIL
-
-# バックグラウンドジョブが終了したらすぐに知らせる。
-setopt no_tify
+# 履歴ファイル
+HISTFILE=~/.histfile
+# 履歴サイズ
+HISTSIZE=100000
+# 履歴保存サイズ
+SAVEHIST=100000
 
 # 履歴ファイルに時刻を記録
 setopt extended_history
@@ -150,38 +124,68 @@ setopt inc_append_history
 # 履歴の共有
 setopt share_history
 
-# ヒストリに追加されるコマンド行が古いものと同じなら古いものを削除
+# 履歴に追加されるコマンド行が古いものと同じなら古いものを削除
 setopt hist_ignore_all_dups
 
-# 直前と同じコマンドラインはヒストリに追加しない
+# 直前と同じコマンドラインは履歴に追加しない
 setopt hist_ignore_dups
 
-# スペースで始まるコマンド行はヒストリリストから削除
+# スペースで始まるコマンド行は履歴リストから削除
 setopt hist_ignore_space
 
-# ヒストリを呼び出してから実行する間に一旦編集可能
+# 履歴を呼び出してから実行する間に一旦編集可能
 setopt hist_verify
+
+# ------------------------------------------------
+# 環境設定
+# ------------------------------------------------
 
 # coreのサイズ
 #limit coredumpsize 0
 
-# compacked complete list display
-#
-setopt list_packed
-
-# no remove postfix slash of command line
-#
-setopt noautoremoveslash
-
-# no beep sound when complete list displayed
-#
-setopt nolistbeep
+# ------------------------------------------------
+# lsコマンドのカラー表示設定
+# ------------------------------------------------
 
 #
-#env/default-path.shがあれば読み込む
+# lsコマンドのカラー表示設定
 #
-if [ -f ${HOME}/env/default-path.sh ]; then
-    source ${HOME}/env/default-path.sh
-else
-    export PATH="${SAFE_PATH}"
-fi
+case "${OSTYPE}" in
+    freebsd*|darwin*)
+        alias ls="ls -G -w"
+        ;;
+    linux*)
+        alias ls="ls --color"
+        ;;
+esac
+
+# ------------------------------------------------
+# コマンドエイリアスの設定
+# ------------------------------------------------
+
+#
+# ls エイリアス
+#
+
+alias ll='ls -lh'
+alias la="ls -a"
+alias lf="ls -F"
+alias ll="ls -l"
+
+# du/df エイリアス例
+alias du="du -h"
+alias df="df -h"
+
+# -------------------------------------
+# where コマンド
+# -------------------------------------
+alias where="command -v"
+
+# -------------------------------------
+# su コマンド
+# -------------------------------------
+alias su="su -l"
+
+# ------------------------------------
+# コマンドエイリアスの終わり
+# ------------------------------------

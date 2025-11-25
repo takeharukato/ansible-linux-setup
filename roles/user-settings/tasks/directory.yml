@@ -76,6 +76,18 @@
     backup: no
 
 #
+# zshrc.mine.sample のスケルトンファイル
+#
+- name: Deploy a zshrc.mine.sample skeleton
+  template:
+    src: _zshrc.mine.sample.j2
+    dest: /etc/skel/.zshrc.mine.sample
+    owner: root
+    group: root
+    mode: 0644
+    backup: no
+
+#
 # sshのディレクトリスケルトン
 #
 - name: Create /etc/skel/.ssh
