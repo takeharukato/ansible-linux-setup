@@ -64,6 +64,7 @@ k8s_common_packages:
   - kubectl
   - kubeadm
   - kubelet
+  - python3-pyyaml
 
 k8s_common_prerequisite_packages:
   - ca-certificates

@@ -9,21 +9,74 @@
 - name: wait for kube-api-server
   local_action: wait_for host={{ k8s_ctrlplane_endpoint }} port=6443 state=started
 
+#
+# kube-proxyの削除時に以下のRole Based Access Control (RBAC) エラーが
+# 発生する場合があるため, kubernetes-admin へ cluster-admin 権限を付与する。
+#
+# Error from server (Forbidden): daemonsets.apps "kube-proxy" is forbidden:
+# User "kubernetes-admin" cannot delete resource "daemonsets" in
+# API group "apps" in the namespace "kube-system"
+#
+
+# kube-proxy削除前に kubernetes-admin へ cluster-admin 権限を付与 (初回作成)
+- name: Create clusterrolebinding for kubernetes-admin
+  become: true
+  command:
+    cmd: >
+      kubectl --kubeconfig /etc/kubernetes/admin.conf
+      create clusterrolebinding kubernetes-admin
+      --clusterrole cluster-admin
+      --user kubernetes-admin
+  register: kubernetes_admin_crb_create
+  failed_when:
+    - kubernetes_admin_crb_create.rc not in [0, 1]
+    - kubernetes_admin_crb_create.rc == 1 and
+      ('AlreadyExists' not in kubernetes_admin_crb_create.stderr)
+  changed_when: kubernetes_admin_crb_create.rc == 0
+
+# 既存の clusterrolebinding がある場合は apply で状態を整合化する
+- name: Reconcile clusterrolebinding for kubernetes-admin
+  become: true
+  shell: |
+    cat <<'EOF' | kubectl --kubeconfig /etc/kubernetes/admin.conf apply -f -
+    apiVersion: rbac.authorization.k8s.io/v1
+    kind: ClusterRoleBinding
+    metadata:
+      name: kubernetes-admin
+    roleRef:
+      apiGroup: rbac.authorization.k8s.io
+      kind: ClusterRole
+      name: cluster-admin
+    subjects:
+      - kind: User
+        name: kubernetes-admin
+        apiGroup: rbac.authorization.k8s.io
+    EOF
+  args:
+    executable: /bin/bash
+  when:
+    - kubernetes_admin_crb_create.rc == 1
+    - "'AlreadyExists' in kubernetes_admin_crb_create.stderr"
+
+# kube-proxyのDaemonSetを削除
 - name: remove kube-proxy
   shell: |
     kubectl delete daemonsets.apps -n kube-system kube-proxy
   become: true
 
+# kube-proxyのConfigMapを削除
 - name: remove kube-proxy configmap
   shell: |
     kubectl delete configmaps -n kube-system kube-proxy
   become: true
 
+# Remove kube-proxy related iptables rules
 - name: delete kube-proxy iptables
   shell: |
     iptables-save | grep -v KUBE | iptables-restore
   become: true
 
+# Ciliumインストール用のHelmのvaluesファイルを作成
 - name: Setup values file
   template:
     src: cilium-install.yml.j2
@@ -144,9 +197,4 @@
 - name: Reboot host gracefully
   reboot:
     reboot_timeout: 600
-    msg: "Reboot triggered by role: common"
     pre_reboot_delay: 2
-
-- name: Wait for connection after reboot
-  wait_for_connection:
-    timeout: 300

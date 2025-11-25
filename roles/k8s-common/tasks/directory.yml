@@ -4,6 +4,9 @@
 #
 #  ファイル・ディレクトリ作成関連タスク
 #
+
+
+# kubeadm設定ファイル格納ディレクトリを作成
 - name: make kubeadm config file dir
   file:
     path: "{{ k8s_kubeadm_config_store }}"
@@ -12,10 +15,28 @@
     group: "ansible"
     mode: "0755"
 
-# 環境構築用コマンド配置先ディレクトリを作成
-- name: "make {{ k8s_node_setup_tools_dir }}"
+# k8s_node_setup_prefixディレクトリを作成
+- name: "Create directory {{ k8s_node_setup_tools_prefix }}"
+  file:
+    path: "{{ k8s_node_setup_tools_prefix }}"
+    state: directory
+    owner: "root"
+    group: "root"
+    mode: "0755"
+
+# k8s_node_setup_tools_dirディレクトリを作成
+- name: "Create directory {{ k8s_node_setup_tools_dir }}"
   file:
     path: "{{ k8s_node_setup_tools_dir }}"
+    state: directory
+    owner: "root"
+    group: "root"
+    mode: "0755"
+
+# k8s_node_setup_tools_docs_dirディレクトリを作成
+- name: "Create directory {{ k8s_node_setup_tools_docs_dir }}"
+  file:
+    path: "{{ k8s_node_setup_tools_docs_dir }}"
     state: directory
     owner: "root"
     group: "root"

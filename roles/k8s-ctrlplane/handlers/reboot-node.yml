@@ -5,5 +5,5 @@
     listen: "reboot_node_handler"
     reboot:
       reboot_timeout: 600
-      msg: "Reboot triggered by role: common"
+      msg: "Reboot triggered by role: k8s-ctrlplane"
       pre_reboot_delay: 2

@@ -7,66 +7,79 @@
 # .zshrc
 #
 
-#
+# ---------------------------------------------------------------
+# PATH設定
+# ---------------------------------------------------------------
+
 # セーフパスの設定
-#
 SAFE_PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 
-
-#
-# Ubuntu環境でも補完が効くようにRHEL系のfpath設定に対応
-#
-if [ -d /usr/share/zsh/site-functions ]; then
-    if (( ${fpath[(Ie)/usr/share/zsh/site-functions]} == 0 )); then
-      fpath=(/usr/share/zsh/site-functions $fpath)
-    fi
+if [ -f ${HOME}/env/default-path.sh ]; then
+    # env/default-path.shがあれば読み込む, なければ SAFE_PATH を設定
+    source ${HOME}/env/default-path.sh
+else
+    export PATH="${SAFE_PATH}"
 fi
 
-#
-# /usr/localにインストールしたパッケージに対して補完が効くようにfpath設定に対応
-#
-if [ -d /usr/local/share/zsh/site-functions ]; then
-    if (( ${fpath[(Ie)/usr/local/share/zsh/site-functions]} == 0 )); then
-        fpath=(/usr/local/share/zsh/site-functions $fpath)
-    fi
+# ------------------------------------------------
+# 個人用 bin ディレクトリを PATH に追加する
+# ------------------------------------------------
+if [ -d "${HOME}/bin" ]; then
+    PATH="${HOME}/bin:${PATH}"
+    export PATH
 fi
 
-# The following lines were added by compinstall
-zstyle :compinstall filename "${HOME}/.zshrc"
-
-autoload -Uz compinit
-compinit
-# End of lines added by compinstall
-
-#
-# load common .zshrc configuration file after SAFE_PATH is set
-#
+# --------------------------------------------------------
+# 共通設定 (補完/履歴/シェル挙動/エイリアスなど) 読み込み
+# --------------------------------------------------------
 [ -f ~/.zshrc.common ] && source ~/.zshrc.common
 
-# fpath更新に備えて再設定する
-compinit
-
-#
-# Lmodの設定
-#
-if [ -f /etc/profile.d/lmod.sh ]; then
-   source /etc/profile.d/lmod.sh
-   module use ${HOME}/Modules
-fi
-
-#
-# load user .zshrc.proxy configuration file
-#
-[ -f ~/.zshrc.proxy ] && source ~/.zshrc.proxy
-
-#
-# load user .zshrc configuration file
-#
+# -------------------------------------------------
+# ユーザ固有設定の読み込み
+# 必要に応じて ~/.zshrc.mine.sample を
+# ~/.zshrc.mine に コピーして個人設定を適用する
+# -------------------------------------------------
 [ -f ~/.zshrc.mine ] && source ~/.zshrc.mine
 
-# The following lines were added by compinstall
-zstyle :compinstall filename "${HOME}/.zshrc"
+# --------------------------------------------------------
+# Lmodの設定
+# --------------------------------------------------------
+if [ -f /etc/profile.d/lmod.sh ]; then
+   source /etc/profile.d/lmod.sh
+   if [ -d ${HOME}/Modules ]; then
+        module use ${HOME}/Modules
+   fi
+fi
 
+# ------------------------------------------------
+# Rust (cargo) 環境を利用する場合の設定
+# ------------------------------------------------
+if [ -f "${HOME}/.cargo/env" ]; then
+    source "${HOME}/.cargo/env"
+fi
+
+# Debian/Ubuntu系のlesspipe設定
+[ -x /usr/bin/lesspipe ] && eval "$(SHELL=/bin/sh lesspipe)"
+
+# RHEL系のlesspipe設定
+if [ -z "$LESSOPEN" ] && [ -x /usr/bin/lesspipe.sh ]; then
+    # The '||' here is intentional, see rhbz#1254837.
+    export LESSOPEN="||/usr/bin/lesspipe.sh %s"
+else
+    # ------------------------------------------------
+    # RHEL互換のlesspipe.shがあれば設定
+    # lesspipe.sh
+    # ------------------------------------------------
+    [ -x ${HOME}/bin/mylesspipe.sh ] && export LESSOPEN="|${HOME}/bin/mylesspipe.sh %s"
+fi
+
+# ------------------------------------------------
+# プロキシ設定読み込み
+# ------------------------------------------------
+[ -f ~/.zshrc.proxy ] && source ~/.zshrc.proxy
+
+# ------------------------------------------------
+# 全ての設計完了後に補完システムを初期化
+# ------------------------------------------------
 autoload -Uz compinit
 compinit
-# End of lines added by compinstall

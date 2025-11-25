@@ -76,6 +76,7 @@ k8s_common_prerequisite_packages:
   - lsb-release
   - yq
   - jq
+  - python3-yaml
 
 # ノイズ測定グラフ作成用にgnuplot, python3-pip, python3-matplotlibを導入している
 # 本来は, グラフ作成作業ノードだけに導入すればよいが, ここでは,
@@ -253,6 +254,7 @@ devel_packages:
   - default-jdk
   - wkhtmltopdf
   - intltool
+  - rpm # rpmパッケージの確認操作などの使用
   - cloc
   - nodejs
   - npm
