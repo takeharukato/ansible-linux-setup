@@ -28,6 +28,13 @@
         - [Cilium CNI](#cilium-cni)
         - [Multus メタCNI](#multus-メタcni)
         - [Whereabouts CNI](#whereabouts-cni)
+      - [複数のコントロールプレインの操作](#複数のコントロールプレインの操作)
+        - [`*-embedded.kubeconfig`の収集](#-embeddedkubeconfigの収集)
+        - [kubeconfigの更新](#kubeconfigの更新)
+          - [結合したファイルの確認](#結合したファイルの確認)
+          - [`${HOME}/.kube/config`の更新](#homekubeconfigの更新)
+        - [コンテキスト指定による操作対象コントロールプレインの切り替え](#コンテキスト指定による操作対象コントロールプレインの切り替え)
+          - [コンテキスト一覧取得](#コンテキスト一覧取得)
     - [Netgauge](#netgauge)
     - [host\_vars/ ディレクトリ配下のホスト設定ファイル](#host_vars-ディレクトリ配下のホスト設定ファイル)
       - [ホスト設定ファイル中でのネットワークインターフェース設定](#ホスト設定ファイル中でのネットワークインターフェース設定)
@@ -143,7 +150,6 @@ users_listには, 以下の要素からなる辞書のリストを記述する.
 `users_authorized_keys`のキーには, `users_list`のユーザ名(`name`キーの値)を指定し, `users_authorized_keys`の値には, OpenSSHの `.ssh/authorized_keys`に登録する公開鍵情報行を記載する。
 
 `users_authorized_keys`の例を以下に示す。
-
 
 ```:yaml
 # ユーザごとに任意の公開鍵を追記する場合に使用
@@ -281,7 +287,6 @@ ntp_servers_list:
 |nfs_export_directory|NFSで公開するディレクトリ|"/home/nfsshare"|
 |nfs_network|NFSのクライアントアドレス(ネットワークアドレスを指定)|"{{ network_ipv4_network_address }}/{{ network_ipv4_prefix_len }}"|
 |nfs_options|NFS exportのオプション|"rw,no_root_squash,sync,no_subtree_check,no_wdelay"|
-
 
 #### Network Time Protocol (NTP)サーバの設定
 
@@ -538,6 +543,149 @@ Whereabouts CNI関連の設定を以下に記載する。
 |k8s_whereabouts_helm_chart_version|Whereabouts Helm Chartのバージョン|"{{ k8s_whereabouts_version }}"|
 |k8s_whereabouts_image_version|Whereaboutsコンテナイメージのバージョン|"{{ k8s_whereabouts_version }}"|
 
+#### 複数のコントロールプレインの操作
+
+複数のコントロールプレインの`kubeconfig`ファイルを一つの設定ファイルに集約し, 操作対象コントロールプレインを切り替えることで, 複数のK8sクラスタを操作可能にする手順を示す。
+
+1. `*-embedded.kubeconfig`の収集
+2. kubeconfigの更新
+3. コンテキスト一覧取得
+4. コンテキスト指定による操作対象コントロールプレインの切り替え
+
+##### `*-embedded.kubeconfig`の収集
+
+各コントロールプレインの~kube/.kube/*-embedded.kubeconfigをカレントディレクトリの`dest`ディレクトリに収集する。典型的には, コントロールプレインのどれかで実行すればよい。
+
+実行するコマンド例を以下に示す:
+
+```:shell
+$ rm -fr dest/
+$ gm-gather -u kube '\.kube/cluster[0-9]+\-embedded\.kubeconfig' dest
+timestamp="2025-11-25T17:59:31.270+09:00" level="INFO" host="k8sctrlplane01.local" op="gather" phase="start" trial="0" processed="0" total="1" msg="host start"
+timestamp="2025-11-25T17:59:31.270+09:00" level="INFO" host="k8sctrlplane02.local" op="gather" phase="start" trial="0" processed="0" total="1" msg="host start"
+timestamp="2025-11-25T17:59:31.274+09:00" level="INFO" host="k8sctrlplane01.local" op="gather" phase="done" trial="1" processed="1" total="1" warnings="0" errors="0" duration="0.0" msg="host done"
+timestamp="2025-11-25T17:59:31.274+09:00" level="INFO" host="k8sctrlplane02.local" op="gather" phase="done" trial="1" processed="1" total="1" warnings="0" errors="0" duration="0.0" msg="host done"
+timestamp="2025-11-25T17:59:31.275+09:00" level="INFO" host="-" op="gather" phase="done" trial="2" processed="2" total="2" warnings="0" errors="0" msg="summary"
+$ tree -a dest
+dest
+|-- k8sctrlplane01.local
+|   `-- home
+|       `-- kube
+|           `-- .kube
+|               `-- cluster1-embedded.kubeconfig
+`-- k8sctrlplane02.local
+    `-- home
+        `-- kube
+            `-- .kube
+                `-- cluster2-embedded.kubeconfig
+
+9 directories, 2 files
+```
+
+上記では, 収集作業に, [gm-tools](https://github.com/takeharukato/gm-tools) を使用している。`gm-tools`のインストールや使用方法は, [gm-toolsのReadmeJP.md](https://github.com/takeharukato/gm-tools/blob/main/ReadmeJP.md) 参照 (導入時は, latestのリリースパッケージが提供されているのでそちらを利用する)。
+
+##### kubeconfigの更新
+
+収集した, kubeconfigを`/opt/k8snodes/sbin`に導入されている`create-uniq-kubeconfig.py`を使用して, マージ する。念のため, コントロールプレインとワーカーの双方に`create-uniq-kubeconfig.py`を導入しているが, cilium connectを実行するノード (コントロールプレイン) でのみ実施すればよい。
+
+```:shell
+$ /opt/k8snodes/sbin/create_uniq_kubeconfig.py -v `find dest -name '*.kubeconfig'`
+[INFO] Processed /home/kube/dest/k8sctrlplane01.local/home/kube/.kube/cluster1-embedded.kubeconfig (clusters=2, contexts=1, users=1)
+[INFO] Processed /home/kube/dest/k8sctrlplane02.local/home/kube/.kube/cluster2-embedded.kubeconfig (clusters=2, contexts=1, users=1)
+[INFO] Merged 2 kubeconfig files into /home/kube/merged-kubeconfig.config
+```
+
+###### 結合したファイルの確認
+
+結合したファイルの確認手順は以下の通り:
+
+1. ファイルの存在確認
+2. マージしたkubeconfigでリソース (コンテキスト)を取得
+
+ファイルの存在確認時のコマンド実行例を以下に示す:
+
+```:shell
+$ ls merged-kubeconfig.config
+merged-kubeconfig.config
+```
+
+マージしたkubeconfigでリソース (コンテキスト)を取得する場合のコマンド実行例を以下に示す:
+
+```:shell
+$ kubectl config get-contexts --kubeconfig=merged-kubeconf
+ig.config
+CURRENT   NAME                            CLUSTER    AUTHINFO             NAMESPACE
+*         kubernetes-admin@kubernetes     cluster1   kubernetes-admin
+          kubernetes-admin@kubernetes-2   cluster2   kubernetes-admin-2
+```
+
+なお, `merged-kubeconf
+ig.config`の出力形式を確認するには以下のコマンドを実行する:
+
+```:shell
+kubectl config view --raw --kubeconfig=merged-kubeconfig.config
+```
+
+また, クラスタ情報を確認する場合は, 以下のコマンドを実行する:
+
+```:shell
+kubectl cluster-info --kubeconfig=merged-kubeconfig.config
+```
+
+###### `${HOME}/.kube/config`の更新
+
+マージしたkubeconfigを`~/.kube/config`にコピーするコマンド例を以下に示す:
+
+```:shell
+cp ~/.kube/config ~/.kube/config-`date +'%Y%m%d%H%M%S'`
+cp merged-kubeconfig.config ~/.kube/config
+```
+
+上記では, 既存の`${HOME}/.kube/config`を別のファイル名で退避してから, `${HOME}/.kube/config`を結合した`kubeconfig`で置き換えている。
+
+##### コンテキスト指定による操作対象コントロールプレインの切り替え
+
+コンテキスト指定により, 操作対象コントロールプレインの切り替えてから, `kubectl`を実行することで, 操作対象コントロールプレインを切り替えることができる。
+
+このための手順は以下の通り:
+
+1. コンテキスト一覧取得
+2. コンテキスト指定による操作対象コントロールプレインの切り替え
+3. `kubectl`コマンドによるK8sクラスタの操作
+
+###### コンテキスト一覧取得
+
+コンテキスト一覧を取得する際のコマンド例を以下に示す:
+
+```:shell
+$ kubectl config get-contexts
+CURRENT   NAME                            CLUSTER    AUTHINFO             NAMESPACE
+*         kubernetes-admin@kubernetes     cluster1   kubernetes-admin
+          kubernetes-admin@kubernetes-2   cluster2   kubernetes-admin-2
+```
+
+上記で, `NAME`列に出ている文字列がコンテキスト名である。
+
+上記で取得したコンテキスト名を使用し, `kubectl config use-context <コンテキスト名>`を実行することで, 操作対象コントロールプレインを切り替えることができる。
+
+操作対象コントロールプレインを切り替え, 各コントロールプレインのノードを取得する操作のコマンド例を以下に示す:
+
+```:shell
+$ kubectl config use-context kubernetes-admin@kubernetes-2
+$ kubectl get node
+NAME             STATUS   ROLES           AGE     VERSION
+k8sctrlplane02   Ready    control-plane   7h47m   v1.31.14
+k8sworker0201    Ready    <none>          6h57m   v1.31.14
+k8sworker0202    Ready    <none>          6h57m   v1.31.14
+$ kubectl config use-context kubernetes-admin@kubernetes
+Switched to context "kubernetes-admin@kubernetes".
+$ kubectl get nodes
+NAME             STATUS   ROLES           AGE     VERSION
+k8sctrlplane01   Ready    control-plane   7h52m   v1.31.13
+k8sworker0101    Ready    <none>          7h7m    v1.31.13
+k8sworker0102    Ready    <none>          7h31m   v1.31.13
+```
+
 ### Netgauge
 
 ネットワーク性能測定ツールであるNetgauge関連の設定を以下に記載する。
@@ -565,8 +713,8 @@ K8sノードは, 管理用ネットワークと運用ネットワーク(K8sのPo
 |k8s_kubelet_nic|K8sのkubeletが使用するNetwork Interface Card (NIC) を指定, 未指定時はmgmt_nicが使用される。運用ネットワーク(K8sネットワーク)内でK8s間の通信を閉じるなら, K8sネットワーク側のNICを指定する。|"ens194"|
 |k8s_pod_ipv4_network_cidr|K8s IPv4 PodネットワークアドレスのCIDR|"10.244.0.0/16"|
 |k8s_pod_ipv6_network_cidr|K8s IPv6 PodネットワークアドレスのCIDR|"fdb6:6e92:3cfb:0100::/56"|
-|k8s_cilium_cm_cluster_name|Clium Cluster Meshのクラスタ名|"cluster1"|
-|k8s_cilium_cm_cluster_id|Clium Cluster MeshのクラスタID|1|
+|k8s_cilium_cm_cluster_name|Cilium Cluster Meshのクラスタ名|"cluster1"|
+|k8s_cilium_cm_cluster_id|Cilium Cluster MeshのクラスタID|1|
 |k8s_whereabouts_ipv4_range_start|Whereaboutsのセカンダリネットワークのアドレスレンジ開始アドレス(IPv4)。 コントロールプレイン用ホスト設定ファイルで設定する。|"192.168.20.100"|
 |k8s_whereabouts_ipv4_range_end|Whereaboutsのセカンダリネットワークのアドレスレンジ終了アドレス(IPv4)。 コントロールプレイン用ホスト設定ファイルで設定する。|"192.168.20.254"|
 |k8s_whereabouts_ipv6_range_start|Whereaboutsのセカンダリネットワークのアドレスレンジ開始アドレス(IPv6)。 コントロールプレイン用ホスト設定ファイルで設定する。|"fd69:6684:61a:3::100"|
@@ -644,7 +792,7 @@ netif_list変数は, 以下の要素からなる辞書のリストである。
 - [【Ansible】メンテナンスしやすいPlaybookの書き方](https://densan-hoshigumi.com/server/playbook-maintainability)
 - [Ansible 変数の優先順位と書き方をまとめてみた](https://qiita.com/answer_d/items/b8a87aff8762527fb319)
 - [[Ansible] service モジュールの基本的な使い方 ( サービスの起動・停止・
-  自動起動の有効化など ) ](https://tekunabe.hatenablog.jp/entry/2019/02/24/ansible_service_intro)
+  自動起動の有効化など )](https://tekunabe.hatenablog.jp/entry/2019/02/24/ansible_service_intro)
 - [【Ansible】with_itemsループまとめ](https://qiita.com/Tocyuki/items/3efdf4cfcfd9bea056d9)
 - [Jinja2: Check If Variable ? Empty | Exists | Defined | True](https://www.shellhacks.com/jinja2-check-if-variable-empty-exists-defined-true/)
 jinja2で変数定義の有無の確認と中身が空で無いことの確認方法
