@@ -386,6 +386,51 @@ create_user_emacs_package_list:
 # Kubernetes バージョン (先頭にvをつけないこと)
 k8s_major_minor: "1.31"
 
+# 共通CA生成設定
+# true: ロールが共通CAを生成/再利用する (k8s_common_ca 未指定時)
+# false: 事前に用意した共通CAを k8s_common_ca で指定する必要がある
+enable_create_k8s_ca: true
+
+# 共通CA情報を共有するホスト名 (未設定時はlocalhostを利用)
+k8s_shared_ca_source_host: "localhost"
+
+# 既存の共通CAを利用する場合に, 証明書と秘密鍵が格納されたディレクトリパスを指定する
+# ディレクトリ配下には {{ k8s_shared_ca_cert_filename }} と {{ k8s_shared_ca_key_filename }} を配置すること
+k8s_common_ca: ""
+
+# 共通CAを各ノードへ配置するディレクトリ
+k8s_shared_ca_output_dir: "/etc/kubernetes/pki/shared-ca"
+
+# kubeadm が利用する Kubernetes ルートCAも共通CAで置き換えるか
+k8s_shared_ca_replace_kube_ca: true
+
+#
+# Cilium共通CA設定
+#
+# Cilium Cluster Mesh 用の共通CA Secretを生成する場合は true
+cilium_shared_ca_enabled: true
+# Kubernetes共通CAを流用してcilium-ca Secretを生成する場合は true
+cilium_shared_ca_reuse_k8s_ca: true
+# Cilium共通CAを自動生成する場合の設定
+cilium_shared_ca_auto_create: false
+# Cilium共通CA自動生成時のCilium共通CA証明書/鍵の出力ディレクトリ
+cilium_shared_ca_output_dir: "/etc/kubernetes/pki/cilium-shared-ca"
+# Cilium共通CA自動生成時のCilium共通CA証明書/鍵の出力ファイル名
+# cilium_shared_ca_auto_create: false 時は以下のファイルを更新せず
+# 既に, 下記のファイルが存在していれば、cilium_shared_ca_output_dir
+# 配下の以下のファイル名のファイルを使用, 存在しない場合はエラーとする
+cilium_shared_ca_cert_filename: "cilium-ca.crt"
+cilium_shared_ca_key_filename: "cilium-ca.key"
+# cilium_shared_ca_reuse_k8s_ca: false 時に
+# 使用するCilium共通CA証明書/鍵のフルパス
+# これらが設定されており, 空文字列でなければ,
+# cilium_shared_ca_cert_filename, cilium_shared_ca_key_filename
+# より優先的に使用される
+cilium_shared_ca_cert_path: ""
+cilium_shared_ca_key_path: ""
+# Secret作成に利用するkubeconfig (デフォルトはコントロールプレーンのadmin.conf)
+cilium_shared_ca_kubeconfig: "/etc/kubernetes/admin.conf"
+
 # 物理MAC: 04:92:26:c1:b5:d2 からIPv6 Unique Local Addressを生成
 # 参考) https://yoshi0808.github.io/new-technology/2020/04/18/ipv6/
 #    https://www.jdoodle.com/a/20tR を使用して生成

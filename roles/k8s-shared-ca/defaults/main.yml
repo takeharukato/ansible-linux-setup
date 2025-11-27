@@ -1,0 +1,27 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible role defaults for k8s-shared-ca
+#  Copyright 2025 Takeharu KATO
+#
+# 共通CA生成ロールのデフォルト値
+---
+# 共通CAをこのロールで生成するかどうか
+enable_create_k8s_ca: false
+
+# 既存の共通CAを指定する場合のローカルパス
+k8s_common_ca: ""
+
+# コントロールプレーン上に展開する共通CAの格納先ディレクトリ
+k8s_shared_ca_output_dir: "/etc/kubernetes/pki/shared-ca"
+
+# 共通CA証明書/鍵ファイル名
+k8s_shared_ca_cert_filename: "cluster-mesh-ca.crt"
+k8s_shared_ca_key_filename: "cluster-mesh-ca.key"
+
+# 新規生成時の証明書パラメータ
+k8s_shared_ca_subject: "/CN=cilium-cluster-mesh-ca"
+k8s_shared_ca_valid_days: 3650
+k8s_shared_ca_key_size: 4096
+k8s_shared_ca_digest: "sha256"
+
+# Kubernetes のルートCAとして共通CAを利用するか
+k8s_shared_ca_replace_kube_ca: false

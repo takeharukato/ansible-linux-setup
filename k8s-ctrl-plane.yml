@@ -20,6 +20,8 @@
       tags: ntp-client
     - role: k8s-common
       tags: k8s-common
+    - role: k8s-shared-ca
+      tags: k8s-shared-ca
     - role: k8s-ctrlplane
       tags: k8s-ctrlplane
     - role: netgauge

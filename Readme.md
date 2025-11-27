@@ -491,11 +491,17 @@ Kubernetes (以下K8sと記す)関連の設定を以下に記載する。
 |変数名|意味|設定値の例|
 |---|---|---|
 |k8s_major_minor|K8s バージョン (先頭にvをつけないことに注意)|"1.31"|
+|enable_create_k8s_ca|共通CAをロールで生成/再利用する (false の場合は `k8s_common_ca` を必須とする)|true|
+|k8s_common_ca|事前に用意した共通CA (`cluster-mesh-ca.crt/.key`) を格納したディレクトリの絶対パス|""|
+|k8s_shared_ca_output_dir|共通CAをノード内に展開するディレクトリ|"/etc/kubernetes/pki/shared-ca"|
+|k8s_shared_ca_replace_kube_ca|共通CAで `/etc/kubernetes/pki/ca.{crt,key}` を置き換え, `kubeadm init` 時にAPIサーバ証明書などを共通CAで再発行する|true|
 |k8s_pod_ipv4_service_subnet|K8sのIPv4サービスネットワークのClassless Inter-Domain Routing ( CIDR ) |"10.245.0.0/16"|
 |k8s_pod_ipv6_service_subnet|K8sのIPv6サービスネットワークのCIDR|"fdb6:6e92:3cfb:feed::/112"|
 |k8s_reserved_system_cpus_default|K8sのシステムCentral Processing Unit ( CPU ) 予約範囲。未定義時は, システム用CPUを予約しない。|"0-1"|
 |k8s_worker_enable_nodeport|NodePortによるサービスネットワーク公開を行う場合は, trueに設定(将来対応)|false|
 |k8s_worker_nodeport_range|NodePortの範囲|"30000-32767"|
+
+共通CA関連の設定値 (`enable_create_k8s_ca`, `k8s_common_ca`, `k8s_shared_ca_output_dir`, `k8s_shared_ca_replace_kube_ca`) を有効にすると, `k8s-shared-ca` ロールが共通CAの生成/取得と配布を行い, `k8s-ctrlplane` ロールは `kubeadm reset` 後に当該 CA を `/etc/kubernetes/pki/shared-ca/` へ復元した上で `kubeadm init` を実行します。`k8s_shared_ca_replace_kube_ca: true` の場合, API サーバや kube-controller-manager 等の証明書は共通CAで再発行されるため, クラスタ再構築時はワーカーノード側の `kubeadm reset` / `kubeadm join` も併せて実施し, 全ノードが新しいルートCAを信頼する状態へ更新してください。
 
 k8s_operator_github_key_listにk8sの各ノードへログインするために使用する公開鍵を得る方式を表す辞書をリスト形式で指定する。
 
@@ -522,6 +528,26 @@ Cilium CNI関連の設定を以下に記載する。
 |k8s_cilium_version|Cilium CNIのバージョン|"1.16.0"|
 |k8s_cilium_helm_chart_version|Cilium Helm Chartのバージョン|"{{ k8s_cilium_version }}"|
 |k8s_cilium_image_version|Ciliumコンテナイメージのバージョン|"v{{ k8s_cilium_version }}"|
+|cilium_shared_ca_enabled|`cilium-shared-ca` ロールによる `cilium-ca` Secret の生成/更新を有効化する|false|
+|cilium_shared_ca_reuse_k8s_ca|`k8s-shared-ca` ロールで生成した共通CAを流用する場合に true を指定する|false|
+|cilium_shared_ca_output_dir|共通CAを自動生成する際の出力ディレクトリ|"/etc/kubernetes/pki/cilium-shared-ca"|
+|cilium_shared_ca_cert_filename|自動生成する証明書ファイル名|"cilium-ca.crt"|
+|cilium_shared_ca_key_filename|自動生成する秘密鍵ファイル名|"cilium-ca.key"|
+|cilium_shared_ca_secret_name|生成するSecret名|"cilium-ca"|
+|cilium_shared_ca_secret_namespace|Secretを配置するNamespace|"kube-system"|
+|cilium_shared_ca_secret_type|Secretの`type`|"Opaque"|
+|cilium_shared_ca_secret_cert_key|Secretに格納する証明書のキー名|"ca.crt"|
+|cilium_shared_ca_secret_key_key|Secretに格納する秘密鍵のキー名|"ca.key"|
+|cilium_shared_ca_secret_labels|Secretに付与する追加ラベルの辞書|{"app.kubernetes.io/managed-by": "Helm"}|
+|cilium_shared_ca_secret_annotations|Secretに付与する追加アノテーションの辞書|{"meta.helm.sh/release-name": "cilium", "meta.helm.sh/release-namespace": "kube-system"}|
+|cilium_shared_ca_auto_create|共通CAが存在しない場合にロールが自動生成するか|true|
+|cilium_shared_ca_key_size|自動生成する秘密鍵のビット長|4096|
+|cilium_shared_ca_valid_days|自動生成する証明書の有効日数|3650|
+|cilium_shared_ca_digest|証明書生成時に使用するダイジェスト|"sha256"|
+|cilium_shared_ca_subject|自動生成する証明書のサブジェクト|"/CN=Cilium Cluster Mesh CA"|
+
+`cilium_shared_ca_enabled: true` の場合, `cilium-shared-ca` ロールがコントロールプレインノードで `kubectl apply` を実行し, `kube-system/{{ cilium_shared_ca_secret_name }}` Secret を共通CAから再生成する。`cilium_shared_ca_reuse_k8s_ca: true` を指定する際は, 同一ホストで `k8s-shared-ca` ロールを先に実行し, `k8s_shared_ca_cert_path` / `k8s_shared_ca_key_path` の facts を取得しておくこと。`cilium_shared_ca_reuse_k8s_ca: false` で `cilium_shared_ca_auto_create: true` の場合はロールが `openssl` を用いて証明書/鍵を自動生成し, `cilium_shared_ca_output_dir` に配置する。既存の証明書/鍵をそのまま利用する場合は同ディレクトリへ事前配置するか, `cilium_shared_ca_cert_path` / `cilium_shared_ca_key_path` へフルパスを指定し, 必要に応じて `cilium_shared_ca_auto_create: false` を設定する。
+`cilium_shared_ca_cert_path` / `cilium_shared_ca_key_path` が空文字列でなければ, `cilium_shared_ca_output_dir` + ファイル名よりも優先的に参照される。`cilium_shared_ca_auto_create: false` を指定した場合, ロールは証明書/鍵を生成・更新せず既存ファイルの存在を検証するのみで, 見つからない場合はタスクを失敗させる。
 
 ##### Multus メタCNI
 
@@ -556,40 +582,60 @@ Whereabouts CNI関連の設定を以下に記載する。
 
 各コントロールプレインの~kube/.kube/*-embedded.kubeconfigをカレントディレクトリの`dest`ディレクトリに収集する。典型的には, コントロールプレインのどれかで実行すればよい。
 
-実行するコマンド例を以下に示す:
+以下では, `pssh`パッケージに含まれる`pslurp`を用いて, リモートホスト上のファイルを一括取得する例を示す。
+
+`pslurp`は各ホストのファイルを `-L` で指定したディレクトリ配下にホスト毎のサブディレクトリを作成して保存する。Ubuntu環境ではコマンド名が`parallel-slurp`に変わる点に注意すること。
+
+事前に収集対象ホストを列挙したファイル (ここでは `ctrlplane-hosts.txt`) を用意しておく。本例では,
+以下のような`ctrlplane-hosts.txt`を使用する:
+
+```plaintext
+k8sctrlplane01.local
+k8sctrlplane02.local
+```
+
+RedHat系の場合は以下のようにコマンドを実行する:
 
 ```:shell
 $ rm -fr dest/
-$ gm-gather -u kube '\.kube/cluster[0-9]+\-embedded\.kubeconfig' dest
-timestamp="2025-11-25T17:59:31.270+09:00" level="INFO" host="k8sctrlplane01.local" op="gather" phase="start" trial="0" processed="0" total="1" msg="host start"
-timestamp="2025-11-25T17:59:31.270+09:00" level="INFO" host="k8sctrlplane02.local" op="gather" phase="start" trial="0" processed="0" total="1" msg="host start"
-timestamp="2025-11-25T17:59:31.274+09:00" level="INFO" host="k8sctrlplane01.local" op="gather" phase="done" trial="1" processed="1" total="1" warnings="0" errors="0" duration="0.0" msg="host done"
-timestamp="2025-11-25T17:59:31.274+09:00" level="INFO" host="k8sctrlplane02.local" op="gather" phase="done" trial="1" processed="1" total="1" warnings="0" errors="0" duration="0.0" msg="host done"
-timestamp="2025-11-25T17:59:31.275+09:00" level="INFO" host="-" op="gather" phase="done" trial="2" processed="2" total="2" warnings="0" errors="0" msg="summary"
+$ pslurp -h ctrlplane-hosts.txt -l kube -L dest '~/.kube/*-embedded.kubeconfig' .
+[1] 17:59:31 [SUCCESS] k8sctrlplane01.local -> dest/k8sctrlplane01.local/home/kube/.kube/cluster1-embedded.kubeconfig
+[2] 17:59:31 [SUCCESS] k8sctrlplane02.local -> dest/k8sctrlplane02.local/home/kube/.kube/cluster2-embedded.kubeconfig
 $ tree -a dest
 dest
-|-- k8sctrlplane01.local
-|   `-- home
-|       `-- kube
-|           `-- .kube
-|               `-- cluster1-embedded.kubeconfig
-`-- k8sctrlplane02.local
-    `-- home
-        `-- kube
-            `-- .kube
-                `-- cluster2-embedded.kubeconfig
+|-- k8sctrlplane01.local:None
+|   `-- cluster1-embedded.kubeconfig
+`-- k8sctrlplane02.local:None
+    `-- cluster2-embedded.kubeconfig
 
-9 directories, 2 files
+3 directories, 2 files
 ```
 
-上記では, 収集作業に, [gm-tools](https://github.com/takeharukato/gm-tools) を使用している。`gm-tools`のインストールや使用方法は, [gm-toolsのReadmeJP.md](https://github.com/takeharukato/gm-tools/blob/main/ReadmeJP.md) 参照 (導入時は, latestのリリースパッケージが提供されているのでそちらを利用する)。
+Debian/Ubuntu系の場合は, 以下のようにコマンドを実行する:
+
+```:shell
+$ rm -fr dest/
+$ parallel-slurp -h ctrlplane-hosts.txt -l kube -L dest '~/.kube/*-embedded.kubeconfig' .
+[1] 17:59:31 [SUCCESS] k8sctrlplane01.local -> dest/k8sctrlplane01.local/home/kube/.kube/cluster1-embedded.kubeconfig
+[2] 17:59:31 [SUCCESS] k8sctrlplane02.local -> dest/k8sctrlplane02.local/home/kube/.kube/cluster2-embedded.kubeconfig
+$ tree -a dest
+dest
+|-- k8sctrlplane01.local:None
+|   `-- cluster1-embedded.kubeconfig
+`-- k8sctrlplane02.local:None
+    `-- cluster2-embedded.kubeconfig
+
+3 directories, 2 files
+```
+
+`pssh`パッケージの導入方法やコマンドオプションについては, [pssh GitHub リポジトリ](https://github.com/lilydjwg/pssh) の README や `man pslurp` といったパッケージ同梱マニュアルを参照すること。
 
 ##### kubeconfigの更新
 
 収集した, kubeconfigを`/opt/k8snodes/sbin`に導入されている`create-uniq-kubeconfig.py`を使用して, マージ する。念のため, コントロールプレインとワーカーの双方に`create-uniq-kubeconfig.py`を導入しているが, cilium connectを実行するノード (コントロールプレイン) でのみ実施すればよい。
 
 ```:shell
-$ /opt/k8snodes/sbin/create_uniq_kubeconfig.py -v `find dest -name '*.kubeconfig'`
+$ /opt/k8snodes/sbin/create-uniq-kubeconfig.py -v `find dest -name '*.kubeconfig'`
 [INFO] Processed /home/kube/dest/k8sctrlplane01.local/home/kube/.kube/cluster1-embedded.kubeconfig (clusters=2, contexts=1, users=1)
 [INFO] Processed /home/kube/dest/k8sctrlplane02.local/home/kube/.kube/cluster2-embedded.kubeconfig (clusters=2, contexts=1, users=1)
 [INFO] Merged 2 kubeconfig files into /home/kube/merged-kubeconfig.config
@@ -775,12 +821,12 @@ netif_list変数は, 以下の要素からなる辞書のリストである。
 - Internet Control Message Protocol ( ICMP ) : IP通信における誤りの通知や通信に関する情報の通知などのために使用される通信規約。
 - Internet Protocol ( IP ) :インターネットでデータを送受信するための通信規約。
 - Kubernetes ( K8s ) : コンテナオーケストレーションのためのプラットフォーム。
-- Lightweight Directory Access Protocol ( LDAP ) : ネットワーク内のユーザー、デバイス、ファイルなどの情報を一元管理し、検索や認証を行うための通信規約。
+- Lightweight Directory Access Protocol ( LDAP ) : ネットワーク内のユーザー, デバイス, ファイルなどの情報を一元管理し, 検索や認証を行うための通信規約。
 - Local Area Network ( LAN ) : 建物やフロア等の限定範囲で構成されるローカルネットワーク。
 - Multicast DNS ( mDNS ) : ユニキャストDNSサーバーが存在しない環境において, ローカルリンク上でDNSに類似した 操作を実行する機能を提供するための通信規約。
 - Network File System ( NFS ) : ネットワーク経由でファイルを共有するための通信規約。
 - Network Interface Card ( NIC ) : ネットワークに接続するためのハードウェア。
-- Network Time Protocol ( NTP ) : ネットワークに接続されたコンピューターなどの機器の時計を、正確な時刻に同期させるための通信規約。
+- Network Time Protocol ( NTP ) : ネットワークに接続されたコンピューターなどの機器の時計を, 正確な時刻に同期させるための通信規約。
 - Router Advertisement ( RA ) : IPv6 のプレフィクスやデフォルトルータ情報を周知する ICMPv6 通信規約。
 - Security-Enhanced Linux ( SELinux ) : カーネルレベルの強制アクセス制御によりプロセス／リソース隔離を強化する仕組み。
 - Secure Shell (SSH): リモートログイン／ファイル転送／コマンド実行のための暗号化プロトコル, および, コマンド。

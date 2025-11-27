@@ -99,6 +99,61 @@
       state: absent
     become: true
 
+  - name: Restore shared CA assets after kubeadm reset
+    block:
+      - name: Ensure shared CA directory exists after kubeadm reset
+        file:
+          path: "{{ k8s_shared_ca_output_dir }}"
+          state: directory
+          owner: root
+          group: root
+          mode: "0700"
+        become: true
+
+      - name: Redeploy shared CA files after kubeadm reset
+        copy:
+          src: "{{ item.src }}"
+          dest: "{{ item.dest }}"
+          owner: root
+          group: root
+          mode: "0600"
+          backup: false
+        loop:
+          - { src: "{{ k8s_shared_ca_source_cert }}", dest: "{{ k8s_shared_ca_cert_path }}" }
+          - { src: "{{ k8s_shared_ca_source_key }}",  dest: "{{ k8s_shared_ca_key_path }}" }
+        become: true
+
+      - name: Ensure /etc/kubernetes/pki exists for shared CA replacement
+        file:
+          path: "/etc/kubernetes/pki"
+          state: directory
+          owner: root
+          group: root
+          mode: "0700"
+        become: true
+        when: k8s_shared_ca_replace_kube_ca | default(false, true) | bool
+
+      - name: Install shared CA as Kubernetes root CA
+        copy:
+          src: "{{ item.src }}"
+          dest: "{{ item.dest }}"
+          owner: root
+          group: root
+          mode: "0600"
+          remote_src: true
+          backup: false
+        loop:
+          - { src: "{{ k8s_shared_ca_cert_path }}", dest: "/etc/kubernetes/pki/ca.crt" }
+          - { src: "{{ k8s_shared_ca_key_path }}",  dest: "/etc/kubernetes/pki/ca.key" }
+        become: true
+        when: k8s_shared_ca_replace_kube_ca | default(false, true) | bool
+
+    when:
+      - k8s_shared_ca_source_cert | default('', true) | length > 0
+      - k8s_shared_ca_source_key | default('', true) | length > 0
+      - k8s_shared_ca_cert_path | default('', true) | length > 0
+      - k8s_shared_ca_key_path | default('', true) | length > 0
+
   # setup control plane with kubeadm
   - name: setup control plane
     shell: |

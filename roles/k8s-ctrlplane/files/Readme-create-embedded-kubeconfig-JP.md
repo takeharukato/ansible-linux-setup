@@ -2,7 +2,7 @@
 
 ## 概要
 
-`create-embedded-kubeconfig.py` は 管理者用 kubeconfig ファイル(`admin.conf`)から取得したクラスタ証明書を kubeconfig に埋め込み, 単一ファイルで配布可能な設定を生成するユーティリティです。`kubectl config view --raw --flatten` の結果を基に, 証明書ファイルを base64 形式で取り込み, `Cilium Cluster Mesh` などの相互接続環境で利用しやすい kubeconfig を作成します。管理者用 kubeconfig ファイル(`admin.conf`)の読み取りに sudo が必要な場合は, 自動的に `sudo` 付きで `kubectl` を実行します。
+`create-embedded-kubeconfig.py` は 管理者用 kubeconfig ファイル(`admin.conf`)から取得したクラスタ証明書を kubeconfig に埋め込み, 単一ファイルで配布可能な設定を生成するユーティリティです。`kubectl config view --raw --flatten` の結果を基に, 証明書ファイルを base64 形式で取り込み, `Cilium Cluster Mesh` などの相互接続環境で利用しやすい kubeconfig を作成します。また, `--shared-ca` オプションを指定した場合は共通 CA 証明書を最優先で埋め込み, クラスタ間で 使用される CA 証明書を`--shared-ca` オプションで指定された共通 CS 証明書に統一します。管理者用 kubeconfig ファイル(`admin.conf`)の読み取りに sudo が必要な場合は, 自動的に `sudo` 付きで `kubectl` を実行します。
 
 ## 必要環境
 
@@ -42,6 +42,13 @@ create-embedded-kubeconfig.py cluster1 \
 本ツールは, 実行ユーザで対象クラスタの管理者用 kubeconfig ファイル(`admin.conf`)を参照可能であることを確認し, `sudo` が必要な場合はスクリプト内で, `sudo`を自動付与して管理者用 kubeconfig ファイル(`admin.conf`)を参照します。
 `sudo` を使いたくない場合は, 実行ユーザーへの読み取り権限を, 管理者用 kubeconfig ファイル(`admin.conf`)に付与してください。
 
+共通 CA 証明書を埋め込みたい場合は, `--shared-ca` に PEM 形式の証明書パスを指定してください。
+
+```bash
+create-embedded-kubeconfig.py cluster1 \
+   --shared-ca /etc/kubernetes/pki/shared-ca/cluster-mesh-ca.crt
+```
+
 ## 書式
 
 ```:plaintext
@@ -50,6 +57,7 @@ create-embedded-kubeconfig.py [-h]
                               [-o OUTPUT_DIR | --output-dir OUTPUT_DIR]
                               [-p FILE_PREFIX | --file-prefix FILE_PREFIX]
                               [-P FILE_POSTFIX | --file-postfix FILE_POSTFIX]
+                              [--shared-ca SHARED_CA]
                               [-v | --verbose]
                               cluster_name
 ```
@@ -63,6 +71,7 @@ create-embedded-kubeconfig.py [-h]
 | `-o`, `--output-dir` | 出力ディレクトリを指定します。省略時はコマンド実行時のカレントディレクトリに書き込みます。 |
 | `-p`, `--file-prefix` | 出力ファイル名のプレフィックスを明示します。省略時は `cluster_name` を利用します。 |
 | `-P`, `--file-postfix` | 出力ファイル名のサフィックスを指定します。既定値は `-embedded.kubeconfig` です。`.kubeconfig` が含まれない場合は自動で付与されます。 |
+| `--shared-ca` | 共有 CA 証明書 (PEM) のパスを指定します。指定された証明書を最優先で埋め込みます。省略時は管理者用 kubeconfig 内の CA を利用します。 |
 | `-v` | ログを INFO レベルで表示します。 |
 | `-vv` | ログを DEBUG レベルまで表示します。 |
 
@@ -108,6 +117,10 @@ create-embedded-kubeconfig.py [-h]
 | `cluster.certificate-authority: file='<path>' (NOT found)` | WARNING | CA ファイルパスが存在しない場合に表示されます。 | 指定された証明書ファイルのパス(`<path>`)の存在, マウント状態, シンボリックリンク有効性などを確認し, 必要なら再配置してください。 |
 | `cluster.certificate-authority: file='<path>' (permission denied)` | WARNING | CA ファイルの読み取り権限が不足している場合に表示されます。 | 読み取り権限が不足している証明書ファイルのパス(`<path>`)に対してパーミッションを調整し, 再度ツールを実行してください。 |
 | `cluster.certificate-authority: file='<path>' (error: <err>)` | WARNING | CA ファイルアクセスでその他の I/O 例外が発生した場合に表示されます。 | 発生したエラー内容(`<err>`)に従い, デバイス状態やパス設定を確認してください。 |
+| `Using shared CA certificate from <path> (len=<n>, head='<head...>')` | INFO | `--shared-ca` で指定した CA 証明書を読み込み, 埋め込む際に表示されます。 | 表示された CA のパス(`<path>`)が想定どおりであることを確認し, データ長(`<n>`)や先頭(`<head>`)が期待する値であることをチェックしてください。 |
+| `Failed to read shared CA certificate '<path>': <err>` | ERROR | `--shared-ca` で指定した CA ファイルを読み取れなかった場合に表示されます。 | パス(`<path>`)の存在や権限, `<err>` の内容を確認し, 読み取り可能な状態に整えて再実行してください。 |
+| `Shared CA certificate '<path>' is empty` | ERROR | `--shared-ca` で指定した CA ファイルの内容が空だった場合に表示されます。 | 正しい PEM ファイルを配置し, 再度コマンドを実行してください。 |
+| `shared CA data is invalid base64` | ERROR | `--shared-ca` で読み込んだ証明書が Base64 として解釈できない場合に表示されます。 | 指定したファイルが PEM 形式であることを確認し, 必要なら内容を修正または別ファイルを指定してください。 |
 | `certificate-authority-data is masked (DATA+OMITTED / REDACTED)` | WARNING | マスクされた `certificate-authority-data` を検出した場合に表示されます。 | `sudo kubectl config view --raw --kubeconfig=/etc/kubernetes/admin.conf > ~/admin.conf.clean` を実行し, マスクされていない kubeconfig ファイル(`~/admin.conf.clean`)を再取得してから `--admin-conf ~/admin.conf.clean` で再実行してください。 |
 | `No CA found (neither data nor file)` | WARNING | CA データもファイルも見つからない場合に表示されます。 | 管理者用 kubeconfig ファイル(`admin.conf`)のクラスタ定義を見直し, CA 情報が含まれるよう修正してから再実行してください。 |
 | `raw file contains masked fields (saved without --raw?)` | WARNING | 生成済みファイル内にマスク文字列を検出した場合に表示されます。 | `sudo kubectl config view --raw --kubeconfig=/etc/kubernetes/admin.conf > ~/admin.conf.clean` でマスクされていない kubeconfig ファイル(`~/admin.conf.clean`)を作り直し, `--admin-conf ~/admin.conf.clean` で再実行してください。 |

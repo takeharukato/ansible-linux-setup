@@ -1,0 +1,46 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  ロール固有変数のデフォルト値
+#  group_vars/all/all.yml やhost_varsで上書き可能とするため,
+#  ロール名/defaults/main.yml に定義している
+
+# Cilium共通CAのデプロイを有効化するか (デフォルトは無効)
+cilium_shared_ca_enabled: false
+
+# 既存のKubernetes共通CA (k8s-shared-caロール) を流用するか
+cilium_shared_ca_reuse_k8s_ca: false
+
+# Cilium共通CA証明書/鍵の生成先 (自動生成時に使用)
+cilium_shared_ca_cert_filename: "cilium-ca.crt"
+cilium_shared_ca_key_filename: "cilium-ca.key"
+cilium_shared_ca_output_dir: "/etc/kubernetes/pki/cilium-shared-ca"
+
+# ユーザが既存の証明書/鍵を指定する場合のフルパス (指定時はこちらを優先)
+cilium_shared_ca_cert_path: ""
+cilium_shared_ca_key_path: ""
+
+# Secret作成に使用する設定値
+cilium_shared_ca_secret_name: "cilium-ca"
+cilium_shared_ca_secret_namespace: "kube-system"
+cilium_shared_ca_secret_type: "Opaque"
+cilium_shared_ca_secret_cert_key: "ca.crt"
+cilium_shared_ca_secret_key_key: "ca.key"
+
+# Secret適用時に利用するkubeconfigパス
+cilium_shared_ca_kubeconfig: "/etc/kubernetes/admin.conf"
+
+# Secretに付与するラベル/アノテーション (必要に応じて上書き)
+cilium_shared_ca_secret_labels:
+  "app.kubernetes.io/managed-by": "Helm"
+cilium_shared_ca_secret_annotations:
+  "meta.helm.sh/release-name": "cilium"
+  "meta.helm.sh/release-namespace": "kube-system"
+
+# 共通CAをロール側で自動生成する設定
+cilium_shared_ca_auto_create: true
+cilium_shared_ca_key_size: 4096
+cilium_shared_ca_valid_days: 3650
+cilium_shared_ca_digest: "sha256"
+cilium_shared_ca_subject: "/CN=Cilium Cluster Mesh CA"

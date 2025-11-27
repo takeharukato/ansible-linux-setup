@@ -1,0 +1,146 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Cilium共通CAシークレットを生成/更新する
+---
+
+- name: Manage Cilium shared CA secret
+  # Cilium共通CA(cilium_shared_ca_enabled)が有効な場合にのみ実行する
+  when: cilium_shared_ca_enabled | bool
+  run_once: true
+  block:
+    # Cilium共通CAのソースパスを初期化する
+    - name: Initialize Cilium shared CA source paths
+      set_fact:
+        _cilium_ca_cert_path: "{{ (cilium_shared_ca_cert_path | default('', true) | string | trim) }}"
+        _cilium_ca_key_path: "{{ (cilium_shared_ca_key_path | default('', true) | string | trim) }}"
+
+    # reuseフラグが有効な場合は共通CAのpathを流用する
+    - name: Reuse Kubernetes shared CA paths when requested
+      set_fact:
+        _cilium_ca_cert_path: "{{ hostvars[inventory_hostname].k8s_shared_ca_cert_path | default('', true) }}"
+        _cilium_ca_key_path: "{{ hostvars[inventory_hostname].k8s_shared_ca_key_path | default('', true) }}"
+      when: cilium_shared_ca_reuse_k8s_ca | bool
+
+    # reuse指定時に共通CAのfactsが無ければ失敗させる
+    - name: Fail when Kubernetes shared CA facts are missing
+      fail:
+        msg: |
+          cilium_shared_ca_reuse_k8s_ca=true の場合は, 先に k8s-shared-ca ロールを実行し
+          k8s_shared_ca_cert_path と k8s_shared_ca_key_path を提供してください。
+      when:
+        - cilium_shared_ca_reuse_k8s_ca | bool
+        - (hostvars[inventory_hostname].k8s_shared_ca_cert_path | default('', true) | length) == 0
+          or (hostvars[inventory_hostname].k8s_shared_ca_key_path | default('', true) | length) == 0
+
+    # reuse指定ではない場合は出力ディレクトリとファイル名からパスを組み立てる
+    - name: Populate Cilium shared CA paths from output directory
+      set_fact:
+        _cilium_ca_cert_path: "{{ cilium_shared_ca_output_dir }}/{{ cilium_shared_ca_cert_filename }}"
+        _cilium_ca_key_path: "{{ cilium_shared_ca_output_dir }}/{{ cilium_shared_ca_key_filename }}"
+      when:
+        - not (cilium_shared_ca_reuse_k8s_ca | bool)
+        - (_cilium_ca_cert_path | length == 0) or (_cilium_ca_key_path | length == 0)
+
+    # 共通CAファイルが存在しない場合は必要に応じて生成する
+    - name: Generate Cilium shared CA when missing
+      when:
+        - not (cilium_shared_ca_reuse_k8s_ca | bool)
+        - cilium_shared_ca_auto_create | bool
+        - (_cilium_ca_cert_path | length) > 0
+        - (_cilium_ca_key_path | length) > 0
+      become: true
+      block:
+        - name: Ensure Cilium shared CA output directory exists
+          file:
+            path: "{{ cilium_shared_ca_output_dir }}"
+            state: directory
+            owner: root
+            group: root
+            mode: "0700"
+
+        - name: Generate Cilium shared CA private key if absent
+          command: >-
+            openssl genrsa -out {{ _cilium_ca_key_path }} {{ cilium_shared_ca_key_size }}
+          args:
+            creates: "{{ _cilium_ca_key_path }}"
+
+        - name: Generate Cilium shared CA certificate if absent
+          command: >-
+            openssl req -x509 -new -key {{ _cilium_ca_key_path }} -out {{ _cilium_ca_cert_path }} -days {{ cilium_shared_ca_valid_days }} -{{ cilium_shared_ca_digest }} -subj '{{ cilium_shared_ca_subject }}'
+          args:
+            creates: "{{ _cilium_ca_cert_path }}"
+
+        - name: Set permissions on generated Cilium shared CA files
+          file:
+            path: "{{ item }}"
+            owner: root
+            group: root
+            mode: "0600"
+          loop:
+            - "{{ _cilium_ca_cert_path }}"
+            - "{{ _cilium_ca_key_path }}"
+
+    # CAファイルの存在を検証する
+    - name: Stat Cilium shared CA certificate
+      stat:
+        path: "{{ _cilium_ca_cert_path }}"
+        follow: true
+      register: _cilium_ca_cert_stat
+
+    # Cilium CA鍵ファイルの存在を検証する
+    - name: Stat Cilium shared CA private key
+      stat:
+        path: "{{ _cilium_ca_key_path }}"
+        follow: true
+      register: _cilium_ca_key_stat
+
+    # 必要なCAファイルが見つからない場合はエラーにする
+    - name: Ensure Cilium shared CA files exist
+      fail:
+        msg: |
+          指定されたCilium共通CAファイルが存在しません。certificate={{ _cilium_ca_cert_path }},
+          key={{ _cilium_ca_key_path }}
+      when:
+        - not (_cilium_ca_cert_stat.stat.exists and (_cilium_ca_cert_stat.stat.isreg | default(false, true)))
+          or not (_cilium_ca_key_stat.stat.exists and (_cilium_ca_key_stat.stat.isreg | default(false, true)))
+
+    # 証明書/鍵の内容を読み込む
+    - name: Load Cilium shared CA certificate
+      slurp:
+        src: "{{ _cilium_ca_cert_path }}"
+      register: _cilium_ca_cert_data
+
+    - name: Load Cilium shared CA private key
+      slurp:
+        src: "{{ _cilium_ca_key_path }}"
+      register: _cilium_ca_key_data
+
+    # シークレットマニフェストを一時ファイルへ出力する
+    - name: Create temporary manifest for Cilium shared CA secret
+      tempfile:
+        state: file
+        suffix: "-cilium-ca-secret.yaml"
+      register: _cilium_ca_manifest
+
+    - name: Render Cilium shared CA secret manifest
+      template:
+        src: "cilium-ca-secret.yaml.j2"
+        dest: "{{ _cilium_ca_manifest.path }}"
+        mode: "0600"
+      vars:
+        cert_b64: "{{ _cilium_ca_cert_data.content }}"
+        key_b64: "{{ _cilium_ca_key_data.content }}"
+
+    # kubectl apply で Secret を作成/更新する
+    - name: Apply Cilium shared CA secret
+      become: true
+      shell: |
+        kubectl --kubeconfig {{ cilium_shared_ca_kubeconfig }} apply -f {{ _cilium_ca_manifest.path }}
+      register: _cilium_ca_apply
+      changed_when: "'created' in _cilium_ca_apply.stdout or 'configured' in _cilium_ca_apply.stdout or 'created' in _cilium_ca_apply.stderr or 'configured' in _cilium_ca_apply.stderr"
+
+    # 一時ファイルを削除する
+    - name: Remove temporary manifest for Cilium shared CA secret
+      file:
+        path: "{{ _cilium_ca_manifest.path }}"
+        state: absent
