@@ -2,7 +2,7 @@
 #  Ansible playbook
 #  Copyright 2020 Takeharu KATO All Rights Reserved.
 #
-- hosts: k8s-ctrl-plane
+- hosts: k8s_ctrl_plane
   remote_user:  '{{ ansible_user }}'
   become: true
   roles:
