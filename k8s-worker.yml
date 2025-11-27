@@ -2,7 +2,7 @@
 #  Ansible playbook
 #  Copyright 2020 Takeharu KATO All Rights Reserved.
 #
-- hosts: k8s-worker
+- hosts: k8s_worker
   remote_user:  '{{ ansible_user }}'
   become: true
   roles:

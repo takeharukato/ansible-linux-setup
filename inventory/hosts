@@ -5,10 +5,10 @@
 # devserver.local
 [rancher]
 # rancher01.local
-[k8s-ctrl-plane]
+[k8s_ctrl_plane]
 # k8sctrlplane01.local
 # k8sctrlplane02.local
-[k8s-worker]
+[k8s_worker]
 # k8sworker0101.local
 # k8sworker0102.local
 # k8sworker0201.local
