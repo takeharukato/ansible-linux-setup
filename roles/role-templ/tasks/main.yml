@@ -6,6 +6,7 @@
 #
 #  include_tasksで他のタスクを読み込む
 #
+---
 
 # 最初に変数設定を読み直す ( role単独で実行可能とするため )
 - include_tasks: load-params.yml
