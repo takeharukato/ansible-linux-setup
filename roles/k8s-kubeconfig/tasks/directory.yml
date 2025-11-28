@@ -1,0 +1,23 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  ファイル・ディレクトリ作成関連タスク
+#
+# kubeconfig を格納するシステムディレクトリを準備
+- name: Ensure system kubeconfig directory exists
+  ansible.builtin.file:
+    path: "{{ k8s_kubeconfig_system_dir_resolved }}"
+    state: directory
+    owner: "root"
+    group: "root"
+    mode: "0755"
+
+# オペレータ用 kubeconfig ディレクトリを準備
+- name: Ensure operator kubeconfig directory exists
+  ansible.builtin.file:
+    path: "{{ k8s_kubeconfig_operator_dir }}"
+    state: directory
+    owner: "{{ k8s_operator_user }}"
+    group: "{{ k8s_operator_user }}"
+    mode: "0700"

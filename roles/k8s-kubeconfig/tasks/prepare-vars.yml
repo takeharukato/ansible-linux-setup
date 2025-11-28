@@ -1,0 +1,28 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#
+#  kubeconfig 用変数準備タスク
+#
+---
+
+# kubeconfig 関連のパスとホスト一覧を解決
+- name: Resolve kubeconfig base paths
+  ansible.builtin.set_fact:
+    k8s_kubeconfig_admin_conf_path: "{{ k8s_embed_kubeconfig_admin_conf | default('/etc/kubernetes/admin.conf') }}"
+    k8s_kubeconfig_system_dir_resolved: "{{ k8s_kubeconfig_system_dir | default('/etc/kubernetes') }}"
+    k8s_kubeconfig_operator_dir: "{{ k8s_embed_kubeconfig_output_dir }}"
+    k8s_kubeconfig_cluster_name: "{{ k8s_cilium_cm_cluster_name | default(inventory_hostname) }}"
+    k8s_kubeconfig_shared_ca_path: "{{ k8s_embed_kubeconfig_shared_ca_path | default('') }}"
+
+- name: Derive kubeconfig filenames and destinations
+  ansible.builtin.set_fact:
+    k8s_kubeconfig_embedded_filename: "{{ k8s_kubeconfig_cluster_name }}{{ k8s_embed_kubeconfig_file_postfix }}"
+    k8s_kubeconfig_ca_embedded_filename: "ca-embedded-admin.conf"
+    k8s_kubeconfig_merged_filename: "merged-kubeconfig.conf"
+    k8s_kubeconfig_embedded_source_path: "{{ k8s_kubeconfig_operator_dir }}/{{ k8s_kubeconfig_cluster_name }}{{ k8s_embed_kubeconfig_file_postfix }}"
+    k8s_kubeconfig_admin_backup_path: "{{ k8s_kubeconfig_operator_dir }}/config-default"
+    k8s_kubeconfig_operator_config_path: "{{ k8s_kubeconfig_operator_dir }}/config"
+    k8s_kubeconfig_ca_embedded_system_path: "{{ k8s_kubeconfig_system_dir_resolved }}/ca-embedded-admin.conf"
+    k8s_kubeconfig_ca_embedded_operator_path: "{{ k8s_kubeconfig_operator_dir }}/ca-embedded-admin.conf"
+    k8s_kubeconfig_merged_system_path: "{{ k8s_kubeconfig_system_dir_resolved }}/merged-kubeconfig.conf"
+    k8s_kubeconfig_merged_operator_path: "{{ k8s_kubeconfig_operator_dir }}/merged-kubeconfig.conf"

@@ -1,0 +1,25 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  設定関連タスク
+#
+---
+
+# コントロールプレーンで kubeconfig を生成・統合
+- name: Include control plane kubeconfig tasks
+  ansible.builtin.include_tasks:
+    file: control-plane.yml
+  when: "'k8s_ctrl_plane' in group_names"
+
+# ワーカーノードへ kubeconfig を配布
+- name: Include worker kubeconfig distribution tasks
+  ansible.builtin.include_tasks:
+    file: distribute-workers.yml
+  when: "'k8s_worker' in group_names"
+
+# オペレータホームの kubeconfig を統一
+- name: Include kubeconfig symlink tasks
+  ansible.builtin.include_tasks:
+    file: symlink.yml
+  when: "'k8s_ctrl_plane' in group_names or 'k8s_worker' in group_names"

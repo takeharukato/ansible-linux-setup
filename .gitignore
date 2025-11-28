@@ -83,3 +83,9 @@ user-data
 meta-data
 update-hostname.sh.b64
 ks.cfg
+
+#
+# pssh hosts file
+#
+hostfile
+hosts.txt
