@@ -1,0 +1,199 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  コントロールプレーン用 kubeconfig 生成タスク
+#
+---
+
+# 既存の admin.conf をオペレータホームに控えとして複製
+- name: Backup admin kubeconfig for operator
+  ansible.builtin.copy:
+    src: "{{ k8s_kubeconfig_admin_conf_path }}"
+    dest: "{{ k8s_kubeconfig_admin_backup_path }}"
+    owner: "{{ k8s_operator_user }}"
+    group: "{{ k8s_operator_user }}"
+    mode: "0600"
+    remote_src: true
+
+- name: Generate embedded kubeconfig with shared CA
+  ansible.builtin.command:
+    argv:
+      - "{{ k8s_embed_kubeconfig_script_path }}"
+      - "--admin-conf={{ k8s_kubeconfig_admin_conf_path }}"
+      - "--output-dir={{ k8s_kubeconfig_operator_dir }}"
+      - "--file-postfix={{ k8s_embed_kubeconfig_file_postfix }}"
+      - "{{ ((k8s_kubeconfig_shared_ca_path | default('')) | length > 0) | ternary('--shared-ca=' ~ k8s_kubeconfig_shared_ca_path, omit) }}"
+      - "{{ k8s_kubeconfig_cluster_name }}"
+  environment:
+    KUBECONFIG: ""
+  changed_when: false
+
+- name: Verify embedded kubeconfig artifact exists
+  ansible.builtin.stat:
+    path: "{{ k8s_kubeconfig_embedded_source_path }}"
+  register: k8s_kubeconfig_embedded_source_stat
+
+# オペレータディレクトリ内の CA 埋め込み kubeconfig を整備
+- name: Copy embedded kubeconfig to operator CA path
+  ansible.builtin.copy:
+    src: "{{ k8s_kubeconfig_embedded_source_path }}"
+    dest: "{{ k8s_kubeconfig_ca_embedded_operator_path }}"
+    owner: "{{ k8s_operator_user }}"
+    group: "{{ k8s_operator_user }}"
+    mode: "0600"
+    remote_src: true
+  when:
+    - k8s_kubeconfig_embedded_source_stat.stat.exists
+
+# システムディレクトリへ埋め込み済み kubeconfig を配置
+- name: Copy embedded kubeconfig to system directory
+  ansible.builtin.copy:
+    src: "{{ k8s_kubeconfig_ca_embedded_operator_path }}"
+    dest: "{{ k8s_kubeconfig_ca_embedded_system_path }}"
+    owner: "root"
+    group: "root"
+    mode: "0600"
+    remote_src: true
+  when:
+    - k8s_kubeconfig_embedded_source_stat.stat.exists
+
+# 各コントロールプレーンから埋め込み kubeconfig を収集して共有ファクトへ格納
+- name: Collect embedded kubeconfigs from control planes
+  ansible.builtin.slurp:
+    src: "{{ hostvars[item]['k8s_kubeconfig_embedded_source_path'] }}"
+  delegate_to: "{{ item }}"
+  loop: "{{ groups.get('k8s_ctrl_plane', []) }}"
+  register: k8s_kubeconfig_embedded_slurp_results
+  run_once: true
+  when:
+    - groups.get('k8s_ctrl_plane', []) | length > 0
+    - hostvars[item].get('k8s_kubeconfig_embedded_source_stat', {}).get('stat', {}).get('exists', false)
+
+- name: Initialize embedded kubeconfig payload map
+  ansible.builtin.set_fact:
+    k8s_kubeconfig_embedded_map: {}
+  run_once: true
+  delegate_to: localhost
+  delegate_facts: true
+  changed_when: false
+
+- name: Share embedded kubeconfig payload map
+  ansible.builtin.set_fact:
+    k8s_kubeconfig_embedded_map: >-
+      {{
+        k8s_kubeconfig_embedded_map | default({}) |
+        combine({
+          item.item: {
+            'cluster_name': hostvars[item.item].k8s_kubeconfig_cluster_name |
+              default(hostvars[item.item].k8s_cilium_cm_cluster_name |
+              default(item.item)),
+            'content': item.content
+          }
+        })
+      }}
+  loop: "{{ k8s_kubeconfig_embedded_slurp_results.results | default([]) }}"
+  run_once: true
+  delegate_to: localhost
+  delegate_facts: true
+  when:
+    - k8s_kubeconfig_embedded_slurp_results is defined
+    - k8s_kubeconfig_embedded_slurp_results.results | length > 0
+
+- name: Cache embedded kubeconfig map for host use
+  ansible.builtin.set_fact:
+    k8s_kubeconfig_embedded_map_local: "{{ hostvars.get('localhost', {}).get('k8s_kubeconfig_embedded_map', {}) }}"
+  changed_when: false
+
+# 収集した kubeconfig を一時ディレクトリに集約
+- name: Create temporary directory for kubeconfig merge
+  ansible.builtin.tempfile:
+    state: directory
+    prefix: k8s-kubeconfig-
+  register: k8s_kubeconfig_merge_tmp_dir_result
+  when:
+    - (k8s_kubeconfig_embedded_map_local | default({})) | length > 0
+
+- name: Record temporary merge paths
+  ansible.builtin.set_fact:
+    k8s_kubeconfig_merge_tmp_dir: "{{ k8s_kubeconfig_merge_tmp_dir_result.path }}"
+    k8s_kubeconfig_merge_output_tmp: "{{ k8s_kubeconfig_merge_tmp_dir_result.path }}/merged-kubeconfig.conf"
+  when:
+    - k8s_kubeconfig_merge_tmp_dir_result is defined
+  changed_when: false
+
+- name: Sync embedded kubeconfigs to temporary directory
+  ansible.builtin.copy:
+    dest: "{{ k8s_kubeconfig_merge_tmp_dir }}/{{ item.value.cluster_name }}{{ k8s_embed_kubeconfig_file_postfix }}"
+    content: "{{ item.value.content | b64decode }}"
+    owner: "root"
+    group: "root"
+    mode: "0600"
+  loop: "{{ k8s_kubeconfig_embedded_map_local | default({}) | dict2items }}"
+  loop_control:
+    label: "{{ item.value.cluster_name }}"
+  when:
+    - k8s_kubeconfig_merge_tmp_dir is defined
+
+- name: Build kubeconfig merge source list
+  ansible.builtin.set_fact:
+    k8s_kubeconfig_merge_sources: "{{ k8s_kubeconfig_embedded_map_local | default({}) | dict2items | map(attribute='value.cluster_name') | map('regex_replace', '^(.*)$', k8s_kubeconfig_merge_tmp_dir ~ '/\\1' ~ k8s_embed_kubeconfig_file_postfix) | unique | list }}"
+  when:
+    - k8s_kubeconfig_merge_tmp_dir is defined
+
+- name: Remove existing merged kubeconfig output
+  ansible.builtin.file:
+    path: "{{ k8s_kubeconfig_merged_system_path }}"
+    state: absent
+  when:
+    - k8s_kubeconfig_merge_sources | default([]) | length > 0
+
+# 収集した kubeconfig を統合
+- name: Merge embedded kubeconfigs into temporary output
+  ansible.builtin.command:
+    argv: "{{ [k8s_create_unique_kubeconfig_script_path, '--output', k8s_kubeconfig_merge_output_tmp] + (k8s_kubeconfig_merge_sources | default([])) }}"
+  environment:
+    KUBECONFIG: ""
+  changed_when: false
+  when:
+    - k8s_kubeconfig_merge_sources | default([]) | length > 0
+
+- name: Install merged kubeconfig to system directory
+  ansible.builtin.copy:
+    src: "{{ k8s_kubeconfig_merge_output_tmp }}"
+    dest: "{{ k8s_kubeconfig_merged_system_path }}"
+    owner: "root"
+    group: "root"
+    mode: "0600"
+    remote_src: true
+  when:
+    - k8s_kubeconfig_merge_sources | default([]) | length > 0
+
+# 統合版 kubeconfig をオペレータホームにも配置
+- name: Copy merged kubeconfig to operator directory
+  ansible.builtin.copy:
+    src: "{{ k8s_kubeconfig_merged_system_path }}"
+    dest: "{{ k8s_kubeconfig_merged_operator_path }}"
+    owner: "{{ k8s_operator_user }}"
+    group: "{{ k8s_operator_user }}"
+    mode: "0600"
+    remote_src: true
+  when:
+    - k8s_kubeconfig_merge_sources | default([]) | length > 0
+
+- name: Remove temporary kubeconfig merge directory
+  ansible.builtin.file:
+    path: "{{ k8s_kubeconfig_merge_tmp_dir }}"
+    state: absent
+  when:
+    - k8s_kubeconfig_merge_tmp_dir is defined
+
+- name: Update operator kubeconfig symlink to merged config
+  ansible.builtin.file:
+    path: "{{ k8s_kubeconfig_operator_config_path }}"
+    state: link
+    src: "{{ k8s_kubeconfig_merged_filename }}"
+    force: true
+    follow: false
+  when:
+    - k8s_kubeconfig_merge_sources | default([]) | length > 0

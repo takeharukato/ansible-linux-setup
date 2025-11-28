@@ -1,0 +1,44 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#
+#  kubeconfig シンボリックリンク整備タスク
+#
+---
+
+# 既存の kubeconfig を調査し, 必要に応じて退避
+- name: Inspect existing operator kubeconfig
+  ansible.builtin.stat:
+    path: "{{ k8s_kubeconfig_operator_config_path }}"
+  register: k8s_kubeconfig_operator_config_stat
+
+# 既存ファイルが通常ファイルでバックアップが未作成なら控えを作る
+- name: Backup current operator kubeconfig if needed
+  ansible.builtin.copy:
+    src: "{{ k8s_kubeconfig_operator_config_path }}"
+    dest: "{{ k8s_kubeconfig_admin_backup_path }}"
+    owner: "{{ k8s_operator_user }}"
+    group: "{{ k8s_operator_user }}"
+    mode: "0600"
+    remote_src: true
+  when:
+    - k8s_kubeconfig_operator_config_stat.stat.exists
+    - not k8s_kubeconfig_operator_config_stat.stat.islnk
+
+# シンボリックリンク作成前に従来ファイルを除去
+- name: Remove legacy operator kubeconfig file
+  ansible.builtin.file:
+    path: "{{ k8s_kubeconfig_operator_config_path }}"
+    state: absent
+  when:
+    - k8s_kubeconfig_operator_config_stat.stat.exists
+    - not k8s_kubeconfig_operator_config_stat.stat.islnk
+
+# シンボリックリンクを整備
+- name: Create operator kubeconfig symlink to merged file
+  ansible.builtin.file:
+    src: "{{ k8s_kubeconfig_merged_operator_path | basename }}"
+    dest: "{{ k8s_kubeconfig_operator_config_path }}"
+    state: link
+    owner: "{{ k8s_operator_user }}"
+    group: "{{ k8s_operator_user }}"
+    force: true

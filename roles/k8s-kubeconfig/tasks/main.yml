@@ -1,0 +1,41 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  タスクメイン部
+#
+#  include_tasksで他のタスクを読み込む
+#
+---
+
+# 変数を読み込み, パスを解決する
+# ( role単位で実行可能とするため)
+- name: Load parameter files
+  ansible.builtin.include_tasks:
+    file: load-params.yml
+
+# kubeconfig 関連の派生変数を計算
+- name: Prepare kubeconfig variables
+  ansible.builtin.include_tasks:
+    file: prepare-vars.yml
+
+# パッケージインストール関連タスクを読み込み
+- name: Include package tasks
+  ansible.builtin.include_tasks:
+    file: package.yml
+
+# ディレクトリ関連タスクを読み込み
+- ansible.builtin.include_tasks:
+    file: directory.yml
+
+# ユーザ/グループ関連タスクを読み込み
+- ansible.builtin.include_tasks:
+    file: user_group.yml
+
+# サービス関連タスクを読み込み
+- ansible.builtin.include_tasks:
+    file: service.yml
+
+# 設定関連タスクを読み込み
+- ansible.builtin.include_tasks:
+    file: config.yml

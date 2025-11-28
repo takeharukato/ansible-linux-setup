@@ -4,11 +4,11 @@
 #
 top=.
 .PHONY: clean distclean run run_common run_user_settings run_create_users \
-	run_devel_packages cloc mk_arc mk_role_arc \
+	run_devel_packages cloc mk_arc mk_role_arc ansible-lint \
 	run_docker_ce run_ntp_server run_ntp_client run_nfs_server \
 	run_ldap_server run_redmine_server \
 	run_k8s_common run_k8s_ctrl_plane run_k8s_worker run_netgauge \
-	run_dns_server run_selinux
+	run_dns_server run_selinux update-ctrlplane-kubeconfig update-worker-kubeconfig
 
 
 # ansibleのログ表示レベル
@@ -51,6 +51,9 @@ ARCHIVE_NAME  := $(if $(filter 1,$(words ${ARGS})),${ARGS_ONE_NAME},selected)
 
 # ARGS が空なら既定のディレクトリ群, あれば ARGS を使用
 ARCHIVE_DIRS_OR_ARGS := $(if $(strip ${ARGS}),${ARGS},${BASE_ARCHIVE_DIRS} roles)
+
+# ansible-lint の対象 (引数未指定時はカレントディレクトリ)
+ANSIBLE_LINT_TARGETS := $(if $(strip ${ARGS}),${ARGS},.)
 
 # 追加ゴールを .PHONY + 空レシピで潰す
 # 追加ゴールはユーザ指定の生値(末尾スラッシュ等あり)と正規化後の両方を対象にする
@@ -175,6 +178,25 @@ run_k8s_worker:
 
 run_netgauge:
 	ansible-playbook --tags "netgauge" ${OPT_COMMON} 2>&1 |tee build-netgauge.log
+
+update-ctrlplane-kubeconfig:
+	ansible-playbook -i inventory/hosts k8s-ctrl-plane.yml --tags k8s-kubeconfig 2>&1 |tee build-update-ctrlplane-kubeconfig.log
+
+update-worker-kubeconfig:
+	ansible-playbook -i inventory/hosts k8s-worker.yml --tags k8s-kubeconfig 2>&1 |tee build-update-worker-kubeconfig.log
+
+ansible-lint:
+	@if ! command -v ansible-lint >/dev/null 2>&1; then \
+	  echo "ansible-lint not found; skipping."; \
+	else \
+	  if [ -f ansible-lint.yml ]; then \
+	    CONFIG_OPTION="-c ansible-lint.yml"; \
+	  else \
+	    CONFIG_OPTION=""; \
+	  fi; \
+	  echo "Running ansible-lint $${CONFIG_OPTION} ${ANSIBLE_LINT_TARGETS}"; \
+	  ansible-lint $${CONFIG_OPTION} ${ANSIBLE_LINT_TARGETS}; \
+	fi
 
 cloc:
 	cloc "${CLOC_LANG_OPT}" "${CLOC_EXCLUDES}" "${CLOC_EXCLUDE_EXTS}" .

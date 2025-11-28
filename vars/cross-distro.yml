@@ -440,6 +440,22 @@ nc_command_debian: "nc"
 nc_command_rhel:   "nc"
 nc_command: "{{ (ansible_facts.os_family == 'Debian') | ternary(nc_command_debian, nc_command_rhel) }}"
 
+# pssh コマンド名
+pssh_command_debian: "parallel-ssh"
+pssh_command_rhel:   "pssh"
+pnuke_command_debian: "parallel-nuke"
+pnuke_command_rhel:   "pnuke"
+prync_command_debian: "parallel-rsync"
+prync_command_rhel:   "prync"
+pscp_command_debian: "parallel-scp"
+pscp_command_rhel:   "pscp"
+pslurp_command_debian: "parallel-slurp"
+pslurp_command_rhel:   "pslurp"
+pssh_command: "{{ (ansible_facts.os_family == 'Debian') | ternary(pssh_command_debian, pssh_command_rhel) }}"
+pnuke_command: "{{ (ansible_facts.os_family == 'Debian') | ternary(pnuke_command_debian, pnuke_command_rhel) }}"
+prync_command: "{{ (ansible_facts.os_family == 'Debian') | ternary(prync_command_debian, prync_command_rhel) }}"
+pscp_command: "{{ (ansible_facts.os_family == 'Debian') | ternary(pscp_command_debian, pscp_command_rhel) }}"
+pslurp_command: "{{ (ansible_facts.os_family == 'Debian') | ternary(pslurp_command_debian, pslurp_command_rhel) }}"
 ########################################################################################
 # 便利ユーティリティ
 ########################################################################################
