@@ -9,7 +9,8 @@
 
 # 最初に変数設定を読み直す ( role単独で実行可能とするため )
 - include_tasks: load-params.yml
-- include_tasks: cilium-ca.yml
+- include_tasks: config-cilium-ca.yml
+- include_tasks: clustermesh-ca.yml
 - include_tasks: package.yml
 - include_tasks: directory.yml
 - include_tasks: user_group.yml
