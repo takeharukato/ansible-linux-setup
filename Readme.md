@@ -532,9 +532,9 @@ Cilium CNI関連の設定を以下に記載する。
 |k8s_cilium_version|Cilium CNIのバージョン|"1.16.0"|
 |k8s_cilium_helm_chart_version|Cilium Helm Chartのバージョン|"{{ k8s_cilium_version }}"|
 |k8s_cilium_image_version|Ciliumコンテナイメージのバージョン|"v{{ k8s_cilium_version }}"|
-|cilium_shared_ca_enabled|`cilium-shared-ca` ロールによる `cilium-ca` Secret の生成/更新を有効化する|false|
+|cilium_shared_ca_enabled|`k8s-k8s-k8s-cilium-shared-ca` ロールによる `cilium-ca` Secret の生成/更新を有効化する|false|
 |cilium_shared_ca_reuse_k8s_ca|`k8s-shared-ca` ロールで生成した共通CAを流用する場合に true を指定する|false|
-|cilium_shared_ca_output_dir|共通CAを自動生成する際の出力ディレクトリ|"/etc/kubernetes/pki/cilium-shared-ca"|
+|cilium_shared_ca_output_dir|共通CAを自動生成する際の出力ディレクトリ|"/etc/kubernetes/pki/k8s-k8s-cilium-shared-ca"|
 |cilium_shared_ca_cert_filename|自動生成する証明書ファイル名|"cilium-ca.crt"|
 |cilium_shared_ca_key_filename|自動生成する秘密鍵ファイル名|"cilium-ca.key"|
 |cilium_shared_ca_secret_name|生成するSecret名|"cilium-ca"|
@@ -550,7 +550,7 @@ Cilium CNI関連の設定を以下に記載する。
 |cilium_shared_ca_digest|証明書生成時に使用するダイジェスト|"sha256"|
 |cilium_shared_ca_subject|自動生成する証明書のサブジェクト|"/CN=Cilium Cluster Mesh CA"|
 
-`cilium_shared_ca_enabled: true` の場合, `cilium-shared-ca` ロールがコントロールプレインノードで `kubectl apply` を実行し, `kube-system/{{ cilium_shared_ca_secret_name }}` Secret を共通CAから再生成する。`cilium_shared_ca_reuse_k8s_ca: true` を指定する際は, 同一ホストで `k8s-shared-ca` ロールを先に実行し, `k8s_shared_ca_cert_path` / `k8s_shared_ca_key_path` の facts を取得しておくこと。`cilium_shared_ca_reuse_k8s_ca: false` で `cilium_shared_ca_auto_create: true` の場合はロールが `openssl` を用いて証明書/鍵を自動生成し, `cilium_shared_ca_output_dir` に配置する。既存の証明書/鍵をそのまま利用する場合は同ディレクトリへ事前配置するか, `cilium_shared_ca_cert_path` / `cilium_shared_ca_key_path` へフルパスを指定し, 必要に応じて `cilium_shared_ca_auto_create: false` を設定する。
+`cilium_shared_ca_enabled: true` の場合, `k8s-cilium-shared-ca` ロールがコントロールプレインノードで `kubectl apply` を実行し, `kube-system/{{ cilium_shared_ca_secret_name }}` Secret を共通CAから再生成する。`cilium_shared_ca_reuse_k8s_ca: true` を指定する際は, 同一ホストで `k8s-shared-ca` ロールを先に実行し, `k8s_shared_ca_cert_path` / `k8s_shared_ca_key_path` の facts を取得しておくこと。`cilium_shared_ca_reuse_k8s_ca: false` で `cilium_shared_ca_auto_create: true` の場合はロールが `openssl` を用いて証明書/鍵を自動生成し, `cilium_shared_ca_output_dir` に配置する。既存の証明書/鍵をそのまま利用する場合は同ディレクトリへ事前配置するか, `cilium_shared_ca_cert_path` / `cilium_shared_ca_key_path` へフルパスを指定し, 必要に応じて `cilium_shared_ca_auto_create: false` を設定する。
 `cilium_shared_ca_cert_path` / `cilium_shared_ca_key_path` が空文字列でなければ, `cilium_shared_ca_output_dir` + ファイル名よりも優先的に参照される。`cilium_shared_ca_auto_create: false` を指定した場合, ロールは証明書/鍵を生成・更新せず既存ファイルの存在を検証するのみで, 見つからない場合はタスクを失敗させる。
 
 ##### Multus メタCNI
@@ -630,13 +630,15 @@ Debian 系では `pslurp` が `parallel-slurp` という名称で提供される
 
 ##### `kubeconfig`の更新と再配布
 
-1. **コントロールプレインの更新**: 以下の Make ターゲットを実行し, すべてのコントロールプレインノードに対して, 埋め込みファイル生成と`kubeconfig`の統合とを行う。
+- **コントロールプレインの更新**:
+  以下の Make ターゲットを実行し, すべてのコントロールプレインノードに対して, 埋め込みファイル生成と`kubeconfig`の統合とを行う。
 
   ```:shell
   make update-ctrlplane-kubeconfig
   ```
 
-2. **ワーカーノードへの再配布**: コントロールプレインで統合された統合 `kubeconfig` (`merged-kubeconfig.conf`) を各ワーカーに配布する Make ターゲット (`update-worker-kubeconfig`)を実行する。`update-worker-kubeconfig` は直前の手順で最新化された 統合 `kubeconfig` (`merged-kubeconfig.conf`) をコントロールプレインから取得するため、事前に `make update-ctrlplane-kubeconfig` を完了していることが前提となる。
+- **ワーカーノードへの再配布**:
+  コントロールプレインで統合された統合 `kubeconfig` (`merged-kubeconfig.conf`) を各ワーカーに配布する Make ターゲット (`update-worker-kubeconfig`)を実行する。`update-worker-kubeconfig` は直前の手順で最新化された 統合 `kubeconfig` (`merged-kubeconfig.conf`) をコントロールプレインから取得するため、事前に `make update-ctrlplane-kubeconfig` を完了していることが前提となる。
 
   ```:shell
   make update-worker-kubeconfig

@@ -6,7 +6,6 @@
 - name: Manage Cilium shared CA secret
   # Cilium共通CA(cilium_shared_ca_enabled)が有効な場合にのみ実行する
   when: cilium_shared_ca_enabled | bool
-  run_once: true
   block:
     # Cilium共通CAのソースパスを初期化する
     - name: Initialize Cilium shared CA source paths
