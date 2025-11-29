@@ -33,6 +33,8 @@
         - [`kubeconfig` ファイルの収集](#kubeconfig-ファイルの収集)
           - [RedHat系 の場合](#redhat系-の場合)
           - [Debian 系 の場合](#debian-系-の場合)
+        - [共通認証局(Certificate Authority)証明書の確認方法](#共通認証局certificate-authority証明書の確認方法)
+        - [Cluster Mesh 用 機密情報を保持するリソース(`Secret`)の確認方法](#cluster-mesh-用-機密情報を保持するリソースsecretの確認方法)
         - [`kubeconfig`の更新と再配布](#kubeconfigの更新と再配布)
           - [`~kube/.kube/config`ファイルに関する補足事項](#kubekubeconfigファイルに関する補足事項)
           - [コンテキスト一覧取得](#コンテキスト一覧取得)
@@ -493,7 +495,7 @@ Kubernetes (以下K8sと記す)関連の設定を以下に記載する。
 |変数名|意味|設定値の例|
 |---|---|---|
 |k8s_major_minor|K8s バージョン (先頭にvをつけないことに注意)|"1.31"|
-|enable_create_k8s_ca|共通の認証局(`Certificate Authority`)証明書 (`CA`)（以下、共通CA）をロールで生成/再利用する (false の場合は `k8s_common_ca` を必須とする)|true|
+|enable_create_k8s_ca|共通の認証局(`Certificate Authority`)証明書 (`CA`)（以下, 共通CA）をロールで生成/再利用する (false の場合は `k8s_common_ca` を必須とする)|true|
 |k8s_common_ca|事前に用意した共通CA (`cluster-mesh-ca.crt/.key`) を格納したディレクトリの絶対パス|""|
 |k8s_shared_ca_output_dir|共通CAをノード内に展開するディレクトリ|"/etc/kubernetes/pki/shared-ca"|
 |k8s_shared_ca_replace_kube_ca|共通CAで `/etc/kubernetes/pki/ca.{crt,key}` を置き換え, `kubeadm init` 時にAPIサーバ証明書などを再発行する|true|
@@ -525,11 +527,11 @@ k8s_operator_github_key_list:
 
 ##### Cilium CNI
 
-Cilium CNI関連の設定を以下に記載する。
+Cilium Container Network Interface (`CNI`) 関連の設定を以下に記載する。
 
 |変数名|意味|設定値の例|
 |---|---|---|
-|k8s_cilium_version|Cilium CNIのバージョン|"1.16.0"|
+|k8s_cilium_version|Cilium Container Network Interface (`CNI`) のバージョン|"1.16.0"|
 |k8s_cilium_helm_chart_version|Cilium Helm Chartのバージョン|"{{ k8s_cilium_version }}"|
 |k8s_cilium_image_version|Ciliumコンテナイメージのバージョン|"v{{ k8s_cilium_version }}"|
 |cilium_shared_ca_enabled|`k8s-k8s-k8s-cilium-shared-ca` ロールによる `cilium-ca` Secret の生成/更新を有効化する|false|
@@ -549,9 +551,25 @@ Cilium CNI関連の設定を以下に記載する。
 |cilium_shared_ca_valid_days|自動生成する証明書の有効日数|3650|
 |cilium_shared_ca_digest|証明書生成時に使用するダイジェスト|"sha256"|
 |cilium_shared_ca_subject|自動生成する証明書のサブジェクト|"/CN=Cilium Cluster Mesh CA"|
+|cilium_clustermesh_secret_enabled|Cluster Mesh 用 Secret の生成/更新を行うか制御する|true|
+|cilium_clustermesh_secret_name|Cluster Mesh 用 Secret 名|"cilium-clustermesh"|
+|cilium_clustermesh_secret_namespace|Cluster Mesh 用 Secret を配置する Namespace|"kube-system"|
+|cilium_clustermesh_secret_cert_key|Cluster Mesh 用 Secret に格納する共通CAデータのキー名|"ca.crt"|
+|cilium_clustermesh_secret_tls_cert_key|Cluster Mesh 用 Transport Layer Security (`TLS`) サーバ証明書を格納するキー名|"tls.crt"|
+|cilium_clustermesh_secret_tls_key_key|Cluster Mesh 用 Transport Layer Security (`TLS`) サーバ秘密鍵を格納するキー名|"tls.key"|
+|cilium_clustermesh_secret_labels|Cluster Mesh 用 Secret に付与する追加ラベルの辞書|{}|
+|cilium_clustermesh_secret_annotations|Cluster Mesh 用 Secret に付与する追加アノテーションの辞書|{}|
+|cilium_clustermesh_tls_subject|Cluster Mesh 用 Transport Layer Security (`TLS`) 証明書のサブジェクト|"/CN=clustermesh-apiserver"|
+|cilium_clustermesh_tls_san_dns|Subject Alternative Name (`SAN`) に追加する DNS 名リスト|["clustermesh-apiserver.kube-system.svc.cluster.local", "clustermesh-apiserver.kube-system.svc"]|
+|cilium_clustermesh_tls_valid_days|Transport Layer Security (`TLS`) 証明書の有効日数|3650|
+|cilium_clustermesh_tls_cert_filename|生成する Transport Layer Security (`TLS`) 証明書のファイル名|"cilium-clustermesh.crt"|
+|cilium_clustermesh_tls_key_filename|生成する Transport Layer Security (`TLS`) 秘密鍵のファイル名|"cilium-clustermesh.key"|
+|cilium_clustermesh_tls_key_size|Transport Layer Security (`TLS`) 秘密鍵のビット長|4096|
 
 `cilium_shared_ca_enabled: true` の場合, `k8s-cilium-shared-ca` ロールがコントロールプレインノードで `kubectl apply` を実行し, `kube-system/{{ cilium_shared_ca_secret_name }}` Secret を共通CAから再生成する。`cilium_shared_ca_reuse_k8s_ca: true` を指定する際は, 同一ホストで `k8s-shared-ca` ロールを先に実行し, `k8s_shared_ca_cert_path` / `k8s_shared_ca_key_path` の facts を取得しておくこと。`cilium_shared_ca_reuse_k8s_ca: false` で `cilium_shared_ca_auto_create: true` の場合はロールが `openssl` を用いて証明書/鍵を自動生成し, `cilium_shared_ca_output_dir` に配置する。既存の証明書/鍵をそのまま利用する場合は同ディレクトリへ事前配置するか, `cilium_shared_ca_cert_path` / `cilium_shared_ca_key_path` へフルパスを指定し, 必要に応じて `cilium_shared_ca_auto_create: false` を設定する。
 `cilium_shared_ca_cert_path` / `cilium_shared_ca_key_path` が空文字列でなければ, `cilium_shared_ca_output_dir` + ファイル名よりも優先的に参照される。`cilium_shared_ca_auto_create: false` を指定した場合, ロールは証明書/鍵を生成・更新せず既存ファイルの存在を検証するのみで, 見つからない場合はタスクを失敗させる。
+
+Cluster Mesh 用 Secret (`cilium_clustermesh_secret_enabled: true`) は共通CAで署名した Transport Layer Security (`TLS`) 証明書と秘密鍵, および共通CA証明書を `cilium_clustermesh_secret_*` 系変数の指示に従って保存する。Subject Alternative Name (`SAN`) は既定で `clustermesh-apiserver` Service 名を含むため, クラスタ固有の Service 名を利用する場合は `cilium_clustermesh_tls_san_dns` を上書きして接続先に合わせる。
 
 ##### Multus メタCNI
 
@@ -577,19 +595,19 @@ Whereabouts CNI関連の設定を以下に記載する。
 
 `k8s-kubeconfig` ロールは, 各コントロールプレインで証明書を埋め込んだ `kubeconfig` を生成し, kubeconfigファイル結合ツール(`create-uniq-kubeconfig.py`) で統合した `merged-kubeconfig.conf` (統合 `kubeconfig`)を全ノードに配布する。これにより, 1 つの `kubeconfig` で複数K8sクラスタ のコンテキストを切り替えて操作できる。
 
-本playbookでは Kubernetesオペレータとして, `kube` ユーザを作成する。`kube` ユーザの既定 `kubeconfig` (`~/.kube/config`) を `merged-kubeconfig.conf` へのシンボリックリンクとして作成するため、`kube` ユーザであれば `kubectl` の `--kubeconfig` オプションを省略して, K8sクラスタ のコンテキスト操作を行うことが可能である。
+本playbookでは Kubernetesオペレータとして, `kube` ユーザを作成する。`kube` ユーザの既定 `kubeconfig` (`~/.kube/config`) を `merged-kubeconfig.conf` へのシンボリックリンクとして作成するため, `kube` ユーザであれば `kubectl` の `--kubeconfig` オプションを省略して, K8sクラスタ のコンテキスト操作を行うことが可能である。
 
 ##### kubeconfig ファイルの配置と属性
 
 | ファイル | 配置ホスト | 所有者/グループ | 権限 | 含まれる情報 |
 |---|---|---|---|---|
-|`~kube/.kube/cluster*-embedded.kubeconfig`|コントロールプレインのみ|`kube:kube`|`0600`|各コントロールプレイン専用の証明書を内包した `kubeconfig`。共通CA証明書 `/etc/kubernetes/pki/shared-ca/cluster-mesh-ca.crt` (共通CA証明書未使用時は `/etc/kubernetes/pki/ca.crt`)、および `/etc/kubernetes/admin.conf` が保持する管理者クライアント証明書と秘密鍵, クラスタ定義 (`clusters`) とユーザー定義 (`users`) とを内包する。統合 `kubeconfig` (`merged-kubeconfig.conf`)の生成に使用される。|
-|`~kube/.kube/ca-embedded-admin.conf`|コントロールプレインのみ|`kube:kube`|`0600`|`/etc/kubernetes/admin.conf` に含まれるクラスタCA証明書、共通CA証明書（`/etc/kubernetes/pki/shared-ca/cluster-mesh-ca.crt` ( 共通CA証明書未使用時は `/etc/kubernetes/pki/ca.crt`）、管理者クライアント証明書、管理者クライアント秘密鍵とを内包する。|
-|`~kube/.kube/merged-kubeconfig.conf`|全ノード|`kube:kube`|`0600`| 全コントロールプレインのコンテキスト (`kubernetes-admin@<Kubernetes API エンドポイントを識別するための名前>`) を統合した統合 `kubeconfig`。クラスタ定義 (`clusters`)、ユーザー定義 (`users`)、コンテキスト定義 (`contexts`) をまとめて保持する。|
+|`~kube/.kube/cluster*-embedded.kubeconfig`|コントロールプレインのみ|`kube:kube`|`0600`|各コントロールプレイン専用の証明書を内包した `kubeconfig`。共通CA証明書 `/etc/kubernetes/pki/shared-ca/cluster-mesh-ca.crt` (共通CA証明書未使用時は `/etc/kubernetes/pki/ca.crt`), および `/etc/kubernetes/admin.conf` が保持する管理者クライアント証明書と秘密鍵, クラスタ定義 (`clusters`) とユーザー定義 (`users`) とを内包する。統合 `kubeconfig` (`merged-kubeconfig.conf`)の生成に使用される。|
+|`~kube/.kube/ca-embedded-admin.conf`|コントロールプレインのみ|`kube:kube`|`0600`|`/etc/kubernetes/admin.conf` に含まれるクラスタCA証明書, 共通CA証明書（`/etc/kubernetes/pki/shared-ca/cluster-mesh-ca.crt` ( 共通CA証明書未使用時は `/etc/kubernetes/pki/ca.crt`）, 管理者クライアント証明書, 管理者クライアント秘密鍵とを内包する。|
+|`~kube/.kube/merged-kubeconfig.conf`|全ノード|`kube:kube`|`0600`| 全コントロールプレインのコンテキスト (`kubernetes-admin@<Kubernetes API エンドポイントを識別するための名前>`) を統合した統合 `kubeconfig`。クラスタ定義 (`clusters`), ユーザー定義 (`users`), コンテキスト定義 (`contexts`) をまとめて保持する。|
 |`~kube/.kube/config` (シンボリックリンク)|全ノード|`kube:kube`|`0600`|`kubectl` を`--kubeconfig`オプション無しに, 統合 `kubeconfig`を使用して実行するためのシンボリックリンク。|
 |`~kube/.kube/config-default`|全ノード|`kube:kube`|`0600`|`kubeadm init` 実行時の`kubeconfig`ファイル (`~/.kube/config`) を保存するためのバックアップファイル。統合 `kubeconfig`へのシンボリックリンクを`~/.kube/config`として作成する際に, 既存の `~/.kube/config` が通常ファイルとして存在していた場合にのみ作成される。|
-|`/etc/kubernetes/ca-embedded-admin.conf`|コントロールプレインのみ|`root:root`|`0600`|root 向けに配置する証明書埋め込み `kubeconfig`（クラスタCA証明書、共通CA証明書（`/etc/kubernetes/pki/shared-ca/cluster-mesh-ca.crt`, 共通CA証明書未使用時は `/etc/kubernetes/pki/ca.crt`）、管理者クライアント証明書、管理者クライアント秘密鍵とを内包する。root 権限での操作時に使用する。|
-|`/etc/kubernetes/merged-kubeconfig.conf`|全ノード|`root:root`|`0600`|全コントロールプレインのコンテキスト (`kubernetes-admin@<Kubernetes API エンドポイントを識別するための名前>`) を統合した統合 `kubeconfig`。クラスタ定義 (`clusters`)、ユーザー定義 (`users`)、コンテキスト定義 (`contexts`) をまとめて保持する。`sudo KUBECONFIG=/etc/kubernetes/merged-kubeconfig.conf kubectl` を実行することで利用する。|
+|`/etc/kubernetes/ca-embedded-admin.conf`|コントロールプレインのみ|`root:root`|`0600`|root 向けに配置する証明書埋め込み `kubeconfig`（クラスタCA証明書, 共通CA証明書（`/etc/kubernetes/pki/shared-ca/cluster-mesh-ca.crt`, 共通CA証明書未使用時は `/etc/kubernetes/pki/ca.crt`）, 管理者クライアント証明書, 管理者クライアント秘密鍵とを内包する。root 権限での操作時に使用する。|
+|`/etc/kubernetes/merged-kubeconfig.conf`|全ノード|`root:root`|`0600`|全コントロールプレインのコンテキスト (`kubernetes-admin@<Kubernetes API エンドポイントを識別するための名前>`) を統合した統合 `kubeconfig`。クラスタ定義 (`clusters`), ユーザー定義 (`users`), コンテキスト定義 (`contexts`) をまとめて保持する。`sudo KUBECONFIG=/etc/kubernetes/merged-kubeconfig.conf kubectl` を実行することで利用する。|
 
 なお, 制御ノード側では, `~/.ansible/kubeconfig-cache/` (権限 `0700`) に最新の 統合 `kubeconfig` (`merged-kubeconfig.conf`) をキャッシュし, ワーカーノード配布時に再利用する。
 
@@ -628,6 +646,45 @@ Debian 系では `pslurp` が `parallel-slurp` という名称で提供される
 |`~kube/.kube/merged-kubeconfig.conf`|全コントロールプレインの`kubeconfig`を統合した統合 `kubeconfig`|`parallel-slurp -h ctrlplane-hosts.txt -l kube -L dest "~/.kube/merged-kubeconfig.conf" .`|
 |`~kube/.kube/config-default`|`kubeadm init` 実行時の`kubeconfig`ファイル (`~/.kube/config`) を保存するための, バックアップファイル。|`parallel-slurp -h ctrlplane-hosts.txt -l kube -L dest "~/.kube/config-default" .`|
 
+##### 共通認証局(Certificate Authority)証明書の確認方法
+
+本節では, Cilium Cluster Mesh などで共有する Kubernetes 共通認証局(Certificate Authority)証明書 (CA)（以下、共通CA）がコントロールプレイン間で適切に適用されていることを確認する手順を述べる。
+
+まずコンテキスト名を確認する。
+
+```:bash
+kubectl config get-contexts
+CURRENT   NAME                            CLUSTER    AUTHINFO             NAMESPACE
+*         kubernetes-admin@kubernetes     cluster1   kubernetes-admin
+          kubernetes-admin@kubernetes-2   cluster2   kubernetes-admin-2
+```
+
+上記の`NAME`列に出力されている文字列をコンテキスト名(`<context>`)として使用する。
+以下のコマンドを各コントロールプレインで実行し, 出力されるハッシュ値がコントロールプレイン間で一致することを確認する。
+
+```:bash
+kubectl --context <context> -n kube-system get secret cilium-ca -o jsonpath='{.data.ca\.crt}' | base64 -d | sha256sum
+```
+
+##### Cluster Mesh 用 機密情報を保持するリソース(`Secret`)の確認方法
+
+本節では, Cluster Mesh 用 機密情報を保持するリソース(`Secret`) `cilium-clustermesh`がコントロールプレイン間で適切に適用されていることを確認する手順を述べる。
+
+まずコンテキスト名を確認する。
+
+```:bash
+kubectl config get-contexts
+CURRENT   NAME                            CLUSTER    AUTHINFO             NAMESPACE
+*         kubernetes-admin@kubernetes     cluster1   kubernetes-admin
+          kubernetes-admin@kubernetes-2   cluster2   kubernetes-admin-2
+```
+
+上記の`NAME`列に出力されている文字列をコンテキスト名(`<context>`)として使用する。以下のコマンドを各コントロールプレインで実行し, 出力されるハッシュ値がコントロールプレイン間で一致することを確認する。
+
+```:bash
+kubectl --context <context> -n kube-system get secret cilium-clustermesh -o jsonpath='{.data.tls\.crt}' | base64 -d | openssl x509 -noout -text
+```
+
 ##### `kubeconfig`の更新と再配布
 
 - **コントロールプレインの更新**:
@@ -638,7 +695,7 @@ Debian 系では `pslurp` が `parallel-slurp` という名称で提供される
   ```
 
 - **ワーカーノードへの再配布**:
-  コントロールプレインで統合された統合 `kubeconfig` (`merged-kubeconfig.conf`) を各ワーカーに配布する Make ターゲット (`update-worker-kubeconfig`)を実行する。`update-worker-kubeconfig` は直前の手順で最新化された 統合 `kubeconfig` (`merged-kubeconfig.conf`) をコントロールプレインから取得するため、事前に `make update-ctrlplane-kubeconfig` を完了していることが前提となる。
+  コントロールプレインで統合された統合 `kubeconfig` (`merged-kubeconfig.conf`) を各ワーカーに配布する Make ターゲット (`update-worker-kubeconfig`)を実行する。`update-worker-kubeconfig` は直前の手順で最新化された 統合 `kubeconfig` (`merged-kubeconfig.conf`) をコントロールプレインから取得するため, 事前に `make update-ctrlplane-kubeconfig` を完了していることが前提となる。
 
   ```:shell
   make update-worker-kubeconfig

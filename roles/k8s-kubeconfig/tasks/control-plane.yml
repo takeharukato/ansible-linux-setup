@@ -92,7 +92,9 @@
           }
         })
       }}
-  loop: "{{ k8s_kubeconfig_embedded_slurp_results.results | default([]) }}"
+  loop: "{{ k8s_kubeconfig_embedded_slurp_results.results | default([]) | selectattr('content', 'defined') | list }}"
+  loop_control:
+    label: "{{ item.item }}"
   run_once: true
   delegate_to: localhost
   delegate_facts: true

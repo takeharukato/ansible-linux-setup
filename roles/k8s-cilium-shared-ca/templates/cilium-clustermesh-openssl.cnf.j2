@@ -1,0 +1,30 @@
+#
+#  OpenSSL configuration for Cilium Cluster Mesh TLS certificate
+#
+# last update: {{ '%Y-%m-%d %H:%M:%S %Z' | strftime(ansible_date_time.epoch) }}
+#
+#
+{% set _subject = cilium_clustermesh_tls_subject | default('/CN=clustermesh-apiserver') %}
+{% if _subject.startswith('/CN=') %}
+{% set common_name = _subject[4:] %}
+{% else %}
+{% set common_name = _subject %}
+{% endif %}
+[ req ]
+default_bits = {{ cilium_clustermesh_tls_key_size }}
+default_md = {{ cilium_shared_ca_digest }}
+prompt = no
+encrypt_key = no
+distinguished_name = req_distinguished_name
+req_extensions = v3_req
+
+[ req_distinguished_name ]
+CN = {{ common_name }}
+
+[ v3_req ]
+subjectAltName = @alt_names
+
+[ alt_names ]
+{% for dns in cilium_clustermesh_tls_san_dns %}
+DNS.{{ loop.index }} = {{ dns }}
+{% endfor %}

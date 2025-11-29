@@ -44,3 +44,26 @@ cilium_shared_ca_key_size: 4096
 cilium_shared_ca_valid_days: 3650
 cilium_shared_ca_digest: "sha256"
 cilium_shared_ca_subject: "/CN=Cilium Cluster Mesh CA"
+
+# Cluster Mesh TLS Secret の生成設定
+cilium_clustermesh_secret_enabled: true
+cilium_clustermesh_secret_name: "cilium-clustermesh"
+cilium_clustermesh_secret_namespace: "kube-system"
+cilium_clustermesh_secret_labels:
+  "app.kubernetes.io/managed-by": "Helm"
+cilium_clustermesh_secret_annotations:
+  "meta.helm.sh/release-name": "cilium"
+  "meta.helm.sh/release-namespace": "kube-system"
+cilium_clustermesh_secret_cert_key: "ca.crt"
+cilium_clustermesh_secret_tls_cert_key: "tls.crt"
+cilium_clustermesh_secret_tls_key_key: "tls.key"
+
+# Cluster Mesh TLS 証明書の生成パラメータ
+cilium_clustermesh_tls_cert_filename: "cilium-clustermesh.crt"
+cilium_clustermesh_tls_key_filename: "cilium-clustermesh.key"
+cilium_clustermesh_tls_subject: "/CN=clustermesh-apiserver"
+cilium_clustermesh_tls_san_dns:
+  - "clustermesh-apiserver.kube-system.svc.cluster.local"
+  - "clustermesh-apiserver.kube-system.svc"
+cilium_clustermesh_tls_valid_days: 3650
+cilium_clustermesh_tls_key_size: 4096
