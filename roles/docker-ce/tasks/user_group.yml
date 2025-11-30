@@ -28,9 +28,9 @@
 # users_list変数に指定されたユーザをdockerグループに追加
 - name: Add users in users_list into docker group
   ansible.builtin.user:
-    name: "{{ item }}"
+    name: "{{ item.name }}"
     groups: docker
     append: true
-  loop: "{{ users_list | default([]) }}"
+  loop: "{{ users_list | default([], true) }}"
   when: ( users_list | default([], true) | length ) > 0
   become: true

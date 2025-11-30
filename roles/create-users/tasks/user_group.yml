@@ -9,13 +9,14 @@
   ansible.builtin.group:
     name: "{{ item.group }}"
     state: present
-  with_items:
-    - "{{ users_list }}"
+  loop: "{{ users_list | default([], true) }}"
+  when:
+    - ( users_list | default([], true) | length ) > 0
   become: true
 
 # ユーザ作成
 - name: Create user
-  user:
+  ansible.builtin.user:
     name: "{{ item.name }}"
     password: "{{ item.password }}"
     group: "{{ item.group }}"
@@ -24,10 +25,10 @@
     comment:  "{{ item.comment }}"
     home:  "{{ item.home }}"
     shell: "{{ item.shell }}"
-  with_items:
-    - "{{ users_list }}"
+  loop: "{{ users_list | default([], true) }}"
   when:
-    - users_list is defined
+    - ( users_list | default([], true) | length ) > 0
+  become: true
 
 # authorized_key
 - name: Import authorized key from GitHub
@@ -37,10 +38,9 @@
     sudo -u "{{ item.name }}" mv "{{ item.home }}"/.ssh/authorized_keys.tmp "{{ item.home }}"/.ssh/authorized_keys
     sudo chmod 600 "{{ item.home }}"/.ssh/authorized_keys
     sudo chown "{{ item.name }}:{{ item.group }}" "{{ item.home }}"/.ssh/authorized_keys
-  with_items:
-    - "{{ users_list }}"
+  loop: "{{ users_list | default([], true) }}"
   when:
-    - users_list is defined
+    - ( users_list | default([], true) | length ) > 0
   become: true
 
 # .gitconfig
@@ -51,10 +51,9 @@
     owner: "{{ item.name }}"
     group: "{{ item.name }}"
     backup: no
-  with_items:
-    - "{{ users_list }}"
+  loop: "{{ users_list | default([], true) }}"
   when:
-    - users_list is defined
+    - ( users_list | default([], true) | length ) > 0
   become: true
 
 # 管理系グループを作成しておく ( 存在していれば無変更 )
@@ -62,12 +61,19 @@
   ansible.builtin.group:
     name: "{{ item }}"
     state: present
-  loop: "{{ adm_groups }}"
+  loop: "{{ adm_groups | default([], true) }}"
+  when:
+    - ( adm_groups | default([], true) | length ) > 0
+  become: true
 
 # 各ユーザを adm_groups のすべてに所属させる ( 既存の所属は保持 )
 - name: Ensure users are members of admin groups
   ansible.builtin.user:
     name: "{{ item.name }}"
-    groups: "{{ adm_groups | join(',') }}"
+    groups: "{{ adm_groups | default([], true) | join(',') }}"
     append: yes
-  loop: "{{ users_list }}"
+  loop: "{{ users_list | default([], true) }}"
+  when:
+    - ( users_list | default([], true) | length ) > 0
+    - ( adm_groups | default([], true) | length ) > 0
+  become: true

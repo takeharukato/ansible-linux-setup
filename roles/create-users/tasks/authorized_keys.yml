@@ -11,11 +11,12 @@
   vars:
     # manual_key_list: 該当ユーザに定義された users_authorized_keys の鍵リスト
     manual_key_list: "{{ users_authorized_keys.get(item.name, []) | default([], true) }}"
-  loop: "{{ users_list | default([]) }}"
+  loop: "{{ users_list | default([], true) }}"
   loop_control:
     label: "{{ item.name }}"
   when:
-    - manual_key_list | length > 0
+    - ( manual_key_list | default([], true) | length ) > 0
+    - ( users_list | default([], true) | length ) > 0
   changed_when: false
 
 # 抽出した鍵を authorized_keys に追記する
@@ -27,11 +28,11 @@
     key: "{{ item.1 }}"
     state: present
     path: "{{ item.0.home }}/.ssh/authorized_keys"
-  loop: "{{ manual_users_with_keys | default([]) | subelements('manual_keys') }}"
+  loop: "{{ manual_users_with_keys | default([], true) | subelements('manual_keys') }}"
   loop_control:
     label: "{{ item.0.name }}"
   when:
-    - manual_users_with_keys | default([]) | length > 0
+    - manual_users_with_keys | default([], true) | length > 0
   become: true
 
 # 追記後にソート・重複排除と権限整備を行う
@@ -44,9 +45,9 @@
     sudo chown "{{ item.name }}:{{ item.group }}" "{{ item.home }}/.ssh/authorized_keys"
   args:
     executable: /bin/bash
-  loop: "{{ manual_users_with_keys | default([]) }}"
+  loop: "{{ manual_users_with_keys | default([], true) }}"
   loop_control:
     label: "{{ item.name }}"
   when:
-    - manual_users_with_keys | default([]) | length > 0
+    - ( manual_users_with_keys | default([], true) | length ) > 0
   become: true
