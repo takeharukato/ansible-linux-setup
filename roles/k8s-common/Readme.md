@@ -14,16 +14,18 @@ Kubernetes ノード共通の前提条件を整えるロールです。制御プ
 8. `config-cpu-shielding.yml` (任意) は `k8s_reserved_system_cpus_default` が定義されている場合に kubepods スライスの cpuset を調整します。
 9. `config-common-kubeconfig-tools.yml` で `create-uniq-kubeconfig.py` と日本語 README を `/opt/k8snodes` に配布します。
 10. `config.yml` がカーネルモジュール・sysctl・containerd 設定を反映し, SystemdCgroup を有効化した後に containerd を再起動, ホストをリブートします。
-11. `user_group.yml` で Kubernetes オペレータユーザを作成し, GitHub から公開鍵を取得して `authorized_keys` を整備します。
+11. `user_group.yml` で Kubernetes オペレータユーザとホームディレクトリを作成したあと, `config-k8s-operator-authorized_keys.yml` が `.ssh` ディレクトリ生成・テンプレート初期化・GitHub からの鍵取得に加えて `k8s_operator_authorized_key_list` で指定した鍵も追記し, ソート・重複排除・所有者/パーミッション調整まで実施し, `authorized_keys` を更新します。
 12. `service.yml` (現時点では処理なし) を経てロールが終了します。
 
 ## 主要変数
 
 | 変数名 | 既定値 | 説明 |
 | --- | --- | --- |
-| `k8s_operator_user` | `kube` | オペレータ用ユーザ名。`user_group.yml` で作成し, `authorized_keys` を整備します。|
+| `k8s_operator_user` | `kube` | オペレータ用ユーザ名。本ロールでは, `user_group.yml` がユーザ本体とホームディレクトリを作成し, その後 `config-k8s-operator-authorized_keys.yml` がホーム直下に `.ssh` ディレクトリを作成, テンプレート ( `_ssh__authorized_keys.j2` ) で初期鍵を書き込み, GitHub から取得した鍵と `k8s_operator_authorized_key_list` で定義した鍵を追記し, ソート・重複排除と所有者/パーミッション調整まで行います。|
 | `k8s_operator_home` | `/home/kube` | オペレータホームディレクトリ。kubeconfig や ssh 鍵を配置します。|
 | `k8s_operator_groups_list` | `{{ adm_groups }}` | 追加で所属させるグループ。sudo 実行権限などを付与します。|
+| `k8s_operator_authorized_key_list` | `[]` | 追加で登録したい公開鍵のリスト。各要素は `config-k8s-operator-authorized_keys.yml` 内の `ansible.builtin.authorized_key` タスクで追記され, GitHub 取得分と合わせてソート・重複排除した結果が `authorized_keys` に反映されます。|
+| `k8s_operator_github_key_list` | `[]` | 公開鍵を取得したい GitHub アカウントのマッピングのリストです。環境ごとに `[ { github: '<アカウント名>' } ]` のようなリストへ上書きすると `https://github.com/<account>.keys` から鍵を取得し, `authorized_keys` に追記します。将来的に別サイト由来の鍵取得へ拡張できるよう, サイトとアカウント名のマッピングを記述する構造です。|
 | `k8s_node_setup_tools_prefix` | `/opt/k8snodes` | kubeconfig ツール類を格納するベースパス。|
 | `k8s_node_setup_tools_dir` | `{{ k8s_node_setup_tools_prefix }}/sbin` | `create-uniq-kubeconfig.py` などのスクリプト配置先。|
 | `k8s_embed_kubeconfig_script_path` | `{{ k8s_node_setup_tools_dir }}/create-embedded-kubeconfig.py` | 証明書埋め込み kubeconfig 生成スクリプトのパス。|
@@ -47,7 +49,7 @@ Kubernetes ノード共通の前提条件を整えるロールです。制御プ
 - **CPU シールド (任意)**: `k8s_reserved_system_cpus_default` がある場合に kubepods 用 systemd drop-in を配置し, 不要なら削除します。
 - **containerd 調整**: kernel モジュール・sysctl を適用し, `containerd config default` から生成した設定で `SystemdCgroup=true` を強制した上でリスタートします。override ユニットで追加オプションを反映します。
 - **リブート制御**: containerd 設定変更後にホストを再起動し, `wait_for_connection` で復帰を待ちます。`apply_sysctl` ハンドラは必要に応じて `sysctl --system` を再実行します。
-- **ユーザ管理**: オペレータユーザの作成と `.ssh/authorized_keys` 整備, 指定された GitHub アカウントからの鍵取り込みを自動化します。
+- **ユーザ管理**: `user_group.yml` が認証用ユーザを追加してホームディレクトリを用意し, その後 `config-k8s-operator-authorized_keys.yml` が (1) `.ssh` ディレクトリ新規作成, (2) テンプレートで初期 `authorized_keys` を配置 (テンプレート: `_ssh__authorized_keys.j2`), (3) `k8s_operator_github_key_list` に列挙された GitHub アカウントから公開鍵を取得して追記, (4) `k8s_operator_authorized_key_list` に定義した鍵も追加し, (5) ファイルをソートして重複排除, (6) 所有者とパーミッションを再設定する――という一連の鍵管理処理を自動実行します。
 
 ## テンプレート／ファイル
 
@@ -75,4 +77,5 @@ Kubernetes ノード共通の前提条件を整えるロールです。制御プ
 
 - `firewall_backend` を空にするか `enable_firewall: false` を指定するとファイアウォール設定タスクをスキップできます。
 - containerd 設定を変更せず再起動だけ行いたい場合は `k8s-common` ロールを再実行し, `reboot` ハンドラを `--skip-tags` で除外する等の運用を検討してください。
-- `k8s_operator_github_key_list` に GitHub アカウントを追加すると, 公開鍵が自動で `authorized_keys` に反映されます。削除時は手動で除外するか, テンプレート側を更新してください。
+- `k8s_operator_github_key_list` に GitHub アカウントを追加すると, GitHubから取得した公開鍵が自動で `authorized_keys` に反映されます。
+- `k8s_operator_authorized_key_list`に記載された公開鍵が自動で `authorized_keys` に反映されます。

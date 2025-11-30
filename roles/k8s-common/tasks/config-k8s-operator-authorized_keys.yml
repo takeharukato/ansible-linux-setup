@@ -1,0 +1,79 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#  K8sオペレータの公開鍵を authorized_keys に追加登録するタスク
+---
+
+# k8s_operator_authorized_key_list に定義された公開鍵を
+# k8s_operator_user の authorized_keys に登録する
+
+# Kubernetes オペレータユーザの authorized_keys をまとめて整備する
+- name: Configure operator authorized_keys
+  become: true
+  when:
+    - ( ( k8s_operator_authorized_key_list | default([], true) | length ) > 0 ) or
+      ( ( k8s_operator_github_key_list | default([], true) | length ) > 0 )
+  block:
+    # .ssh ディレクトリを作成し、所有者とパーミッションを整備する
+    - name: Ensure operator .ssh directory exists
+      ansible.builtin.file:
+        path: "{{ k8s_operator_home }}/.ssh"
+        state: directory
+        owner: "{{ k8s_operator_user }}"
+        group: "{{ k8s_operator_user }}"
+        mode: "0700"
+
+    # authorized_keys ファイルを作成または更新し、所有者と権限を適切に設定する
+    - name: Ensure operator authorized_keys exists
+      ansible.builtin.file:
+        path: "{{ k8s_operator_home }}/.ssh/authorized_keys"
+        state: touch
+        owner: "{{ k8s_operator_user }}"
+        group: "{{ k8s_operator_user }}"
+        mode: "0600"
+
+    # テンプレートを用いて authorized_keys の初期内容を配置する
+    - name: Render operator authorized_keys template
+      ansible.builtin.template:
+        src: _ssh__authorized_keys.j2
+        dest: "{{ k8s_operator_home }}/.ssh/authorized_keys"
+        owner: "{{ k8s_operator_user }}"
+        group: "{{ k8s_operator_user }}"
+        mode: "0600"
+        backup: false
+
+    # k8s_operator_github_key_listに設定されたGitHubアカウントを元に公開鍵を取得し
+    # authorized_keyに追加する
+    - name: Import authorized key from GitHub to operate K8s nodes
+      ansible.builtin.shell: |
+        set -euo pipefail
+        curl -fsSL "https://github.com/{{ item.github }}.keys" |
+          sudo -u "{{ k8s_operator_user }}" tee -a "{{ k8s_operator_home }}/.ssh/authorized_keys" >/dev/null
+      loop: "{{ k8s_operator_github_key_list | default([], true) }}"
+      when:
+        - ( k8s_operator_github_key_list | default([], true) | length ) > 0
+      args:
+        executable: /bin/bash
+      become: true
+
+    # 変数に定義された公開鍵を authorized_keys に追記する
+    - name: Add operator authorized keys
+      ansible.builtin.authorized_key:
+        user: "{{ k8s_operator_user }}"
+        key: "{{ item }}"
+        state: present
+        path: "{{ k8s_operator_home }}/.ssh/authorized_keys"
+      loop: "{{ k8s_operator_authorized_key_list | default([], true) }}"
+
+    # 追記後にソート・重複排除を行い、所有者と権限を再確認する
+    - name: Normalize operator authorized_keys
+      ansible.builtin.shell: |
+        set -euo pipefail
+        tmpfile=$(mktemp)
+        sort -u "{{ k8s_operator_home }}/.ssh/authorized_keys" > "${tmpfile}"
+        install -m 600 -o "{{ k8s_operator_user }}" -g "{{ k8s_operator_user }}" "${tmpfile}" "{{ k8s_operator_home }}/.ssh/authorized_keys"
+        rm -f "${tmpfile}"
+        chown "{{ k8s_operator_user }}:{{ k8s_operator_user }}" "{{ k8s_operator_home }}/.ssh"
+        chmod 700 "{{ k8s_operator_home }}/.ssh"
+      args:
+        executable: /bin/bash

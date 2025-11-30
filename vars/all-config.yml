@@ -455,6 +455,14 @@ k8s_worker_nodeport_range: "30000-32767"
 # k8sの各ノードへログインするために使用する公開鍵を得るためのgithubアカウントのリスト
 k8s_operator_github_key_list:
   - { github: 'sampleuser' }
+# k8sの各ノードへログインするために使用する公開鍵のリスト
+# 形式: .ssh/authorized_keysに追記する公開鍵文字列のリスト
+# k8s_operator_authorized_key_list:
+#  - "公開鍵文字列1 (.ssh/authorized_keysに追記する形式)"
+# 例:
+# k8s_operator_authorized_key_list:
+#   - "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIExampleKeyForK8sOperator k8s-operator@example"
+k8s_operator_authorized_key_list: []
 
 #
 # Cilium

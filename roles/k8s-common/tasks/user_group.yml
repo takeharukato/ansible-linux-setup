@@ -5,10 +5,13 @@
 #  ユーザ・グループ作成関連タスク
 #
 
+# k8sオペレータ用グループを作成
 - name: "create {{ k8s_operator_user }} group"
   group:
     name: "{{ k8s_operator_user }}"
 
+# k8sオペレータ用ユーザを作成
+# note: K8sオペレータ用グループへ所属させるため、先にグループを作成しておくこと
 - name: "create {{ k8s_operator_user }} user"
   user:
     name: "{{ k8s_operator_user }}"
@@ -17,6 +20,7 @@
     groups: "{{ k8s_operator_groups_list }}"
     append: true
 
+# ホームディレクトリを作成
 - name: "make /home/{{ k8s_operator_user }} dir"
   file:
     path: "/home/{{ k8s_operator_user }}"
@@ -24,48 +28,3 @@
     owner: "{{ k8s_operator_user }}"
     group: "{{ k8s_operator_user }}"
     mode: "0755"
-
-- name: make /home/kube/.ssh dir
-  file:
-    path: "/home/{{ k8s_operator_user }}/.ssh"
-    state: directory
-    owner: "{{ k8s_operator_user }}"
-    group: "{{ k8s_operator_user }}"
-    mode: "0700"
-
-- name: "create /home/{{ k8s_operator_user }}/.ssh/authorized_keys"
-  file:
-    path: "/home/{{ k8s_operator_user }}/.ssh/authorized_keys"
-    state: touch
-
-- name: "chown/chmod /home/{{ k8s_operator_user }}/.ssh/authorized_keys"
-  file:
-    path: "/home/{{ k8s_operator_user }}/.ssh/authorized_keys"
-    state: file
-    owner: "{{ k8s_operator_user }}"
-    group: "{{ k8s_operator_user }}"
-    mode: "0600"
-
-- name: "create /home/{{ k8s_operator_user }}/.ssh/authorized_keys with k8s operator keys"
-  template:
-    src: _ssh__authorized_keys.j2
-    dest: "/home/{{ k8s_operator_user }}/.ssh/authorized_keys"
-    owner: "{{ k8s_operator_user }}"
-    group: "{{ k8s_operator_user }}"
-    mode: "0600"
-    backup: no
-
-# k8s_operator_github_key_listに設定されたGitHubアカウントを元に公開鍵を取得し
-# authorized_keyに追加する
-- name: Import authorized key from GitHub to operate K8s nodes
-  shell: |
-    curl -fsSL https://github.com/"{{ item.github }}".keys|sudo -u "{{ k8s_operator_user }}" tee -a "/home/{{ k8s_operator_user }}/.ssh/authorized_keys"
-    cat "/home/{{ k8s_operator_user }}/.ssh/authorized_keys"|sort|uniq|sudo -u "{{ k8s_operator_user }}" tee "/home/{{ k8s_operator_user }}/.ssh/authorized_keys.tmp"
-    sudo -u "{{ k8s_operator_user }}" mv "/home/{{ k8s_operator_user }}/.ssh/authorized_keys.tmp" "/home/{{ k8s_operator_user }}/.ssh/authorized_keys"
-    sudo chown "{{ k8s_operator_user }}:{{ k8s_operator_user }}" "/home/{{ k8s_operator_user }}/.ssh/authorized_keys"
-    sudo chmod 600 "/home/{{ k8s_operator_user }}/.ssh/authorized_keys"
-  with_items:
-    - "{{ k8s_operator_github_key_list }}"
-  when:
-    - k8s_operator_github_key_list is defined
-  become: true
