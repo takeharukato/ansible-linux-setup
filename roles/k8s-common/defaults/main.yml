@@ -38,6 +38,9 @@ k8s_operator_github_key_list: []
 #   - "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIExampleKeyForK8sOperator k8s-operator@example"
 k8s_operator_authorized_key_list: []
 
+# kubectl シェル補完設定
+kubectl_completion_enabled: true
+
 #
 # kubeconfigファイル操作スクリプト設定
 #

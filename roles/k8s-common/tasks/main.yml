@@ -13,6 +13,7 @@
 - include_tasks: directory.yml
 - include_tasks: config-sudoer-path.yml
 - include_tasks: package.yml
+- include_tasks: config-k8s-shell-completion.yml
 - include_tasks: config-firewall-common.yml
   when: enable_firewall | default(false,true)
 - include_tasks: config-disable-swap.yml

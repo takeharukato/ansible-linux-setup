@@ -14,6 +14,7 @@
 ## 利用する変数
 
 - `devel_packages`: インストール対象のパッケージ一覧。既定値はリポジトリ直下の `vars/packages-ubuntu.yml`, `vars/packages-rhel.yml` に定義されており, 必要に応じて `group_vars` / `host_vars` で上書きします。
+- `kubectl_completion_enabled`: `true`に設定することで, `kubectl` のbash/zsh 用のシェル補完ファイルを導入します。規定値は, `true`です。
 
 ## 実行方法
 

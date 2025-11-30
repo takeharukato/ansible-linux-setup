@@ -71,6 +71,7 @@ k8s_common_prerequisite_packages:
   - curl
   - gnupg2
   - dnf-plugins-core
+  - bash-completion
   - yq
   - jq
 
