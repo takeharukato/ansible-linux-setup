@@ -3,8 +3,19 @@
 #  Copyright 2020 Takeharu KATO All Rights Reserved.
 
 #  Emacs パッケージインストール内部ループ(1要素をインストール)
+
+- name: Check install-emacs-packages.sh presence
+  stat:
+    path: "{{ outer_item.home }}/bin/install-emacs-packages.sh"
+  register: install_emacs_script
+
+# Emacs パッケージをインストール
+# (install-emacs-packages.sh ホームディレクトリ下のbinディレクトリ内に存在し,
+#  create_user_emacs_package_list が定義されており要素数が1以上の場合)
 - name: install one emacs package
   shell: |
-    sudo -i -u "{{ outer_item.name }}" /bin/bash "{{ outer_item.home }}"/bin/install-emacs-packages.sh "{{ item }}"
-  with_items:
-    - "{{ create_user_emacs_package_list }}"
+    sudo -i -u "{{ outer_item.name }}" /bin/bash "{{ outer_item.home }}/bin/install-emacs-packages.sh" "{{ item }}"
+  loop: "{{ create_user_emacs_package_list | default([]) }}"
+  when:
+    - install_emacs_script.stat.exists
+    - (create_user_emacs_package_list | default([], true) | length) > 0
