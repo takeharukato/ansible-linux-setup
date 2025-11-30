@@ -8,14 +8,15 @@ Kubernetes ノード共通の前提条件を整えるロールです。制御プ
 2. `directory.yml` が kubeadm 設定ディレクトリや `/opt/k8snodes` 配下のツール格納パスを作成します。
 3. `config-sudoer-path.yml` で `/etc/sudoers.d` の `secure_path` を `/usr/local/sbin` まで拡張し, sudo 実行時に Helm などのツールが参照できるようにします。
 4. `package.yml` で containerd・kubelet・kubeadm・kubectl を最新化し, 前提パッケージを導入します。
-5. `config-firewall-common.yml` が `enable_firewall` / `firewall_backend` に応じて UFW または firewalld を設定し, `k8s_common_ports` や Pod CIDR を許可します (Red Hat 系では rpfilter バイパス用ユニットも展開)。
-6. `config-disable-swap.yml` で `/etc/fstab` の swap 項目をコメントアウトし, zram swap を停止, `vm.swappiness=0` を設定します。
-7. `config-kubelet.yml` が kubelet の使用 NIC を `k8s_kubelet_nic` または `mgmt_nic` から決定し, 静的 IP を検証したうえで `/etc/default/kubelet` を生成します。
-8. `config-cpu-shielding.yml` (任意) は `k8s_reserved_system_cpus_default` が定義されている場合に kubepods スライスの cpuset を調整します。
-9. `config-common-kubeconfig-tools.yml` で `create-uniq-kubeconfig.py` と日本語 README を `/opt/k8snodes` に配布します。
-10. `config.yml` がカーネルモジュール・sysctl・containerd 設定を反映し, SystemdCgroup を有効化した後に containerd を再起動, ホストをリブートします。
-11. `user_group.yml` で Kubernetes オペレータユーザとホームディレクトリを作成したあと, `config-k8s-operator-authorized_keys.yml` が `.ssh` ディレクトリ生成・テンプレート初期化・GitHub からの鍵取得に加えて `k8s_operator_authorized_key_list` で指定した鍵も追記し, ソート・重複排除・所有者/パーミッション調整まで実施し, `authorized_keys` を更新します。
-12. `service.yml` (現時点では処理なし) を経てロールが終了します。
+5. `config-k8s-shell-completion.yml` が `kubectl completion bash` / `kubectl completion zsh` の出力を各 OS 既定パスへ展開し, bash/zsh 補完を有効化します (`kubectl_completion_enabled` が `true` かつ `kubectl` バイナリが存在する場合のみ)。
+6. `config-firewall-common.yml` が `enable_firewall` / `firewall_backend` に応じて UFW または firewalld を設定し, `k8s_common_ports` や Pod CIDR を許可します (Red Hat 系では rpfilter バイパス用ユニットも展開)。
+7. `config-disable-swap.yml` で `/etc/fstab` の swap 項目をコメントアウトし, zram swap を停止, `vm.swappiness=0` を設定します。
+8. `config-kubelet.yml` が kubelet の使用 NIC を `k8s_kubelet_nic` または `mgmt_nic` から決定し, 静的 IP を検証したうえで `/etc/default/kubelet` を生成します。
+9. `config-cpu-shielding.yml` (任意) は `k8s_reserved_system_cpus_default` が定義されている場合に kubepods スライスの cpuset を調整します。
+10. `config-common-kubeconfig-tools.yml` で `create-uniq-kubeconfig.py` と日本語 README を `/opt/k8snodes` に配布します。
+11. `config.yml` がカーネルモジュール・sysctl・containerd 設定を反映し, SystemdCgroup を有効化した後に containerd を再起動, ホストをリブートします。
+12. `user_group.yml` で Kubernetes オペレータユーザとホームディレクトリを作成したあと, `config-k8s-operator-authorized_keys.yml` が `.ssh` ディレクトリ生成・テンプレート初期化・GitHub からの鍵取得に加えて `k8s_operator_authorized_key_list` で指定した鍵も追記し, ソート・重複排除・所有者/パーミッション調整まで実施し, `authorized_keys` を更新します。
+13. `service.yml` (現時点では処理なし) を経てロールが終了します。
 
 ## 主要変数
 
@@ -25,6 +26,7 @@ Kubernetes ノード共通の前提条件を整えるロールです。制御プ
 | `k8s_operator_home` | `/home/kube` | オペレータホームディレクトリ。kubeconfig や ssh 鍵を配置します。|
 | `k8s_operator_groups_list` | `{{ adm_groups }}` | 追加で所属させるグループ。sudo 実行権限などを付与します。|
 | `k8s_operator_authorized_key_list` | `[]` | 追加で登録したい公開鍵のリスト。各要素は `config-k8s-operator-authorized_keys.yml` 内の `ansible.builtin.authorized_key` タスクで追記され, GitHub 取得分と合わせてソート・重複排除した結果が `authorized_keys` に反映されます。|
+| `kubectl_completion_enabled` | `true` | `kubectl completion` の出力を bash/zsh 補完ディレクトリへ展開します。`false` にすると補完関連タスク一式をスキップします。|
 | `k8s_operator_github_key_list` | `[]` | 公開鍵を取得したい GitHub アカウントのマッピングのリストです。環境ごとに `[ { github: '<アカウント名>' } ]` のようなリストへ上書きすると `https://github.com/<account>.keys` から鍵を取得し, `authorized_keys` に追記します。将来的に別サイト由来の鍵取得へ拡張できるよう, サイトとアカウント名のマッピングを記述する構造です。|
 | `k8s_node_setup_tools_prefix` | `/opt/k8snodes` | kubeconfig ツール類を格納するベースパス。|
 | `k8s_node_setup_tools_dir` | `{{ k8s_node_setup_tools_prefix }}/sbin` | `create-uniq-kubeconfig.py` などのスクリプト配置先。|
@@ -43,6 +45,7 @@ Kubernetes ノード共通の前提条件を整えるロールです。制御プ
 - **ディレクトリ／ツール整備**: `/opt/k8snodes` 配下を作成し, `create-uniq-kubeconfig.py` とその README を配布して kubeconfig マージ作業を補助します。
 - **sudo 経路の調整**: `/etc/sudoers.d/99-secure-path` を設け, sudo 実行時にも `/usr/local/sbin` 等を PATH に含めます。
 - **パッケージ導入**: containerd, kubeadm, kubelet, kubectl および OS 依存の前提パッケージを最新化します。
+- **kubectl 補完**: `kubectl completion` コマンドの出力を OS 別の既定パス (`/usr/share/bash-completion/completions/kubectl`, `/usr/share/zsh/vendor-completions/_kubectl` 等) に配置し, bash/zsh で補完を使用できるようにします。
 - **ファイアウォール**: Debian 系は UFW, RHEL 系は firewalld を前提に Pod CIDR とサービスポートを許可し, Red Hat 系では rpfilter バイパス用 systemd ユニットを設置します。
 - **swap 無効化**: `/etc/fstab` の swap 行をコメント化し, `swapoff -a`, zram ユニット停止, `vm.swappiness=0` で再発防止します。
 - **kubelet 設定**: `k8s_kubelet_nic` もしくは `mgmt_nic` に紐づく静的 IP を検証し, `/etc/default/kubelet` を生成して `--node-ip` を構成します。
@@ -67,6 +70,7 @@ Kubernetes ノード共通の前提条件を整えるロールです。制御プ
 - `/opt/k8snodes/sbin` にスクリプトと README が配置され, 実行権限が付与されている。
 - `sudo -l` 実行時に `secure_path` に `/usr/local/sbin` が含まれる。
 - `containerd`, `kubelet`, `kubeadm`, `kubectl` が期待するバージョンでインストールされ, `systemctl status containerd` / `kubelet` が `active (running)` を示す。
+- `/usr/share/bash-completion/completions/kubectl` や `/usr/share/zsh/vendor-completions/_kubectl` (RHEL 系は `/usr/share/zsh/site-functions/_kubectl`) が生成され, 新しいシェルで `kubectl` の補完が有効になっている。
 - `ufw status` または `firewall-cmd --list-ports` に `k8s_common_ports` が反映され, Pod CIDR 許可ルールが投入されている。
 - `/etc/fstab` の swap 行がコメントアウトされ, `swapon --show` が空である。
 - `/etc/default/kubelet` に `--node-ip=<静的 IP>` が設定され, `journalctl -u kubelet -n 20` に IP 解決エラーが出ていない。

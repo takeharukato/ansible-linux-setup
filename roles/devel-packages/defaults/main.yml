@@ -5,3 +5,6 @@
 #  group_vars/all/all.yml やhost_varsで上書き可能とするため,
 #  ロール名/defaults/main.yml に定義している
 ---
+
+# kubectl シェル補完設定
+kubectl_completion_enabled: true

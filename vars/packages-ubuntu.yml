@@ -74,6 +74,7 @@ k8s_common_prerequisite_packages:
   - software-properties-common
   - gnupg
   - lsb-release
+  - bash-completion
   - yq
   - jq
   - python3-yaml

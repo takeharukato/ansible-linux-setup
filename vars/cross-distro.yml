@@ -59,6 +59,17 @@ adm_groups_rhel:
 adm_groups: "{{ (ansible_facts.os_family == 'Debian') | ternary(adm_groups_debian, adm_groups_rhel) }}"
 
 ##################################################################################
+# kubectl シェル補完
+##################################################################################
+kubectl_bash_completion_path_debian: "/usr/share/bash-completion/completions/kubectl"
+kubectl_bash_completion_path_rhel: "/usr/share/bash-completion/completions/kubectl"
+kubectl_bash_completion_path: "{{ (ansible_facts.os_family == 'Debian') | ternary(kubectl_bash_completion_path_debian, kubectl_bash_completion_path_rhel) }}"
+
+kubectl_zsh_completion_path_debian: "/usr/share/zsh/vendor-completions/_kubectl"
+kubectl_zsh_completion_path_rhel: "/usr/share/zsh/site-functions/_kubectl"
+kubectl_zsh_completion_path: "{{ (ansible_facts.os_family == 'Debian') | ternary(kubectl_zsh_completion_path_debian, kubectl_zsh_completion_path_rhel) }}"
+
+##################################################################################
 # ネットワーク設定関連
 ##################################################################################
 
