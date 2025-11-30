@@ -495,7 +495,7 @@ Kubernetes (以下K8sと記す)関連の設定を以下に記載する。
 |変数名|意味|設定値の例|
 |---|---|---|
 |k8s_major_minor|K8s バージョン (先頭にvをつけないことに注意)|"1.31"|
-|enable_create_k8s_ca|共通の認証局(`Certificate Authority`)証明書 (`CA`)（以下, 共通CA）をロールで生成/再利用する (false の場合は `k8s_common_ca` を必須とする)|true|
+|enable_create_k8s_ca|共通の認証局(`Certificate Authority`)証明書 (`CA`) ( 以下, 共通CA )をロールで生成/再利用する (false の場合は `k8s_common_ca` を必須とする)|true|
 |k8s_common_ca|事前に用意した共通CA (`cluster-mesh-ca.crt/.key`) を格納したディレクトリの絶対パス|""|
 |k8s_shared_ca_output_dir|共通CAをノード内に展開するディレクトリ|"/etc/kubernetes/pki/shared-ca"|
 |k8s_shared_ca_replace_kube_ca|共通CAで `/etc/kubernetes/pki/ca.{crt,key}` を置き換え, `kubeadm init` 時にAPIサーバ証明書などを再発行する|true|
@@ -602,11 +602,11 @@ Whereabouts CNI関連の設定を以下に記載する。
 | ファイル | 配置ホスト | 所有者/グループ | 権限 | 含まれる情報 |
 |---|---|---|---|---|
 |`~kube/.kube/cluster*-embedded.kubeconfig`|コントロールプレインのみ|`kube:kube`|`0600`|各コントロールプレイン専用の証明書を内包した `kubeconfig`。共通CA証明書 `/etc/kubernetes/pki/shared-ca/cluster-mesh-ca.crt` (共通CA証明書未使用時は `/etc/kubernetes/pki/ca.crt`), および `/etc/kubernetes/admin.conf` が保持する管理者クライアント証明書と秘密鍵, クラスタ定義 (`clusters`) とユーザー定義 (`users`) とを内包する。統合 `kubeconfig` (`merged-kubeconfig.conf`)の生成に使用される。|
-|`~kube/.kube/ca-embedded-admin.conf`|コントロールプレインのみ|`kube:kube`|`0600`|`/etc/kubernetes/admin.conf` に含まれるクラスタCA証明書, 共通CA証明書（`/etc/kubernetes/pki/shared-ca/cluster-mesh-ca.crt` ( 共通CA証明書未使用時は `/etc/kubernetes/pki/ca.crt`）, 管理者クライアント証明書, 管理者クライアント秘密鍵とを内包する。|
+|`~kube/.kube/ca-embedded-admin.conf`|コントロールプレインのみ|`kube:kube`|`0600`|`/etc/kubernetes/admin.conf` に含まれるクラスタCA証明書, 共通CA証明書 ( `/etc/kubernetes/pki/shared-ca/cluster-mesh-ca.crt` ( 共通CA証明書未使用時は `/etc/kubernetes/pki/ca.crt` ), 管理者クライアント証明書, 管理者クライアント秘密鍵とを内包する。|
 |`~kube/.kube/merged-kubeconfig.conf`|全ノード|`kube:kube`|`0600`| 全コントロールプレインのコンテキスト (`kubernetes-admin@<Kubernetes API エンドポイントを識別するための名前>`) を統合した統合 `kubeconfig`。クラスタ定義 (`clusters`), ユーザー定義 (`users`), コンテキスト定義 (`contexts`) をまとめて保持する。|
 |`~kube/.kube/config` (シンボリックリンク)|全ノード|`kube:kube`|`0600`|`kubectl` を`--kubeconfig`オプション無しに, 統合 `kubeconfig`を使用して実行するためのシンボリックリンク。|
 |`~kube/.kube/config-default`|全ノード|`kube:kube`|`0600`|`kubeadm init` 実行時の`kubeconfig`ファイル (`~/.kube/config`) を保存するためのバックアップファイル。統合 `kubeconfig`へのシンボリックリンクを`~/.kube/config`として作成する際に, 既存の `~/.kube/config` が通常ファイルとして存在していた場合にのみ作成される。|
-|`/etc/kubernetes/ca-embedded-admin.conf`|コントロールプレインのみ|`root:root`|`0600`|root 向けに配置する証明書埋め込み `kubeconfig`（クラスタCA証明書, 共通CA証明書（`/etc/kubernetes/pki/shared-ca/cluster-mesh-ca.crt`, 共通CA証明書未使用時は `/etc/kubernetes/pki/ca.crt`）, 管理者クライアント証明書, 管理者クライアント秘密鍵とを内包する。root 権限での操作時に使用する。|
+|`/etc/kubernetes/ca-embedded-admin.conf`|コントロールプレインのみ|`root:root`|`0600`|root 向けに配置する証明書埋め込み `kubeconfig` ( クラスタCA証明書, 共通CA証明書 ( `/etc/kubernetes/pki/shared-ca/cluster-mesh-ca.crt`, 共通CA証明書未使用時は `/etc/kubernetes/pki/ca.crt` ), 管理者クライアント証明書, 管理者クライアント秘密鍵とを内包する。root 権限での操作時に使用する。|
 |`/etc/kubernetes/merged-kubeconfig.conf`|全ノード|`root:root`|`0600`|全コントロールプレインのコンテキスト (`kubernetes-admin@<Kubernetes API エンドポイントを識別するための名前>`) を統合した統合 `kubeconfig`。クラスタ定義 (`clusters`), ユーザー定義 (`users`), コンテキスト定義 (`contexts`) をまとめて保持する。`sudo KUBECONFIG=/etc/kubernetes/merged-kubeconfig.conf kubectl` を実行することで利用する。|
 
 なお, 制御ノード側では, `~/.ansible/kubeconfig-cache/` (権限 `0700`) に最新の 統合 `kubeconfig` (`merged-kubeconfig.conf`) をキャッシュし, ワーカーノード配布時に再利用する。
@@ -648,7 +648,7 @@ Debian 系では `pslurp` が `parallel-slurp` という名称で提供される
 
 ##### 共通認証局(Certificate Authority)証明書の確認方法
 
-本節では, Cilium Cluster Mesh などで共有する Kubernetes 共通認証局(Certificate Authority)証明書 (CA)（以下、共通CA）がコントロールプレイン間で適切に適用されていることを確認する手順を述べる。
+本節では, Cilium Cluster Mesh などで共有する Kubernetes 共通認証局(Certificate Authority)証明書 (CA) ( 以下, 共通CA )がコントロールプレイン間で適切に適用されていることを確認する手順を述べる。
 
 まずコンテキスト名を確認する。
 

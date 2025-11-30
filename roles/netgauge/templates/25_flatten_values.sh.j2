@@ -20,7 +20,7 @@ else
 fi
 
 if [ -d "${RUN_DIR}" ]; then
-    # ==== 解析用：プレーンCSV抽出（コメント/#行除去, 数値列のみ抽出） ====
+    # ==== 解析用：プレーンCSV抽出 ( コメント/#行除去, 数値列のみ抽出 ) ====
     # Netgaugeのnoise出力はバージョンで体裁が異なるので, まず数値行だけ抜く汎用器
     awk '($1 ~ /^[-0-9.]+$/) {print $2}' "${RUN_DIR}"/rank*/rank*.out > "${RUN_DIR}/_values_all.txt"
 

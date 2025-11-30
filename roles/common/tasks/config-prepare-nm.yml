@@ -92,7 +92,7 @@
     path: /etc/NetworkManager/NetworkManager.conf
   register: nm_conf_stat
 
-# 2) ない場合は最小構成で新規作成（[main] + no-auto-default=*）
+# 2) ない場合は最小構成で新規作成 ( [main] + no-auto-default=* )
 - name: Create minimal NetworkManager.conf with no-auto-default=*
   ansible.builtin.copy:
     dest: /etc/NetworkManager/NetworkManager.conf
@@ -142,7 +142,7 @@
   failed_when: false
   when: nm_conf_stat.stat.exists
 
-# 6-a) [main] セクションがあり、かつ * が無い → 末尾に安全に追記
+# 6-a) [main] セクションがあり, かつ * が無い  =>  末尾に安全に追記
 - name: Append no-auto-default=* into existing [main] section
   ansible.builtin.blockinfile:
     path: /etc/NetworkManager/NetworkManager.conf
@@ -157,7 +157,7 @@
   notify:
     - "nm_reload_and_activate"
 
-# 6-b) [main] セクション自体が無い → [main] セクションごと追記
+# 6-b) [main] セクション自体が無い  =>  [main] セクションごと追記
 - name: Add [main] section with no-auto-default=*
   ansible.builtin.blockinfile:
     path: /etc/NetworkManager/NetworkManager.conf

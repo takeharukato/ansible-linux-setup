@@ -32,7 +32,7 @@
   when:
     - ansible_facts.os_family == "RedHat"
 
-# named.conf を「最小で安全な形」に置換（裸のディレクティブを排除）
+# named.conf を「最小で安全な形」に置換 ( 裸のディレクティブを排除 )
 - name: "Write clean {{dns_bind_main_conf}} (include options file first)"
   become: true
   template:

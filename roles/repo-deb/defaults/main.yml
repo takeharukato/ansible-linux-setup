@@ -45,7 +45,7 @@ apt_sslverify: true
 pin_main: 1001
 pin_external: 90
 
-# Docker ( APT）
+# Docker ( APT )
 docker_apt_keyring_url: "https://download.docker.com/linux/{{ 'debian' if ansible_distribution == 'Debian' else 'ubuntu' }}/gpg"
 docker_apt_keyring: "/usr/share/keyrings/docker-archive-keyring.gpg"
 docker_apt_uri: "https://download.docker.com/linux/{{ 'debian' if ansible_distribution == 'Debian' else 'ubuntu' }}/"

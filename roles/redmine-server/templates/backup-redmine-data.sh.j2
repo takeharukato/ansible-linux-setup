@@ -22,7 +22,7 @@ if [ -d "{{redmine_docker_dir|default('/data/redmine/docker', true)}}" ]; then
     # 一時コンテナ ( Alpine Linux イメージ ) を起動し, 終了時に自動削除(`--rm`)。
     # ボリューム `{{redmine_files_volume|default('redmine_vol_files', true)}}` をコンテナ内 `/from` に,
     # バックアップ先ディレクトリ `{{redmine_backup_dir|default('/data/redmine/backup', true)}}` を `/to` に,
-    # 読み書きマウント ( `-v`）。
+    # 読み書きマウント ( `-v` )。
     # コンテナ内で `/from`(=バックアップ元のボリュームマウント)へ移動し, `tar czf` で,
     # `/to/{{redmine_files_backup_name|default('redmine_files.tgz', true)}}` (バックアップアーカイブ)へアーカイブ。
     # (`c` (作成), `z` (gzip 圧縮), `f`(ファイル指定) )。

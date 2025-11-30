@@ -68,7 +68,7 @@
     signed_by: "{{ chrome_keyring_path }}"
   notify: "apt update"
 
-# Pinning ( 外部を下げる）
+# Pinning ( 外部を下げる )
 - name: Pin external origins lower than base
   ansible.builtin.copy:
     dest: "/etc/apt/preferences.d/99-external.pref"

@@ -29,7 +29,7 @@ USER_NAME   ?= ansible
 # ユーザのGECOSフィールド (デフォルト: Ansible User)
 USER_NAME_GECOS ?= Ansible User
 
-# パスワードハッシュ生成コマンド（Debian/Ubuntu: whois パッケージの mkpasswd）
+# パスワードハッシュ生成コマンド ( Debian/Ubuntu: whois パッケージの mkpasswd )
 MKPASSWD ?= mkpasswd
 
 # ユーザのパスワードハッシュ
@@ -38,16 +38,16 @@ MKPASSWD ?= mkpasswd
 #  mkpasswd -m yescrypt '${USER_NAME}'
 # または
 #  openssl passwd -6 '${USER_NAME}'
-# Make の $ エスケープ対策で $→$$ に変換
+# Make の $ エスケープ対策で $ => $$ に変換
 # 例) mkpasswd -m yescrypt 'ansible' の結果を $$y$$j9T$$... の形で格納
 # 注意: envsubstに引き渡す際は, '${USER_PASSWD_HASH}'のようにシングルクォート
 # 囲み, $文字が展開されないようにする(ダブルクォートだと, $が変数展開され,
 # 文字列が破壊されるため)。
-# mkpasswd（whoisパッケージ）で USER_NAME を平文にした yescrypt ハッシュを作成
+# mkpasswd ( whoisパッケージ )で USER_NAME を平文にした yescrypt ハッシュを作成
 MKPASSWD ?= mkpasswd
-# 生ハッシュ（$ を含む）
+# 生ハッシュ ( $ を含む )
 USER_PASSWD_HASH_RAW := $(shell $(MKPASSWD) -m yescrypt '$(USER_NAME)')
-# make 変数内で $ → $$ にエスケープ（後段で shell に渡すときに $$ → $ に戻る）
+# make 変数内で $  =>  $$ にエスケープ ( 後段で shell に渡すときに $$  =>  $ に戻る )
 USER_PASSWD_HASH := $(subst $,$$,$(USER_PASSWD_HASH_RAW))
 
 # GitHubから公開鍵を取得するために使用するGitHubのユーザ名
@@ -115,7 +115,7 @@ KS_CFG := ks.cfg
 # これにより, ユーザはインスタンスの起動時に必要な設定を自動化できる。
 #
 SEED_ISO := seed.iso
-# envsubst に通す変数のホワイトリスト ( $ を $$ にエスケープ）
+# envsubst に通す変数のホワイトリスト ( $ を $$ にエスケープ )
 # user-data.tmpl 内で置換する対象となる各変数について,
 # (Makefile中でシェル変数を表記する流儀に従い)$ を $$ にエスケープして,
 # かつ, 空白区切りで列挙

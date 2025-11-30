@@ -27,7 +27,7 @@ create-embedded-kubeconfig.py cluster1
 ```
 
 - 出力先ディレクトリを変えたい場合は `-o`, `--output-dir` で明示します。省略時はカレントディレクトリに出力されます。
-- 出力ファイル名は `<file_prefix><file_postfix>` で構成され, `.kubeconfig` 拡張子が付与されます（必要に応じて自動追記されます）。
+- 出力ファイル名は `<file_prefix><file_postfix>` で構成され, `.kubeconfig` 拡張子が付与されます ( 必要に応じて自動追記されます )。
 
 ```bash
 create-embedded-kubeconfig.py cluster1 \
@@ -102,7 +102,7 @@ create-embedded-kubeconfig.py [-h]
 | `admin.conf requires sudo: <path>` | INFO | 管理者用 kubeconfig ファイル(`admin.conf`)の読み取りに sudo が必要と判定した場合に表示されます。 | sudo を許容する場合はそのまま継続してください。sudo を避けたい場合は 管理者用 kubeconfig ファイル(`admin.conf`)のパーミッションを実行ユーザーに付与してください。 |
 | `Saved kubeconfig snapshot to <path>` | INFO | `kubectl` の結果をそのまま保存した段階で表示されます。 | 一次出力先のファイル(`<path>`)が生成され, 続く処理で同じファイルが証明書付きで上書きされることを確認してください。 |
 | `Wrote embedded kubeconfig to <path>` | INFO | 証明書を埋め込んだ後で保存した段階に表示されます。 | 生成済みの配布用 kubeconfig ファイル(`<path>`)が適切な保存場所であることを確認してください。 |
-| `===== kubeconfig summary (<label>) =====` | INFO | `-v` 以上指定時に, 要約表示の開始時に出力されます。 | ラベル (`<label>`) を見て処理段階（例: `before embed` / `after embed`）を把握してください。 |
+| `===== kubeconfig summary (<label>) =====` | INFO | `-v` 以上指定時に, 要約表示の開始時に出力されます。 | ラベル (`<label>`) を見て処理段階 ( 例: `before embed` / `after embed` )を把握してください。 |
 | `file-path: <path>` | INFO | サマリ表示中に対象ファイルのパスを示します。 | 表示されたファイルの保存先(`<path>`)が期待どおりであることを確認してください。 |
 | `sha256: <digest>` | INFO | サマリ表示で計算されたファイルの SHA256 を示します。 | 算出されたハッシュ値(`<digest>`)を控え, 配布後の整合性チェックに利用してください。 |
 | `contexts: <list>` | INFO | サマリで含まれる context 名の一覧を示します。 | 表示されたコンテキスト一覧(`<list>`)に必要な項目が揃っていることを確認してください。 |
@@ -124,7 +124,7 @@ create-embedded-kubeconfig.py [-h]
 | `certificate-authority-data is masked (DATA+OMITTED / REDACTED)` | WARNING | マスクされた `certificate-authority-data` を検出した場合に表示されます。 | `sudo kubectl config view --raw --kubeconfig=/etc/kubernetes/admin.conf > ~/admin.conf.clean` を実行し, マスクされていない kubeconfig ファイル(`~/admin.conf.clean`)を再取得してから `--admin-conf ~/admin.conf.clean` で再実行してください。 |
 | `No CA found (neither data nor file)` | WARNING | CA データもファイルも見つからない場合に表示されます。 | 管理者用 kubeconfig ファイル(`admin.conf`)のクラスタ定義を見直し, CA 情報が含まれるよう修正してから再実行してください。 |
 | `raw file contains masked fields (saved without --raw?)` | WARNING | 生成済みファイル内にマスク文字列を検出した場合に表示されます。 | `sudo kubectl config view --raw --kubeconfig=/etc/kubernetes/admin.conf > ~/admin.conf.clean` でマスクされていない kubeconfig ファイル(`~/admin.conf.clean`)を作り直し, `--admin-conf ~/admin.conf.clean` で再実行してください。 |
-| `===== end of summary (<label>) =====` | INFO | サマリ表示の終了時に出力されます。 | 特別な対応は不要です。ラベル (`<label>`) を見て処理段階（例: `before embed` / `after embed`）を把握してください。サマリ内容を確認し終えたら次の作業に進んでください。 |
+| `===== end of summary (<label>) =====` | INFO | サマリ表示の終了時に出力されます。 | 特別な対応は不要です。ラベル (`<label>`) を見て処理段階 ( 例: `before embed` / `after embed` )を把握してください。サマリ内容を確認し終えたら次の作業に進んでください。 |
 | `No CA found; falling back to --insecure-skip-tls-verify` | WARNING | 埋め込み対象の CA を取得できなかった際に, TLS 検証をスキップしたことを示します。 | CA 情報を整備し, 可能な限り TLS 検証を有効化した状態で再生成してください。 |
 | `Updated contexts referencing '<old>' to new cluster '<new>'` | INFO | 既存コンテキストが新しいクラスタ名に書き換わった際に表示されます。 | 新しいクラスタ名(`<new>`)が期待どおりであることを確認してください。 |
 | `Cluster '<name>' not found` | ERROR | 現在のコンテキストが参照するクラスタを管理者用 kubeconfig ファイル(`admin.conf`)から取得できなかった場合に表示されます。 | 管理者用 kubeconfig ファイル(`admin.conf`)内のクラスタ名(`<name>`)と `cluster_name` の対応を確認し, 修正後に再実行してください。 |

@@ -52,7 +52,7 @@ autoinstall:
     runcmd:
       # .ssh ディレクトリ
       - [ bash, -lc, 'install -d -m 700 -o ${USER_NAME} -g ${USER_NAME} "/home/${USER_NAME}/.ssh"' ]
-      # GitHub鍵を取得, 成功した時だけ配置 ( 0バイト回避）, 重複排除して配置
+      # GitHub鍵を取得, 成功した時だけ配置 ( 0バイト回避 ), 重複排除して配置
       # - ak に既存 authorized_keys のパス, t に GitHub から取得した一時ファイルをセット
       # - curl で GitHub から鍵を取得し t に保存, 取得に失敗しても空ファイルを用意し, 既存の鍵を追記して結合
       # - 既存の authorized_keys が存在すれば t に追記

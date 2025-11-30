@@ -24,7 +24,7 @@ check_iso_image() {
         echo "Error: ISO image '$iso_file' not found." >&2
         return 1
     fi
-    # 簡易妥当性チェック（MIME が iso9660 か, 少なくとも 100MB 以上か）
+    # 簡易妥当性チェック ( MIME が iso9660 か, 少なくとも 100MB 以上か )
     if command -v file >/dev/null 2>&1; then
         mime=$(file -b --mime-type "$iso_file" || true)
         case "$mime" in

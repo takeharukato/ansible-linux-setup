@@ -9,7 +9,7 @@
 - name: Detect SELinux presence
   ansible.builtin.include_tasks: detect-selinux.yml
 
-# 存在するホストだけ設定タスクを読む ( Ubuntu は自然にスキップ）
+# 存在するホストだけ設定タスクを読む ( Ubuntu は自然にスキップ )
 - name: Configure SELinux if present
   ansible.builtin.include_tasks: config-selinux.yml
   when: selinux_present | bool

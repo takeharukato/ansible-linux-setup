@@ -69,7 +69,7 @@
     - ansible_facts.os_family == "Debian"
     - "'ufw' in firewall_backend"
 
-# NodePort 範囲（UFW は 30000:32767 の “コロン” 表記）
+# NodePort 範囲 ( UFW は 30000:32767 の “コロン” 表記 )
 - name: Allow worker inbound ports (UFW)
   ansible.builtin.command: >
     ufw allow {{ item }}

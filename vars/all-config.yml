@@ -52,9 +52,9 @@ users_authorized_keys: {}
 sudo_nopasswd_users: ['user1']
 # 例: ['adm', 'cdrom', 'sudo', 'dip', 'plugdev', 'lxd', 'systemd-journal']
 sudo_nopasswd_groups_extra: ['adm', 'cdrom', 'sudo', 'dip', 'plugdev', 'lxd', 'systemd-journal']
-# 自動検出（存在する方だけ採用：Debian/Ubuntu=sudo, RHEL/Alma=wheel）
+# 自動検出 ( 存在する方だけ採用：Debian/Ubuntu=sudo, RHEL/Alma=wheel )
 sudo_nopasswd_groups_autodetect: true
-# 生成ではなく削除（ロールバック）したい場合は true
+# 生成ではなく削除 ( ロールバック )したい場合は true
 sudo_nopasswd_absent: false
 
 #
@@ -417,7 +417,7 @@ cilium_shared_ca_auto_create: false
 cilium_shared_ca_output_dir: "/etc/kubernetes/pki/cilium-shared-ca"
 # Cilium共通CA自動生成時のCilium共通CA証明書/鍵の出力ファイル名
 # cilium_shared_ca_auto_create: false 時は以下のファイルを更新せず
-# 既に, 下記のファイルが存在していれば、cilium_shared_ca_output_dir
+# 既に, 下記のファイルが存在していれば, cilium_shared_ca_output_dir
 # 配下の以下のファイル名のファイルを使用, 存在しない場合はエラーとする
 cilium_shared_ca_cert_filename: "cilium-ca.crt"
 cilium_shared_ca_key_filename: "cilium-ca.key"
@@ -448,7 +448,7 @@ k8s_pod_ipv4_service_subnet: "10.245.0.0/16"
 k8s_pod_ipv6_service_subnet: "fdb6:6e92:3cfb:feed::/112"
 # システム予約CPU値 (未定義時はシステムCPUを予約しない)
 k8s_reserved_system_cpus_default: "0-1"
-# NodePort を使うなら true（使わないなら false）
+# NodePort を使うなら true ( 使わないなら false )
 k8s_worker_enable_nodeport: false
 # NodePort のポート範囲
 k8s_worker_nodeport_range: "30000-32767"

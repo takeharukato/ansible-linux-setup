@@ -7,7 +7,7 @@
 # 基本コマンド関連処理
 # kubectl導入の関係上リポジトリ登録を事前に実施しておくことを想定
 
-# SELinux ( RHEL 系＋SELinux 有効時のみ）
+# SELinux ( RHEL 系＋SELinux 有効時のみ )
 - name: Ensure semanage is available (RHEL/Alma)
   ansible.builtin.package:
     name: policycoreutils-python-utils

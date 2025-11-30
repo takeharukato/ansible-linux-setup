@@ -1,8 +1,8 @@
 # -*- coding: utf-8 mode: yaml -*-
 # cross-distro.yml — Cross‑distro variables for Debian and RHEL
 # 方針:
-# - タスク側は OS 非依存モジュール（package/systemd など）＋ when 条件のみを記述し、
-#   OS 差分（パッケージ名・リポジトリURL・サービス名・コマンド）は本ファイルに集約します。
+# - タスク側は OS 非依存モジュール ( package/systemd など )＋ when 条件のみを記述し,
+#   OS 差分 ( パッケージ名・リポジトリURL・サービス名・コマンド )は本ファイルに集約します。
 # - 参照例:
 #     name: "{{ (ansible_facts.os_family == 'Debian') | ternary(pkgs_dns_server_debian, pkgs_dns_server_rhel) }}"
 #     when: ansible_facts.os_family in ['Debian','RedHat']
@@ -109,7 +109,7 @@ ca_trust_update_rhel:   "update-ca-trust extract"
 ########################################################################################
 # Firewall / ネットワーク
 ########################################################################################
-# Debian(Ubuntu) では ufw を既定、RHEL では firewalld を既定とする想定
+# Debian(Ubuntu) では ufw を既定, RHEL では firewalld を既定とする想定
 firewall_backend_debian:
   - ufw
 firewall_backend_rhel:
@@ -201,7 +201,7 @@ docker_ce_prereq_packages: "{{ (ansible_facts.os_family == 'Debian') | ternary(d
 ########################################################################################
 # Kubernetes (pkgs.k8s.io) リポジトリと鍵
 ########################################################################################
-# 必要に応じて固定（例: "1.31" )
+# 必要に応じて固定 ( 例: "1.31" )
 
 # Kubernetes 公開鍵 URL
 k8s_pubkey_url_debian: "https://pkgs.k8s.io/core:/stable:/v{{ k8s_major_minor }}/deb/Release.key"
@@ -254,7 +254,7 @@ google_chrome_repo_rhel:  "https://dl.google.com/linux/chrome/rpm/stable/x86_64"
 google_chrome_repo: "{{ (ansible_facts.os_family == 'Debian') | ternary(google_chrome_repo_debian, google_chrome_repo_rhel) }}"
 
 ########################################################################################
-# 時刻同期（クライアント/サーバ）
+# 時刻同期 ( クライアント/サーバ )
 ########################################################################################
 # クライアントは systemd-timesyncd か chrony を選択可能だが, chrony に統一可能にする
 # サーバは chrony を使用
@@ -313,10 +313,10 @@ ntp_server_packages: "{{ (ansible_facts.os_family == 'Debian') | ternary(ntp_ser
 
 
 ########################################################################################
-# 役割別パッケージ（Debian/RHEL で名称差あり）
+# 役割別パッケージ ( Debian/RHEL で名称差あり )
 ########################################################################################
 
-# common（最低限ユーティリティ）
+# common ( 最低限ユーティリティ )
 pkgs_common_debian:
   - ca-certificates
   - curl
@@ -331,7 +331,7 @@ pkgs_common_rhel:
   - gnupg2
   - redhat-lsb-core
 
-# devel-packages（開発ツール）
+# devel-packages ( 開発ツール )
 pkgs_devel_debian: #[build-essential, git, make, gcc, g++, pkg-config, python3, python3-pip]
   - build-essential
   - git
@@ -368,11 +368,11 @@ pkgs_nfs_server_rhel:
   - nfs-utils
 
 ########################################################################################
-# DNS サーバー（BIND）
+# DNS サーバー ( BIND )
 ########################################################################################
 
 # === パッケージ名 ===
-# dns-server（BIND）
+# dns-server ( BIND )
 dns_bind_package_debian:
   - bind9
   - bind9-utils
@@ -395,7 +395,7 @@ dns_bind_conf_dir:  "{{ (ansible_facts.os_family == 'Debian') | ternary('/etc/bi
 dns_bind_main_conf: "{{ (ansible_facts.os_family == 'Debian') | ternary('/etc/bind/named.conf', '/etc/named.conf') }}"
 # ゾーン格納ディレクトリ
 dns_bind_zone_dir:  "{{ (ansible_facts.os_family == 'Debian') | ternary('/var/lib/bind', '/var/named/zone') }}"
-# ランタイム（PID 等）ディレクトリ（存在しなければ作成）
+# ランタイム ( PID 等 )ディレクトリ ( 存在しなければ作成 )
 dns_bind_run_dir:   "{{ (ansible_facts.os_family == 'Debian') | ternary('/run/named', '/run/named') }}"
 # キャッシュディレクトリ
 dns_bind_cache_dir: "{{ (ansible_facts.os_family == 'Debian') | ternary('/var/cache/bind', '/var/named') }}"
@@ -406,25 +406,25 @@ dns_bind_options_conf_path_escaped: "{{ dns_bind_options_conf_path | regex_escap
 dns_bind_systemd_dropin_dir: "/etc/systemd/system/{{ dns_bind_service }}.service.d"
 dns_bind_systemd_dropin_file: "90-override.conf"
 
-# === SELinux 関連（RHEL 系のみ使用） ===
+# === SELinux 関連 ( RHEL 系のみ使用 ) ===
 # SELinux のゾーン用タイプ
 dns_bind_selinux_type: "named_zone_t"
-# SELinux fcontext を適用するパス（RHEL 系で /var/named 配下のみ）
+# SELinux fcontext を適用するパス ( RHEL 系で /var/named 配下のみ )
 dns_bind_selinux_target: "/var/named(/.*)?"
 ########################################################################################
-# rancher（要 Docker; Helm はバイナリ導入前提が多いため OS パッケージは任意）
+# rancher ( 要 Docker; Helm はバイナリ導入前提が多いため OS パッケージは任意 )
 pkgs_rancher_debian: []
 pkgs_rancher_rhel:   []
 
-# user-settings（OSパッケージに依らない前提のため空）
+# user-settings ( OSパッケージに依らない前提のため空 )
 pkgs_user_settings_debian: []
 pkgs_user_settings_rhel:   []
 
 ########################################################################################
-# サービス名など（差異が出やすいもの）
+# サービス名など ( 差異が出やすいもの )
 ########################################################################################
 
-# SSH デーモンは両系とも "sshd" で共通だが、明示変数として定義しておく
+# SSH デーモンは両系とも "sshd" で共通だが, 明示変数として定義しておく
 sshd_service_name_debian: sshd
 sshd_service_name_rhel:   sshd
 sshd_service_name: "{{ (ansible_facts.os_family == 'Debian') | ternary(sshd_service_name_debian, sshd_service_name_rhel) }}"
@@ -459,7 +459,7 @@ pslurp_command: "{{ (ansible_facts.os_family == 'Debian') | ternary(pslurp_comma
 ########################################################################################
 # 便利ユーティリティ
 ########################################################################################
-# sysctl の永続ファイル（両系とも /etc/sysctl.d/*.conf を利用可能）
+# sysctl の永続ファイル ( 両系とも /etc/sysctl.d/*.conf を利用可能 )
 sysctl_dropin_path: "/etc/sysctl.d/99-custom.conf"
 
 # 汎用テンプレートで使える OS 判定の糖衣
