@@ -12,4 +12,3 @@
 - include_tasks: config.yml
 - include_tasks: user_group.yml
 - include_tasks: authorized_keys.yml
-- include_tasks: emacs-package.yml

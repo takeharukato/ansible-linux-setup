@@ -57,22 +57,7 @@
     - users_list is defined
   become: true
 
-# docker groupが存在することを確認
-- name: Ensure group "docker" exists
-  ansible.builtin.group:
-    name: docker
-    state: present
-
-# ユーザをdockerグループに追加
-- name: Add users into docker group
-  shell: |
-    usermod -aG docker '{{ item.name }}'
-  with_items:
-    - "{{ users_list }}"
-  become: true
-  ignore_errors: true
-
-# 管理系グループを作成しておく ( 存在していれば無変更）
+# 管理系グループを作成しておく ( 存在していれば無変更 )
 - name: Ensure admin groups exist
   ansible.builtin.group:
     name: "{{ item }}"

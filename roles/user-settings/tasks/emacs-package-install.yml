@@ -1,0 +1,19 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Emacs パッケージインストール内部ループ(1要素をインストール)
+
+- name: Check install-emacs-packages.sh presence
+  stat:
+    path: "{{ outer_item.home }}/bin/install-emacs-packages.sh"
+  register: install_emacs_script
+
+# Emacs パッケージをインストール
+# (install-emacs-packages.sh がホーム配下に存在し,
+#  create_user_emacs_package_list が定義済みで要素数が 1 以上の場合)
+- name: install one emacs package
+  shell: |
+    sudo -i -u "{{ outer_item.name }}" /bin/bash "{{ outer_item.home }}/bin/install-emacs-packages.sh" "{{ item }}"
+  loop: "{{ create_user_emacs_package_list | default([]) }}"
+  when:
+    - install_emacs_script.stat.exists
+    - (create_user_emacs_package_list | default([], true) | length) > 0
