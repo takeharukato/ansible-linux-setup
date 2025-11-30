@@ -20,7 +20,7 @@ PATH_SLICE="${CGROUP_ROOT}/${SLICE_NAME}"
 CG_PATH_APP="${PATH_SLICE}/netgauge-app"
 NG_BIN="${NG_BIN:-{{ netgauge_dir }}/bin/netgauge}"     # Netgauge 実行ファイルパス
 MODE="${1:-fwq}"                   # fwq | ftq
-DURATION_SEC="${DURATION_SEC:-10}" # 計測秒数（必要に応じて調整）
+DURATION_SEC="${DURATION_SEC:-10}" # 計測秒数 ( 必要に応じて調整 )
 QUANTUM_US="${QUANTUM_US:-50}"     # FWQ/FTQの量子 ( マイクロ秒 )
 OUT_BASE="${OUT_BASE:-./runs}"
 

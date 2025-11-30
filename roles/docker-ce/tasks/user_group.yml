@@ -10,7 +10,27 @@
 
 # ansible ユーザをdockerグループに追加
 - name: Add ansible user into docker group
-  user:
+  ansible.builtin.user:
     name: ansible
     groups: docker
     append: true
+
+# docker_ce_users変数に指定されたユーザをdockerグループに追加
+- name: Add users into docker group
+  ansible.builtin.user:
+    name: "{{ item }}"
+    groups: docker
+    append: true
+  loop: "{{ docker_ce_users | default([]) }}"
+  when: ( docker_ce_users | default([], true) | length ) > 0
+  become: true
+
+# users_list変数に指定されたユーザをdockerグループに追加
+- name: Add users in users_list into docker group
+  ansible.builtin.user:
+    name: "{{ item.name }}"
+    groups: docker
+    append: true
+  loop: "{{ users_list | default([], true) }}"
+  when: ( users_list | default([], true) | length ) > 0
+  become: true

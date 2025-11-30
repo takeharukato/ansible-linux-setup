@@ -34,7 +34,7 @@
   set_fact:
     dns_exec_argv: "{{ dns_exec_argv_cmd.stdout | trim }}"
 
-# 変な内容 ( 構造化ブロブ丸ごと等）なら中断して drop-in を書かない
+# 変な内容 ( 構造化ブロブ丸ごと等 )なら中断して drop-in を書かない
 - name: Fail if argv extraction looks invalid
   fail:
     msg: >-

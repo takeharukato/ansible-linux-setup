@@ -29,7 +29,7 @@
   register: se_config_slurp
   when: se_config_file.stat.exists
 
-# 変更前の永続設定値を解析（ファイルがある場合にのみ実施）
+# 変更前の永続設定値を解析 ( ファイルがある場合にのみ実施 )
 - name: Extract previous SELINUX= value
   ansible.builtin.set_fact:
     se_configured_state_old: >-

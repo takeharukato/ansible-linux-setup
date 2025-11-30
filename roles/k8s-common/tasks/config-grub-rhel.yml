@@ -5,7 +5,7 @@
 #  GRUB設定関連タスク Redhat系
 #
 
-# ===== grub.cfg 再生成 ( UEFI/BIOS 自動判定） =====
+# ===== grub.cfg 再生成 ( UEFI/BIOS 自動判定 ) =====
 - name: Detect EFI mode
   ansible.builtin.stat:
     path: /sys/firmware/efi

@@ -1,6 +1,6 @@
 # k8s-shared-ca ロール
 
-このロールは Cilium Cluster Mesh などで共有する Kubernetes 共通認証局(Certificate Authority)証明書 (CA)（以下、共通CA）を `ansible-playbook` コマンド実行ノード(以下, `制御ノード`と記載)上で準備し, コントロールプレーン各ホストへ 所有者`root:root`, アクセス権`600` で展開します。
+このロールは Cilium Cluster Mesh などで共有する Kubernetes 共通認証局(Certificate Authority)証明書 (CA) ( 以下, 共通CA )を `ansible-playbook` コマンド実行ノード(以下, `制御ノード`と記載)上で準備し, コントロールプレーン各ホストへ 所有者`root:root`, アクセス権`600` で展開します。
 
 共通CAの主な用途は以下の通りです。
 

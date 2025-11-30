@@ -102,7 +102,7 @@
     - ansible_facts.os_family == "RedHat"
     - "'firewalld' in firewall_backend"
 
-# --- rpfilter 影響の完全無効化（firewalld 非依存・前段 accept） ---
+# --- rpfilter 影響の完全無効化 ( firewalld 非依存・前段 accept ) ---
 
 - name: Install rpfilter-bypass ensure script
   become: true
@@ -146,7 +146,7 @@
     - ansible_facts.os_family == "RedHat"
     - "'firewalld' in firewall_backend"
 
-# 検証：firewalld の rpfilter ルールが存在しても、前段 accept により影響しないことを担保
+# 検証：firewalld の rpfilter ルールが存在しても, 前段 accept により影響しないことを担保
 - name: Assert rpfilter-bypass chains exist and are above firewalld
   become: true
   ansible.builtin.shell: |
@@ -160,7 +160,7 @@
     - ansible_facts.os_family == "RedHat"
     - "'firewalld' in firewall_backend"
 
-# 状態確認（デバッグ）
+# 状態確認 ( デバッグ )
 - name: Show nftables firewalld filter_PREROUTING after rpfilter purge
   become: true
   ansible.builtin.shell: |
@@ -189,8 +189,8 @@
   notify:
     - "reload firewalld"
 
-# Pod CIDR を direct ルールで許可（INPUT/OUTPUT）
-#    - IPv4: family=ipv4、IPv6: family=ipv6
+# Pod CIDR を direct ルールで許可 ( INPUT/OUTPUT )
+#    - IPv4: family=ipv4, IPv6: family=ipv6
 - name: Allow Pod CIDR ingress/egress via firewalld direct rules
   become: true
   ansible.builtin.shell: |

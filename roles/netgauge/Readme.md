@@ -6,10 +6,8 @@
 
 Netgaugeは, MPI/TCP/UDP/RAW Ethernet/InfiniBand など複数のスタックに対して, レイテンシや帯域, LogP/LogGP パラメータなどを高精度に測定するプログラムを提供する。
 
-- ネットワーク計測 ping-pong（one_one）, 1 から N/N から 1, LogGP 測定などの豊富なパターンを提供。
-SPCL
+- ネットワーク計測 ping-pong ( one_one ), 1 から N/N から 1, LogGP 測定などの豊富なパターンを提供。
 - OSノイズ計測 FWQ ( Fixed Work Quantum ) , FTQ ( Fixed Time Quantum ) , Selfish Detour を実装。割り込みやデーモン活動によるジッタを抽出できます。
-Torsten Hoefler's Home Page
 - 高精度タイマ＆統計 周波数スケーリング無効などの前提で, 正確なタイムスタンプと要約統計を出せる。
 
 本ロールを実行すると, `/opt/netgauge/bin`に測定用のコマンドとスクリプトが導入される。

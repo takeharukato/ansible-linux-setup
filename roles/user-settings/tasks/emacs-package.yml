@@ -1,0 +1,12 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Emacs パッケージラッパータスク
+
+- name: Install emacs packages
+  include_tasks: emacs-package-install.yml
+  with_items:
+    "{{ users_list | default([], true) }}"
+  loop_control:
+    loop_var: outer_item
+  when:
+    - ( users_list | default([], true) | length ) > 0

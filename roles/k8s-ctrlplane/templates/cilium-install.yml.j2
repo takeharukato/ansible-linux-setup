@@ -73,7 +73,7 @@ cluster:
 clustermesh:
   # apiserver経由でのクラスタメッシュ接続を有効化
   # Cilium の clustermesh-apiserver をデプロイして,
-  # クラスタ間コントロールプレーン（クラスタ情報・ID・サービス情報の同期など）を
+  # クラスタ間コントロールプレーン ( クラスタ情報・ID・サービス情報の同期など )を
   # 提供する機能を利用する場合は true に設定
   # helmチャートの既定値は false
   # https://docs.cilium.io/en/stable/clustermesh/#clustermesh-apiserver
@@ -84,10 +84,10 @@ clustermesh:
       type: NodePort
 
 # Cilium Endpoint Slice機能を有効化
-# Cilium Operator が多数の Cilium Endpoint（CEP） をバッチ化して,
+# Cilium Operator が多数の Cilium Endpoint ( CEP ) をバッチ化して,
 # Cilium Endpoint Slice (CES) に集約し, Cilium Agent は CES を購読するモードに
 # 切替える機能
-# kube-apiserver への更新数を削減し、スケーラビリティを向上させる機能
+# kube-apiserver への更新数を削減し, スケーラビリティを向上させる機能
 # (現時点ではベータ版なのでfalseに設定)
 # helmチャートの既定値は false
 ciliumEndpointSlice:

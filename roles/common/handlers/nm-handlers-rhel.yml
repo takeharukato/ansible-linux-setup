@@ -27,7 +27,7 @@
   changed_when: false
   failed_when: nm_active.rc != 0
 
-# 既知のデバイス一覧を取得します（存在しないデバイス操作を回避）
+# 既知のデバイス一覧を取得します ( 存在しないデバイス操作を回避 )
 - name: Get known NM devices
   listen: "nm_reload_and_activate"
   when:
@@ -77,7 +77,7 @@
   loop: "{{ sysfs_dev.results | default([]) }}"
   changed_when: false
 
-# 起動対象デバイスを managed にします（存在デバイスかつ未アクティブのみ）。
+# 起動対象デバイスを managed にします ( 存在デバイスかつ未アクティブのみ )。
 - name: Ensure device is managed by NM
   listen: "nm_reload_and_activate"
   when:
@@ -94,7 +94,7 @@
   loop_control:
     label: "{{ item.netif }}"
 
-# IPv4 の残留有無を確認します（inet があれば rc=0）。
+# IPv4 の残留有無を確認します ( inet があれば rc=0 )。
 - name: Check stale IPv4 addresses
   listen: "nm_reload_and_activate"
   when:
@@ -144,7 +144,7 @@
   loop_control:
     label: "{{ item.netif }}"
 
-# IPv6 の残留有無を確認します（inet6 があれば rc=0）。
+# IPv6 の残留有無を確認します ( inet6 があれば rc=0 )。
 - name: Check stale IPv6 addresses
   listen: "nm_reload_and_activate"
   when:
@@ -212,7 +212,7 @@
   loop_control:
     label: "{{ item.netif }}"
 
-# 未アクティブなものだけ起動します（存在デバイスのみ）。
+# 未アクティブなものだけ起動します ( 存在デバイスのみ )。
 - name: Activate NM connection when inactive
   listen: "nm_reload_and_activate"
   when:

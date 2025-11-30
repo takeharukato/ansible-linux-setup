@@ -2,7 +2,7 @@
 
 - テンプレートファイルにリポジトリ情報を記載する方式を極力避け, 各OSの
   公式モジュールを採用する
-  - RPM系: `ansible.builtin.yum_repository` (RHEL/Alma/Rocky), `community.general.zypper_repository`（SUSE）
+  - RPM系: `ansible.builtin.yum_repository` (RHEL/Alma/Rocky), `community.general.zypper_repository` ( SUSE )
   - APT系: `ansible.builtin.deb822_repository` ( 推奨。古い環境は `apt_repository` をフォールバック )
 - **鍵は配布物同梱 & レポごとに束縛**：
   - APT: `/usr/share/keyrings/*.gpg` に配置し, **`signed-by=`** でレポごとに紐付け。`apt_key` は非推奨。

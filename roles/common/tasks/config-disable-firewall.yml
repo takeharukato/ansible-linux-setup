@@ -38,7 +38,7 @@
   when:
     - "'rpfilter-bypass.service' in ansible_facts.services"
 
-# nft コマンド存在確認（PATH 上を探索）
+# nft コマンド存在確認 ( PATH 上を探索 )
 - name: Check if nft command exists
   become: true
   ansible.builtin.shell: "command -v nft"
@@ -49,7 +49,7 @@
   failed_when: false
 
 # nftables: 既存 rpfix テーブルの存在確認し,
-# あれば削除（ip/ip6/inet）
+# あれば削除 ( ip/ip6/inet )
 - name: Check rpfix table existence (ip/ip6/inet)
   become: true
   ansible.builtin.command: nft list table {{ item }} rpfix
@@ -76,7 +76,7 @@
     - nft_cmd is defined
     - nft_cmd.rc == 0
 
-# ufw コマンド存在確認（PATH 上を探索）
+# ufw コマンド存在確認 ( PATH 上を探索 )
 # Debian系想定
 - name: Check if ufw command exists
   ansible.builtin.shell: "command -v ufw"

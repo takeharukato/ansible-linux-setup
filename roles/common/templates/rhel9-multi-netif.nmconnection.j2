@@ -43,11 +43,11 @@
 # - DNS サーバが指定されていない場合は自動取得した DNS サーバを使用する
 # - DNS サーチドメインが指定されていない場合は自動取得したサーチドメインを使用する
 # - グローバル変数 ipv4_name_server1, ipv4_name_server2, ipv6_name_server1, ipv6_name_server2 が
-#   定義されている場合は、各インターフェースの DNS サーバ指定がない場合に使用する
+#   定義されている場合は, 各インターフェースの DNS サーバ指定がない場合に使用する
 # - DNSサーバ項目の出力有無については, 以下のロジックで決定する。
 #   1. 各インターフェースの ignore_auto_ipv4_dns, ignore_auto_ipv6_dns フラグを確認する
-#   2. フラグが true の場合は、name_server_ipv4_1, name_server_ipv4_2,
-#      name_server_ipv6_1, name_server_ipv6_2 の値を確認し、設定されていれば
+#   2. フラグが true の場合は, name_server_ipv4_1, name_server_ipv4_2,
+#      name_server_ipv6_1, name_server_ipv6_2 の値を確認し, 設定されていれば
 #      それらを v4dns, v6dns リストに追加する
 #   3. すでに構築済みの v4dns, v6dns を前提に, nameservers を出すかどうかを決める処理としている。
 #      v4dns, v6dnsの双方が空だった場合は, nameservers 項目は出力しない
@@ -173,7 +173,7 @@ address1={{ item.static_ipv6_addr }}/{{ item.network_ipv6_prefix_len }}{% if hav
 ignore-auto-dns=true
 dns={{ v6_dns_list | join(';') }}
   {% else %}
-# ignore_auto_ipv6_dns=true だが手動DNS未指定のため、自動DNSを維持
+# ignore_auto_ipv6_dns=true だが手動DNS未指定のため, 自動DNSを維持
 # ignore-auto-dns は出力しない
   {% endif %}
 {% else %}

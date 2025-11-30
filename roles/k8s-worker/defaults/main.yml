@@ -52,19 +52,19 @@ k8s_drain_timeout_minutes: 5
 # ワーカーノード削除待ち時間(単位:秒)
 k8s_worker_delete_wait_sec: 5
 
-# NodePort を使うなら true（使わないなら false）
+# NodePort を使うなら true ( 使わないなら false )
 k8s_worker_enable_nodeport: false
 # NodePort のポート範囲指定 (デフォルト: 30000-32767)
 k8s_worker_nodeport_range: "30000-32767"
 
 # ワーカー用基本開放ポート (Cilium native routing 前提)
-# - 10250/tcp(kubelet)は コントロールプレインからのみ許可にするので、
+# - 10250/tcp(kubelet)は コントロールプレインからのみ許可にするので,
 #   ここのリストはノードへ外部から入ってくる可能性があるものに限定。
-#   例えば、Pod へのサービス公開用 NodePort ポートはここには含めない。
+#   例えば, Pod へのサービス公開用 NodePort ポートはここには含めない。
 k8s_worker_node_ports_from_ctrlplane:
   - "10250/tcp"
 
-# NodePort 用（有効時にだけ使う）
+# NodePort 用 ( 有効時にだけ使う )
 k8s_worker_node_ports_nodeport:
   - "{{ k8s_worker_nodeport_range }}/tcp"
   - "{{ k8s_worker_nodeport_range }}/udp"
@@ -78,7 +78,7 @@ k8s_worker_node_ports: >-
       | ternary(k8s_worker_node_ports_nodeport, [])
   }}
 
-# UFW はポート範囲が 30000:32767 表記、firewalld は 30000-32767
+# UFW はポート範囲が 30000:32767 表記, firewalld は 30000-32767
 # 後続の UFW ループでこれを使う
 k8s_worker_node_ports_ufw: >-
   {{

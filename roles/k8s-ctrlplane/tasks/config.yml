@@ -24,7 +24,7 @@
 
 # 設定値の正規化
 
-# CSV -> list（空白除去）
+# CSV -> list ( 空白除去 )
 - name: Normalize network CIDR inputs
   set_fact:
     _pods_list:    "{{ (k8s_pod_network_cidr | default('',true) | regex_replace('\\s','')).split(',') | reject('equalto','') | list }}"

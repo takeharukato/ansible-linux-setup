@@ -9,7 +9,7 @@
 # - ユーザ/グループ単位でパスワード無しsudoを設定する
 # - 既存のsudoers設定を壊さないようにする
 # - /etc/sudoers.d 以下にドロップインファイルを配置することで実現する
-# - 既存の /etc/sudoers が /etc/sudoers.d を取り込んでいるかを確認する（変更はしない）
+# - 既存の /etc/sudoers が /etc/sudoers.d を取り込んでいるかを確認する ( 変更はしない )
 # 変数
 # - sudo_nopasswd_users: パスワード無しsudoを許可するユーザ名のリスト
 # - sudo_nopasswd_groups_autodetect: trueにすると, sudo/wheelグループが存在する場合に自動的に採用する

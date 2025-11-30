@@ -22,4 +22,5 @@
 - include_tasks: config-common-kubeconfig-tools.yml
 - include_tasks: config.yml
 - include_tasks: user_group.yml
+- include_tasks: config-k8s-operator-authorized_keys.yml
 - include_tasks: service.yml

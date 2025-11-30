@@ -15,7 +15,7 @@
   ansible.builtin.set_fact:
     _current_mgmt_iface: "{{ ansible_facts.default_ipv4.interface | default('') }}"
 
-## いま SSH 到達先へのルートが乗っている IF（＝実際の制御経路）を特定
+## いま SSH 到達先へのルートが乗っている IF ( ＝実際の制御経路 )を特定
 - name: Detect SSH route device (dev) to controller
   ansible.builtin.shell: |
     set -o pipefail
@@ -159,14 +159,14 @@
       when: ansible_facts.os_family == "Debian"
       block:
 
-        # Debian 系で使用する有効 NIC 名を算出 ( mgmt_nic → common_default_nic → ansible_facts の順 )
+        # Debian 系で使用する有効 NIC 名を算出 ( mgmt_nic  =>  common_default_nic  =>  ansible_facts の順 )
         - name: Compute effective mgmt NIC on Debian
           ansible.builtin.set_fact:
             _effective_mgmt_nic: "{{ (mgmt_nic | default('', true)) if (mgmt_nic | default('', true) | length) > 0
                                     else ((common_default_nic | default('', true)) if (common_default_nic | default('', true) | length) > 0
                                     else (ansible_facts.default_ipv4.interface | default('', true))) }}"
 
-        # 反復元が空、または netif が空のとき、DHCP / SLAAC の 1 エントリを生成
+        # 反復元が空, または netif が空のとき, DHCP / SLAAC の 1 エントリを生成
         - name: Ensure at least one Debian netplan item
           ansible.builtin.set_fact:
             _netif_items:
@@ -222,7 +222,7 @@
 # ー 安全版：/etc の 802-3-ethernet に限定 / アクティブ接続は除外 / UUID 指定で削除
 #
 
-# 既存接続の取得（Debian/Ubuntu/RHEL 共通）
+# 既存接続の取得 ( Debian/Ubuntu/RHEL 共通 )
 - name: List existing NM connections
   ansible.builtin.command: >
     nmcli -t -f NAME,UUID,TYPE,DEVICE,AUTOCONNECT,FILENAME
@@ -253,7 +253,7 @@
     _nm_rows: "{{ (nmcli_yaml.stdout | from_yaml)._rows | default([]) }}"
   changed_when: false
 
-# いまアクティブな接続の NAME/DEVICE を取得（誤削除防止に利用）
+# いまアクティブな接続の NAME/DEVICE を取得 ( 誤削除防止に利用 )
 - name: Get active NM connections (NAME,DEVICE)
   ansible.builtin.command: nmcli -t -f NAME,DEVICE connection show --active
   register: _nm_active_pairs_cmd
@@ -265,7 +265,7 @@
     _nm_active_names: "{{ ((_nm_active_pairs_cmd.stdout | default('')).split('\n') | map('trim') | reject('equalto','') | map('regex_replace','^(.*?):(.*)$','\\1') | unique | list) }}"
     _nm_active_pairs: "{{ ((_nm_active_pairs_cmd.stdout | default('')).split('\n') | map('trim') | reject('equalto','') | map('regex_replace','^(.*?):(.*)$','{\"NAME\":\"\\1\",\"DEVICE\":\"\\2\"}') | map('from_json') | list) }}"
 
-# 許可する接続名（今回作成した接続ID = netif）
+# 許可する接続名 ( 今回作成した接続ID = netif )
 - name: Build allowed connection NAME list (we created)
   ansible.builtin.set_fact:
     _allowed_conn_names: "{{ (_netif_items | default([], true) | map(attribute='netif') | select('string') | reject('equalto','') | list) }}"
@@ -275,7 +275,7 @@
   ansible.builtin.set_fact:
     _allowed_keyfiles: "{{ (_netif_items | default([]) | map(attribute='netif') | select('string') | reject('equalto','') | map('regex_replace','^(.*)$','/etc/NetworkManager/system-connections/\\1.nmconnection') | list) }}"
 
-# /etc 配下にある接続に限定（実体 keyfile を持つもの）
+# /etc 配下にある接続に限定 ( 実体 keyfile を持つもの )
 - name: Build candidate rows under /etc
   ansible.builtin.set_fact:
     _etc_rows: "{{ (_nm_rows | default([]) | selectattr('FILENAME','defined') | selectattr('FILENAME','search','^/etc/NetworkManager/system-connections/') | list) }}"
@@ -304,7 +304,7 @@
   ansible.builtin.set_fact:
     _obsolete_keyfiles: "{{ (_obsolete_keyfiles | default([])) | difference(_allowed_keyfiles | default([])) }}"
 
-# 接続オブジェクトの削除（UUID 指定）※アクティブ除外済み集合のみ
+# 接続オブジェクトの削除 ( UUID 指定 )※アクティブ除外済み集合のみ
 - name: Delete obsolete ethernet connections (UUID, non-active only)
   ansible.builtin.command: "nmcli connection delete uuid {{ item }}"
   loop: "{{ _obsolete_conn_uuids | default([]) }}"
@@ -312,7 +312,7 @@
     - (_obsolete_conn_uuids | default([]) | length) > 0
     - item is not match('^$')
 
-# 実在する keyfile のみ削除（/etc 配下のみ）
+# 実在する keyfile のみ削除 ( /etc 配下のみ )
 - name: Stat obsolete keyfiles (existence check)
   ansible.builtin.stat:
     path: "{{ item }}"

@@ -130,7 +130,7 @@
 #
 #helm install cilium cilium/cilium
 #  Cilium の Helm チャートを新規インストールする
-#  （同名リリースが既にあると失敗するため, 反復適用時(kubeadm resetしない場合)は, helm upgrade --installとする）。
+#   ( 同名リリースが既にあると失敗するため, 反復適用時(kubeadm resetしない場合)は, helm upgrade --installとする )。
 #
 # --version {{ k8s_cilium_version }}
 #   バージョンを明示する

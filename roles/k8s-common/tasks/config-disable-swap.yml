@@ -5,7 +5,7 @@
 #  Swap設定無効化タスク
 #
 
-# /etc/fstab の swap 行を全部コメントアウト（既に # の行は触らない）
+# /etc/fstab の swap 行を全部コメントアウト ( 既に # の行は触らない )
 - name: Comment out all swap entries in /etc/fstab
   ansible.builtin.replace:
     path: /etc/fstab

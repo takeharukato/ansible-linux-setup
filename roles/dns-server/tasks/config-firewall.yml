@@ -37,7 +37,7 @@
     ufw_usable: "{{ _ufw_status.rc == 0 }}"
 
 ####################################################################
-# firewalld 経由（RHEL/Alma, または firewalld が動いている Debian/Ubuntu）
+# firewalld 経由 ( RHEL/Alma, または firewalld が動いている Debian/Ubuntu )
 ####################################################################
 
 # firewalld で DNS サービスが有効か確認

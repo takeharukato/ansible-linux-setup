@@ -10,7 +10,7 @@
   ansible.builtin.set_fact:
     _k8s_common_netif_items: "{{ _netif_list_effective }}"
 
-# 1) kubelet が使う NIC 名を決定（k8s_kubelet_nic > mgmt_nic）
+# 1) kubelet が使う NIC 名を決定 ( k8s_kubelet_nic > mgmt_nic )
 - name: Decide interface name for kubelet (prefer k8s_kubelet_nic, else mgmt_nic)
   ansible.builtin.set_fact:
     _kubelet_if_name: "{{ k8s_kubelet_nic if (k8s_kubelet_nic is defined and (k8s_kubelet_nic|length)>0) else (mgmt_nic if (mgmt_nic is defined and (mgmt_nic|length)>0) else '') }}"

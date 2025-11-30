@@ -89,7 +89,7 @@ def read_online_cpus() -> set[int]:
 def cpuset_to_hexmask(cpus: set[int]) -> str:
     """CPU集合を16進数のマスク値に変換する
     例: {0,1,4} -> "13" (0b10011)
-    先頭の '0x' は付けない ( /proc は16進文字列を期待するため）
+    先頭の '0x' は付けない ( /proc は16進文字列を期待するため )
 
     Args:
         cpus (set[int]): CPU集合

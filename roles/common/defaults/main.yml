@@ -21,7 +21,7 @@ common_selinux_state: "permissive"
 # cronメールを無効にする
 common_disable_cron_mails: false
 
-# 環境ファイルの格納ディレクトリ ( OSで切替）
+# 環境ファイルの格納ディレクトリ ( OSで切替 )
 common_envdir: "{{ etc_default_dir | default( (ansible_facts.os_family | default('RedHat')) == 'Debian' | ternary('/etc/default', '/etc/sysconfig') ) }}"
 
 # DNSサーバに登録しないIF名の正規表現
@@ -40,11 +40,11 @@ use_nm_ddns_update_scripts: false
 # sudoをパスワード無しで実行可能なグループのリスト
 # 例: ['adm', 'cdrom', 'sudo', 'dip', 'plugdev', 'lxd', 'systemd-journal']
 sudo_nopasswd_groups_extra: ['adm', 'cdrom', 'sudo', 'dip', 'plugdev', 'lxd', 'systemd-journal']
-# 自動検出（存在する方だけ採用:Debian/Ubuntu=sudo, RHEL/Alma=wheel）
+# 自動検出 ( 存在する方だけ採用:Debian/Ubuntu=sudo, RHEL/Alma=wheel )
 sudo_nopasswd_groups_autodetect: true
-# 生成ではなく削除（ロールバック）したい場合は true
+# 生成ではなく削除 ( ロールバック )したい場合は true
 sudo_nopasswd_absent: false
-# 生成する drop-in ファイル名の接頭辞（競合しにくい高番を使用）
+# 生成する drop-in ファイル名の接頭辞 ( 競合しにくい高番を使用 )
 sudo_dropin_prefix: "99-nopasswd"
 
 ###############################################################################
@@ -80,7 +80,7 @@ ipv4_name_server2: ""
 ipv6_name_server1: ""
 ipv6_name_server2: ""
 
-# DHCP 由来の DNS を無視するかどうかを、フォールバック DNS の有無から自動判定する。
+# DHCP 由来の DNS を無視するかどうかを, フォールバック DNS の有無から自動判定する。
 # 少なくとも一つの DNS が与えられていれば true とする。
 _mgmt_ignore_auto_ipv4_dns: "{{ ( (ipv4_name_server1 | default('', true) | length) > 0 or (ipv4_name_server2 | default('', true) | length) > 0 ) | bool }}"
 _mgmt_ignore_auto_ipv6_dns: "{{ ( (ipv6_name_server1 | default('', true) | length) > 0 or (ipv6_name_server2 | default('', true) | length) > 0 ) | bool }}"

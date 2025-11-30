@@ -13,7 +13,7 @@
     group: "root"
     mode: "0755"
 
-# hostname関連のfactが存在しない場合、最低限のfactを収集する
+# hostname関連のfactが存在しない場合, 最低限のfactを収集する
 #
 - name: Ensure hostname-related facts are present
   setup:
@@ -112,7 +112,7 @@
     group: "root"
     mode: "0755"
 
-## 90-nm-ns-update の本体を配置（実行属性）
+## 90-nm-ns-update の本体を配置 ( 実行属性 )
 - name: "create {{ nm_ns_update_path }}"
   template:
     src: 90-nm-ns-update.j2
