@@ -191,6 +191,14 @@
   when:
     - ansible_facts.os_family == "RedHat"
 
+# ジャーナルの同期とクリーンアップを行う
+- name: Sync and clean journals before restart
+  become: true
+  command: rndc sync -clean
+  register: rndc_sync
+  changed_when: false
+  failed_when: rndc_sync.rc not in [0]
+
 # namedを起動する
 - block:
     - name: systemd daemon-reload
