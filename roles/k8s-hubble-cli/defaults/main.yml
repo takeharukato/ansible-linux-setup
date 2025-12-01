@@ -31,5 +31,3 @@ hubble_cli_packages: []
 
 # シェル補完設定
 hubble_cli_completion_enabled: true
-hubble_cli_bash_completion_path: "/etc/bash_completion.d/hubble"
-hubble_cli_zsh_completion_path: "/usr/share/zsh/vendor-completions/_hubble"
