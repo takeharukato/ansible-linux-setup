@@ -20,7 +20,7 @@
 - `ntp_server_chrony_service`: OS ごとの chrony サービス名 (`chrony` or `chronyd`)。`vars/cross-distro.yml` で定義。
 - `ntp_server_chrony_conf_drop_in_dir`: drop-in 配置ディレクトリ。Debian 系 `/etc/chrony/chrony.d`, RHEL 系 `/etc/chrony.d`。
 - `ntp_server_packages`: chrony のパッケージ名リスト。Debian/RHEL の差異を `vars/cross-distro.yml` で吸収。
-- `validate_packages_apt`: (Debian 系) リポジトリ整合性検証に使用されるパッケージ集合。`handlers/main.yml` で利用。
+- `common_packages`: (Debian 系) リポジトリ整合性検証にも利用される共通パッケージ集合。`vars/packages-*.yml` に OS ごとの既定値を用意。
 
 ## 実行方法
 

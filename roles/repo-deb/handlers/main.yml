@@ -15,10 +15,11 @@
 
   ansible.builtin.shell: |
     set -euo pipefail
-    for p in {{ validate_packages_apt | join(' ') }}; do
+    pkgs=({{ common_packages | map('quote') | join(' ') }})
+    for p in "${pkgs[@]}"; do
       apt-cache policy "$p" >/dev/null
     done
-    apt-get -s install {{ validate_packages_apt | join(' ') }} >/dev/null
+    apt-get -s install "${pkgs[@]}" >/dev/null
   args:
     executable: /bin/bash
   changed_when: false

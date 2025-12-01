@@ -6,58 +6,22 @@
 #
 
 # Ubuntu deb822 ソースを設定する
-- name: Configure Ubuntu deb822 sources
-  vars:
-    suite: "{{ ansible_distribution_release }}"
-  block:
-    - name: main
-      ansible.builtin.deb822_repository:
-        name: "ubuntu-main"
-        types: "deb"
-        uris: "{{ ubuntu_archive_uris | default(['http://archive.ubuntu.com/ubuntu/']) }}"
-        suites: "{{ suite }}"
-        components:
-          - "main"
-          - "universe"
-        enabled: "{{ repo_enable_main }}"
-        signed_by: "{{ ubuntu_archive_keyring }}"
-      notify: "apt update"
+- name: Remove legacy repo-deb deb822 sources
+  ansible.builtin.file:
+    path: "/etc/apt/sources.list.d/{{ item }}"
+    state: absent
+  loop:
+    - "ubuntu-main.sources"
+    - "ubuntu-updates.sources"
+    - "ubuntu-security.sources"
+    - "ubuntu-backports.sources"
+  notify: "apt update"
 
-    - name: updates
-      ansible.builtin.deb822_repository:
-        name: "ubuntu-updates"
-        types: "deb"
-        uris: "{{ ubuntu_archive_uris | default(['http://archive.ubuntu.com/ubuntu/']) }}"
-        suites: "{{ suite }}-updates"
-        components:
-          - "main"
-          - "universe"
-        enabled: "{{ repo_enable_updates|bool }}"
-        signed_by: "{{ ubuntu_archive_keyring }}"
-      notify: "apt update"
-
-    - name: security
-      ansible.builtin.deb822_repository:
-        name: "ubuntu-security"
-        types: "deb"
-        uris: "{{ ubuntu_security_uris | default(['http://security.ubuntu.com/ubuntu/']) }}"
-        suites: "{{ suite }}-security"
-        components:
-          - "main"
-          - "universe"
-        enabled: "{{ repo_enable_security|bool }}"
-        signed_by: "{{ ubuntu_archive_keyring }}"
-      notify: "apt update"
-
-    - name: backports
-      ansible.builtin.deb822_repository:
-        name: "ubuntu-backports"
-        types: "deb"
-        uris: "{{ ubuntu_backports_uris | default(['http://archive.ubuntu.com/ubuntu/']) }}"
-        suites: "{{ suite }}-backports"
-        components:
-          - "main"
-          - "universe"
-        enabled: "{{ repo_enable_backports|bool }}"
-        signed_by: "{{ ubuntu_archive_keyring }}"
-      notify: "apt update"
+- name: Install consolidated ubuntu.sources
+  ansible.builtin.template:
+    src: "ubuntu.sources.j2"
+    dest: "/etc/apt/sources.list.d/ubuntu.sources"
+    owner: "root"
+    group: "root"
+    mode: "0644"
+  notify: "apt update"
