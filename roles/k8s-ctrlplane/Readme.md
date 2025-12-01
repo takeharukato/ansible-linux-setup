@@ -32,6 +32,7 @@ Kubernetes コントロールプレーンノードを構築するロールです
 | `k8s_shared_ca_replace_kube_ca` | `false` | kubeadm reset 後に共通 CA で `/etc/kubernetes/pki/{ca.crt,ca.key}` を置換するか。|
 | `k8s_operator_user` | `kube` | オペレータユーザ名。kubeconfig 配布や Helm リポジトリ登録で利用。|
 | `k8s_netgauge_packages` | python3-pip など | ネットワーク測定ツール構築・実行用に導入するパッケージ。|
+|`cilium_completion_enabled`| `true` | Ciliumのbash/zsh用シェル補完ファイルを生成する場合は, `true` に設定する。|
 
 その他, `k8s_helm_version`, `k8s_cilium_cm_cluster_name` / `k8s_cilium_cm_cluster_id`, `k8s_embed_kubeconfig_*` 変数が Cluster Mesh 用 kubeconfig 生成を制御します。
 

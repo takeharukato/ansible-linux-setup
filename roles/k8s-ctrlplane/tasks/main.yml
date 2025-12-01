@@ -16,6 +16,7 @@
 - include_tasks: config-k8sctrlplane-firewall.yml
   when: enable_firewall | default(false,true)
 - include_tasks: config-helm.yml
+- include_tasks: config-k8s-cilium-shell-completion.yml
 - include_tasks: config.yml
 - include_tasks: config-cilium.yml
 - include_tasks: config-multus.yml

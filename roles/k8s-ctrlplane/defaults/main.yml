@@ -82,3 +82,6 @@ k8s_whereabouts_config_dir: "{{ k8s_kubeadm_config_store }}/whereabouts"
 
 # 共通CAで Kubernetes のルートCAを置き換えるか
 k8s_shared_ca_replace_kube_ca: false
+
+# Cilium用のコマンド補完設定を有効化する
+cilium_completion_enabled: true

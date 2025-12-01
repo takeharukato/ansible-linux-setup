@@ -1,0 +1,71 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  Cilium CLI のシェル補完設定
+#
+---
+
+# Cilium bash/zsh 用のシェル補完スクリプト用ディレクトリを作成
+- name: Ensure directory for Cilium bash completion
+  become: true
+  ansible.builtin.file:
+    path: "{{ cilium_bash_completion_path | dirname }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+  when: cilium_completion_enabled | bool
+
+# Cilium bash 用のシェル補完スクリプトを生成
+- name: Generate Cilium bash completion script
+  become: true
+  ansible.builtin.command: cilium completion bash
+  register: cilium_bash_completion_command
+  changed_when: false
+  when: cilium_completion_enabled | bool
+
+# Cilium bash 用のシェル補完スクリプトを配置
+- name: Install Cilium bash completion script
+  become: true
+  ansible.builtin.copy:
+    content: "{{ cilium_bash_completion_command.stdout }}\n"
+    dest: "{{ cilium_bash_completion_path }}"
+    owner: root
+    group: root
+    mode: "0644"
+  when:
+    - cilium_completion_enabled | bool
+    - cilium_bash_completion_command is defined
+
+# Cilium zsh 用のシェル補完スクリプト用ディレクトリを作成
+- name: Ensure directory for Cilium zsh completion
+  become: true
+  ansible.builtin.file:
+    path: "{{ cilium_zsh_completion_path | dirname }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+  when: cilium_completion_enabled | bool
+
+# Cilium zsh 用のシェル補完スクリプトを生成
+- name: Generate Cilium zsh completion script
+  become: true
+  ansible.builtin.command: cilium completion zsh
+  register: cilium_zsh_completion_command
+  changed_when: false
+  when: cilium_completion_enabled | bool
+
+# Cilium zsh 用のシェル補完スクリプトを配置
+- name: Install Cilium zsh completion script
+  become: true
+  ansible.builtin.copy:
+    content: "{{ cilium_zsh_completion_command.stdout }}\n"
+    dest: "{{ cilium_zsh_completion_path }}"
+    owner: root
+    group: root
+    mode: "0644"
+  when:
+    - cilium_completion_enabled | bool
+    - cilium_zsh_completion_command is defined
