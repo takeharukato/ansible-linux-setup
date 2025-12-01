@@ -30,6 +30,8 @@
       # - k8s-ctrlplane で kubeadm まわりの設定・スクリプト展開が完了した後に実行。
     - role: k8s-kubeconfig
       tags: k8s-kubeconfig
+    - role: k8s-hubble-cli
+      tags: k8s-hubble-cli
     - role: netgauge
       tags: netgauge
     - role: force-reboot # 最後に実行するようにすること
