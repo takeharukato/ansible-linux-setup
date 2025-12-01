@@ -863,3 +863,4 @@ jinja2で変数定義の有無の確認と中身が空で無いことの確認�
 - [Ansible UNIX タイムスタンプを任意の日付時刻フォーマットに変換する strftime](https://tekunabe.hatenablog.jp/entry/2021/01/11/ansible_ts_datetime)
 テンプレート中での時刻取得 ( roles/common/templates/_bshrc.proxy.j2 な
 どの記述の参考にした )
+- [k8s クラスタを気軽に遊べる環境を作っている](https://nabeop.hatenablog.com/entry/2019/07/27/165036), [vagrant-k8s-metallb](https://github.com/nabeo/vagrant-k8s-metallb) 実験用K8sクラスタの構成方法について参考にした。
