@@ -3,74 +3,91 @@
 #  Copyright 2020 Takeharu KATO All Rights Reserved.
 #  設定関連タスク
 
-# IPv6で外部と接続できない環境のために, systemdのnamedの問い合わせを
-# IPv4のみに制限する
-# systemdのnamedサービスのExecStartに -4 オプションを追加する
+# IPv6 で外部と接続できない環境のために, systemd の named を IPv4 のみに制限する。
+# systemd の named サービスの ExecStart に -4 オプションを付ける drop-in を条件付きで生成する。
 
 ---
-- name: Get current ExecStart from systemd (resolved value)
-  command: systemctl show -p ExecStart --value {{ dns_bind_service }}
-  register: dns_exec_show
-  changed_when: false
-
-- name: Ensure ExecStart is non-empty
-  fail:
-    msg: "ExecStart of {{ dns_bind_service }} is empty; cannot create an override."
-  when: (dns_exec_show.stdout | trim) == ""
-
-# ここが肝：argv[]= の“中身だけ”を抜く。無ければ置換されず素の行が返る
-- name: Extract argv (structured -> payload, non-structured -> original)
-  shell: |
-    set -euo pipefail
-    systemctl show -p ExecStart --value {{ dns_bind_service }} \
-      | tr '\n' ' ' \
-      | sed -E 's/^.*argv\[\][[:space:]]*=[[:space:]]*([^;]+).*/\1/'
-  args:
-    executable: /bin/bash
-  register: dns_exec_argv_cmd
-  changed_when: false
-
-- name: Normalize argv
-  set_fact:
-    dns_exec_argv: "{{ dns_exec_argv_cmd.stdout | trim }}"
-
-# 変な内容 ( 構造化ブロブ丸ごと等 )なら中断して drop-in を書かない
-- name: Fail if argv extraction looks invalid
-  fail:
-    msg: >-
-      Failed to extract argv for {{ dns_bind_service }}.
-      Raw: {{ dns_exec_show.stdout }}
-      Parsed: {{ dns_exec_argv }}
-  when:
-    - dns_exec_argv | length == 0
-    - dns_exec_argv is search('^\\s*\\{\\s*path=')
-
-# すでに -4 があるなら何もしない ( 冪等 )
-- name: Check if -4 already present (token-aware)
-  set_fact:
-    dns_has_v4only: "{{ dns_exec_argv is search('(^|\\s)-4(\\s|$)') }}"
-
-- name: Build final ExecStart with -4 appended (only when missing)
-  set_fact:
-    dns_execstart_final: "{{ dns_exec_argv ~ ' -4' }}"
-  when: not dns_has_v4only
-
-- name: Ensure systemd drop-in directory exists (only when -4 missing)
+- name: Remove IPv4-only drop-in when disabled
+  become: true
   file:
-    path: "{{ dns_bind_systemd_dropin_dir }}"
-    state: directory
-    mode: "0755"
-  when: not dns_has_v4only
-
-- name: Install systemd drop-in via template (only when -4 missing)
-  template:
-    src: "90-override.conf.j2"
-    dest: "{{ dns_bind_systemd_dropin_dir }}/{{ dns_bind_systemd_dropin_file }}"
-    mode: "0644"
-  when: not dns_has_v4only
+    path: "{{ dns_bind_systemd_dropin_dir }}/{{ dns_bind_systemd_dropin_file }}"
+    state: absent
+  when:
+    - not (dns_bind_ipv4_only | default(false))
   notify: "Reload systemd & restart named"
 
-- name: Skip info (already has -4)
-  debug:
-    msg: "named ExecStart already contains -4. No override created/updated."
-  when: dns_has_v4only
+- name: Skip IPv4-only override when not requested
+  ansible.builtin.debug:
+    msg: "dns_bind_ipv4_only is false; no systemd override applied."
+  when:
+    - not (dns_bind_ipv4_only | default(false))
+
+- block:
+    - name: Get current ExecStart from systemd (resolved value)
+      command: systemctl show -p ExecStart --value {{ dns_bind_service }}
+      register: dns_exec_show
+      changed_when: false
+
+    - name: Ensure ExecStart is non-empty
+      fail:
+        msg: "ExecStart of {{ dns_bind_service }} is empty; cannot create an override."
+      when: (dns_exec_show.stdout | trim) == ""
+
+    # ここが肝：argv[]= の“中身だけ”を抜く。無ければ置換されず素の行が返る
+    - name: Extract argv (structured -> payload, non-structured -> original)
+      shell: |
+        set -euo pipefail
+        systemctl show -p ExecStart --value {{ dns_bind_service }} \
+          | tr '\n' ' ' \
+          | sed -E 's/^.*argv\[\][[:space:]]*=[[:space:]]*([^;]+).*/\1/'
+      args:
+        executable: /bin/bash
+      register: dns_exec_argv_cmd
+      changed_when: false
+
+    - name: Normalize argv
+      set_fact:
+        dns_exec_argv: "{{ dns_exec_argv_cmd.stdout | trim }}"
+
+    # 変な内容 ( 構造化ブロブ丸ごと等 )なら中断して drop-in を書かない
+    - name: Fail if argv extraction looks invalid
+      fail:
+        msg: >-
+          Failed to extract argv for {{ dns_bind_service }}.
+          Raw: {{ dns_exec_show.stdout }}
+          Parsed: {{ dns_exec_argv }}
+      when:
+        - dns_exec_argv | length == 0
+        - dns_exec_argv is search('^\\s*\\{\\s*path=')
+
+    # すでに -4 があるなら何もしない ( 冪等 )
+    - name: Check if -4 already present (token-aware)
+      set_fact:
+        dns_has_v4only: "{{ dns_exec_argv is search('(^|\\s)-4(\\s|$)') }}"
+
+    - name: Build final ExecStart with -4 appended (only when missing)
+      set_fact:
+        dns_execstart_final: "{{ dns_exec_argv ~ ' -4' }}"
+      when: not dns_has_v4only
+
+    - name: Ensure systemd drop-in directory exists (only when -4 missing)
+      file:
+        path: "{{ dns_bind_systemd_dropin_dir }}"
+        state: directory
+        mode: "0755"
+      when: not dns_has_v4only
+
+    - name: Install systemd drop-in via template (only when -4 missing)
+      template:
+        src: "90-override.conf.j2"
+        dest: "{{ dns_bind_systemd_dropin_dir }}/{{ dns_bind_systemd_dropin_file }}"
+        mode: "0644"
+      when: not dns_has_v4only
+      notify: "Reload systemd & restart named"
+
+    - name: Skip info (already has -4)
+      debug:
+        msg: "named ExecStart already contains -4. No override created/updated."
+      when: dns_has_v4only
+  when:
+    - dns_bind_ipv4_only | default(false)

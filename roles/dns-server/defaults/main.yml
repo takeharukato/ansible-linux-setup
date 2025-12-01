@@ -49,6 +49,8 @@ dns_bind_keyfile_debian: "/usr/share/dns/root.key"
 dns_bind_keyfile: "{{ (ansible_facts.os_family == 'Debian') | ternary(dns_bind_keyfile_debian, dns_bind_keyfile_rhel) }}"
 # DNSポート番号
 dns_bind_port: 53
+# IPv4 のみに限定する場合に true (systemd drop-in で ExecStart に -4 を付与)
+dns_bind_ipv4_only: false
 # デフォルトゾーンを使用
 dns_bind_firewall_zone: null
 # DNSフォワーダー

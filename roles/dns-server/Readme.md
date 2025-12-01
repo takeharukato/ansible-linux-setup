@@ -14,7 +14,7 @@
   - `dns_bind_options_conf_path` の include 行を保証し, `named_check_conf` と `Reload systemd & restart named` ハンドラを通知します。
   - SELinux 有効な RHEL 系では zone ディレクトリの fcontext を `semanage` で登録し `restorecon` を実行します。
   - 最後に `named-checkconf -z` と `systemd` リスタート, `rndc reload` を順に行います。
-- `tasks/config-systemd-ipv4-only.yml` が `systemctl show` で取得した ExecStart に `-4` フラグが無い場合のみ drop-in (`templates/90-override.conf.j2`) を生成し, IPv4 応答に限定します。
+- `dns_bind_ipv4_only` が true の場合に `tasks/config-systemd-ipv4-only.yml` が `systemctl show` で取得した ExecStart に `-4` フラグが無い場合のみ drop-in (`templates/90-override.conf.j2`) を生成し, IPv4 応答に限定します (デフォルトでは IPv6 も LISTEN)。
 - `tasks/config-firewall.yml` は `enable_firewall` が真のときに firewalld または UFW を自動判別し, `dns_bind_port` の TCP/UDP を開放します。バックエンドが検出されない場合は通知のみを実施します。
 - ハンドラは `Reload systemd & restart named`／`named_check_conf`／`reload_zone`／`disable_gui` を提供し, 構成変更に応じた再読み込みとランレベル固定を行います。
 
@@ -39,6 +39,7 @@
 | `dns_bind_forwarders` | `roles/dns-server/defaults/main.yml` | 上位 DNS へのフォワーダー一覧。空にすると forward 設定を省略します。|
 | `dns_ddns_key_name` / `dns_ddns_key_secret` | `defaults/main.yml` / `vars/all-config.yml` | TSIG キー名とシークレット。Dynamic DNS クライアントと共有し, `named.conf.zones` の update-policy に使用します。|
 | `dns_bind_selinux_target` | `defaults/main.yml` | RHEL 系で `semanage fcontext` に適用するパス。デフォルトは `/var/named(/.*)?`。|
+| `dns_bind_ipv4_only` | `defaults/main.yml` (false) | true で IPv4 のみ応答させる systemd drop-in を適用します。IPv6 を利用する環境では false のままにします。|
 | `dns_bind_systemd_dropin_dir` | `defaults/main.yml` | IPv4 限定用 drop-in を配置するディレクトリ。|
 | `enable_firewall` / `dns_bind_firewall_zone` | `roles/common/defaults/main.yml` / `defaults/main.yml` | Firewall 設定の有効化と対象ゾーン (firewalld のみ)。|
 
@@ -64,6 +65,6 @@ ansible-playbook -i inventory/hosts server.yml --tags dns-server
 ## 運用メモ
 
 - TSIG シークレット (`dns_ddns_key_secret`) はバージョン管理外に保管してください。
-- IPv6 で外部と到達できない検証環境では, `templates/90-override.conf.j2` が生成する systemd の追加設定ファイルを適用して `ExecStart` に `-4` を付与し, `named` を IPv4 のみで LISTEN させます。IPv6 も必要な場合は `config-systemd-ipv4-only.yml` をスキップする条件を追加してください。
+- IPv6 で外部と到達できない検証環境だけで `dns_bind_ipv4_only: true` に設定し, `templates/90-override.conf.j2` が生成する systemd の追加設定ファイルで `ExecStart` に `-4` を付与して IPv4 のみに限定します。IPv6 を提供したい場合はデフォルトの false のままにしてください。
 - ゾーンファイルはテンプレート生成のため, 手動編集ではなく `dns_host_list` や関連変数を更新してロールを再実行する運用を前提としています。
 - Dynamic DNS クライアントスクリプト (`roles/common/templates/ddns-client-update.sh.j2` 等) と組み合わせる場合, FQDN 末尾のドットやゾーン名の整合性に注意してください。

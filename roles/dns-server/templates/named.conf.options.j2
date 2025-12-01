@@ -27,12 +27,13 @@ options {
         allow-query {
                 localhost;
                 internal-network;
+                internal6;
         };
 
        // 再起問い合わせを許可 ( キャッシュDNSサーバ ( リゾルバ )として動作させる )。無効にする場合は, 「none」。
         recursion yes;
 
-        allow-recursion { internal-network; localhost; };
+        allow-recursion { internal-network; internal6; localhost; };
         allow-transfer { none; };   // 権威ゾーンの無断 AXFR を防ぐ
 
         // 断片化対策
