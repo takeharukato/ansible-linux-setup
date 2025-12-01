@@ -15,6 +15,12 @@ repo_enable_security: true
 # バックポート ( 必要時に true )
 repo_enable_backports: false
 
+# Ubuntu .sources 管理
+ubuntu_sources_suite: "{{ ansible_distribution_release }}"
+ubuntu_sources_components:
+  - "main"
+  - "universe"
+
 # Debian固有
 debian_archive_uris:
   - "http://deb.debian.org/debian/"
@@ -69,11 +75,3 @@ chrome_apt_uri: "https://dl.google.com/linux/chrome/deb/"
 chrome_apt_suite: "stable"         # noble/jammy ではなく "stable"
 chrome_apt_components: "main"
 chrome_arch_apt: "amd64"
-
-# 到達性検証
-validate_packages_apt:
-  - bash
-  - coreutils
-  - docker-ce-cli
-  - google-chrome-stable
-  - kubelet
