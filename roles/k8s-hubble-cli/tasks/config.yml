@@ -1,0 +1,63 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  設定関連タスク
+#
+---
+
+- name: Download hubble-cli archive
+  ansible.builtin.get_url:
+    url: "{{ hubble_cli_download_url }}"
+    dest: "{{ hubble_cli_temp_archive }}"
+    mode: "0644"
+
+- name: Extract hubble-cli archive
+  ansible.builtin.unarchive:
+    src: "{{ hubble_cli_temp_archive }}"
+    dest: "{{ hubble_cli_temp_dir }}"
+    remote_src: true
+    creates: "{{ hubble_cli_extracted_binary_path }}"
+
+- name: Install hubble-cli binary
+  ansible.builtin.copy:
+    src: "{{ hubble_cli_extracted_binary_path }}"
+    dest: "{{ hubble_cli_binary_path }}"
+    owner: root
+    group: root
+    mode: "0755"
+    remote_src: true
+
+- name: Generate bash completion script
+  ansible.builtin.command: "{{ hubble_cli_binary_path }} completion bash"
+  register: hubble_cli_bash_completion_command
+  changed_when: false
+  when: hubble_cli_completion_enabled | bool
+
+- name: Install bash completion script
+  ansible.builtin.copy:
+    content: "{{ hubble_cli_bash_completion_command.stdout }}\n"
+    dest: "{{ hubble_cli_bash_completion_path }}"
+    owner: root
+    group: root
+    mode: "0644"
+  when:
+    - hubble_cli_completion_enabled | bool
+    - hubble_cli_bash_completion_command is defined
+
+- name: Generate zsh completion script
+  ansible.builtin.command: "{{ hubble_cli_binary_path }} completion zsh"
+  register: hubble_cli_zsh_completion_command
+  changed_when: false
+  when: hubble_cli_completion_enabled | bool
+
+- name: Install zsh completion script
+  ansible.builtin.copy:
+    content: "{{ hubble_cli_zsh_completion_command.stdout }}\n"
+    dest: "{{ hubble_cli_zsh_completion_path }}"
+    owner: root
+    group: root
+    mode: "0644"
+  when:
+    - hubble_cli_completion_enabled | bool
+    - hubble_cli_zsh_completion_command is defined

@@ -1,0 +1,42 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  設定関連タスク
+#
+---
+
+# Ubuntu用パッケージ名読み込み
+- name: include ubuntu package names
+  include_vars: ../vars/packages-ubuntu.yml
+  when: ansible_facts.os_family == 'Debian'
+
+# RHEL用パッケージ名読み込み
+- name: include RHEL package names
+  include_vars: ../vars/packages-rhel.yml
+  when: ansible_facts.os_family == 'RedHat'
+
+# ディストリビューション差異吸収用パラメータ読み込み
+- name: include cross-distro.yml
+  include_vars: ../vars/cross-distro.yml
+
+# 共通設定読み込み
+- name: include config vars
+  include_vars: ../vars/all-config.yml
+
+# Kubernetes API広告アドレス設定読み込み
+- name: include K8s API address vars
+  include_vars: ../vars/k8s-api-address.yml
+
+- name: Normalize hubble_cli_version
+  ansible.builtin.set_fact:
+    hubble_cli_version: "{{ hubble_cli_version | string | trim }}"
+  changed_when: false
+
+- name: Assert hubble_cli_version is defined
+  ansible.builtin.assert:
+    that:
+      - hubble_cli_version is defined
+      - (hubble_cli_version | length) > 0
+    fail_msg: 'Set "hubble_cli_version" in inventory or extra vars before running k8s-hubble-cli role.'
+  changed_when: false

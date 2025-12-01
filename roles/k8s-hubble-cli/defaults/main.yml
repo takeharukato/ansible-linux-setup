@@ -1,0 +1,35 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  ロール固有変数のデフォルト値
+#  group_vars/all/all.yml やhost_varsで上書き可能とするため,
+#  ロール名/defaults/main.yml に定義している
+---
+
+# hubble-cli バージョン (必須。未設定時はタスク側でエラーを返す)
+hubble_cli_version: "1.18.3"
+
+# GitHub 公式リリースから取得するためのデフォルト設定
+hubble_cli_github_repo: "cilium/hubble"
+hubble_cli_release_tag_prefix: "v"
+hubble_cli_os: "linux"
+hubble_cli_arch: "amd64"
+hubble_cli_archive_filename: "hubble-{{ hubble_cli_os }}-{{ hubble_cli_arch }}.tar.gz"
+hubble_cli_download_url: "https://github.com/{{ hubble_cli_github_repo }}/releases/download/{{ hubble_cli_release_tag_prefix }}{{ hubble_cli_version }}/{{ hubble_cli_archive_filename }}"
+hubble_cli_release_tag: "{{ hubble_cli_release_tag_prefix }}{{ hubble_cli_version }}"
+
+# インストール関連
+hubble_cli_install_dir: "/usr/local/bin"
+hubble_cli_binary_name: "hubble"
+hubble_cli_binary_path: "{{ hubble_cli_install_dir }}/{{ hubble_cli_binary_name }}"
+hubble_cli_temp_parent: "/tmp"
+hubble_cli_temp_dir: "{{ hubble_cli_temp_parent }}/hubble-cli-{{ hubble_cli_release_tag }}"
+hubble_cli_temp_archive: "{{ hubble_cli_temp_dir }}/{{ hubble_cli_archive_filename }}"
+hubble_cli_extracted_binary_path: "{{ hubble_cli_temp_dir }}/{{ hubble_cli_binary_name }}"
+hubble_cli_packages: []
+
+# シェル補完設定
+hubble_cli_completion_enabled: true
+hubble_cli_bash_completion_path: "/etc/bash_completion.d/hubble"
+hubble_cli_zsh_completion_path: "/usr/share/zsh/vendor-completions/_hubble"

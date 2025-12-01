@@ -1,0 +1,12 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  パッケージ関連処理
+---
+
+- name: Install hubble-cli prerequisites
+  ansible.builtin.package:
+    name: "{{ hubble_cli_packages }}"
+    state: present
+  when: hubble_cli_packages | length > 0

@@ -70,6 +70,17 @@ kubectl_zsh_completion_path_rhel: "/usr/share/zsh/site-functions/_kubectl"
 kubectl_zsh_completion_path: "{{ (ansible_facts.os_family == 'Debian') | ternary(kubectl_zsh_completion_path_debian, kubectl_zsh_completion_path_rhel) }}"
 
 ##################################################################################
+# hubble CLI シェル補完
+##################################################################################
+hubble_cli_bash_completion_path_debian: "/etc/bash_completion.d/hubble"
+hubble_cli_bash_completion_path_rhel: "/etc/bash_completion.d/hubble"
+hubble_cli_bash_completion_path: "{{ (ansible_facts.os_family == 'Debian') | ternary(hubble_cli_bash_completion_path_debian, hubble_cli_bash_completion_path_rhel) }}"
+
+hubble_cli_zsh_completion_path_debian: "/usr/share/zsh/vendor-completions/_hubble"
+hubble_cli_zsh_completion_path_rhel: "/usr/share/zsh/site-functions/_hubble"
+hubble_cli_zsh_completion_path: "{{ (ansible_facts.os_family == 'Debian') | ternary(hubble_cli_zsh_completion_path_debian, hubble_cli_zsh_completion_path_rhel) }}"
+
+##################################################################################
 # ネットワーク設定関連
 ##################################################################################
 

@@ -507,6 +507,10 @@ Kubernetes (以下K8sと記す)関連の設定を以下に記載する。
 |k8s_worker_nodeport_range|NodePortの範囲|"30000-32767"|
 | `k8s_operator_authorized_key_list` | K8sオペレータアカウント(`kube`)に追加で登録したい公開鍵のリスト。各要素はGitHub 取得分と合わせてソート, 重複排除され, K8sオペレータアカウント(`kube`)の公開鍵に反映されます。| `[]` |
 | `k8s_operator_github_key_list` | K8sオペレータアカウント(`kube`)の公開鍵をGitHubから取得する際の, Githubアカウントを設定するマッピングのリストです。`[ { github: '<アカウント名>' } ]` のようなリストを設定することで, `https://github.com/<account>.keys` から鍵を取得し, K8sオペレータアカウント(`kube`)の公開鍵に追加します。取得した公開鍵は, `k8s_operator_authorized_key_list`の設定値と合わせてソート, 重複排除され, K8sオペレータアカウント(`kube`)の公開鍵に反映されます。| `[]` |
+| `hubble_cli_version` | 配布する Hubble CLI のバージョン。未指定の場合は内部整合性異常とみなし処理を停止します。 | `1.18.3` |
+| `hubble_cli_github_repo` | リリースを参照する GitHub リポジトリ。| `cilium/hubble` |
+| `hubble_cli_release_tag_prefix` | GitHub タグに付与する接頭辞。| `v` |
+|`hubble_cli_download_url` | ダウンロード URL。独自ミラーを利用する場合は, `vars/all-config.yml`内でURLを定義し, 規定値を上書きしてください。 | 上記パラメータを組み合わせた文字列|
 
 共通CA関連の設定値 (`enable_create_k8s_ca`, `k8s_common_ca`, `k8s_shared_ca_output_dir`, `k8s_shared_ca_replace_kube_ca`) を有効にすると, `k8s-shared-ca` ロールが共通CAの生成/取得と配布を行い, `k8s-ctrlplane` ロールは `kubeadm reset` 後に当該共通CAを `/etc/kubernetes/pki/shared-ca/` へ復元した上で `kubeadm init` を実行する。`k8s_shared_ca_replace_kube_ca: true` の場合, API サーバや kube-controller-manager 等の証明書は共通CAで再発行される。 ワーカーノードでは `kubeadm reset` / `kubeadm join` を併せて実施して全ノードが新しいルート共通CAを信頼する状態へ更新する。
 このため, クラスタ再構築時はコントロールプレインとワーカーノードの双方を再構築すること。

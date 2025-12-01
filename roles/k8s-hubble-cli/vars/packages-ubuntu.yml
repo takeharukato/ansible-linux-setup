@@ -1,0 +1,12 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  Ubuntu 用 hubble-cli 依存パッケージ
+#
+---
+
+hubble_cli_packages:
+  - curl
+  - tar
+  - gzip

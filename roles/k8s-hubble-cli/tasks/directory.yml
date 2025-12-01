@@ -1,0 +1,33 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  ファイル・ディレクトリ作成関連タスク
+#
+---
+
+- name: Ensure hubble-cli temp directory exists
+  ansible.builtin.file:
+    path: "{{ hubble_cli_temp_dir }}"
+    state: directory
+    mode: "0755"
+
+- name: Ensure hubble-cli install directory exists
+  ansible.builtin.file:
+    path: "{{ hubble_cli_install_dir }}"
+    state: directory
+    mode: "0755"
+
+- name: Ensure bash completion directory exists
+  ansible.builtin.file:
+    path: "{{ hubble_cli_bash_completion_path | dirname }}"
+    state: directory
+    mode: "0755"
+  when: hubble_cli_completion_enabled | bool
+
+- name: Ensure zsh completion directory exists
+  ansible.builtin.file:
+    path: "{{ hubble_cli_zsh_completion_path | dirname }}"
+    state: directory
+    mode: "0755"
+  when: hubble_cli_completion_enabled | bool
