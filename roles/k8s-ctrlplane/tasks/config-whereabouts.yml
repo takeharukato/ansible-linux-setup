@@ -12,9 +12,12 @@
 # Whereaboutsのインストール
 - name: Install Whereabouts
   shell: |
-    helm upgrade --install whereabouts oci://ghcr.io/k8snetworkplumbingwg/whereabouts-chart \
+    helm upgrade --install whereabouts {{ k8s_whereabouts_chart_url }} \
     --namespace kube-system \
     --version {{ k8s_whereabouts_helm_chart_version }}
+  environment:
+    KUBECONFIG: /etc/kubernetes/admin.conf
+  become: true
 
 # NetworkAttachmentDefinition (NAD)設定ファイル生成
 - name: Setup whereabouts NetworkAttachmentDefinition (NAD) file
@@ -29,3 +32,6 @@
 - name: Setup NetworkAttachmentDefinition (NAD)
   shell: |
     kubectl apply -f "{{ k8s_whereabouts_config_dir }}/ipvlan-wb-nad.yml"
+  environment:
+    KUBECONFIG: /etc/kubernetes/admin.conf
+  become: true

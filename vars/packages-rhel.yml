@@ -49,7 +49,6 @@ common_packages:
   - acl
   - attr
 
-
 common_langpack_packages:
   - glibc-langpack-ja
   - langpacks-ja
@@ -61,6 +60,7 @@ k8s_containerd_packages:
   - containerd.io
 
 k8s_common_packages:
+  - git
   - kubectl
   - kubeadm
   - kubelet

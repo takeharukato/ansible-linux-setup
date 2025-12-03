@@ -85,3 +85,43 @@ k8s_shared_ca_replace_kube_ca: false
 
 # Cilium用のコマンド補完設定を有効化する
 cilium_completion_enabled: true
+
+# Cilium CLI アーカイブ名とダウンロードURL
+k8s_cilium_cli_archive_name: "cilium-linux-amd64.tar.gz"
+k8s_cilium_cli_download_url: "https://github.com/cilium/cilium-cli/releases/latest/download/{{ k8s_cilium_cli_archive_name }}"
+k8s_cilium_cli_checksum_url: "{{ k8s_cilium_cli_download_url }}.sha256sum"
+
+# Cilium Helm Chartのバージョン
+k8s_cilium_helm_chart_version: "{{ k8s_cilium_version }}"
+# Ciliumコンテナイメージのバージョン
+k8s_cilium_image_version: "v{{ k8s_cilium_version }}"
+# Cilium Helm リポジトリ URL
+k8s_cilium_helm_repo_url: "https://helm.cilium.io/"
+
+# Multus CNIを有効化する
+k8s_multus_enabled: false
+# Multus CNIのバージョン(v4.2.3など上流イメージのタグを指定)
+k8s_multus_version: "v4.2.3"
+# Multusデーモンセット適用マニュフェストのURL
+k8s_multus_daemonset_manifest_url: "https://raw.githubusercontent.com/k8snetworkplumbingwg/multus-cni/refs/tags/{{ k8s_multus_version }}/deployments/multus-daemonset.yml"
+
+# Whereabouts IPAMを有効化する
+k8s_whereabouts_enabled: false
+# Whereabouts CNIのバージョン
+k8s_whereabouts_version: "0.9.2"
+# Whereabouts Helm Chartのバージョン
+k8s_whereabouts_helm_chart_version: "{{ k8s_whereabouts_version }}"
+# Whereaboutsコンテナイメージのバージョン
+k8s_whereabouts_image_version: "{{ k8s_whereabouts_version }}"
+# Whereabouts Helm ChartのURL
+k8s_whereabouts_chart_url: "oci://ghcr.io/k8snetworkplumbingwg/whereabouts-chart"
+# セカンダリネットワークのアドレスレンジ開始アドレス(IPv4)
+k8s_whereabouts_ipv4_range_start: ""
+# セカンダリネットワークのアドレスレンジ終了アドレス(IPv4)
+k8s_whereabouts_ipv4_range_end: ""
+# セカンダリネットワークのアドレスレンジ開始アドレス(IPv6)
+# 未使用
+k8s_whereabouts_ipv6_range_start: ""
+# セカンダリネットワークのアドレスレンジ終了アドレス(IPv6)
+# 未使用
+k8s_whereabouts_ipv6_range_end: ""
