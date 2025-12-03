@@ -540,7 +540,7 @@ Cilium Container Network Interface (`CNI`) 関連の設定を以下に記載す�
 |k8s_cilium_version|Cilium Container Network Interface (`CNI`) のバージョン|`1.16.0`|
 |k8s_cilium_helm_chart_version|Cilium Helm Chartのバージョン|`{{ k8s_cilium_version }}`|
 |k8s_cilium_image_version|Ciliumコンテナイメージのバージョン|`v{{ k8s_cilium_version }}`|
-|k8s_cilium_helm_repo_url|Cilium Helm リポジトリのURL|"https://helm.cilium.io/"|
+|k8s_cilium_helm_repo_url|Cilium Helm リポジトリのURL|`https://helm.cilium.io/`|
 |k8s_cilium_cli_archive_name|配布する Cilium CLI アーカイブ名|`cilium-linux-amd64.tar.gz`|
 |k8s_cilium_cli_download_url|Cilium CLI のダウンロード URL|`https://github.com/cilium/cilium-cli/releases/latest/download/{{ k8s_cilium_cli_archive_name }}`|
 |k8s_cilium_cli_checksum_url|Cilium CLI の SHA256 チェックサム取得先|`{{ k8s_cilium_cli_download_url }}.sha256sum`|
