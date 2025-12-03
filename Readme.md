@@ -500,6 +500,8 @@ Kubernetes (以下K8sと記す)関連の設定を以下に記載する。
 |k8s_common_ca|事前に用意した共通CA (`cluster-mesh-ca.crt/.key`) を格納したディレクトリの絶対パス|""|
 |k8s_shared_ca_output_dir|共通CAをノード内に展開するディレクトリ|"/etc/kubernetes/pki/shared-ca"|
 |k8s_shared_ca_replace_kube_ca|共通CAで `/etc/kubernetes/pki/ca.{crt,key}` を置き換え, `kubeadm init` 時にAPIサーバ証明書などを再発行する|true|
+|k8s_kubeadm_config_store|`kubeadm init/join` 用の設定ファイルや CNI values を格納するワークディレクトリ|"{{ ansible_home_dir }}/kubeadm"|
+|k8s_kubeadm_ignore_preflight_errors_arg|`kubeadm init/join` 時に無視する preflight エラーの指定|"--ignore-preflight-errors=all"|
 |k8s_kubeconfig_system_dir|`k8s-kubeconfig` ロールが `kubeconfig` を配置するシステム側ディレクトリ。既定では `/etc/kubernetes` を使用し, `k8s-kubeconfig` ロール中の `control-plane.yml` / `distribute-workers.yml` が参照する|"/etc/kubernetes"|
 |k8s_pod_ipv4_service_subnet|K8sのIPv4サービスネットワークのClassless Inter-Domain Routing ( CIDR ) |"10.245.0.0/16"|
 |k8s_pod_ipv6_service_subnet|K8sのIPv6サービスネットワークのCIDR|"fdb6:6e92:3cfb:feed::/112"|
@@ -541,38 +543,46 @@ Cilium Container Network Interface (`CNI`) 関連の設定を以下に記載す�
 |k8s_cilium_version|Cilium Container Network Interface (`CNI`) のバージョン|`1.16.0`|
 |k8s_cilium_helm_chart_version|Cilium Helm Chartのバージョン|`{{ k8s_cilium_version }}`|
 |k8s_cilium_image_version|Ciliumコンテナイメージのバージョン|`v{{ k8s_cilium_version }}`|
-|`cilium_completion_enabled`| Ciliumのbash/zsh用シェル補完ファイルを生成する。| `true` |
-|cilium_shared_ca_enabled|`k8s-k8s-k8s-cilium-shared-ca` ロールによる `cilium-ca` Secret の生成/更新を有効化する|`false`|
-|cilium_shared_ca_reuse_k8s_ca|`k8s-shared-ca` ロールで生成した共通CAを流用する場合に true を指定する|`false`|
-|cilium_shared_ca_output_dir|共通CAを自動生成する際の出力ディレクトリ|`/etc/kubernetes/pki/k8s-k8s-cilium-shared-ca`|
-|cilium_shared_ca_cert_filename|自動生成する証明書ファイル名|`cilium-ca.crt`|
-|cilium_shared_ca_key_filename|自動生成する秘密鍵ファイル名|`cilium-ca.key`|
-|cilium_shared_ca_secret_name|生成するSecret名|`cilium-ca`|
-|cilium_shared_ca_secret_namespace|Secretを配置するNamespace|`kube-system`|
-|cilium_shared_ca_secret_type|Secretの`type`|`Opaque`|
-|cilium_shared_ca_secret_cert_key|Secretに格納する証明書のキー名|`ca.crt`|
-|cilium_shared_ca_secret_key_key|Secretに格納する秘密鍵のキー名|`ca.key`|
-|cilium_shared_ca_secret_labels|Secretに付与する追加ラベルの辞書|`{"app.kubernetes.io/managed-by": "Helm"}`|
-|cilium_shared_ca_secret_annotations|Secretに付与する追加アノテーションの辞書|`{"meta.helm.sh/release-name": "cilium", "meta.helm.sh/release-namespace": "kube-system"}`|
-|cilium_shared_ca_auto_create|共通CAが存在しない場合にロールが自動生成するか|`true`|
-|cilium_shared_ca_key_size|自動生成する秘密鍵のビット長|`4096`|
-|cilium_shared_ca_valid_days|自動生成する証明書の有効日数|`3650`|
-|cilium_shared_ca_digest|証明書生成時に使用するダイジェスト|`sha256`|
-|cilium_shared_ca_subject|自動生成する証明書のサブジェクト|`/CN=Cilium Cluster Mesh CA`|
-|cilium_clustermesh_secret_enabled|Cluster Mesh 用 Secret の生成/更新を行うか制御する|`true`|
-|cilium_clustermesh_secret_name|Cluster Mesh 用 Secret 名|`cilium-clustermesh`|
-|cilium_clustermesh_secret_namespace|Cluster Mesh 用 Secret を配置する Namespace|`kube-system`|
-|cilium_clustermesh_secret_cert_key|Cluster Mesh 用 Secret に格納する共通CAデータのキー名|`ca.crt`|
-|cilium_clustermesh_secret_tls_cert_key|Cluster Mesh 用 Transport Layer Security (`TLS`) サーバ証明書を格納するキー名|`tls.crt`|
-|cilium_clustermesh_secret_tls_key_key|Cluster Mesh 用 Transport Layer Security (`TLS`) サーバ秘密鍵を格納するキー名|`tls.key`|
-|cilium_clustermesh_secret_labels|Cluster Mesh 用 Secret に付与する追加ラベルの辞書|`{}`|
-|cilium_clustermesh_secret_annotations|Cluster Mesh 用 Secret に付与する追加アノテーションの辞書|`{}`|
-|cilium_clustermesh_tls_subject|Cluster Mesh 用 Transport Layer Security (`TLS`) 証明書のサブジェクト|`/CN=clustermesh-apiserver`|
-|cilium_clustermesh_tls_san_dns|Subject Alternative Name (`SAN`) に追加する DNS 名リスト|`["clustermesh-apiserver.kube-system.svc.cluster.local", "clustermesh-apiserver.kube-system.svc"]`|
-|cilium_clustermesh_tls_valid_days|Transport Layer Security (`TLS`) 証明書の有効日数|`3650`|
-|cilium_clustermesh_tls_cert_filename|生成する Transport Layer Security (`TLS`) 証明書のファイル名|`cilium-clustermesh.crt`|
-|cilium_clustermesh_tls_key_filename|生成する Transport Layer Security (`TLS`) 秘密鍵のファイル名|`cilium-clustermesh.key`|
-|cilium_clustermesh_tls_key_size|Transport Layer Security (`TLS`) 秘密鍵のビット長|`4096`|
+|k8s_cilium_helm_repo_url|Cilium Helm リポジトリのURL|"https://helm.cilium.io/"|
+|k8s_cilium_cli_archive_name|配布する Cilium CLI アーカイブ名|`cilium-linux-amd64.tar.gz`|
+|k8s_cilium_cli_download_url|Cilium CLI のダウンロード URL|`https://github.com/cilium/cilium-cli/releases/latest/download/{{ k8s_cilium_cli_archive_name }}`|
+|k8s_cilium_cli_checksum_url|Cilium CLI の SHA256 チェックサム取得先|`{{ k8s_cilium_cli_download_url }}.sha256sum`|
+|k8s_cilium_cli_completion_enabled| Ciliumのbash/zsh用シェル補完ファイルを生成する。| `true` |
+|k8s_cilium_shared_ca_enabled|`k8s-k8s-k8s-cilium-shared-ca` ロールによる `cilium-ca` Secret の生成/更新を有効化する|`false`|
+|k8s_cilium_shared_ca_reuse_k8s_ca|`k8s-shared-ca` ロールで生成した共通CAを流用する場合に true を指定する|`false`|
+|k8s_cilium_shared_ca_output_dir|共通CAを自動生成する際の出力ディレクトリ|`/etc/kubernetes/pki/k8s-k8s-cilium-shared-ca`|
+|k8s_cilium_shared_ca_cert_filename|自動生成する証明書ファイル名|`cilium-ca.crt`|
+|k8s_cilium_shared_ca_key_filename|自動生成する秘密鍵ファイル名|`cilium-ca.key`|
+|k8s_cilium_shared_ca_secret_name|生成するSecret名|`cilium-ca`|
+|k8s_cilium_shared_ca_secret_namespace|Secretを配置するNamespace|`kube-system`|
+|k8s_cilium_shared_ca_secret_type|Secretの`type`|`Opaque`|
+|k8s_cilium_shared_ca_secret_cert_key|Secretに格納する証明書のキー名|`ca.crt`|
+|k8s_cilium_shared_ca_secret_key_key|Secretに格納する秘密鍵のキー名|`ca.key`|
+|k8s_cilium_shared_ca_secret_labels|Secretに付与する追加ラベルの辞書|`{"app.kubernetes.io/managed-by": "Helm"}`|
+|k8s_cilium_shared_ca_secret_annotations|Secretに付与する追加アノテーションの辞書|`{"meta.helm.sh/release-name": "cilium", "meta.helm.sh/release-namespace": "kube-system"}`|
+|k8s_cilium_shared_ca_auto_create|共通CAが存在しない場合にロールが自動生成するか|`true`|
+|k8s_cilium_shared_ca_key_size|自動生成する秘密鍵のビット長|`4096`|
+|k8s_cilium_shared_ca_valid_days|自動生成する証明書の有効日数|`3650`|
+|k8s_cilium_shared_ca_digest|証明書生成時に使用するダイジェスト|`sha256`|
+|k8s_cilium_shared_ca_subject|自動生成する証明書のサブジェクト|`/CN=Cilium Cluster Mesh CA`|
+|k8s_cilium_clustermesh_secret_enabled|Cluster Mesh 用 Secret の生成/更新を行うか制御する|`true`|
+|k8s_cilium_clustermesh_secret_name|Cluster Mesh 用 Secret 名|`cilium-clustermesh`|
+|k8s_cilium_clustermesh_secret_namespace|Cluster Mesh 用 Secret を配置する Namespace|`kube-system`|
+|k8s_cilium_clustermesh_secret_cert_key|Cluster Mesh 用 Secret に格納する共通CAデータのキー名|`ca.crt`|
+|k8s_cilium_clustermesh_secret_tls_cert_key|Cluster Mesh 用 Transport Layer Security (`TLS`) サーバ証明書を格納するキー名|`tls.crt`|
+|k8s_cilium_clustermesh_secret_tls_key_key|Cluster Mesh 用 Transport Layer Security (`TLS`) サーバ秘密鍵を格納するキー名|`tls.key`|
+|k8s_cilium_clustermesh_secret_labels|Cluster Mesh 用 Secret に付与する追加ラベルの辞書|`{}`|
+|k8s_cilium_clustermesh_secret_annotations|Cluster Mesh 用 Secret に付与する追加アノテーションの辞書|`{}`|
+|k8s_cilium_clustermesh_tls_subject|Cluster Mesh 用 Transport Layer Security (`TLS`) 証明書のサブジェクト|`/CN=clustermesh-apiserver`|
+|k8s_cilium_clustermesh_tls_san_dns|Subject Alternative Name (`SAN`) に追加する DNS 名リスト|`["clustermesh-apiserver.kube-system.svc.cluster.local", "clustermesh-apiserver.kube-system.svc"]`|
+|k8s_cilium_clustermesh_tls_valid_days|Transport Layer Security (`TLS`) 証明書の有効日数|`3650`|
+|k8s_cilium_clustermesh_tls_cert_filename|生成する Transport Layer Security (`TLS`) 証明書のファイル名|`cilium-clustermesh.crt`|
+|k8s_cilium_clustermesh_tls_key_filename|生成する Transport Layer Security (`TLS`) 秘密鍵のファイル名|`cilium-clustermesh.key`|
+|k8s_cilium_clustermesh_tls_key_size|Transport Layer Security (`TLS`) 秘密鍵のビット長|`4096`|
+| hubble_cli_version | 配布する Hubble CLI のバージョン。未指定の場合は内部整合性異常とみなし処理を停止します。 | `1.18.3` |
+| hubble_cli_github_repo | リリースを参照する GitHub リポジトリ。| `cilium/hubble` |
+| hubble_cli_release_tag_prefix | GitHub タグに付与する接頭辞。| `v` |
+|hubble_cli_download_url | ダウンロード URL。独自ミラーを利用する場合は, `vars/all-config.yml`内でURLを定義し, 規定値を上書きしてください。 | 上記パラメータを組み合わせた文字列|
 
 `cilium_shared_ca_enabled: true` の場合, `k8s-cilium-shared-ca` ロールがコントロールプレインノードで `kubectl apply` を実行し, `kube-system/{{ cilium_shared_ca_secret_name }}` Secret を共通CAから再生成する。`cilium_shared_ca_reuse_k8s_ca: true` を指定する際は, 同一ホストで `k8s-shared-ca` ロールを先に実行し, `k8s_shared_ca_cert_path` / `k8s_shared_ca_key_path` の facts を取得しておくこと。`cilium_shared_ca_reuse_k8s_ca: false` で `cilium_shared_ca_auto_create: true` の場合はロールが `openssl` を用いて証明書/鍵を自動生成し, `cilium_shared_ca_output_dir` に配置する。既存の証明書/鍵をそのまま利用する場合は同ディレクトリへ事前配置するか, `cilium_shared_ca_cert_path` / `cilium_shared_ca_key_path` へフルパスを指定し, 必要に応じて `cilium_shared_ca_auto_create: false` を設定する。
 `cilium_shared_ca_cert_path` / `cilium_shared_ca_key_path` が空文字列でなければ, `cilium_shared_ca_output_dir` + ファイル名よりも優先的に参照される。`cilium_shared_ca_auto_create: false` を指定した場合, ロールは証明書/鍵を生成・更新せず既存ファイルの存在を検証するのみで, 見つからない場合はタスクを失敗させる。
@@ -585,9 +595,13 @@ Multus メタCNI関連の設定を以下に記載する。
 
 |変数名|意味|設定値の例|
 |---|---|---|
-|k8s_multus_version|Multus CNIのバージョン|"4.2.2"|
-|k8s_multus_helm_chart_version|Multus Helm Chartのバージョン|"1.0.1"|
+|k8s_multus_enabled|Multus関連タスクを実行するかどうか。`true` で Multus を導入する|`false`|
+|k8s_multus_version|Multus CNIのバージョン (上流イメージのタグ, 例: `v4.1.9`)|"v4.1.9"|
 |k8s_multus_image_version|Multusコンテナイメージのバージョン|"{{ k8s_multus_version }}"|
+|k8s_multus_image_registry|Multusコンテナイメージを取得するレジストリ|"ghcr.io"|
+|k8s_multus_image_repository|Multusコンテナイメージのリポジトリ|"k8snetworkplumbingwg/multus-cni"|
+|k8s_multus_helm_repo_git_url|Multus Helm チャートの git リポジトリ|"https://github.com/k8snetworkplumbingwg/helm-charts"|
+|k8s_multus_helm_repo_ref|クローンするブランチ/タグ|"main"|
 
 ##### Whereabouts CNI
 
@@ -595,9 +609,14 @@ Whereabouts CNI関連の設定を以下に記載する。
 
 |変数名|意味|設定値の例|
 |---|---|---|
+|k8s_whereabouts_enabled|Whereabouts関連タスクを実行するかどうか。`true` で Whereabouts を導入する|`false`|
 |k8s_whereabouts_version|Whereabouts CNIのバージョン|"0.9.2"|
 |k8s_whereabouts_helm_chart_version|Whereabouts Helm Chartのバージョン|"{{ k8s_whereabouts_version }}"|
 |k8s_whereabouts_image_version|Whereaboutsコンテナイメージのバージョン|"{{ k8s_whereabouts_version }}"|
+|k8s_whereabouts_ipv4_range_start|セカンダリネットワークのIPv4アドレス範囲の開始アドレス|"172.22.0.10"|
+|k8s_whereabouts_ipv4_range_end|セカンダリネットワークのIPv4アドレス範囲の終了アドレス|"172.22.0.50"|
+|k8s_whereabouts_ipv6_range_start|セカンダリネットワークのIPv6アドレス範囲の開始アドレス (IPv6 を利用する場合)|"fd00:100::10"|
+|k8s_whereabouts_ipv6_range_end|セカンダリネットワークのIPv6アドレス範囲の終了アドレス (IPv6 を利用する場合)|"fd00:100::50"|
 
 #### 複数のコントロールプレインの操作
 

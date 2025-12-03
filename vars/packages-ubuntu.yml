@@ -63,6 +63,7 @@ k8s_containerd_packages:
   - containerd
 
 k8s_common_packages:
+  - git
   - kubectl
   - kubeadm
   - kubelet

@@ -6,17 +6,17 @@
 # Cluster Mesh 用 TLS シークレットの生成と適用を全体で制御する
 - name: Manage Cilium Cluster Mesh TLS secret
   when:
-    - cilium_shared_ca_enabled | bool
-    - cilium_clustermesh_secret_enabled | bool
+    - k8s_cilium_shared_ca_enabled | bool
+    - k8s_cilium_clustermesh_secret_enabled | bool
   block:
     # 共通CAのパスと生成済み TLS 証明書/鍵のパスを決定する
     - name: Resolve shared CA paths for Cluster Mesh
       set_fact:
-        _clustermesh_ca_cert_path: "{{ _cilium_ca_cert_path if (_cilium_ca_cert_path is defined and (_cilium_ca_cert_path | string | length) > 0) else (cilium_shared_ca_cert_path if (cilium_shared_ca_cert_path | string | length) > 0 else cilium_shared_ca_output_dir ~ '/' ~ cilium_shared_ca_cert_filename) }}"
-        _clustermesh_ca_key_path: "{{ _cilium_ca_key_path if (_cilium_ca_key_path is defined and (_cilium_ca_key_path | string | length) > 0) else (cilium_shared_ca_key_path if (cilium_shared_ca_key_path | string | length) > 0 else cilium_shared_ca_output_dir ~ '/' ~ cilium_shared_ca_key_filename) }}"
-        _clustermesh_tls_cert_path: "{{ cilium_shared_ca_output_dir }}/{{ cilium_clustermesh_tls_cert_filename }}"
-        _clustermesh_tls_key_path: "{{ cilium_shared_ca_output_dir }}/{{ cilium_clustermesh_tls_key_filename }}"
-        _clustermesh_tls_serial_path: "{{ cilium_shared_ca_output_dir }}/cilium-clustermesh.srl"
+        _clustermesh_ca_cert_path: "{{ _cilium_ca_cert_path if (_cilium_ca_cert_path is defined and (_cilium_ca_cert_path | string | length) > 0) else (k8s_cilium_shared_ca_cert_path if (k8s_cilium_shared_ca_cert_path | string | length) > 0 else k8s_cilium_shared_ca_output_dir ~ '/' ~ k8s_cilium_shared_ca_cert_filename) }}"
+        _clustermesh_ca_key_path: "{{ _cilium_ca_key_path if (_cilium_ca_key_path is defined and (_cilium_ca_key_path | string | length) > 0) else (k8s_cilium_shared_ca_key_path if (k8s_cilium_shared_ca_key_path | string | length) > 0 else k8s_cilium_shared_ca_output_dir ~ '/' ~ k8s_cilium_shared_ca_key_filename) }}"
+        _clustermesh_tls_cert_path: "{{ k8s_cilium_shared_ca_output_dir }}/{{ k8s_cilium_clustermesh_tls_cert_filename }}"
+        _clustermesh_tls_key_path: "{{ k8s_cilium_shared_ca_output_dir }}/{{ k8s_cilium_clustermesh_tls_key_filename }}"
+        _clustermesh_tls_serial_path: "{{ k8s_cilium_shared_ca_output_dir }}/cilium-clustermesh.srl"
 
     # 共通CA証明書が存在するか検査する
     - name: Stat shared CA certificate for Cluster Mesh
@@ -46,7 +46,7 @@
     - name: Ensure Cluster Mesh TLS output directory exists
       become: true
       file:
-        path: "{{ cilium_shared_ca_output_dir }}"
+        path: "{{ k8s_cilium_shared_ca_output_dir }}"
         state: directory
         owner: root
         group: root
@@ -56,7 +56,7 @@
     - name: Generate Cluster Mesh TLS private key if absent
       become: true
       command:
-        cmd: openssl genrsa -out {{ _clustermesh_tls_key_path }} {{ cilium_clustermesh_tls_key_size }}
+        cmd: openssl genrsa -out {{ _clustermesh_tls_key_path }} {{ k8s_cilium_clustermesh_tls_key_size }}
       args:
         creates: "{{ _clustermesh_tls_key_path }}"
 
@@ -121,7 +121,7 @@
         # 共通CAで CSR を署名し TLS 証明書を発行する
         - name: Sign Cluster Mesh TLS certificate
           command:
-            cmd: openssl x509 -req -in {{ _clustermesh_tmp.path }}/cilium-clustermesh.csr -CA {{ _clustermesh_ca_cert_path }} -CAkey {{ _clustermesh_ca_key_path }} -CAserial {{ _clustermesh_tls_serial_path }} -out {{ _clustermesh_tls_cert_path }} -days {{ cilium_clustermesh_tls_valid_days }} -sha256 -extensions v3_req -extfile {{ _clustermesh_tmp.path }}/openssl.cnf
+            cmd: openssl x509 -req -in {{ _clustermesh_tmp.path }}/cilium-clustermesh.csr -CA {{ _clustermesh_ca_cert_path }} -CAkey {{ _clustermesh_ca_key_path }} -CAserial {{ _clustermesh_tls_serial_path }} -out {{ _clustermesh_tls_cert_path }} -days {{ k8s_cilium_clustermesh_tls_valid_days }} -sha256 -extensions v3_req -extfile {{ _clustermesh_tmp.path }}/openssl.cnf
 
         # 一時作業ディレクトリを削除して後片付けする
         - name: Remove temporary workspace for Cluster Mesh certificate

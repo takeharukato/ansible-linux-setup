@@ -6,7 +6,7 @@
 
 - `k8s_shared_ca_replace_kube_ca: true` を指定した場合の kube-apiserver / controller-manager / scheduler 等コアコンポーネント証明書の再発行時に使用
 - `roles/k8s-ctrlplane/tasks/config-cluster-mesh-tools.yml` が, クラスタ証明書を埋め込んだ`kubeconfig`を生成する処理(`create-embedded-kubeconfig.py --shared-ca`) 内で, `kubeconfig`に埋め込むクラスタ証明書として使用
-- Cilium Cluster Mesh 用 `cilium-ca` Kubernetes 上で機密情報を保持するリソース(`Secret`) を発行する `k8s-cilium-shared-ca` ロールが共通CAとして参照 (`cilium_shared_ca_enabled: true` かつ `cilium_shared_ca_reuse_k8s_ca: true` を指定した場合に, この共通CAで `cilium-ca` Kubernetes 上で機密情報を保持するリソース(`Secret`) を生成し, Cluster Mesh で相互接続する複数 Kubernetes クラスタ間の mTLS を同一発行元で統一する目的で使用されます)
+- Cilium Cluster Mesh 用 `cilium-ca` Kubernetes 上で機密情報を保持するリソース(`Secret`) を発行する `k8s-cilium-shared-ca` ロールが共通CAとして参照 (`k8s_cilium_shared_ca_enabled: true` かつ `k8s_cilium_shared_ca_reuse_k8s_ca: true` を指定した場合に, この共通CAで `cilium-ca` Kubernetes 上で機密情報を保持するリソース(`Secret`) を生成し, Cluster Mesh で相互接続する複数 Kubernetes クラスタ間の mTLS を同一発行元で統一する目的で使用されます)
 
 `enable_create_k8s_ca` と `k8s_common_ca` の組み合わせで以下のように動作します。
 

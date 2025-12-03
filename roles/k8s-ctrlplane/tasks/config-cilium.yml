@@ -80,7 +80,7 @@
 - name: Ensure Cilium shared CA secret is up to date
   include_role:
     name: k8s-cilium-shared-ca
-  when: cilium_shared_ca_enabled | default(false)
+  when: k8s_cilium_shared_ca_enabled | default(false)
   tags: k8s-cilium-shared-ca
 
 # Ciliumインストール用のHelmのvaluesファイルを作成
