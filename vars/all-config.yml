@@ -465,30 +465,26 @@ k8s_operator_github_key_list:
 k8s_operator_authorized_key_list: []
 
 #
-# Cilium
-#
-# Cilium CNIのバージョン
-k8s_cilium_version: "1.16.0"
-
-#
 # Helm
 #
 # Helmのバージョン
 # 未指定時, または, "latest" を指定すると
 # 最新バージョンをインストールする
 # k8s_helm_version: "3.19.0"
+
+#
+# Cilium
+#
+# Cilium CNIのバージョン
+k8s_cilium_version: "1.16.0"
+
 #
 # Multus CNI
 #
 # Multus CNIを有効にする
 k8s_multus_enabled: true
-# Multus CNIのバージョン (上流イメージのタグを指定, 例: v4.1.9)
-k8s_multus_version: "v4.1.9"
-# Multusコンテナイメージのバージョン
-k8s_multus_image_version: "{{ k8s_multus_version }}"
-# Multusコンテナイメージのレジストリとリポジトリ (上流公式)
-k8s_multus_image_registry: "ghcr.io"
-k8s_multus_image_repository: "k8snetworkplumbingwg/multus-cni"
+# Multus CNIのバージョン (上流イメージのタグを指定, 例: v4.2.3)
+k8s_multus_version: "v4.2.3"
 
 #
 # Whereabouts CNI

@@ -508,12 +508,9 @@ Kubernetes (以下K8sと記す)関連の設定を以下に記載する。
 |k8s_reserved_system_cpus_default|K8sのシステムCentral Processing Unit ( CPU ) 予約範囲。未定義時は, システム用CPUを予約しない。|"0-1"|
 |k8s_worker_enable_nodeport|NodePortによるサービスネットワーク公開を行う場合は, trueに設定(将来対応)|false|
 |k8s_worker_nodeport_range|NodePortの範囲|"30000-32767"|
-| `k8s_operator_authorized_key_list` | K8sオペレータアカウント(`kube`)に追加で登録したい公開鍵のリスト。各要素はGitHub 取得分と合わせてソート, 重複排除され, K8sオペレータアカウント(`kube`)の公開鍵に反映されます。| `[]` |
-| `k8s_operator_github_key_list` | K8sオペレータアカウント(`kube`)の公開鍵をGitHubから取得する際の, Githubアカウントを設定するマッピングのリストです。`[ { github: '<アカウント名>' } ]` のようなリストを設定することで, `https://github.com/<account>.keys` から鍵を取得し, K8sオペレータアカウント(`kube`)の公開鍵に追加します。取得した公開鍵は, `k8s_operator_authorized_key_list`の設定値と合わせてソート, 重複排除され, K8sオペレータアカウント(`kube`)の公開鍵に反映されます。| `[]` |
-| `hubble_cli_version` | 配布する Hubble CLI のバージョン。未指定の場合は内部整合性異常とみなし処理を停止します。 | `1.18.3` |
-| `hubble_cli_github_repo` | リリースを参照する GitHub リポジトリ。| `cilium/hubble` |
-| `hubble_cli_release_tag_prefix` | GitHub タグに付与する接頭辞。| `v` |
-|`hubble_cli_download_url` | ダウンロード URL。独自ミラーを利用する場合は, `vars/all-config.yml`内でURLを定義し, 規定値を上書きしてください。 | 上記パラメータを組み合わせた文字列|
+| k8s_operator_authorized_key_list | K8sオペレータアカウント(`kube`)に追加で登録したい公開鍵のリスト。各要素はGitHub 取得分と合わせてソート, 重複排除され, K8sオペレータアカウント(`kube`)の公開鍵に反映されます。| `[]` |
+| k8s_operator_github_key_list | K8sオペレータアカウント(`kube`)の公開鍵をGitHubから取得する際の, Githubアカウントを設定するマッピングのリストです。`[ { github: '<アカウント名>' } ]` のようなリストを設定することで, `https://github.com/<account>.keys` から鍵を取得し, K8sオペレータアカウント(`kube`)の公開鍵に追加します。取得した公開鍵は, `k8s_operator_authorized_key_list`の設定値と合わせてソート, 重複排除され, K8sオペレータアカウント(`kube`)の公開鍵に反映されます。| `[]` |
+| k8s_helm_completion_enabled | `true` | `true` の場合, Helm の bash / zsh 補完ファイルを生成・配置します。|
 
 共通CA関連の設定値 (`enable_create_k8s_ca`, `k8s_common_ca`, `k8s_shared_ca_output_dir`, `k8s_shared_ca_replace_kube_ca`) を有効にすると, `k8s-shared-ca` ロールが共通CAの生成/取得と配布を行い, `k8s-ctrlplane` ロールは `kubeadm reset` 後に当該共通CAを `/etc/kubernetes/pki/shared-ca/` へ復元した上で `kubeadm init` を実行する。`k8s_shared_ca_replace_kube_ca: true` の場合, API サーバや kube-controller-manager 等の証明書は共通CAで再発行される。 ワーカーノードでは `kubeadm reset` / `kubeadm join` を併せて実施して全ノードが新しいルート共通CAを信頼する状態へ更新する。
 このため, クラスタ再構築時はコントロールプレインとワーカーノードの双方を再構築すること。
@@ -584,10 +581,10 @@ Cilium Container Network Interface (`CNI`) 関連の設定を以下に記載す�
 | hubble_cli_release_tag_prefix | GitHub タグに付与する接頭辞。| `v` |
 |hubble_cli_download_url | ダウンロード URL。独自ミラーを利用する場合は, `vars/all-config.yml`内でURLを定義し, 規定値を上書きしてください。 | 上記パラメータを組み合わせた文字列|
 
-`cilium_shared_ca_enabled: true` の場合, `k8s-cilium-shared-ca` ロールがコントロールプレインノードで `kubectl apply` を実行し, `kube-system/{{ cilium_shared_ca_secret_name }}` Secret を共通CAから再生成する。`cilium_shared_ca_reuse_k8s_ca: true` を指定する際は, 同一ホストで `k8s-shared-ca` ロールを先に実行し, `k8s_shared_ca_cert_path` / `k8s_shared_ca_key_path` の facts を取得しておくこと。`cilium_shared_ca_reuse_k8s_ca: false` で `cilium_shared_ca_auto_create: true` の場合はロールが `openssl` を用いて証明書/鍵を自動生成し, `cilium_shared_ca_output_dir` に配置する。既存の証明書/鍵をそのまま利用する場合は同ディレクトリへ事前配置するか, `cilium_shared_ca_cert_path` / `cilium_shared_ca_key_path` へフルパスを指定し, 必要に応じて `cilium_shared_ca_auto_create: false` を設定する。
-`cilium_shared_ca_cert_path` / `cilium_shared_ca_key_path` が空文字列でなければ, `cilium_shared_ca_output_dir` + ファイル名よりも優先的に参照される。`cilium_shared_ca_auto_create: false` を指定した場合, ロールは証明書/鍵を生成・更新せず既存ファイルの存在を検証するのみで, 見つからない場合はタスクを失敗させる。
+`k8s_cilium_shared_ca_enabled: true` の場合, `k8s-cilium-shared-ca` ロールがコントロールプレインノードで `kubectl apply` を実行し, `kube-system/{{ k8s_cilium_shared_ca_secret_name }}` Secret を共通CAから再生成する。`k8s_cilium_shared_ca_reuse_k8s_ca: true` を指定する際は, 同一ホストで `k8s-shared-ca` ロールを先に実行し, `k8s_shared_ca_cert_path` / `k8s_shared_ca_key_path` の facts を取得しておくこと。`k8s_cilium_shared_ca_reuse_k8s_ca: false` で `k8s_cilium_shared_ca_auto_create: true` の場合はロールが `openssl` を用いて証明書/鍵を自動生成し, `k8s_cilium_shared_ca_output_dir` に配置する。既存の証明書/鍵をそのまま利用する場合は同ディレクトリへ事前配置するか, `k8s_cilium_shared_ca_cert_path` / `k8s_cilium_shared_ca_key_path` へフルパスを指定し, 必要に応じて `k8s_cilium_shared_ca_auto_create: false` を設定する。
+`k8s_cilium_shared_ca_cert_path` / `k8s_cilium_shared_ca_key_path` が空文字列でなければ, `k8s_cilium_shared_ca_output_dir` + ファイル名よりも優先的に参照される。`k8s_cilium_shared_ca_auto_create: false` を指定した場合, ロールは証明書/鍵を生成・更新せず既存ファイルの存在を検証するのみで, 見つからない場合はタスクを失敗させる。
 
-Cluster Mesh 用 Secret (`cilium_clustermesh_secret_enabled: true`) は共通CAで署名した Transport Layer Security (`TLS`) 証明書と秘密鍵, および共通CA証明書を `cilium_clustermesh_secret_*` 系変数の指示に従って保存する。Subject Alternative Name (`SAN`) は既定で `clustermesh-apiserver` Service 名を含むため, クラスタ固有の Service 名を利用する場合は `cilium_clustermesh_tls_san_dns` を上書きして接続先に合わせる。
+Cluster Mesh 用 Secret (`k8s_cilium_clustermesh_secret_enabled: true`) は共通CAで署名した Transport Layer Security (`TLS`) 証明書と秘密鍵, および共通CA証明書を `cilium_clustermesh_secret_*` 系変数の指示に従って保存する。Subject Alternative Name (`SAN`) は既定で `clustermesh-apiserver` Service 名を含むため, クラスタ固有の Service 名を利用する場合は `k8s_cilium_clustermesh_tls_san_dns` を上書きして接続先に合わせる。
 
 ##### Multus メタCNI
 
@@ -596,12 +593,7 @@ Multus メタCNI関連の設定を以下に記載する。
 |変数名|意味|設定値の例|
 |---|---|---|
 |k8s_multus_enabled|Multus関連タスクを実行するかどうか。`true` で Multus を導入する|`false`|
-|k8s_multus_version|Multus CNIのバージョン (上流イメージのタグ, 例: `v4.1.9`)|"v4.1.9"|
-|k8s_multus_image_version|Multusコンテナイメージのバージョン|"{{ k8s_multus_version }}"|
-|k8s_multus_image_registry|Multusコンテナイメージを取得するレジストリ|"ghcr.io"|
-|k8s_multus_image_repository|Multusコンテナイメージのリポジトリ|"k8snetworkplumbingwg/multus-cni"|
-|k8s_multus_helm_repo_git_url|Multus Helm チャートの git リポジトリ|"https://github.com/k8snetworkplumbingwg/helm-charts"|
-|k8s_multus_helm_repo_ref|クローンするブランチ/タグ|"main"|
+|k8s_multus_version|Multus CNIのバージョン (上流イメージのタグ, 例: `v4.2.3`)|"v4.2.3"|
 
 ##### Whereabouts CNI
 
@@ -628,13 +620,13 @@ Whereabouts CNI関連の設定を以下に記載する。
 
 | ファイル | 配置ホスト | 所有者/グループ | 権限 | 含まれる情報 |
 |---|---|---|---|---|
-|`~kube/.kube/cluster*-embedded.kubeconfig`|コントロールプレインのみ|`kube:kube`|`0600`|各コントロールプレイン専用の証明書を内包した `kubeconfig`。共通CA証明書 `/etc/kubernetes/pki/shared-ca/cluster-mesh-ca.crt` (共通CA証明書未使用時は `/etc/kubernetes/pki/ca.crt`), および `/etc/kubernetes/admin.conf` が保持する管理者クライアント証明書と秘密鍵, クラスタ定義 (`clusters`) とユーザー定義 (`users`) とを内包する。統合 `kubeconfig` (`merged-kubeconfig.conf`)の生成に使用される。|
-|`~kube/.kube/ca-embedded-admin.conf`|コントロールプレインのみ|`kube:kube`|`0600`|`/etc/kubernetes/admin.conf` に含まれるクラスタCA証明書, 共通CA証明書 ( `/etc/kubernetes/pki/shared-ca/cluster-mesh-ca.crt` ( 共通CA証明書未使用時は `/etc/kubernetes/pki/ca.crt` ), 管理者クライアント証明書, 管理者クライアント秘密鍵とを内包する。|
-|`~kube/.kube/merged-kubeconfig.conf`|全ノード|`kube:kube`|`0600`| 全コントロールプレインのコンテキスト (`kubernetes-admin@<Kubernetes API エンドポイントを識別するための名前>`) を統合した統合 `kubeconfig`。クラスタ定義 (`clusters`), ユーザー定義 (`users`), コンテキスト定義 (`contexts`) をまとめて保持する。|
-|`~kube/.kube/config` (シンボリックリンク)|全ノード|`kube:kube`|`0600`|`kubectl` を`--kubeconfig`オプション無しに, 統合 `kubeconfig`を使用して実行するためのシンボリックリンク。|
-|`~kube/.kube/config-default`|全ノード|`kube:kube`|`0600`|`kubeadm init` 実行時の`kubeconfig`ファイル (`~/.kube/config`) を保存するためのバックアップファイル。統合 `kubeconfig`へのシンボリックリンクを`~/.kube/config`として作成する際に, 既存の `~/.kube/config` が通常ファイルとして存在していた場合にのみ作成される。|
-|`/etc/kubernetes/ca-embedded-admin.conf`|コントロールプレインのみ|`root:root`|`0600`|root 向けに配置する証明書埋め込み `kubeconfig` ( クラスタCA証明書, 共通CA証明書 ( `/etc/kubernetes/pki/shared-ca/cluster-mesh-ca.crt`, 共通CA証明書未使用時は `/etc/kubernetes/pki/ca.crt` ), 管理者クライアント証明書, 管理者クライアント秘密鍵とを内包する。root 権限での操作時に使用する。|
-|`/etc/kubernetes/merged-kubeconfig.conf`|全ノード|`root:root`|`0600`|全コントロールプレインのコンテキスト (`kubernetes-admin@<Kubernetes API エンドポイントを識別するための名前>`) を統合した統合 `kubeconfig`。クラスタ定義 (`clusters`), ユーザー定義 (`users`), コンテキスト定義 (`contexts`) をまとめて保持する。`sudo KUBECONFIG=/etc/kubernetes/merged-kubeconfig.conf kubectl` を実行することで利用する。|
+|~kube/.kube/cluster*-embedded.kubeconfig|コントロールプレインのみ|`kube:kube`|`0600`|各コントロールプレイン専用の証明書を内包した `kubeconfig`。共通CA証明書 `/etc/kubernetes/pki/shared-ca/cluster-mesh-ca.crt` (共通CA証明書未使用時は `/etc/kubernetes/pki/ca.crt`), および `/etc/kubernetes/admin.conf` が保持する管理者クライアント証明書と秘密鍵, クラスタ定義 (`clusters`) とユーザー定義 (`users`) とを内包する。統合 `kubeconfig` (`merged-kubeconfig.conf`)の生成に使用される。|
+|~kube/.kube/ca-embedded-admin.conf|コントロールプレインのみ|`kube:kube`|`0600`|`/etc/kubernetes/admin.conf` に含まれるクラスタCA証明書, 共通CA証明書 ( `/etc/kubernetes/pki/shared-ca/cluster-mesh-ca.crt` ( 共通CA証明書未使用時は `/etc/kubernetes/pki/ca.crt` ), 管理者クライアント証明書, 管理者クライアント秘密鍵とを内包する。|
+|~kube/.kube/merged-kubeconfig.conf|全ノード|`kube:kube`|`0600`| 全コントロールプレインのコンテキスト (`kubernetes-admin@<Kubernetes API エンドポイントを識別するための名前>`) を統合した統合 `kubeconfig`。クラスタ定義 (`clusters`), ユーザー定義 (`users`), コンテキスト定義 (`contexts`) をまとめて保持する。|
+|~kube/.kube/config (シンボリックリンク)|全ノード|`kube:kube`|`0600`|`kubectl` を`--kubeconfig`オプション無しに, 統合 `kubeconfig`を使用して実行するためのシンボリックリンク。|
+|~kube/.kube/config-default|全ノード|`kube:kube`|`0600`|`kubeadm init` 実行時の`kubeconfig`ファイル (`~/.kube/config`) を保存するためのバックアップファイル。統合 `kubeconfig`へのシンボリックリンクを`~/.kube/config`として作成する際に, 既存の `~/.kube/config` が通常ファイルとして存在していた場合にのみ作成される。|
+|/etc/kubernetes/ca-embedded-admin.conf|コントロールプレインのみ|`root:root`|`0600`|root 向けに配置する証明書埋め込み `kubeconfig` ( クラスタCA証明書, 共通CA証明書 ( `/etc/kubernetes/pki/shared-ca/cluster-mesh-ca.crt`, 共通CA証明書未使用時は `/etc/kubernetes/pki/ca.crt` ), 管理者クライアント証明書, 管理者クライアント秘密鍵とを内包する。root 権限での操作時に使用する。|
+|/etc/kubernetes/merged-kubeconfig.conf|全ノード|`root:root`|`0600`|全コントロールプレインのコンテキスト (`kubernetes-admin@<Kubernetes API エンドポイントを識別するための名前>`) を統合した統合 `kubeconfig`。クラスタ定義 (`clusters`), ユーザー定義 (`users`), コンテキスト定義 (`contexts`) をまとめて保持する。`sudo KUBECONFIG=/etc/kubernetes/merged-kubeconfig.conf kubectl` を実行することで利用する。|
 
 なお, 制御ノード側では, `~/.ansible/kubeconfig-cache/` (権限 `0700`) に最新の 統合 `kubeconfig` (`merged-kubeconfig.conf`) をキャッシュし, ワーカーノード配布時に再利用する。
 
@@ -657,10 +649,10 @@ k8sctrlplane02.local
 
 |ファイル|説明|取得コマンド例|
 |---|---|---|
-|`~kube/.kube/cluster*-embedded.kubeconfig`|各コントロールプレイン専用の証明書を内包した `kubeconfig`|`pslurp -h ctrlplane-hosts.txt -l kube -L dest "~/.kube/cluster*-embedded.kubeconfig" .`|
-|`~kube/.kube/ca-embedded-admin.conf`|管理者クライアント証明書と秘密鍵を内包した `kubeconfig`|`pslurp -h ctrlplane-hosts.txt -l kube -L dest "~/.kube/ca-embedded-admin.conf" .`|
-|`~kube/.kube/merged-kubeconfig.conf`|全コントロールプレインの`kubeconfig`を統合した統合 `kubeconfig`|`pslurp -h ctrlplane-hosts.txt -l kube -L dest "~/.kube/merged-kubeconfig.conf" .`|
-|`~kube/.kube/config-default`|`kubeadm init` 実行時の`kubeconfig`ファイル (`~/.kube/config`) を保存するための, バックアップファイル。|`pslurp -h ctrlplane-hosts.txt -l kube -L dest "~/.kube/config-default" .`|
+|~kube/.kube/cluster*-embedded.kubeconfig|各コントロールプレイン専用の証明書を内包した `kubeconfig`|`pslurp -h ctrlplane-hosts.txt -l kube -L dest "~/.kube/cluster*-embedded.kubeconfig" .`|
+|~kube/.kube/ca-embedded-admin.conf|管理者クライアント証明書と秘密鍵を内包した `kubeconfig`|`pslurp -h ctrlplane-hosts.txt -l kube -L dest "~/.kube/ca-embedded-admin.conf" .`|
+|~kube/.kube/merged-kubeconfig.conf|全コントロールプレインの`kubeconfig`を統合した統合 `kubeconfig`|`pslurp -h ctrlplane-hosts.txt -l kube -L dest "~/.kube/merged-kubeconfig.conf" .`|
+|~kube/.kube/config-default|`kubeadm init` 実行時の`kubeconfig`ファイル (`~/.kube/config`) を保存するための, バックアップファイル。|`pslurp -h ctrlplane-hosts.txt -l kube -L dest "~/.kube/config-default" .`|
 
 ###### Debian 系 の場合
 
@@ -668,10 +660,10 @@ Debian 系では `pslurp` が `parallel-slurp` という名称で提供される
 
 |ファイル|説明|取得コマンド例|
 |---|---|---|
-|`~kube/.kube/cluster*-embedded.kubeconfig`|各コントロールプレイン専用の証明書を内包した `kubeconfig`|`parallel-slurp -h ctrlplane-hosts.txt -l kube -L dest "~/.kube/cluster*-embedded.kubeconfig" .`|
-|`~kube/.kube/ca-embedded-admin.conf`|管理者クライアント証明書と秘密鍵を内包した `kubeconfig`|`parallel-slurp -h ctrlplane-hosts.txt -l kube -L dest "~/.kube/ca-embedded-admin.conf" .`|
-|`~kube/.kube/merged-kubeconfig.conf`|全コントロールプレインの`kubeconfig`を統合した統合 `kubeconfig`|`parallel-slurp -h ctrlplane-hosts.txt -l kube -L dest "~/.kube/merged-kubeconfig.conf" .`|
-|`~kube/.kube/config-default`|`kubeadm init` 実行時の`kubeconfig`ファイル (`~/.kube/config`) を保存するための, バックアップファイル。|`parallel-slurp -h ctrlplane-hosts.txt -l kube -L dest "~/.kube/config-default" .`|
+|~kube/.kube/cluster*-embedded.kubeconfig|各コントロールプレイン専用の証明書を内包した `kubeconfig`|`parallel-slurp -h ctrlplane-hosts.txt -l kube -L dest "~/.kube/cluster*-embedded.kubeconfig" .`|
+|~kube/.kube/ca-embedded-admin.conf|管理者クライアント証明書と秘密鍵を内包した `kubeconfig`|`parallel-slurp -h ctrlplane-hosts.txt -l kube -L dest "~/.kube/ca-embedded-admin.conf" .`|
+|~kube/.kube/merged-kubeconfig.conf|全コントロールプレインの`kubeconfig`を統合した統合 `kubeconfig`|`parallel-slurp -h ctrlplane-hosts.txt -l kube -L dest "~/.kube/merged-kubeconfig.conf" .`|
+|~kube/.kube/config-default|`kubeadm init` 実行時の`kubeconfig`ファイル (`~/.kube/config`) を保存するための, バックアップファイル。|`parallel-slurp -h ctrlplane-hosts.txt -l kube -L dest "~/.kube/config-default" .`|
 
 ##### 共通認証局(Certificate Authority)証明書の確認方法
 
