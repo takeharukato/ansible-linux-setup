@@ -27,7 +27,7 @@ Kubernetes コントロールプレーンノードを構築するロールです
 | `k8s_kubeadm_config_store` | `{{ ansible_home_dir }}/kubeadm` | `ctrlplane-kubeadm.config.yml` や CNI 用 values ファイルのルートディレクトリ。|
 | `k8s_kubeadm_ignore_preflight_errors_arg` | `--ignore-preflight-errors=all` | `kubeadm init` 実行時に無視する preflight エラーを制御。|
 | `k8s_pod_ipv4_network_cidr` / `k8s_pod_ipv6_network_cidr` | 必須 | Pod ネットワーク CIDR。kubeadm, Cilium, Whereabouts で参照。|
-| `k8s_pod_ipv4_service_subnet` / `k8s_pod_ipv6_service_subnet` | 必須 | Service CIDR。 k8s_pod_ipv6_service_subnet	必須API ファミリと順序を揃えて kubeadm テンプレートで使用。|
+| `k8s_pod_ipv4_service_subnet` / `k8s_pod_ipv6_service_subnet` | 必須 | Service CIDR。 API ファミリと順序を揃えて kubeadm テンプレートで使用。|
 | `k8s_helm_completion_enabled` | `true` | `true` の場合, Helm の bash / zsh 補完ファイルを生成・配置します。|
 | `k8s_cilium_version` | 必須 | Cilium のベースバージョン。Helm チャートやイメージタグの既定値に参照されます。|
 | `k8s_cilium_helm_chart_version` | `{{ k8s_cilium_version }}` | 導入する Cilium チャートのバージョン。|
