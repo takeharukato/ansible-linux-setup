@@ -16,10 +16,13 @@
 - include_tasks: config-k8sctrlplane-firewall.yml
   when: enable_firewall | default(false,true)
 - include_tasks: config-helm.yml
+- include_tasks: config-k8s-helm-shell-completion.yml
 - include_tasks: config-k8s-cilium-shell-completion.yml
 - include_tasks: config.yml
 - include_tasks: config-cilium.yml
 - include_tasks: config-multus.yml
+  when: k8s_multus_enabled | default(false)
 - include_tasks: config-whereabouts.yml
+  when: k8s_whereabouts_enabled | default(false)
 - include_tasks: config-cluster-mesh-tools.yml
 - include_tasks: package-netgauge.yml

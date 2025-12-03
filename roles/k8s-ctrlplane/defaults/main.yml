@@ -75,6 +75,11 @@ k8s_helm_archive_name: "helm-v{{ k8s_helm_version }}-linux-amd64.tar.gz"
 k8s_helm_download_url: "https://get.helm.sh/{{ k8s_helm_archive_name }}"
 # HelmのチェックサムダウンロードURL
 k8s_helm_checksum_download_url: "{{ k8s_helm_download_url }}.sha256sum"
+# Helm 最新版インストールスクリプトのURL
+k8s_helm_install_script_url: "https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3"
+# Helm用のコマンド補完設定を有効化する
+k8s_helm_cli_completion_enabled: true
+
 # Kubernetes Cilium, Multus, Whereabouts 各種設定ディレクトリパス
 k8s_cilium_config_dir: "{{ k8s_kubeadm_config_store }}/cilium"
 k8s_multus_config_dir: "{{ k8s_kubeadm_config_store }}/multus"
@@ -83,9 +88,8 @@ k8s_whereabouts_config_dir: "{{ k8s_kubeadm_config_store }}/whereabouts"
 # 共通CAで Kubernetes のルートCAを置き換えるか
 k8s_shared_ca_replace_kube_ca: false
 
-# Cilium用のコマンド補完設定を有効化する
-cilium_completion_enabled: true
-
+# Cilium CLI用のコマンド補完設定を有効化する
+k8s_cilium_cli_completion_enabled: true
 # Cilium CLI アーカイブ名とダウンロードURL
 k8s_cilium_cli_archive_name: "cilium-linux-amd64.tar.gz"
 k8s_cilium_cli_download_url: "https://github.com/cilium/cilium-cli/releases/latest/download/{{ k8s_cilium_cli_archive_name }}"
