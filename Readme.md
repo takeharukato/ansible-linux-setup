@@ -496,6 +496,7 @@ Kubernetes (以下K8sと記す)関連の設定を以下に記載する。
 |変数名|意味|設定値の例|
 |---|---|---|
 |k8s_major_minor|K8s バージョン (先頭にvをつけないことに注意)|"1.31"|
+| kubectl_completion_enabled | `true` の場合, `kubectl` の bash / zsh 補完ファイルを生成・配置します。| `true` |
 |enable_create_k8s_ca|共通の認証局(`Certificate Authority`)証明書 (`CA`) ( 以下, 共通CA )をロールで生成/再利用する (false の場合は `k8s_common_ca` を必須とする)|true|
 |k8s_common_ca|事前に用意した共通CA (`cluster-mesh-ca.crt/.key`) を格納したディレクトリの絶対パス|""|
 |k8s_shared_ca_output_dir|共通CAをノード内に展開するディレクトリ|"/etc/kubernetes/pki/shared-ca"|
