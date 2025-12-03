@@ -81,6 +81,17 @@ hubble_cli_zsh_completion_path_rhel: "/usr/share/zsh/site-functions/_hubble"
 hubble_cli_zsh_completion_path: "{{ (ansible_facts.os_family == 'Debian') | ternary(hubble_cli_zsh_completion_path_debian, hubble_cli_zsh_completion_path_rhel) }}"
 
 ##################################################################################
+# Helm シェル補完
+##################################################################################
+helm_bash_completion_path_debian: "/etc/bash_completion.d/helm"
+helm_bash_completion_path_rhel: "/etc/bash_completion.d/helm"
+helm_bash_completion_path: "{{ (ansible_facts.os_family == 'Debian') | ternary(helm_bash_completion_path_debian, helm_bash_completion_path_rhel) }}"
+
+helm_zsh_completion_path_debian: "/usr/share/zsh/vendor-completions/_helm"
+helm_zsh_completion_path_rhel: "/usr/share/zsh/site-functions/_helm"
+helm_zsh_completion_path: "{{ (ansible_facts.os_family == 'Debian') | ternary(helm_zsh_completion_path_debian, helm_zsh_completion_path_rhel) }}"
+
+##################################################################################
 # Cilium シェル補完
 ##################################################################################
 cilium_bash_completion_path_debian: "/etc/bash_completion.d/cilium"

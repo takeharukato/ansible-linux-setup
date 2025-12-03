@@ -11,7 +11,7 @@
 
 - name: Install Helm latest version
   shell: |
-    curl -fsSL https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
+    curl -fsSL {{ k8s_helm_install_script_url }} | bash
   become: true
   when: k8s_helm_version is not defined or k8s_helm_version == 'latest'
 
@@ -30,10 +30,11 @@
 
 - name: Install CiliumCLI
   shell: |
-    curl -fsSL --remote-name-all https://github.com/cilium/cilium-cli/releases/latest/download/cilium-linux-amd64.tar.gz{,.sha256sum}
-    sha256sum --check cilium-linux-amd64.tar.gz.sha256sum
-    tar xzvfC cilium-linux-amd64.tar.gz /usr/local/bin
-    rm cilium-linux-amd64.tar.gz cilium-linux-amd64.tar.gz.sha256sum
+    curl -fsSL --remote-name {{ k8s_cilium_cli_download_url }}
+    curl -fsSL --remote-name {{ k8s_cilium_cli_checksum_url }}
+    sha256sum --check {{ k8s_cilium_cli_archive_name }}.sha256sum
+    tar xzvfC {{ k8s_cilium_cli_archive_name }} /usr/local/bin
+    rm {{ k8s_cilium_cli_archive_name }} {{ k8s_cilium_cli_archive_name }}.sha256sum
     cilium version
   become: true
 
@@ -47,22 +48,11 @@
 
 - name: Add Cilium Repository
   shell: |
-    helm repo add cilium https://helm.cilium.io/
-    helm repo update
+    helm repo add cilium {{ k8s_cilium_helm_repo_url }}
+    helm repo update cilium
 
 - name: Add Cilium Repository for "{{k8s_operator_user}}"
   shell: |
-    sudo -u "{{k8s_operator_user}}" helm repo add cilium https://helm.cilium.io/
-    sudo -u "{{k8s_operator_user}}" helm repo update
-  become: true
-
-- name: Add Bitnami Repository
-  shell: |
-    helm repo add bitnami https://charts.bitnami.com/bitnami
-    helm repo update
-
-- name: Add Bitnami Repository for "{{k8s_operator_user}}"
-  shell: |
-    sudo -u "{{k8s_operator_user}}" helm repo add bitnami https://charts.bitnami.com/bitnami
-    sudo -u "{{k8s_operator_user}}" helm repo update
+    sudo -u "{{k8s_operator_user}}" helm repo add cilium {{ k8s_cilium_helm_repo_url }}
+    sudo -u "{{k8s_operator_user}}" helm repo update cilium
   become: true
