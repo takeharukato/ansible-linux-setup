@@ -27,6 +27,7 @@ Kubernetes ノード共通の前提条件を整えるロールです。制御プ
 | `k8s_operator_groups_list` | `{{ adm_groups }}` | 追加で所属させるグループ。sudo 実行権限などを付与します。|
 | `k8s_operator_authorized_key_list` | `[]` | 追加で登録したい公開鍵のリスト。各要素は `config-k8s-operator-authorized_keys.yml` 内の `ansible.builtin.authorized_key` タスクで追記され, GitHub 取得分と合わせてソート・重複排除した結果が `authorized_keys` に反映されます。|
 | `kubectl_completion_enabled` | `true` | `kubectl completion` の出力を bash/zsh 補完ディレクトリへ展開します。`false` にすると補完関連タスク一式をスキップします。|
+| `kubectl_completion_enabled`| `true` | `true` の場合, kubectl` の bash / zsh 補完ファイルを生成・配置します。|
 | `k8s_operator_github_key_list` | `[]` | 公開鍵を取得したい GitHub アカウントのマッピングのリストです。環境ごとに `[ { github: '<アカウント名>' } ]` のようなリストへ上書きすると `https://github.com/<account>.keys` から鍵を取得し, `authorized_keys` に追記します。将来的に別サイト由来の鍵取得へ拡張できるよう, サイトとアカウント名のマッピングを記述する構造です。|
 | `k8s_node_setup_tools_prefix` | `/opt/k8snodes` | kubeconfig ツール類を格納するベースパス。|
 | `k8s_node_setup_tools_dir` | `{{ k8s_node_setup_tools_prefix }}/sbin` | `create-uniq-kubeconfig.py` などのスクリプト配置先。|
