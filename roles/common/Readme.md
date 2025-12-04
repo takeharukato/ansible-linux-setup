@@ -72,9 +72,9 @@ Ubuntu 系サーバの初期セットアップを一括で行うベースロー�
 
 ### sysctl 調整 ( `tasks/sysctl.yml` )
 
-- `kernel.yama.ptrace_scope = 0` ( ユーザの `ptrace` を許可 )
-- `kernel.dmesg_restrict = 0` ( 一般ユーザの `dmesg` 許可 )
-- `fs.inotify.max_user_watches = 524288` ( ファイル監視上限の拡大 )
+- `common_sysctl_user_ptrace_enable` が真なら `/etc/sysctl.d/10-ptrace.conf` (`sysctl_ptrace_conf_path`変数で定義) に `kernel.yama.ptrace_scope = 0` を書き込み, ユーザの `ptrace` を許可します。
+- `common_sysctl_user_dmesg_enable` が真なら `/etc/sysctl.d/10-kernel-hardening.conf` (`sysctl_dmesg_conf_path`変数で定義) に `kernel.dmesg_restrict = 0` を書き込み, 一般ユーザによる `dmesg` 実行を許可します。
+- `common_sysctl_inotify_max_user_watches` の値を `/etc/sysctl.d/90-sysctl-inotify.conf` (`sysctl_inotify_conf_path`変数で定義) に反映し, `fs.inotify.max_user_watches` を既定 524288 へ引き上げます。
 
 ### cron メール抑止 ( `tasks/cron-setting.yml` )
 

@@ -34,6 +34,16 @@ common_autonetconfig_prefix: "{{ netconfig_prefix }}"
 use_nm_ddns_update_scripts: false
 
 ###############################################################################
+# sysctl設定
+###############################################################################
+# 一般ユーザによるptrace有効化
+common_sysctl_user_ptrace_enable: true
+# 一般ユーザによるdmesg有効化
+common_sysctl_user_dmesg_enable: true
+# ファイル監視数の上限値
+common_sysctl_inotify_max_user_watches: 524288
+
+###############################################################################
 # sudoers設定
 ################################################################################
 
