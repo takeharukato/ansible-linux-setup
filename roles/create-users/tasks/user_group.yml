@@ -24,6 +24,7 @@
     user_home: "{{ item.home | default('/home/' ~ item.name, true) }}"
     user_shell: "{{ item.shell | default('/bin/bash', true) }}"
     user_password: "{{ item.password | default(item.name | password_hash('sha512'), true) }}"
+    user_update_password: "{{ item.update_password | default('on_create', true) }}"
   ansible.builtin.user:
     name: "{{ item.name }}"
     password: "{{ user_password }}"
@@ -33,6 +34,7 @@
     comment:  "{{ user_comment }}"
     home:  "{{ user_home }}"
     shell: "{{ user_shell }}"
+    update_password: "{{ user_update_password }}"
   loop: "{{ users_list | default([], true) }}"
   when:
     - ( users_list | default([], true) | length ) > 0
