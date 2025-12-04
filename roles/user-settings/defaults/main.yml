@@ -15,3 +15,17 @@ user_settings_backup_home_rotation: 2
 user_settings_backup_home_mount_point: "/mnt"
 # デイリーバックアップ時のNFSマウントポイント配下のバックアップ配置先ディレクトリ
 user_settings_backup_output_dir: "{{ user_settings_backup_home_mount_point }}{{ user_settings_backup_dir_on_nfs }}"
+# 作成するユーザ
+users_list: []
+# Emacs用パッケージリスト
+create_user_emacs_package_list: []
+# 代理サーバ設定
+proxy_server: ""
+# 代理サーバ設定ポート
+proxy_port: ""
+# proxyユーザ
+proxy_user: ""
+# proxyパスワード
+proxy_password: ""
+# proxy除外ホストリスト
+no_proxy: ""
