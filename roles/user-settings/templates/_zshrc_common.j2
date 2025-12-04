@@ -70,6 +70,38 @@ setopt nolistbeep
 # ( ファイル/ディレクトリ補完のために, 後述のlsのエイリアスを展開する必要があるため )
 setopt complete_aliases
 
+# --------------------------------------------------
+# sshの補完設定
+# --------------------------------------------------
+
+__ssh_hosts() {
+  local files
+  files=()
+
+  # ~/.ssh/config があれば追加
+  [[ -f ${HOME}/.ssh/config ]] && files+="${HOME}/.ssh/config"
+
+  # ~/.ssh/conf.d/*.conf が存在する場合だけ展開する
+  # (N) を付けることでマッチしなければ空扱いにし, エラーにしない
+  files+=(${HOME}/.ssh/conf.d/*.conf(N))
+
+  # 1個もファイルが無ければ何もしない
+  (( $#files )) || return 0
+
+  grep -hEi '^[[:space:]]*Host[[:space:]]+' "${files[@]}" 2>/dev/null \
+    | sed -E 's/^[[:space:]]*Host[[:space:]]*//' \
+    | tr ' ' '\n' \
+    | grep -v '[*?]' \
+    | sort -u
+}
+
+# ssh, scp, sftpコマンドのホスト名補完設定
+typeset -a __ssh_completion_hosts
+__ssh_completion_hosts=(${(@f)$(__ssh_hosts)})
+if (( $#__ssh_completion_hosts )); then
+    zstyle ':completion:*:(ssh|scp|sftp):*' hosts "${__ssh_completion_hosts[@]}"
+fi
+
 # -------------------------------------------------
 # シェル動作のカスタマイズ
 # -------------------------------------------------
