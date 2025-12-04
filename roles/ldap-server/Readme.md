@@ -17,7 +17,7 @@ https://ホスト名:10443/
 
 ドメイン名がexample.comの場合, 以下を`login`名に入力する
 ```
-cn=admin,dc=elliptic-curve,dc=net
+cn=admin,dc=example,dc=net
 ```
 
 パスワードは, `group_vars/all.yml`に記載されている`ldap_admin_password`の値(デフォルトは, `ldap`)を入力する。
