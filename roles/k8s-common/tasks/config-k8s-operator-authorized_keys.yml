@@ -51,7 +51,13 @@
           sudo -u "{{ k8s_operator_user }}" tee -a "{{ k8s_operator_home }}/.ssh/authorized_keys" >/dev/null
       loop: "{{ k8s_operator_github_key_list | default([], true) }}"
       when:
+        - k8s_operator_user is defined
+        - k8s_operator_home is defined
+        - item.github is defined
         - ( k8s_operator_github_key_list | default([], true) | length ) > 0
+        - ( item.github | default('', true) | length ) > 0
+        - ( k8s_operator_user | default('', true) | length ) > 0
+        - ( k8s_operator_home | default('', true) | length ) > 0
       args:
         executable: /bin/bash
       become: true
@@ -64,6 +70,13 @@
         state: present
         path: "{{ k8s_operator_home }}/.ssh/authorized_keys"
       loop: "{{ k8s_operator_authorized_key_list | default([], true) }}"
+      when:
+        - k8s_operator_user is defined
+        - k8s_operator_home is defined
+        - ( k8s_operator_authorized_key_list | default([], true) | length ) > 0
+        - ( k8s_operator_user | default('', true) | length ) > 0
+        - ( k8s_operator_home | default('', true) | length ) > 0
+      become: true
 
     # 追記後にソート・重複排除を行い、所有者と権限を再確認する
     - name: Normalize operator authorized_keys
@@ -77,3 +90,9 @@
         chmod 700 "{{ k8s_operator_home }}/.ssh"
       args:
         executable: /bin/bash
+      when:
+        - k8s_operator_user is defined
+        - k8s_operator_home is defined
+        - ( k8s_operator_user | default('', true) | length ) > 0
+        - ( k8s_operator_home | default('', true) | length ) > 0
+      become: true

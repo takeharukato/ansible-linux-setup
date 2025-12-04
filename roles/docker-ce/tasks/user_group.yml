@@ -32,5 +32,8 @@
     groups: docker
     append: true
   loop: "{{ users_list | default([], true) }}"
-  when: ( users_list | default([], true) | length ) > 0
+  when:
+    - ( users_list | default([], true) | length ) > 0
+    - item.name is defined
+    - ( item.name | default('', true) | length ) > 0
   become: true
