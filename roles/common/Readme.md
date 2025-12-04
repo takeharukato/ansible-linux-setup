@@ -1,163 +1,113 @@
-# 共通処理
+# common ロール
 
-- [共通処理](#共通処理)
-  - [ロールの目的 ( 要約 )](#ロールの目的--要約-)
-  - [実行フロー ( 主たる tasks )](#実行フロー--主たる-tasks-)
-    - [基本設定 ( `tasks/config.yml` )](#基本設定--tasksconfigyml-)
-    - [sudoers 管理 ( `tasks/config-sudoer.yml` )](#sudoers-管理--tasksconfig-sudoeryml-)
-    - [sysctl 調整 ( `tasks/sysctl.yml` )](#sysctl-調整--taskssysctlyml-)
-    - [cron メール抑止 ( `tasks/cron-setting.yml` )](#cron-メール抑止--taskscron-settingyml-)
-    - [パッケージとリポジトリ ( `tasks/package.yml` / `tasks/kubectl-repositories.yml` / `tasks/common-packages.yml` )](#パッケージとリポジトリ--taskspackageyml--taskskubectl-repositoriesyml--taskscommon-packagesyml-)
-    - [DDNS 連携 ( ディレクトリ・テンプレート・サービス一式 )](#ddns-連携--ディレクトリテンプレートサービス一式-)
-    - [サービス ( `tasks/service.yml` )](#サービス--tasksserviceyml-)
-    - [ユーザ/グループ操作 ( `tasks/user_group.yml` )](#ユーザグループ操作--tasksuser_groupyml-)
-    - [再起動 ( `tasks/reboot.yml` )](#再起動--tasksrebootyml-)
-  - [ハンドラ ( `handlers/` )](#ハンドラ--handlers-)
-  - [主要テンプレートと変数](#主要テンプレートと変数)
-    - [ネットワーク ( netplan )](#ネットワーク--netplan-)
-    - [sudoers](#sudoers)
-    - [DDNS / Dispatcher / RA 監視](#ddns--dispatcher--ra-監視)
-  - [使い方 ( 変数定義の置き所 )](#使い方--変数定義の置き所-)
-  - [IPアドレスのDNSへの登録処理 (tasks/directory-dns-clients.yml)](#ipアドレスのdnsへの登録処理-tasksdirectory-dns-clientsyml)
-    - [nm-ra-addr-watch / NetworkManager Dispatcher / DDNS 更新の確認手順](#nm-ra-addr-watch--networkmanager-dispatcher--ddns-更新の確認手順)
-      - [事前前提・用語](#事前前提用語)
-      - [nm-ra-addr-watch ( 常駐ワーカー )の基本確認](#nm-ra-addr-watch--常駐ワーカー-の基本確認)
-      - [NetworkManager Dispatcher ( 90-nm-ns-update )の確認](#networkmanager-dispatcher--90-nm-ns-update-の確認)
-      - [DDNS スクリプト ( ddns-client-update.sh )の確認](#ddns-スクリプト--ddns-client-updatesh-の確認)
-      - [DNS の正/逆引き確認 ( 外部ホストからの参照含む )](#dns-の正逆引き確認--外部ホストからの参照含む-)
-      - [DNS サーバ側の更新ログ確認](#dns-サーバ側の更新ログ確認)
-      - [総合 E2E ( 端末操作, ワーカー, Dispatcher, Dynamic DNS, DNS 応答 )](#総合-e2e--端末操作-ワーカー-dispatcher-dynamic-dns-dns-応答-)
-      - [典型トラブルと対処チェックリスト](#典型トラブルと対処チェックリスト)
-      - [後片付け ( テスト後の復元 )](#後片付け--テスト後の復元-)
-      - [付録: 期待ログ例 ( 抜粋 )](#付録-期待ログ例--抜粋-)
+このロールは Debian/Ubuntu 系および RHEL 系ホストの初期セットアップを共通化する土台ロールです。`roles/common/tasks/main.yml` が記述順に各サブタスクを実行し, ネットワーク基盤の置き換え, sudoers 管理, sysctl 追加, Dynamic DNS 連携, 共通パッケージ導入, 必要に応じた再起動までを一括で適用します。
 
-## ロールの目的 ( 要約 )
+## タスク構成
 
-Ubuntu 系サーバの初期セットアップを一括で行うベースロールです。主な役割は以下です。
+- **load-params.yml**: `roles/common/vars/*.yml` を順に取り込み, OS 別パッケージ名 (`packages-*.yml`), クロスディストロ変数 (`cross-distro.yml`), 共通設定 (`all-config.yml`), Kubernetes API 情報 (`k8s-api-address.yml`) を確定します。
+- **config-pre-check.yml**: `mgmt_nic` が未指定の場合は `common_default_nic` で補完し, 0 文字のままなら失敗させます。ネットワーク処理の前提をここで固めます。
+- **config-timezone.yml**: `common_timezone` が非空なら `timezone` モジュールで恒久設定します。
+- **config-disable-firewall.yml**: `ansible_facts.services` を収集し, RHEL 系では `firewalld`, Debian 系では `ufw` を完全停止・マスクします。`rpfilter-bypass.service` の停止, `nft` で作成済みの `rpfix` テーブル削除, `ufw --force disable` 実行も包含します。
+- **config-prepare-nm.yml**: OS ごとに NetworkManager を導入・起動し, Debian 系では `systemd-networkd-wait-online` と `systemd-networkd` を無効化します。RHEL 系では `/etc/NetworkManager/NetworkManager.conf` に `no-auto-default=*` を挿入し, `nm_reload_and_activate` ハンドラを通知します。NetworkManager へ切り替えた直後に無条件の再起動を要求します。
+- **config-network-multi.yml**: `_netif_list_effective` を展開して systemd `.link` ファイル (`/etc/systemd/network/10-<if>.link`) を配備し, RHEL 系は `/etc/NetworkManager/system-connections/<if>.nmconnection` をテンプレート出力後 `nmcli connection load` と `restorecon` を実施, Debian 系は `/etc/netplan/99-netcfg.yaml` を生成して `netplan generate` に成功した場合だけ `netplan_apply` を通知します。既存の不要な 802-3-ethernet 接続を UUID 単位で削除し, 最後に再起動してデバイス名と接続構成を確実に確定させます。
+- **config-sudoer.yml**: `sudo` を確保し, `/etc/sudoers.d` を `0755` で作成します。`visudo -cf /etc/sudoers` を前後で実行しつつ, `sudo_nopasswd_users` と `sudo_nopasswd_groups_autodetect`/`sudo_nopasswd_groups_extra` を突き合わせてドロップイン (`/etc/sudoers.d/{{ sudo_dropin_prefix }}-user-*` / `-group-*`) をテンプレート生成します。`sudo_nopasswd_absent: true` の場合は同ファイルを削除します。
+- **sysctl.yml**: `common_sysctl_user_ptrace_enable` が真なら `kernel.yama.ptrace_scope=0` を `sysctl_ptrace_conf_path` (既定 `/etc/sysctl.d/10-ptrace.conf`) に書き込み, `common_sysctl_user_dmesg_enable` が真なら `kernel.dmesg_restrict=0` を `sysctl_dmesg_conf_path` (既定 `/etc/sysctl.d/10-kernel-hardening.conf`) に保存します。`common_sysctl_inotify_max_user_watches` を `/etc/sysctl.d/90-sysctl-inotify.conf` に `lineinfile` で反映し, `common_reload_sysctl` ハンドラを通知して `sysctl --system` を実行させます。
+- **cron-setting.yml**: `common_disable_cron_mails` が真の場合に `/etc/crontab` の `MAILTO` 行を `MAILTO=""` へ統一, 欠如していれば挿入します。
+- **package.yml**: `common_mdns_packages` を更新後 `avahi_restarted_and_enabled` を通知し, `common_langpack_packages` を導入して `disable_gui` ハンドラを呼び出します。`use_vmware: true` 時は `common_vmware_packages` を導入し, `disable_gui` と `pkg-autoremove` を通知します。
+- **kubectl-repositories.yml**: `k8s_common_prerequisite_packages` (例: `ca-certificates`, `curl`, `gnupg`) を最新化し, Kubernetes リポジトリ登録の前提を整えます。
+- **common-packages.yml**: RHEL 系で SELinux ツール (`policycoreutils-python-utils`) を必須化し, `common_packages` を導入します。Debian 系は追加で `apt-file update` を実行し, 双方で `disable_gui` と `pkg_autoremove_handler` (`pkg-autoremove`) を通知します。
+- **directory.yml**: `ddns_client_update_sh_dest_dir` (既定 `/usr/local/sbin`) を作成し, `templates/mount-nas.sh.j2` を `/usr/local/sbin/mount-nas.sh` へ配置します。
+- **directory-dns-client.yml** (`use_nm_ddns_update_scripts: true` のみ):
+  - `/etc/nsupdate` 以下に `dns_ddns_key_file`・`ddns-client-update.sh`・環境ファイルを展開し, `nm_ra_addr_watch` サービスユニット (`/etc/systemd/system/nm-ra-addr-watch.service`) と本体 (`/usr/local/libexec/nm-ra-addr-watch`) を生成します。
+  - NetworkManager dispatcher スクリプト `{{ nm_ns_update_path }}` (既定 `/etc/NetworkManager/dispatcher.d/90-nm-ns-update`) と環境ファイルを配備し, `nm-ra-addr-watch` と `NetworkManager-dispatcher` を有効化します。
+  - Dispatcher を差し替えた直後に再起動し, Dispatcher/サービスの読み直しを保証します。
+- **service.yml / user_group.yml**: いずれも将来拡張用の空タスクで, 現時点では副作用はありません。
+- **reboot.yml**: `/var/run/reboot-required` が存在する場合に `systemctl set-default multi-user.target` を再適用し, 再起動と SSH 復帰待機を行います。
 
-- タイムゾーン設定
-- 既存の自動ネットワーク設定の退避および **NetworkManager レンダラ**での netplan 生成 ( DHCP/固定 IP 両対応 )
-- **sudoers** の NOPASSWD 設定を安全にドロップイン管理 ( 変更前後に `visudo -cf` で構文検証 )
-- 監視・デバッグ用途の `sysctl` 調整 ( `ptrace` / `dmesg` / `inotify` )
-- `/etc/crontab` の `MAILTO` 抑止 ( オプション )
-- APT の前提・共通パッケージ導入, Kubernetes リポジトリ登録, `apt-file update`
-- mDNS ( Avahi )導入と GUI 無効化 ( サーバ用途 )
-- **Dynamic DNS 連携一式** ( TSIG 鍵, 更新スクリプト, NM dispatcher, RA/SLAAC 監視サービス )
-- 再起動が必要な場合の安全なリブート ( SSH 復帰待ちを含む )
+## ハンドラの挙動
 
----
+- `common_reload_sysctl` (`handlers/reload-sysctl.yml`): `sysctl --system` を root で実行し, `changed_when: false` で冪等に読み込みます。
+- `nm_reload_and_activate` (`handlers/nm-handlers-rhel.yml`): RHEL 系のみで発火し, `nmcli connection reload`, 既知デバイスの再管理, 残留アドレスの flush, `nmcli connection up` までを安全に実施します。タスク側で `_netif_items` が定義されていることが前提です。
+- `netplan_apply` (`handlers/netplan-handlers-debian.yml`, `handlers/netplan.yml`): Debian 系で `netplan generate`→`netplan apply`→`ip -br addr`/ルート確認を順に実行します。`handlers/netplan.yml` の単純な `netplan apply` は互換用のリスナーです。
+- `avahi_restarted_and_enabled`, `disable_gui`, `pkg-autoremove`: それぞれ avahi の再起動, `systemctl set-default multi-user.target` の適用, `apt autoremove -y` (Debian) / `dnf autoremove -y` (RHEL) を行います。
 
-## 実行フロー ( 主たる tasks )
+## 変数一覧
 
-### 基本設定 ( `tasks/config.yml` )
+| 変数名 | 既定値 | 説明 |
+| ------ | ------ | ---- |
+| `common_timezone` | `"Asia/Tokyo"` | 適用するタイムゾーン名。空文字列の場合は変更しません。|
+| `use_vmware` | `false` | VMware 用追加パッケージを導入するかを制御します。|
+| `enable_firewall` | `false` | true の場合は既存ファイアウォールを停止しません。false で `config-disable-firewall.yml` が動作します。|
+| `common_selinux_state` | `"permissive"` | SELinux の望ましい状態を指定します。|
+| `common_disable_cron_mails` | `false` | true で `/etc/crontab` の `MAILTO` を空文字へ統一します。|
+| `common_envdir` | `/etc/default` ( Debian系の場合 ), `/etc/sysconfig` ( RHEL系の場合 ) | 環境ファイルを配置するディレクトリを OS に応じて切り替えます。|
+| `common_iface_deny_regex` | `"^(docker\|br-\|veth\|virbr\|vboxnet\|vmnet\|vnet\|tun\|tap\|wg\|tailscale\|zt\|lo)"` | DNS 更新対象から除外したいインターフェース名の正規表現。|
+| `common_autonetconfig_prefix` | `{{ netconfig_prefix }}` | 既存自動ネットワーク設定を退避するパスのプレフィックスです。|
+| `use_nm_ddns_update_scripts` | `false` | Dynamic DNS 連携スクリプト一式を展開する。|
+| `common_sysctl_user_ptrace_enable` | `true` | true で `kernel.yama.ptrace_scope` を 0 に設定しユーザ ptrace を許可します。|
+| `common_sysctl_user_dmesg_enable` | `true` | true で `kernel.dmesg_restrict` を 0 に設定し一般ユーザの `dmesg` を許可します。|
+| `common_sysctl_inotify_max_user_watches` | `524288` | `fs.inotify.max_user_watches` に適用する上限値。|
+| `sudo_nopasswd_groups_extra` | `['adm', 'cdrom', 'sudo', 'dip', 'plugdev', 'lxd', 'systemd-journal']` | NOPASSWD を付与する追加グループ。|
+| `sudo_nopasswd_groups_autodetect` | `true` | `sudo` / `wheel` の自動検出を有効にします。|
+| `sudo_nopasswd_absent` | `false` | true でドロップインを削除 (ロールバック) します。|
+| `sudo_dropin_prefix` | `"99-nopasswd"` | `/etc/sudoers.d` に生成するファイル名の接頭辞。|
+| `common_default_nic` | `"ens160"` | 管理用 NIC の既定名。|
+| `netif_nm_link_dir_rhel` | `"/etc/systemd/network"` | RHEL 系の systemd `.link` 配置ディレクトリ。|
+| `netif_nm_link_dir_debian` | `"/etc/systemd/network"` | Debian 系の systemd `.link` 配置ディレクトリ。|
+| `netif_nm_link_dir` | `/etc/systemd/network` | 実際に使用する `.link` 配置先。|
+| `mgmt_nic` | `""` | 管理用 NIC を明示するための変数。空の場合は後続タスクが `common_default_nic` で補完します。|
+| `gateway4` | `""` | IPv4 デフォルトゲートウェイのフォールバック値。|
+| `gateway6` | `""` | IPv6 デフォルトゲートウェイのフォールバック値。|
+| `ipv4_name_server1` | `""` | IPv4 DNS サーバ 1 のフォールバック値。|
+| `ipv4_name_server2` | `""` | IPv4 DNS サーバ 2 のフォールバック値。|
+| `ipv6_name_server1` | `""` | IPv6 DNS サーバ 1 のフォールバック値。|
+| `ipv6_name_server2` | `""` | IPv6 DNS サーバ 2 のフォールバック値。|
+| `_mgmt_ignore_auto_ipv4_dns` | `ipv4_name_server1`または`ipv4_name_server2`が定義されている場合は真 | IPv4 DNS を自動取得から除外する。|
+| `_mgmt_ignore_auto_ipv6_dns` | `ipv6_name_server1`または`ipv6_name_server2`が定義されている場合は真| IPv6 DNS を自動取得から除外する。|
+| `_common_network_iface` | `mgmt_nic`変数の設定値, `mgmt_nic`変数未定義の場合, `common_default_nic`変数の設定値(`ens160`)。| 各種スクリプトが参照する代表 NIC 名。|
+| `ddns_client_update_base` | `"ddns-client-update"` | DDNS 更新スクリプトのベース名。|
+| `ddns_client_update_sh_basename` | `{{ddns_client_update_base}}.sh` | `ddns-client-update.sh` のファイル名。|
+| `ddns_client_update_sh_dest_dir` | `"/usr/local/sbin"` | `ddns-client-update.sh` を配置するディレクトリ。|
+| `ddns_client_update_sh_path` | `{{ ddns_client_update_sh_dest_dir }}/{{ ddns_client_update_sh_basename }}` | スクリプト本体のフルパス。|
+| `ddns_client_update_sh_sysconfig_path` | `{{ common_envdir }}/{{ ddns_client_update_base }}` | スクリプト用環境ファイルの配置先。|
+| `dns_ddns_key_file` | `"/etc/nsupdate/ddns-clients.key"` | TSIG 鍵の配置先。|
+| `dns_ddns_key_name` | `"ddns-clients"` | TSIG 鍵のキー名。|
+| `nm_ra_addr_watch_base` | `"nm-ra-addr-watch"` | RA 監視ワーカーのベース名。|
+| `nm_ra_addr_watch_basename` | `{{ nm_ra_addr_watch_base }}` | ワーカ実体のファイル名。|
+| `nm_ra_addr_watch_dest_dir` | `"/usr/local/libexec"` | ワーカスクリプトを配置するディレクトリ。|
+| `nm_ra_addr_watch_path` | `{{ nm_ra_addr_watch_dest_dir }}/{{ nm_ra_addr_watch_basename }}` | ワーカのフルパス。|
+| `nm_ra_addr_watch_interval` | `10` | RA 監視ワーカーのポーリング間隔 (秒)。|
+| `nm_ra_addr_watch_iface_allow_regex` | `"^{{ _common_network_iface }}$"` | 監視対象インターフェースの正規表現。|
+| `nm_ra_addr_watch_iface_deny_regex` | `{{ common_iface_deny_regex }}` | 監視除外インターフェースの正規表現。|
+| `nm_ra_addr_watch_debounce_ms` | `800` | Dispatcher 通知前のデバウンス時間 (ミリ秒)。|
+| `nm_ra_addr_watch_sysconfig_path` | `{{ common_envdir }}/{{ nm_ra_addr_watch_basename }}` | ワーカー環境ファイルの配置先。|
+| `nm_dispatcher_path` | `"/etc/NetworkManager/dispatcher.d"` | Dispatcher スクリプトを格納するディレクトリ。|
+| `nm_ns_update_base` | `"nm-ns-update"` | NetworkManager dispatcher スクリプトのベース名。|
+| `nm_ns_update_num` | `"90"` | Dispatcher スクリプトの連番接頭辞。|
+| `nm_ns_update_basename` | `{{ nm_ns_update_num }}-{{ nm_ns_update_base }}` | Dispatcher スクリプトのファイル名。|
+| `nm_ns_update_path` | `{{ nm_dispatcher_path }}/{{ nm_ns_update_basename }}` | Dispatcher スクリプトのフルパス。|
+| `nm_ns_update_sysconfig_path` | `{{ common_envdir }}/{{ nm_ns_update_base }}` | Dispatcher 用環境ファイルの配置先。|
+| `nm_ns_update_iface_allow_regex` | `"^{{ _common_network_iface }}$"` | Dispatcher が処理する IF の正規表現。|
+| `nm_ns_update_iface_deny_regex` | `{{ common_iface_deny_regex }}` | Dispatcher が除外する IF の正規表現。|
 
-- `timedatectl set-timezone "{ common_timezone }"` でタイムゾーン設定。
-- `common_autonetconfig_prefix` 配下の既存 **自動ネットワーク設定** ファイル ( `common_autonetconfig_files` )を検出し, `*.old` へリネーム退避。
-- **netplan 生成**：
-  - レンダラは **NetworkManager** 固定。
-  - DHCP 用 ( `templates/99-netcfg-dhcp.yaml.j2` )と固定 IP 用 ( `templates/99-netcfg.yaml.j2` )を条件分岐。
-  - NIC は `mgmt_nic` が未定義なら `common_default_nic` ( 既定 `ens160` )。
-  - `ipv4_name_server1/2`, `dns_search`, 固定時は `static_ipv4_addr` / `network_ipv4_prefix_len` / `static_ipv6_addr` / `network_ipv6_prefix` を反映。
+## 再起動発生ポイント
 
-### sudoers 管理 ( `tasks/config-sudoer.yml` )
+- `config-prepare-nm.yml`, `config-network-multi.yml`, `directory-dns-client.yml` はタスク末尾で無条件に再起動します。ネットワーク構成・Dispatcher を即時反映させる意図によるものです。
+- `reboot.yml` は `/var/run/reboot-required` が存在するときのみ追加で再起動します。複数回の再起動が発生しうるため, ロール実行時間に余裕を持たせてください。
 
-- `/etc/sudoers.d` の存在と適正パーミッションを保証。
-- `/etc/sudoers` が `/etc/sudoers.d` を `#includedir` しているかの **確認のみ** ( 変更はしない )。
-- ドロップイン変更の **前後で `visudo -cf /etc/sudoers`** を実行し, 構文を検証。
-- NOPASSWD ドロップインをテンプレート生成：
-  - ユーザ: `sudo_nopasswd_users`
-  - グループ: `sudo_nopasswd_groups_autodetect` ( `sudo`/`wheel` 自動検出 )＋ `sudo_nopasswd_groups_extra`
-  - 削除方針: `sudo_nopasswd_absent` が真なら既存ドロップインを除去。
-  - ファイル名は `{ sudo_dropin_prefix }-user-<name>`, `{ sudo_dropin_prefix }-group-<name>`。
+## 検証ポイント
 
-### sysctl 調整 ( `tasks/sysctl.yml` )
+- NetworkManager 切り替え後に `nmcli device status` で不要な legacy 接続が残存していないこと, `ip -br addr` でテンプレート通りの IP が得られていること。
+- `/etc/sysctl.d/10-ptrace.conf`, `/etc/sysctl.d/10-kernel-hardening.conf`, `/etc/sysctl.d/90-sysctl-inotify.conf` に意図した値が書き込まれ, `sysctl --system` 後に `sysctl kernel.yama.ptrace_scope` などが反映されていること。
+- `sudo -l` で `sudo_dropin_prefix` 付きのドロップインが読み込まれていること。`visudo -cf /etc/sudoers` が成功すること。
+- `use_nm_ddns_update_scripts: true` の場合, `systemctl status nm-ra-addr-watch` と `journalctl -u NetworkManager-dispatcher` で Dispatcher が正しく実行され, `/usr/local/sbin/ddns-client-update.sh --update-now` で DNS 更新が成功すること。
+- Debian 系では `netplan get` と `netplan try` で設定内容を確認し, RHEL 系では `nmcli connection show <netif>` でテンプレート値が反映されていること。
 
-- `common_sysctl_user_ptrace_enable` が真なら `/etc/sysctl.d/10-ptrace.conf` (`sysctl_ptrace_conf_path`変数で定義) に `kernel.yama.ptrace_scope = 0` を書き込み, ユーザの `ptrace` を許可します。
-- `common_sysctl_user_dmesg_enable` が真なら `/etc/sysctl.d/10-kernel-hardening.conf` (`sysctl_dmesg_conf_path`変数で定義) に `kernel.dmesg_restrict = 0` を書き込み, 一般ユーザによる `dmesg` 実行を許可します。
-- `common_sysctl_inotify_max_user_watches` の値を `/etc/sysctl.d/90-sysctl-inotify.conf` (`sysctl_inotify_conf_path`変数で定義) に反映し, `fs.inotify.max_user_watches` を既定 524288 へ引き上げます。
+## 再実行時の注意
 
-### cron メール抑止 ( `tasks/cron-setting.yml` )
-
-- `common_disable_cron_mails` が真の場合, `/etc/crontab` の `MAILTO=` を除去し, 未設定なら `MAILTO=""` を追記。
-
-### パッケージとリポジトリ ( `tasks/package.yml` / `tasks/kubectl-repositories.yml` / `tasks/common-packages.yml` )
-
-- 事前パッケージ ( `k8s_common_prerequisite_packages` )導入。
-- Kubernetes の GPG キーをキーファイルとして保存し, `kubernetes.list` を配置, `apt-get update` 実施。
-- 共通パッケージ群 ( `common_packages` )導入。ハンドラで GUI 無効化 ( `disable_gui` )と `apt autoremove -y` を通知。
-- `apt-file update` の実行。
-- 言語パック ( `common_langpack_packages` ), mDNS ( `common_mdns_packages` ), VMware 用 ( `common_vmware_packages` )を導入 ( 必要に応じてハンドラ起動 )。
-- Docker 関連はコメントアウト済みで, このロールでは導入しない方針。
-
-### DDNS 連携 ( ディレクトリ・テンプレート・サービス一式 )
-
-- `/etc/nsupdate` を作成し, **TSIG 鍵** ( `ddns-clients-key-file.j2` )を配置。
-- **更新スクリプト**：`/usr/local/sbin/ddns-client-update.sh` ( `ddns-client-update.sh.j2` )。
-- **NetworkManager dispatcher**：`/etc/NetworkManager/dispatcher.d/90-nm-ns-update` ( `90-nm-ns-update.j2` )。
-- **RA/SLAAC 監視**：ワーカ `/usr/local/libexec/nm-ra-addr-watch` と **systemd unit** ( `nm-ra-addr-watch.j2`, `nm-ra-addr-watch.service.j2`, 環境ファイル `sysconfig-nm-ra-addr-watch.j2` )。
-  - `nm_ra_addr_watch_*` 変数で監視インターフェース, デバウンス, LOG_LEVEL, インターバルなどを調整可能。
-- `nm-ra-addr-watch` と `NetworkManager-dispatcher` を **enabled**。
-- ディスパッチャ構成を更新した場合は, SSH ポートを特定して安全に **再起動**。
-
-### サービス ( `tasks/service.yml` )
-
-- 現時点では拡張用のフック ( 空 or 近い構成 )。
-
-### ユーザ/グループ操作 ( `tasks/user_group.yml` )
-
-- 今はコメント例 ( 例: `docker` グループ追加の雛形 )。
-
-### 再起動 ( `tasks/reboot.yml` )
-
-- `/var/run/reboot-required` がある場合：
-  - GUI 無効化ハンドラ通知
-  - SSH ポート特定 から `sleep 2 && reboot` を非同期実行
-  - シャットダウン待ち から 起動待ち ( SSH 復帰まで )
-
----
-
-## ハンドラ ( `handlers/` )
-
-- **disable_gui.yml**：`systemctl set-default multi-user.target`
-- **auto-remove.yml**：`apt autoremove -y`
-- **avahi.yml**：`avahi-daemon` の restart + enable
-
----
-
-## 主要テンプレートと変数
-
-### ネットワーク ( netplan )
-
-- テンプレート：`99-netcfg-dhcp.yaml.j2` / `99-netcfg.yaml.j2`
-- 主な変数：
-  - `mgmt_nic` ( 未定義時は `common_default_nic` )
-  - `ipv4_name_server1`, `ipv4_name_server2`, `dns_search`
-  - 固定 IP 時：`static_ipv4_addr`, `network_ipv4_prefix_len`, `static_ipv6_addr`, `network_ipv6_prefix`
-
-### sudoers
-
-- `sudo_nopasswd_users`: NOPASSWD を付与するユーザの一覧
-- `sudo_nopasswd_groups_autodetect`: `sudo` / `wheel` グループを自動検出して NOPASSWD 付与
-- `sudo_nopasswd_groups_extra`: 追加で NOPASSWD を付与するグループ
-- `sudo_dropin_prefix`: ドロップインファイルの接頭辞
-- `sudo_nopasswd_absent`: 真なら既存ドロップインを削除
-
-### DDNS / Dispatcher / RA 監視
-
-- 鍵：`dns_ddns_key_name`, `dns_ddns_key_secret`
-- スクリプトパス：`ddns_client_update_sh_path` ( 既定 `/usr/local/sbin/ddns-client-update.sh` )
-- Dispatcher：`nm_ns_update_path` ( 既定 `/etc/NetworkManager/dispatcher.d/90-nm-ns-update` )
-- 監視ワーカ：`nm_ra_addr_watch_*` ( IF 名, デバウンス, ログレベル, インターバル, 環境ファイルパスなど )
-
----
-
-## 使い方 ( 変数定義の置き所 )
-
-- **共通設定**：`group_vars/all.yml` に集約 ( 例：`common_timezone`, `common_default_nic`, `dns_search` など )。
-- **ホスト固有**：`host_vars/<hostname>.yml` で上書き ( 例：固定 IP のみ特定ホストで指定 )。
-- **DDNS 鍵**：機微情報は Ansible Vault で暗号化 ( `dns_ddns_key_secret` など )。
-
----
+- ネットワーク関連タスクはインターフェースを数十秒単位で切り替えるため, 管理セッションが中断される可能性があります。再実行は安全なメンテナンス時間に限定してください。
+- `directory-dns-client.yml` は既存の TSIG 鍵・Dispatcher を上書きします。差し替え後は速やかに DNS 側での疎通確認を行ってください。
+- 初回実行で生成されたテンプレート (例: `/etc/NetworkManager/system-connections/*.nmconnection`) を手修正した場合, 再実行時にテンプレート内容へ戻されます。変更は変数側へ反映する前提で運用してください。
 
 ## IPアドレスのDNSへの登録処理 (tasks/directory-dns-clients.yml)
 
@@ -373,7 +323,7 @@ Ubuntu 系サーバの初期セットアップを一括で行うベースロー�
 
 ---
 
-#### 総合 E2E ( 端末操作, ワーカー, Dispatcher, Dynamic DNS, DNS 応答 )
+#### 検証作業例 ( 端末操作, ワーカー, Dispatcher, Dynamic DNS, DNS 応答 )
 
 1. ネットワーク変化を発生 ( RA による IPv6 変化を狙う )
 
@@ -406,7 +356,7 @@ Ubuntu 系サーバの初期セットアップを一括で行うベースロー�
 
 ---
 
-#### 後片付け ( テスト後の復元 )
+#### テスト後の環境復元
 
 - 変更した LOG_LEVEL を `2` に戻す。
 - 一時的に down/up した通信を復元, 必要なら `systemctl restart NetworkManager`。
@@ -421,4 +371,4 @@ Ubuntu 系サーバの初期セットアップを一括で行うベースロー�
 [Warning] dispatcher returned non-zero (IFACE=ens160, dispatcher=/etc/NetworkManager/dispatcher.d/90-nm-ns-update)
 ```
 
-- 運用時は LOG_LEVEL=2 ( Error のみ )を推奨。調査時は 4 or 5。
+- 運用時は LOG_LEVEL=2 ( Error のみ )を推奨。調査時は, `4` または, `5`に設定。
