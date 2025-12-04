@@ -3,51 +3,35 @@
 #  Copyright 2020 Takeharu KATO All Rights Reserved.
 #  sysctl関連タスク
 
-# ユーザ資格でのptrace有効化
-- name: "Enable ptrace from user processes"
-  lineinfile:
-    path: /etc/sysctl.d/10-ptrace.conf
-    regexp: '^\s*kernel.yama.ptrace_scope\s*=.*'
-    line: 'kernel.yama.ptrace_scope = 0'
-  when:
-    - ansible_facts.os_family == "Debian"
-
-# ユーザ資格でのdmesg有効化
-- name: "Enable dmesg from user processes"
-  lineinfile:
-    path: /etc/sysctl.d/10-kernel-hardening.conf
-    regexp: '^\s*kernel.dmesg_restrict\s*=.*'
-    line: 'kernel.dmesg_restrict=0'
-  when:
-    - ansible_facts.os_family == "Debian"
-
-# ユーザ資格での ptrace を有効化する (RHEL)
-- name: Enable ptrace from user processes (RHEL)
+# ユーザ資格での ptrace を有効化する
+- name: Enable ptrace from user processes
   ansible.builtin.sysctl:
     name: kernel.yama.ptrace_scope
-    value: "0"
+    value: "{{ common_sysctl_user_ptrace_enable | bool | ternary('0', '1') }}"
     state: present
-    sysctl_file: /etc/sysctl.d/10-ptrace.conf
+    sysctl_file: "{{ sysctl_ptrace_conf_path }}"
     reload: yes
     ignoreerrors: yes  # カーネルによっては当該 sysctl が未提供の場合があるため
-  when: ansible_facts.os_family == "RedHat"
 
-# ユーザ資格での dmesg を有効化する (RHEL)
-- name: Enable dmesg from user processes (RHEL)
+
+# ユーザ資格での dmesg を有効化する
+- name: Enable dmesg from user processes
   ansible.builtin.sysctl:
     name: kernel.dmesg_restrict
-    value: "0"
+    value: "{{ common_sysctl_user_dmesg_enable | bool | ternary('0', '1') }}"
     state: present
-    sysctl_file: /etc/sysctl.d/10-kernel-hardening.conf
+    sysctl_file: "{{ sysctl_dmesg_conf_path }}"
     reload: yes
     ignoreerrors: yes  # カーネルによっては当該 sysctl が未提供の場合があるため
-  when: ansible_facts.os_family == "RedHat"
 
 # ファイル監視
+# common_sysctl_inotify_max_user_watches変数で, 設定値が指定されていない場合は
+# デフォルト値8192を設定 (defaults/main.ymlで指定されるためはずだが念のため)
 - name: "Enlarge file observation limit"
   lineinfile:
-    path: /etc/sysctl.d/99-sysctl.conf
+    path: "{{ sysctl_inotify_conf_path }}"
     regexp: '^\s*fs.inotify.max_user_watches\s*=.*'
-    line: 'fs.inotify.max_user_watches=524288'
-  when:
-    - ansible_facts.os_family in ["Debian", "RedHat"]
+    line: 'fs.inotify.max_user_watches={{ common_sysctl_inotify_max_user_watches|int|default(8192, true) }}'
+    create: yes
+    state: present
+  notify: "common_reload_sysctl"

@@ -120,6 +120,9 @@ playbook実行, アーカイブ作成用Makefileでは, 以下のターゲット
 |common_timezone|タイムゾーンの名前|"Asia/Tokyo"|
 |common_disable_cron_mails|Cronジョブ完了後のメール送信を抑止する|true|
 |common_selinux_state|Security-Enhanced Linuxの動作モード('enforcing', 'permissive', 'disabled' のいずれかを指定)|"permissive"|
+|common_sysctl_user_ptrace_enable| 一般ユーザによるptraceを有効化し, straceやプログラムのデバッグを可能にする。| true |
+|common_sysctl_user_dmesg_enable|  一般ユーザによる`dmesg`コマンドの発行を許可する。|true |
+|common_sysctl_inotify_max_user_watches|inotify(7) APIによるファイルシステムイベント監視数の上限値を設定する。| 524288 |
 |enable_firewall|Firewall (firewalld / Uncomplicated Firewall (UFW) ) を使用する場合はtrueを指定|false|
 |users_list|作成するユーザのリスト|users_list定義参照|
 |sudo_nopasswd_users|パスワード入力なしに, sudoコマンドを実行可能なユーザのリストを指定する|['user1']|

@@ -355,9 +355,28 @@ ntp_server_packages_rhel:
   - chrony
 ntp_server_packages: "{{ (ansible_facts.os_family == 'Debian') | ternary(ntp_server_packages_debian, ntp_server_packages_rhel) }}"
 
+########################################################################################
+# sysctl設定関連変数
+#########################################################################################
+
+# ptrace有効化設定ファイルパス
+sysctl_ptrace_conf_path_debian: "/etc/sysctl.d/10-ptrace.conf"
+sysctl_ptrace_conf_path_rhel:   "/etc/sysctl.d/10-ptrace.conf"
+sysctl_ptrace_conf_path: "{{ (ansible_facts.os_family == 'Debian') | ternary(sysctl_ptrace_conf_path_debian, sysctl_ptrace_conf_path_rhel) }}"
+
+# dmesg有効化設定ファイルパス
+sysctl_dmesg_conf_path_debian: "/etc/sysctl.d/10-kernel-hardening.conf"
+sysctl_dmesg_conf_path_rhel:   "/etc/sysctl.d/10-kernel-hardening.conf"
+sysctl_dmesg_conf_path: "{{ (ansible_facts.os_family == 'Debian') | ternary(sysctl_dmesg_conf_path_debian, sysctl_dmesg_conf_path_rhel) }}"
+
+# ファイル監視数設定ファイルパス
+# 99-sysctl.conf ではなく 90-xxx.conf として, 99-sysctl.conf で上書きされるようにする。
+sysctl_inotify_conf_path_debian: "/etc/sysctl.d/90-sysctl-inotify.conf"
+sysctl_inotify_conf_path_rhel:   "/etc/sysctl.d/90-sysctl-inotify.conf"
+sysctl_inotify_conf_path: "{{ (ansible_facts.os_family == 'Debian') | ternary(sysctl_inotify_conf_path_debian, sysctl_inotify_conf_path_rhel) }}"
 
 ########################################################################################
-# 役割別パッケージ ( Debian/RHEL で名称差あり )
+# ロール別パッケージ ( Debian/RHEL で名称差あり )
 ########################################################################################
 
 # common ( 最低限ユーティリティ )
@@ -500,6 +519,7 @@ pnuke_command: "{{ (ansible_facts.os_family == 'Debian') | ternary(pnuke_command
 prync_command: "{{ (ansible_facts.os_family == 'Debian') | ternary(prync_command_debian, prync_command_rhel) }}"
 pscp_command: "{{ (ansible_facts.os_family == 'Debian') | ternary(pscp_command_debian, pscp_command_rhel) }}"
 pslurp_command: "{{ (ansible_facts.os_family == 'Debian') | ternary(pslurp_command_debian, pslurp_command_rhel) }}"
+
 ########################################################################################
 # 便利ユーティリティ
 ########################################################################################
