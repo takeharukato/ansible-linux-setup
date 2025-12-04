@@ -5,5 +5,5 @@
 [fetch]
 	prune = true
 [user]
-        name = {{ item.comment }}
-        email = {{ item.email }}
+	name = {{ item.comment | default(item.name, true) }}
+	email = {{ item.email | default('', true) }}

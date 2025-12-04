@@ -7,14 +7,21 @@
 - name: Build manual authorized key entries
   ansible.builtin.set_fact:
     # manual_users_with_keys: users_authorized_keys で設定された鍵を持つユーザ情報の一時リスト
-    manual_users_with_keys: "{{ (manual_users_with_keys | default([])) + [ item | combine({'manual_keys': manual_key_list}) ] }}"
+    manual_users_with_keys: "{{ (manual_users_with_keys | default([])) + [ manual_user_dict | combine({'manual_keys': manual_key_list}) ] }}"
   vars:
     # manual_key_list: 該当ユーザに定義された users_authorized_keys の鍵リスト
-    manual_key_list: "{{ users_authorized_keys.get(item.name, []) | default([], true) }}"
+    manual_user_name: "{{ item.name | default('', true) }}"
+    manual_user_group: "{{ item.group | default(manual_user_name, true) }}"
+    manual_user_home: "{{ item.home | default('/home/' ~ manual_user_name, true) }}"
+    manual_user_shell: "{{ item.shell | default('/bin/bash', true) }}"
+    manual_user_comment: "{{ item.comment | default(manual_user_name, true) }}"
+    manual_user_dict: "{{ item | combine({'name': manual_user_name, 'group': manual_user_group, 'home': manual_user_home, 'shell': manual_user_shell, 'comment': manual_user_comment}, recursive=true) }}"
+    manual_key_list: "{{ users_authorized_keys.get(manual_user_name, []) | default([], true) }}"
   loop: "{{ users_list | default([], true) }}"
   loop_control:
-    label: "{{ item.name }}"
+    label: "{{ manual_user_name | default('unknown', true) }}"
   when:
+    - ( manual_user_name | length ) > 0
     - ( manual_key_list | default([], true) | length ) > 0
     - ( users_list | default([], true) | length ) > 0
   changed_when: false
@@ -33,6 +40,8 @@
     label: "{{ item.0.name }}"
   when:
     - manual_users_with_keys | default([], true) | length > 0
+    - item.0.name is defined
+    - ( item.0.name | default('', true) | length ) > 0
   become: true
 
 # 追記後にソート・重複排除と権限整備を行う
@@ -50,4 +59,6 @@
     label: "{{ item.name }}"
   when:
     - ( manual_users_with_keys | default([], true) | length ) > 0
+    - item.name is defined
+    - ( item.name | default('', true) | length ) > 0
   become: true

@@ -2,58 +2,79 @@
 #  Ansible playbook
 #  Copyright 2020 Takeharu KATO All Rights Reserved.
 #  ユーザ・グループ作成関連タスク
-# 例:
 
 # グループ作成
 - name: Create group
   ansible.builtin.group:
-    name: "{{ item.group }}"
+    name: "{{ item.group | default(item.name, true) }}"
     state: present
   loop: "{{ users_list | default([], true) }}"
   when:
     - ( users_list | default([], true) | length ) > 0
+    - item.name is defined
+    - ( item.name | default('', true) | length ) > 0
   become: true
+
 
 # ユーザ作成
 - name: Create user
+  vars:
+    user_group: "{{ item.group | default(item.name, true) }}"
+    user_comment: "{{ item.comment | default(item.name, true) }}"
+    user_home: "{{ item.home | default('/home/' ~ item.name, true) }}"
+    user_shell: "{{ item.shell | default('/bin/bash', true) }}"
+    user_password: "{{ item.password | default(item.name | password_hash('sha512'), true) }}"
   ansible.builtin.user:
     name: "{{ item.name }}"
-    password: "{{ item.password }}"
-    group: "{{ item.group }}"
+    password: "{{ user_password }}"
+    group: "{{ user_group }}"
     groups:
-      - "{{ item.group }}"
-    comment:  "{{ item.comment }}"
-    home:  "{{ item.home }}"
-    shell: "{{ item.shell }}"
+      - "{{ user_group }}"
+    comment:  "{{ user_comment }}"
+    home:  "{{ user_home }}"
+    shell: "{{ user_shell }}"
   loop: "{{ users_list | default([], true) }}"
   when:
     - ( users_list | default([], true) | length ) > 0
+    - item.name is defined
+    - ( item.name | default('', true) | length ) > 0
   become: true
 
 # authorized_key
 - name: Import authorized key from GitHub
+  vars:
+    user_group: "{{ item.group | default(item.name, true) }}"
+    user_home: "{{ item.home | default('/home/' ~ item.name, true) }}"
   shell: |
-    curl -fsSL https://github.com/"{{ item.github }}".keys|sudo -u "{{ item.name }}" tee -a "{{ item.home }}"/.ssh/authorized_keys
-    cat "{{ item.home }}"/.ssh/authorized_keys|sort|uniq|sudo -u "{{ item.name }}" tee "{{ item.home }}"/.ssh/authorized_keys.tmp
-    sudo -u "{{ item.name }}" mv "{{ item.home }}"/.ssh/authorized_keys.tmp "{{ item.home }}"/.ssh/authorized_keys
-    sudo chmod 600 "{{ item.home }}"/.ssh/authorized_keys
-    sudo chown "{{ item.name }}:{{ item.group }}" "{{ item.home }}"/.ssh/authorized_keys
+    curl -fsSL https://github.com/"{{ item.github }}".keys|sudo -u "{{ item.name }}" tee -a "{{ user_home }}"/.ssh/authorized_keys
+    cat "{{ user_home }}"/.ssh/authorized_keys|sort|uniq|sudo -u "{{ item.name }}" tee "{{ user_home }}"/.ssh/authorized_keys.tmp
+    sudo -u "{{ item.name }}" mv "{{ user_home }}"/.ssh/authorized_keys.tmp "{{ user_home }}"/.ssh/authorized_keys
+    sudo chmod 600 "{{ user_home }}"/.ssh/authorized_keys
+    sudo chown "{{ item.name }}:{{ user_group }}" "{{ user_home }}"/.ssh/authorized_keys
   loop: "{{ users_list | default([], true) }}"
   when:
+    - item.name is defined
+    - item.github is defined
     - ( users_list | default([], true) | length ) > 0
+    - ( item.name | default('', true) | length ) > 0
+    - ( item.github | default('', true) | length ) > 0
   become: true
 
 # .gitconfig
 - name: .gitconfig for user
+  vars:
+    user_home: "{{ item.home | default('/home/' ~ item.name, true) }}"
   template:
     src: _gitconfig.j2
-    dest: "{{ item.home }}/.gitconfig"
+    dest: "{{ user_home }}/.gitconfig"
     owner: "{{ item.name }}"
     group: "{{ item.name }}"
     backup: no
   loop: "{{ users_list | default([], true) }}"
   when:
     - ( users_list | default([], true) | length ) > 0
+    - item.name is defined
+    - ( item.name | default('', true) | length ) > 0
   become: true
 
 # 管理系グループを作成しておく ( 存在していれば無変更 )
@@ -76,4 +97,6 @@
   when:
     - ( users_list | default([], true) | length ) > 0
     - ( adm_groups | default([], true) | length ) > 0
+    - item.name is defined
+    - ( item.name | default('', true) | length ) > 0
   become: true
