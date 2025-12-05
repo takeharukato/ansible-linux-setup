@@ -46,6 +46,14 @@
     - udev_net_generator_paths is defined
     - (udev_net_generator_paths | default([], true) | length ) > 0
 
+# 更新したルールの反映
+- name: "Reload udev rules"
+  shell: |
+    udevadm control --reload-rules && udevadm trigger
+  become: true
+  when:
+    - udev_net_generator_paths is defined
+    - (udev_net_generator_paths | default([], true) | length ) > 0
 
 
 # 70-persistent-net.rules のバックアップと空ファイル作成
@@ -84,6 +92,15 @@
     owner: root
     group: root
     mode: "0644"
+
+# 更新したルールの反映
+- name: "Reload udev rules"
+  shell: |
+    udevadm control --reload-rules && udevadm trigger
+  become: true
+  when:
+    - udev_net_generator_paths is defined
+    - (udev_net_generator_paths | default([], true) | length ) > 0
 
 # ifcfg-* ファイルの検出
 - name: Find ifcfg-* files
