@@ -1,0 +1,71 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+# cloud-init のネットワーク設定がある場合は,
+# 無効化する
+#
+# udev が旧来の fallback として persistent-net.rules を生成することで
+# .linkによるインターフェース名固定化設定が無効化されることを防止するための
+# 処理。
+#
+# AlmaLinux 9 / RHEL 9 系では通常, 70-persistent-net.rules は使わないが,
+# 以下の理由により, フォールバック処理として, 70-persistent-net.rules が
+# 自動生成されることがある。
+#
+# OpenStack で 70-persistent-net.rules が生成されやすい要因は以下の通り。
+#
+# - NIC の MAC アドレスがインスタンス再作成で揺らぐ
+#  ( セキュリティグループ・ポート再作成時に MAC が変わるケース )
+# - PCI アドレスが仮想マシンの都度変わる
+#   => udev がinterface 名が変わったと判断し, 過去互換の persistent-net.rules を生成
+# - cloud-init が NIC rename のヒントを udev に投げる場合がある
+#   特に OpenStack metadata/ConfigDrive 由来の "subnet, link info" が影響することがある
+#
+# - OpenStack の virtio-net が多数のバージョンで 予測可能名 に揺らぎが出る
+#   既知事例があり, NICのインターフェース名が変更されたとみなされる(特に Yogaの場合, NIC アタッチ順序が必ずしも固定ではない)
+#
+
+# cloud-init の設定ファイルの存在確認
+- name: Check if cloud-init config exists
+  stat:
+    path: /etc/cloud/cloud.cfg
+  register: cloud_cfg
+
+# /etc/cloud/cloud.cfg.d/99-disable-network-config.cfg を作成して
+# cloud-init のネットワーク設定を無効化
+- block:
+
+  # /etc/cloud/cloud.cfg.d ディレクトリの存在保証
+  - name: Ensure /etc/cloud/cloud.cfg.d exists
+    file:
+      path: /etc/cloud/cloud.cfg.d
+      state: directory
+      owner: root
+      group: root
+      mode: "0755"
+
+  # cloud-init のネットワーク設定無効化
+  - name: Disable cloud-init network configuration
+    copy:
+      dest: /etc/cloud/cloud.cfg.d/99-disable-network-config.cfg
+      content: |
+        network:
+          config: disabled
+      owner: root
+      group: root
+      mode: "0644"
+  when: cloud_cfg.stat.exists
+
+# cloud-init のネットワークインターフェース名変更設定を無効化
+- name: Disable cloud-init network renaming configuration
+  copy:
+    dest: /etc/cloud/cloud.cfg.d/99-disable-network-rename.cfg
+    content: |
+      network:
+        renderers: networkd
+        apply_network_config: false
+    owner: root
+    group: root
+    mode: "0644"
+  when: cloud_cfg.stat.exists
