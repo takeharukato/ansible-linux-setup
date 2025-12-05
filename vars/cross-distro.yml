@@ -30,11 +30,7 @@ pkg_mgr_is_rhel:   "{{ pkg_mgr_family == 'rhel' }}"
 
 # OS 固有の設定ファイル配置ディレクトリ
 # /etc/default or /etc/sysconfig
-etc_default_dir: >-
-  {{
-    ((ansible_facts.os_family | default('RedHat')) == 'Debian')
-      | ternary('/etc/default', '/etc/sysconfig')
-  }}
+etc_default_dir: "{{ ((ansible_facts.os_family | default('RedHat')) == 'Debian') | ternary('/etc/default', '/etc/sysconfig') }}"
 
 # GRUB 設定ファイルパス
 grub_default_cfg_path_rhel: "/etc/default/grub"
@@ -119,6 +115,29 @@ netif_nm_link_dir: "{{ (ansible_facts.os_family == 'Debian') | ternary(netif_nm_
 common_autonetconfig_files_debian:
   - '00-installer-config.yaml'
   - '50-cloud-init.yaml'
+
+##################################################################################
+# RHEL系で自動ネットワーク設定ファイルを削除する際のファイル名リスト
+# RHEL9では, 基本的に使用されないが, OpenStack環境などで NIC の MAC アドレスが
+# インスタンス再作成時に, セキュリティグループ・ポート再作成により,
+# MAC が変わる場合や PCI アドレスが仮想マシンの都度変わる場合に,
+# udev が interface 名が変わったと判断し, 過去互換の persistent-net.rules を
+# 生成することがあるため, 生成されたpersistent-net.rulesを削除する目的で使用する。
+##################################################################################
+
+# udev の永続ネットワークルールファイル
+# (70-persistent-net.rules)のパス一覧
+udev_persistent_net_rules_paths:
+  - "/etc/udev/rules.d/70-persistent-net.rules"
+  - "/lib/udev/rules.d/70-persistent-net.rules"
+  - "/usr/lib/udev/rules.d/70-persistent-net.rules"
+
+# udev net generator (75-persistent-net-generator.rules)の
+# パス一覧 ( 70-persistent-net.rules を生成するルールファイル )
+udev_net_generator_paths:
+  - "/etc/udev/rules.d/75-persistent-net-generator.rules"
+  - "/usr/lib/udev/rules.d/75-persistent-net-generator.rules"
+  - "/lib/udev/rules.d/75-persistent-net-generator.rules"
 
 # 管理系 NIC の単一要素から成るデフォルト netif_list を定義する。
 # 静的アドレスは空とし, IPv4 は DHCP, IPv6 は SLAAC を利用する。

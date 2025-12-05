@@ -5,6 +5,17 @@
 # 複数インターフェース設定タスク。
 #
 
+# Cloud-Init 無効化設定
+# NetworkManager の動作保証のため,
+# config-network-multi.yml の前に実行 (RedHat 系のみ)
+# config-network-multi.yml で, NetworkManager 設定を行った後
+# 再起動前に udevルール削除を行う
+# cloud-init の無効化からNetworkManager設定までの間に
+# 再起動が入らないようにすること
+- include_tasks: config-disable-cloud-init.yml
+  when: ansible_facts.os_family == "RedHat"
+
+
 # ネットワークインターフェース定義を設定
 - name: Normalize multi NIC items
   ansible.builtin.set_fact:
@@ -334,6 +345,11 @@
   when: (_obsolete_keyfiles_existing | default([]) | length) > 0
   notify:
     - "nm_reload_and_activate"
+
+# 再起動前に, 不要な udev ルールを削除 ( RHEL 系のみ )
+# ネットワークインターフェース名の固定化を確実にするため
+- include_tasks: config-remove-udev-rules.yml
+  when: ansible_facts.os_family == "RedHat"
 
 #
 # NetworkManagerの設定を更新したらリブート
