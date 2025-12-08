@@ -13,6 +13,10 @@
 # k8sworker0102.local
 # k8sworker0201.local
 # k8sworker0202.local
+[frr]
+# extgw.local
+# frr01.local
+# frr02.local
 [devel]
 # vmlinux1.local
 # vmlinux2.local

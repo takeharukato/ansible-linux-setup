@@ -1,0 +1,21 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  ロール固有変数のデフォルト値
+#  group_vars/all/all.yml やhost_varsで上書き可能とするため,
+#  ロール名/defaults/main.yml に定義している
+
+# roles/frr-basic/defaults/main.yml
+
+# BGP グローバル（実値は host_vars 側で上書き）
+frr_bgp_asn: 0
+frr_bgp_router_id: ""
+
+# K8s側 iBGP ピア / 疑似外部 eBGP ピア
+frr_k8s_neighbors: []
+frr_ebgp_neighbors: []
+
+# 広告プレフィックス
+frr_networks_v4: []
+frr_networks_v6: []

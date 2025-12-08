@@ -1,0 +1,80 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+# 管理ネットワークのNIC
+mgmt_nic: "ens160"
+
+# NICリスト
+# 管理系IF(ens160)
+# ipv4 addr: 192.168.20.49
+# ipv6 addr: fd69:6684:61a:1::49
+# DNSは, LAN内のDNSを使用
+#
+#
+# 疑似外部ネットワーク(ens224)
+# 本サーバは, マルチホーム構成としており, 管理系IFが接続されたスイッチ
+# と疑似外部ネットワーク用IFが接続されたスイッチ, 疑似外部ネットワークの3系統のスイッチに接続される
+# 疑似外部ネットワーク用IFが接続されたスイッチのネットワークは以下を使用する
+#  IPv4: 192.168.90.0
+#  IPv6: fd69:6684:61a:90::
+#
+# 管理系IF経由で外部に出す方針のため, メトリクスは管理系より高めに設定
+# 管理系IF, 疑似外部ネットワークインターフェース名を固定するために,
+# macにそれぞれのIFのMACアドレスを指定
+# (MACアドレスを指定すると.linkファイルによるインターフェース名固定処理が
+# 実施される)
+netif_list:
+  - netif: "ens160"
+    mac: "00:0c:29:31:b8:e1"
+    static_ipv4_addr: "192.168.20.81"
+    network_ipv4_prefix_len: 24
+    static_ipv6_addr: "fd69:6684:61a:1::81"
+    network_ipv6_prefix_len: 64
+    gateway4: "{{gateway4}}"
+    gateway6: "{{gateway6}}"
+    ignore_auto_ipv4_dns: true
+    ignore_auto_ipv6_dns: true
+    name_server_ipv4_1: "{{ipv4_name_server1}}"
+    name_server_ipv4_2: "{{ipv4_name_server2}}"
+    name_server_ipv6_1: "{{ipv6_name_server1}}"
+    name_server_ipv6_2: "{{ipv6_name_server2}}"
+    dns_search: "example.com"
+  - netif: "ens224"
+    mac: "00:0c:29:31:b8:eb"
+    static_ipv4_addr: "192.168.90.1"
+    network_ipv4_prefix_len: 24
+    static_ipv6_addr: "fd69:6684:61a:90::1"
+    network_ipv6_prefix_len: 64
+    ignore_auto_ipv4_dns: true
+    ignore_auto_ipv6_dns: true
+    name_server_ipv4_1: "{{ipv4_name_server1}}"
+    name_server_ipv4_2: "{{ipv4_name_server2}}"
+    name_server_ipv6_1: "{{ipv6_name_server1}}"
+    name_server_ipv6_2: "{{ipv6_name_server2}}"
+    route_metric_ipv4: 300
+    route_metric_ipv6: 300
+    dns_search: "example.com"
+
+# ==== FRR/BGP (疑似外部ネットワークGW 用) =================================
+
+# このノードのBGP AS番号と router-id
+# router-id は疑似外部ネットワーク側(192.168.90.0/24)のアドレスに揃える
+frr_bgp_asn: 65100
+frr_bgp_router_id: "192.168.90.1"
+
+# K8sノードとは直接話さない
+frr_k8s_neighbors: []
+
+# frr01/frr02とeBGP接続
+frr_ebgp_neighbors:
+  - { addr: "192.168.90.49", asn: 65011, desc: "Cluster1 Gateway (frr01)" }
+  - { addr: "192.168.90.48", asn: 65012, desc: "Cluster2 Gateway (frr02)" }
+
+# 自分のセグメントのみ広告
+# 他は, 他のルータから伝えられたものを再配送
+frr_networks_v4:
+  - "192.168.90.0/24"   # 疑似外部ネットワーク
+
+frr_networks_v6:
+  - "fd69:6684:61a:90::/64"  # 疑似外部ネットワーク
