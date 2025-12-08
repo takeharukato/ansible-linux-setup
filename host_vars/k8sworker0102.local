@@ -65,9 +65,9 @@ netif_list:
     dns_search: "example.com"
   - netif: "ens194"
     mac: "00:0c:29:5c:bf:27"
-    static_ipv4_addr: "192.168.30.42"
+    static_ipv4_addr: "192.168.30.43"
     network_ipv4_prefix_len: 24
-    static_ipv6_addr: "fd69:6684:61a:2::42"
+    static_ipv6_addr: "fd69:6684:61a:2::43"
     network_ipv6_prefix_len: 64
     ignore_auto_ipv4_dns: true
     ignore_auto_ipv6_dns: true
