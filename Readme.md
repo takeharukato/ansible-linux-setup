@@ -25,6 +25,8 @@
       - [Redmine関連設定](#redmine関連設定)
       - [Emacsパッケージ関連設定](#emacsパッケージ関連設定)
       - [Kubernetes関連設定](#kubernetes関連設定)
+        - [K8sクラスタ間の接続設定](#k8sクラスタ間の接続設定)
+        - [FRRoutingの設定](#frroutingの設定)
         - [Cilium CNI](#cilium-cni)
         - [Multus メタCNI](#multus-メタcni)
         - [Whereabouts CNI](#whereabouts-cni)
@@ -534,6 +536,69 @@ k8s_operator_github_key_list:
 
 その他, Cilium CNI, Multus メタCNI, Whereabouts IPアドレスマネージャの
 バージョン, Helmのチャートバージョン, イメージバージョンなどを指定できる。
+
+##### K8sクラスタ間の接続設定
+
+本playbookでは, 将来的に異なるネットワーク内のK8sクラスタ群をBorder Gateway Protocol (BGP) 広告で相互接続する構成を目指している。現時点では K8s ノード側で BGP を有効化するタスクは実装されていないため, 下記は `host_vars/` 配下のサンプル値を元にした設計イメージである。
+
+`host_vars/`配下のサンプルの設定ファイルの場合, 以下のように接続される想定である。
+
+- K8sクラスタ間でServiceネットワークを共有する
+- Serviceネットワーク上への接続は, 仮想外部ネットワーク上にあるFRRouting内のルータを介して, 行われる
+- 現状のロールでは, FRR 側で `frr_networks_*` に指定したプレフィックスを静的に広告する想定であり, K8s ノードから動的に経路を取得する処理は未実装。
+- 将来的には, 各クラスタ内の K8s ノード (もしくは Cilium BGP Control Plane 等) と FRR の間で iBGP を確立し, extgw を介して eBGP でクラスタ間の経路交換を行う。
+
+想定するネットワーク構成例を以下に示す:
+
+```plantuml
+@startuml
+skinparam linetype ortho
+skinparam ArrowColor #555555
+skinparam NodeBorderColor #1f4d8f
+skinparam NodeBackgroundColor #eef3fb
+skinparam defaultTextAlignment center
+
+rectangle "Cluster1 (AS65011)" {
+  node "k8sctrlplane01.local\nK8s net: 192.168.30.41" as CP1
+  node "k8sworker0101.local\nK8s net: 192.168.30.42" as W101
+  node "k8sworker0102.local\nK8s net: 192.168.30.42" as W102
+  node "frr01.local\nAS65011\n192.168.30.49 / 192.168.90.49" as FRR01
+}
+
+rectangle "Cluster2 (AS65012)" {
+  node "k8sctrlplane02.local\nK8s net: 192.168.40.41" as CP2
+  node "k8sworker0201.local\nK8s net: 192.168.40.52" as W201
+  node "k8sworker0202.local\nK8s net: 192.168.40.53" as W202
+  node "frr02.local\nAS65012\n192.168.40.59 / 192.168.90.59" as FRR02
+}
+
+node "extgw.local\nAS65100\n192.168.90.1" as EXT
+
+FRR01 -- CP1 : iBGP\n192.168.30.49 <-> 192.168.30.41
+FRR01 -- W101 : iBGP\n192.168.30.49 <-> 192.168.30.42
+FRR01 -- W102 : iBGP\n192.168.30.49 <-> 192.168.30.42
+FRR02 -- CP2 : iBGP\n192.168.40.59 <-> 192.168.40.41
+FRR02 -- W201 : iBGP\n192.168.40.59 <-> 192.168.40.52
+FRR02 -- W202 : iBGP\n192.168.40.59 <-> 192.168.40.53
+FRR01 -- EXT : eBGP 65011<->65100\n192.168.90.49 <-> 192.168.90.1
+FRR02 -- EXT : eBGP 65012<->65100\n192.168.90.59 <-> 192.168.90.1
+@enduml
+```
+
+##### FRRoutingの設定
+
+本playbookでは, 自律システム (`Autonomous System`)間でのBGPによる経路制御を[FRRouting](https://frrouting.org/)パッケージを用いて行う。FRRouting関連の設定を以下に記載する。これらの設定は, 各ネットワーク上のFRRoutingを導入した仮想マシンに対する設定値として, `host_vars/`配下のファイル(例:frr01.localなど)に記載する。
+
+K8sを構成するコントロールプレイン, ワーカーノードとは別に,各K8sネットワークごとに独立したVMを, FRRoutingを導入した仮想マシンを構築し, 各K8sネットワーク, 管理ネットワーク, 仮想外部ネットワーク(`extgw`仮想マシンが所属するネットワーク)と接続する仮想NICを用意して構築することを想定している。
+
+|変数名|意味|設定値の例|
+|---|---|---|
+|`frr_bgp_asn`|BGPで使用する自律システム (`Autonomous System`) 番号(`AS番号`)を指定する。1〜4294967295の整数で設定する。|`65011`|
+|`frr_bgp_router_id`|FRRノードを識別するBGP Router-ID (IPv4アドレス形式) を指定する。|`192.168.30.49`|
+|`frr_k8s_neighbors`|iBGPでピアリングするK8sノード群を定義する。`addr`(接続先IPv4アドレス) / `asn`(ピアのAS番号) / `desc`(ピアの説明文) を要素に持つ辞書のリストで指定する。|`[{ addr: '192.168.30.41', asn: 65011, desc: 'C1 control-plane' }]`|
+|`frr_ebgp_neighbors`|eBGPで接続する外部ピアを定義する。`addr`(接続先IPv4アドレス) / `asn`(ピアのAS番号) / `desc`(ピアの説明文) を要素に持つ辞書のリストで指定する。|`[{ addr: '192.168.90.1', asn: 65100, desc: 'External GW' }]`|
+|`frr_networks_v4`|BGPで広告するIPv4プレフィックスをCIDR表記のリストで指定する。|`['192.168.30.0/24', '192.168.90.0/24']`|
+|`frr_networks_v6`|BGPで広告するIPv6プレフィックスをCIDR表記のリストで指定する。|`['fd69:6684:61a:2::/64', 'fd69:6684:61a:90::/64']`|
 
 ##### Cilium CNI
 
