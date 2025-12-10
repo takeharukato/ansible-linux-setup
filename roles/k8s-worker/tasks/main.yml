@@ -18,3 +18,7 @@
 - include_tasks: config-shielding.yml
 - include_tasks: config-worker-node.yml
 - include_tasks: config.yml
+- include_tasks: config-cilium-bgp-cplane.yml
+  when:
+    - k8s_bgp is defined
+    - k8s_bgp.enabled | default(false)

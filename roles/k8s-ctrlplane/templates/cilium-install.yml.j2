@@ -7,6 +7,13 @@
 #
 # Cilium設定値
 #
+{% set bgp_cp = namespace(enabled=false) %}
+{% if k8s_cilium_bgp_control_plane_enabled is defined %}
+{%   set bgp_cp.enabled = k8s_cilium_bgp_control_plane_enabled %}
+{% elif k8s_bgp is defined %}
+{%   set bgp_cp.enabled = k8s_bgp.enabled | default(false) %}
+{% endif %}
+
 operator:
   image:
     # Ciliumオペレータのコンテナイメージの版数
@@ -60,6 +67,9 @@ ipv6:
 
 enable-ipv4-masquerade: false
 enable-ipv6-masquerade: false
+
+bgpControlPlane:
+  enabled: {{ (bgp_cp.enabled | bool) | to_json }}
 
 {% set have_cluster = (k8s_cilium_cm_cluster_name | default('', true) | length)
                        and (k8s_cilium_cm_cluster_id is defined)
