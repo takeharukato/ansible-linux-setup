@@ -53,7 +53,7 @@ USER_PASSWD_HASH := $(subst $,$$,$(USER_PASSWD_HASH_RAW))
 # GitHubから公開鍵を取得するために使用するGitHubのユーザ名
 # (デフォルト: sampleuser)
 GITHUB_USER ?= sampleuser
-RHEL_IMAGE_URL_PREFIX ?= https://repo.almalinux.org/almalinux/9/isos/x86_64
+RHEL_IMAGE_URL_PREFIX ?= https://vault.almalinux.org/9.6/isos/x86_64
 RHEL_ISO_BASE   ?= AlmaLinux-9.6-x86_64-dvd
 RHEL_ISO   ?= ${RHEL_ISO_BASE}.iso
 RHEL_ISO_OUT ?= ${RHEL_ISO_BASE}-ks.iso

@@ -36,10 +36,13 @@ services --enabled="avahi-daemon"
 #
 %packages
 @core
+python3
 avahi
 avahi-tools
 open-vm-tools
 curl
+cloud-init
+cloud-utils-growpart
 %end
 
 # -------- 追加設定 ( インストール先 chroot 内で実行 )  --------
@@ -69,6 +72,20 @@ set -x
 
 # open-vm-toolsのサービスの有効化
 systemctl enable vmtoolsd.service || true
+# cloud-initのサービスの有効化
+systemctl enable cloud-init
+# cloud-init が VMware guestinfo のメタデータを優先利用するよう設定
+mkdir -p /etc/cloud/cloud.cfg.d
+cat > /etc/cloud/cloud.cfg.d/95-vmware-datasource.cfg <<'EOF'
+datasource_list:
+  - VMware
+  - NoCloud
+datasource:
+  VMware:
+    metadata_transport:
+      - guestinfo
+    vmware_rpctool: true
+EOF
 
 # wheel の NOPASSWD 化 ( 必要なければ外す )
 echo '%wheel ALL=(ALL) NOPASSWD:ALL' > /etc/sudoers.d/99-wheel-nopw
