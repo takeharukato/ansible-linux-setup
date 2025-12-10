@@ -49,7 +49,7 @@ k8s_cilium_cm_cluster_id: 1
 # 実施される)
 netif_list:
   - netif: "ens160"
-    mac: "00:0c:29:57:36:71"
+    mac: "00:50:56:00:36:71"
     static_ipv4_addr: "192.168.20.41"
     network_ipv4_prefix_len: 24
     static_ipv6_addr: "fd69:6684:61a:1::41"
@@ -64,7 +64,7 @@ netif_list:
     name_server_ipv6_2: "{{ipv6_name_server2}}"
     dns_search: "example.com"
   - netif: "ens194"
-    mac: "00:0c:29:57:36:7b"
+    mac: "00:50:56:00:36:7b"
     static_ipv4_addr: "192.168.30.41"
     network_ipv4_prefix_len: 24
     static_ipv6_addr: "fd69:6684:61a:2::41"
@@ -87,3 +87,22 @@ k8s_whereabouts_ipv4_range_end: "192.168.30.254"
 k8s_whereabouts_ipv6_range_start: "fd69:6684:61a:2::100"
 # セカンダリネットワークのアドレスレンジ終了アドレス(IPv6)
 k8s_whereabouts_ipv6_range_end: "fd69:6684:61a:2::ffff"
+
+# Cilium BGP Control Plane 設定
+k8s_bgp:
+  enabled: true
+  node_name: "k8sctrlplane01"
+  local_asn: 65011
+  router_id: "192.168.30.41"
+  kubeconfig: "/etc/kubernetes/admin.conf"
+  export_pod_cidr: true
+  advertise_services: false
+  address_families:
+    - ipv4
+    - ipv6
+  neighbors:
+    - peer_address: "192.168.30.49/32"
+      peer_asn: 65011
+      peer_port: 179
+      hold_time_seconds: 90
+      connect_retry_seconds: 15

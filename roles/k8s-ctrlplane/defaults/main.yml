@@ -101,6 +101,12 @@ k8s_cilium_helm_chart_version: "{{ k8s_cilium_version }}"
 k8s_cilium_image_version: "v{{ k8s_cilium_version }}"
 # Cilium Helm リポジトリ URL
 k8s_cilium_helm_repo_url: "https://helm.cilium.io/"
+# コントロールプレイン再構築時に古いCilium CRDを削除してから再インストールするか
+k8s_cilium_delete_legacy_crds: true
+# Cilium HelmチャートからCRDを適用するかどうか
+k8s_cilium_manage_crds: true
+# Helm再導入前に既存のCilium ServiceAccountを削除するか
+k8s_cilium_cleanup_serviceaccounts: true
 
 # Multus CNIを有効化する
 k8s_multus_enabled: false

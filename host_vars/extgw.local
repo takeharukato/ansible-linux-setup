@@ -26,7 +26,7 @@ mgmt_nic: "ens160"
 # 実施される)
 netif_list:
   - netif: "ens160"
-    mac: "00:0c:29:31:b8:e1"
+    mac: "00:50:56:00:b8:e1"
     static_ipv4_addr: "192.168.20.81"
     network_ipv4_prefix_len: 24
     static_ipv6_addr: "fd69:6684:61a:1::81"
@@ -41,7 +41,7 @@ netif_list:
     name_server_ipv6_2: "{{ipv6_name_server2}}"
     dns_search: "example.com"
   - netif: "ens224"
-    mac: "00:0c:29:31:b8:eb"
+    mac: "00:50:56:00:b8:eb"
     static_ipv4_addr: "192.168.90.1"
     network_ipv4_prefix_len: 24
     static_ipv6_addr: "fd69:6684:61a:90::1"
