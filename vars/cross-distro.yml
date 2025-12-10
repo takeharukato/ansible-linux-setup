@@ -347,7 +347,7 @@ ntp_client_chrony_service: "{{ (ansible_facts.os_family == 'Debian') | ternary(n
 ntp_client_chrony_conf_dir: "{{ (ansible_facts.os_family == 'Debian') | ternary(ntp_client_chrony_conf_dir_debian, ntp_client_chrony_conf_dir_rhel) }}"
 
 # drop-in ディレクトリ
-ntp_chrony_conf_drop_in_dir_debian: "/etc/chrony/chrony.d"
+ntp_chrony_conf_drop_in_dir_debian: "/etc/chrony/conf.d"
 ntp_chrony_conf_drop_in_dir_rhel:   "/etc/chrony.d"
 
 ntp_client_chrony_conf_drop_in_dir: "{{ (ansible_facts.os_family == 'Debian') | ternary(ntp_chrony_conf_drop_in_dir_debian, ntp_chrony_conf_drop_in_dir_rhel) }}"
