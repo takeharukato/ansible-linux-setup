@@ -18,13 +18,16 @@
 
 - name: Generate embedded kubeconfig with shared CA
   ansible.builtin.command:
-    argv:
-      - "{{ k8s_embed_kubeconfig_script_path }}"
-      - "--admin-conf={{ k8s_kubeconfig_admin_conf_path }}"
-      - "--output-dir={{ k8s_kubeconfig_operator_dir }}"
-      - "--file-postfix={{ k8s_embed_kubeconfig_file_postfix }}"
-      - "{{ ((k8s_kubeconfig_shared_ca_path | default('')) | length > 0) | ternary('--shared-ca=' ~ k8s_kubeconfig_shared_ca_path, omit) }}"
-      - "{{ k8s_kubeconfig_cluster_name }}"
+    argv: "{{ k8s_kubeconfig_embed_command_args }}"
+  vars:
+    k8s_kubeconfig_shared_ca_path_resolved: "{{ k8s_kubeconfig_shared_ca_path | default('', true) }}"
+    k8s_kubeconfig_embed_shared_ca_args: "{{ ['--shared-ca=' ~ k8s_kubeconfig_shared_ca_path_resolved] if k8s_kubeconfig_shared_ca_path_resolved else [] }}"
+    k8s_kubeconfig_embed_command_args: "{{ [
+          k8s_embed_kubeconfig_script_path,
+          '--admin-conf=' ~ k8s_kubeconfig_admin_conf_path,
+          '--output-dir=' ~ k8s_kubeconfig_operator_dir,
+          '--file-postfix=' ~ k8s_embed_kubeconfig_file_postfix
+        ] + k8s_kubeconfig_embed_shared_ca_args + [k8s_kubeconfig_cluster_name] }}"
   environment:
     KUBECONFIG: ""
   changed_when: false

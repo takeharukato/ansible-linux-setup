@@ -776,14 +776,14 @@ kubectl --context <context> -n kube-system get secret cilium-clustermesh -o json
 ##### `kubeconfig`の更新と再配布
 
 - **コントロールプレインの更新**:
-  以下の Make ターゲットを実行し, すべてのコントロールプレインノードに対して, 埋め込みファイル生成と`kubeconfig`の統合とを行う。
+  `inventory/hosts`の`k8s_ctrl_plane`の項目に集約対象となるコントロールプレインのホスト名を記載したうえで, コントロールプレインの`kubeconfig`を更新するMake ターゲット(`update-ctrlplane-kubeconfig`)を実行し, すべてのコントロールプレインノードに対して, 埋め込みファイル生成と`kubeconfig`の統合とを行う。
 
   ```:shell
   make update-ctrlplane-kubeconfig
   ```
 
 - **ワーカーノードへの再配布**:
-  コントロールプレインで統合された統合 `kubeconfig` (`merged-kubeconfig.conf`) を各ワーカーに配布する Make ターゲット (`update-worker-kubeconfig`)を実行する。`update-worker-kubeconfig` は直前の手順で最新化された 統合 `kubeconfig` (`merged-kubeconfig.conf`) をコントロールプレインから取得するため, 事前に `make update-ctrlplane-kubeconfig` を完了していることが前提となる。
+  `inventory/hosts`の`k8s_worker`の項目に配布対象となるワーカノードのホスト名を記載したうえで, コントロールプレインで統合された統合 `kubeconfig` (`merged-kubeconfig.conf`) を各ワーカーに配布する Make ターゲット (`update-worker-kubeconfig`)を実行する。`update-worker-kubeconfig` は直前の手順で最新化された 統合 `kubeconfig` (`merged-kubeconfig.conf`) をコントロールプレインから取得するため, 事前に `make update-ctrlplane-kubeconfig` を完了していることが前提となる。
 
   ```:shell
   make update-worker-kubeconfig
