@@ -14,7 +14,7 @@ ISO_BASE_NAME=${ISO_BASE_NAME:-"AlmaLinux-9.6-x86_64-dvd"}
 ISO_IMAGE=${ISO_IMAGE:-"${ISO_BASE_NAME}.iso"}
 KS_FILE=${KS_FILE:-"ks.cfg"}
 OUT_IMAGE=${OUT_IMAGE:-"${ISO_BASE_NAME}-ks.iso"}
-IMAGE_URL_PREFIX=${IMAGE_URL:-"https://repo.almalinux.org/almalinux/9/isos/x86_64"}
+IMAGE_URL_PREFIX=${IMAGE_URL:-"https://vault.almalinux.org/9.6/isos/x86_64"}
 WORK_DIR=${WORK_DIR:-"work"}
 GITHUB_USER=${GITHUB_USER:-""}
 

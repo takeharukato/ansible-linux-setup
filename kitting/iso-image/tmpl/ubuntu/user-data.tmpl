@@ -43,6 +43,16 @@ autoinstall:
         ssh_import_id:
           - gh:${GITHUB_USER}
     write_files:
+      - path: /etc/cloud/cloud.cfg.d/95-vmware-datasource.cfg
+        owner: root:root
+        permissions: '0644'
+        content: |
+          datasource_list: [VMwareGuestInfo, None]
+          datasource:
+            VMwareGuestInfo:
+              metadata_transport:
+                - guestinfo
+              vmware_rpctool: true
       - path: /var/tmp/update-hostname.sh
         owner: root:root
         permissions: '0644'

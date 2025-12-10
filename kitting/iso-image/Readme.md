@@ -257,7 +257,7 @@ $ ip addr
        valid_lft forever preferred_lft forever
     inet6 ::1/128 scope host noprefixroute
        valid_lft forever preferred_lft forever
-2: ens160: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc mq state UP group default qlen 1000    link/ether 00:0c:29:01:ef:16 brd ff:ff:ff:ff:ff:ff
+2: ens160: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc mq state UP group default qlen 1000    link/ether 00:50:56:01:ef:16 brd ff:ff:ff:ff:ff:ff
     altname enp3s0
     inet 192.168.20.113/24 metric 100 brd 192.168.20.255 scope global dynamic ens160
        valid_lft 258915sec preferred_lft 258915sec
