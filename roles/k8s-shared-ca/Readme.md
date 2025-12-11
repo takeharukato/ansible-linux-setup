@@ -23,6 +23,21 @@
 
 ## 変数一覧
 
+| 変数名 | 既定値 | 説明 |
+| --- | --- | --- |
+| `enable_create_k8s_ca` | `false` | 共通CAをロール内で新規生成するか、既存ファイルを必須とするかを切り替えます。|
+| `k8s_common_ca` | `""` | 既存の共通CAが格納されたディレクトリパス。未指定時はロール同梱資材または新規生成にフォールバックします。|
+| `k8s_shared_ca_output_dir` | `/etc/kubernetes/pki/shared-ca` | コントロールプレーンに配布する共通CA一式の配置先ディレクトリ。|
+| `k8s_shared_ca_cert_filename` | `cluster-mesh-ca.crt` | 共通CA証明書ファイル名。|
+| `k8s_shared_ca_key_filename` | `cluster-mesh-ca.key` | 共通CA秘密鍵ファイル名。|
+| `k8s_shared_ca_subject` | `/CN=cilium-cluster-mesh-ca` | 新規生成時に指定する証明書サブジェクト。|
+| `k8s_shared_ca_valid_days` | `3650` | 新規生成する共通CAの有効日数。|
+| `k8s_shared_ca_key_size` | `4096` | 新規生成時に使用するRSA鍵長。|
+| `k8s_shared_ca_digest` | `sha256` | 証明書署名に利用するダイジェストアルゴリズム。|
+| `k8s_shared_ca_replace_kube_ca` | `false` | Kubernetes既定のルートCAを共通CAへ置き換えるかを制御します。|
+
+## ロール内の動作
+
 共通CAとして参照される基準の証明書と秘密鍵の組は, このロールでは `k8s_shared_ca_*` で指示されたファイルを意味する。
 
 1. `vars/all-config.yml` 等で `enable_create_k8s_ca` / `k8s_common_ca` を設定します。
