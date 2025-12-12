@@ -128,7 +128,7 @@
 
   - name: stop containerd
     systemd:
-      name: kubelet
+      name: containerd
       state: stopped
     become: true
 
