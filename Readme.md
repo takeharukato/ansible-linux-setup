@@ -28,9 +28,11 @@
         - [K8sクラスタ間の接続設定](#k8sクラスタ間の接続設定)
         - [FRRoutingの設定](#frroutingの設定)
         - [Cilium CNI](#cilium-cni)
+        - [Cilium BGP Control Planeの設定](#cilium-bgp-control-planeの設定)
+        - [`k8s_bgp`変数の`address_families`の要素を辞書として指定する場合の指定方法](#k8s_bgp変数のaddress_familiesの要素を辞書として指定する場合の指定方法)
         - [Multus メタCNI](#multus-メタcni)
         - [Whereabouts CNI](#whereabouts-cni)
-      - [複数のコントロールプレインの操作](#複数のコントロールプレインの操作)
+      - [複数コントロールプレインの操作](#複数コントロールプレインの操作)
         - [kubeconfig ファイルの配置と属性](#kubeconfig-ファイルの配置と属性)
         - [`kubeconfig` ファイルの収集](#kubeconfig-ファイルの収集)
           - [RedHat系 の場合](#redhat系-の場合)
@@ -539,16 +541,13 @@ k8s_operator_github_key_list:
 
 ##### K8sクラスタ間の接続設定
 
-本playbookでは, 将来的に異なるネットワーク内のK8sクラスタ群をBorder Gateway Protocol (BGP) 広告で相互接続する構成を目指している。現時点では K8s ノード側で BGP を有効化するタスクは実装されていないため, 下記は `host_vars/` 配下のサンプル値を元にした設計イメージである。
+本playbookでは, K8sクラスタ間で共通のServiceネットワークを共有することを想定し, 異なるネットワーク内のK8sクラスタ群をBorder Gateway Protocol (BGP) 広告で相互接続することを想定している(K8sクラスタ間でServiceネットワークを交換するためには, `host_vars/`配下の設定ファイル中で`k8s_bgp`変数を定義し, キー`advertise_services`の設定値を`true`に設定する。本項目の規定値は`false`である)。
 
-`host_vars/`配下のサンプルの設定ファイルの場合, 以下のように接続される想定である。
+- 仮想外部ネットワーク上にFRRouting(FRR)パッケージを動作させ, Serviceネットワーク上への接続は, 当該のFRRouting内部のルータを介して行われる
+- 現状のロールでは, FRR 側で `frr_networks_*` に指定したプレフィックスを静的に広告する。
+- 各クラスタ内の K8s ノード (もしくは Cilium BGP Control Plane 等) と FRR の間で iBGP を確立し, extgw を介して eBGP でクラスタ間の経路交換を行う。
 
-- K8sクラスタ間でServiceネットワークを共有する
-- Serviceネットワーク上への接続は, 仮想外部ネットワーク上にあるFRRouting内のルータを介して, 行われる
-- 現状のロールでは, FRR 側で `frr_networks_*` に指定したプレフィックスを静的に広告する想定であり, K8s ノードから動的に経路を取得する処理は未実装。
-- 将来的には, 各クラスタ内の K8s ノード (もしくは Cilium BGP Control Plane 等) と FRR の間で iBGP を確立し, extgw を介して eBGP でクラスタ間の経路交換を行う。
-
-想定するネットワーク構成例を以下に示す:
+ネットワーク構成例を以下に示す:
 
 ```plantuml
 @startuml
@@ -655,6 +654,41 @@ Cilium Container Network Interface (`CNI`) 関連の設定を以下に記載す�
 
 Cluster Mesh 用 Secret (`k8s_cilium_clustermesh_secret_enabled: true`) は共通CAで署名した Transport Layer Security (`TLS`) 証明書と秘密鍵, および共通CA証明書を `cilium_clustermesh_secret_*` 系変数の指示に従って保存する。Subject Alternative Name (`SAN`) は既定で `clustermesh-apiserver` Service 名を含むため, クラスタ固有の Service 名を利用する場合は `k8s_cilium_clustermesh_tls_san_dns` を上書きして接続先に合わせる。
 
+##### Cilium BGP Control Planeの設定
+
+Cilium に組み込まれた BGP デーモン ( Cilium-BGP Control Plane Custom Resource Definition (CRD) )を使い, Kubernetes ノードが外部ルータ (FRRouting など)と BGP セッションを張り, Cilium が管理するルーティング情報を外部に直接広告する機能であるCilium BGP Control Plane機能の設定を行います。
+
+Cilium BGP Control Planeの設定は, `host_vars`配下のK8sクラスタを構成するコントロールプレイン, ワーカーノードの各設定ファイルに`k8s_bgp`変数を定義することで行います。
+`k8s_bgp`変数は, Cilium BGP Control Plane の動作を制御するマッピング(辞書)です。`k8s_bgp`変数のキーと設定値の型,設定値の説明, 設定値の例は, 以下の通りです:
+
+| キー | 型 | 説明 | 設定例 |
+| --- | --- | --- | --- |
+| `enabled` | bool | BGP Control Plane を有効化します。 | `true` |
+| `node_name` | string | CiliumNode Custom Resource (各ノードにおける Cilium の動作設定) に登録するノード名。実機の `k8s_node_name` (kubectl get nodes で確認できる NAME 列の文字列) を指定します。 | `"k8sctrlplane01"` |
+| `local_asn` | int | 当該ノードが用いるローカル自律システム番号 (`Autonomous System Number` 以下, `ASN`)。| `65011` |
+| `kubeconfig` | string (ファイルパス文字列) | Cilium が Kubernetes API に接続するための `kubeconfig` ファイルのパス名を指定します。 | `"/etc/kubernetes/admin.conf"` |
+| `export_pod_cidr` | bool | Pod CIDR (当該ノードが所属する K8s クラスタ内の Pod 仮想ネットワークのアドレス帯) を BGP で広告します。 | `true` |
+| `advertise_services` | bool | Service CIDR (当該ノードが所属する K8s クラスタ内のサービスネットワーク上の仮想 IP アドレス帯) を BGP で広告します。 | `false` |
+| `address_families` | list[string / dict] | 各 BGP ピアに共通で適用するアドレスファミリ設定のリストです。リストの要素が文字列の場合は `ipv4` / `ipv6` などの BGPが扱うアドレス体系識別子(`Address Family Identifier` (`AFI`) )を指定します。リストの要素を文字列として指定した場合は, 後続アドレスファミリ識別子(`Subsequent Address Family Identifier` (`SAFI`))に`unicast`を指定したものとして扱い, 既定の広告ラベルを紐づけます。リストの要素を辞書として指定する場合の指定方法は, 「`k8s_bgp`変数の`address_families`の要素を辞書として指定する場合の指定方法」を参照してください。| `["ipv4", {"afi": "ipv6", "safi": "unicast"}]` |
+| `neighbors` | list[dict] | 接続先 BGP ピアのリスト。各要素は下記のサブキーを持つ辞書です。 | `[...]` |
+| `neighbors[].peer_address` | string (CIDR文字列) | BGP ピアのアドレス (CIDR 形式)。 `/32` や `/128` で単一ホストを指定します。 | `"192.168.30.49/32"` |
+| `neighbors[].peer_asn` | int | 対向 BGP ピアの ASN。 | `65011` |
+| `neighbors[].peer_port` | int | BGP ピアと接続するポート番号。通常は `179` を指定します。 | `179` |
+| `neighbors[].hold_time_seconds` | int | BGP Hold Timer。ピアからの Keepalive (ピア間で TCP セッションの有効性確認を行う処理) を待つ最大秒数です。 | `90` |
+| `neighbors[].connect_retry_seconds` | int | ピアへの接続失敗時の再接続までの待ち時間を秒単位で指定します。 | `15` |
+
+##### `k8s_bgp`変数の`address_families`の要素を辞書として指定する場合の指定方法
+
+`k8s_bgp`変数の`address_families`の要素を辞書として指定する場合, 以下のキーと設定値からなる辞書として設定値を記述してください。
+
+| キー | 型 | 説明 |
+| --- | --- | --- |
+| `afi` | string | アドレス体系識別子を指定します。省略時は `ipv4` を使用します。 |
+| `safi` | string | 後続アドレスファミリ識別子を指定します。省略時は `unicast` を使用します。 |
+| `attributes` | dict | BGP 属性を指定します。辞書の内容は `attributes` セクションとしてそのまま出力されます。 |
+| `advertisements` | dict | 当該 AFI/SAFI に適用する広告設定を指定します。CiliumBGPPeerConfig の `families[].advertisements` にそのまま展開されるため, `matchLabels` や `matchExpressions` などのラベルセレクタを含む辞書を記述します (例: `{ "matchLabels": { "bgp.cilium.io/advertisement-group": "custom" } }`)。 |
+| `disable_default_advertisements` | bool | 既定の広告ラベルを無効化します。`true` を指定すると既定ラベルを付与しません。 |
+
 ##### Multus メタCNI
 
 Multus メタCNI関連の設定を以下に記載する。
@@ -679,7 +713,7 @@ Whereabouts CNI関連の設定を以下に記載する。
 |k8s_whereabouts_ipv6_range_start|セカンダリネットワークのIPv6アドレス範囲の開始アドレス (IPv6 を利用する場合)|"fd00:100::10"|
 |k8s_whereabouts_ipv6_range_end|セカンダリネットワークのIPv6アドレス範囲の終了アドレス (IPv6 を利用する場合)|"fd00:100::50"|
 
-#### 複数のコントロールプレインの操作
+#### 複数コントロールプレインの操作
 
 `k8s-kubeconfig` ロールは, 各コントロールプレインで証明書を埋め込んだ `kubeconfig` を生成し, kubeconfigファイル結合ツール(`create-uniq-kubeconfig.py`) で統合した `merged-kubeconfig.conf` (統合 `kubeconfig`)を全ノードに配布する。これにより, 1 つの `kubeconfig` で複数K8sクラスタ のコンテキストを切り替えて操作できる。
 

@@ -1,76 +1,79 @@
 # k8s-worker ロール
 
-Kubernetes ワーカーノードをクラスタへ再参加させる際に必要な OS チューニングと kubeadm join 手続きを自動化するロールです。`k8s-common` で行う基本セットアップを前提に, CPU シールドや IRQ 片寄せなどの低遅延設定, NodePort を含む防火壁調整, control-plane からの kubeadm トークン取得と再初期化, kubeconfig 関連スクリプトの展開までを一括で扱います。再実行可能な構成を意識しており, 既存ノードの cordon / drain / delete を含むクリーンな再 join オペレーションを提供します。
+Kubernetes ワーカーノードをクラスタへ再参加させるためのロールです。`k8s-common` で整えた前提の上に, 低遅延化向けの OS チューニング, `kubeadm join` の再実行, NodePort を含む防火壁構成, Cilium BGP Control Plane の設定をまとめて適用します。再実行を想定し, 既存ノードの cordon / drain / delete まで一括で扱います。
 
-## 主な処理と順序
+## 実行フロー
 
-1. **変数読込 (`tasks/load-params.yml`)**: OS 系差分 (`vars/cross-distro.yml`), 共通設定 (`vars/all-config.yml`), API エンドポイント (`vars/k8s-api-address.yml`) を取り込み, Debian / RHEL それぞれのパッケージ名や GRUB パス, `k8s_ctrlplane_endpoint` 等を利用可能にします。
-1. **プレースホルダタスク (`package.yml`, `directory.yml`, `user_group.yml`, `service.yml`)**: 将来の拡張用に include されています。現時点では処理は実装されていませんが, タスク構造を保つために呼び出されます。
-1. **防火壁設定 (`config-k8sworker-firewall.yml`)**: `enable_firewall: true` かつバックエンドに応じて UFW または firewalld を初期化し, 10250/tcp を control-plane からのみ許可します。`k8s_worker_enable_nodeport: true` を指定すると `k8s_worker_nodeport_range` に従って NodePort 範囲を追加で開放します。IPv4/IPv6 は `k8s_ctrlplane_endpoint` の種別に応じて処理されます。
-1. **CPU シールド (`config-shielding.yml`)**: `k8s_systemd_slices` ( 既定で init/system/user スライス )に対して `systemd-cpuset.conf.j2` を展開し, `k8s_reserved_system_cpus_default` で指定した CPU へシステムスレッドを寄せます。
-1. **ワーカーノード OS 調整 (`config-worker-node.yml`)**
+1. [roles/k8s-worker/tasks/load-params.yml](roles/k8s-worker/tasks/load-params.yml#L8-L23) が OS ファミリ別のパッケージ定義と `vars/` 配下の共通変数 (`cross-distro.yml` / `all-config.yml` / `k8s-api-address.yml`) を読み込みます。
+2. [roles/k8s-worker/tasks/main.yml](roles/k8s-worker/tasks/main.yml#L12-L15) で `package.yml` / `directory.yml` / `user_group.yml` / `service.yml` を include し, 将来の拡張に備えたタスク構造を維持します ( 現状は実処理なし )。
+3. [roles/k8s-worker/tasks/config-k8sworker-firewall.yml](roles/k8s-worker/tasks/config-k8sworker-firewall.yml#L8-L195) は `enable_firewall` と `firewall_backend` に応じて UFW もしくは firewalld を整備し, 6443 側からの kubelet アクセスや NodePort 範囲の開放, 状態確認を行います。
+4. [roles/k8s-worker/tasks/config-shielding.yml](roles/k8s-worker/tasks/config-shielding.yml#L8-L27) が `k8s_systemd_slices` 向けに cpuset ドロップイン (`systemd-cpuset.conf.j2`) を生成し, CPU シールドの前提を整えます。
+5. [roles/k8s-worker/tasks/config-worker-node.yml](roles/k8s-worker/tasks/config-worker-node.yml#L11-L354) が `irq_balance_package` の削除, `k8s_reserved_system_cpus_default` を基にしたアプリケーション用 CPU レンジ算出, GRUB コマンドラインの最適化, pin スクリプトと systemd サービスの展開, 初回リブートと待機をまとめて実施します。
+6. [roles/k8s-worker/tasks/config.yml](roles/k8s-worker/tasks/config.yml#L8-L186) が kube-apiserver の起動待ちとトークン／CA ハッシュ取得, `worker-kubeadm.config.j2` の生成, 既存ノードの cordon / drain / delete, `kubeadm reset` と再 join, サービス有効化, 二度目のリブートを実行します。
+7. [roles/k8s-worker/tasks/config-cilium-bgp-cplane.yml](roles/k8s-worker/tasks/config-cilium-bgp-cplane.yml#L8-L105) は `k8s_bgp.enabled` が true の場合にのみ発動し, マニフェスト出力ディレクトリを整備して `roles/k8s-common/templates/cilium-bgp-resources.yml.j2` をレンダリングし, 関連 CRD の存在確認後に適用します。
 
-    - `irqbalance` を削除し, `k8s_reserved_system_cpus_default` をもとにアプリケーション用／システム用 CPU 範囲を算出します。
-    - GRUB のカーネルパラメータへ `nohz_full`, `isolcpus`, `rcu_nocbs`, `irqaffinity`, `workqueue.*`, `systemd.cpu_affinity` を設定し, `config-grub-debian.yml` / `config-grub-rhel.yml` が OS 別に `update-grub` / `grub2-mkconfig` を実行します。
-    - `pin-worker-queue.sh`, `pin-irqs.py` を `/opt/k8snodes/sbin` に配置し, 対応する systemd サービスを有効化して再起動時にワーカースレッドと IRQ をハウスキーピング CPU へ固定します。
-    - ここまでの設定変更を反映するため１回目の再起動を行い, SSH 復帰を待機します。
-
-1. **kubeadm 再 join (`config.yml`)**
-
-    - control-plane ノードへ `delegate_to` し, 既存トークンを取得 ( なければ生成 )して `k8s_join_token_from_ctrlplane` に格納します。同時に CA ハッシュ (`k8s_join_discovery_hash_from_ctrlplane`) を収集し, API サーバ疎通を確認します。
-    - 対象ノード名を取得し, control-plane 側で `kubectl cordon/drain/delete` を実行, 既存ワーカー登録を整理します。`k8s_worker_delete_wait_sec` だけ待機することで API 反映を待ちます。
-    - 対象ノード上で `kubeadm reset -f` 後に kubelet/containerd を停止し, `/etc/kubernetes/manifests` や `/etc/cni/net.d` を削除, `k8s_kubeadm_config_store` に生成した `worker-kubeadm.config.yml` を `kubeadm join --config` で適用します。`k8s_kubeadm_ignore_preflight_errors_arg` ( 既定で `--ignore-preflight-errors=all` )を併用します。
-    - kubelet/containerd の自動起動を有効化し, `kubelet_restarted_and_enabled` ハンドラを呼び出した後, ２回目の再起動と接続待ちを実施します。
-
-上記フロー全体で `k8s_ctrlplane_endpoint`・`k8s_ctrlplane_host` が必須となり, control-plane 上で kubeadm/kubectl が正しく動作していることが前提です。
-
-## 変数と制御フラグ
+## 主要変数
 
 | 変数名 | 既定値 | 説明 |
 | --- | --- | --- |
-| `k8s_ctrlplane_endpoint` | 各 `host_vars` | API サーバの (IPv4/IPv6) アドレス。firewall 設定と kubeadm join で使用。|
-| `k8s_ctrlplane_host` | 各 `host_vars` | control-plane ノードへ `delegate_to` するホスト名。|
-| `enable_firewall` | `vars/all-config.yml` | UFW/firewalld を構成するかどうか。`true` 時に `config-k8sworker-firewall.yml` が実行されます。現時点では, Firewallを有効にした場合の動作に未対応です。`enable_firewall`変数を`false`に設定してください。|
-| `firewall_backend` | `vars/cross-distro.yml` | 利用する Firewall バックエンド。Debian 系は `['ufw']`, RHEL 系は `['firewalld']` が既定。|
-| `k8s_worker_enable_nodeport` | `false` | NodePort を公開する場合に `true`。指定範囲を Firewall へ開放します。|
-| `k8s_worker_nodeport_range` | `"30000-32767"` | NodePort の開放レンジ。UFW では `30000:32767` へ変換されます。|
-| `k8s_reserved_system_cpus_default` | 未定義 | システム系に割り当てる CPU リスト ( 例: `"0-1"` )。定義時に CPU シールドと IRQ 片寄せが有効化されます。未定義なら関連処理はスキップされます。|
-| `k8s_systemd_slices` | `defaults/main.yml` | cpuset 設定を適用する systemd スライス一覧。|
-| `k8s_kubeadm_config_store` | `{{ ansible_home_dir }}/kubeadm` | `worker-kubeadm.config.yml` を配置するディレクトリ。|
-| `k8s_kubeadm_ignore_preflight_errors_arg` | `--ignore-preflight-errors=all` | kubeadm join 時の preflight 無視パラメータ。|
-| `k8s_drain_timeout_minutes` / `k8s_worker_delete_wait_sec` | `5` / `5` | cordon/drain/delete の待機時間を制御。|
-| `k8s_node_setup_tools_dir` | `/opt/k8snodes/sbin` | pin スクリプトを配置するディレクトリ。|
-| `k8s_operator_user` | `kube` |オペレータユーザ名。kubeconfig 配布や Helm リポジトリ登録で利用。 |
+| `k8s_ctrlplane_endpoint` | 各 `host_vars` | コントロールプレーン API アドレス。API 待機, firewall 設定, `kubeadm join` に使用します。|
+| `k8s_ctrlplane_host` | 各 `host_vars` | `delegate_to` で kubeadm/kubectl を実行するコントロールプレーンホスト。|
+| `enable_firewall` | `false` (`vars/all-config.yml`) | true の場合に firewall タスクを有効化します。|
+| `firewall_backend` | OS 判定で `['ufw']` または `['firewalld']` | firewall 実装の選択。複数指定時はループで順次処理します。|
+| `k8s_worker_enable_nodeport` | `false` | NodePort の開放を行うかどうか。|
+| `k8s_worker_nodeport_range` | `30000-32767` | NodePort 開放レンジ。UFW ではコロン区切りに変換されます。|
+| `k8s_kubeadm_config_store` | `{{ ansible_home_dir }}/kubeadm` | `kubeadm.config.yml` や BGP マニフェストを保存するディレクトリ。|
+| `k8s_kubeadm_ignore_preflight_errors_arg` | `--ignore-preflight-errors=all` | `kubeadm join` に渡す preflight 無視オプション。|
+| `k8s_drain_timeout_minutes` / `k8s_worker_delete_wait_sec` | `5` / `5` | cordon/drain/delete のタイムアウトと削除待機時間。|
+| `k8s_reserved_system_cpus_default` | 未定義 | システム系に割り当てる CPU レンジ。CPU シールドや GRUB 設定がこの値を参照します。|
+| `k8s_systemd_slices` | `['init.scope.d', 'system.slice.d', 'user.slice.d', 'user-.slice.d']` | cpuset ドロップインを配置する systemd スライス一覧。|
+| `k8s_node_setup_tools_dir` | `/opt/k8snodes/sbin` | pin スクリプトやユーティリティの配置先。|
+| `k8s_bgp.enabled` | 未定義 | true 時に Cilium BGP Control Plane マニフェストを生成・適用します。|
+| `k8s_bgp.neighbors` | 未定義 | BGP ピア定義。`k8s_bgp.enabled: true` の場合は空であってはなりません。|
 
-その他, `vars/cross-distro.yml` で `grub_default_cfg_path`, `irq_balance_package`, `kubelet_resolv_conf_path` などの OS 差分を吸収しています。追加で調整したい場合は `vars/all-config.yml` / `host_vars/` で上書きしてください。
+## 主な処理
 
-## テンプレートとスクリプト
+- **Firewall 構成**: `enable_firewall` が有効な環境で UFW/firewalld を初期化し, 10250/tcp などの制御プレーン向けポートと NodePort 範囲を恒久的に開放します。
+- **CPU シールドの準備**: systemd スライス単位で AllowedCPUs を固定し, IRQ 片寄せスクリプトと連携する前提を整備します。
+- **GRUB と低遅延調整**: `k8s_reserved_system_cpus_default` に基づき `nohz_full` や `isolcpus` などのカーネルパラメータを更新し, ワーカースレッドと IRQ をアプリケーション用 / システム用に分離します。
+- **kubeadm 再 join**: 既存ワーカーの cordon / drain / delete, `kubeadm reset`, `kubeadm join --config` を自動化し, containerd / kubelet を有効化して再起動します。
+- **Cilium BGP Control Plane**: ノード固有の識別子で CRD マニフェストを生成し, CiliumBGPAdvertisement / CiliumBGPPeerConfig / CiliumBGPClusterConfig を適用して Pod/Service CIDR をルータへ広告します。
+- **再起動とユーティリティ登録**: pin-worker-queue / pin-irqs の systemd サービスを enabled 登録し, OS チューニング後と join 後にそれぞれリブートします。
 
-- `templates/worker-kubeadm.config.j2`: control-plane のトークン・CA ハッシュを埋め込み, IPv6 時は `[addr]:port` 形式に変換した JoinConfiguration を生成します。
-- `templates/systemd-cpuset.conf.j2`: systemd各スライスの `AllowedCPUs` を `k8s_reserved_system_cpus_default` に固定します。
-- `templates/pin-worker-queue.sh.j2` / `pin-worker-queue.service.j2`: workqueue (unbound) をシステム CPU に固定するユーティリティと unit ファイル。
-- `templates/pin-irqs.py.j2` / `pin-irqs.service.j2`: IRQ affinity を制御する Python スクリプトと systemd unit。`--set-default` と `--set-existing` を併用し, 全 IRQ を指定 CPU へ片寄せます。
+## テンプレート／ファイル
+
+| テンプレート | 生成ファイル | 説明 |
+| --- | --- | --- |
+| [roles/k8s-worker/templates/worker-kubeadm.config.j2](roles/k8s-worker/templates/worker-kubeadm.config.j2) | kubeadm.config.yml ( 対象ホストの k8s_kubeadm_config_store 配下 ) | kubeadm join に渡す設定をまとめ, トークンと CA ハッシュを組み込んだ構成ファイルを生成します。 |
+| [roles/k8s-worker/templates/systemd-cpuset.conf.j2](roles/k8s-worker/templates/systemd-cpuset.conf.j2) | 40-cpuset.conf ( 対象ホストの各 systemd スライス配下 ) | CPU シールド用に AllowedCPUs を固定し, k8s_systemd_slices の各ドロップインで共有する設定を作成します。 |
+| [roles/k8s-worker/templates/pin-worker-queue.sh.j2](roles/k8s-worker/templates/pin-worker-queue.sh.j2) | pin-worker-queue.sh ( 対象ホストの k8s_node_setup_tools_dir 配下 ) | workqueue のアンバウンドスレッドをアプリ用 CPU に寄せるセットアップスクリプトを配置します。 |
+| [roles/k8s-worker/templates/pin-worker-queue.service.j2](roles/k8s-worker/templates/pin-worker-queue.service.j2) | pin-worker-queue.service ( 対象ホストの systemd ユニットディレクトリ ) | pin-worker-queue.sh をワンショット実行し, ブート後に CPU ピニングを適用する systemd ユニットを登録します。 |
+| [roles/k8s-worker/templates/pin-irqs.py.j2](roles/k8s-worker/templates/pin-irqs.py.j2) | pin-irqs.py ( 対象ホストの k8s_node_setup_tools_dir 配下 ) | 割込みをシステム用 CPU へ片寄せる Python スクリプトを配備します。 |
+| [roles/k8s-worker/templates/pin-irqs.service.j2](roles/k8s-worker/templates/pin-irqs.service.j2) | pin-irqs.service ( 対象ホストの systemd ユニットディレクトリ ) | pin-irqs.py を起動して IRQ アフィニティを適用する systemd ユニットを登録します。 |
+| [roles/k8s-common/templates/cilium-bgp-resources.yml.j2](roles/k8s-common/templates/cilium-bgp-resources.yml.j2) | Cilium BGP マニフェスト ( 対象ホストの cilium_bgp_manifest_dir 配下 ) | ノード固有の識別子を含む CiliumBGP* リソースをまとめたマニフェストを生成し, apply_delegate で指定したホストに保存します。 |
 
 ## ハンドラ
 
-- `handlers/kubelet.yml`: `kubelet_restarted_and_enabled` 通知で kubelet を再起動し, daemon-reload を行います。
-- `handlers/reload-firewall.yml`: `reload ufw` / `reload firewalld` 通知に応じて各 Firewall を再読み込みします。
-- `handlers/reboot-node.yml`: `reboot_node_handler` を受け取った場合に追加の再起動を実行します ( `config.yml` で通知 )。
+| ハンドラ | トリガー | 説明 |
+| --- | --- | --- |
+| [roles/k8s-worker/handlers/kubelet.yml](roles/k8s-worker/handlers/kubelet.yml) | `notify: kubelet_restarted_and_enabled` | kubelet の daemon-reload と再起動, enable をまとめて実施し, join 後のサービス状態を整えます。 |
+| [roles/k8s-worker/handlers/reload-firewall.yml](roles/k8s-worker/handlers/reload-firewall.yml) | `notify: reload firewalld` / `notify: reload ufw` | firewall_backend に応じて firewalld もしくは UFW を再読み込みし, NodePort などのポート開放設定を反映させます。 |
+| [roles/k8s-worker/handlers/reboot-node.yml](roles/k8s-worker/handlers/reboot-node.yml) | `notify: reboot_node_handler` | リブートを実行し, GRUB 変更や kubeadm 再 join 後の状態を確定させます。 |
 
 ## 検証ポイント
 
-- control-plane で `kubectl get nodes` を実行し, 対象ワーカーが `Ready` かつ `STATUS` に `SchedulingDisabled` が含まれていないことを確認します。
-- `sudo journalctl -u kubelet` で kubelet がエラーなく起動していることを確認します。
-- `sudo systemctl status pin-worker-queue pin-irqs` が `loaded (enabled)` かつ `Active: inactive (dead)` / `oneshot` 正常終了になっていること。
-- `cat /proc/cmdline` に `nohz_full`, `isolcpus`, `rcu_nocbs`, `irqaffinity` などが追加されていること。必要に応じて `grubby --info` でも確認します。
-- firewall 設定が反映されていること (`ufw status verbose` または `firewall-cmd --list-ports` / `--direct --get-all-rules`)。
-- `{{ k8s_node_setup_tools_dir }}` 配下に pin スクリプトが存在し, `/etc/systemd/system/` に対応する unit ファイルが配置されていること。
+- control-plane で `kubectl get nodes` を実行し, 対象ワーカーが `Ready` になっているか確認します。
+- `journalctl -u kubelet` で kubelet の再起動後にエラーが出ていないことを確認します。
+- `/etc/systemd/system/*/40-cpuset.conf` が生成され, 期待する CPU レンジが書き込まれていることを確認します。
+- `systemctl status pin-worker-queue pin-irqs` が `loaded (enabled)` でワンショット実行後に正常終了していることを確認します。
+- `k8s_bgp.enabled: true` の場合は `kubectl get ciliumbgpclusterconfigs.cilium.io -A` 等でマニフェストが適用されていることを確認します。
+- firewall を有効化した場合は `ufw status verbose` または `firewall-cmd --list-ports --zone=public` で想定ポートが開放されているか確認します。
 
 ## 補足と注意事項
 
-- `config.yml` には `kubeadm reset` を含むため, 稼働中クラスタへ適用する際は計画停止・Pod 退避を事前に済ませてください。`kubectl drain --ignore-daemonsets --delete-emptydir-data` を自動実行しますが, DaemonSet / LocalPV の扱いに注意が必要です。
-- `k8s_reserved_system_cpus_default` 未定義の場合, CPU シールド／IRQ 片寄せ関連タスクはスキップされます ( その場合でも GRUB 変更は行われません )。
-- control-plane 側で実行する `kubeadm token create` / `kubectl` の実行にはパスワードレス sudo 等が必要です。`k8s_ctrlplane_host` の設定を誤ると join 用トークンの取得が失敗するためご注意ください。
-- NodePort を有効化する場合は, 必要なサービスのみが公開されるよう上位ネットワーク機器側の ACL も合わせて確認してください。
-- 追加の `--skip-tags` を使えば CPU シールドや Firewall 処理を個別に無効化できます ( 例: `--skip-tags config-k8sworker-firewall` )。
-- 現時点では, Firewallを有効にした場合の動作に未対応です。`enable_firewall`変数を`false`に設定してください。
+- 本ロールは `config-worker-node.yml` と `config.yml` の両方でリブートを実行します。
+- `config.yml` には `kubeadm reset` が含まれるため, 稼働中クラスタへ適用する際は事前に Pod 退避や停止計画を準備してください。`kubectl drain --ignore-daemonsets --delete-emptydir-data` は DaemonSet を退避しないため, 必要に応じて, 対象ノードで稼働する各 DaemonSet Pod の停止／再スケジューリング手順を整備し, Local Persistent Volume に格納されたデータは退避やアンマウントを含めた保全策を講じてから実行してください。
+- control-plane 側で `kubeadm token create` や `kubectl` を実行するため, `k8s_ctrlplane_host` ではパスワードレス sudo などの権限を整備しておいてください。設定を誤ると join 用トークン取得が失敗します。
+- Cilium BGP Control Plane のマニフェストは `k8s_bgp.apply_delegate` で指定したホスト ( 既定は `k8s_ctrlplane_host` )上で生成・適用されます。
+- NodePort を有効化する場合は必要なサービスのみが公開されるよう, 上位ネットワーク機器側のアクセス制御リストも合わせて確認してください。
+- firewall タスクはデフォルトで無効化されています。現状は動作検証が十分でないため, `enable_firewall` は `false` を推奨します。
