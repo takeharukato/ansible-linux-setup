@@ -25,7 +25,7 @@ OPT_COMMON=${VERBOSE} -i ${INVENTORY} ${TOP_PLAYBOOK}
 CLOC_LANG_OPT=--force-lang=YAML,j2
 # cloc の除外ディレクトリ
 # ここに列挙したディレクトリは cloc の集計対象から除外される
-CLOC_EXCLUDES=--exclude-dir=.git
+CLOC_EXCLUDES=--exclude-dir=.git,.venv
 CLOC_EXCLUDE_EXTS=--exclude-ext=md,txt
 # 先頭の "./" を取り除くユーティリティ
 normalize = $(patsubst ./%,%,$(1))
