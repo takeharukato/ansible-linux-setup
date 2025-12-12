@@ -554,8 +554,12 @@ flowchart LR
   subgraph C1 [Cluster1 AS65011]
     CP1[k8sctrlplane01.local<br/>K8s net: 192.168.30.41]
     W101[k8sworker0101.local<br/>K8s net: 192.168.30.42]
-    W102[k8sworker0102.local<br/>K8s net: 192.168.30.42]
+    W102[k8sworker0102.local<br/>K8s net: 192.168.30.43]
     FRR01[frr01.local<br/>AS65011<br/>192.168.30.49 / 192.168.90.49]
+  end
+
+  subgraph EXTNET [ExternalNetwork AS65100]
+  EXT[extgw.local<br/>AS65100<br/>192.168.90.1]
   end
 
   subgraph C2 [Cluster2 AS65012]
@@ -565,11 +569,9 @@ flowchart LR
     FRR02[frr02.local<br/>AS65012<br/>192.168.40.59 / 192.168.90.59]
   end
 
-  EXT[extgw.local<br/>AS65100<br/>192.168.90.1]
-
   FRR01 ---|"iBGP<br/>192.168.30.49 <-> 192.168.30.41"| CP1
   FRR01 ---|"iBGP<br/>192.168.30.49 <-> 192.168.30.42"| W101
-  FRR01 ---|"iBGP<br/>192.168.30.49 <-> 192.168.30.42"| W102
+  FRR01 ---|"iBGP<br/>192.168.30.49 <-> 192.168.30.43"| W102
   FRR02 ---|"iBGP<br/>192.168.40.59 <-> 192.168.40.51"| CP2
   FRR02 ---|"iBGP<br/>192.168.40.59 <-> 192.168.40.52"| W201
   FRR02 ---|"iBGP<br/>192.168.40.59 <-> 192.168.40.53"| W202
