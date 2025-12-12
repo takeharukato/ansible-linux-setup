@@ -18,11 +18,12 @@
       tags: common
     - role: ntp-client
       tags: ntp-client
+    - role: create-users
+      tags: create-users
     - role: k8s-common
       tags: k8s-common
     - role: k8s-worker
       tags: k8s-worker
-
       # k8s-kubeconfigの呼び出し条件を満たしたタイミングで実行
       # - common / k8s-common で基本ツールやディレクトリ整備済み。
       # - k8s-shared-ca で共通 CA が配置済み。
