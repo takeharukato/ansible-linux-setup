@@ -549,39 +549,32 @@ k8s_operator_github_key_list:
 
 ネットワーク構成例を以下に示す:
 
-```plantuml
-@startuml
-skinparam linetype ortho
-skinparam ArrowColor #555555
-skinparam NodeBorderColor #1f4d8f
-skinparam NodeBackgroundColor #eef3fb
-skinparam defaultTextAlignment center
+```mermaid
+flowchart LR
+  subgraph C1 [Cluster1 AS65011]
+    CP1[k8sctrlplane01.local<br/>K8s net: 192.168.30.41]
+    W101[k8sworker0101.local<br/>K8s net: 192.168.30.42]
+    W102[k8sworker0102.local<br/>K8s net: 192.168.30.42]
+    FRR01[frr01.local<br/>AS65011<br/>192.168.30.49 / 192.168.90.49]
+  end
 
-rectangle "Cluster1 (AS65011)" {
-  node "k8sctrlplane01.local\nK8s net: 192.168.30.41" as CP1
-  node "k8sworker0101.local\nK8s net: 192.168.30.42" as W101
-  node "k8sworker0102.local\nK8s net: 192.168.30.42" as W102
-  node "frr01.local\nAS65011\n192.168.30.49 / 192.168.90.49" as FRR01
-}
+  subgraph C2 [Cluster2 AS65012]
+    CP2[k8sctrlplane02.local<br/>K8s net: 192.168.40.41]
+    W201[k8sworker0201.local<br/>K8s net: 192.168.40.52]
+    W202[k8sworker0202.local<br/>K8s net: 192.168.40.53]
+    FRR02[frr02.local<br/>AS65012<br/>192.168.40.59 / 192.168.90.59]
+  end
 
-rectangle "Cluster2 (AS65012)" {
-  node "k8sctrlplane02.local\nK8s net: 192.168.40.41" as CP2
-  node "k8sworker0201.local\nK8s net: 192.168.40.52" as W201
-  node "k8sworker0202.local\nK8s net: 192.168.40.53" as W202
-  node "frr02.local\nAS65012\n192.168.40.59 / 192.168.90.59" as FRR02
-}
+  EXT[extgw.local<br/>AS65100<br/>192.168.90.1]
 
-node "extgw.local\nAS65100\n192.168.90.1" as EXT
-
-FRR01 -- CP1 : iBGP\n192.168.30.49 <-> 192.168.30.41
-FRR01 -- W101 : iBGP\n192.168.30.49 <-> 192.168.30.42
-FRR01 -- W102 : iBGP\n192.168.30.49 <-> 192.168.30.42
-FRR02 -- CP2 : iBGP\n192.168.40.59 <-> 192.168.40.41
-FRR02 -- W201 : iBGP\n192.168.40.59 <-> 192.168.40.52
-FRR02 -- W202 : iBGP\n192.168.40.59 <-> 192.168.40.53
-FRR01 -- EXT : eBGP 65011<->65100\n192.168.90.49 <-> 192.168.90.1
-FRR02 -- EXT : eBGP 65012<->65100\n192.168.90.59 <-> 192.168.90.1
-@enduml
+  FRR01 ---|"iBGP<br/>192.168.30.49 <-> 192.168.30.41"| CP1
+  FRR01 ---|"iBGP<br/>192.168.30.49 <-> 192.168.30.42"| W101
+  FRR01 ---|"iBGP<br/>192.168.30.49 <-> 192.168.30.42"| W102
+  FRR02 ---|"iBGP<br/>192.168.40.59 <-> 192.168.40.41"| CP2
+  FRR02 ---|"iBGP<br/>192.168.40.59 <-> 192.168.40.52"| W201
+  FRR02 ---|"iBGP<br/>192.168.40.59 <-> 192.168.40.53"| W202
+  FRR01 ---|"eBGP 65011 <-> 65100<br/>192.168.90.49 <-> 192.168.90.1"| EXT
+  FRR02 ---|"eBGP 65012 <-> 65100<br/>192.168.90.59 <-> 192.168.90.1"| EXT
 ```
 
 ##### FRRoutingの設定
@@ -728,7 +721,7 @@ Whereabouts CNI関連の設定を以下に記載する。
 |~kube/.kube/merged-kubeconfig.conf|全ノード|`kube:kube`|`0600`| 全コントロールプレインのコンテキスト (`kubernetes-admin@<Kubernetes API エンドポイントを識別するための名前>`) を統合した統合 `kubeconfig`。クラスタ定義 (`clusters`), ユーザー定義 (`users`), コンテキスト定義 (`contexts`) をまとめて保持する。|
 |~kube/.kube/config (シンボリックリンク)|全ノード|`kube:kube`|`0600`|`kubectl` を`--kubeconfig`オプション無しに, 統合 `kubeconfig`を使用して実行するためのシンボリックリンク。|
 |~kube/.kube/config-default|全ノード|`kube:kube`|`0600`|`kubeadm init` 実行時の`kubeconfig`ファイル (`~/.kube/config`) を保存するためのバックアップファイル。統合 `kubeconfig`へのシンボリックリンクを`~/.kube/config`として作成する際に, 既存の `~/.kube/config` が通常ファイルとして存在していた場合にのみ作成される。|
-|/etc/kubernetes/ca-embedded-admin.conf|コントロールプレインのみ|`root:root`|`0600`|root 向けに配置する証明書埋め込み `kubeconfig` ( クラスタCA証明書, 共通CA証明書 ( `/etc/kubernetes/pki/shared-ca/cluster-mesh-ca.crt`, 共通CA証明書未使用時は `/etc/kubernetes/pki/ca.crt` ), 管理者クライアント証明書, 管理者クライアント秘密鍵とを内包する。root 権限での操作時に使用する。|
+|/etc/kubernetes/ca-embedded-admin.conf|コントロールプレインのみ|`root:root`|`0600`|root 向けに配置する証明書埋め込み `kubeconfig` クラスタCA証明書, 共通CA証明書 ( `/etc/kubernetes/pki/shared-ca/cluster-mesh-ca.crt`, 共通CA証明書未使用時は `/etc/kubernetes/pki/ca.crt` ), 管理者クライアント証明書, 管理者クライアント秘密鍵とを内包する。root 権限での操作時に使用する。|
 |/etc/kubernetes/merged-kubeconfig.conf|全ノード|`root:root`|`0600`|全コントロールプレインのコンテキスト (`kubernetes-admin@<Kubernetes API エンドポイントを識別するための名前>`) を統合した統合 `kubeconfig`。クラスタ定義 (`clusters`), ユーザー定義 (`users`), コンテキスト定義 (`contexts`) をまとめて保持する。`sudo KUBECONFIG=/etc/kubernetes/merged-kubeconfig.conf kubectl` を実行することで利用する。|
 
 なお, 制御ノード側では, `~/.ansible/kubeconfig-cache/` (権限 `0700`) に最新の 統合 `kubeconfig` (`merged-kubeconfig.conf`) をキャッシュし, ワーカーノード配布時に再利用する。
