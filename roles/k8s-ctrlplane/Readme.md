@@ -12,10 +12,11 @@ Kubernetes コントロールプレーンノードを構築するロールです
 6. `config-k8s-cilium-shell-completion.yml` が `k8s_cilium_cli_completion_enabled` 有効時に bash/zsh 用補完スクリプトを生成・配置します。
 7. `config.yml` が kubeadm 設定ファイル `ctrlplane-kubeadm.config.yml` を生成し, Pod/Service CIDR の順序を API ファミリと揃えた上で `kubeadm reset` → `kubeadm init` を実行します。必要に応じて共通 CA を `/etc/kubernetes/pki` へ復元し, containerd / kubelet を有効化してから kubeconfig を root / ansible / `k8s_operator_user` に配布し, ホストを再起動します。
 8. `config-cilium.yml` が API サーバの起動を待機し, `kubernetes-admin` に cluster-admin 権限を付与してから kube-proxy (DaemonSet / ConfigMap / iptables ルール) を除去し, (必要時) `k8s-cilium-shared-ca` ロールで Cluster Mesh 用 Secret を更新し, 生成した values で `helm install cilium` を実行します (既存リリースが残っていると失敗するため, 再適用時は手動で削除が必要)。処理後に再起動します。
-9. `config-multus.yml` は `k8s_multus_enabled` 有効時に Multus values を生成し, `k8s_multus_helm_repo_git_url` の HEAD を `force: true` で再取得してローカルから `helm upgrade --install` を実行し, 動作確認用 Pod マニフェストを配置します。
-10. `config-whereabouts.yml` は `k8s_whereabouts_enabled` 有効時に Whereabouts チャートを OCI から導入し, `ipvlan-wb-nad.yml.j2` から生成した NAD を `kubectl apply` します (セカンダリネットワークの範囲は `k8s_whereabouts_ipv4_range_*` 等で指定)。
-11. `config-cluster-mesh-tools.yml` が Cluster Mesh 向けツールディレクトリを作成し, 証明書埋め込み kubeconfig 生成スクリプトと手順書を配布します。クラスタ名/ID が指定されている場合は共有 CA の存在を検証し, 見つからなければ明示的に失敗させます。条件を満たせば埋め込み kubeconfig を生成し, ファイル所有者を `k8s_operator_user` に設定します。
-12. `package-netgauge.yml` が `k8s_netgauge_packages` 定義時にノイズ測定系パッケージを導入します。
+9. `config-cilium-bgp-cplane.yml` は `k8s_bgp.enabled` が `true` のホストで発動し, ノード名などの識別子を算出して `templates/cilium-bgp-resources.yml.j2` から Cilium BGP Control Plane 用 manifest を生成します。その後, 関連 CRD (CiliumBGPAdvertisement / CiliumBGPPeerConfig / CiliumBGPClusterConfig) の存在を確認しながら manifest を適用し, Pod CIDR や Service CIDR を外部ルータへ広報する設定を投入します。
+10. `config-multus.yml` は `k8s_multus_enabled` 有効時に Multus values を生成し, `k8s_multus_helm_repo_git_url` の HEAD を `force: true` で再取得してローカルから `helm upgrade --install` を実行し, 動作確認用 Pod マニフェストを配置します。
+11. `config-whereabouts.yml` は `k8s_whereabouts_enabled` 有効時に Whereabouts チャートを OCI から導入し, `ipvlan-wb-nad.yml.j2` から生成した NAD を `kubectl apply` します (セカンダリネットワークの範囲は `k8s_whereabouts_ipv4_range_*` 等で指定)。
+12. `config-cluster-mesh-tools.yml` が Cluster Mesh 向けツールディレクトリを作成し, 証明書埋め込み kubeconfig 生成スクリプトと手順書を配布します。クラスタ名/ID が指定されている場合は共有 CA の存在を検証し, 見つからなければ明示的に失敗させます。条件を満たせば埋め込み kubeconfig を生成し, ファイル所有者を `k8s_operator_user` に設定します。
+13. `package-netgauge.yml` が `k8s_netgauge_packages` 定義時にノイズ測定系パッケージを導入します。
 
 各ステップの間で必要に応じて待機や再起動を行い, 最終的に kubeconfig 配布と追加ツール整備まで完了させます。
 

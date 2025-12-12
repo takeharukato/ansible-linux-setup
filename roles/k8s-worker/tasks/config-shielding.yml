@@ -25,3 +25,6 @@
     mode: 0644
     backup: true
   loop: "{{ k8s_systemd_slices }}"
+  when:
+    - k8s_reserved_system_cpus_default is defined
+    - k8s_reserved_system_cpus_default != ""

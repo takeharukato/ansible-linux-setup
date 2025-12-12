@@ -84,7 +84,6 @@ k8s_bgp:
   enabled: true
   node_name: "k8sworker0202"
   local_asn: 65012
-  router_id: "192.168.40.53"
   kubeconfig: "/etc/kubernetes/admin.conf"
   export_pod_cidr: true
   advertise_services: false

@@ -93,7 +93,6 @@ k8s_bgp:
   enabled: true
   node_name: "k8sctrlplane01"
   local_asn: 65011
-  router_id: "192.168.30.41"
   kubeconfig: "/etc/kubernetes/admin.conf"
   export_pod_cidr: true
   advertise_services: false

@@ -2,6 +2,9 @@
 
 Kubernetes ノード共通の前提条件を整えるロールです。制御プレーン / ワーカーノードを問わず, コンテナランタイム (containerd)・kubeadm/kubelet/kubectl の導入, ネットワークモジュールと sysctl の調整, swap 無効化, kubelet の NIC 設定, ファイアウォールの開放, オペレータ用ユーザ作成, 証明書埋め込み kubeconfig の補助ツール配布などを一括で実施します。最後に containerd の設定変更を反映させるためリブートを伴う構成となっており, 再実行にも対応しています。
 
+なお, Cilium BGP Control Plane 用リソースの生成と適用は `k8s-ctrlplane` / `k8s-worker` ロール側の `config-cilium-bgp-cplane.yml` で, `k8s_bgp` 変数が有効化されているホストに対して, Cilium BGP Control Plane 用リソースを定義するCustom Resource Definition (CRD) を適用します。
+コントロールプレイン構築処理とワーカーノード構築処理の双方から使用される共通テンプレートファイルを一元管理するため, Cilium BGP Control Plane 用リソースを定義するためのmanifestを生成するテンプレートファイルを本ロール配下の`templates/cilium-bgp-resources.yml.j2`に配置しています。
+
 ## 実行フロー
 
 1. `load-params.yml` で OS ごとのパッケージ名や共通設定値 (`vars/cross-distro.yml` など) を読み込みます。
@@ -40,6 +43,43 @@ Kubernetes ノード共通の前提条件を整えるロールです。制御プ
 | `k8s_use_kubepods_cpuset` | `false` | `true` で kubepods スライスの cpuset をアプリケーション CPU に固定します。|
 
 その他, `firewall_backend`・`enable_firewall`・`k8s_reserved_system_cpus_default`・`k8s_operator_github_key_list` などの変数がロールの挙動を制御します。詳細は `defaults/main.yml` と `vars/` 配下のファイルを参照してください。
+
+## Cilium BGP Control Planeの設定
+
+本ロールでは, Cilium に組み込まれた BGP デーモン ( Cilium-BGP Control Plane Custom Resource Definition (CRD) )を使い, Kubernetes ノードが外部ルータ (FRRouting など)と BGP セッションを張り, Cilium が管理するルーティング情報を外部に直接広告する機能であるCilium BGP Control Plane機能の設定を行います。
+
+### Cilium BGP Control Plane設定関連変数
+
+Cilium BGP Control Planeの設定は, `host_vars`配下のK8sクラスタを構成するコントロールプレイン, ワーカーノードの各設定ファイルに`k8s_bgp`変数を定義することで行います。
+`k8s_bgp`変数は, Cilium BGP Control Plane の動作を制御するマッピング(辞書)です。`k8s_bgp`変数のキーと設定値の型,設定値の説明, 設定値の例は, 以下の通りです:
+
+| キー | 型 | 説明 | 設定例 |
+| --- | --- | --- | --- |
+| `enabled` | bool | BGP Control Plane を有効化します。 | `true` |
+| `node_name` | string | CiliumNode Custom Resource (各ノードにおける Cilium の動作設定) に登録するノード名。実機の `k8s_node_name` (kubectl get nodes で確認できる NAME 列の文字列) を指定します。 | `"k8sctrlplane01"` |
+| `local_asn` | int | 当該ノードが用いるローカル自律システム番号 (`Autonomous System Number` 以下, `ASN`)。| `65011` |
+| `kubeconfig` | string (ファイルパス文字列) | Cilium が Kubernetes API に接続するための `kubeconfig` ファイルのパス名を指定します。 | `"/etc/kubernetes/admin.conf"` |
+| `export_pod_cidr` | bool | Pod CIDR (当該ノードが所属する K8s クラスタ内の Pod 仮想ネットワークのアドレス帯) を BGP で広告します。 | `true` |
+| `advertise_services` | bool | Service CIDR (当該ノードが所属する K8s クラスタ内のサービスネットワーク上の仮想 IP アドレス帯) を BGP で広告します。 | `false` |
+| `address_families` | list[string / dict] | 各 BGP ピアに共通で適用するアドレスファミリ設定のリストです。リストの要素が文字列の場合は `ipv4` / `ipv6` などの BGPが扱うアドレス体系識別子(`Address Family Identifier` (`AFI`) )を指定します。リストの要素を文字列として指定した場合は, 後続アドレスファミリ識別子(`Subsequent Address Family Identifier` (`SAFI`))に`unicast`を指定したものとして扱い, 既定の広告ラベルを紐づけます。リストの要素を辞書として指定する場合の指定方法は, 「`k8s_bgp`変数の`address_families`の要素を辞書として指定する場合の指定方法」を参照してください。| `["ipv4", {"afi": "ipv6", "safi": "unicast"}]` |
+| `neighbors` | list[dict] | 接続先 BGP ピアのリスト。各要素は下記のサブキーを持つ辞書です。 | `[...]` |
+| `neighbors[].peer_address` | string (CIDR文字列) | BGP ピアのアドレス (CIDR 形式)。 `/32` や `/128` で単一ホストを指定します。 | `"192.168.30.49/32"` |
+| `neighbors[].peer_asn` | int | 対向 BGP ピアの ASN。 | `65011` |
+| `neighbors[].peer_port` | int | BGP ピアと接続するポート番号。通常は `179` を指定します。 | `179` |
+| `neighbors[].hold_time_seconds` | int | BGP Hold Timer。ピアからの Keepalive (ピア間で TCP セッションの有効性確認を行う処理) を待つ最大秒数です。 | `90` |
+| `neighbors[].connect_retry_seconds` | int | ピアへの接続失敗時の再接続までの待ち時間を秒単位で指定します。 | `15` |
+
+#### `k8s_bgp`変数の`address_families`の要素を辞書として指定する場合の指定方法
+
+`k8s_bgp`変数の`address_families`の要素を辞書として指定する場合, 以下のキーと設定値からなる辞書として設定値を記述してください。
+
+| キー | 型 | 説明 |
+| --- | --- | --- |
+| `afi` | string | アドレス体系識別子を指定します。省略時は `ipv4` を使用します。 |
+| `safi` | string | 後続アドレスファミリ識別子を指定します。省略時は `unicast` を使用します。 |
+| `attributes` | dict | BGP 属性を指定します。辞書の内容は `attributes` セクションとしてそのまま出力されます。 |
+| `advertisements` | dict | 当該 AFI/SAFI に適用する広告設定を指定します。CiliumBGPPeerConfig の `families[].advertisements` にそのまま展開されるため, `matchLabels` や `matchExpressions` などのラベルセレクタを含む辞書を記述します (例: `{ "matchLabels": { "bgp.cilium.io/advertisement-group": "custom" } }`)。 |
+| `disable_default_advertisements` | bool | 既定の広告ラベルを無効化します。`true` を指定すると既定ラベルを付与しません。 |
 
 ## 主な処理
 
