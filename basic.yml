@@ -24,7 +24,5 @@
       tags: create-users
     - role: docker-ce
       tags: docker-ce
-    - role: k8s-common
-      tags: k8s-common
     - role: force-reboot # 最後に実行するようにすること
       tags: force-reboot
