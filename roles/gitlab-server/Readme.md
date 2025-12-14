@@ -43,7 +43,7 @@ GitLab の初期ルートパスワードファイルや公開 URL, 通信ポー�
 5. [tasks/service.yml](tasks/service.yml) が `docker compose up -d` で GitLab / Runner コンテナを起動し, HTTPS / SSH / Registry ポートが開くまで待機します。その後, アクセス URL や初期パスワードファイルパスを表示します。
 6. ロール再実行時には既存の compose ファイルや永続化ディレクトリを再利用し, 冪等に整備を行います。停止したい場合は [tasks/stop-service.yml](tasks/stop-service.yml) を参照してください。
 
-## Gitlabコンテナについて
+## Gitlabコンテナの構成
 
 本ロールでは, 以下の2つのコンテナからなるDocker composeを生成します:
 
@@ -53,6 +53,17 @@ GitLab の初期ルートパスワードファイルや公開 URL, 通信ポー�
 |gitlab-runner|gitlabのCI/CDで使用するgitlab-runner|
 
 Docker composeファイルは, `{{ gitlab_home_dir }}/docker-compose.yml` (規定値は, `/srv/gitlab/docker-compose.yml` )に生成されます。
+
+### Gitlabの公開URL, SSHポート, コンテナレジストリ
+
+例えば, `gitlab_hostname`に, `devserver.example.org`, `gitlab_https_port`に, `9443`, `gitlab_ssh_port`に, `2224`, `gitlab_registry_port`に`5050`をそれぞれ指定して,
+本ロールを適用すると, 以下のようにGitlabのリポジトリサービスとコンテナレジストリサービスが構成されます:
+
+|用途|URL/コンテナレジストリ|URL/コンテナレジストリの例|
+|---|---|---|
+|Gitlab WEB UIのURL|https://`gitlab_hostname`:`gitlab_https_port`|`https://devserver.example.org:9443`|
+|Gitlabリポジトリ操作用SSH|ssh://`gitlab_hostname`:`gitlab_ssh_port`|`ssh://devserver.example.org:2224`|
+|Gitlab Container Registry|`gitlab_hostname`:`gitlab_registry_port`|`devserver.example.org:5050`|
 
 ### ポートマッピング
 
@@ -101,8 +112,7 @@ Gitlabの公式コンテナイメージでは, Gitlab関連ファイルの所有
 ### バックアップの内容
 
 Gitlabの公式手順に従って, バックアップを生成, 復元するため, 以下の内容が含まれます
-(詳細は, [Data included in a backup
-](https://docs.gitlab.com/administration/backup_restore/backup_gitlab/#data-included-in-a-backup) 参照):
+(詳細は, [Data included in a backup](https://docs.gitlab.com/administration/backup_restore/backup_gitlab/#data-included-in-a-backup) 参照):
 
 - Gitリポジトリ
 - LFS
@@ -116,8 +126,7 @@ Gitlabの公式手順に従って, バックアップを生成, 復元するた�
 ### バックアップに含まれない内容
 
 公式手順のバックアップ処理では, 以下の内容はバックアップに含まれないため,
-必要に応じて別途バックアップを取ってください。詳細は, [Data not included in a backup
-](https://docs.gitlab.com/administration/backup_restore/backup_gitlab/#data-not-included-in-a-backup) を参照ください。
+必要に応じて別途バックアップを取ってください。詳細は, [Data not included in a backup](https://docs.gitlab.com/administration/backup_restore/backup_gitlab/#data-not-included-in-a-backup) を参照ください。
 
 - コンテナ内のGitlabの設定 (`/etc/gitlab`), ホスト上の`{{ gitlab_config_dir }}`(規定値: `/srv/gitlab/config`)の内容
 - Container Registryの実イメージ

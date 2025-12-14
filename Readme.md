@@ -23,6 +23,7 @@
       - [ホームディレクトリのバックアップ](#ホームディレクトリのバックアップ)
       - [Lightweight Directory Access Protocol (LDAP) サーバ関連設定](#lightweight-directory-access-protocol-ldap-サーバ関連設定)
       - [Redmine関連設定](#redmine関連設定)
+      - [Gitlab関連設定](#gitlab関連設定)
       - [Emacsパッケージ関連設定](#emacsパッケージ関連設定)
       - [Kubernetes関連設定](#kubernetes関連設定)
         - [K8sクラスタ間の接続設定](#k8sクラスタ間の接続設定)
@@ -473,6 +474,29 @@ Redmineのデイリーバックアップについては, `roles/redmine-server/R
 |redmine_backup_nfs_dir|マウントする共有ディレクトリ|"/share"|
 |redmine_backup_mount_point|デイリーバックアップ時のNFSマウントポイント(NFSのマウント/アンマウント時に使用)|"/mnt"|
 |redmine_backup_dir_on_nfs|NFSマウントポイント配下のRedmineバックアップ配置先ディレクトリ|"/Linux/Redmine"|
+
+#### Gitlab関連設定
+
+Gitlabの公開URL, イメージファイル関連の設定を記載する。
+
+|変数名|意味|設定値の例|
+|---|---|---|
+| `gitlab_hostname` | GitLab WEB UI/Container Registryの公開URL中のホスト名部分を指定。本変数が, 未設定または空文字列の場合, Gitlabの導入を行わない。| `"devserver.example.org"` |
+| `gitlab_https_port` | GitLab Web UI (HTTPS) 公開ポート。| `9443` |
+| `gitlab_ssh_port` | GitLab SSH (リポジトリ操作用) 公開ポート。| `2224` |
+| `gitlab_registry_port` | コンテナレジストリ公開ポート。| `5050` |
+
+上記設定を行うと, 以下のようにGitlab環境が構築される:
+
+|用途|URL/コンテナレジストリ|URL/コンテナレジストリの例|
+|---|---|---|
+|Gitlab WEB UIのURL|https://`gitlab_hostname`:`gitlab_https_port`|`https://devserver.example.org:9443`|
+|Gitlabリポジトリ操作用SSH|ssh://`gitlab_hostname`:`gitlab_ssh_port`|`ssh://devserver.example.org:2224`|
+|Gitlab Container Registry|`gitlab_hostname`:`gitlab_registry_port`|`devserver.example.org:5050`|
+
+Gitlabの既定の設定の場合, `8080`ポートや`2222`番ポートが他の用途に使用されている
+可能性があるため, 公開ポート番号を変更している。
+GitLab Web UI (HTTPS)ポート(`gitlab_https_port`)やGitLab Container Registryのポート(`gitlab_registry_port`)を変更する際は, `templates/docker-compose.yml.j2`で設定しているGitlabの`external_url`, `registry_external_url`との整合性を保つように設定すること。
 
 #### Emacsパッケージ関連設定
 
