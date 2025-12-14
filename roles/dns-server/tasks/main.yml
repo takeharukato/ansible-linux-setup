@@ -7,10 +7,31 @@
 # 最初に変数設定を読み直す ( role単独で実行可能とするため )
 - include_tasks: load-params.yml
 - include_tasks: package.yml
+  when:
+    - dns_server is defined
+    - ( dns_server|default('', true) | length ) > 0
 - include_tasks: directory.yml
+  when:
+    - dns_server is defined
+    - ( dns_server|default('', true) | length ) > 0
 - include_tasks: user_group.yml
+  when:
+    - dns_server is defined
+    - ( dns_server|default('', true) | length ) > 0
 - include_tasks: service.yml
+  when:
+    - dns_server is defined
+    - ( dns_server|default('', true) | length ) > 0
 - include_tasks: config.yml
+  when:
+    - dns_server is defined
+    - ( dns_server|default('', true) | length ) > 0
 - include_tasks: config-systemd-ipv4-only.yml
+  when:
+    - dns_server is defined
+    - ( dns_server|default('', true) | length ) > 0
 - include_tasks: config-firewall.yml
-  when: enable_firewall | default(false,true)
+  when:
+    - dns_server is defined
+    - ( dns_server|default('', true) | length ) > 0
+    - enable_firewall | default(false,true)

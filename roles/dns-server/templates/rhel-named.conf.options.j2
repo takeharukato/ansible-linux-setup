@@ -71,3 +71,19 @@ options {
         // 以下をコメントにしている
         //include "/etc/crypto-policies/back-ends/bind.config";
 };
+
+// RHEL 系では /etc/rndc.key, Debian 系では /etc/bind/rndc.key に配置される
+// Debian 系では, Ubuntu系では bind9 パッケージの postinst が自動で /etc/bind/rndc.key を
+// (`rndc-confgen -a ...`) で生成するため, controlsセクションが未定義の場合, 所定のパスに
+// rndc.keyが存在していれば自動的にその鍵を読み込んでデフォルトのローカルコントロール
+// (127.0.0.1:953) が有効になる。
+// RHEL 系では, rndc.key を生成, 参照する設定が含まれていないため,
+// Debian 系と同様な動作となるように以下でrndc.keyを読み込む設定を追加している。
+
+include "{{ dns_rndc_key_path }}";
+
+// rndc (Remote Name Daemon Control) の設定
+// named 管理用のリモートコントロールインターフェース
+controls {
+        inet 127.0.0.1 port 953 allow { 127.0.0.1; } keys { "{{ dns_rndc_key_name }}"; };
+};

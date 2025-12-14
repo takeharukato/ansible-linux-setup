@@ -1,0 +1,28 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+# Debian系で管理サーバの構築処理を確認するためのテスト用設定ファイル
+#
+ubuntu_server_ipv4_addr_octet: "13"
+ubuntu_server_ipv6_addr_field: "13"
+ubuntu_server_ipv4_address: "{{router_ipv4_prefix}}.{{ ubuntu_server_ipv4_addr_octet }}"
+ubuntu_server_ipv6_address: "{{router_ipv6_prefix}}{{ ubuntu_server_ipv6_addr_field }}"
+
+mgmt_nic: "ens160"
+netif_list:
+  - netif: "ens160"
+    mac: "00:50:56:00:43:88"
+    static_ipv4_addr: "{{rhel_server_ipv4_address}}"
+    network_ipv4_prefix_len: "{{network_ipv4_prefix_len}}"
+    static_ipv6_addr: "{{rhel_server_ipv6_address}}"
+    network_ipv6_prefix_len: "{{network_ipv6_prefix_len}}"
+    gateway4: "{{gateway4}}"
+    gateway6: "{{gateway6}}"
+    ignore_auto_ipv4_dns: true
+    ignore_auto_ipv6_dns: true
+    name_server_ipv4_1: "{{ipv4_name_server1}}"
+    name_server_ipv4_2: "{{ipv4_name_server2}}"
+    name_server_ipv6_1: "{{ipv6_name_server1}}"
+    name_server_ipv6_2: "{{ipv6_name_server2}}"
+    dns_search: "elliptic-curve.net"

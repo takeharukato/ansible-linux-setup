@@ -3,6 +3,8 @@
 #
 [server]
 # devserver.local
+# rhel-server.local
+# ubuntu-server.local
 [rancher]
 # rancher01.local
 [k8s_ctrl_plane]
