@@ -469,6 +469,20 @@ dns_bind_user:  "{{ (ansible_facts.os_family == 'Debian') | ternary('bind',  'na
 dns_bind_group: "{{ (ansible_facts.os_family == 'Debian') | ternary('bind',  'named') }}"
 dns_bind_service:   "named"
 
+# rndc 鍵関連
+# RHEL 系では /etc/rndc.key, Debian 系では /etc/bind/rndc.key に配置される
+# Debian 系では, Ubuntu系では bind9 パッケージの postinst が自動で /etc/bind/rndc.key を
+# (`rndc-confgen -a ...`) で生成される。Debian 系では, controls ステートメントが未定義で
+# 該当キーが所定パスに存在すれば, 自動的にそのキーを読み込んでデフォルトの
+# ローカルコントロール (127.0.0.1:953) を有効化するようビルドされている。
+# RHEL 系では, rndc.key を生成, 参照する設定が含まれていないため,
+# named.conf.options.j2 テンプレートで明示的に読み込む設定を追加している。
+
+# rndc 鍵名
+dns_rndc_key_name: "rndc-key"
+# rndc 鍵パス
+dns_rndc_key_path: "{{ (ansible_facts.os_family == 'Debian') | ternary('/etc/bind/rndc.key', '/etc/rndc.key') }}"
+
 # === ディレクトリ/主要ファイル ===
 # 設定ディレクトリ
 dns_bind_conf_dir:  "{{ (ansible_facts.os_family == 'Debian') | ternary('/etc/bind', '/etc/named') }}"

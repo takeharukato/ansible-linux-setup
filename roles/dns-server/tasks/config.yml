@@ -184,6 +184,33 @@
     - ansible_facts.os_family == "RedHat"
     - ansible_selinux is defined and ansible_selinux.status != "disabled"
 
+- name: Ensure rndc key exists (RHEL only)
+  become: true
+  ansible.builtin.command: >-
+    rndc-confgen -a -k {{ dns_rndc_key_name }} -c {{ dns_rndc_key_path }} -A hmac-sha256
+  args:
+    creates: "{{ dns_rndc_key_path }}"
+  when:
+    - ansible_facts.os_family == "RedHat"
+
+- name: Set ownership on rndc key (RHEL only)
+  become: true
+  ansible.builtin.file:
+    path: "{{ dns_rndc_key_path }}"
+    owner: "{{ dns_bind_user }}"
+    group: "{{ dns_bind_group }}"
+    mode: '0600'
+  when:
+    - ansible_facts.os_family == "RedHat"
+
+- name: Restore SELinux context for rndc key (RHEL only)
+  become: true
+  ansible.builtin.command: restorecon -v "{{ dns_rndc_key_path }}"
+  changed_when: false
+  when:
+    - ansible_facts.os_family == "RedHat"
+    - ansible_selinux is defined and ansible_selinux.status != "disabled"
+
 # named.conf の構文とゾーンをチェック
 - name: named-checkconf (syntax & zones)
   become: true
@@ -191,13 +218,22 @@
   when:
     - ansible_facts.os_family == "RedHat"
 
-# ジャーナルの同期とクリーンアップを行う
+# named サービスが起動中であることを確認する
+- name: "Check if {{ dns_bind_service }} is running"
+  become: true
+  ansible.builtin.command: systemctl is-active {{ dns_bind_service }}
+  register: named_service_state
+  changed_when: false
+  failed_when: false
+
+# DNS起動中の場合は, ジャーナルの同期とクリーンアップを行う
 - name: Sync and clean journals before restart
   become: true
   command: rndc sync -clean
   register: rndc_sync
   changed_when: false
   failed_when: rndc_sync.rc not in [0]
+  when: named_service_state.rc == 0
 
 # namedを起動する
 - block:
