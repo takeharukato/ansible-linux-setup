@@ -485,6 +485,8 @@ Gitlabの公開URL, イメージファイル関連の設定を記載する。
 | gitlab_https_port | GitLab Web UI (HTTPS) 公開ポート。| 9443 |
 | gitlab_ssh_port | GitLab SSH (リポジトリ操作用) 公開ポート。| 2224 |
 | gitlab_registry_port | コンテナレジストリ公開ポート。| 5050 |
+| gitlab_docker_image | GitLab Omnibus Docker イメージ。公式の推奨に従って, バージョン名を明示してイメージを指定してください。| "gitlab/gitlab-ce:18.6.2-ce.0" |
+| gitlab_runner_docker_image | GitLab Runner Docker イメージ。GitLab 本体とメジャーバージョン, マイナーバージョンを合わせてください。| "gitlab/gitlab-runner:ubuntu-v18.6.6" |
 | gitlab_backup_rotation | デイリーバックアップのローテーション世代数 | 7 |
 | gitlab_backup_nfs_server | Gitlabのバックアップバンドルファイルを保存するNFSサーバ| "nfs.example.org" |
 | gitlab_backup_nfs_dir | Gitlabのバックアップバンドルファイルを保存するNFSサーバのマウント時に指定する共有ディレクトリ名| "share" |
