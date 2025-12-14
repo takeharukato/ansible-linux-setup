@@ -34,10 +34,10 @@ GitLab の初期ルートパスワードファイルや公開 URL, 通信ポー�
 | `gitlab_clean_install` | `false` | `true` の場合は既存設定, データ, ホームディレクトリを削除してクリーンインストールします。|
 | `gitlab_remove_container_images` | `false` | `true` の場合は, 既存の GitLab / Runner イメージを削除してからインストールを開始します。|
 | `gitlab_daily_backup_script_file` | `daily-backup-gitlab.sh` | Cronに登録するデイリーバックアップスクリプトファイル名 |
+| `gitlab_backup_rotation` | `7` | デイリーバックアップのローテーション世代数 |
 | `gitlab_backup_nfs_server` | `nfs.example.org` | Gitlabのバックアップバンドルファイルを保存するNFSサーバ|
 | `gitlab_backup_nfs_dir` | `share` | Gitlabのバックアップバンドルファイルを保存するNFSサーバのマウント時に指定する共有ディレクトリ名|
 | `gitlab_backup_mount_point` | `/mnt` | デイリーバックアップ時のNFSマウントポイント(NFSのマウント/アンマウント時に使用) |
-| `gitlab_backup_rotation` | `7` | デイリーバックアップのローテーション世代数 |
 | `gitlab_backup_dir_on_nfs` | `/gitlab-backups` | デイリーバックアップ時のNFSマウントポイント配下のバックアップ配置先ディレクトリ |
 
 ## ロール内の動作
