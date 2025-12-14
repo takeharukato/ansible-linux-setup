@@ -1,0 +1,99 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  ロール固有変数のデフォルト値
+#  group_vars/all/all.yml やhost_varsで上書き可能とするため,
+#  ロール名/defaults/main.yml に定義している
+---
+# -----------------------------------------------------------
+# GitLabサーバ関連デフォルト変数
+# -----------------------------------------------------------
+# GitLabサーバの公開ホスト名
+# 未定義または空の場合, Gitlabの導入を行わない
+gitlab_hostname: ""
+
+# -----------------------------------------------------------
+# GitLabサーバ関連ポート設定/URL設定
+# -----------------------------------------------------------
+# GitLabサーバ WEB UI 公開ポート
+gitlab_https_port: 9443
+# GitLabサーバ SSH 公開ポート
+gitlab_ssh_port: 2224
+# GitLab Container Registry 公開ポート
+gitlab_registry_port: 5050
+
+# GitLab外部URL設定
+gitlab_external_url: "https://{{ gitlab_hostname }}:{{ gitlab_https_port }}"
+# GitLab Container Registry外部URL設定
+gitlab_registry_external_url: "https://{{ gitlab_hostname }}:{{ gitlab_registry_port }}"
+
+# -----------------------------------------------------------
+# GitLabサーバDockerイメージ設定
+# -----------------------------------------------------------
+# GitLab Dockerイメージ
+# 公式の手順 ( https://docs.gitlab.co.jp/ee/install/docker.html ) に従い,
+# バージョン番号を指定してイメージを取得する
+# 利用可能なタグは以下のURLを参照:
+#   https://hub.docker.com/r/gitlab/gitlab-ce/tags
+gitlab_docker_image: "gitlab/gitlab-ce:18.6.2-ce.0"
+# GitLab Runner Dockerイメージ
+# 公式の手順 ( https://docs.gitlab.com/runner/install/docker.html ) に従い,
+# GitLab 本体と major.minor を合わせてイメージを取得する
+# (例: GitLab 18.6.x の場合は 18.6.x 系を指定)。
+# 利用可能なタグは以下のURLを参照:
+#   https://hub.docker.com/r/gitlab/gitlab-runner/tags
+gitlab_runner_docker_image: "gitlab/gitlab-runner:ubuntu-v18.6.6"
+# gitlabサービス名
+gitlab_container_name: "gitlab"
+# gitlab-runnerサービス名
+gitlab_runner_container_name: "gitlab-runner"
+
+# -----------------------------------------------------------
+# GitLab関連ディレクトリ
+# -----------------------------------------------------------
+# GitLab公式Dockerイメージのデフォルト構成に準拠する
+# GitLab関連ディレクトリは, /srv/gitlab 以下に配置する
+#  Dockerコンテナで使用するデータをホスト側で永続化するための
+#  バインドマウントポイントとして使用する
+# GitLab Homeディレクトリ
+gitlab_home_dir: "/srv/gitlab"
+# 管理スクリプト格納ディレクトリ
+gitlab_scripts_dir: "{{ gitlab_home_dir }}/scripts"
+# 設定ファイル格納ディレクトリ
+gitlab_config_dir: "{{ gitlab_home_dir }}/config"
+# ログ格納ディレクトリ
+gitlab_logs_dir: "{{ gitlab_home_dir }}/logs"
+# データ格納ディレクトリ
+gitlab_data_dir: "{{ gitlab_home_dir }}/data"
+# SSL証明書格納ディレクトリ (自動生成されるため作成する必要はない)
+gitlab_ssl_dir: "{{ gitlab_config_dir }}/ssl"
+# バックアップ格納ディレクトリ
+gitlab_backup_dir: "{{ gitlab_data_dir }}/backups"
+# 日次バックアップ退避ディレクトリ
+gitlab_daily_backup_dir: "{{ gitlab_home_dir }}/daily-backups"
+# 日次バックアップのローテーション世代数
+gitlab_backup_rotation: 7
+# 初期パスワード格納ファイルパス
+gitlab_initial_root_password_file: "{{ gitlab_config_dir }}/initial_root_password"
+
+# Gitlab docker-composeファイルのパス
+gitlab_docker_compose_file: "{{ gitlab_home_dir }}/docker-compose.yml"
+
+# -----------------------------------------------------------
+# GitLab Runner関連ディレクトリ
+# -----------------------------------------------------------
+# GitLab Runner設定ファイル格納ディレクトリ
+gitlab_runner_config_dir: "{{ gitlab_home_dir }}/gitlab-runner/config"
+# GitLab Runner dockerソケット格納ディレクトリ
+gitlab_runner_docker_sock_dir: "/var/run/docker.sock"
+
+# -----------------------------------------------------------
+# playbook制御
+# -----------------------------------------------------------
+# 既存の設定を削除して, クリーンインストールする場合は,
+# trueに設定する
+gitlab_clean_install: false
+# GitLab関連Dockerコンテナ/イメージを削除する場合は,
+# trueに設定する
+gitlab_remove_container_images: false

@@ -1,0 +1,66 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  サービス関連処理
+#
+---
+
+# GitLabサービスのDockerコンテナを起動する
+- name: Start GitLab service container
+  ansible.builtin.shell: |
+    docker compose -f {{ gitlab_docker_compose_file }} up -d
+  args:
+    chdir: "{{ gitlab_home_dir }}"
+  become: true
+
+# GitLabサービスの開始を確認する
+- name: Check GitLab service container status
+  ansible.builtin.shell: |
+    docker ps --filter "name={{ gitlab_container_name }}"
+  register: gitlab_container_status
+  become: true
+
+# Display GitLabサービスのコンテナ状態を表示する
+- name: "Display GitLab container status"
+  ansible.builtin.debug:
+    msg: "{{ gitlab_container_status.stdout }}"
+
+# GitLab Runnerサービスの開始を確認する
+- name: Check GitLab Runner service container status
+  ansible.builtin.shell: |
+    docker ps --filter "name={{ gitlab_runner_container_name }}"
+  register: gitlab_runner_container_status
+  become: true
+
+# Display GitLabサービスのコンテナ状態を表示する
+- name: "Display GitLab Runner container status"
+  ansible.builtin.debug:
+    msg: "{{ gitlab_runner_container_status.stdout }}"
+
+# リモートホスト上でGitLabコンテナのHTTPSポートが開くまで待機
+- name: Wait for GitLab HTTPS port on remote host
+  ansible.builtin.wait_for:
+    port: "{{ gitlab_https_port }}"
+    state: started
+
+# リモートホスト上でGitLabコンテナのSSHポートが開くまで待機
+- name: Wait for GitLab SSH port on remote host
+  ansible.builtin.wait_for:
+    port: "{{ gitlab_ssh_port }}"
+    state: started
+
+# リモートホスト上でGitLabコンテナのRegistryポートが開くまで待機
+- name: Wait for GitLab Registry port on remote host
+  ansible.builtin.wait_for:
+    port: "{{ gitlab_registry_port }}"
+    state: started
+
+- name: "Display GitLab access information"
+  ansible.builtin.debug:
+    msg: |
+      GitLab configuration:
+        Access GitLab Web UI at: {{ gitlab_external_url }}
+        Access GitLab SSH at port: {{ gitlab_ssh_port }}
+        Access GitLab Container Registry at: {{ gitlab_registry_external_url }}
+        Initial root password file: {{ gitlab_initial_root_password_file }}

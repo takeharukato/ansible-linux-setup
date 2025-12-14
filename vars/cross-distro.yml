@@ -353,7 +353,6 @@ ntp_chrony_conf_drop_in_dir_rhel:   "/etc/chrony.d"
 ntp_client_chrony_conf_drop_in_dir: "{{ (ansible_facts.os_family == 'Debian') | ternary(ntp_chrony_conf_drop_in_dir_debian, ntp_chrony_conf_drop_in_dir_rhel) }}"
 ntp_server_chrony_conf_drop_in_dir: "{{ (ansible_facts.os_family == 'Debian') | ternary(ntp_chrony_conf_drop_in_dir_debian, ntp_chrony_conf_drop_in_dir_rhel) }}"
 
-
 # confdir 用に“drop-in 側”をエスケープ
 ntp_client_chrony_confdir_escaped: "{{ ntp_client_chrony_conf_drop_in_dir | regex_escape() }}"
 
@@ -549,6 +548,18 @@ pnuke_command: "{{ (ansible_facts.os_family == 'Debian') | ternary(pnuke_command
 prync_command: "{{ (ansible_facts.os_family == 'Debian') | ternary(prync_command_debian, prync_command_rhel) }}"
 pscp_command: "{{ (ansible_facts.os_family == 'Debian') | ternary(pscp_command_debian, pscp_command_rhel) }}"
 pslurp_command: "{{ (ansible_facts.os_family == 'Debian') | ternary(pslurp_command_debian, pslurp_command_rhel) }}"
+
+########################################################################################
+# shell 関連
+########################################################################################
+
+# nologin シェルパス
+# Debian/RHEL両系とも /usr/sbin/nologin が存在するが,
+# Debian系では /usr/sbin/nologin, RHEL系では /sbin/nologin が一般的であるため,
+# 互換性確保のため分離して定義する。
+nologin_shell_debian: "/usr/sbin/nologin"
+nologin_shell_rhel:   "/sbin/nologin"
+nologin_shell: "{{ (ansible_facts.os_family == 'Debian') | ternary(nologin_shell_debian, nologin_shell_rhel) }}"
 
 ########################################################################################
 # 便利ユーティリティ
