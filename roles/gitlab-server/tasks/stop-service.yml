@@ -1,0 +1,31 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  サービス停止タスク
+#
+---
+
+# Gitlab homeディレクトリが存在することを確認する
+- name: Check if GitLab home directory exists
+  ansible.builtin.stat:
+    path: "{{ gitlab_home_dir }}"
+  register: gitlab_home_dir_stat
+  become: true
+
+# docker-compose.ymlファイルが存在することを確認する
+- name: Check if docker-compose.yml file exists
+  ansible.builtin.stat:
+    path: "{{ gitlab_docker_compose_file }}"
+  register: gitlab_docker_compose_file_stat
+
+# Gitlabサービスを停止する
+- name: Stop GitLab service container
+  ansible.builtin.shell: |
+    docker compose -f {{ gitlab_docker_compose_file }} down
+  args:
+    chdir: "{{ gitlab_home_dir }}"
+  when:
+    - gitlab_home_dir_stat.stat.exists
+    - gitlab_docker_compose_file_stat.stat.exists
+  become: true

@@ -1,0 +1,154 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  GitLabファイル・ディレクトリ作成関連タスク
+#
+---
+
+# gitlab用ユーザIDの存在確認
+- name: "Check whether gitlab user id ({{ gitlab_user_id }}) exists"
+  ansible.builtin.getent:
+    database: passwd
+    key: "{{ gitlab_user_id }}"
+  register: gitlab_user_check
+  ignore_errors: true
+
+# gitlab用グループIDの存在確認
+- name: "Check whether gitlab group id ({{ gitlab_group_id }}) exists"
+  ansible.builtin.getent:
+    database: group
+    key: "{{ gitlab_group_id }}"
+  register: gitlab_group_check
+  ignore_errors: true
+
+# gitlab用グループが存在しない場合, グループを作成
+- name: "Create gitlab group ({{ gitlab_fallback_group_name }}) if not exists"
+  ansible.builtin.group:
+    name: "{{ gitlab_fallback_group_name }}"
+    gid: "{{ gitlab_group_id }}"
+    state: present
+  when: gitlab_group_check.failed
+
+# gitlab用ユーザが存在しない場合, ユーザを作成
+- name: "Create gitlab user ({{ gitlab_fallback_user_name }}) if not exists"
+  ansible.builtin.user:
+    name: "{{ gitlab_fallback_user_name }}"
+    uid: "{{ gitlab_user_id }}"
+    group: "{{ gitlab_fallback_group_name }}"
+    create_home: false
+    shell: "{{ nologin_shell | default('/usr/sbin/nologin', true) }}"
+    state: present
+  when: gitlab_user_check.failed
+
+# GitLab関連ディレクトリ作成
+
+# GitLab Homeディレクトリ(/srv/gitlab)作成
+- name: "Create GitLab Home directory ({{ gitlab_home_dir }})"
+  file:
+    path: "{{ gitlab_home_dir }}"
+    state: directory
+    owner: "{{ gitlab_user_id }}"
+    group: "{{ gitlab_group_id }}"
+    mode: '0755'
+  become: true
+
+# GitLab用設定ファイル格納ディレクトリ作成
+- name: "Create GitLab configuration directory ({{ gitlab_config_dir }})"
+  file:
+    path: "{{ gitlab_config_dir }}"
+    state: directory
+    owner: "{{ gitlab_user_id }}"
+    group: "{{ gitlab_group_id }}"
+    mode: '0755'
+  become: true
+
+# GitLab用ログ格納ディレクトリ作成
+- name: "Create GitLab logs directory ({{ gitlab_logs_dir }})"
+  file:
+    path: "{{ gitlab_logs_dir }}"
+    state: directory
+    owner: "{{ gitlab_user_id }}"
+    group: "{{ gitlab_group_id }}"
+    mode: '0755'
+  become: true
+
+# GitLab用データ格納ディレクトリ作成
+- name: "Create GitLab data directory ({{ gitlab_data_dir }})"
+  file:
+    path: "{{ gitlab_data_dir }}"
+    state: directory
+    owner: "{{ gitlab_user_id }}"
+    group: "{{ gitlab_group_id }}"
+    mode: '0755'
+  become: true
+
+# GitLabバックアップ格納ディレクトリ作成
+- name: "Create GitLab backup directory ({{ gitlab_backup_dir }})"
+  file:
+    path: "{{ gitlab_backup_dir }}"
+    state: directory
+    owner: "{{ gitlab_user_id }}"
+    group: "{{ gitlab_group_id }}"
+    mode: '0750'
+  become: true
+
+# GitLab日次バックアップ退避ディレクトリ作成
+- name: "Create GitLab daily backup directory ({{ gitlab_daily_backup_dir }})"
+  file:
+    path: "{{ gitlab_daily_backup_dir }}"
+    state: directory
+    owner: "{{ gitlab_user_id }}"
+    group: "{{ gitlab_group_id }}"
+    mode: '0750'
+  become: true
+
+# GitLab管理用スクリプト格納ディレクトリ作成
+- name: "Create GitLab scripts directory ({{ gitlab_scripts_dir }})"
+  file:
+    path: "{{ gitlab_scripts_dir }}"
+    state: directory
+    owner: "{{ gitlab_user_id }}"
+    group: "{{ gitlab_group_id }}"
+    mode: '0755'
+  become: true
+
+# GitLabバックアップスクリプト配置
+- name: "Deploy GitLab backup script"
+  ansible.builtin.template:
+    src: "gitlab-backup.py.j2"
+    dest: "{{ gitlab_scripts_dir }}/gitlab-backup.py"
+    owner: root
+    group: root
+    mode: '0755'
+  become: true
+
+# GitLabリストアスクリプト配置
+- name: "Deploy GitLab restore script"
+  ansible.builtin.template:
+    src: "gitlab-restore.py.j2"
+    dest: "{{ gitlab_scripts_dir }}/gitlab-restore.py"
+    owner: root
+    group: root
+    mode: '0755'
+  become: true
+
+# GitLab Runner用設定ファイル格納ディレクトリ作成
+- name: "Create Gitlab runner configuration directory ({{ gitlab_runner_config_dir }})"
+  file:
+    path: "{{ gitlab_runner_config_dir }}"
+    state: directory
+    owner: "{{ gitlab_user_id }}"
+    group: "{{ gitlab_group_id }}"
+    mode: '0755'
+  become: true
+
+# Gitlab docker-composeファイルの生成
+- name: "Generate GitLab docker-compose file"
+  ansible.builtin.template:
+    src: "docker-compose.yml.j2"
+    dest: "{{ gitlab_docker_compose_file }}"
+    owner: "{{ gitlab_user_id }}"
+    group: "{{ gitlab_group_id }}"
+    mode: '0644'
+  become: true

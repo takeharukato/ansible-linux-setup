@@ -364,6 +364,12 @@ redmine_backup_mount_point: "/mnt"
 redmine_backup_dir_on_nfs: "/Linux/Redmine"
 
 #
+# Gitlab
+#
+# GitLabサーバのWEB UI公開URLのホスト名
+gitlab_hostname: "devserver.example.org"
+
+#
 # emacsのパッケージ(ユーザ毎にインストールする)
 #
 create_user_emacs_package_list:

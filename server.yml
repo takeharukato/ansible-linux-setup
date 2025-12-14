@@ -33,6 +33,8 @@
       tags: ldap-server
     - role: redmine-server
       tags: redmine-server
+    - role: gitlab-server
+      tags: gitlab-server
 # 最後に実行するようにすること
     - role: force-reboot
       tags: force-reboot
