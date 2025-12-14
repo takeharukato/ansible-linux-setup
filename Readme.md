@@ -481,10 +481,15 @@ Gitlabの公開URL, イメージファイル関連の設定を記載する。
 
 |変数名|意味|設定値の例|
 |---|---|---|
-| `gitlab_hostname` | GitLab WEB UI/Container Registryの公開URL中のホスト名部分を指定。本変数が, 未設定または空文字列の場合, Gitlabの導入を行わない。| `"devserver.example.org"` |
-| `gitlab_https_port` | GitLab Web UI (HTTPS) 公開ポート。| `9443` |
-| `gitlab_ssh_port` | GitLab SSH (リポジトリ操作用) 公開ポート。| `2224` |
-| `gitlab_registry_port` | コンテナレジストリ公開ポート。| `5050` |
+| gitlab_hostname | GitLab WEB UI/Container Registryの公開URL中のホスト名部分を指定。本変数が, 未設定または空文字列の場合, Gitlabの導入を行わない。| "devserver.example.org" |
+| gitlab_https_port | GitLab Web UI (HTTPS) 公開ポート。| 9443 |
+| gitlab_ssh_port | GitLab SSH (リポジトリ操作用) 公開ポート。| 2224 |
+| gitlab_registry_port | コンテナレジストリ公開ポート。| 5050 |
+| gitlab_backup_rotation | デイリーバックアップのローテーション世代数 | 7 |
+| gitlab_backup_nfs_server | Gitlabのバックアップバンドルファイルを保存するNFSサーバ| "nfs.example.org" |
+| gitlab_backup_nfs_dir | Gitlabのバックアップバンドルファイルを保存するNFSサーバのマウント時に指定する共有ディレクトリ名| "share" |
+| gitlab_backup_mount_point | デイリーバックアップ時のNFSマウントポイント(NFSのマウント/アンマウント時に使用) | "/mnt" |
+| gitlab_backup_dir_on_nfs | デイリーバックアップ時のNFSマウントポイント配下のバックアップ配置先ディレクトリ | "/gitlab-backups" |
 
 上記設定を行うと, 以下のようにGitlab環境が構築される:
 
