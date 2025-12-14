@@ -496,7 +496,7 @@ Gitlabの公開URL, イメージファイル関連の設定を記載する。
 
 Gitlabの既定の設定の場合, `8080`ポートや`2222`番ポートが他の用途に使用されている
 可能性があるため, 公開ポート番号を変更している。
-GitLab Web UI (HTTPS)ポート(`gitlab_https_port`)やGitLab Container Registryのポート(`gitlab_registry_port`)を変更する際は, `templates/docker-compose.yml.j2`で設定しているGitlabの`external_url`, `registry_external_url`との整合性を保つように設定すること。
+GitLab Web UI (HTTPS)ポート(`gitlab_https_port`)やGitLab Container Registryのポート(`gitlab_registry_port`)を変更する際は, `roles/gitlab-server/templates/docker-compose.yml.j2`で設定しているGitlabの`external_url`, `registry_external_url`との整合性を保つように設定すること。
 
 #### Emacsパッケージ関連設定
 
