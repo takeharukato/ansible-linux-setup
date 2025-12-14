@@ -68,18 +68,37 @@ gitlab_logs_dir: "{{ gitlab_home_dir }}/logs"
 gitlab_data_dir: "{{ gitlab_home_dir }}/data"
 # SSL証明書格納ディレクトリ (自動生成されるため作成する必要はない)
 gitlab_ssl_dir: "{{ gitlab_config_dir }}/ssl"
-# バックアップ格納ディレクトリ
+# Gitlabバックアップアーカイブ(YYYYMMDD_HHMMSS_gitlab_backup.tar)格納ディレクトリ
 gitlab_backup_dir: "{{ gitlab_data_dir }}/backups"
-# 日次バックアップ退避ディレクトリ
-gitlab_daily_backup_dir: "{{ gitlab_home_dir }}/daily-backups"
-# 日次バックアップのローテーション世代数
-gitlab_backup_rotation: 7
 # 初期パスワード格納ファイルパス
 gitlab_initial_root_password_file: "{{ gitlab_config_dir }}/initial_root_password"
-
 # Gitlab docker-composeファイルのパス
 gitlab_docker_compose_file: "{{ gitlab_home_dir }}/docker-compose.yml"
-
+# バックアップスクリプト
+gitlab_backup_script_file: "gitlab-backup.py"
+# リストアスクリプト
+gitlab_restore_script_file: "gitlab-restore.py"
+# gitlabバックアップバンドルファイル
+gitlab_backup_bundle_file: "gitlab-backup.tar.gz"
+# -----------------------------------------------------------
+# GitLabデイリーバックアップ関連設定
+# -----------------------------------------------------------
+# デイリーバックアップ退避ディレクトリ
+gitlab_daily_backup_dir: "{{ gitlab_home_dir }}/daily-backup"
+# デイリーバックアップスクリプトファイル名
+gitlab_daily_backup_script_file: "daily-backup-gitlab.sh"
+# gitlabのバックアップバンドルファイルを保存するNFSサーバ
+gitlab_backup_nfs_server: "nfs.example.org"
+# NFSマウント時に指定する共有ディレクトリ名
+gitlab_backup_nfs_dir: "/share"
+# デイリーバックアップのローテーション世代数
+gitlab_backup_rotation: 7
+# デイリーバックアップ時のNFSマウントポイント(NFSのマウント/アンマウント時に使用)
+gitlab_backup_mount_point: "/mnt"
+# デイリーバックアップ時のNFSマウントポイント配下のバックアップ配置先ディレクトリ
+gitlab_backup_dir_on_nfs: "/gitlab-backups"
+# デイリーバックアップ時のNFSマウントポイント配下のバックアップ先ディレクトリパス
+gitlab_backup_output_dir: "{{gitlab_backup_mount_point}}{{ gitlab_backup_dir_on_nfs }}"
 # -----------------------------------------------------------
 # GitLab Runner関連ディレクトリ
 # -----------------------------------------------------------

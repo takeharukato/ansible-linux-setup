@@ -28,11 +28,17 @@ GitLab の初期ルートパスワードファイルや公開 URL, 通信ポー�
 | `gitlab_logs_dir` | `/srv/gitlab/logs` | ログ格納ディレクトリ。|
 | `gitlab_data_dir` | `/srv/gitlab/data` | データ格納ディレクトリ。|
 | `gitlab_backup_dir` | `/srv/gitlab/data/backups` | GitLab 標準バックアップの出力先。|
-| `gitlab_daily_backup_dir` | `/srv/gitlab/daily-backups` | デイリーバックアップ用のバックアップバンドルファイル保存先ディレクトリ。|
+| `gitlab_daily_backup_dir` | `/srv/gitlab/daily-backup` | デイリーバックアップ用のバックアップバンドルファイル保存先ディレクトリ。|
 | `gitlab_scripts_dir` | `/srv/gitlab/scripts` | バックアップ関連スクリプト配置先。|
 | `gitlab_docker_compose_file` | `/srv/gitlab/docker-compose.yml` | Gitlabのdocker compose 定義ファイル。|
 | `gitlab_clean_install` | `false` | `true` の場合は既存設定, データ, ホームディレクトリを削除してクリーンインストールします。|
 | `gitlab_remove_container_images` | `false` | `true` の場合は, 既存の GitLab / Runner イメージを削除してからインストールを開始します。|
+| `gitlab_daily_backup_script_file` | `daily-backup-gitlab.sh` | Cronに登録するデイリーバックアップスクリプトファイル名 |
+| `gitlab_backup_nfs_server` | `nfs.example.org` | Gitlabのバックアップバンドルファイルを保存するNFSサーバ|
+| `gitlab_backup_nfs_dir` | `share` | Gitlabのバックアップバンドルファイルを保存するNFSサーバのマウント時に指定する共有ディレクトリ名|
+| `gitlab_backup_mount_point` | `/mnt` | デイリーバックアップ時のNFSマウントポイント(NFSのマウント/アンマウント時に使用) |
+| `gitlab_backup_rotation` | `7` | デイリーバックアップのローテーション世代数 |
+| `gitlab_backup_dir_on_nfs` | `/gitlab-backups` | デイリーバックアップ時のNFSマウントポイント配下のバックアップ配置先ディレクトリ |
 
 ## ロール内の動作
 
@@ -151,7 +157,7 @@ Backup stored: <バックアップバンドルファイルのパス>
 
 ```shell
 # /srv/gitlab/scripts/gitlab-backup.py
-Backup stored: /srv/gitlab/daily-backups/gitlab-backup.tar.gz
+Backup stored: /srv/gitlab/daily-backup/gitlab-backup.tar.gz
 ```
 
 #### バックアップ処理の内容
@@ -173,7 +179,7 @@ root権限で, `{{ gitlab_scripts_dir }}/gitlab-restore.py --verbose <bundle.tar
 リストア処理の実行例を以下に示します:
 
 ```shell
- # /srv/gitlab/scripts/gitlab-restore.py --verbose /srv/gitlab/daily-backups/gitlab-backup.tar.gz
+ # /srv/gitlab/scripts/gitlab-restore.py --verbose /srv/gitlab/daily-backup/gitlab-backup.tar.gz
  Staged backup archive: /srv/gitlab/data/backups/1765706413_2025_12_14_18.6.2_gitlab_backup.tar
  Stopping puma and sidekiq services...
  Detected puma state 'down' via 'down: puma:'
@@ -196,6 +202,23 @@ root権限で, `{{ gitlab_scripts_dir }}/gitlab-restore.py --verbose <bundle.tar
 4. gitlab-backup restore コマンドを実行して復元処理を行う。
 5. gitlab-ctl reconfigure と gitlab-ctl start を実行してGitLabを再構成し起動する。
 6. pumaとsidekiqサービスが稼働状態になるのを待機する。
+
+### 定期バックアップ
+
+本ロールでは, `{{ gitlab_scripts_dir }}` (規定値: `/srv/gitlab/scripts`) 配下に, `{{ gitlab_daily_backup_script_file }}` (規定値: `daily-backup-gitlab.sh`)という名前で
+定期バックアップ処理を行うシェルスクリプトを導入します。
+
+本スクリプトは, NFSサーバ上に`gitlab-backup-世代番号.tgz`ように世代番号を付加し,
+Gitlabバックアップのバックアップバンドルファイルをコピーします。
+
+`crontab -e`コマンドで以下のcrontabエントリを作成することで定期バックアップを行うことができます。
+以下の設定では, 毎日午前3時に`{{ gitlab_daily_backup_dir }}`にバックアップファイルを生成後,
+`{{gitlab_backup_nfs_server}}:{{gitlab_backup_nfs_dir}}`をマウントポイントに指定して,
+NFSサーバをマウントし, バックアップファイルを当該ディレクトリにコピーします。
+
+```:text
+0 3 * * * /srv/gitlab/scripts/daily-backup-gitlab.sh
+```
 
 ## 検証ポイント
 
