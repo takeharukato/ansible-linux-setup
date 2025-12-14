@@ -4,11 +4,11 @@
 
 // ACL(Access Contorol List)で, ネットワークの範囲を定義する。
 acl internal-network {
-        {{ dns_network }}/{{ dns_network_ipv4_prefix_len }};
+        {{ dns_network|default('', true) }}/{{ dns_network_ipv4_prefix_len|default('', true) }};
 };
 
 # IPv6 ネットワークの範囲を定義する
-acl internal6 { {{ base }}/{{ cidr }}; };
+acl internal6 { {{ base|default('', true) }}/{{ cidr|default('', true) }}; };
 
 options {
         directory "{{ dns_bind_cache_dir }}";
@@ -52,12 +52,13 @@ options {
         //========================================================================
         dnssec-validation auto;
 
+{% if (dns_bind_keyfile|default('', true)|length) > 0 and (dns_bind_cache_dir|default('', true)|length) > 0 %}
         # trust anchorを明示的に指定
         bindkeys-file "{{dns_bind_keyfile}}";
         managed-keys-directory "{{dns_bind_cache_dir}}/dynamic";
-
-        listen-on port {{ dns_bind_port }} { any; };
-        listen-on-v6 port {{ dns_bind_port }} { any; };
+{% endif %}
+        listen-on port {{ dns_bind_port|default(53, true)|int }} { any; };
+        listen-on-v6 port {{ dns_bind_port|default(53, true)|int }} { any; };
 
         geoip-directory "/usr/share/GeoIP";
 

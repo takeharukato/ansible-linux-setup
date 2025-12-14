@@ -57,3 +57,31 @@ dns_bind_firewall_zone: null
 dns_bind_forwarders:
   - 1.1.1.1
   - 8.8.8.8
+
+# DNSサーバー名
+dns_server: ""
+# DNSドメイン名
+dns_domain: ""
+# DNSサーバのIPv4アドレス
+dns_server_ipv4_address: ""
+# DNSサーバのIPv6アドレス (未使用)
+dns_server_ipv6_address: ""
+# namedのACLに設定するIPv4ネットワークアドレス
+dns_network: ""
+# ネットワークプレフィクス(IPv4)
+dns_network_ipv4_prefix: ""
+# ネットワークプレフィクス長(IPv4)
+dns_network_ipv4_prefix_len: ""
+# ネットワークプレフィクス(IPv6)
+dns_network_ipv6_prefix: ""
+# ネットワークプレフィクス長(IPv6)
+dns_network_ipv6_prefix_len: ""
+
+# IPv6逆引きファイル名
+dns_network_ipv6_prefix_filename: ""
+# 逆引きネットワーク(IPv4)
+dns_ipv4_reverse: ""
+# 逆引きネットワーク(IPv6)
+dns_ipv6_reverse: ""
+# Dynamic DNS update key secret
+dns_ddns_key_secret: ""

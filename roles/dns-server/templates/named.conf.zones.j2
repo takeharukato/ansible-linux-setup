@@ -1,8 +1,11 @@
+{% if ( dns_ddns_key_name|default('', true)|length ) > 0 and ( dns_ddns_key_secret | default('', true)| length ) > 0 %}
 key "{{dns_ddns_key_name}}" {
         algorithm hmac-sha256;
         secret "{{dns_ddns_key_secret}}";
 };
+{% endif %}
 
+{% if (dns_bind_zone_dir|default('', true)|length) > 0 and ( dns_domain|default('', true)|length ) > 0 %}
 // === 順引き(forward) ===
 zone "{{dns_domain}}" IN {       // ""内にドメイン名を記載
         type    master;
@@ -13,7 +16,9 @@ zone "{{dns_domain}}" IN {       // ""内にドメイン名を記載
         };
 
 };
+{% endif %}
 
+{% if (dns_ipv4_reverse|default('', true)|length) > 0 and (dns_bind_zone_dir|default('', true)|length) > 0 %}
 // === 逆引き IPv4 (/24) ===
 zone "{{dns_ipv4_reverse}}.in-addr.arpa" IN {
         type    master;
@@ -22,7 +27,9 @@ zone "{{dns_ipv4_reverse}}.in-addr.arpa" IN {
                 grant ddns-clients zonesub ANY PTR;
         };
 };
+{% endif %}
 
+{% if (dns_ipv6_reverse|default('', true)|length) > 0 and (dns_bind_zone_dir|default('', true)|length) > 0 %}
 // === 逆引き IPv6 (/64) ===
 zone "{{dns_ipv6_reverse}}.ip6.arpa" IN {
         type    master;
@@ -31,3 +38,4 @@ zone "{{dns_ipv6_reverse}}.ip6.arpa" IN {
                 grant ddns-clients zonesub ANY PTR;
         };
 };
+{% endif %}

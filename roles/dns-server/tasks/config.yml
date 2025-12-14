@@ -21,6 +21,16 @@
     group: "{{ dns_bind_group }}"
     mode: 0775
 
+- name: "Ensure managed-keys directory exists"
+  file:
+    path: "{{ dns_bind_cache_dir }}/dynamic"
+    state: directory
+    owner: "{{ dns_bind_user }}"
+    group: "{{ dns_bind_group }}"
+    mode: 0750
+  when:
+    - dns_bind_cache_dir | default('', true) | length > 0
+
 # RHEL 系の場合, named.conf を「最小で安全な形」に置換する前にバックアップを取得
 - name: "Backup current {{ dns_bind_main_conf }}"
   become: true

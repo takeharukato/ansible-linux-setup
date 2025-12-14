@@ -6,4 +6,4 @@
 
 [Service]
 ExecStart=
-ExecStart={{ dns_execstart_final }}
+ExecStart={{ dns_execstart_final|default('', true) }}
