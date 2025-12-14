@@ -117,7 +117,7 @@
 - name: "Deploy GitLab backup script"
   ansible.builtin.template:
     src: "gitlab-backup.py.j2"
-    dest: "{{ gitlab_scripts_dir }}/gitlab-backup.py"
+    dest: "{{ gitlab_scripts_dir }}/{{ gitlab_backup_script_file }}"
     owner: root
     group: root
     mode: '0755'
@@ -127,7 +127,17 @@
 - name: "Deploy GitLab restore script"
   ansible.builtin.template:
     src: "gitlab-restore.py.j2"
-    dest: "{{ gitlab_scripts_dir }}/gitlab-restore.py"
+    dest: "{{ gitlab_scripts_dir }}/{{ gitlab_restore_script_file }}"
+    owner: root
+    group: root
+    mode: '0755'
+  become: true
+
+# Cron登録用GitLab デイリーバックアップスクリプト配置
+- name: "Deploy GitLab daily backup script for cron"
+  ansible.builtin.template:
+    src: "daily-backup-gitlab.sh.j2"
+    dest: "{{ gitlab_scripts_dir }}/{{ gitlab_daily_backup_script_file }}"
     owner: root
     group: root
     mode: '0755'

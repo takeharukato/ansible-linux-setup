@@ -33,7 +33,7 @@ root権限で実行されることを想定している。
 
 実行例:
 # /srv/gitlab/scripts/gitlab-backup.py
-Backup stored: /srv/gitlab/daily-backups/gitlab-backup.tar.gz
+Backup stored: /srv/gitlab/daily-backup/gitlab-backup.tar.gz
 """
 
 from __future__ import annotations
@@ -296,13 +296,13 @@ def main() -> None:
     # GitLabコンテナ内で公式手順で指定されたバックアップコマンドを実行する
     backup_info: dict[str, str] = run_gitlab_backup(args.docker_cli, args.container)
 
-    # 取得したGilab公式バックアップアーカイブのパスを構成する
+    # 取得したGitLab公式バックアップアーカイブのパスを構成する
     archive_path: Path = backup_dir / backup_info["archive_name"]
     # バックアップのメタ情報を構築する
     metadata: dict[str, str] = build_metadata(backup_info, archive_path, now, args.container)
 
     # バックアップアーカイブとメタ情報をまとめたバンドルファイルを作成する
-    bundle_name: str = "gitlab-backup.tar.gz"
+    bundle_name: str = "{{ gitlab_backup_bundle_file|default("gitlab-backup.tar.gz", true) }}"
     bundle_path: Path = daily_dir / bundle_name
 
     # バンドルファイルを書き込む

@@ -368,6 +368,36 @@ redmine_backup_dir_on_nfs: "/Linux/Redmine"
 #
 # GitLabサーバのWEB UI公開URLのホスト名
 gitlab_hostname: "devserver.example.org"
+# デイリーバックアップ関連設定
+# NFSマウントは以下のように行われる。
+#   mount -t nfs {{gitlab_backup_nfs_server}}:{{gitlab_backup_nfs_dir}} {{ gitlab_backup_mount_point }}
+#  例:
+#   gitlab_backup_nfs_server: "nas.example.org"
+#   gitlab_backup_nfs_dir: "/share"
+#   gitlab_backup_mount_point: "/mnt"
+#   上記の場合は以下のようにマウントされる
+#   mount -t nfs nas.example.org:/share /mnt
+#  その後, Gitlabのデイリーバックアップは, マウントポイント配下の
+#  以下のバックアップ配置先ディレクトリに保存される。
+#   {{ gitlab_backup_mount_point }}{{ gitlab_backup_dir_on_nfs }}
+#  例:
+#   gitlab_backup_mount_point: "/mnt"
+#   gitlab_backup_dir_on_nfs: "/Linux/Gitlab"
+#  上記の場合は, /mnt/Linux/Gitlab 配下にバックアップされる。
+#  ファイル名は, gitlab-backup-世代数.tgz となる。
+#  例:
+#    世代数 0の場合: gitlab-backup-0.tgz
+#
+# バックアップ世代数
+gitlab_backup_rotation: 7
+# マウントするNFSサーバ
+gitlab_backup_nfs_server: "nas.example.org"
+# マウントする共有ディレクトリ
+gitlab_backup_nfs_dir: "/share"
+# デイリーバックアップ時のNFSマウントポイント(NFSのマウント/アンマウント時に使用)
+gitlab_backup_mount_point: "/mnt"
+# NFSマウントポイント配下のGitlabバックアップ配置先ディレクトリ
+gitlab_backup_dir_on_nfs: "/Linux/Gitlab"
 
 #
 # emacsのパッケージ(ユーザ毎にインストールする)
