@@ -4,10 +4,3 @@
 #
 #  パッケージ関連処理
 #
-#
-# - name: Install nfs-kernel-server packages
-#   package:
-#     pkg:
-#       - nfs-kernel-server
-#     state: latest
-#   notify: disable_gui
