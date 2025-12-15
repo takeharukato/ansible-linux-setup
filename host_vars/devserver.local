@@ -5,6 +5,7 @@
 mgmt_nic: "ens160"
 netif_list:
   - netif: "ens160"
+    mac: "00:50:56:00:e4:e6"
     static_ipv4_addr: "{{devserver_ipv4_address}}"
     network_ipv4_prefix_len: "{{network_ipv4_prefix_len}}"
     static_ipv6_addr: "{{devserver_ipv6_address}}"
