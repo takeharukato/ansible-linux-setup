@@ -1,0 +1,13 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  docker サービス起動ハンドラ
+#
+
+- name: "Restart docker by GitLab"
+  listen: "restart_docker_for_gitlab"
+  service:
+    name: docker
+    state: restarted
+  become: true

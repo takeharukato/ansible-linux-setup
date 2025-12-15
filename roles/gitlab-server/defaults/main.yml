@@ -68,6 +68,10 @@ gitlab_logs_dir: "{{ gitlab_home_dir }}/logs"
 gitlab_data_dir: "{{ gitlab_home_dir }}/data"
 # SSL証明書格納ディレクトリ (自動生成されるため作成する必要はない)
 gitlab_ssl_dir: "{{ gitlab_config_dir }}/ssl"
+# SSL自己証明書ファイルパス
+gitlab_ssl_cert_path: "{{ gitlab_ssl_dir }}/{{ gitlab_hostname }}.crt"
+# SSL自己証明書秘密鍵ファイルパス
+gitlab_ssl_key_path: "{{ gitlab_ssl_dir }}/{{ gitlab_hostname }}.key"
 # Gitlabバックアップアーカイブ(YYYYMMDD_HHMMSS_gitlab_backup.tar)格納ディレクトリ
 gitlab_backup_dir: "{{ gitlab_data_dir }}/backups"
 # 初期パスワード格納ファイルパス
