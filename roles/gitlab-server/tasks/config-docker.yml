@@ -1,0 +1,27 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  Gitlab Runner 用 docker設定関連タスク
+#
+---
+# Docker Registry 用証明書ディレクトリを用意する
+- name: Ensure docker registry cert directory exists
+  file:
+    path: "/etc/docker/certs.d/{{ gitlab_hostname }}:{{ gitlab_registry_port }}"
+    state: directory
+    owner: root
+    group: root
+    mode: '0755'
+
+# DockerにGitlab自己証明書の自己証明書を登録する
+- name: Copy gitlab self-signed certificate to docker certs directory
+  copy:
+    src: "{{ gitlab_ssl_cert_path }}"
+    dest: "/etc/docker/certs.d/{{ gitlab_hostname }}:{{ gitlab_registry_port }}/{{ gitlab_hostname }}.crt"
+    remote_src: true
+    owner: root
+    group: root
+    mode: '0644'
+  notify:
+    - "restart_docker_for_gitlab"

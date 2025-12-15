@@ -30,3 +30,5 @@
   when: gitlab_hostname is defined and gitlab_hostname != ""
 - include_tasks: config.yml
   when: gitlab_hostname is defined and gitlab_hostname != ""
+- include_tasks: config-docker.yml
+  when: gitlab_hostname is defined and gitlab_hostname != ""

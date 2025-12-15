@@ -4,3 +4,5 @@
 #
 #  サービス起動ハンドラ
 #
+
+- import_tasks: restart-docker.yml
