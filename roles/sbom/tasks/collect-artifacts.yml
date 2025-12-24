@@ -1,0 +1,50 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  SBOM 生成物を制御ノードへ収集
+#
+---
+
+- name: Ensure local SBOM artifact directory exists
+  ansible.builtin.file:
+    path: "{{ sbom_artifact_dir }}/{{ inventory_hostname }}"
+    state: directory
+    mode: '0755'
+  delegate_to: localhost
+  run_once: false
+  become: false
+  when:
+    - sbom_collect_artifacts_enabled | bool
+
+- name: Collect SBOM artifact candidates (files under _manifest)
+  ansible.builtin.find:
+    paths:
+      - "{{ sbom_drop_path }}/_manifest"
+    patterns:
+      - "*.spdx.json"
+    recurse: true
+    file_type: file
+  register: sbom_artifact_find
+  become: true
+  failed_when: false
+  changed_when: false
+  when:
+    - sbom_collect_artifacts_enabled | bool
+    - sbom_enabled | bool
+
+- name: Fetch SBOM artifacts to controller (flat)
+  ansible.builtin.fetch:
+    src: "{{ item.path }}"
+    dest: "{{ sbom_artifact_dir }}/{{ inventory_hostname }}/"
+    flat: true
+    fail_on_missing: false
+  loop: "{{ (sbom_artifact_find.files | default([])) }}"
+  loop_control:
+    label: "{{ item.path | default('') }}"
+  become: true
+  when:
+    - sbom_collect_artifacts_enabled | bool
+    - sbom_enabled | bool
+
+# EOF

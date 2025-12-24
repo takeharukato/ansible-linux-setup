@@ -1,0 +1,38 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  タスクメイン部
+#
+#  include_tasksで他のタスクを読み込む
+#
+---
+
+# 最初に変数設定を読み直す ( role単独で実行可能とするため )
+- name: Load parameters
+
+  ansible.builtin.include_tasks: load-params.yml
+
+- name: Load sbom parameters
+
+  ansible.builtin.include_tasks: sbom-params.yml
+
+- name: Install sbom-tool
+
+  ansible.builtin.include_tasks: package.yml
+
+- name: Prepare directories
+
+  ansible.builtin.include_tasks: directory.yml
+
+- name: Generate SBOM
+
+  ansible.builtin.include_tasks: config.yml
+
+- name: Generate extra SBOMs
+
+  ansible.builtin.include_tasks: extra-sboms.yml
+
+- name: Collect SBOM artifacts to controller
+
+  ansible.builtin.include_tasks: collect-artifacts.yml

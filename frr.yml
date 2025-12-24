@@ -20,6 +20,10 @@
       tags: create-users
     - role: frr-basic
       tags: frr-basic
+    - role: sbom
+      tags: sbom
+      when:
+        - sbom_enabled | default(false) | bool
 # 最後に実行するようにすること
     - role: force-reboot
       tags: force-reboot

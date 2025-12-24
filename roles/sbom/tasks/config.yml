@@ -1,0 +1,41 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  設定関連タスク
+#
+---
+
+- name: Check sbom-tool exists
+  ansible.builtin.stat:
+    path: "{{ sbom_tool_bin_path }}"
+  register: sbom_tool_stat
+
+- name: Generate SPDX JSON SBOM (SPDX 2.2)
+  ansible.builtin.command:
+    argv:
+      - "{{ sbom_tool_bin_path }}"
+      - generate
+      - -b
+      - "{{ sbom_drop_path }}"
+      - -bc
+      - "{{ sbom_build_components_path }}"
+      - -pn
+      - "{{ sbom_package_name }}"
+      - -pv
+      - "{{ sbom_package_version }}"
+      - -ps
+      - "{{ sbom_package_supplier }}"
+      - -nsb
+      - "{{ sbom_namespace_uri_base }}"
+      - -mi
+      - "{{ sbom_manifest_info }}"
+  environment: "{{ {'DeleteManifestDirIfPresent': 'true'} if (sbom_force_regenerate | bool) else {} }}"
+  args:
+    creates: "{{ (omit if (sbom_force_regenerate | bool) else sbom_manifest_path) }}"
+  register: sbom_generate
+  changed_when: sbom_force_regenerate | bool or (sbom_generate.rc == 0)
+  when:
+    - sbom_enabled | bool
+    - sbom_tool_stat.stat.exists
+# EOF

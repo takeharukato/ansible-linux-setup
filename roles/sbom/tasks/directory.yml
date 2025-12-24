@@ -1,0 +1,24 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  ファイル・ディレクトリ作成関連タスク
+#
+---
+
+- name: Ensure drop path exists
+  ansible.builtin.file:
+    path: "{{ sbom_drop_path }}"
+    state: directory
+    mode: '0755'
+  become: true
+  when: sbom_create_drop_path | bool
+
+- name: Ensure build components path exists (optional)
+  ansible.builtin.file:
+    path: "{{ sbom_build_components_path }}"
+    state: directory
+    mode: '0755'
+  become: true
+  when: sbom_create_build_components_path | bool
+# EOF

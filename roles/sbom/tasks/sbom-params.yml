@@ -1,0 +1,47 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  SBOM固有のパラメータ設定
+#
+---
+
+- name: Set sbom-tool platform
+  ansible.builtin.set_fact:
+    sbom_tool_platform: "{{ sbom_tool_platform | default(('linux' if (ansible_facts.system | default('')) == 'Linux' else 'unknown'), true) }}"
+
+- name: Set sbom-tool architecture
+  ansible.builtin.set_fact:
+    sbom_tool_arch: "{{ sbom_tool_arch | default(sbom_tool_arch_map.get(ansible_facts.architecture, 'unknown'), true) }}"
+
+- name: Validate platform/arch
+  ansible.builtin.assert:
+    that:
+      - sbom_tool_platform != 'unknown'
+      - sbom_tool_arch != 'unknown'
+    fail_msg: |
+      Unsupported platform/arch for sbom-tool.
+      system={{ ansible_facts.system }}, arch={{ ansible_facts.architecture }}
+
+- name: Set default sbom-tool download url
+  ansible.builtin.set_fact:
+    sbom_tool_default_download_url: >-
+      {{
+        sbom_tool_default_download_url
+        | default(
+            'https://github.com/microsoft/sbom-tool/releases/latest/download/sbom-tool-'
+            ~ sbom_tool_platform
+            ~ '-'
+            ~ sbom_tool_arch,
+            true
+          )
+      }}
+
+- name: Set sbom-tool download url
+  ansible.builtin.set_fact:
+    sbom_tool_download_url: "{{ sbom_tool_download_url | default(sbom_tool_default_download_url, true) }}"
+
+- name: Set derived manifest path
+  ansible.builtin.set_fact:
+    sbom_manifest_path: "{{ sbom_manifest_path | default(sbom_drop_path ~ '/_manifest/' ~ sbom_manifest_dir ~ '/manifest.spdx.json', true) }}"
+# EOF
