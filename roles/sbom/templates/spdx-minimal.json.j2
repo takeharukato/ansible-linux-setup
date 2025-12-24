@@ -1,0 +1,64 @@
+{
+  "spdxVersion": "SPDX-2.2",
+  "dataLicense": "CC0-1.0",
+  "SPDXID": "SPDXRef-DOCUMENT",
+  "name": "{{ spdx_doc_name }}",
+  "documentNamespace": "{{ spdx_document_namespace }}",
+  "creationInfo": {
+    "created": "{{ spdx_created }}",
+    "creators": [
+      "Tool: ansible-role-sbom",
+      "Organization: {{ spdx_supplier | default('NOASSERTION') }}"
+    ]
+  },
+  "documentDescribes": [
+    "SPDXRef-RootPackage"
+  ],
+  "packages": [
+    {
+      "name": "{{ spdx_root_name }}",
+      "SPDXID": "SPDXRef-RootPackage",
+      "downloadLocation": "NOASSERTION",
+      "filesAnalyzed": false,
+      "licenseConcluded": "NOASSERTION",
+      "licenseDeclared": {{ spdx_root_license | default('LicenseRef-UNKNOWN') | to_json }},
+      "copyrightText": "NOASSERTION",
+      "versionInfo": "{{ spdx_root_version | default('NOASSERTION') }}",
+      "supplier": "Organization: {{ spdx_supplier | default('NOASSERTION') }}"
+    }{% if spdx_packages | length > 0 %},{% endif %}
+{% for p in spdx_packages %}
+    {
+      "name": "{{ p.name }}",
+      "SPDXID": "SPDXRef-Package-{{ loop.index }}",
+      "downloadLocation": "NOASSERTION",
+      "filesAnalyzed": false,
+      "licenseConcluded": "NOASSERTION",
+      "licenseDeclared": {{ p.license | default('LicenseRef-UNKNOWN') | to_json }},
+      "copyrightText": {{ p.copyrightText | default('NOASSERTION') | to_json }}{% if p.version is defined and (p.version | string) | length > 0 %},
+      "versionInfo": "{{ p.version }}"{% endif %}{% if p.purl is defined and (p.purl | string) | length > 0 %},
+      "externalRefs": [
+        {
+          "referenceCategory": "PACKAGE-MANAGER",
+          "referenceType": "purl",
+          "referenceLocator": "{{ p.purl }}"
+        }
+      ]
+{% endif %}
+    }{% if not loop.last %},{% endif %}
+{% endfor %}
+  ],
+  "relationships": [
+    {
+      "relationshipType": "DESCRIBES",
+      "relatedSpdxElement": "SPDXRef-RootPackage",
+      "spdxElementId": "SPDXRef-DOCUMENT"
+    }{% if spdx_packages | length > 0 %},{% endif %}
+{% for p in spdx_packages %}
+    {
+      "relationshipType": "CONTAINS",
+      "spdxElementId": "SPDXRef-RootPackage",
+      "relatedSpdxElement": "SPDXRef-Package-{{ loop.index }}"
+    }{% if not loop.last %},{% endif %}
+{% endfor %}
+  ]
+}

@@ -1,0 +1,28 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  設定関連タスク
+#
+---
+# Ubuntu用パッケージ名読み込み
+- name: Include ubuntu package names
+  ansible.builtin.include_vars: "{{ role_path }}/../../vars/packages-ubuntu.yml"
+  when: ansible_facts.os_family == 'Debian'
+
+# RHEL用パッケージ名読み込み
+- name: Include RHEL package names
+  ansible.builtin.include_vars: "{{ role_path }}/../../vars/packages-rhel.yml"
+  when: ansible_facts.os_family == 'RedHat'
+
+# ディストリビューション差異吸収用パラメータ読み込み
+- name: Include cross-distro.yml
+  ansible.builtin.include_vars: "{{ role_path }}/../../vars/cross-distro.yml"
+
+# 共通設定読み込み
+- name: Include config vars
+  ansible.builtin.include_vars: "{{ role_path }}/../../vars/all-config.yml"
+
+# Kubernetes API広告アドレス設定読み込み
+- name: Include K8s API address vars
+  ansible.builtin.include_vars: "{{ role_path }}/../../vars/k8s-api-address.yml"

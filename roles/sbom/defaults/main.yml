@@ -1,0 +1,98 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  ロール固有変数のデフォルト値
+#  group_vars/all/all.yml やhost_varsで上書き可能とするため,
+#  ロール名/defaults/main.yml に定義している
+
+---
+
+# ロール全体のON/OFF
+sbom_enabled: true
+
+# sbom-tool インストール先
+sbom_tool_bin_path: /usr/local/bin/sbom-tool
+
+# sbom-tool プラットフォーム/アーキテクチャ (通常は自動判定)
+sbom_tool_platform: ""
+sbom_tool_arch: ""
+
+# 既定のダウンロードURL (通常は自動生成)
+sbom_tool_default_download_url: ""
+
+# sbom-tool ダウンロードURL（未指定の場合は最新のLinuxバイナリを使用）
+# 例: https://github.com/microsoft/sbom-tool/releases/latest/download/sbom-tool-linux-x64
+sbom_tool_download_url: ""
+
+# get_url のchecksum指定 (sha256:... など). 未指定なら検証しない
+sbom_tool_checksum: ""
+
+# CPUアーキテクチャマップ
+sbom_tool_arch_map:
+  x86_64: x64
+  amd64: x64
+  aarch64: arm64
+  arm64: arm64
+
+# sbom-tool generate の対象
+sbom_drop_path: /opt/sbom/drop
+# -bc (build components path) はソース/プロジェクトがあるディレクトリを指定する想定。
+# デフォルトは drop path と同じにして、未設定でも失敗しないようにする。
+sbom_build_components_path: "{{ sbom_drop_path }}"
+
+# ディレクトリ自動作成
+sbom_create_drop_path: true
+sbom_create_build_components_path: false
+
+# SBOMメタデータ
+sbom_package_name: example-package
+sbom_package_version: "0.0.0"
+sbom_package_supplier: example-supplier
+sbom_namespace_uri_base: https://example.invalid/sbom
+
+# SPDXバージョン/出力(デフォルト: SPDX 2.2 JSON)
+sbom_manifest_info: "SPDX:2.2"
+sbom_manifest_dir: spdx_2.2
+
+# 生成されるSBOM(manifest)のパス (通常は自動生成)
+sbom_manifest_path: ""
+
+# 既存manifestがあっても再生成する
+sbom_force_regenerate: true
+
+# 追加SBOM(別SBOM)の生成
+sbom_extra_sboms_enabled: true
+sbom_extra_output_dir: "{{ sbom_drop_path }}/_manifest"
+sbom_extra_doc_prefix: "{{ inventory_hostname }}"
+
+# 1) OSディストリビューション導入パッケージ
+sbom_os_packages_sbom_enabled: true
+
+# 2) K8s関連コンポーネント (OSパッケージから抽出)
+sbom_k8s_components_sbom_enabled: true
+sbom_k8s_component_name_patterns:
+  - '^kube'
+  - '^kubernetes'
+  - '^containerd'
+  - '^cri-'
+  - '^cni'
+  - '^etcd'
+  - '^helm$'
+
+# 3) helmで導入されたrelease一覧
+sbom_helm_sbom_enabled: true
+
+# 4) docker composeファイルからimage一覧
+sbom_compose_sbom_enabled: false
+sbom_compose_files:
+  - /srv/gitlab/docker-compose.yml
+  - /data/redmine/docker-compose.yml
+
+# 5) kubectlで実際に動いているPodのimage一覧
+sbom_k8s_images_sbom_enabled: true
+
+# 生成したSBOMを制御ノードへ収集
+sbom_collect_artifacts_enabled: true
+# 制御ノード上の収集先 (実行ディレクトリからの相対パス/絶対パスどちらも可)
+sbom_artifact_dir: sbom-artifact

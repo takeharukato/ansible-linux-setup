@@ -1,0 +1,32 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  パッケージ関連処理
+---
+
+- name: Install prerequisites (Debian)
+  ansible.builtin.apt:
+    name:
+      - ca-certificates
+    state: present
+    update_cache: true
+  become: true
+  when: ansible_facts.os_family == 'Debian'
+
+- name: Install prerequisites (RedHat)
+  ansible.builtin.dnf:
+    name:
+      - ca-certificates
+    state: present
+  become: true
+  when: ansible_facts.os_family == 'RedHat'
+
+- name: Install sbom-tool binary
+  ansible.builtin.get_url:
+    url: "{{ sbom_tool_download_url }}"
+    dest: "{{ sbom_tool_bin_path }}"
+    mode: '0755'
+    checksum: "{{ sbom_tool_checksum | default(omit, true) }}"
+  become: true
+# EOF

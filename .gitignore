@@ -89,3 +89,8 @@ ks.cfg
 #
 hostfile
 hosts.txt
+
+#
+# SBOM
+#
+sbom-artifact/

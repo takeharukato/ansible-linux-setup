@@ -1,0 +1,1000 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  追加SBOM生成(別SBOM)
+#
+---
+
+- name: Ensure extra SBOM output directory exists
+  ansible.builtin.file:
+    path: "{{ sbom_extra_output_dir }}"
+    state: directory
+    mode: '0755'
+  become: true
+  when: sbom_extra_sboms_enabled | bool
+
+- name: Gather installed OS packages (dpkg/rpm)
+  ansible.builtin.package_facts:
+    manager: auto
+  become: true
+  when:
+    - sbom_extra_sboms_enabled | bool
+    - sbom_os_packages_sbom_enabled | bool or sbom_k8s_components_sbom_enabled | bool
+
+- name: Collect OS package licenses (Debian)
+  ansible.builtin.command:
+    argv:
+      - python3
+      - '-'
+  args:
+    stdin: |
+      import os
+      import re
+      import subprocess
+
+
+      # 参考: 第734回 UbuntuでSBOM（ソフトウェア部品表）を作る方法
+      # - dpkg-queryでインストール済みを抽出（install ok installed）
+      # - /usr/share/doc/<pkg>/copyright が DEP-5（^Format: ）なら
+      #   ^License: 行を列挙してユニーク化
+
+      try:
+          out = subprocess.check_output(
+              [
+                  'dpkg-query',
+                  '--show',
+                  "--showformat=${Package}\t${Status}\\n",
+              ],
+              text=True,
+              errors='ignore',
+          )
+      except Exception:
+          out = ''
+
+      pkgs = []
+      for line in out.splitlines():
+          if not line.strip():
+              continue
+          parts = line.split('\t', 1)
+          if len(parts) != 2:
+              continue
+          pkg = parts[0].strip()
+          status = parts[1].strip()
+          if status == 'install ok installed':
+              pkgs.append(pkg)
+
+      # フォールバック: 何らかの理由でdpkg-queryが使えない/空の場合でも
+      # copyrightは /usr/share/doc/<pkg>/copyright にあるため、docディレクトリから推測する。
+      if not pkgs:
+          try:
+              pkgs = sorted(os.listdir('/usr/share/doc'))
+          except Exception:
+              pkgs = []
+
+      for pkg in pkgs:
+          doc_pkg = pkg.split(':', 1)[0]
+          path = os.path.join('/usr/share/doc', doc_pkg, 'copyright')
+          if not os.path.isfile(path):
+              # 環境によってはpkg名に:archが付く等でdocディレクトリ名とズレることがある
+              alt_path = os.path.join('/usr/share/doc', pkg, 'copyright')
+              if os.path.isfile(alt_path):
+                  path = alt_path
+              else:
+                  print(f'{pkg}|LicenseRef-NOCOPYRIGHT')
+                  if doc_pkg != pkg:
+                      print(f'{doc_pkg}|LicenseRef-NOCOPYRIGHT')
+                  continue
+
+          try:
+              with open(path, encoding='utf-8', errors='ignore') as f:
+                  data = f.read()
+          except Exception:
+              print(f'{pkg}|LicenseRef-NOCOPYRIGHT')
+              if doc_pkg != pkg:
+                  print(f'{doc_pkg}|LicenseRef-NOCOPYRIGHT')
+              continue
+
+          # DEP-5判定: 記事の例に合わせて「^Format: 」の存在で判定する
+          if re.search(r'^Format:\s', data, flags=re.MULTILINE) is None:
+              print(f'{pkg}|LicenseRef-NODEP5')
+              if doc_pkg != pkg:
+                  print(f'{doc_pkg}|LicenseRef-NODEP5')
+              continue
+
+          licenses = set()
+          for l in data.splitlines():
+              if l.startswith('License: '):
+                  lic = l.split(':', 1)[1].strip()
+                  if lic:
+                      licenses.add(lic)
+              elif l.startswith('Licence: '):
+                  lic = l.split(':', 1)[1].strip()
+                  if lic:
+                      licenses.add(lic)
+
+          if len(licenses) == 1:
+              lic_expr = next(iter(licenses))
+          elif len(licenses) > 1:
+              # 1パッケージ内で複数ライセンスが列挙される場合は式として連結
+              lic_expr = ' AND '.join(sorted(licenses))
+          else:
+              lic_expr = 'LicenseRef-UNKNOWN-DEP5'
+
+          print(f'{pkg}|{lic_expr}')
+          if doc_pkg != pkg:
+              print(f'{doc_pkg}|{lic_expr}')
+  register: sbom_os_pkg_licenses_deb
+  changed_when: false
+  failed_when: false
+  become: true
+  when:
+    - sbom_extra_sboms_enabled | bool
+    - sbom_os_packages_sbom_enabled | bool
+    - ansible_facts.os_family == 'Debian'
+
+- name: Collect OS package licenses (RedHat)
+  ansible.builtin.command:
+    argv:
+      - rpm
+      - -qa
+      - --qf
+      - '%{NAME}|%{LICENSE}\n'
+  register: sbom_os_pkg_licenses_rpm
+  changed_when: false
+  failed_when: false
+  when:
+    - sbom_extra_sboms_enabled | bool
+    - sbom_os_packages_sbom_enabled | bool
+    - ansible_facts.os_family == 'RedHat'
+
+- name: Build OS package license map
+  ansible.builtin.set_fact:
+    sbom_os_license_map: >-
+      {%- set out = {} -%}
+      {%- set lines = (sbom_os_pkg_licenses_deb.stdout_lines | default([])) + (sbom_os_pkg_licenses_rpm.stdout_lines | default([])) -%}
+      {%- for line in lines -%}
+      {%- set parts = line.split('|', 1) -%}
+      {%- if parts | length == 2 -%}
+      {%- set _ = out.update({parts[0]: parts[1]}) -%}
+      {%- endif -%}
+      {%- endfor -%}
+      {{ out }}
+  when:
+    - sbom_extra_sboms_enabled | bool
+    - sbom_os_packages_sbom_enabled | bool
+
+- name: Collect OS package copyright texts (Debian/Ubuntu)
+  ansible.builtin.command:
+    argv:
+      - python3
+      - '-'
+  args:
+    stdin: |
+      import gzip
+      import json
+      import os
+
+
+      names = {{ (ansible_facts.packages | default({}) | dict2items | map(attribute='key') | list) | to_json }}
+
+
+      def read_text_file(path: str) -> str:
+          if path.endswith('.gz'):
+              with gzip.open(path, mode='rt', encoding='utf-8', errors='replace') as f:
+                  return f.read()
+          with open(path, encoding='utf-8', errors='replace') as f:
+              return f.read()
+
+
+      # 優先順位: copyright -> LICENSE/COPYING -> Readme/README
+      candidates = [
+          'copyright',
+          'LICENSE',
+          'LICENSE.md',
+          'LICENSE.txt',
+          'COPYING',
+          'COPYING.txt',
+          'Readme.md',
+          'README.md',
+          'README',
+          'README.txt',
+          'README.Debian',
+      ]
+
+      # gzip版も許容（Ubuntu/DebianではREADME.md.gz等がよくある）
+      candidates += [c + '.gz' for c in candidates]
+
+      out = {}
+      for pkg in names:
+          base = pkg.split(':', 1)[0]
+          if base in out:
+              continue
+
+          doc_dir = os.path.join('/usr/share/doc', base)
+          if not os.path.isdir(doc_dir):
+              continue
+
+          chosen = None
+          for name in candidates:
+              p = os.path.join(doc_dir, name)
+              # 壊れたsymlink等でも例外にして次へ
+              try:
+                  if os.path.isfile(p):
+                      chosen = p
+                      break
+              except Exception:
+                  continue
+
+          if not chosen:
+              continue
+
+          try:
+              out[base] = read_text_file(chosen)
+          except Exception:
+              continue
+
+      print(json.dumps(out, ensure_ascii=False))
+  register: sbom_os_pkg_copyrights_deb
+  changed_when: false
+  failed_when: false
+  become: true
+  when:
+    - sbom_extra_sboms_enabled | bool
+    - sbom_os_packages_sbom_enabled | bool
+    - ansible_facts.os_family == 'Debian'
+
+- name: Collect OS package copyright texts (RedHat)
+  ansible.builtin.command:
+    argv:
+      - python3
+      - '-'
+  args:
+    stdin: |
+      import gzip
+      import json
+      import os
+      import re
+      import subprocess
+
+
+      names = {{ (ansible_facts.packages | default({}) | dict2items | map(attribute='key') | list) | to_json }}
+
+
+      def run_cmd_lines(argv):
+          try:
+              out = subprocess.check_output(argv, stderr=subprocess.DEVNULL)
+          except Exception:
+              return []
+          try:
+              txt = out.decode('utf-8', errors='replace')
+          except Exception:
+              try:
+                  txt = str(out)
+              except Exception:
+                  return []
+          return [ln.strip() for ln in txt.splitlines() if ln.strip()]
+
+
+      def load_rpm_sourcerpm_maps():
+          srpm_by_name = {}
+          names_by_srpm = {}
+          for ln in run_cmd_lines(['rpm', '-qa', '--qf', '%{NAME}|%{SOURCERPM}\n']):
+              parts = ln.split('|', 1)
+              if len(parts) != 2:
+                  continue
+              name = parts[0].strip()
+              srpm = parts[1].strip()
+              if not name or not srpm:
+                  continue
+              srpm_by_name[name] = srpm
+              names_by_srpm.setdefault(srpm, []).append(name)
+          return srpm_by_name, names_by_srpm
+
+
+      def read_text_file(path):
+          if path.endswith('.gz'):
+              with gzip.open(path, mode='rt', encoding='utf-8', errors='replace') as f:
+                  return f.read()
+          with open(path, encoding='utf-8', errors='replace') as f:
+              return f.read()
+
+
+      def safe_isfile(path):
+          try:
+              return os.path.isfile(path)
+          except Exception:
+              return False
+
+
+      def normalize_pkg_key(key):
+          base = key.split(':', 1)[0]
+          # ansible_facts.packages が name.arch 形式の場合に対応（/usr/share/licenses は通常 name 側）
+          if '.' in base:
+              maybe_base, maybe_arch = base.rsplit('.', 1)
+              if maybe_arch in ('x86_64', 'aarch64', 'noarch', 'ppc64le', 's390x', 'i686', 'armv7hl'):
+                  base = maybe_base
+          return base
+
+
+      def source_name_from_sourcerpm(s):
+          s = (s or '').strip()
+          if not s or 'is not installed' in s:
+              return None
+          if s.endswith('.src.rpm'):
+              s = s[:-8]
+          parts = s.split('-')
+          if len(parts) >= 3:
+              return '-'.join(parts[:-2])
+          if parts:
+              return parts[0]
+          return None
+
+
+      def dedupe_keep_order(items):
+          out2 = []
+          seen = set()
+          for it in items:
+              if not it:
+                  continue
+              if it in seen:
+                  continue
+              seen.add(it)
+              out2.append(it)
+          return out2
+
+
+      def build_base_candidates(base):
+          cands = [base]
+
+          # rpm の SOURCERPM から source 名を推定して追加（rpm 呼び出しは事前にまとめておく）
+          srpm = srpm_by_name.get(base)
+          src = source_name_from_sourcerpm(srpm)
+          if src:
+              cands.append(src)
+
+          # サブパッケージ名のよくあるサフィックスを剥がして探索
+          suffixes = (
+              '-devel', '-libs', '-lib', '-common', '-static', '-doc', '-docs',
+              '-tools', '-tool', '-utils', '-util', '-client', '-server',
+              '-plugin', '-plugins', '-core', '-runtime',
+              '-rootless-extras',
+          )
+          for suf in suffixes:
+              if base.endswith(suf) and len(base) > len(suf):
+                  cands.append(base[: -len(suf)])
+
+          return dedupe_keep_order(cands)
+
+
+      def sibling_candidates_for_base(base):
+          srpm = srpm_by_name.get(base)
+          if not srpm:
+              return []
+          sibs = names_by_srpm.get(srpm, [])
+          # 同一 SRPM の別サブパッケージに %license が載っていることがある（例: libstdc++ → libgcc）
+          preferred = []
+          others = []
+          for s in sibs:
+              if not s or s == base:
+                  continue
+              if os.path.isdir('/usr/share/licenses/%s' % s) or os.path.isdir('/usr/share/doc/%s' % s):
+                  preferred.append(s)
+              else:
+                  others.append(s)
+
+          # 兄弟が大量にある SRPM もあるため、dirが無い候補は少数だけ試す
+          others = sorted(others, key=lambda x: (len(x), x))
+          return dedupe_keep_order(preferred + others[:8])
+
+
+      def all_siblings_for_base(base):
+          srpm = srpm_by_name.get(base)
+          if not srpm:
+              return []
+          sibs = names_by_srpm.get(srpm, [])
+          return dedupe_keep_order([s for s in sibs if s and s != base])
+
+
+      def candidate_roots_for_base(b):
+          roots = []
+
+          lic = '/usr/share/licenses/%s' % b
+          if os.path.isdir(lic):
+              roots.append(lic)
+
+          # /usr/share/doc は name 直下だけでなく name-<ver> が多い
+          doc_exact = '/usr/share/doc/%s' % b
+          if os.path.isdir(doc_exact):
+              roots.append(doc_exact)
+
+          if doc_parent_entries:
+              doc_parent = '/usr/share/doc'
+              for ent in doc_parent_entries:
+                  if ent == b:
+                      continue
+                  if ent.startswith(b + '-') or ent.startswith(b + '.'):
+                      p = os.path.join(doc_parent, ent)
+                      if os.path.isdir(p):
+                          roots.append(p)
+
+          return roots
+
+
+      def search_filesystem(bases, candidates):
+            for b in bases:
+              for root in candidate_roots_for_base(b):
+                for name in candidates:
+                  p = os.path.join(root, name)
+                  if safe_isfile(p):
+                    return [p]
+
+                # 明示候補が無い場合でも、ディレクトリ内から「それっぽい」ファイル名を拾う
+                try:
+                  ents = os.listdir(root)
+                except Exception:
+                  continue
+
+                # RHEL系でよくある派生名もここで拾う（例: libstdc++ の COPYING3/COPYING.RUNTIME 等）
+                prefixes = (
+                  'license', 'licence', 'copying', 'copyright', 'notice', 'readme',
+                  'authors', 'legal', 'patent', 'patents',
+                  'gpl', 'lgpl', 'apache', 'mit', 'bsd', 'mpl', 'epl',
+                )
+
+                # prefix 以外でも含まれていれば拾う（例: Mesa-MLAA-License-*.txt）
+                contains_tokens = (
+                  'license', 'licence', 'copying', 'copyright', 'notice', 'readme',
+                )
+
+                extra = []
+                for ent in sorted(ents):
+                  low = ent.lower()
+                  if low in ('.', '..'):
+                    continue
+
+                  ok = False
+                  for pre in prefixes:
+                    if low.startswith(pre):
+                      ok = True
+                      break
+
+                  if not ok:
+                    for tok in contains_tokens:
+                      if tok in low:
+                        ok = True
+                        break
+
+                  if not ok:
+                    continue
+
+                  p = os.path.join(root, ent)
+                  if safe_isfile(p):
+                    extra.append(p)
+                    if len(extra) >= 3:
+                      break
+
+                if extra:
+                  return extra
+
+            return []
+
+
+      # /usr/share/doc の一覧は毎回取ると重いので1回だけ
+      doc_parent_entries = []
+      try:
+          doc_parent = '/usr/share/doc'
+          if os.path.isdir(doc_parent):
+              doc_parent_entries = os.listdir(doc_parent)
+      except Exception:
+          doc_parent_entries = []
+
+
+      # rpm の SOURCERPM マップ（同一 SRPM の兄弟パッケージ探索に使用）
+      srpm_by_name, names_by_srpm = load_rpm_sourcerpm_maps()
+
+
+      # RHEL系は通常 /usr/share/licenses/<pkg>/ に %license が配置される
+      # 参考: rpm の --licensefiles / --docfiles でも列挙できるため、ファイル探索→rpmフォールバックの順に試す。
+      candidates = [
+          'copyright',
+          'COPYRIGHT',
+          'COPYRIGHT.txt',
+          'LICENSE',
+          'LICENSE.md',
+          'LICENSE.txt',
+          'LICENCE',
+          'LICENCE.txt',
+          'COPYING',
+          'COPYING.txt',
+          'NOTICE',
+          'NOTICE.txt',
+          'Readme.md',
+          'README.md',
+          'README',
+          'README.txt',
+          'README.rpm',
+      ]
+      candidates += [c + '.gz' for c in candidates]
+      cand_set = set(candidates)
+
+      # 一般的なファイル名パターン（rpm --docfiles の結果から拾うため）
+      rx = re.compile(r'^(license|licence|copying|copyright|notice|readme)(\..*)?$', re.IGNORECASE)
+
+
+      def rpm_fallback_paths(pkgname):
+          paths = []
+          for line in run_cmd_lines(['rpm', '-q', '--licensefiles', pkgname]):
+              if line.startswith('/') and safe_isfile(line):
+                  paths.append(line)
+          if paths:
+              return paths
+          for line in run_cmd_lines(['rpm', '-q', '--docfiles', pkgname]):
+              if not line.startswith('/'):
+                  continue
+              bn = os.path.basename(line)
+              if bn in cand_set or rx.match(bn):
+                  if safe_isfile(line):
+                      return [line]
+          return []
+
+      out = {}
+      for pkg in names:
+          base = normalize_pkg_key(pkg)
+          if base in out:
+            continue
+
+          # まずは base 名だけで探索（ほとんどはここで見つかる）
+          found_paths = search_filesystem([base], candidates)
+
+          # 見つからない場合のみ、SOURCERPM/サフィックス剥ぎ等の候補も含めて再探索
+          if not found_paths:
+            base_candidates = build_base_candidates(base)
+            found_paths = search_filesystem(base_candidates, candidates)
+
+          # それでも見つからない場合、同一 SRPM の兄弟パッケージから拾う
+          if not found_paths:
+            sibs = sibling_candidates_for_base(base)
+            if sibs:
+              # 兄弟の /usr/share/licenses|doc を探索
+              found_paths = search_filesystem(sibs, candidates)
+              # それでも無い場合は、兄弟パッケージの rpm メタデータ（license/docfiles）を試す
+              if not found_paths:
+                for sib in sibs:
+                  found_paths = rpm_fallback_paths(sib)
+                  if found_paths:
+                    break
+
+              # 兄弟が多い SRPM の場合、限定候補で見つからないことがあるため全兄弟でも試す
+              if not found_paths:
+                for sib in all_siblings_for_base(base):
+                  found_paths = rpm_fallback_paths(sib)
+                  if found_paths:
+                    break
+
+          # 見つからない場合は rpm からライセンスファイルを列挙
+          if not found_paths:
+            found_paths = rpm_fallback_paths(base)
+
+          if not found_paths:
+              continue
+
+          # 収集（複数ある場合は連結）
+          texts = []
+          for p in found_paths:
+              try:
+                  texts.append(read_text_file(p))
+              except Exception:
+                  continue
+          if texts:
+              out[base] = '\n\n'.join(texts)
+
+
+      print(json.dumps(out, ensure_ascii=False))
+  register: sbom_os_pkg_copyrights_rpm
+  changed_when: false
+  failed_when: sbom_os_pkg_copyrights_rpm.rc != 0
+  become: true
+  when:
+    - sbom_extra_sboms_enabled | bool
+    - sbom_os_packages_sbom_enabled | bool
+    - ansible_facts.os_family == 'RedHat'
+
+- name: Build OS package copyright map
+  ansible.builtin.set_fact:
+    sbom_os_copyright_map: >-
+      {%- set out = {} -%}
+      {%- set deb = ((sbom_os_pkg_copyrights_deb.stdout | default('')) | trim | default('{}', true)) | from_json -%}
+      {%- set rpm = ((sbom_os_pkg_copyrights_rpm.stdout | default('')) | trim | default('{}', true)) | from_json -%}
+      {%- for k, v in deb.items() -%}
+      {%- set _ = out.update({k: v}) -%}
+      {%- endfor -%}
+      {%- for k, v in rpm.items() -%}
+      {%- set _ = out.update({k: v}) -%}
+      {%- endfor -%}
+      {{ out }}
+  when:
+    - sbom_extra_sboms_enabled | bool
+    - sbom_os_packages_sbom_enabled | bool
+
+- name: Build OS package SPDX package list
+  ansible.builtin.set_fact:
+    sbom_os_spdx_packages: >-
+      {%- set pkgs = [] -%}
+      {%- set lic_map = sbom_os_license_map | default({}) -%}
+      {%- set cr_map = sbom_os_copyright_map | default({}) -%}
+      {%- set is_deb = ((ansible_facts.os_family | default('')) == 'Debian') or ((ansible_facts.distribution | default('')) in ['Debian', 'Ubuntu']) -%}
+      {%- set default_lic = ('LicenseRef-UNKNOWN' if is_deb else 'NOASSERTION') -%}
+      {%- for it in (ansible_facts.packages | default({}) | dict2items) -%}
+      {%- set pkg_key = it.key -%}
+      {%- set pkg_base = (it.key.split(':', 1)[0] if ':' in it.key else it.key) -%}
+      {%- set entries = it.value | default([]) -%}
+      {%- if entries | length > 0 -%}
+      {%- set e = entries[0] -%}
+      {%- set ver = e.version | default('') -%}
+      {%- if e.release is defined and (e.release | string) | length > 0 -%}
+      {%- set ver = ver ~ '-' ~ e.release -%}
+      {%- endif -%}
+      {%- set lic = (lic_map.get(pkg_key) or lic_map.get(pkg_base) or default_lic) -%}
+      {%- set cr = (cr_map.get(pkg_base) or cr_map.get(pkg_key) or 'NOASSERTION') -%}
+      {%- set _ = pkgs.append({'name': pkg_key, 'version': ver, 'license': lic, 'copyrightText': cr}) -%}
+      {%- endif -%}
+      {%- endfor -%}
+      {{ pkgs | sort(attribute='name') }}
+  when:
+    - sbom_extra_sboms_enabled | bool
+    - sbom_os_packages_sbom_enabled | bool
+
+- name: Write OS packages SBOM (SPDX JSON)
+  ansible.builtin.template:
+    src: spdx-minimal.json.j2
+    dest: "{{ sbom_extra_output_dir }}/os-packages.spdx.json"
+    mode: '0644'
+  vars:
+    spdx_doc_name: "{{ sbom_extra_doc_prefix }} OS Packages"
+    spdx_root_name: "{{ inventory_hostname }}-os"
+    spdx_root_version: "{{ ansible_facts.distribution ~ ' ' ~ ansible_facts.distribution_version }}"
+    spdx_supplier: "{{ sbom_package_supplier }}"
+    spdx_created: "{{ ansible_date_time.iso8601 }}"
+    spdx_document_namespace: >-
+      {{ sbom_namespace_uri_base }}/{{ inventory_hostname }}/os-packages/{{ ansible_date_time.epoch }}
+    spdx_packages: "{{ sbom_os_spdx_packages | default([]) }}"
+  become: true
+  when:
+    - sbom_extra_sboms_enabled | bool
+    - sbom_os_packages_sbom_enabled | bool
+
+- name: Collect K8s component versions from binaries
+  ansible.builtin.command:
+    argv:
+      - python3
+      - '-'
+  args:
+    stdin: |
+      import json
+      import re
+      import shutil
+      import subprocess
+
+
+      def run(argv, timeout=3):
+          try:
+              cp = subprocess.run(
+                  argv,
+                  stdout=subprocess.PIPE,
+                  stderr=subprocess.STDOUT,
+                  text=True,
+                  errors='replace',
+                  timeout=timeout,
+                  check=False,
+              )
+              return (cp.stdout or '').strip()
+          except Exception:
+              return ''
+
+
+      def extract_version(text):
+          # v1.29.1 / 1.6.20 / 1.6.20+xyz などを雑に拾う
+          m = re.search(r"\b(v?\d+\.\d+\.\d+(?:[-+~._A-Za-z0-9]*)?)\b", text or '')
+          if not m:
+              return ''
+          v = m.group(1)
+          return v[1:] if v.startswith('v') else v
+
+
+      out = {}
+
+      if shutil.which('kubelet'):
+          txt = run(['kubelet', '--version'])
+          v = extract_version(txt)
+          if v:
+              out['kubelet'] = v
+
+      if shutil.which('kubectl'):
+          # まずは JSON（kubectlのバージョン差で JSON 以外が混じることがあるので、JSON部分だけを抜き出して読む）
+          txt = run(['kubectl', 'version', '--client', '-o', 'json'])
+          v = ''
+          if txt:
+            m = re.search(r'(\{.*\})', txt, flags=re.DOTALL)
+            jtxt = m.group(1) if m else txt
+            try:
+              data = json.loads(jtxt)
+              cv = (data.get('clientVersion') or {})
+              v = (cv.get('gitVersion') or '')
+            except Exception:
+              v = ''
+          if not v:
+            # フォールバック: 文字列出力から拾う
+            txt2 = run(['kubectl', 'version', '--client'])
+            v = extract_version(txt2)
+          if v:
+            out['kubectl'] = v[1:] if v.startswith('v') else v
+
+      if shutil.which('containerd'):
+          txt = run(['containerd', '--version'])
+          v = extract_version(txt)
+          if v:
+              out['containerd'] = v
+
+      print(json.dumps(out, ensure_ascii=False))
+  register: sbom_k8s_component_bins
+  changed_when: false
+  failed_when: false
+  become: true
+  when:
+    - sbom_extra_sboms_enabled | bool
+    - sbom_k8s_components_sbom_enabled | bool
+
+- name: Build K8s component SPDX package list from OS packages
+  ansible.builtin.set_fact:
+    sbom_k8s_component_spdx_packages: >-
+      {%- set patterns = sbom_k8s_component_name_patterns | default([]) -%}
+      {%- set out = [] -%}
+      {%- set seen = [] -%}
+      {%- set bins = ((sbom_k8s_component_bins.stdout | default('')) | trim | default('{}', true)) | from_json -%}
+      {%- for it in (ansible_facts.packages | default({}) | dict2items) -%}
+      {%- set pkg_key = it.key | default('') -%}
+      {%- set pkg_base = (pkg_key.split(':', 1)[0] if ':' in pkg_key else pkg_key) -%}
+      {%- set pkg_norm = pkg_base -%}
+      {%- if '.' in pkg_norm -%}
+      {%- set maybe_base = (pkg_norm.rsplit('.', 1)[0]) -%}
+      {%- set maybe_arch = (pkg_norm.rsplit('.', 1)[1]) -%}
+      {%- if maybe_arch in ['x86_64', 'aarch64', 'noarch', 'ppc64le', 's390x', 'i686', 'armv7hl'] -%}
+      {%- set pkg_norm = maybe_base -%}
+      {%- endif -%}
+      {%- endif -%}
+
+      {%- set matched = false -%}
+      {%- for pat in patterns -%}
+      {%- if pkg_norm is match(pat) -%}
+      {%- set matched = true -%}
+      {%- endif -%}
+      {%- endfor -%}
+
+      {%- if matched and (pkg_norm not in seen) -%}
+      {%- set _ = seen.append(pkg_norm) -%}
+
+      {%- set entries = it.value | default([]) -%}
+      {%- set ver = '' -%}
+      {%- if entries | length > 0 -%}
+      {%- set e = entries[0] -%}
+      {%- set ver = e.version | default('') -%}
+      {%- if e.release is defined and (e.release | string) | length > 0 -%}
+      {%- set ver = ver ~ '-' ~ e.release -%}
+      {%- endif -%}
+      {%- endif -%}
+      {%- set _ = out.append({'name': pkg_norm, 'version': ver}) -%}
+      {%- endif -%}
+      {%- endfor -%}
+
+      {%- for kv in (bins | dict2items | sort(attribute='key')) -%}
+      {%- set name = kv.key -%}
+      {%- set ver = kv.value | default('') -%}
+      {%- set matched = false -%}
+      {%- for pat in patterns -%}
+      {%- if name is match(pat) -%}
+      {%- set matched = true -%}
+      {%- endif -%}
+      {%- endfor -%}
+      {%- if matched and (name not in seen) -%}
+      {%- set _ = seen.append(name) -%}
+      {%- set _ = out.append({'name': name, 'version': ver}) -%}
+      {%- endif -%}
+      {%- endfor -%}
+
+      {# パッケージ検出に失敗しても最低限これらは入れる #}
+      {%- for must in ['kubelet', 'kubectl', 'containerd'] -%}
+      {%- if (must in bins) and (must not in seen) -%}
+      {%- set _ = seen.append(must) -%}
+      {%- set _ = out.append({'name': must, 'version': (bins.get(must) | default(''))}) -%}
+      {%- endif -%}
+      {%- endfor -%}
+      {{ out }}
+  when:
+    - sbom_extra_sboms_enabled | bool
+    - sbom_k8s_components_sbom_enabled | bool
+
+- name: Write K8s components SBOM (SPDX JSON)
+  ansible.builtin.template:
+    src: spdx-minimal.json.j2
+    dest: "{{ sbom_extra_output_dir }}/k8s-components.spdx.json"
+    mode: '0644'
+  vars:
+    spdx_doc_name: "{{ sbom_extra_doc_prefix }} K8s Components"
+    spdx_root_name: "{{ inventory_hostname }}-k8s-components"
+    spdx_root_version: "NOASSERTION"
+    spdx_supplier: "{{ sbom_package_supplier }}"
+    spdx_created: "{{ ansible_date_time.iso8601 }}"
+    spdx_document_namespace: >-
+      {{ sbom_namespace_uri_base }}/{{ inventory_hostname }}/k8s-components/{{ ansible_date_time.epoch }}
+    spdx_packages: "{{ sbom_k8s_component_spdx_packages | default([]) }}"
+  become: true
+  when:
+    - sbom_extra_sboms_enabled | bool
+    - sbom_k8s_components_sbom_enabled | bool
+
+- name: Collect Helm releases
+  ansible.builtin.command:
+    argv:
+      - helm
+      - list
+      - -A
+      - -o
+      - json
+  register: sbom_helm_list
+  changed_when: false
+  failed_when: false
+  when:
+    - sbom_extra_sboms_enabled | bool
+    - sbom_helm_sbom_enabled | bool
+
+- name: Build Helm SPDX package list
+  ansible.builtin.set_fact:
+    sbom_helm_spdx_packages: >-
+      {%- set out = [] -%}
+      {%- if (sbom_helm_list.rc | default(1)) == 0 -%}
+      {%- for r in (sbom_helm_list.stdout | default('[]') | from_json) -%}
+      {%- set _ = out.append({'name': (r.chart | default(r.name)), 'version': (r.app_version | default(''))}) -%}
+      {%- endfor -%}
+      {%- endif -%}
+      {{ out }}
+  when:
+    - sbom_extra_sboms_enabled | bool
+    - sbom_helm_sbom_enabled | bool
+
+- name: Write Helm releases SBOM (SPDX JSON)
+  ansible.builtin.template:
+    src: spdx-minimal.json.j2
+    dest: "{{ sbom_extra_output_dir }}/helm-releases.spdx.json"
+    mode: '0644'
+  vars:
+    spdx_doc_name: "{{ sbom_extra_doc_prefix }} Helm Releases"
+    spdx_root_name: "{{ inventory_hostname }}-helm"
+    spdx_root_version: "NOASSERTION"
+    spdx_supplier: "{{ sbom_package_supplier }}"
+    spdx_created: "{{ ansible_date_time.iso8601 }}"
+    spdx_document_namespace: >-
+      {{ sbom_namespace_uri_base }}/{{ inventory_hostname }}/helm-releases/{{ ansible_date_time.epoch }}
+    spdx_packages: "{{ sbom_helm_spdx_packages | default([]) }}"
+  become: true
+  when:
+    - sbom_extra_sboms_enabled | bool
+    - sbom_helm_sbom_enabled | bool
+
+- name: Collect Kubernetes pod images (kubectl)
+  ansible.builtin.command:
+    argv:
+      - kubectl
+      - get
+      - pods
+      - -A
+      - -o
+      - json
+  register: sbom_kubectl_pods
+  changed_when: false
+  failed_when: false
+  when:
+    - sbom_extra_sboms_enabled | bool
+    - sbom_k8s_images_sbom_enabled | bool
+
+- name: Build Kubernetes image SPDX package list
+  ansible.builtin.set_fact:
+    sbom_k8s_image_spdx_packages: >-
+      {%- set imgs = [] -%}
+      {%- set out = [] -%}
+      {%- if (sbom_kubectl_pods.rc | default(1)) == 0 -%}
+      {%- set data = sbom_kubectl_pods.stdout | default('{}') | from_json -%}
+      {%- for pod in data.get('items', []) -%}
+      {%- set spec = pod.get('spec', {}) -%}
+      {%- for c in ((spec.get('containers', [])) + (spec.get('initContainers', []))) -%}
+      {%- if c.get('image', '') | string | length > 0 -%}
+      {%- if c.get('image') not in imgs -%}
+      {%- set _ = imgs.append(c.get('image')) -%}
+      {%- endif -%}
+      {%- endif -%}
+      {%- endfor -%}
+      {%- endfor -%}
+      {%- endif -%}
+      {%- for img in imgs -%}
+      {%- set _ = out.append({'name': img}) -%}
+      {%- endfor -%}
+      {{ out }}
+  when:
+    - sbom_extra_sboms_enabled | bool
+    - sbom_k8s_images_sbom_enabled | bool
+
+- name: Write Kubernetes images SBOM (SPDX JSON)
+  ansible.builtin.template:
+    src: spdx-minimal.json.j2
+    dest: "{{ sbom_extra_output_dir }}/k8s-images.spdx.json"
+    mode: '0644'
+  vars:
+    spdx_doc_name: "{{ sbom_extra_doc_prefix }} Kubernetes Images"
+    spdx_root_name: "{{ inventory_hostname }}-k8s"
+    spdx_root_version: "NOASSERTION"
+    spdx_supplier: "{{ sbom_package_supplier }}"
+    spdx_created: "{{ ansible_date_time.iso8601 }}"
+    spdx_document_namespace: >-
+      {{ sbom_namespace_uri_base }}/{{ inventory_hostname }}/k8s-images/{{ ansible_date_time.epoch }}
+    spdx_packages: "{{ sbom_k8s_image_spdx_packages | default([]) }}"
+  become: true
+  when:
+    - sbom_extra_sboms_enabled | bool
+    - sbom_k8s_images_sbom_enabled | bool
+
+- name: Slurp docker-compose files
+  ansible.builtin.slurp:
+    src: "{{ item }}"
+  loop: "{{ sbom_compose_files }}"
+  register: sbom_compose_slurp
+  failed_when: false
+  when:
+    - sbom_extra_sboms_enabled | bool
+    - sbom_compose_sbom_enabled | bool
+    - sbom_compose_files | length > 0
+
+- name: Build docker-compose image SPDX package list
+  ansible.builtin.set_fact:
+    sbom_compose_image_spdx_packages: >-
+      {%- set imgs = [] -%}
+      {%- set out = [] -%}
+      {%- for r in sbom_compose_slurp.results | default([]) -%}
+      {%- if r is mapping and (r.content is defined) -%}
+      {%- set doc = r.content | b64decode | from_yaml -%}
+      {%- for svc in ((doc.services | default({})) | dict2items) -%}
+      {%- if svc.value.image is defined and (svc.value.image | string) | length > 0 -%}
+      {%- if svc.value.image not in imgs -%}
+      {%- set _ = imgs.append(svc.value.image) -%}
+      {%- endif -%}
+      {%- endif -%}
+      {%- endfor -%}
+      {%- endif -%}
+      {%- endfor -%}
+      {%- for img in imgs -%}
+      {%- set _ = out.append({'name': img}) -%}
+      {%- endfor -%}
+      {{ out }}
+  when:
+    - sbom_extra_sboms_enabled | bool
+    - sbom_compose_sbom_enabled | bool
+    - sbom_compose_files | length > 0
+
+- name: Write docker-compose images SBOM (SPDX JSON)
+  ansible.builtin.template:
+    src: spdx-minimal.json.j2
+    dest: "{{ sbom_extra_output_dir }}/compose-images.spdx.json"
+    mode: '0644'
+  vars:
+    spdx_doc_name: "{{ sbom_extra_doc_prefix }} Docker Compose Images"
+    spdx_root_name: "{{ inventory_hostname }}-compose"
+    spdx_root_version: "NOASSERTION"
+    spdx_supplier: "{{ sbom_package_supplier }}"
+    spdx_created: "{{ ansible_date_time.iso8601 }}"
+    spdx_document_namespace: >-
+      {{ sbom_namespace_uri_base }}/{{ inventory_hostname }}/compose-images/{{ ansible_date_time.epoch }}
+    spdx_packages: "{{ sbom_compose_image_spdx_packages | default([]) }}"
+  become: true
+  when:
+    - sbom_extra_sboms_enabled | bool
+    - sbom_compose_sbom_enabled | bool
+    - sbom_compose_files | length > 0

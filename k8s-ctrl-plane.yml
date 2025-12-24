@@ -36,5 +36,9 @@
       tags: k8s-hubble-cli
     - role: netgauge
       tags: netgauge
+    - role: sbom
+      tags: sbom
+      when:
+        - sbom_enabled | default(false) | bool
     - role: force-reboot # 最後に実行するようにすること
       tags: force-reboot
