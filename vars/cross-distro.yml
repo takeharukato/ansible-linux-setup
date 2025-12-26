@@ -525,6 +525,13 @@ frr_packages_rhel:
   - frr
 frr_packages: "{{ (ansible_facts.os_family == 'Debian') | ternary(frr_packages_debian, frr_packages_rhel) }}"
 frr_svc_name: "frr"
+frr_vtysh_group_debian: "frrvty"
+frr_vtysh_group_rhel:   "frrvty"
+frr_vtysh_group_name: "{{ (ansible_facts.os_family == 'Debian') | ternary(frr_vtysh_group_debian, frr_vtysh_group_rhel) }}"
+
+frr_group_debian: "frrvty"
+frr_group_rhel:   "frrvty"
+frr_group_name: "{{ (ansible_facts.os_family == 'Debian') | ternary(frr_group_debian, frr_group_rhel) }}"
 
 ########################################################################################
 # サービス名など ( 差異が出やすいもの )
