@@ -9,7 +9,7 @@
 ---
 
 # ロール全体のON/OFF
-sbom_enabled: true
+sbom_enabled: false
 
 # sbom-tool インストール先
 sbom_tool_bin_path: /usr/local/bin/sbom-tool
