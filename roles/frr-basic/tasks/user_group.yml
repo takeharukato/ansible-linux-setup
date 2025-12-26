@@ -5,3 +5,23 @@
 #  ユーザ・グループ作成関連タスク
 #
 ---
+
+# vtyshアクセス許可グループ作成
+- name: Ensure FRR vty group exists (for vtysh access)
+
+  ansible.builtin.group:
+    name: "{{ frr_vtysh_group | default('frrvty', true) }}"
+    state: present
+  become: true
+  when:
+    - (frr_vtysh_users | default([], true)) | length > 0
+
+# vtyshアクセス許可ユーザ(sudoなしでvtysh実行可能なユーザ)を
+# FRR vtyグループに追加
+- name: Allow specified users to run vtysh without sudo
+  ansible.builtin.user:
+    name: "{{ item }}"
+    groups: "{{ frr_vtysh_group | default('frrvty', true) }}"
+    append: true
+  become: true
+  loop: "{{ frr_vtysh_users | default([], true) }}"

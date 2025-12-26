@@ -30,7 +30,7 @@
 
 | 変数名 | 既定値 | 説明 |
 | --- | --- | --- |
-| `sbom_enabled` | `true` | ロール全体のON/OFF |
+| `sbom_enabled` | `false` | ロール全体のON/OFF |
 | `sbom_tool_bin_path` | `/usr/local/bin/sbom-tool` | sbom-tool の配置先 |
 | `sbom_tool_download_url` | `""` | sbom-tool のダウンロードURL ( 未指定時は既定URLを利用 ) |
 | `sbom_drop_path` | `/opt/sbom/drop` | sbom-tool の `-b` ( 成果物ディレクトリ ) |

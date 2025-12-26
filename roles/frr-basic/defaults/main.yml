@@ -19,3 +19,15 @@ frr_ebgp_neighbors: []
 # 広告プレフィックス
 frr_networks_v4: []
 frr_networks_v6: []
+
+# vtysh アクセス許可ユーザ・グループ設定
+# vtyshをsudoなしで実行可能とするユーザをリストで指定する
+# 例:
+#  frr_vtysh_users:
+#    - user1
+#    - user2
+frr_vtysh_users: []
+# vtyshアクセス許可グループ名
+frr_vtysh_group: "{{ frr_vtysh_group_name | default('frrvty', true) }}"
+# FRRグループ名
+frr_group: "{{ frr_group_name | default('frr', true) }}"
