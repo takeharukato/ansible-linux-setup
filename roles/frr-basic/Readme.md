@@ -13,23 +13,23 @@
 
 ## データセンタ間でのBGPルーティングに関する前提
 
-本ロールでは, データセンタ間のBGPによる経路制御を以下の方針で実現することを前提として, FRR<=>K8sコントロールプレイン間のBGPルーティングの設定を行う:
+本ロールでは, データセンタ間のBGPによる経路制御を以下の方針で実現することを前提として, FRR<=>K8sコントロールプレイン間のBGPルーティングの設定を行います。
 
-1. 各K8sクラスタの Pod CIDR が データセンタ(DC) 全体でユニーク ( 重複なし )
-2. 各K8sクラスタの BGP 広告ノード ( 本リポジトリでは K8s コントロールプレインノードを想定。構成によりワーカーノードを代表としてもよいが, その場合は FRR の iBGP ピアとしてそのワーカーノードを設定する ) が 自K8sクラスタの PodCIDR を BGP で広告し, DC ルータ(FRR)がそれを学習して "宛先 PodCIDR => 次ホップ( 宛先PodCIDR を広告したBGP広告ノード )" の経路を持つ
-3. DC 間は iBGP で宛先PodCIDR へのルートを伝播, 相互に到達可能とする
-4. K8sノードが宛先 PodCIDR を知らない場合でも, 未知宛先の PodCIDR 向けトラフィックが DC ルータ(FRR) へ到達できるように, デフォルトルートまたは DC 全体の PodCIDR を包含する集約プレフィックスへのルートの次ホップを DC ルータ(FRR) に向けて設定しておく
+1. 各K8sクラスタの Pod CIDR は, データセンタ(DC) 全体でユニークです (重複しません)。
+2. 各K8sクラスタの BGP 広告ノード (本リポジトリでは K8s コントロールプレインノードを想定します。構成によりワーカーノードを代表としてもよいですが, その場合は FRR の iBGP ピアとしてそのワーカーノードを設定します) が, 自K8sクラスタの PodCIDR を BGP で広告し, DC ルータ(FRR)がそれを学習して "宛先 PodCIDR => 次ホップ(宛先PodCIDR を広告したBGP広告ノード)" の経路を持ちます。
+3. DC 間は iBGP で宛先PodCIDR へのルートを伝播し, 相互に到達可能とします。
+4. K8sノードが宛先 PodCIDR を知らない場合でも, 未知宛先の PodCIDR 向けトラフィックが DC ルータ(FRR) へ到達できるように, デフォルトルートまたは DC 全体の PodCIDR を包含する集約プレフィックスへのルートの次ホップを DC ルータ(FRR) に向けて設定しておきます。
 
 上記4.については,
 
 - 0.0.0.0/0 のデフォルトルート, または
 - "遠隔PodCIDR全部を包含する"ような集約ルート
 
-が存在し, K8sノードから DC ルータ(FRR) へ転送できることが必要となる。
+が存在し, K8sノードから DC ルータ(FRR) へ転送できることが必要です。
 
-例えば, (複数のK8sクラスタ含む)DC全体の PodCIDR がたとえば 10.128.0.0/9 の範囲に収まる設計なら, 各K8sノードは細かい /16 や /24 を知らなくても 10.128.0.0/9 の次ホップを DC ルータ(FRR) にする静的経路を設定しておくことで, 未知のPod宛てパケットをDCルータに渡し, BGP経路を通して, 他のDC内のPodと通信することが可能となる。
+例えば, (複数のK8sクラスタ含む)DC全体の PodCIDR がたとえば 10.128.0.0/9 の範囲に収まる設計なら, 各K8sノードは細かい /16 や /24 を知らなくても 10.128.0.0/9 の次ホップを DC ルータ(FRR) にする静的経路を設定しておくことで, 未知のPod宛てパケットをDCルータに渡し, BGP経路を通して, 他のDC内のPodと通信できます。
 
-この前提が成立する場合は, 各K8sノードが他DC上にある PodCIDR への経路を BGP で学習して各K8sノード内のカーネルのルーティングテーブルへ反映することなく, FRR 側で DC 間の経路確立を集約して提供することが可能となる。
+この前提が成立する場合は, 各K8sノードが他DC上にある PodCIDR への経路を BGP で学習して各K8sノード内のカーネルのルーティングテーブルへ反映しなくても, FRR 側で DC 間の経路確立を集約して提供できます。
 
 ## 変数一覧
 
@@ -39,8 +39,8 @@
 | ------ | ---- | -- | ---- | ---- |
 | `frr_bgp_asn` | BGP 自律システム (Autonomous System - ASと略す)番号 | `65011` | 必須 | `frr.conf`を生成する`frr.conf.j2` テンプレートで使用。 |
 | `frr_bgp_router_id` | BGP Router-ID | `192.168.30.49` | 必須 | BGPセッションで使用するIPv4アドレスを指定する。IPv4 形式で指定。`frr.conf`を生成する`frr.conf.j2` テンプレートで使用。 |
-| `frr_k8s_neighbors` | iBGP ピア情報のリスト | `[{ addr: '192.168.30.41', asn: 65011, desc: 'C1 control-plane' }, ...]` | 任意 | BGPセッションで使用するIPv4アドレスを指定する。IPv4 形式で指定。`frr.conf`を生成する`frr.conf.j2` テンプレートで使用。 |
-| `frr_ebgp_neighbors` | eBGP ピア情報のリスト | `[{ addr: '192.168.90.1', asn: 65100, desc: 'External GW' }]` | 任意 | BGPセッションで使用するIPv4アドレスを指定する。IPv4 形式で指定。`frr.conf`を生成する`frr.conf.j2` テンプレートで使用。 |
+| `frr_k8s_neighbors` | iBGP ピア情報のリスト | `[{ addr: '192.168.30.41', asn: 65011, desc: 'C1 control-plane' }, ...]` | 任意 | `addr` は IPv4/IPv6 どちらでも指定可能。`frr.conf`を生成する`frr.conf.j2` テンプレートで使用。 |
+| `frr_ebgp_neighbors` | eBGP ピア情報のリスト | `[{ addr: '192.168.90.1', asn: 65100, desc: 'External GW' }]` | 任意 | `addr` は IPv4/IPv6 どちらでも指定可能。`frr.conf`を生成する`frr.conf.j2` テンプレートで使用。 |
 | `frr_networks_v4` | 広告する IPv4 プレフィックス | `['192.168.30.0/24', '192.168.90.0/24']` | 任意 | BGP address-family ipv4 の設定に使用。`frr.conf`を生成する`frr.conf.j2` テンプレートで使用。 |
 | `frr_networks_v6` | 広告する IPv6 プレフィックス | `['fd69:6684:61a:2::/64', 'fd69:6684:61a:90::/64']` | 任意 | BGP address-family ipv6 の設定に使用。 `frr.conf`を生成する`frr.conf.j2` テンプレートで使用。 |
 | `frr_vtysh_users` | sudo なしで `vtysh` を実行できるユーザ名のリスト | `[]` | 任意 | `frr_vtysh_group` に追加します。 |
@@ -63,7 +63,32 @@
 - `/etc/frr/frr.conf` がテンプレートの意図した内容 (BGP ピア, 広告プレフィックス等) になっていること。
 - BGP ピアとのセッション状態が `vtysh -c "show ip bgp summary"` / `vtysh -c "show bgp ipv6 unicast summary"` で ESTABLISHED になっていること。
 
-## 補足
+### IPv6 でピアが張れていることの検証手順
 
-- IPv6でBGPセッションを張ると, アンダーレイネットワーク(L3)のネットワークのIPv6ネットワークによるルーティング, BGP Network Layer Reachability Information (NLRI)でIPv4, IPv6プレフィクス交換を行う必要があり, 複雑化しやすいため, 本playbookでは, BGPセッションはIPv4で張り, 単純化しました。K8s のPod/Serviceネットワークの外側の接続を行う機能単位なのでまずは単純化する方針で設計しています。
-- IPv4/IPv6 フォワーディング設定は drop-in ファイルで管理しており, 他ロールで `sysctl.d` を触る場合はファイル名重複に注意してください。
+IPv6 アドレスで BGP ピア (`frr_k8s_neighbors` / `frr_ebgp_neighbors` の `addr`) を指定している場合は, 以下の順で切り分けると確実です。
+
+1. L3 到達性 (IPv6) を確認
+
+   - `ping6 -c 3 <peer_ipv6>` が疎通する
+   - ルーティングが必要なら `ip -6 route` で経路が存在する
+2. TCP/179 の疎通を確認
+
+   - `nc -6 -vz <peer_ipv6> 179` (成功すること)
+3. FRR が動作していることを確認
+
+   - `systemctl status frr`
+4. FRR にピア設定が入っていることを確認
+
+   - `vtysh -c "show running-config | section router bgp"` で `neighbor <peer_ipv6>` が存在する
+5. セッション確立を確認 (意図したアドレスファミリで確認する)
+
+   - IPv4 NLRI (IPv4 プレフィックス) を交換したい場合:
+     - `vtysh -c "show bgp ipv4 unicast summary"` で対象ピアが `Established` になっている
+   - IPv6 NLRI (IPv6 プレフィックス) を交換したい場合:
+     - `vtysh -c "show bgp ipv6 unicast summary"` で対象ピアが `Established` になっている
+
+補足:
+
+- 本ロールのテンプレートでは `address-family ipv4 unicast` と `address-family ipv6 unicast` の両方に対して `neighbor ... activate` を出力します。
+  運用上 IPv4 だけ/IPv6 だけ交換する場合, もう一方の address-family では必ずしも `Established` になりません (相手側の capabilities 設定次第)。
+- IPv6 トランスポートで IPv4 NLRI を運ぶ (RFC 5549) 想定の場合は, `vtysh -c "show running-config | section router bgp"` で `capability extended-nexthop` が出力されていることも確認してください。

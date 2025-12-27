@@ -35,12 +35,20 @@ router bgp {{ frr_bgp_asn }}
 {% for n in frr_k8s_neighbors | default([], true) %}
  neighbor {{ n.addr }} remote-as {{ n.asn }}
  neighbor {{ n.addr }} description {{ n.desc }}
+{% if (':' in (n.addr | string)) and ((frr_networks_v4 | default([], true)) | length > 0) %}
+ ! IPv6 トランスポートで IPv4 NLRI を運ぶ場合 (RFC 5549) に備える
+ neighbor {{ n.addr }} capability extended-nexthop
+{% endif %}
 {% endfor %}
 
  ! --- eBGP: 疑似外部ネットワーク側 ---
 {% for n in frr_ebgp_neighbors | default([], true) %}
  neighbor {{ n.addr }} remote-as {{ n.asn }}
  neighbor {{ n.addr }} description {{ n.desc }}
+{% if (':' in (n.addr | string)) and ((frr_networks_v4 | default([], true)) | length > 0) %}
+ ! IPv6 トランスポートで IPv4 NLRI を運ぶ場合 (RFC 5549) に備える
+ neighbor {{ n.addr }} capability extended-nexthop
+{% endif %}
 {% endfor %}
 
  ! ipv4ネットワーク広告設定
