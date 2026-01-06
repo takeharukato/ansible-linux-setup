@@ -19,3 +19,6 @@ netif_list:
     name_server_ipv6_1: "{{ipv6_name_server1}}"
     name_server_ipv6_2: "{{ipv6_name_server2}}"
     dns_search: "example.com"
+
+# GitLabサーバのWEB UI公開URLのホスト名
+gitlab_hostname: "devserver.example.org"
