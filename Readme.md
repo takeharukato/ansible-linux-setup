@@ -52,7 +52,7 @@
 
 ## ディレクトリ構成
 
-```:text
+```text
 .
 |-- Makefile      playbook実行, アーカイブ作成用Makefile
 |-- Readme.md     本文書
@@ -76,7 +76,7 @@
 
 シェルのコマンドラインから以下のコマンドを実行することで, ansibleによる構築作業が実施される。
 
-```:shell
+```shell
 make
 ```
 
@@ -121,17 +121,20 @@ playbook実行, アーカイブ作成用Makefileでは, 以下のターゲット
 |変数名|意味|設定値の例|
 |---|---|---|
 |use_vmware|VMware環境上のゲストOSを設定する場合はtrueを指定|true|
+|use_xcpng|xcp-ng 用追加パッケージを導入するかを制御します。|false|
+|xcpng_xe_guest_utilities_version|xcp-ngゲストエージェントの版数|"8.4.0"|
+|xcpng_xe_guest_utilities_release|xcp-ngゲストエージェントのリリース版数|"1"|
 |force_reboot|設定作業完了後にリブートする場合はtrueを指定|false|
 |common_timezone|タイムゾーンの名前|"Asia/Tokyo"|
 |common_disable_cron_mails|Cronジョブ完了後のメール送信を抑止する|true|
 |common_selinux_state|Security-Enhanced Linuxの動作モード('enforcing', 'permissive', 'disabled' のいずれかを指定)|"permissive"|
-|common_sysctl_user_ptrace_enable| 一般ユーザによるptraceを有効化し, straceやプログラムのデバッグを可能にする。| true |
-|common_sysctl_user_dmesg_enable|  一般ユーザによる`dmesg`コマンドの発行を許可する。|true |
-|common_sysctl_inotify_max_user_watches|inotify(7) APIによるファイルシステムイベント監視数の上限値を設定する。| 524288 |
+|common_sysctl_user_ptrace_enable|一般ユーザによるptraceを有効化し, straceやプログラムのデバッグを可能にする。|true|
+|common_sysctl_user_dmesg_enable|一般ユーザによる`dmesg`コマンドの発行を許可する。|true|
+|common_sysctl_inotify_max_user_watches|inotify(7) APIによるファイルシステムイベント監視数の上限値を設定する。|524288|
 |enable_firewall|Firewall (firewalld / Uncomplicated Firewall (UFW) ) を使用する場合はtrueを指定|false|
 |users_list|作成するユーザのリスト|users_list定義参照|
 |sudo_nopasswd_users|パスワード入力なしに, sudoコマンドを実行可能なユーザのリストを指定する|['user1']|
-|sudo_nopasswd_groups_extra|パスワード入力なしに, sudoコマンドを実行可能なユーザグループのリストを指定する| ['adm', 'cdrom', 'sudo', 'dip', 'plugdev', 'lxd', 'systemd-journal']|
+|sudo_nopasswd_groups_extra|パスワード入力なしに, sudoコマンドを実行可能なユーザグループのリストを指定する|['adm', 'cdrom', 'sudo', 'dip', 'plugdev', 'lxd', 'systemd-journal']|
 |sudo_nopasswd_groups_autodetect|sudoユーザグループを自動検出する場合はtrueを指定|true|
 |sudo_nopasswd_absent|sudoのdrop inファイルを削除する場合はtrueを指定|false|
 
@@ -151,7 +154,7 @@ users_listには, 以下の要素からなる辞書のリストを記述する.
 
 記載例は以下の通り。
 
-```:yaml
+```yaml
   - { name: 'user1', group: 'user1', password: "{{ 'user1'|password_hash('sha512') }}", update_password: 'on_create', shell: "/bin/zsh", home: "/home/user1", comment: 'Sample User', email: "user1@example.com", github: 'sampleuser' }
 ```
 
@@ -163,7 +166,7 @@ users_listには, 以下の要素からなる辞書のリストを記述する.
 
 `users_authorized_keys`の例を以下に示す。
 
-```:yaml
+```yaml
 # ユーザごとに任意の公開鍵を追記する場合に使用
 # 形式: ユーザ名文字列から.ssh/authorized_keysに追記する公開鍵文字列のリストへのマッピング
 # users_authorized_keys:
@@ -234,7 +237,7 @@ dns_host_listに以下の要素からなる辞書のリストを記述するこ�
 
 記載例は以下の通り:
 
-```:yaml
+```yaml
 dns_host_list
   - { name: 'devserver', ipv4_addr: '11'}
   - { name: 'nas', ipv4_addr: '31'}
@@ -251,7 +254,7 @@ mdns_host_listに以下の要素からなる辞書のリストを記述するこ
 
 記載例は以下の通り:
 
-```:yaml
+```yaml
 mdns_host_list:
   - { name: 'vmlinux1'}
   - { name: 'vmlinux2'}
@@ -263,7 +266,7 @@ ntp_servers_listにNTPクライアントから参照するNTPサーバのIPア�
 
 記載例は以下の通り:
 
-```:yaml
+```yaml
 ntp_servers_list:
   - "{{devserver_ipv4_address}}"
   - "ntp.nict.jp"
@@ -311,7 +314,7 @@ ntp_servers_list:
 
 上記の他に, external_ntp_servers_listに参照する外部NTPサーバをリスト形式で指定する。
 
-```:yaml
+```yaml
 external_ntp_servers_list:
   - ntp.nict.jp
   - jp.pool.ntp.org
@@ -354,7 +357,7 @@ docker_ce_usersにdocker利用ユーザをリスト形式で指定する。
 
 記載例
 
-```:yaml
+```yaml
 docker_ce_users:
   - user1
 ```
@@ -365,7 +368,7 @@ docker_ce_users:
 
 NFSマウントは以下のように行われる。
 
-```:shell
+```shell
    mount -t nfs {{docker_ce_backup_nfs_server}}:{{docker_ce_backup_nfs_dir}} {{ docker_ce_backup_mount_point }}
 ```
 
@@ -404,7 +407,7 @@ NFSマウントは以下のように行われる。
 
 NFSマウントは以下のように行われる。
 
-```:shell
+```shell
    mount -t nfs {{user_settings_backup_home_nfs_server}}:{{user_settings_backup_home_nfs_dir}} {{ user_settings_backup_home_mount_point }}
 ```
 
@@ -420,7 +423,7 @@ NFSマウントは以下のように行われる。
 その後, ホームディレクトリのバックアップは, マウントポイント配下の
 以下のバックアップ配置先ディレクトリに保存される。
 
-```:yaml
+```yaml
  {{ user_settings_backup_home_mount_point }}{{ user_settings_backup_dir_on_nfs }}
 ```
 
@@ -446,7 +449,7 @@ NFSマウントは以下のように行われる。
 
 記載例は以下の通り:
 
-```:yaml
+```yaml
 user_settings_backup_users_list:
     - user1
 ```
@@ -479,17 +482,17 @@ Redmineのデイリーバックアップについては, `roles/redmine-server/R
 
 Gitlabの公開URL, イメージファイル関連の設定を記載する。
 
-|変数名|意味|設定値の例|
-|---|---|---|
-| gitlab_hostname | GitLab WEB UI/Container Registryの公開URL中のホスト名部分を指定。本変数が, 未設定または空文字列の場合, Gitlabの導入を行わない。| "devserver.example.org" |
-| gitlab_https_port | GitLab Web UI (HTTPS) 公開ポート。| 9443 |
-| gitlab_ssh_port | GitLab SSH (リポジトリ操作用) 公開ポート。| 2224 |
-| gitlab_registry_port | コンテナレジストリ公開ポート。| 5050 |
-| gitlab_docker_image | GitLab Omnibus Docker イメージ。公式の推奨に従って, バージョン名を明示してイメージを指定。| "gitlab/gitlab-ce:18.6.2-ce.0" |
-| gitlab_runner_docker_image | GitLab Runner Docker イメージ。GitLab 本体とメジャーバージョン, マイナーバージョンを合わせること。| "gitlab/gitlab-runner:ubuntu-v18.6.6" |
+| 変数名 | 意味 | 設定値の例 |
+| --- | --- | --- |
+| gitlab_hostname | GitLab WEB UI/Container Registryの公開URL中のホスト名部分を指定。本変数が, 未設定または空文字列の場合, Gitlabの導入を行わない。 | "devserver.example.org" |
+| gitlab_https_port | GitLab Web UI (HTTPS) 公開ポート。 | 9443 |
+| gitlab_ssh_port | GitLab SSH (リポジトリ操作用) 公開ポート。 | 2224 |
+| gitlab_registry_port | コンテナレジストリ公開ポート。 | 5050 |
+| gitlab_docker_image | GitLab Omnibus Docker イメージ。公式の推奨に従って, バージョン名を明示してイメージを指定。 | "gitlab/gitlab-ce:18.6.2-ce.0" |
+| gitlab_runner_docker_image | GitLab Runner Docker イメージ。GitLab 本体とメジャーバージョン, マイナーバージョンを合わせること。 | "gitlab/gitlab-runner:ubuntu-v18.6.6" |
 | gitlab_backup_rotation | デイリーバックアップのローテーション世代数 | 7 |
-| gitlab_backup_nfs_server | Gitlabのバックアップバンドルファイルを保存するNFSサーバ| "nfs.example.org" |
-| gitlab_backup_nfs_dir | Gitlabのバックアップバンドルファイルを保存するNFSサーバのマウント時に指定する共有ディレクトリ名| "share" |
+| gitlab_backup_nfs_server | Gitlabのバックアップバンドルファイルを保存するNFSサーバ | "nfs.example.org" |
+| gitlab_backup_nfs_dir | Gitlabのバックアップバンドルファイルを保存するNFSサーバのマウント時に指定する共有ディレクトリ名 | "share" |
 | gitlab_backup_mount_point | デイリーバックアップ時のNFSマウントポイント(NFSのマウント/アンマウント時に使用) | "/mnt" |
 | gitlab_backup_dir_on_nfs | デイリーバックアップ時のNFSマウントポイント配下のバックアップ配置先ディレクトリ | "/gitlab-backups" |
 
@@ -511,7 +514,7 @@ GitLab Web UI (HTTPS)ポート(`gitlab_https_port`)やGitLab Container Registry�
 
 記載例は以下の通り:
 
-```:yaml
+```yaml
 create_user_emacs_package_list:
   - docker
   - dockerfile-mode
@@ -534,7 +537,7 @@ Kubernetes (以下K8sと記す)関連の設定を以下に記載する。
 |変数名|意味|設定値の例|
 |---|---|---|
 |k8s_major_minor|K8s バージョン (先頭にvをつけないことに注意)|"1.31"|
-| kubectl_completion_enabled | `true` の場合, `kubectl` の bash / zsh 補完ファイルを生成・配置します。| `true` |
+|kubectl_completion_enabled|`true` の場合, `kubectl` の bash / zsh 補完ファイルを生成・配置します。|`true`|
 |enable_create_k8s_ca|共通の認証局(`Certificate Authority`)証明書 (`CA`) ( 以下, 共通CA )をロールで生成/再利用する (false の場合は `k8s_common_ca` を必須とする)|true|
 |k8s_common_ca|事前に用意した共通CA (`cluster-mesh-ca.crt/.key`) を格納したディレクトリの絶対パス|""|
 |k8s_shared_ca_output_dir|共通CAをノード内に展開するディレクトリ|"/etc/kubernetes/pki/shared-ca"|
@@ -542,14 +545,14 @@ Kubernetes (以下K8sと記す)関連の設定を以下に記載する。
 |k8s_kubeadm_config_store|`kubeadm init/join` 用の設定ファイルや CNI values を格納するワークディレクトリ|"{{ ansible_home_dir }}/kubeadm"|
 |k8s_kubeadm_ignore_preflight_errors_arg|`kubeadm init/join` 時に無視する preflight エラーの指定|"--ignore-preflight-errors=all"|
 |k8s_kubeconfig_system_dir|`k8s-kubeconfig` ロールが `kubeconfig` を配置するシステム側ディレクトリ。既定では `/etc/kubernetes` を使用し, `k8s-kubeconfig` ロール中の `control-plane.yml` / `distribute-workers.yml` が参照する|"/etc/kubernetes"|
-|k8s_pod_ipv4_service_subnet|K8sのIPv4サービスネットワークのClassless Inter-Domain Routing ( CIDR ) |"10.245.0.0/16"|
+|k8s_pod_ipv4_service_subnet|K8sのIPv4サービスネットワークのClassless Inter-Domain Routing ( CIDR )|"10.245.0.0/16"|
 |k8s_pod_ipv6_service_subnet|K8sのIPv6サービスネットワークのCIDR|"fdb6:6e92:3cfb:feed::/112"|
 |k8s_reserved_system_cpus_default|K8sのシステムCentral Processing Unit ( CPU ) 予約範囲。未定義時は, システム用CPUを予約しない。|"0-1"|
 |k8s_worker_enable_nodeport|NodePortによるサービスネットワーク公開を行う場合は, trueに設定(将来対応)|false|
 |k8s_worker_nodeport_range|NodePortの範囲|"30000-32767"|
-| k8s_operator_authorized_key_list | K8sオペレータアカウント(`kube`)に追加で登録したい公開鍵のリスト。各要素はGitHub 取得分と合わせてソート, 重複排除され, K8sオペレータアカウント(`kube`)の公開鍵に反映されます。| `[]` |
-| k8s_operator_github_key_list | K8sオペレータアカウント(`kube`)の公開鍵をGitHubから取得する際の, Githubアカウントを設定するマッピングのリストです。`[ { github: '<アカウント名>' } ]` のようなリストを設定することで, `https://github.com/<account>.keys` から鍵を取得し, K8sオペレータアカウント(`kube`)の公開鍵に追加します。取得した公開鍵は, `k8s_operator_authorized_key_list`の設定値と合わせてソート, 重複排除され, K8sオペレータアカウント(`kube`)の公開鍵に反映されます。| `[]` |
-| k8s_helm_completion_enabled | `true` の場合, Helm の bash / zsh 補完ファイルを生成・配置します。| `true` |
+|k8s_operator_authorized_key_list|K8sオペレータアカウント(`kube`)に追加で登録したい公開鍵のリスト。各要素はGitHub 取得分と合わせてソート, 重複排除され, K8sオペレータアカウント(`kube`)の公開鍵に反映されます。|`[]`|
+|k8s_operator_github_key_list|K8sオペレータアカウント(`kube`)の公開鍵をGitHubから取得する際の, Githubアカウントを設定するマッピングのリストです。`[ { github: '<アカウント名>' } ]` のようなリストを設定することで, `https://github.com/<account>.keys` から鍵を取得し, K8sオペレータアカウント(`kube`)の公開鍵に追加します。取得した公開鍵は, `k8s_operator_authorized_key_list`の設定値と合わせてソート, 重複排除され, K8sオペレータアカウント(`kube`)の公開鍵に反映されます。|`[]`|
+|k8s_helm_completion_enabled|`true` の場合, Helm の bash / zsh 補完ファイルを生成・配置します。|`true`|
 
 共通CA関連の設定値 (`enable_create_k8s_ca`, `k8s_common_ca`, `k8s_shared_ca_output_dir`, `k8s_shared_ca_replace_kube_ca`) を有効にすると, `k8s-shared-ca` ロールが共通CAの生成/取得と配布を行い, `k8s-ctrlplane` ロールは `kubeadm reset` 後に当該共通CAを `/etc/kubernetes/pki/shared-ca/` へ復元した上で `kubeadm init` を実行する。`k8s_shared_ca_replace_kube_ca: true` の場合, API サーバや kube-controller-manager 等の証明書は共通CAで再発行される。 ワーカーノードでは `kubeadm reset` / `kubeadm join` を併せて実施して全ノードが新しいルート共通CAを信頼する状態へ更新する。
 このため, クラスタ再構築時はコントロールプレインとワーカーノードの双方を再構築すること。
@@ -562,7 +565,7 @@ k8s_operator_github_key_listにk8sの各ノードへログインするために�
 
 記載例は以下の通り:
 
-```:yaml
+```yaml
 k8s_operator_github_key_list:
   - { github: 'sampleuser' }
 ```
@@ -638,7 +641,7 @@ Cilium Container Network Interface (`CNI`) 関連の設定を以下に記載す�
 |k8s_cilium_cli_archive_name|配布する Cilium CLI アーカイブ名|`cilium-linux-amd64.tar.gz`|
 |k8s_cilium_cli_download_url|Cilium CLI のダウンロード URL|`https://github.com/cilium/cilium-cli/releases/latest/download/{{ k8s_cilium_cli_archive_name }}`|
 |k8s_cilium_cli_checksum_url|Cilium CLI の SHA256 チェックサム取得先|`{{ k8s_cilium_cli_download_url }}.sha256sum`|
-|k8s_cilium_cli_completion_enabled| Ciliumのbash/zsh用シェル補完ファイルを生成する。| `true` |
+|k8s_cilium_cli_completion_enabled|Ciliumのbash/zsh用シェル補完ファイルを生成する。|`true`|
 |k8s_cilium_shared_ca_enabled|`k8s-k8s-k8s-cilium-shared-ca` ロールによる `cilium-ca` Secret の生成/更新を有効化する|`false`|
 |k8s_cilium_shared_ca_reuse_k8s_ca|`k8s-shared-ca` ロールで生成した共通CAを流用する場合に true を指定する|`false`|
 |k8s_cilium_shared_ca_output_dir|共通CAを自動生成する際の出力ディレクトリ|`/etc/kubernetes/pki/k8s-k8s-cilium-shared-ca`|
@@ -670,10 +673,10 @@ Cilium Container Network Interface (`CNI`) 関連の設定を以下に記載す�
 |k8s_cilium_clustermesh_tls_cert_filename|生成する Transport Layer Security (`TLS`) 証明書のファイル名|`cilium-clustermesh.crt`|
 |k8s_cilium_clustermesh_tls_key_filename|生成する Transport Layer Security (`TLS`) 秘密鍵のファイル名|`cilium-clustermesh.key`|
 |k8s_cilium_clustermesh_tls_key_size|Transport Layer Security (`TLS`) 秘密鍵のビット長|`4096`|
-| hubble_cli_version | 配布する Hubble CLI のバージョン。未指定の場合は内部整合性異常とみなし処理を停止します。 | `1.18.3` |
-| hubble_cli_github_repo | リリースを参照する GitHub リポジトリ。| `cilium/hubble` |
-| hubble_cli_release_tag_prefix | GitHub タグに付与する接頭辞。| `v` |
-|hubble_cli_download_url | ダウンロード URL。独自ミラーを利用する場合は, `vars/all-config.yml`内でURLを定義し, 規定値を上書きしてください。 | 上記パラメータを組み合わせた文字列|
+|hubble_cli_version|配布する Hubble CLI のバージョン。未指定の場合は内部整合性異常とみなし処理を停止します。|`1.18.3`|
+|hubble_cli_github_repo|リリースを参照する GitHub リポジトリ。|`cilium/hubble`|
+|hubble_cli_release_tag_prefix|GitHub タグに付与する接頭辞。|`v`|
+|hubble_cli_download_url|ダウンロード URL。独自ミラーを利用する場合は, `vars/all-config.yml`内でURLを定義し, 規定値を上書きしてください。|上記パラメータを組み合わせた文字列|
 
 `k8s_cilium_shared_ca_enabled: true` の場合, `k8s-cilium-shared-ca` ロールがコントロールプレインノードで `kubectl apply` を実行し, `kube-system/{{ k8s_cilium_shared_ca_secret_name }}` Secret を共通CAから再生成する。`k8s_cilium_shared_ca_reuse_k8s_ca: true` を指定する際は, 同一ホストで `k8s-shared-ca` ロールを先に実行し, `k8s_shared_ca_cert_path` / `k8s_shared_ca_key_path` の facts を取得しておくこと。`k8s_cilium_shared_ca_reuse_k8s_ca: false` で `k8s_cilium_shared_ca_auto_create: true` の場合はロールが `openssl` を用いて証明書/鍵を自動生成し, `k8s_cilium_shared_ca_output_dir` に配置する。既存の証明書/鍵をそのまま利用する場合は同ディレクトリへ事前配置するか, `k8s_cilium_shared_ca_cert_path` / `k8s_cilium_shared_ca_key_path` へフルパスを指定し, 必要に応じて `k8s_cilium_shared_ca_auto_create: false` を設定する。
 `k8s_cilium_shared_ca_cert_path` / `k8s_cilium_shared_ca_key_path` が空文字列でなければ, `k8s_cilium_shared_ca_output_dir` + ファイル名よりも優先的に参照される。`k8s_cilium_shared_ca_auto_create: false` を指定した場合, ロールは証明書/鍵を生成・更新せず既存ファイルの存在を検証するのみで, 見つからない場合はタスクを失敗させる。
@@ -691,11 +694,11 @@ Cilium BGP Control Planeの設定は, `host_vars`配下のK8sクラスタを構�
 | --- | --- | --- | --- |
 | `enabled` | bool | BGP Control Plane を有効化します。 | `true` |
 | `node_name` | string | CiliumNode Custom Resource (各ノードにおける Cilium の動作設定) に登録するノード名。実機の `k8s_node_name` (kubectl get nodes で確認できる NAME 列の文字列) を指定します。 | `"k8sctrlplane01"` |
-| `local_asn` | int | 当該ノードが用いるローカル自律システム番号 (`Autonomous System Number` 以下, `ASN`)。| `65011` |
+| `local_asn` | int | 当該ノードが用いるローカル自律システム番号 (`Autonomous System Number` 以下, `ASN`)。 | `65011` |
 | `kubeconfig` | string (ファイルパス文字列) | Cilium が Kubernetes API に接続するための `kubeconfig` ファイルのパス名を指定します。 | `"/etc/kubernetes/admin.conf"` |
 | `export_pod_cidr` | bool | Pod CIDR (当該ノードが所属する K8s クラスタ内の Pod 仮想ネットワークのアドレス帯) を BGP で広告します。 | `true` |
 | `advertise_services` | bool | Service CIDR (当該ノードが所属する K8s クラスタ内のサービスネットワーク上の仮想 IP アドレス帯) を BGP で広告します。 | `false` |
-| `address_families` | list[string / dict] | 各 BGP ピアに共通で適用するアドレスファミリ設定のリストです。リストの要素が文字列の場合は `ipv4` / `ipv6` などの BGPが扱うアドレス体系識別子(`Address Family Identifier` (`AFI`) )を指定します。リストの要素を文字列として指定した場合は, 後続アドレスファミリ識別子(`Subsequent Address Family Identifier` (`SAFI`))に`unicast`を指定したものとして扱い, 既定の広告ラベルを紐づけます。リストの要素を辞書として指定する場合の指定方法は, 「`k8s_bgp`変数の`address_families`の要素を辞書として指定する場合の指定方法」を参照してください。| `["ipv4", {"afi": "ipv6", "safi": "unicast"}]` |
+| `address_families` | list[string / dict] | 各 BGP ピアに共通で適用するアドレスファミリ設定のリストです。リストの要素が文字列の場合は `ipv4` / `ipv6` などの BGPが扱うアドレス体系識別子(`Address Family Identifier` (`AFI`) )を指定します。リストの要素を文字列として指定した場合は, 後続アドレスファミリ識別子(`Subsequent Address Family Identifier` (`SAFI`))に`unicast`を指定したものとして扱い, 既定の広告ラベルを紐づけます。リストの要素を辞書として指定する場合の指定方法は, 「`k8s_bgp`変数の`address_families`の要素を辞書として指定する場合の指定方法」を参照してください。 | `["ipv4", {"afi": "ipv6", "safi": "unicast"}]` |
 | `neighbors` | list[dict] | 接続先 BGP ピアのリスト。各要素は下記のサブキーを持つ辞書です。 | `[...]` |
 | `neighbors[].peer_address` | string (CIDR文字列) | BGP ピアのアドレス (CIDR 形式)。 `/32` や `/128` で単一ホストを指定します。 | `"192.168.30.49/32"` |
 | `neighbors[].peer_asn` | int | 対向 BGP ピアの ASN。 | `65011` |
@@ -747,11 +750,11 @@ Whereabouts CNI関連の設定を以下に記載する。
 
 ##### kubeconfig ファイルの配置と属性
 
-| ファイル | 配置ホスト | 所有者/グループ | 権限 | 含まれる情報 |
+|ファイル|配置ホスト|所有者/グループ|権限|含まれる情報|
 |---|---|---|---|---|
 |~kube/.kube/cluster*-embedded.kubeconfig|コントロールプレインのみ|`kube:kube`|`0600`|各コントロールプレイン専用の証明書を内包した `kubeconfig`。共通CA証明書 `/etc/kubernetes/pki/shared-ca/cluster-mesh-ca.crt` (共通CA証明書未使用時は `/etc/kubernetes/pki/ca.crt`), および `/etc/kubernetes/admin.conf` が保持する管理者クライアント証明書と秘密鍵, クラスタ定義 (`clusters`) とユーザー定義 (`users`) とを内包する。統合 `kubeconfig` (`merged-kubeconfig.conf`)の生成に使用される。|
 |~kube/.kube/ca-embedded-admin.conf|コントロールプレインのみ|`kube:kube`|`0600`|`/etc/kubernetes/admin.conf` に含まれるクラスタCA証明書, 共通CA証明書 ( `/etc/kubernetes/pki/shared-ca/cluster-mesh-ca.crt` ( 共通CA証明書未使用時は `/etc/kubernetes/pki/ca.crt` ), 管理者クライアント証明書, 管理者クライアント秘密鍵とを内包する。|
-|~kube/.kube/merged-kubeconfig.conf|全ノード|`kube:kube`|`0600`| 全コントロールプレインのコンテキスト (`kubernetes-admin@<Kubernetes API エンドポイントを識別するための名前>`) を統合した統合 `kubeconfig`。クラスタ定義 (`clusters`), ユーザー定義 (`users`), コンテキスト定義 (`contexts`) をまとめて保持する。|
+|~kube/.kube/merged-kubeconfig.conf|全ノード|`kube:kube`|`0600`|全コントロールプレインのコンテキスト (`kubernetes-admin@<Kubernetes API エンドポイントを識別するための名前>`) を統合した統合 `kubeconfig`。クラスタ定義 (`clusters`), ユーザー定義 (`users`), コンテキスト定義 (`contexts`) をまとめて保持する。|
 |~kube/.kube/config (シンボリックリンク)|全ノード|`kube:kube`|`0600`|`kubectl` を`--kubeconfig`オプション無しに, 統合 `kubeconfig`を使用して実行するためのシンボリックリンク。|
 |~kube/.kube/config-default|全ノード|`kube:kube`|`0600`|`kubeadm init` 実行時の`kubeconfig`ファイル (`~/.kube/config`) を保存するためのバックアップファイル。統合 `kubeconfig`へのシンボリックリンクを`~/.kube/config`として作成する際に, 既存の `~/.kube/config` が通常ファイルとして存在していた場合にのみ作成される。|
 |/etc/kubernetes/ca-embedded-admin.conf|コントロールプレインのみ|`root:root`|`0600`|root 向けに配置する証明書埋め込み `kubeconfig` クラスタCA証明書, 共通CA証明書 ( `/etc/kubernetes/pki/shared-ca/cluster-mesh-ca.crt`, 共通CA証明書未使用時は `/etc/kubernetes/pki/ca.crt` ), 管理者クライアント証明書, 管理者クライアント秘密鍵とを内包する。root 権限での操作時に使用する。|
@@ -800,7 +803,7 @@ Debian 系では `pslurp` が `parallel-slurp` という名称で提供される
 
 まずコンテキスト名を確認する。
 
-```:bash
+```bash
 kubectl config get-contexts
 CURRENT   NAME                            CLUSTER    AUTHINFO             NAMESPACE
 *         kubernetes-admin@kubernetes     cluster1   kubernetes-admin
@@ -810,7 +813,7 @@ CURRENT   NAME                            CLUSTER    AUTHINFO             NAMESP
 上記の`NAME`列に出力されている文字列をコンテキスト名(`<context>`)として使用する。
 以下のコマンドを各コントロールプレインで実行し, 出力されるハッシュ値がコントロールプレイン間で一致することを確認する。
 
-```:bash
+```bash
 kubectl --context <context> -n kube-system get secret cilium-ca -o jsonpath='{.data.ca\.crt}' | base64 -d | sha256sum
 ```
 
@@ -820,7 +823,7 @@ kubectl --context <context> -n kube-system get secret cilium-ca -o jsonpath='{.d
 
 まずコンテキスト名を確認する。
 
-```:bash
+```bash
 kubectl config get-contexts
 CURRENT   NAME                            CLUSTER    AUTHINFO             NAMESPACE
 *         kubernetes-admin@kubernetes     cluster1   kubernetes-admin
@@ -829,7 +832,7 @@ CURRENT   NAME                            CLUSTER    AUTHINFO             NAMESP
 
 上記の`NAME`列に出力されている文字列をコンテキスト名(`<context>`)として使用する。以下のコマンドを各コントロールプレインで実行し, 出力されるハッシュ値がコントロールプレイン間で一致することを確認する。
 
-```:bash
+```bash
 kubectl --context <context> -n kube-system get secret cilium-clustermesh -o jsonpath='{.data.tls\.crt}' | base64 -d | openssl x509 -noout -text
 ```
 
@@ -838,14 +841,14 @@ kubectl --context <context> -n kube-system get secret cilium-clustermesh -o json
 - **コントロールプレインの更新**:
   `inventory/hosts`の`k8s_ctrl_plane`の項目に集約対象となるコントロールプレインのホスト名を記載したうえで, コントロールプレインの`kubeconfig`を更新するMake ターゲット(`update-ctrlplane-kubeconfig`)を実行し, すべてのコントロールプレインノードに対して, 埋め込みファイル生成と`kubeconfig`の統合とを行う。
 
-  ```:shell
+  ```shell
   make update-ctrlplane-kubeconfig
   ```
 
 - **ワーカーノードへの再配布**:
   `inventory/hosts`の`k8s_worker`の項目に配布対象となるワーカノードのホスト名を記載したうえで, コントロールプレインで統合された統合 `kubeconfig` (`merged-kubeconfig.conf`) を各ワーカーに配布する Make ターゲット (`update-worker-kubeconfig`)を実行する。`update-worker-kubeconfig` は直前の手順で最新化された 統合 `kubeconfig` (`merged-kubeconfig.conf`) をコントロールプレインから取得するため, 事前に `make update-ctrlplane-kubeconfig` を完了していることが前提となる。
 
-  ```:shell
+  ```shell
   make update-worker-kubeconfig
   ```
 
@@ -859,7 +862,7 @@ kubectl --context <context> -n kube-system get secret cilium-clustermesh -o json
 
 統合 `kubeconfig` (`merged-kubeconfig.conf`)中のコンテキスト一覧は, `kube` ユーザでログインした状態で以下を実行することで取得する。
 
-```:shell
+```shell
 kubectl config get-contexts --kubeconfig=~/.kube/merged-kubeconfig.conf
 CURRENT   NAME                            CLUSTER    AUTHINFO             NAMESPACE
 *         kubernetes-admin@kubernetes     cluster1   kubernetes-admin
@@ -874,7 +877,7 @@ CURRENT   NAME                            CLUSTER    AUTHINFO             NAMESP
 取得したコンテキスト名を `kubectl config use-context` で切り替える。
 `kube` ユーザでログインして, コンテキスト指定により操作対象コントロールプレインを切り替える例を以下に示す:
 
-```:shell
+```shell
 kubectl config use-context kubernetes-admin@kubernetes-2
 Switched to context "kubernetes-admin@kubernetes-2".
 kubectl get nodes
@@ -937,7 +940,7 @@ netif_list変数は, 以下の要素からなる辞書のリストである。
 |static_ipv4_addr|静的 IPv4 アドレス(省略可)|"192.168.20.41"|
 |network_ipv4_prefix_len|IPv4 プレフィックス長(省略可)|24|
 |gateway4|IPv4 デフォルトゲートウェイ (省略可)|"192.168.20.1"|
-|static_ipv6_addr|静的 IPv6 アドレス (省略可) |"fd69:6684:61a:1::41"|
+|static_ipv6_addr|静的 IPv6 アドレス (省略可)|"fd69:6684:61a:1::41"|
 |network_ipv6_prefix_len|IPv6 プレフィックス長 (省略可)|64|
 |gateway6|IPv6 デフォルトゲートウェイ(省略可)|"fd69:6684:61a:1::1"|
 |ignore_auto_ipv4_dns|DHCPから自動取得した IPv4 DNS サーバを無視する(true/false) (省略可)|true|

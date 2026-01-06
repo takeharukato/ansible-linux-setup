@@ -534,6 +534,13 @@ frr_group_rhel:   "frrvty"
 frr_group_name: "{{ (ansible_facts.os_family == 'Debian') | ternary(frr_group_debian, frr_group_rhel) }}"
 
 ########################################################################################
+# xcp-ng ( Xen Cloud Platform Next Generation )
+########################################################################################
+xe_linux_service_name_debian: "xe-linux-distribution"
+xe_linux_service_name_rhel:   "xe-linux-distribution"
+xe_linux_service_name: "{{ (ansible_facts.os_family == 'Debian') | ternary(xe_linux_service_name_debian, xe_linux_service_name_rhel) }}"
+
+########################################################################################
 # サービス名など ( 差異が出やすいもの )
 ########################################################################################
 
