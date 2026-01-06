@@ -18,6 +18,8 @@
       tags: common
     - role: ntp-client
       tags: ntp-client
+    - role: terraform
+      tags: terraform
     - role: user-settings
       tags: user-settings
     - role: devel-packages

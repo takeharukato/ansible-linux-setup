@@ -9,6 +9,7 @@ top=.
 	run_ldap_server run_redmine_server \
 	run_k8s_common run_k8s_ctrl_plane run_k8s_worker run_netgauge \
 	run_dns_server run_selinux update-ctrlplane-kubeconfig update-worker-kubeconfig \
+	run_terraform \
 	run_frr_basic run_gitlab_server run_sbom
 
 
@@ -188,6 +189,9 @@ run_gitlab_server:
 
 run_sbom:
 	ansible-playbook --tags "sbom" ${OPT_COMMON} --extra-vars=sbom_enabled=true 2>&1 |tee build-sbom.log
+
+run_terraform:
+	ansible-playbook --tags "terraform" ${OPT_COMMON} 2>&1 |tee build-terraform.log
 
 update-ctrlplane-kubeconfig:
 	ansible-playbook -i inventory/hosts k8s-ctrl-plane.yml --tags k8s-kubeconfig 2>&1 |tee build-update-ctrlplane-kubeconfig.log
