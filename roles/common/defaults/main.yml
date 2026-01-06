@@ -11,6 +11,16 @@ common_timezone: "Asia/Tokyo"
 # VMWare 使用有無
 use_vmware: false
 
+# xcp-ng 使用有無
+use_xcpng: false
+
+xcpng_xe_guest_utilities_version: "8.4.0"
+xcpng_xe_guest_utilities_release: "1"
+xcpng_xe_guest_utilities_url: "https://github.com/xenserver/xe-guest-utilities/releases/tag/v{{ xcpng_xe_guest_utilities_version }}"
+xcpng_xe_guest_utilities_rpm_url: "https://github.com/xenserver/xe-guest-utilities/releases/download/v{{ xcpng_xe_guest_utilities_version }}/xe-guest-utilities-{{ xcpng_xe_guest_utilities_version }}-{{ xcpng_xe_guest_utilities_release }}.x86_64.rpm"
+xcpng_xen_store_rpm_url: "https://github.com/xenserver/xe-guest-utilities/releases/download/v{{ xcpng_xe_guest_utilities_version }}/xe-guest-utilities-xenstore-{{ xcpng_xe_guest_utilities_version }}-{{ xcpng_xe_guest_utilities_release }}.x86_64.rpm"
+xcpng_xe_guest_utilities_deb_url: "https://github.com/xenserver/xe-guest-utilities/releases/download/v{{ xcpng_xe_guest_utilities_version }}/xe-guest-utilities_{{ xcpng_xe_guest_utilities_version }}-{{ xcpng_xe_guest_utilities_release }}_amd64.deb"
+
 # Firewall設定
 enable_firewall: false
 

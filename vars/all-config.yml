@@ -4,7 +4,9 @@
 #
 
 # VMWareを使用する場合はtrueに設定する
-use_vmware: true
+use_vmware: false
+# xcp-ngを使用する場合はtrueに設定する
+use_xcpng: false
 
 # ノード設定後に再起動するための指示
 force_reboot: false
@@ -99,7 +101,11 @@ gateway4: "{{router_ipv4_address}}"
 gateway6: "{{router_ipv6_address}}"
 
 # 管理用VMデフォルトのネットワークインターフェース
-mgmt_nic: "ens160"
+# mgmt_nic: "ens160" # ESXi環境
+# mgmt_nic: "ens192" # Proxmox VE環境
+# mgmt_nic: "ens3"   # OpenStack環境
+# mgmt_nic: "enX0"   # xcp-ng環境
+mgmt_nic: "enX0"
 
 
 #

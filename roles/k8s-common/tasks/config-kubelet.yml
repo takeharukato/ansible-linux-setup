@@ -24,18 +24,33 @@
     fail_msg: "No kubelet interface name specified. Set k8s_kubelet_nic or mgmt_nic."
 
 # 3) _k8s_common_netif_items から“該当する項目のみ”を取得
-- name: Pick interface item from _k8s_common_netif_items (no fallback)
-  ansible.builtin.set_fact:
-    _kubelet_item: "{{ (_k8s_common_netif_items | selectattr('netif','equalto', _kubelet_if_name) | list) | first }}"
 
-# 4) 指定名が一覧に無ければエラー
+- name: Build candidate list for kubelet interface
+  ansible.builtin.set_fact:
+    _kubelet_candidates: "{{ _k8s_common_netif_items | selectattr('netif','equalto', _kubelet_if_name) | list }}"
+
 - name: Ensure chosen interface exists in _k8s_common_netif_items
+  ansible.builtin.assert:
+    that:
+      - _kubelet_candidates is defined
+      - (_kubelet_candidates | length) > 0
+    fail_msg: >-
+      Specified interface '{{ _kubelet_if_name }}' not found in _k8s_common_netif_items.
+      Available: {{ _k8s_common_netif_items | map(attribute='netif') | list | unique | join(', ') }}.
+
+- name: Pick interface item from _k8s_common_netif_items
+  ansible.builtin.set_fact:
+    _kubelet_item: "{{ _kubelet_candidates | first }}"
+
+
+# 4) _kubelet_item の整合性チェック
+- name: Ensure picked interface item is valid
   ansible.builtin.assert:
     that:
       - _kubelet_item is defined
       - _kubelet_item.netif is defined
-      - _kubelet_item.netif | length > 0
-    fail_msg: "Specified interface '{{ _kubelet_if_name }}' not found in _k8s_common_netif_items."
+      - (_kubelet_item.netif | length) > 0
+    fail_msg: "Picked kubelet interface item is invalid."
 
 # 5) IPv4/IPv6 を抽出
 - name: Extract node IPv4/IPv6 from the picked item

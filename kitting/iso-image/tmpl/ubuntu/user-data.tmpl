@@ -17,7 +17,6 @@ autoinstall:
   packages:
     - avahi-daemon
     - avahi-utils
-    - open-vm-tools
     - curl
 
   user-data:
@@ -53,6 +52,11 @@ autoinstall:
               metadata_transport:
                 - guestinfo
               vmware_rpctool: true
+      - path: /etc/cloud/cloud.cfg.d/99-xenorchestra.cfg
+        owner: root:root
+        permissions: '0644'
+        content: |
+          datasource_list: [ NoCloud, ConfigDrive, None ]
       - path: /var/tmp/update-hostname.sh
         owner: root:root
         permissions: '0644'
@@ -83,5 +87,5 @@ autoinstall:
       - [ bash, -lc, 'install -m 0755 -o ${USER_NAME} -g ${USER_NAME} "/var/tmp/update-hostname.sh" "/home/${USER_NAME}/update-hostname.sh"' ]
       # 一時ファイルを削除
       - [ bash, -lc, 'rm -f "/var/tmp/update-hostname.sh"' ]
-      # avahi-daemon と open-vm-tools を自動起動設定 ( 失敗しても無視 )
-      - [ bash, -lc, 'systemctl enable --now avahi-daemon open-vm-tools || true' ]
+      # avahi-daemon を自動起動設定 ( 失敗しても無視 )
+      - [ bash, -lc, 'systemctl enable --now avahi-daemon || true' ]

@@ -35,60 +35,63 @@
 
 | 変数名 | 既定値 | 説明 |
 | ------ | ------ | ---- |
-| `common_timezone` | `"Asia/Tokyo"` | 適用するタイムゾーン名。空文字列の場合は変更しません。|
-| `use_vmware` | `false` | VMware 用追加パッケージを導入するかを制御します。|
-| `enable_firewall` | `false` | true の場合は既存ファイアウォールを停止しません。false で `config-disable-firewall.yml` が動作します。|
-| `common_selinux_state` | `"permissive"` | SELinux の望ましい状態を指定します。|
-| `common_disable_cron_mails` | `false` | true で `/etc/crontab` の `MAILTO` を空文字へ統一します。|
-| `common_envdir` | `/etc/default` ( Debian系の場合 ), `/etc/sysconfig` ( RHEL系の場合 ) | 環境ファイルを配置するディレクトリを OS に応じて切り替えます。|
-| `common_iface_deny_regex` | `"^(docker\|br-\|veth\|virbr\|vboxnet\|vmnet\|vnet\|tun\|tap\|wg\|tailscale\|zt\|lo)"` | DNS 更新対象から除外したいインターフェース名の正規表現。|
-| `common_autonetconfig_prefix` | `{{ netconfig_prefix }}` | 既存自動ネットワーク設定を退避するパスのプレフィックスです。|
-| `use_nm_ddns_update_scripts` | `false` | Dynamic DNS 連携スクリプト一式を展開する。|
-| `common_sysctl_user_ptrace_enable` | `true` | true で `kernel.yama.ptrace_scope` を 0 に設定しユーザ ptrace を許可します。|
-| `common_sysctl_user_dmesg_enable` | `true` | true で `kernel.dmesg_restrict` を 0 に設定し一般ユーザの `dmesg` を許可します。|
-| `common_sysctl_inotify_max_user_watches` | `524288` | `fs.inotify.max_user_watches` に適用する上限値。|
-| `sudo_nopasswd_groups_extra` | `['adm', 'cdrom', 'sudo', 'dip', 'plugdev', 'lxd', 'systemd-journal']` | NOPASSWD を付与する追加グループ。|
-| `sudo_nopasswd_groups_autodetect` | `true` | `sudo` / `wheel` の自動検出を有効にします。|
-| `sudo_nopasswd_absent` | `false` | true でドロップインを削除 (ロールバック) します。|
-| `sudo_dropin_prefix` | `"99-nopasswd"` | `/etc/sudoers.d` に生成するファイル名の接頭辞。|
-| `common_default_nic` | `"ens160"` | 管理用 NIC の既定名。|
-| `netif_nm_link_dir_rhel` | `"/etc/systemd/network"` | RHEL 系の systemd `.link` 配置ディレクトリ。|
-| `netif_nm_link_dir_debian` | `"/etc/systemd/network"` | Debian 系の systemd `.link` 配置ディレクトリ。|
-| `netif_nm_link_dir` | `/etc/systemd/network` | 実際に使用する `.link` 配置先。|
-| `mgmt_nic` | `""` | 管理用 NIC を明示するための変数。空の場合は後続タスクが `common_default_nic` で補完します。|
-| `gateway4` | `""` | IPv4 デフォルトゲートウェイのフォールバック値。|
-| `gateway6` | `""` | IPv6 デフォルトゲートウェイのフォールバック値。|
-| `ipv4_name_server1` | `""` | IPv4 DNS サーバ 1 のフォールバック値。|
-| `ipv4_name_server2` | `""` | IPv4 DNS サーバ 2 のフォールバック値。|
-| `ipv6_name_server1` | `""` | IPv6 DNS サーバ 1 のフォールバック値。|
-| `ipv6_name_server2` | `""` | IPv6 DNS サーバ 2 のフォールバック値。|
-| `_mgmt_ignore_auto_ipv4_dns` | `ipv4_name_server1`または`ipv4_name_server2`が定義されている場合は真 | IPv4 DNS を自動取得から除外する。|
-| `_mgmt_ignore_auto_ipv6_dns` | `ipv6_name_server1`または`ipv6_name_server2`が定義されている場合は真| IPv6 DNS を自動取得から除外する。|
-| `_common_network_iface` | `mgmt_nic`変数の設定値, `mgmt_nic`変数未定義の場合, `common_default_nic`変数の設定値(`ens160`)。| 各種スクリプトが参照する代表 NIC 名。|
-| `ddns_client_update_base` | `"ddns-client-update"` | DDNS 更新スクリプトのベース名。|
-| `ddns_client_update_sh_basename` | `{{ddns_client_update_base}}.sh` | `ddns-client-update.sh` のファイル名。|
-| `ddns_client_update_sh_dest_dir` | `"/usr/local/sbin"` | `ddns-client-update.sh` を配置するディレクトリ。|
-| `ddns_client_update_sh_path` | `{{ ddns_client_update_sh_dest_dir }}/{{ ddns_client_update_sh_basename }}` | スクリプト本体のフルパス。|
-| `ddns_client_update_sh_sysconfig_path` | `{{ common_envdir }}/{{ ddns_client_update_base }}` | スクリプト用環境ファイルの配置先。|
-| `dns_ddns_key_file` | `"/etc/nsupdate/ddns-clients.key"` | TSIG 鍵の配置先。|
-| `dns_ddns_key_name` | `"ddns-clients"` | TSIG 鍵のキー名。|
-| `nm_ra_addr_watch_base` | `"nm-ra-addr-watch"` | RA 監視ワーカーのベース名。|
-| `nm_ra_addr_watch_basename` | `{{ nm_ra_addr_watch_base }}` | ワーカ実体のファイル名。|
-| `nm_ra_addr_watch_dest_dir` | `"/usr/local/libexec"` | ワーカスクリプトを配置するディレクトリ。|
-| `nm_ra_addr_watch_path` | `{{ nm_ra_addr_watch_dest_dir }}/{{ nm_ra_addr_watch_basename }}` | ワーカのフルパス。|
-| `nm_ra_addr_watch_interval` | `10` | RA 監視ワーカーのポーリング間隔 (秒)。|
-| `nm_ra_addr_watch_iface_allow_regex` | `"^{{ _common_network_iface }}$"` | 監視対象インターフェースの正規表現。|
-| `nm_ra_addr_watch_iface_deny_regex` | `{{ common_iface_deny_regex }}` | 監視除外インターフェースの正規表現。|
-| `nm_ra_addr_watch_debounce_ms` | `800` | Dispatcher 通知前のデバウンス時間 (ミリ秒)。|
-| `nm_ra_addr_watch_sysconfig_path` | `{{ common_envdir }}/{{ nm_ra_addr_watch_basename }}` | ワーカー環境ファイルの配置先。|
-| `nm_dispatcher_path` | `"/etc/NetworkManager/dispatcher.d"` | Dispatcher スクリプトを格納するディレクトリ。|
-| `nm_ns_update_base` | `"nm-ns-update"` | NetworkManager dispatcher スクリプトのベース名。|
-| `nm_ns_update_num` | `"90"` | Dispatcher スクリプトの連番接頭辞。|
-| `nm_ns_update_basename` | `{{ nm_ns_update_num }}-{{ nm_ns_update_base }}` | Dispatcher スクリプトのファイル名。|
-| `nm_ns_update_path` | `{{ nm_dispatcher_path }}/{{ nm_ns_update_basename }}` | Dispatcher スクリプトのフルパス。|
-| `nm_ns_update_sysconfig_path` | `{{ common_envdir }}/{{ nm_ns_update_base }}` | Dispatcher 用環境ファイルの配置先。|
-| `nm_ns_update_iface_allow_regex` | `"^{{ _common_network_iface }}$"` | Dispatcher が処理する IF の正規表現。|
-| `nm_ns_update_iface_deny_regex` | `{{ common_iface_deny_regex }}` | Dispatcher が除外する IF の正規表現。|
+| `common_timezone` | `"Asia/Tokyo"` | 適用するタイムゾーン名。空文字列の場合は変更しません。 |
+| `use_vmware` | `false` | VMware 用追加パッケージを導入するかを制御します。 |
+| `use_xcpng` | `false` | xcp-ng 用追加パッケージを導入するかを制御します。 |
+| `xcpng_xe_guest_utilities_version` | `"8.4.0"` | xcp-ngゲストエージェントの版数 |
+| `xcpng_xe_guest_utilities_release` | `"1"` | xcp-ngゲストエージェントのリリース版数 |
+| `enable_firewall` | `false` | true の場合は既存ファイアウォールを停止しません。false で `config-disable-firewall.yml` が動作します。 |
+| `common_selinux_state` | `"permissive"` | SELinux の望ましい状態を指定します。 |
+| `common_disable_cron_mails` | `false` | true で `/etc/crontab` の `MAILTO` を空文字へ統一します。 |
+| `common_envdir` | `/etc/default` ( Debian系の場合 ), `/etc/sysconfig` ( RHEL系の場合 ) | 環境ファイルを配置するディレクトリを OS に応じて切り替えます。 |
+| `common_iface_deny_regex` | `"^(docker\|br-\|veth\|virbr\|vboxnet\|vmnet\|vnet\|tun\|tap\|wg\|tailscale\|zt\|lo)"` | DNS 更新対象から除外したいインターフェース名の正規表現。 |
+| `common_autonetconfig_prefix` | `{{ netconfig_prefix }}` | 既存自動ネットワーク設定を退避するパスのプレフィックスです。 |
+| `use_nm_ddns_update_scripts` | `false` | Dynamic DNS 連携スクリプト一式を展開する。 |
+| `common_sysctl_user_ptrace_enable` | `true` | true で `kernel.yama.ptrace_scope` を 0 に設定しユーザ ptrace を許可します。 |
+| `common_sysctl_user_dmesg_enable` | `true` | true で `kernel.dmesg_restrict` を 0 に設定し一般ユーザの `dmesg` を許可します。 |
+| `common_sysctl_inotify_max_user_watches` | `524288` | `fs.inotify.max_user_watches` に適用する上限値。 |
+| `sudo_nopasswd_groups_extra` | `['adm', 'cdrom', 'sudo', 'dip', 'plugdev', 'lxd', 'systemd-journal']` | NOPASSWD を付与する追加グループ。 |
+| `sudo_nopasswd_groups_autodetect` | `true` | `sudo` / `wheel` の自動検出を有効にします。 |
+| `sudo_nopasswd_absent` | `false` | true でドロップインを削除 (ロールバック) します。 |
+| `sudo_dropin_prefix` | `"99-nopasswd"` | `/etc/sudoers.d` に生成するファイル名の接頭辞。 |
+| `common_default_nic` | `"ens160"` | 管理用 NIC の既定名。 |
+| `netif_nm_link_dir_rhel` | `"/etc/systemd/network"` | RHEL 系の systemd `.link` 配置ディレクトリ。 |
+| `netif_nm_link_dir_debian` | `"/etc/systemd/network"` | Debian 系の systemd `.link` 配置ディレクトリ。 |
+| `netif_nm_link_dir` | `/etc/systemd/network` | 実際に使用する `.link` 配置先。 |
+| `mgmt_nic` | `""` | 管理用 NIC を明示するための変数。空の場合は後続タスクが `common_default_nic` で補完します。 |
+| `gateway4` | `""` | IPv4 デフォルトゲートウェイのフォールバック値。 |
+| `gateway6` | `""` | IPv6 デフォルトゲートウェイのフォールバック値。 |
+| `ipv4_name_server1` | `""` | IPv4 DNS サーバ 1 のフォールバック値。 |
+| `ipv4_name_server2` | `""` | IPv4 DNS サーバ 2 のフォールバック値。 |
+| `ipv6_name_server1` | `""` | IPv6 DNS サーバ 1 のフォールバック値。 |
+| `ipv6_name_server2` | `""` | IPv6 DNS サーバ 2 のフォールバック値。 |
+| `_mgmt_ignore_auto_ipv4_dns` | `ipv4_name_server1`または`ipv4_name_server2`が定義されている場合は真 | IPv4 DNS を自動取得から除外する。 |
+| `_mgmt_ignore_auto_ipv6_dns` | `ipv6_name_server1`または`ipv6_name_server2`が定義されている場合は真 | IPv6 DNS を自動取得から除外する。 |
+| `_common_network_iface` | `mgmt_nic`変数の設定値, `mgmt_nic`変数未定義の場合, `common_default_nic`変数の設定値(`ens160`)。 | 各種スクリプトが参照する代表 NIC 名。 |
+| `ddns_client_update_base` | `"ddns-client-update"` | DDNS 更新スクリプトのベース名。 |
+| `ddns_client_update_sh_basename` | `{{ddns_client_update_base}}.sh` | `ddns-client-update.sh` のファイル名。 |
+| `ddns_client_update_sh_dest_dir` | `"/usr/local/sbin"` | `ddns-client-update.sh` を配置するディレクトリ。 |
+| `ddns_client_update_sh_path` | `{{ ddns_client_update_sh_dest_dir }}/{{ ddns_client_update_sh_basename }}` | スクリプト本体のフルパス。 |
+| `ddns_client_update_sh_sysconfig_path` | `{{ common_envdir }}/{{ ddns_client_update_base }}` | スクリプト用環境ファイルの配置先。 |
+| `dns_ddns_key_file` | `"/etc/nsupdate/ddns-clients.key"` | TSIG 鍵の配置先。 |
+| `dns_ddns_key_name` | `"ddns-clients"` | TSIG 鍵のキー名。 |
+| `nm_ra_addr_watch_base` | `"nm-ra-addr-watch"` | RA 監視ワーカーのベース名。 |
+| `nm_ra_addr_watch_basename` | `{{ nm_ra_addr_watch_base }}` | ワーカ実体のファイル名。 |
+| `nm_ra_addr_watch_dest_dir` | `"/usr/local/libexec"` | ワーカスクリプトを配置するディレクトリ。 |
+| `nm_ra_addr_watch_path` | `{{ nm_ra_addr_watch_dest_dir }}/{{ nm_ra_addr_watch_basename }}` | ワーカのフルパス。 |
+| `nm_ra_addr_watch_interval` | `10` | RA 監視ワーカーのポーリング間隔 (秒)。 |
+| `nm_ra_addr_watch_iface_allow_regex` | `"^{{ _common_network_iface }}$"` | 監視対象インターフェースの正規表現。 |
+| `nm_ra_addr_watch_iface_deny_regex` | `{{ common_iface_deny_regex }}` | 監視除外インターフェースの正規表現。 |
+| `nm_ra_addr_watch_debounce_ms` | `800` | Dispatcher 通知前のデバウンス時間 (ミリ秒)。 |
+| `nm_ra_addr_watch_sysconfig_path` | `{{ common_envdir }}/{{ nm_ra_addr_watch_basename }}` | ワーカー環境ファイルの配置先。 |
+| `nm_dispatcher_path` | `"/etc/NetworkManager/dispatcher.d"` | Dispatcher スクリプトを格納するディレクトリ。 |
+| `nm_ns_update_base` | `"nm-ns-update"` | NetworkManager dispatcher スクリプトのベース名。 |
+| `nm_ns_update_num` | `"90"` | Dispatcher スクリプトの連番接頭辞。 |
+| `nm_ns_update_basename` | `{{ nm_ns_update_num }}-{{ nm_ns_update_base }}` | Dispatcher スクリプトのファイル名。 |
+| `nm_ns_update_path` | `{{ nm_dispatcher_path }}/{{ nm_ns_update_basename }}` | Dispatcher スクリプトのフルパス。 |
+| `nm_ns_update_sysconfig_path` | `{{ common_envdir }}/{{ nm_ns_update_base }}` | Dispatcher 用環境ファイルの配置先。 |
+| `nm_ns_update_iface_allow_regex` | `"^{{ _common_network_iface }}$"` | Dispatcher が処理する IF の正規表現。 |
+| `nm_ns_update_iface_deny_regex` | `{{ common_iface_deny_regex }}` | Dispatcher が除外する IF の正規表現。 |
 
 ## 再起動発生ポイント
 

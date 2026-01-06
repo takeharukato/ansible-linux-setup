@@ -119,7 +119,7 @@ main() {
           echo "Error: xorriso cannot read in.iso (corrupted or not an ISO)" >&2
           exit 2
         fi
-        # 参考：MIME も見ておく ( 環境によっては常に application/octet-stream のことあり )
+        # 参考: MIME も見ておく ( 環境によっては常に application/octet-stream のことあり )
         if command -v file >/dev/null 2>&1; then
           mime=$(file -b --mime-type in.iso || true)
           case "$mime" in

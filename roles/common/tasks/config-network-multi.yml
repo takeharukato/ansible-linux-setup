@@ -15,6 +15,16 @@
 - include_tasks: config-disable-cloud-init.yml
   when: ansible_facts.os_family == "RedHat"
 
+# 自動設定ファイルの存在確認と除去
+- name: "Remove setup auto network config files"
+  include_tasks: move-default-netplans.yml
+  when:
+    - ansible_facts.os_family == "Debian"
+    - common_autonetconfig_files_debian is defined
+    - common_autonetconfig_files_debian|default([],true)|length > 0
+  loop: "{{ common_autonetconfig_files_debian }}"
+  loop_control:
+    loop_var: item
 
 # ネットワークインターフェース定義を設定
 - name: Normalize multi NIC items

@@ -32,3 +32,20 @@
   notify:
     - disable_gui
     - pkg-autoremove
+
+# xcp-ng client packages
+- name: Install xcp-ng packages
+  shell: |
+    set -e
+    if [ "{{ ansible_facts.os_family }}" = "Debian" ]; then
+      curl -fsSL -o /tmp/xe-guest-utilities.deb "{{ xcpng_xe_guest_utilities_deb_url }}"
+      dpkg -i /tmp/xe-guest-utilities.deb || apt-get -f install -y
+    else
+      curl -fsSL -o /tmp/xe-guest-utilities.rpm "{{ xcpng_xe_guest_utilities_rpm_url }}"
+      curl -fsSL -o /tmp/xe-guest-utilities-xenstore.rpm "{{ xcpng_xen_store_rpm_url }}"
+      dnf install -y /tmp/xe-guest-utilities.rpm /tmp/xe-guest-utilities-xenstore.rpm
+    fi
+  when: use_xcpng|bool
+  notify:
+    - disable_gui
+    - pkg-autoremove
