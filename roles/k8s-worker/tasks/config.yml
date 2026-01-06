@@ -154,6 +154,19 @@
       state: absent
     become: true
 
+  - name: start containerd before kubeadm join
+    ansible.builtin.service:
+      name: containerd
+      state: started
+      enabled: true
+    become: true
+
+  - name: wait for containerd socket
+    ansible.builtin.wait_for:
+      path: /var/run/containerd/containerd.sock
+      timeout: 60
+    become: true
+
   - name: setup worker node
     shell: |
       kubeadm join --config "{{ k8s_kubeadm_config_store }}/kubeadm.config.yml" "{{ k8s_kubeadm_ignore_preflight_errors_arg }}"
