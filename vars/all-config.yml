@@ -100,14 +100,6 @@ gateway4: "{{router_ipv4_address}}"
 # 物理サーバ/管理用VMネットワークのIPv6/Gatewayアドレス
 gateway6: "{{router_ipv6_address}}"
 
-# 管理用VMデフォルトのネットワークインターフェース
-# mgmt_nic: "ens160" # ESXi環境
-# mgmt_nic: "ens192" # Proxmox VE環境
-# mgmt_nic: "ens3"   # OpenStack環境
-# mgmt_nic: "enX0"   # xcp-ng環境
-mgmt_nic: "enX0"
-
-
 #
 # クライアントのDNSサーバの設定
 #
@@ -372,8 +364,6 @@ redmine_backup_dir_on_nfs: "/Linux/Redmine"
 #
 # Gitlab
 #
-# GitLabサーバのWEB UI公開URLのホスト名
-gitlab_hostname: "devserver.example.org"
 # デイリーバックアップ関連設定
 # NFSマウントは以下のように行われる。
 #   mount -t nfs {{gitlab_backup_nfs_server}}:{{gitlab_backup_nfs_dir}} {{ gitlab_backup_mount_point }}

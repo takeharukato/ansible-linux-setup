@@ -11,3 +11,31 @@
 ansible_user: "ansible"
 # ansibleのhomeディレクトリ
 ansible_home_dir: "/home/{{ ansible_user }}"
+
+#
+# 管理用VMデフォルトのネットワークインターフェース
+#
+# 管理用NICを仮想化環境に応じて自動設定する
+# - ESXi/VMware の場合: ens160
+# - xcp-ng/xen の場合: enX0
+# - それ以外: eth0
+# NOTE:
+# - gather_facts により ansible_facts.virtualization_type/role が取得できる前提
+# - 環境により virtualization_type の表記揺れがあり得るため lower で比較
+mgmt_nic: >-
+  {{
+    (
+      (ansible_facts.virtualization_role | default('') | lower) == 'guest'
+      and (ansible_facts.virtualization_type | default('') | lower) == 'vmware'
+    )
+    | ternary(
+        'ens160',
+        (
+          (
+            (ansible_facts.virtualization_role | default('') | lower) == 'guest'
+            and (ansible_facts.virtualization_type | default('') | lower) in ['xen', 'xcp-ng', 'xcpng']
+          )
+          | ternary('enX0', 'eth0')
+        )
+      )
+  }}
