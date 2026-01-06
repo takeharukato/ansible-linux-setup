@@ -39,7 +39,6 @@ services --enabled="avahi-daemon"
 python3
 avahi
 avahi-tools
-open-vm-tools
 curl
 cloud-init
 cloud-utils-growpart
@@ -70,8 +69,6 @@ exec >>/root/ks-post.trace 2>&1
 (set -o pipefail) 2>/dev/null && set -o pipefail || true
 set -x
 
-# open-vm-toolsのサービスの有効化
-systemctl enable vmtoolsd.service || true
 # cloud-initのサービスの有効化
 systemctl enable cloud-init
 # cloud-init が VMware guestinfo のメタデータを優先利用するよう設定
@@ -123,12 +120,8 @@ if ! [[ "${NEW}" =~ ^[A-Za-z0-9]([-A-Za-z0-9]{0,62})(\.[A-Za-z0-9]([-A-Za-z0-9]{
 fi
 
 # 必要なパッケージのインストール
-echo "Ensure avahi, avahi-tools, open-vm-tools"
-dnf -y install avahi avahi-tools open-vm-tools || true
-
-# open-vm-toolsのサービスの有効化
-echo "Enable vmtoolsd.service ( open-vm-tools ) ..."
-systemctl enable vmtoolsd.service || true
+echo "Ensure avahi, avahi-tools"
+dnf -y install avahi avahi-tools || true
 
 # ホスト名の変更
 hostnamectl set-hostname "${NEW}"

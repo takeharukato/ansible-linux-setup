@@ -17,7 +17,6 @@ autoinstall:
   packages:
     - avahi-daemon
     - avahi-utils
-    - open-vm-tools
     - curl
 
   user-data:
@@ -83,5 +82,5 @@ autoinstall:
       - [ bash, -lc, 'install -m 0755 -o ${USER_NAME} -g ${USER_NAME} "/var/tmp/update-hostname.sh" "/home/${USER_NAME}/update-hostname.sh"' ]
       # 一時ファイルを削除
       - [ bash, -lc, 'rm -f "/var/tmp/update-hostname.sh"' ]
-      # avahi-daemon と open-vm-tools を自動起動設定 ( 失敗しても無視 )
-      - [ bash, -lc, 'systemctl enable --now avahi-daemon open-vm-tools || true' ]
+      # avahi-daemon を自動起動設定 ( 失敗しても無視 )
+      - [ bash, -lc, 'systemctl enable --now avahi-daemon || true' ]
