@@ -52,6 +52,11 @@ autoinstall:
               metadata_transport:
                 - guestinfo
               vmware_rpctool: true
+      - path: /etc/cloud/cloud.cfg.d/99-xenorchestra.cfg
+        owner: root:root
+        permissions: '0644'
+        content: |
+          datasource_list: [ NoCloud, ConfigDrive, None ]
       - path: /var/tmp/update-hostname.sh
         owner: root:root
         permissions: '0644'
