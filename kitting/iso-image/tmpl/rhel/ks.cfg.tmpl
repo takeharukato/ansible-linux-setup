@@ -73,6 +73,7 @@ set -x
 systemctl enable cloud-init
 # cloud-init が VMware guestinfo のメタデータを優先利用するよう設定
 mkdir -p /etc/cloud/cloud.cfg.d
+# VMware用
 cat > /etc/cloud/cloud.cfg.d/95-vmware-datasource.cfg <<'EOF'
 datasource_list:
   - VMware
@@ -82,6 +83,11 @@ datasource:
     metadata_transport:
       - guestinfo
     vmware_rpctool: true
+EOF
+
+# xcp-ng用
+cat > /etc/cloud/cloud.cfg.d/99-xenorchestra.cfg <<'EOF'
+datasource_list: [ NoCloud, ConfigDrive, None ]
 EOF
 
 # wheel の NOPASSWD 化 ( 必要なければ外す )
