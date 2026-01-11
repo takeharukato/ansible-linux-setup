@@ -1,0 +1,25 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  サービス関連処理
+#
+---
+
+# iptables-persistent/iptables-servicesサービスが有効化されていることを確認
+- name: "Ensure iptables-services service is enabled (RedHat/CentOS)"
+  ansible.builtin.service:
+    name: "{{ iptables_persistent_service }}"
+    enabled: true
+  when:
+    - ansible_facts.os_family == 'RedHat'
+  become: true
+
+# iptables-persistent/iptables-servicesサービスが有効化されていることを確認
+- name: "Ensure iptables-services service is enabled (RedHat/CentOS)"
+  ansible.builtin.service:
+    name: "{{ iptables_persistent_ipv6_service }}"
+    enabled: true
+  when:
+    - ansible_facts.os_family == 'RedHat'
+  become: true

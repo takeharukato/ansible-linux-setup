@@ -204,11 +204,22 @@ users_listには, 以下の要素からなる辞書のリストを記述する.
 |network_ipv6_prefix_len|物理サーバ/管理用VMネットワークのIPv6ネットワークプレフィクス長|64|
 |network_ipv4_prefix|物理サーバ/管理用VMネットワークのIPv4ネットワークのプレフィクスアドレス|"{{router_ipv4_prefix}}"|
 |network_ipv6_prefix|物理サーバ/管理用VMネットワークのIPv6ネットワークのプレフィクスアドレス|"{{router_ipv6_prefix}}"|
-|network_ipv6_prefix_extra|物理サーバ/運用系用VMネットワークのIPv6ネットワークのプレフィクス|"fd69:6684:61a:2::"|
 |network_ipv4_network_address|物理サーバ/管理用VMネットワークのIPv4ネットワークアドレス|"{{router_ipv4_prefix}}.0"|
 |network_ipv6_network_address|物理サーバ/管理用VMネットワークのIPv6ネットワークアドレス|"{{router_ipv6_prefix}}"|
 |gateway4|IPv4ゲートウエイアドレス|"{{router_ipv4_address}}"|
 |gateway6|IPv6ゲートウエイアドレス|"{{router_ipv6_address}}"|
+|gpm_mgmt_ipv4_prefix|仮想環境内部管理ネットワークのIPv4ネットワークプレフィクス|"192.168.30"|
+|gpm_mgmt_ipv6_prefix|仮想環境内部管理ネットワークのIPv6ネットワークプレフィクス|"fdad:ba50:248b:1::"|
+|gpm_mgmt_ipv4_addr_prefix_len|仮想環境内部管理ネットワークのIPv4アドレスプレフィクス長|24|
+|gpm_mgmt_ipv6_addr_prefix_len|仮想環境内部管理ネットワークのIPv6アドレスプレフィクス長|64|
+|gpm_mgmt_ipv4_network_address|仮想環境内部管理ネットワークのIPv4アドレス|"{{ gpm_mgmt_ipv4_prefix }}.0"|
+|gpm_mgmt_ipv6_network_address|仮想環境内部管理ネットワークのIPv6アドレス|"{{ gpm_mgmt_ipv6_prefix }}"|
+|gpm_mgmt_ipv4_network_cidr|仮想環境内部管理ネットワークのIPv4ネットワークアドレスCIDR|"{{ gpm_mgmt_ipv4_network_address }}/{{ gpm_mgmt_ipv4_addr_prefix_len }}"|
+|gpm_mgmt_ipv6_network_cidr|仮想環境内部管理ネットワークのIPv6ネットワークアドレスCIDR|"{{ gpm_mgmt_ipv6_network_address }}/{{ gpm_mgmt_ipv6_addr_prefix_len }}"|
+|gpm_mgmt_ipv4_router|仮想環境内部管理ネットワークのIPv4ルータアドレス|"{{ gpm_mgmt_ipv4_prefix }}.17"|
+|gpm_mgmt_ipv6_router|仮想環境内部管理ネットワークのIPv6ルータアドレス|"{{ gpm_mgmt_ipv6_prefix }}::17"|
+|gpm_mgmt_ipv4_network_gateway|仮想環境内部管理ネットワークのIPv4ネットワークゲートウェイアドレス|"{{ gpm_mgmt_ipv4_router }}"|
+|gpm_mgmt_ipv6_network_gateway|仮想環境内部管理ネットワークのIPv6ネットワークゲートウェイアドレス|"{{ gpm_mgmt_ipv6_router }}"|
 |mgmt_nic|デフォルトの管理用ネットワークインターフェース名|"ens160"|
 
 #### クライアントのDomain Name System (DNS) サーバ関連設定

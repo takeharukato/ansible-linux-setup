@@ -329,6 +329,67 @@ terraform_apt_keyring_debian : /etc/apt/trusted.gpg.d/hashicorp.gpg
 terraform_apt_repository_debian : "deb [signed-by={{ terraform_apt_keyring_debian }}] {{ terraform_repository_url_debian }} {{ ansible_distribution_release }} main"
 # terraformのリポジトリリストファイル名
 terraform_apt_repository_list_debian : /etc/apt/sources.list.d/hashicorp.list
+
+########################################################################################
+# iptables 永続化パッケージ
+########################################################################################
+iptables_persistent_package_debian: "iptables-persistent"
+iptables_services_package_rhel:   "iptables-services"
+iptables_persistent_package: "{{ (ansible_facts.os_family == 'Debian') | ternary(iptables_persistent_package_debian, iptables_services_package_rhel) }}"
+
+# iptables 永続化サービス名
+# Debian(Ubuntu)は, systemdサービスではないが, 便宜上サービス名として扱う
+iptables_persistent_service_debian: "iptables-persistent"
+iptables_persistent_service_rhel:   "iptables"
+iptables_persistent_service: "{{ (ansible_facts.os_family == 'Debian') | ternary(iptables_persistent_service_debian, iptables_persistent_service_rhel) }}"
+
+# Debian(Ubuntu)は, systemdサービスではないが, 便宜上サービス名として扱う
+iptables_persistent_ipv6_service_debian: "iptables-persistent"
+iptables_persistent_ipv6_service_rhel:   "ip6tables"
+iptables_persistent_ipv6_service: "{{ (ansible_facts.os_family == 'Debian') | ternary(iptables_persistent_ipv6_service_debian, iptables_persistent_ipv6_service_rhel) }}"
+
+########################################################################################
+# Kea DHCP サーバー
+########################################################################################
+
+# kea-dhcp4-server パッケージ (Debian)
+kea_dhcp4_server_packages_debian:
+  - kea-dhcp4-server
+# kea-dhcp4 パッケージ (RHEL)
+kea_dhcp4_server_packages_rhel:
+  - kea
+# kea-dhcp4-server パッケージ名のOS別確定
+kea_dhcp4_server_packages: "{{ (ansible_facts.os_family == 'Debian') | ternary(kea_dhcp4_server_packages_debian, kea_dhcp4_server_packages_rhel) }}"
+# kea leaseデータベース名(Debian)
+kea_lease_db_name_debian: "/var/lib/kea/kea-leases4.csv"
+# kea leaseデータベース名(RHEL)
+kea_lease_db_name_rhel: "/var/lib/kea/kea-dhcp4.leases"
+# kea leaseデータベース名
+kea_lease_db_name: "{{ (ansible_facts.os_family == 'Debian') | ternary(kea_lease_db_name_debian, kea_lease_db_name_rhel) }}"
+
+# kea-dhcp4-server サービス名 (Debian)
+kea_dhcp4_server_service_debian: "kea-dhcp4-server"
+# kea-dhcp4 サービス名 (RHEL)
+kea_dhcp4_server_service_rhel:   "kea-dhcp4"
+# kea-dhcp4-server サービス名
+kea_dhcp4_server_service: "{{ (ansible_facts.os_family == 'Debian') | ternary(kea_dhcp4_server_service_debian, kea_dhcp4_server_service_rhel) }}"
+
+########################################################################################
+# Router Advertisement Daemon (radvd)
+# 相違はないが将来の差分に備えて分離して定義
+########################################################################################
+radvd_package_debian: "radvd"
+radvd_package_rhel:   "radvd"
+radvd_package: "{{ (ansible_facts.os_family == 'Debian') | ternary(radvd_package_debian, radvd_package_rhel) }}"
+
+radvd_service_name_debian: "radvd"
+radvd_service_name_rhel:   "radvd"
+radvd_service_name: "{{ (ansible_facts.os_family == 'Debian') | ternary(radvd_service_name_debian, radvd_service_name_rhel) }}"
+
+radvd_config_file_path_debian: "/etc/radvd.conf"
+radvd_config_file_path_rhel:   "/etc/radvd.conf"
+radvd_config_file_path: "{{ (ansible_facts.os_family == 'Debian') | ternary(radvd_config_file_path_debian, radvd_config_file_path_rhel) }}"
+
 ########################################################################################
 # 時刻同期 ( クライアント/サーバ )
 ########################################################################################

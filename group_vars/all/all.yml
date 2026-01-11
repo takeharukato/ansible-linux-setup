@@ -39,3 +39,21 @@ mgmt_nic: >-
         )
       )
   }}
+
+gpm_mgmt_nic: >-
+  {{
+    (
+      (ansible_facts.virtualization_role | default('') | lower) == 'guest'
+      and (ansible_facts.virtualization_type | default('') | lower) == 'vmware'
+    )
+    | ternary(
+        'ens194',
+        (
+          (
+            (ansible_facts.virtualization_role | default('') | lower) == 'guest'
+            and (ansible_facts.virtualization_type | default('') | lower) in ['xen', 'xcp-ng', 'xcpng']
+          )
+          | ternary('enX1', 'eth1')
+        )
+      )
+  }}

@@ -185,3 +185,11 @@ nm_ns_update_sysconfig_path: "{{ common_envdir }}/{{ nm_ns_update_base }}"
 # 90-nm-ns-update 用 IF フィルタ
 nm_ns_update_iface_allow_regex: "^{{ _common_network_iface }}$"
 nm_ns_update_iface_deny_regex: "{{ common_iface_deny_regex }}"
+# 90-nm-ns-update のログレベル設定
+#  0: ログ出力無し
+#  1: Error のみ出力
+#  2: Warning と Error を出力 (デフォルト)
+#  3: Info, Warning と Error を出力
+#  4: Debug, Info, Warning と Error を出力
+#  5: 全レベル (Debug/Info/Warning/Error) を出力
+nm_ns_update_log_level: 2

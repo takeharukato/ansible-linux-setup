@@ -454,9 +454,9 @@ should_handle_iface() {
     # 旧来の ethN も許容 ( 実機で残っているケースに対応 )
     # 既知の仮想IFや非Ethernet接頭辞は除外
     #
-    # 許可候補:  ^en(o|p|s|x).*$  or  ^eth[0-9]+$
+    # 許可候補:  ^en(o|p|s|x|X).*$  or  ^eth[0-9]+$
     # 除外候補:  ^(veth|br|bond|team|tun|tap|virbr|docker|vboxnet|vmnet|vnet|wg|tailscale|zt|lo|wl|ww).*
-    if [[ ! "${ifname}" =~ ^en(o|p|s|x).*$|^eth[0-9]+$ ]]; then
+    if [[ ! "${ifname}" =~ ^en(o|p|s|x|X).*$|^eth[0-9]+$ ]]; then
         dbg_log "IF ${ifname}: excluded by name filter (not Ethernet-like)"
         return 1
     fi

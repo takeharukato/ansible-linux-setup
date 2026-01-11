@@ -1,0 +1,58 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  ロール固有変数のデフォルト値
+#  group_vars/all/all.yml やhost_varsで上書き可能とするため,
+#  ロール名/defaults/main.yml に定義している
+# kea-dhcpサーバーがバインドするインターフェース
+kea_dhcp_interface: "{{ gpm_mgmt_nic| default(mgmt_nic, true) }}"
+# kea-dhcpサーバーの設定ファイルパス
+kea_dhcp_config_file: /etc/kea/kea-dhcp4.conf
+
+#
+# 期限切れリースの再利用に関する各種タイマー設定値(秒)
+#
+# リリース回収確認周期 (秒)
+kea_reclaim_timer_wait_time: 10
+# 回収済みリリースのフラッシュ周期 (秒)
+kea_flush_reclaimed_timer_wait_time: 25
+# 回収済みリースの保持期間 (秒) 3600秒(1時間)
+kea_hold_reclaimed_time: 3600
+# 1回の回収処理で再利用するリース数の上限 (件)
+kea_max_reclaim_leases: 100
+# リース回収処理の最大実行時間 (ミリ秒)
+kea_max_reclaim_time: 250
+# 警告なしで実行可能な連続した回収サイクル数 (サイクル数)
+kea_unwarned_reclaim_cycles: 5
+# クライアントがリースを更新を試みるまでの時間 (秒) 600秒(10分)
+kea_renew_timer_wait_time: 600
+# リース更新が失敗した場合の再バインド試行までの時間 (秒) 1800秒(30分)
+kea_rebind_timer_wait_time: 1800
+# リース有効期限 (秒) 14400秒(4時間)
+kea_valid_lifetime: 14400
+# DHCP DNSサーバーアドレスリスト
+kea_dns_servers:
+  - "{{dns_server_ipv4_address}}"
+# DHCPドメイン名
+kea_domain_name: "{{ dns_domain }}"
+# DHCPドメインサーチリスト
+kea_domain_search:
+  - "{{ dns_domain }}"
+# DHCPサブネット
+kea_subnet: "{{ gpm_mgmt_ipv4_network_cidr}}"
+# DHCPアドレスプール範囲
+kea_pool: "{{ gpm_mgmt_ipv4_prefix }}.100 - {{ gpm_mgmt_ipv4_prefix }}.254"
+# ゲートウエイアドレス
+kea_gateway: "{{ gpm_mgmt_ipv4_network_gateway }}"
+# kea-dhcpログファイルパス
+kea_dhcp_log_file: "/var/log/kea/kea-dhcp4.log"
+# ログファイルサイズ2MB
+kea_dhcp_log_maxsize: 2048000
+# ログローテート世代数
+kea_dhcp_log_maxver: 4
+# kea leaseデータベース設定
+# データベース種別(memfile, mysql, pgsql)
+kea_lease_db_type: "memfile"
+# kea leaseデータベース名
+kea_lease_db_name: "{{ kea_lease_db_name | default('/var/lib/kea/kea-dhcp4.leases') }}"

@@ -9,7 +9,7 @@ top=.
 	run_ldap_server run_redmine_server \
 	run_k8s_common run_k8s_ctrl_plane run_k8s_worker run_netgauge \
 	run_dns_server run_selinux update-ctrlplane-kubeconfig update-worker-kubeconfig \
-	run_terraform \
+	run_terraform run_kea_dhcp run_radvd run_bastion_config \
 	run_frr_basic run_gitlab_server run_sbom
 
 
@@ -192,6 +192,15 @@ run_sbom:
 
 run_terraform:
 	ansible-playbook --tags "terraform" ${OPT_COMMON} 2>&1 |tee build-terraform.log
+
+run_kea_dhcp:
+	ansible-playbook --tags "kea-dhcp" ${OPT_COMMON} 2>&1 |tee build-kea-dhcp.log
+
+run_radvd:
+	ansible-playbook --tags "radvd" ${OPT_COMMON} 2>&1 |tee build-radvd.log
+
+run_bastion_config:
+	ansible-playbook --tags "bastion-config" ${OPT_COMMON} 2>&1 |tee build-bastion-config.log
 
 update-ctrlplane-kubeconfig:
 	ansible-playbook -i inventory/hosts k8s-ctrl-plane.yml --tags k8s-kubeconfig 2>&1 |tee build-update-ctrlplane-kubeconfig.log

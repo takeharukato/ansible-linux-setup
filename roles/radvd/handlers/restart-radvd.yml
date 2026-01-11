@@ -1,0 +1,15 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  Router Advertisement Daemonサービス起動ハンドラ
+#
+---
+# radvdサービスを再起動
+- name: "radvd_restart_service"
+  listen: "radvd_restart_service"
+  ansible.builtin.systemd:
+    name: "{{ radvd_service_name }}"
+    state: restarted
+    enabled: true
+  become: true

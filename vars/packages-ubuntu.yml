@@ -48,6 +48,7 @@ common_packages:
   - kubectl
   - acl
   - attr
+  - iptables-persistent
 
 common_langpack_packages:
   - language-pack-ja-base

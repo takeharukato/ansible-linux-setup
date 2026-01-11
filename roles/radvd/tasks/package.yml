@@ -1,0 +1,13 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  パッケージ関連処理
+---
+
+# radvdパッケージがインストールされていることを保証
+- name: "Ensure radvd is installed"
+  ansible.builtin.package:
+    name: "{{ radvd_package }}"
+    state: present
+  become: true
