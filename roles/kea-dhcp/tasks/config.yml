@@ -1,0 +1,31 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  設定関連タスク
+#
+---
+# kea-dhcpサーバー設定ファイルの配置
+- name: deploy kea-dhcp server config files
+  template:
+    src: kea-dhcp4.conf.j2
+    dest: /etc/kea/kea-dhcp4.conf
+    owner: root
+    group: root
+    mode: '0644'
+  notify: "restart_kea_dhcp4_server"
+  become: true
+
+# kea-dhcpサービスの有効化
+- name: enable kea-dhcp4 server service
+  service:
+    name: "{{ kea_dhcp4_server_service }}"
+    enabled: true
+  become: true
+
+# kea-dhcpサービスの起動
+- name: start kea-dhcp4 server service
+  service:
+    name: "{{ kea_dhcp4_server_service }}"
+    state: started
+  become: true

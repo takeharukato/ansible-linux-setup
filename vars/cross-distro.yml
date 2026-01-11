@@ -329,6 +329,32 @@ terraform_apt_keyring_debian : /etc/apt/trusted.gpg.d/hashicorp.gpg
 terraform_apt_repository_debian : "deb [signed-by={{ terraform_apt_keyring_debian }}] {{ terraform_repository_url_debian }} {{ ansible_distribution_release }} main"
 # terraformのリポジトリリストファイル名
 terraform_apt_repository_list_debian : /etc/apt/sources.list.d/hashicorp.list
+
+########################################################################################
+# Kea DHCP サーバー
+########################################################################################
+
+# kea-dhcp4-server パッケージ (Debian)
+kea_dhcp4_server_packages_debian:
+  - kea-dhcp4-server
+# kea-dhcp4 パッケージ (RHEL)
+kea_dhcp4_server_packages_rhel:
+  - kea
+# kea-dhcp4-server パッケージ名のOS別確定
+kea_dhcp4_server_packages: "{{ (ansible_facts.os_family == 'Debian') | ternary(kea_dhcp4_server_packages_debian, kea_dhcp4_server_packages_rhel) }}"
+# kea leaseデータベース名(Debian)
+kea_lease_db_name_debian: "/var/lib/kea/kea-leases4.csv"
+# kea leaseデータベース名(RHEL)
+kea_lease_db_name_rhel: "/var/lib/kea/kea-dhcp4.leases"
+# kea leaseデータベース名
+kea_lease_db_name: "{{ (ansible_facts.os_family == 'Debian') | ternary(kea_lease_db_name_debian, kea_lease_db_name_rhel) }}"
+
+# kea-dhcp4-server サービス名 (Debian)
+kea_dhcp4_server_service_debian: "kea-dhcp4-server"
+# kea-dhcp4 サービス名 (RHEL)
+kea_dhcp4_server_service_rhel:   "kea-dhcp4"
+# kea-dhcp4-server サービス名
+kea_dhcp4_server_service: "{{ (ansible_facts.os_family == 'Debian') | ternary(kea_dhcp4_server_service_debian, kea_dhcp4_server_service_rhel) }}"
 ########################################################################################
 # 時刻同期 ( クライアント/サーバ )
 ########################################################################################
