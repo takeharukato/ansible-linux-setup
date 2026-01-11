@@ -1,0 +1,13 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  サービス関連処理
+#
+---
+- name: "Restart radvd service"
+  ansible.builtin.systemd:
+    name: "{{ radvd_service_name }}"
+    state: restarted
+    enabled: true
+  become: true

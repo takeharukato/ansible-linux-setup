@@ -16,6 +16,10 @@
       when: ansible_facts.os_family == "RedHat"
     - role: common
       tags: common
+    - role: kea-dhcp
+      tags: kea-dhcp
+    - role: radvd
+      tags: radvd
     - role: bastion-config
       tags: bastion-config
     - role: user-settings
@@ -24,8 +28,6 @@
       tags: create-users
     - role: docker-ce
       tags: docker-ce
-    - role: kea-dhcp
-      tags: kea-dhcp
     - role: sbom
       tags: sbom
       when:

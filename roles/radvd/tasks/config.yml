@@ -1,0 +1,17 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  設定関連タスク
+#
+---
+# radvd設定ファイルを配置
+- name: "Deploy radvd configuration file"
+  template:
+    src: radvd.conf.j2
+    dest: "{{ radvd_config_file_path }}"
+    owner: root
+    group: root
+    mode: '0644'
+  notify: "radvd_restart_service"
+  become: true
