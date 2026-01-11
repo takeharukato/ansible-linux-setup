@@ -47,7 +47,7 @@ gpm_mgmt_nic: >-
       and (ansible_facts.virtualization_type | default('') | lower) == 'vmware'
     )
     | ternary(
-        'ens192',
+        'ens194',
         (
           (
             (ansible_facts.virtualization_role | default('') | lower) == 'guest'
