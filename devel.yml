@@ -18,8 +18,6 @@
       tags: common
     - role: ntp-client
       tags: ntp-client
-    - role: terraform
-      tags: terraform
     - role: user-settings
       tags: user-settings
     - role: devel-packages
@@ -28,6 +26,10 @@
       tags: create-users
     - role: docker-ce
       tags: docker-ce
+    - role: terraform
+      tags: terraform
+      when:
+        - terraform_enabled | default(false) | bool
     - role: sbom
       tags: sbom
       when:

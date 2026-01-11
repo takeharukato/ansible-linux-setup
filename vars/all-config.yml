@@ -437,6 +437,9 @@ create_user_emacs_package_list:
   - plantuml-mode
   - yaml-mode
 
+# Terraformをインストールする場合は true
+terraform_enabled: false
+
 #
 # Kubernetes
 #
