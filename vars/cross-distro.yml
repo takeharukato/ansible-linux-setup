@@ -331,6 +331,24 @@ terraform_apt_repository_debian : "deb [signed-by={{ terraform_apt_keyring_debia
 terraform_apt_repository_list_debian : /etc/apt/sources.list.d/hashicorp.list
 
 ########################################################################################
+# iptables 永続化パッケージ
+########################################################################################
+iptables_persistent_package_debian: "iptables-persistent"
+iptables_services_package_rhel:   "iptables-services"
+iptables_persistent_package: "{{ (ansible_facts.os_family == 'Debian') | ternary(iptables_persistent_package_debian, iptables_services_package_rhel) }}"
+
+# iptables 永続化サービス名
+# Debian(Ubuntu)は, systemdサービスではないが, 便宜上サービス名として扱う
+iptables_persistent_service_debian: "iptables-persistent"
+iptables_persistent_service_rhel:   "iptables"
+iptables_persistent_service: "{{ (ansible_facts.os_family == 'Debian') | ternary(iptables_persistent_service_debian, iptables_persistent_service_rhel) }}"
+
+# Debian(Ubuntu)は, systemdサービスではないが, 便宜上サービス名として扱う
+iptables_persistent_ipv6_service_debian: "iptables-persistent"
+iptables_persistent_ipv6_service_rhel:   "ip6tables"
+iptables_persistent_ipv6_service: "{{ (ansible_facts.os_family == 'Debian') | ternary(iptables_persistent_ipv6_service_debian, iptables_persistent_ipv6_service_rhel) }}"
+
+########################################################################################
 # Kea DHCP サーバー
 ########################################################################################
 
@@ -355,6 +373,7 @@ kea_dhcp4_server_service_debian: "kea-dhcp4-server"
 kea_dhcp4_server_service_rhel:   "kea-dhcp4"
 # kea-dhcp4-server サービス名
 kea_dhcp4_server_service: "{{ (ansible_facts.os_family == 'Debian') | ternary(kea_dhcp4_server_service_debian, kea_dhcp4_server_service_rhel) }}"
+
 ########################################################################################
 # 時刻同期 ( クライアント/サーバ )
 ########################################################################################

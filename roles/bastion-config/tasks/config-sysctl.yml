@@ -1,0 +1,17 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  sysctl 設定関連タスク
+#
+---
+# sysctl設定ファイルを配置
+- name: Deploy sysctl configuration file
+  template:
+    src: 95-ipfoward.j2
+    dest: /etc/sysctl.d/95-ipfoward.conf
+    owner: root
+    group: root
+    mode: '0644'
+  notify: "bastion_config_reload_sysctl"
+  become: true

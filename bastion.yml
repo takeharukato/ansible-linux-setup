@@ -16,6 +16,8 @@
       when: ansible_facts.os_family == "RedHat"
     - role: common
       tags: common
+    - role: bastion-config
+      tags: bastion-config
     - role: user-settings
       tags: user-settings
     - role: create-users

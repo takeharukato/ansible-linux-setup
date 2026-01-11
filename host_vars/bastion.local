@@ -39,7 +39,7 @@ gpm_mgmt_ipv6_router: "{{bastion_ipv6_address}}"
 # 物理サーバ/管理用VMネットワーク用のvNIC
 mgmt_nic: "enX0"
 # 仮想環境内部管理ネットワークのvNIC
-gpm_mgmt_if: "enX1"
+gpm_mgmt_nic: "enX1"
 
 netif_list:
   - netif: "{{mgmt_nic}}"
@@ -57,7 +57,7 @@ netif_list:
     name_server_ipv6_1: "{{ipv6_name_server1}}"
     name_server_ipv6_2: "{{ipv6_name_server2}}"
     dns_search: "elliptic-curve.net"
-  - netif: "{{ gpm_mgmt_if }}"
+  - netif: "{{ gpm_mgmt_nic }}"
     mac: "00:50:56:00:46:7c"
     static_ipv4_addr: "{{gpm_mgmt_bastion_ipv4_address}}"
     network_ipv4_prefix_len: "{{gpm_mgmt_ipv4_addr_prefix_len}}"

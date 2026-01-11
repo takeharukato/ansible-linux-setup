@@ -6,7 +6,7 @@
 #  group_vars/all/all.yml やhost_varsで上書き可能とするため,
 #  ロール名/defaults/main.yml に定義している
 # kea-dhcpサーバーがバインドするインターフェース
-kea_dhcp_interface: "{{ gpm_mgmt_if| default(mgmt_nic, true) }}"
+kea_dhcp_interface: "{{ gpm_mgmt_nic| default(mgmt_nic, true) }}"
 # kea-dhcpサーバーの設定ファイルパス
 kea_dhcp_config_file: /etc/kea/kea-dhcp4.conf
 

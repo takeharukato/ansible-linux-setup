@@ -6,7 +6,7 @@
 # rhel-server.local
 # ubuntu-server.local
 [bastion]
-bastion.local
+# bastion.local
 [rancher]
 # rancher01.local
 [k8s_ctrl_plane]

@@ -1,0 +1,54 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  タスクメイン部
+#
+#  include_tasksで他のタスクを読み込む
+#
+---
+
+# 最初に変数設定を読み直す ( role単独で実行可能とするため )
+- include_tasks: load-params.yml
+- include_tasks: package.yml
+  when:
+    - gpm_mgmt_nic is defined
+    - mgmt_nic is defined
+    - gpm_mgmt_nic in ansible_facts.interfaces
+    - mgmt_nic in ansible_facts.interfaces
+- include_tasks: directory.yml
+  when:
+    - gpm_mgmt_nic is defined
+    - mgmt_nic is defined
+    - gpm_mgmt_nic in ansible_facts.interfaces
+    - mgmt_nic in ansible_facts.interfaces
+- include_tasks: user_group.yml
+  when:
+    - gpm_mgmt_nic is defined
+    - mgmt_nic is defined
+    - gpm_mgmt_nic in ansible_facts.interfaces
+    - mgmt_nic in ansible_facts.interfaces
+- include_tasks: service.yml
+  when:
+    - gpm_mgmt_nic is defined
+    - mgmt_nic is defined
+    - gpm_mgmt_nic in ansible_facts.interfaces
+    - mgmt_nic in ansible_facts.interfaces
+- include_tasks: config-sysctl.yml
+  when:
+    - gpm_mgmt_nic is defined
+    - mgmt_nic is defined
+    - gpm_mgmt_nic in ansible_facts.interfaces
+    - mgmt_nic in ansible_facts.interfaces
+- include_tasks: config-nat.yml
+  when:
+    - gpm_mgmt_nic is defined
+    - mgmt_nic is defined
+    - gpm_mgmt_nic in ansible_facts.interfaces
+    - mgmt_nic in ansible_facts.interfaces
+- include_tasks: config.yml
+  when:
+    - gpm_mgmt_nic is defined
+    - mgmt_nic is defined
+    - gpm_mgmt_nic in ansible_facts.interfaces
+    - mgmt_nic in ansible_facts.interfaces

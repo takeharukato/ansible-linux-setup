@@ -6,7 +6,7 @@
 
 | 変数名 | 既定値 | 説明 |
 | --- | --- | --- |
-| `kea_dhcp_interface` | `{{ gpm_mgmt_if \| default(mgmt_nic, true) }}` | Kea がバインドするインターフェース名。管理 NIC が未指定の場合は `mgmt_nic` を使用。 |
+| `kea_dhcp_interface` | `{{ gpm_mgmt_nic \| default(mgmt_nic, true) }}` | Kea がバインドするインターフェース名。管理 NIC が未指定の場合は `mgmt_nic` を使用。 |
 | `kea_dhcp_config_file` | `/etc/kea/kea-dhcp4.conf` | 生成する設定ファイルの配置先。 |
 | `kea_reclaim_timer_wait_time` | `10` | リース回収確認周期 (秒)。 |
 | `kea_flush_reclaimed_timer_wait_time` | `25` | 回収済みリースのフラッシュ周期 (秒)。 |

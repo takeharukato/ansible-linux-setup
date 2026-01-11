@@ -40,7 +40,7 @@ mgmt_nic: >-
       )
   }}
 
-gpm_mgmt_if: >-
+gpm_mgmt_nic: >-
   {{
     (
       (ansible_facts.virtualization_role | default('') | lower) == 'guest'

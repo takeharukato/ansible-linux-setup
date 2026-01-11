@@ -48,6 +48,7 @@ common_packages:
   - kubectl
   - acl
   - attr
+  - iptables-services
 
 common_langpack_packages:
   - glibc-langpack-ja

@@ -1,0 +1,81 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  Network Address Translation (NAT) 設定関連タスク
+#
+---
+
+# NAT設定を追加 (IPv4)
+- name: "Configure IPv4 NAT rule for outbound traffic from management network"
+  ansible.builtin.shell: |
+    iptables -t nat -C POSTROUTING -s "{{ gpm_mgmt_ipv4_network_cidr }}" -o "{{ mgmt_nic }}" -j MASQUERADE 2>/dev/null || \
+      iptables -t nat -A POSTROUTING -s "{{ gpm_mgmt_ipv4_network_cidr }}" -o "{{ mgmt_nic }}" -j MASQUERADE
+    iptables -C FORWARD -i "{{ gpm_mgmt_nic }}" -o "{{ mgmt_nic }}" -s "{{ gpm_mgmt_ipv4_network_cidr }}" -j ACCEPT 2>/dev/null || \
+      iptables -A FORWARD -i "{{ gpm_mgmt_nic }}" -o "{{ mgmt_nic }}" -s "{{ gpm_mgmt_ipv4_network_cidr }}" -j ACCEPT
+    iptables -C FORWARD -i "{{ mgmt_nic }}" -o "{{ gpm_mgmt_nic }}" -d "{{ gpm_mgmt_ipv4_network_cidr }}" -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT 2>/dev/null || \
+     iptables -A FORWARD -i "{{ mgmt_nic }}" -o "{{ gpm_mgmt_nic }}" -d "{{ gpm_mgmt_ipv4_network_cidr }}" -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT
+  args:
+    executable: /bin/bash
+  become: true
+
+# NAT設定を追加 (IPv6 NAT66 / NPTv6 相当: 外向きでMASQUERADE)
+- name: "Configure IPv6 Forwarding rule for outbound traffic from management network"
+  ansible.builtin.shell: |
+    ip6tables -C FORWARD -i "{{ gpm_mgmt_nic }}" -o "{{ mgmt_nic }}" -s "{{ gpm_mgmt_ipv6_network_cidr }}" -j ACCEPT 2>/dev/null || \
+      ip6tables -A FORWARD -i "{{ gpm_mgmt_nic }}" -o "{{ mgmt_nic }}" -s "{{ gpm_mgmt_ipv6_network_cidr }}" -j ACCEPT
+
+    ip6tables -C FORWARD -i "{{ mgmt_nic }}" -o "{{ gpm_mgmt_nic }}" -d "{{ gpm_mgmt_ipv6_network_cidr }}" -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT 2>/dev/null || \
+      ip6tables -A FORWARD -i "{{ mgmt_nic }}" -o "{{ gpm_mgmt_nic }}" -d "{{ gpm_mgmt_ipv6_network_cidr }}" -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT
+
+    ip6tables -t nat -C POSTROUTING -s "{{ gpm_mgmt_ipv6_network_cidr }}" -o "{{ mgmt_nic }}" -j MASQUERADE 2>/dev/null || \
+      ip6tables -t nat -A POSTROUTING -s "{{ gpm_mgmt_ipv6_network_cidr }}" -o "{{ mgmt_nic }}" -j MASQUERADE
+  args:
+    executable: /bin/bash
+  become: true
+
+# iptables設定を永続化(Ubuntu/Debian)
+- name: "Save iptables rules to iptables-persistent (Debian/Ubuntu)"
+  ansible.builtin.shell: |
+    netfilter-persistent save
+  args:
+    executable: /bin/bash
+  when:
+    - ansible_facts.os_family == "Debian"
+  become: true
+
+# iptables設定を永続化 (RedHat/CentOS)
+- name: "Save iptables rules to iptables-persistent (RedHat/CentOS)"
+  ansible.builtin.shell: |
+    iptables-save > "{{ etc_default_dir }}/iptables"
+  args:
+    executable: /bin/bash
+  when:
+    - ansible_facts.os_family == "RedHat"
+  become: true
+
+# ip6tables設定を永続化 (RedHat/CentOS)
+- name: "Save ip6tables rules to iptables-persistent (RedHat/CentOS)"
+  ansible.builtin.shell: |
+    ip6tables-save > "{{ etc_default_dir }}/ip6tables"
+  args:
+    executable: /bin/bash
+  when:
+    - ansible_facts.os_family == "RedHat"
+  become: true
+
+- name: "Apply iptables rules immediately (RedHat/CentOS)"
+  ansible.builtin.service:
+    name: "{{ iptables_persistent_service }}"
+    state: restarted
+  when:
+    - ansible_facts.os_family == "RedHat"
+  become: true
+
+- name: "Apply ip6tables rules immediately (RedHat/CentOS)"
+  ansible.builtin.service:
+    name: "{{ iptables_persistent_ipv6_service }}"
+    state: restarted
+  when:
+    - ansible_facts.os_family == "RedHat"
+  become: true

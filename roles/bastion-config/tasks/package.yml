@@ -1,0 +1,12 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  パッケージ関連処理
+---
+# iptables-persistent/iptables-servicesパッケージがインストールされていることを確認
+- name: "Ensure iptables-persistent/iptables-services is installed"
+  ansible.builtin.package:
+    name: "{{ iptables_persistent_package }}"
+    state: present
+  become: true
