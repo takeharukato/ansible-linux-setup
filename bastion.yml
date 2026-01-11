@@ -1,0 +1,33 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+- hosts: bastion
+  remote_user:  '{{ ansible_user }}'
+  become: true
+  roles:
+    - role: selinux
+      tags: selinux
+    - role: repo-deb
+      tags: repo-deb
+      when: ansible_facts.os_family == "Debian"
+    - role: repo-rpm
+      tags: repo-rpm
+      when: ansible_facts.os_family == "RedHat"
+    - role: common
+      tags: common
+    - role: user-settings
+      tags: user-settings
+    - role: create-users
+      tags: create-users
+    - role: docker-ce
+      tags: docker-ce
+    - role: kea-dhcp
+      tags: kea-dhcp
+    - role: sbom
+      tags: sbom
+      when:
+        - sbom_enabled | default(false) | bool
+# 最後に実行するようにすること
+    - role: force-reboot
+      tags: force-reboot

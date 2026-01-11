@@ -8,6 +8,7 @@
   gather_facts: true
 
 - import_playbook: basic.yml
+- import_playbook: bastion.yml
 - import_playbook: server.yml
 - import_playbook: devel.yml
 - import_playbook: rancher.yml

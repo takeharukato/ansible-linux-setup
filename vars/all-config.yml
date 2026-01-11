@@ -89,8 +89,6 @@ network_ipv6_prefix_len: 64
 network_ipv4_prefix: "{{router_ipv4_prefix}}"
 # 物理サーバ/管理用VMネットワークのIPv6ネットワークのプレフィクスアドレス
 network_ipv6_prefix: "{{router_ipv6_prefix}}"
-# 物理サーバ/運用系用VMネットワークのIPv6ネットワークのプレフィクス
-network_ipv6_prefix_extra: "fd69:6684:61a:2::"
 # 物理サーバ/管理用VMネットワークのIPv4ネットワークアドレス
 network_ipv4_network_address: "{{router_ipv4_prefix}}.0"
 # 物理サーバ/管理用VMネットワークのIPv6ネットワークアドレス
@@ -101,6 +99,33 @@ gateway4: "{{router_ipv4_address}}"
 gateway6: "{{router_ipv6_address}}"
 
 #
+# 仮想環境内部管理ネットワーク設定
+#
+# 仮想環境内部管理ネットワークのIPv4ネットワークプレフィクス
+gpm_mgmt_ipv4_prefix: "192.168.30"
+# 仮想環境内部管理ネットワークのIPv6ネットワークプレフィクス
+gpm_mgmt_ipv6_prefix: "fdad:ba50:248b:1::"
+# 仮想環境内部管理ネットワークのIPv4アドレスプレフィクス長
+gpm_mgmt_ipv4_addr_prefix_len: 24
+# 仮想環境内部管理ネットワークのIPv6アドレスプレフィクス長
+gpm_mgmt_ipv6_addr_prefix_len: 64
+# 仮想環境内部管理ネットワークのIPv4アドレス
+gpm_mgmt_ipv4_network_address: "{{ gpm_mgmt_ipv4_prefix }}.0"
+# 仮想環境内部管理ネットワークのIPv6アドレス
+gpm_mgmt_ipv6_network_address: "{{ gpm_mgmt_ipv6_prefix }}"
+# 仮想環境内部管理ネットワークのIPv4ネットワークアドレスCIDR
+gpm_mgmt_ipv4_network_cidr: "{{ gpm_mgmt_ipv4_network_address }}/{{ gpm_mgmt_ipv4_addr_prefix_len }}"
+# 仮想環境内部管理ネットワークのIPv6ネットワークアドレスCIDR
+gpm_mgmt_ipv6_network_cidr: "{{ gpm_mgmt_ipv6_network_address }}/{{ gpm_mgmt_ipv6_addr_prefix_len }}"
+# 仮想環境内部管理ネットワークのIPv4ルータアドレス
+gpm_mgmt_ipv4_router: "{{ gpm_mgmt_ipv4_prefix }}.17"
+# 仮想環境内部管理ネットワークのIPv6ルータアドレス
+gpm_mgmt_ipv6_router: "{{ gpm_mgmt_ipv6_prefix }}17"
+# 仮想環境内部管理ネットワークのIPv4ネットワークゲートウェイアドレス
+gpm_mgmt_ipv4_network_gateway: "{{ gpm_mgmt_ipv4_router }}"
+# 仮想環境内部管理ネットワークのIPv6ネットワークゲートウェイアドレス
+gpm_mgmt_ipv6_network_gateway: "{{ gpm_mgmt_ipv6_router }}"
+
 # クライアントのDNSサーバの設定
 #
 # ipv4_name_server1, ipv4_name_server2の両方を設定した場合は両方設定される
