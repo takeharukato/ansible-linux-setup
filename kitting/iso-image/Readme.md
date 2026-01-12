@@ -18,6 +18,7 @@
 
 以下のファイルが含まれる。
 
+```plaintext
 .
 |-- Makefile   ISOイメージ作成用Makefile
 |-- Readme.md  本文書
@@ -32,6 +33,7 @@
     `-- ubuntu
         |-- meta-data.tmpl Ubuntuインストール時に使用するcloud-initのmeta-dataファイルのテンプレート
         `-- user-data.tmpl Ubuntuインストール時に使用するcloud-initのuser-dataファイルのテンプレート
+```
 
 Makefile中の変数を変更することで, カスタマイズが可能。
 詳細は, Makefile内のコメントを参照。
