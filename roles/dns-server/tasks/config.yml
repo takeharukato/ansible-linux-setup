@@ -131,6 +131,41 @@
     mode: 0644
     backup: true
 
+# === 複数ネットワーク逆引きゾーンファイル生成 ===
+# IPv4 逆引きゾーンファイルを複数ネットワーク分作成する
+- name: "Deploy IPv4 reverse zone files for additional networks"
+  template:
+    src: db.reverse.additional.j2
+    dest: "{{dns_bind_zone_dir}}/db.{{ item.ipv4 | ipv4_reverse_zone }}"
+    owner: "{{ dns_bind_user }}"
+    group: "{{ dns_bind_group }}"
+    mode: 0644
+    backup: true
+  when:
+    - has_additional_networks
+    - item.ipv4 is defined
+    - item.ipv4 | length > 0
+  with_items: "{{ internal_network_list | default([], true) }}"
+  vars:
+    additional_network_cidr: "{{ item.ipv4 }}"
+
+# IPv6 逆引きゾーンファイルを複数ネットワーク分作成する
+- name: "Deploy IPv6 reverse zone files for additional networks"
+  template:
+    src: db.reverse.additional.ipv6.j2
+    dest: "{{dns_bind_zone_dir}}/db.{{ item.ipv6 | ipv6_reverse_zone(item.ipv6.split('/')[1] | int) }}"
+    owner: "{{ dns_bind_user }}"
+    group: "{{ dns_bind_group }}"
+    mode: 0644
+    backup: true
+  when:
+    - has_additional_networks
+    - item.ipv6 is defined
+    - item.ipv6 | length > 0
+  with_items: "{{ internal_network_list | default([], true) }}"
+  vars:
+    additional_network_cidr: "{{ item.ipv6 }}"
+
 # named.conf に named.conf.options の include 行がなければ追加する
 - name: "Ensure include for named.conf.options is present in {{ dns_bind_main_conf }}"
   become: true

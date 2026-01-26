@@ -657,6 +657,114 @@ ZONE_FWD="${ZONE_FWD%%+(.)}."
 ZONE_REV4="${ZONE_REV4%%+(.)}."
 ZONE_REV6="${ZONE_REV6%%+(.)}."
 
+# IPv4逆引きゾーン自動選択用マップ (CIDR -> 逆引きゾーン名)
+{% set rev4_entries = [] %}
+{% if network_ipv4_network_address|default('', true) and network_ipv4_prefix_len is not none and dns_ipv4_reverse|default('', true) %}
+    {% set _ = rev4_entries.append({'cidr': network_ipv4_network_address ~ '/' ~ network_ipv4_prefix_len, 'zone': dns_ipv4_reverse ~ '.in-addr.arpa.'}) %}
+{% endif %}
+{% for net in internal_network_list|default([]) %}
+    {% if net.ipv4 is defined and net.ipv4|length %}
+        {% set _ = rev4_entries.append({'cidr': net.ipv4, 'zone': (net.ipv4 | ipv4_reverse_zone) ~ '.in-addr.arpa.'}) %}
+    {% endif %}
+{% endfor %}
+REV4_MAP_JSON='{{ rev4_entries | tojson }}'
+
+# IPv6逆引きゾーン自動選択用マップ (prefix/length -> 逆引きゾーン名)
+{% set rev6_entries = [] %}
+{% if network_ipv6_network_address|default('', true) and network_ipv6_prefix_len is not none and dns_ipv6_reverse|default('', true) %}
+    {% set _ = rev6_entries.append({'prefix': network_ipv6_network_address, 'prefix_len': network_ipv6_prefix_len, 'zone': dns_ipv6_reverse ~ '.ip6.arpa.'}) %}
+{% endif %}
+{% for net in internal_network_list|default([]) %}
+    {% if net.ipv6 is defined and net.ipv6|length %}
+        {% set ipv6_parts = net.ipv6.split('/') %}
+        {% if ipv6_parts|length == 2 %}
+            {% set _ = rev6_entries.append({'prefix': ipv6_parts[0], 'prefix_len': ipv6_parts[1]|int, 'zone': (ipv6_parts[0] | ipv6_reverse_zone(ipv6_parts[1]|int)) ~ '.ip6.arpa.'}) %}
+        {% endif %}
+    {% endif %}
+{% endfor %}
+REV6_MAP_JSON='{{ rev6_entries | tojson }}'
+
+#
+# IPv4アドレスから逆引きゾーンを自動選択
+#
+select_zone_rev4() {
+    local addr="$1"
+    local current_zone="$2"
+    local selected_zone
+
+    selected_zone=$(python3 - "$addr" "$REV4_MAP_JSON" <<'PY'
+import ipaddress
+import json
+import sys
+
+addr = sys.argv[1]
+entries = json.loads(sys.argv[2]) if len(sys.argv) > 2 else []
+
+try:
+    ip_obj = ipaddress.ip_address(addr)
+except ValueError:
+    sys.exit(0)
+
+for entry in entries:
+    cidr = entry['cidr']
+    zone = entry['zone']
+    try:
+        network = ipaddress.ip_network(cidr, strict=False)
+    except ValueError:
+        continue
+    if ip_obj in network:
+        print(zone)
+        sys.exit(0)
+PY
+)
+
+    if [[ -n "${selected_zone}" ]]; then
+        echo "${selected_zone}"
+    else
+        echo "${current_zone}"
+    fi
+}
+
+# IPv6アドレスから逆引きゾーンを自動選択
+select_zone_rev6() {
+    local addr="$1"
+    local current_zone="$2"
+    local selected_zone
+
+    selected_zone=$(python3 - "$addr" "$REV6_MAP_JSON" <<'PY'
+import ipaddress
+import json
+import sys
+
+addr = sys.argv[1]
+entries = json.loads(sys.argv[2]) if len(sys.argv) > 2 else []
+
+try:
+    ip_obj = ipaddress.ip_address(addr)
+except ValueError:
+    sys.exit(0)
+
+for entry in entries:
+    prefix = entry['prefix']
+    prefix_len = entry['prefix_len']
+    zone = entry['zone']
+    try:
+        network = ipaddress.ip_network(f"{prefix}/{prefix_len}", strict=False)
+    except ValueError:
+        continue
+    if ip_obj in network:
+        print(zone)
+        sys.exit(0)
+PY
+)
+
+    if [[ -n "${selected_zone}" ]]; then
+        echo "${selected_zone}"
+    else
+        echo "${current_zone}"
+    fi
+}
+
 #
 # 終了コード
 #
@@ -1277,6 +1385,7 @@ handle_ipv6() {
     local zone6_lc
     local old_ptr6
     local state_file
+    local auto_zone
 
     state_file="${STATE_FILE_IPV6}-${IFACE}"
     # 前回更新済みアドレスの読み込み
@@ -1295,6 +1404,13 @@ handle_ipv6() {
 
     # ステート更新
     inf_log "Selected IPv6 address: ${best_addr} (preferred_lft=${best_lft})"
+
+    # IPv6アドレスに基づいて逆引きゾーンを自動選択
+    auto_zone="$(select_zone_rev6 "${best_addr}" "${ZONE_REV6}")"
+    if [[ -n "${auto_zone}" && "${auto_zone}" != "${ZONE_REV6}" ]]; then
+        ZONE_REV6="${auto_zone}"
+        inf_log "Auto-selected reverse zone for IPv6 ${best_addr}: ${ZONE_REV6}"
+    fi
 
     if update_state_file "6" "${best_addr}" "${state_file}"; then
 
@@ -1386,6 +1502,7 @@ handle_ipv4() {
     local old4_lc
     local zone4_lc
     local state_file
+    local auto_zone
 
     # 前回更新済みアドレスの読み込み
     state_file="${STATE_FILE_IPV4}-${IFACE}"
@@ -1404,6 +1521,13 @@ handle_ipv4() {
 
     # ステート更新
     inf_log "Selected IPv4 address: ${best_addr} (preferred_lft=${best_lft})"
+
+    # IPv4アドレスに基づいて逆引きゾーンを自動選択
+    auto_zone="$(select_zone_rev4 "${best_addr}" "${ZONE_REV4}")"
+    if [[ -n "${auto_zone}" && "${auto_zone}" != "${ZONE_REV4}" ]]; then
+        ZONE_REV4="${auto_zone}"
+        inf_log "Auto-selected reverse zone for IPv4 ${best_addr}: ${ZONE_REV4}"
+    fi
 
     if update_state_file "4" "${best_addr}" "${state_file}"; then
 

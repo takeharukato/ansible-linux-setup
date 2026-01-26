@@ -131,6 +131,15 @@ gpm_mgmt_ipv4_network_gateway: "{{ gpm_mgmt_router_ipv4_address }}"
 # 仮想環境内部管理ネットワークのIPv6ネットワークゲートウェイアドレス
 gpm_mgmt_ipv6_network_gateway: "{{ gpm_mgmt_router_ipv6_address }}"
 
+#
+# DNS逆引きレコード用内部ネットワーク定義
+#
+internal_network_list:
+  # 仮想環境内部管理ネットワーク
+  - ipv4: "{{gpm_mgmt_ipv4_network_cidr}}"
+    ipv6: "{{gpm_mgmt_ipv6_network_cidr}}"
+
+
 # クライアントのDNSサーバの設定
 #
 # ipv4_name_server1, ipv4_name_server2の両方を設定した場合は両方設定される
