@@ -5,6 +5,7 @@
 # devserver.local
 # rhel-server.local
 # ubuntu-server.local
+# mgmt-server.local
 [bastion]
 # bastion.local
 [rancher]
@@ -27,3 +28,9 @@
 # vmlinux3.local
 # vmlinux4.local
 # vmlinux5.local
+# devlinux1.local
+# devlinux2.local
+# devlinux3.local
+# devlinux4.local
+# devlinux5.local
+# devlinux6.local

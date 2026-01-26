@@ -118,9 +118,9 @@ gpm_mgmt_ipv4_network_cidr: "{{ gpm_mgmt_ipv4_network_address }}/{{ gpm_mgmt_ipv
 # 仮想環境内部管理ネットワークのIPv6ネットワークアドレスCIDR
 gpm_mgmt_ipv6_network_cidr: "{{ gpm_mgmt_ipv6_network_address }}/{{ gpm_mgmt_ipv6_addr_prefix_len }}"
 # 仮想環境内部管理ネットワークのIPv4ルータアドレス
-gpm_mgmt_ipv4_router: "{{ gpm_mgmt_ipv4_prefix }}.17"
+gpm_mgmt_ipv4_router: "{{ gpm_mgmt_ipv4_prefix }}.9"
 # 仮想環境内部管理ネットワークのIPv6ルータアドレス
-gpm_mgmt_ipv6_router: "{{ gpm_mgmt_ipv6_prefix }}17"
+gpm_mgmt_ipv6_router: "{{ gpm_mgmt_ipv6_prefix }}9"
 # 仮想環境内部管理ネットワークのIPv4ネットワークゲートウェイアドレス
 gpm_mgmt_ipv4_network_gateway: "{{ gpm_mgmt_ipv4_router }}"
 # 仮想環境内部管理ネットワークのIPv6ネットワークゲートウェイアドレス
