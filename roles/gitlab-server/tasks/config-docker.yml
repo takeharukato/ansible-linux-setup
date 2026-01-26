@@ -20,7 +20,7 @@
     path: "{{ gitlab_ssl_cert_path }}"
   register: gitlab_cert_stat
   until: gitlab_cert_stat.stat.exists | default(false)
-  retries: 10
+  retries: 150
   delay: 6
   become: true
 
