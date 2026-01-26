@@ -14,6 +14,16 @@
     group: root
     mode: '0755'
 
+# GitLab が自己署名証明書を生成するまで待つ
+- name: Wait for gitlab self-signed certificate
+  stat:
+    path: "{{ gitlab_ssl_cert_path }}"
+  register: gitlab_cert_stat
+  until: gitlab_cert_stat.stat.exists | default(false)
+  retries: 10
+  delay: 6
+  become: true
+
 # DockerにGitlab自己証明書の自己証明書を登録する
 - name: Copy gitlab self-signed certificate to docker certs directory
   copy:
@@ -23,5 +33,6 @@
     owner: root
     group: root
     mode: '0644'
+  become: true
   notify:
     - "restart_docker_for_gitlab"
