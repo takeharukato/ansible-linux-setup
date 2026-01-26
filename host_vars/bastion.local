@@ -4,9 +4,10 @@
 #
 # 踏み台サーバ
 # Note: 以下の前提で踏み台サーバを導入
+#  - 192.168.20.9  踏み台サーバ(bastion)
+#  - 192.168.20.11 管理サーバ(devserver)
 #  - 192.168.20.15 xcp-ngホスト domain0
 #  - 192.168.20.16 Xen Orchestra VM
-#  - 192.168.20.17 踏み台サーバ(bastion)
 #
 
 # bastionノードは, 物理サーバ/管理用VMネットワークから仮想化基盤内部の管理ネットワークに
@@ -15,12 +16,12 @@
 # 設定し, 仮想化基盤内部の管理ネットワークから物理サーバ/管理用VMネットワークへ
 # 抜けるためのルータの役割を果たす。
 #
-# - 物理サーバ/管理用VMネットワーク上のIPv4アドレス: 192.168.20.17
-# - 仮想化基盤内部の管理ネットワーク上のIPv4アドレス: 192.168.30.17
+# - 物理サーバ/管理用VMネットワーク上のIPv4アドレス: 192.168.20.9
+# - 仮想化基盤内部の管理ネットワーク上のIPv4アドレス: 192.168.30.9
 
 # bastionのIPアドレス末尾
-bastion_ipv4_addr_octet: "17"
-bastion_ipv6_addr_field: "17"
+bastion_ipv4_addr_octet: "9"
+bastion_ipv6_addr_field: "9"
 
 # 物理サーバ/管理用VMネットワーク内のIPv4アドレス
 bastion_ipv4_address: "{{router_ipv4_prefix}}.{{ bastion_ipv4_addr_octet }}"

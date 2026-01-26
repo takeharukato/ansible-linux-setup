@@ -7,8 +7,8 @@ mgmt_nic: "ens160"
 
 # NICリスト
 # 管理系IF(ens160)
-# ipv4 addr: 192.168.20.49
-# ipv6 addr: fd69:6684:61a:1::49
+# ipv4 addr: 192.168.30.81
+# ipv6 addr: fdad:ba50:248b:1::81
 # DNSは, LAN内のDNSを使用
 #
 #
@@ -16,7 +16,7 @@ mgmt_nic: "ens160"
 # 本サーバは, マルチホーム構成としており, 管理系IFが接続されたスイッチ
 # と疑似外部ネットワーク用IFが接続されたスイッチ, 疑似外部ネットワークの3系統のスイッチに接続される
 # 疑似外部ネットワーク用IFが接続されたスイッチのネットワークは以下を使用する
-#  IPv4: 192.168.90.0
+#  IPv4: 192.168.255.0
 #  IPv6: fd69:6684:61a:90::
 #
 # 管理系IF経由で外部に出す方針のため, メトリクスは管理系より高めに設定
@@ -27,12 +27,12 @@ mgmt_nic: "ens160"
 netif_list:
   - netif: "ens160"
     mac: "00:50:56:00:b8:e1"
-    static_ipv4_addr: "192.168.20.81"
+    static_ipv4_addr: "{{gpm_mgmt_ipv4_prefix}}.81"
     network_ipv4_prefix_len: 24
-    static_ipv6_addr: "fd69:6684:61a:1::81"
+    static_ipv6_addr: "{{gpm_mgmt_ipv6_prefix}}81"
     network_ipv6_prefix_len: 64
-    gateway4: "{{gateway4}}"
-    gateway6: "{{gateway6}}"
+    gateway4: "{{gpm_mgmt_ipv4_router}}"
+    gateway6: "{{gpm_mgmt_ipv6_router}}"
     ignore_auto_ipv4_dns: true
     ignore_auto_ipv6_dns: true
     name_server_ipv4_1: "{{ipv4_name_server1}}"
@@ -42,7 +42,7 @@ netif_list:
     dns_search: "example.com"
   - netif: "ens224"
     mac: "00:50:56:00:b8:eb"
-    static_ipv4_addr: "192.168.90.1"
+    static_ipv4_addr: "192.168.255.1"
     network_ipv4_prefix_len: 24
     static_ipv6_addr: "fd69:6684:61a:90::1"
     network_ipv6_prefix_len: 64
@@ -59,22 +59,22 @@ netif_list:
 # ==== FRR/BGP (疑似外部ネットワークGW 用) =================================
 
 # このノードのBGP AS番号と router-id
-# router-id は疑似外部ネットワーク側(192.168.90.0/24)のアドレスに揃える
+# router-id は疑似外部ネットワーク側(192.168.255.0/24)のアドレスに揃える
 frr_bgp_asn: 65100
-frr_bgp_router_id: "192.168.90.1"
+frr_bgp_router_id: "192.168.255.1"
 
 # K8sノードとは直接話さない
 frr_k8s_neighbors: []
 
 # frr01/frr02とeBGP接続
 frr_ebgp_neighbors:
-  - { addr: "192.168.90.49", asn: 65011, desc: "Cluster1 Gateway (frr01)" }
-  - { addr: "192.168.90.48", asn: 65012, desc: "Cluster2 Gateway (frr02)" }
+  - { addr: "192.168.255.49", asn: 65011, desc: "Cluster1 Gateway (frr01)" }
+  - { addr: "192.168.255.48", asn: 65012, desc: "Cluster2 Gateway (frr02)" }
 
 # 自分のセグメントのみ広告
 # 他は, 他のルータから伝えられたものを再配送
 frr_networks_v4:
-  - "192.168.90.0/24"   # 疑似外部ネットワーク
+  - "192.168.255.0/24"   # 疑似外部ネットワーク
 
 frr_networks_v6:
   - "fd69:6684:61a:90::/64"  # 疑似外部ネットワーク
