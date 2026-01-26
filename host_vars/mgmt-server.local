@@ -3,44 +3,32 @@
 #  Copyright 2020 Takeharu KATO All Rights Reserved.
 #
 
-# bastionのIPアドレス末尾
-bastion_ipv4_addr_octet: "9"
-bastion_ipv6_addr_field: "9"
 # 管理サーバのIPアドレス末尾
-mgmtserver_ipv4_addr_octet: "8"
-mgmtserver_ipv6_addr_field: "8"
+mgmt_server_ipv4_addr_octet: "11"
+mgmt_server_ipv6_addr_field: "11"
 
 # 物理サーバ/管理用VMネットワーク内のIPv4アドレス
-bastion_ipv4_address: "{{router_ipv4_prefix}}.{{ mgmtserver_ipv4_addr_octet }}"
+mgmt_server_ipv4_address: "{{router_ipv4_prefix}}.{{ mgmt_server_ipv4_addr_octet }}"
 # 物理サーバ/管理用VMネットワーク内のIPv6アドレス
-bastion_ipv6_address: "{{router_ipv6_prefix}}{{ mgmtserver_ipv6_addr_field }}"
+mgmt_server_ipv6_address: "{{router_ipv6_prefix}}{{ mgmt_server_ipv6_addr_field }}"
 
-# 物理サーバ/管理用VMネットワーク内のIPv4アドレス
-mgmtserver_ipv4_address: "{{router_ipv4_prefix}}.{{ mgmtserver_ipv4_addr_octet }}"
-# 物理サーバ/管理用VMネットワーク内のIPv6アドレス
-mgmtserver_ipv6_address: "{{router_ipv6_prefix}}{{ mgmtserver_ipv6_addr_field }}"
-
-# 仮想環境内部管理ネットワーク内ルータのIPv4アドレス
-gpm_mgmt_ipv4_router: "{{bastion_ipv4_address}}"
-# 仮想環境内部管理ネットワーク内ルータのIPv6アドレス
-gpm_mgmt_ipv6_router: "{{bastion_ipv6_address}}"
 # 仮想環境内部管理ネットワーク内のIPv4アドレス
-gpm_mgmt_mgmtserver_ipv4_address: "{{gpm_mgmt_ipv4_router}}"
+gpm_mgmt_mgmt_server_ipv4_address: "{{gpm_mgmt_ipv4_prefix}}.{{ mgmt_server_ipv4_addr_octet }}"
 # 仮想環境内部管理ネットワーク内のIPv6アドレス
-gpm_mgmt_mgmtserver_ipv6_address: "{{gpm_mgmt_ipv6_router}}"
+gpm_mgmt_mgmt_server_ipv6_address: "{{gpm_mgmt_ipv6_prefix}}{{ mgmt_server_ipv6_addr_field }}"
 
 # 管理ネットワークIF
-mgmt_nic: "enX0"
+mgmt_nic: "ens160"
 # 仮想環境内部管理ネットワークのvNIC
-gpm_mgmt_nic: "enX1"
+gpm_mgmt_nic: "ens192"
 
 # ネットワークIFリスト
 netif_list:
-  - netif: "enX0"
+  - netif: "{{mgmt_nic}}"
     mac: "00:50:56:00:f3:72"
-    static_ipv4_addr: "{{mgmtserver_ipv4_address}}"
+    static_ipv4_addr: "{{mgmt_server_ipv4_address}}"
     network_ipv4_prefix_len: "{{network_ipv4_prefix_len}}"
-    static_ipv6_addr: "{{mgmtserver_ipv6_address}}"
+    static_ipv6_addr: "{{mgmt_server_ipv6_address}}"
     network_ipv6_prefix_len: "{{network_ipv6_prefix_len}}"
     gateway4: "{{gateway4}}"
     gateway6: "{{gateway6}}"
@@ -50,25 +38,23 @@ netif_list:
     name_server_ipv4_2: "{{ipv4_name_server2}}"
     name_server_ipv6_1: "{{ipv6_name_server1}}"
     name_server_ipv6_2: "{{ipv6_name_server2}}"
-    dns_search: "elliptic-curve.net"
-  - netif: "enX1"
+    dns_search: "example.org"
+  - netif: "{{gpm_mgmt_nic}}"
     mac: "00:50:56:00:f3:7c"
-    static_ipv4_addr: "{{gpm_mgmt_mgmtserver_ipv4_address}}"
+    static_ipv4_addr: "{{gpm_mgmt_mgmt_server_ipv4_address}}"
     network_ipv4_prefix_len: "{{network_ipv4_prefix_len}}"
-    static_ipv6_addr: "{{gpm_mgmt_mgmtserver_ipv6_address}}"
+    static_ipv6_addr: "{{gpm_mgmt_mgmt_server_ipv6_address}}"
     network_ipv6_prefix_len: "{{network_ipv6_prefix_len}}"
-    gateway4: "{{gpm_mgmt_ipv4_router}}"
-    gateway6: "{{gpm_mgmt_ipv6_router}}"
     ignore_auto_ipv4_dns: true
     ignore_auto_ipv6_dns: true
     name_server_ipv4_1: "{{ipv4_name_server1}}"
     name_server_ipv4_2: "{{ipv4_name_server2}}"
     name_server_ipv6_1: "{{ipv6_name_server1}}"
     name_server_ipv6_2: "{{ipv6_name_server2}}"
-    dns_search: "elliptic-curve.net"
+    dns_search: "example.org"
 
 #
 # Gitlab
 #
 # GitLabサーバのWEB UI公開URLのホスト名
-gitlab_hostname: "mgmt-server.elliptic-curve.net"
+gitlab_hostname: "mgmt-server.example.org"

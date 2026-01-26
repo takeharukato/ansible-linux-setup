@@ -73,10 +73,10 @@ router_ipv6_addr_field: "1"
 router_ipv6_address: "{{router_ipv6_prefix}}{{router_ipv6_addr_field}}"
 
 # 管理サーバ設定
-devserver_ipv4_addr_octet: "11"
-devserver_ipv6_addr_field: "11"
-devserver_ipv4_address: "{{router_ipv4_prefix}}.{{devserver_ipv4_addr_octet}}"
-devserver_ipv6_address: "{{router_ipv6_prefix}}{{devserver_ipv6_addr_field}}"
+mgmt_server_ipv4_addr_octet: "11"
+mgmt_server_ipv6_addr_field: "11"
+mgmt_server_ipv4_address: "{{router_ipv4_prefix}}.{{mgmt_server_ipv4_addr_octet}}"
+mgmt_server_ipv6_address: "{{router_ipv6_prefix}}{{mgmt_server_ipv6_addr_field}}"
 
 #
 # 物理サーバ/管理用VMネットワークの設定
@@ -117,14 +117,19 @@ gpm_mgmt_ipv6_network_address: "{{ gpm_mgmt_ipv6_prefix }}"
 gpm_mgmt_ipv4_network_cidr: "{{ gpm_mgmt_ipv4_network_address }}/{{ gpm_mgmt_ipv4_addr_prefix_len }}"
 # 仮想環境内部管理ネットワークのIPv6ネットワークアドレスCIDR
 gpm_mgmt_ipv6_network_cidr: "{{ gpm_mgmt_ipv6_network_address }}/{{ gpm_mgmt_ipv6_addr_prefix_len }}"
+
+# 仮想環境内部管理ネットワークのIPv4ルータアドレスオクテット
+gpm_mgmt_ipv4_router_ipv4_addr_octet: "10"
+# 仮想環境内部管理ネットワークのIPv6ルータアドレスフィールド
+gpm_mgmt_ipv6_router_ipv6_addr_field: "10"
 # 仮想環境内部管理ネットワークのIPv4ルータアドレス
-gpm_mgmt_ipv4_router: "{{ gpm_mgmt_ipv4_prefix }}.9"
+gpm_mgmt_router_ipv4_address: "{{ gpm_mgmt_ipv4_prefix }}.{{ gpm_mgmt_ipv4_router_ipv4_addr_octet }}"
 # 仮想環境内部管理ネットワークのIPv6ルータアドレス
-gpm_mgmt_ipv6_router: "{{ gpm_mgmt_ipv6_prefix }}9"
+gpm_mgmt_router_ipv6_address: "{{ gpm_mgmt_ipv6_prefix }}{{ gpm_mgmt_ipv6_router_ipv6_addr_field }}"
 # 仮想環境内部管理ネットワークのIPv4ネットワークゲートウェイアドレス
-gpm_mgmt_ipv4_network_gateway: "{{ gpm_mgmt_ipv4_router }}"
+gpm_mgmt_ipv4_network_gateway: "{{ gpm_mgmt_router_ipv4_address }}"
 # 仮想環境内部管理ネットワークのIPv6ネットワークゲートウェイアドレス
-gpm_mgmt_ipv6_network_gateway: "{{ gpm_mgmt_ipv6_router }}"
+gpm_mgmt_ipv6_network_gateway: "{{ gpm_mgmt_router_ipv6_address }}"
 
 # クライアントのDNSサーバの設定
 #
@@ -137,16 +142,16 @@ gpm_mgmt_ipv6_network_gateway: "{{ gpm_mgmt_ipv6_router }}"
 # 外部のDNSサーバへの問い合わせは, DNSサーバ内でフォワーダとして設定する。
 #
 # DNSサーバのIPv4アドレス
-ipv4_name_server1: "{{devserver_ipv4_address}}"
+ipv4_name_server1: "{{mgmt_server_ipv4_address}}"
 # DNSサーバのIPv4アドレス(代替)
 ipv4_name_server2: "{{router_ipv4_address}}"
 # DNSサーバのIPv6アドレス
-ipv6_name_server1: "{{devserver_ipv6_address}}"
+ipv6_name_server1: "{{mgmt_server_ipv6_address}}"
 # DNSサーバのIPv6アドレス(代替)
 # CloudflareのパブリックDNSリゾルバ
 ipv6_name_server2: "2606:4700:4700::1111"
 # DNSサーチドメイン (;で区切って指定)
-# 例: example.com;sub.example.com
+# 例: example.org;sub.example.org
 dns_search: "example.org"
 
 #
@@ -155,7 +160,7 @@ dns_search: "example.org"
 #
 dns_host_list:
   - { name: "{{ router_host }}",  ipv4_addr: '{{router_ipv4_addr_octet}}'}
-  - { name: 'devserver', ipv4_addr: '{{devserver_ipv4_addr_octet}}'}
+  - { name: 'mgmt-server', ipv4_addr: '{{mgmt_server_ipv4_addr_octet}}'}
   - { name: 'nas', ipv4_addr: '31'}
 
 #
@@ -174,17 +179,17 @@ mdns_host_list:
 #
 
 ntp_servers_list:
-  - "{{devserver_ipv4_address}}"
+  - "{{mgmt_server_ipv4_address}}"
 
 #
 # DNSサーバの設定
 #
 # DNSサーバ名
-dns_server: "devserver.example.org"
+dns_server: "mgmt-server.example.org"
 # DNSサーバのIPv4アドレス
-dns_server_ipv4_address: "{{devserver_ipv4_address}}"
+dns_server_ipv4_address: "{{mgmt_server_ipv4_address}}"
 # DNSサーバのIPv6アドレス (未使用)
-dns_server_ipv6_address: "{{devserver_ipv6_address}}"
+dns_server_ipv6_address: "{{mgmt_server_ipv6_address}}"
 # ドメイン名
 dns_domain: "example.org"
 # namedのACLに設定するIPv4ネットワークアドレス
@@ -319,7 +324,7 @@ docker_ce_backup_dir_on_nfs: "/Linux/containers"
 #  上記の場合は, /mnt/Linux/Devel 配下にバックアップされる
 #  ファイル名は, home-{{ user_settings_backup_users_list.item }}-ホスト名-世代数.tar.xz となる
 #  例:
-#     ユーザ user1, ホスト名 devserver, 世代数 0の場合: home-user1-devserver-0.tar.xz
+#     ユーザ user1, ホスト名 mgmt-server, 世代数 0の場合: home-user1-mgmt-server-0.tar.xz
 #
 # バックアップ世代数
 user_settings_backup_home_rotation: 2

@@ -2,17 +2,31 @@
 #  Ansible playbook
 #  Copyright 2020 Takeharu KATO All Rights Reserved.
 #
-# Debian系で管理サーバの構築処理を確認するためのテスト用設定ファイル
+# Ubuntu(Debian系)で管理サーバの構築処理を確認するためのテスト用設定ファイル
 #
-ubuntu_server_ipv4_addr_octet: "13"
-ubuntu_server_ipv6_addr_field: "13"
+# RHEL系管理サーバのIPアドレス末尾
+ubuntu_server_ipv4_addr_octet: "14"
+ubuntu_server_ipv6_addr_field: "14"
+
+# 物理サーバ/管理用VMネットワーク内のIPv4アドレス
 ubuntu_server_ipv4_address: "{{router_ipv4_prefix}}.{{ ubuntu_server_ipv4_addr_octet }}"
+# 物理サーバ/管理用VMネットワーク内のIPv6アドレス
 ubuntu_server_ipv6_address: "{{router_ipv6_prefix}}{{ ubuntu_server_ipv6_addr_field }}"
 
+# 仮想環境内部管理ネットワーク内のIPv4アドレス
+gpm_mgmt_ubuntu_server_ipv4_address: "{{gpm_mgmt_ipv4_prefix}}.{{ ubuntu_server_ipv4_addr_octet }}"
+# 仮想環境内部管理ネットワーク内のIPv6アドレス
+gpm_mgmt_ubuntu_server_ipv6_address: "{{gpm_mgmt_ipv6_prefix}}{{ ubuntu_server_ipv6_addr_field }}"
+
+# 管理ネットワークIF
 mgmt_nic: "ens160"
+# 仮想環境内部管理ネットワークのvNIC
+gpm_mgmt_nic: "ens192"
+
+# ネットワークIFリスト
 netif_list:
-  - netif: "ens160"
-    mac: "00:50:56:00:43:88"
+  - netif: "{{mgmt_nic}}"
+    mac: "00:50:56:00:dd:88"
     static_ipv4_addr: "{{ubuntu_server_ipv4_address}}"
     network_ipv4_prefix_len: "{{network_ipv4_prefix_len}}"
     static_ipv6_addr: "{{ubuntu_server_ipv6_address}}"
@@ -25,4 +39,23 @@ netif_list:
     name_server_ipv4_2: "{{ipv4_name_server2}}"
     name_server_ipv6_1: "{{ipv6_name_server1}}"
     name_server_ipv6_2: "{{ipv6_name_server2}}"
-    dns_search: "elliptic-curve.net"
+    dns_search: "example.org"
+  - netif: "{{gpm_mgmt_nic}}"
+    mac: "00:50:56:00:dd:7c"
+    static_ipv4_addr: "{{gpm_mgmt_ubuntu_server_ipv4_address}}"
+    network_ipv4_prefix_len: "{{network_ipv4_prefix_len}}"
+    static_ipv6_addr: "{{gpm_mgmt_ubuntu_server_ipv6_address}}"
+    network_ipv6_prefix_len: "{{network_ipv6_prefix_len}}"
+    ignore_auto_ipv4_dns: true
+    ignore_auto_ipv6_dns: true
+    name_server_ipv4_1: "{{ipv4_name_server1}}"
+    name_server_ipv4_2: "{{ipv4_name_server2}}"
+    name_server_ipv6_1: "{{ipv6_name_server1}}"
+    name_server_ipv6_2: "{{ipv6_name_server2}}"
+    dns_search: "example.org"
+
+#
+# Gitlab
+#
+# GitLabサーバのWEB UI公開URLのホスト名
+gitlab_hostname: "ubuntu-server.example.org"

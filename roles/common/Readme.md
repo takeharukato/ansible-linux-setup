@@ -291,8 +291,8 @@
 1. 名前解決 ( 正引き )
 
    ```bash
-   dig +short A   <host.example.com> @<dns-server>
-   dig +short AAAA <host.example.com> @<dns-server>
+   dig +short A   <host.example.org> @<dns-server>
+   dig +short AAAA <host.example.org> @<dns-server>
    nslookup <hostname> <dns-server>
    ```
 

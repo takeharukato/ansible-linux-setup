@@ -15,7 +15,7 @@ https://ホスト名:10443/
 
 '.' で区切られたドメイン名の各要素をdc=要素名,dc=要素名として並べてDomain Component(dc)を指定する。
 
-ドメイン名がexample.comの場合, 以下を`login`名に入力する
+ドメイン名がexample.orgの場合, 以下を`login`名に入力する
 ```
 cn=admin,dc=example,dc=net
 ```

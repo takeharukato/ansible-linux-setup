@@ -2,23 +2,41 @@
 #  Ansible playbook
 #  Copyright 2020 Takeharu KATO All Rights Reserved.
 #
-# 管理ネットワークのNIC
+# K8sネットワークIPv4プレフィクス
+k8s_net2_ipv4_prefix: "192.168.50"
+# K8sネットワークIPv6プレフィクス
+k8s_net2_ipv6_prefix: "fd69:6684:61a:3::"
+
+# 疑似外部ネットワークIPv4プレフィクス
+external_net_ipv4_prefix: "192.168.255"
+# 疑似外部ネットワークIPv6プレフィクス
+external_net_ipv6_prefix: "fd69:6684:61a:90::"
+
+# 管理ネットワークのvNIC
 mgmt_nic: "ens160"
+# 仮想環境内部管理ネットワークのvNIC
+gpm_mgmt_nic: "ens192"
+# 疑似外部ネットワークのvNIC
+external_net__nic: "enX2"
+
+# FRR02のIPアドレス末尾
+frr02_ipv4_addr_octet: "48"
+frr02_ipv6_addr_field: "48"
 
 # NICリスト
 # 管理系IF(ens160)
-# ipv4 addr: 192.168.30.49
-# ipv6 addr: fdad:ba50:248b:1::49
+# ipv4 addr: 192.168.30.48
+# ipv6 addr: fdad:ba50:248b:1::48
 # DNSは, LAN内のDNSを使用
 #
-# K8sネットワーク(ens194)
+# K8sネットワーク(ens192)
 # 本サーバは, マルチホーム構成としており, 管理系IFが接続されたスイッチ
 # とK8sクラスタ用IFが接続されたスイッチ, 疑似外部ネットワークの3系統のスイッチに接続される
 # K8sクラスタ用IFが接続されたスイッチのネットワークは以下を使用する
-#  IPv4: 192.168.50.0
+#  IPv4: 192.168.40.0
 #  IPv6: fd69:6684:61a:2::
 #
-# 疑似外部ネットワーク(ens224)
+# 疑似外部ネットワーク(enX2)
 # 本サーバは, マルチホーム構成としており, 管理系IFが接続されたスイッチ
 # と疑似外部ネットワーク用IFが接続されたスイッチ, 疑似外部ネットワークの3系統のスイッチに接続される
 # 疑似外部ネットワーク用IFが接続されたスイッチのネットワークは以下を使用する
@@ -31,26 +49,26 @@ mgmt_nic: "ens160"
 # (MACアドレスを指定すると.linkファイルによるインターフェース名固定処理が
 # 実施される)
 netif_list:
-  - netif: "ens160"
+  - netif: "{{mgmt_nic}}"
     mac: "00:50:56:00:03:f8"
-    static_ipv4_addr: "{{gpm_mgmt_ipv4_prefix}}.59"
+    static_ipv4_addr: "{{gpm_mgmt_ipv4_prefix}}.{{frr02_ipv4_addr_octet}}"
     network_ipv4_prefix_len: 24
-    static_ipv6_addr: "{{gpm_mgmt_ipv6_prefix}}59"
+    static_ipv6_addr: "{{gpm_mgmt_ipv6_prefix}}{{frr02_ipv6_addr_field}}"
     network_ipv6_prefix_len: 64
-    gateway4: "{{gpm_mgmt_ipv4_router}}"
-    gateway6: "{{gpm_mgmt_ipv6_router}}"
+    gateway4: "{{gpm_mgmt_router_ipv4_address}}"
+    gateway6: "{{gpm_mgmt_router_ipv6_address}}"
     ignore_auto_ipv4_dns: true
     ignore_auto_ipv6_dns: true
     name_server_ipv4_1: "{{ipv4_name_server1}}"
     name_server_ipv4_2: "{{ipv4_name_server2}}"
     name_server_ipv6_1: "{{ipv6_name_server1}}"
     name_server_ipv6_2: "{{ipv6_name_server2}}"
-    dns_search: "example.com"
+    dns_search: "example.org"
   - netif: "ens192"
     mac: "00:50:56:00:03:02"
-    static_ipv4_addr: "192.168.50.59"
+    static_ipv4_addr: "{{k8s_net2_ipv4_prefix}}.{{frr02_ipv4_addr_octet}}"
     network_ipv4_prefix_len: 24
-    static_ipv6_addr: "fd69:6684:61a:3::59"
+    static_ipv6_addr: "{{k8s_net2_ipv6_prefix}}{{frr02_ipv6_addr_field}}"
     network_ipv6_prefix_len: 64
     ignore_auto_ipv4_dns: true
     ignore_auto_ipv6_dns: true
@@ -60,12 +78,12 @@ netif_list:
     name_server_ipv6_2: "{{ipv6_name_server2}}"
     route_metric_ipv4: 300
     route_metric_ipv6: 300
-    dns_search: "example.com"
-  - netif: "ens224"
+    dns_search: "example.org"
+  - netif: "enX2"
     mac: "00:50:56:00:03:0c"
-    static_ipv4_addr: "192.168.255.59"
+    static_ipv4_addr: "{{external_net_ipv4_prefix}}.{{frr02_ipv4_addr_octet}}"
     network_ipv4_prefix_len: 24
-    static_ipv6_addr: "fd69:6684:61a:90::59"
+    static_ipv6_addr: "{{external_net_ipv6_prefix}}{{frr02_ipv6_addr_field}}"
     network_ipv6_prefix_len: 64
     ignore_auto_ipv4_dns: true
     ignore_auto_ipv6_dns: true
@@ -75,32 +93,45 @@ netif_list:
     name_server_ipv6_2: "{{ipv6_name_server2}}"
     route_metric_ipv4: 300
     route_metric_ipv6: 300
-    dns_search: "example.com"
+    dns_search: "example.org"
 
 # ==== FRR/BGP (Cluster1 用) =================================
 
 # このノードのBGP AS番号と router-id
-# router-id は Cluster2 の K8s 側セグメント上アドレスに揃える
+# router-id は Cluster1 の K8s 側セグメント上アドレスに揃える
 frr_bgp_asn: 65012
-frr_bgp_router_id: "192.168.50.59"
+frr_bgp_router_id: "{{k8s_net2_ipv4_prefix}}.{{frr02_ipv4_addr_octet}}"
 
 # K8sノードとの iBGP ピア (IPv4セッション)
+# K8sネットワーク側アドレスを使用（DC接続側）
 frr_k8s_neighbors:
-  - { addr: "192.168.50.51", asn: 65012, desc: "C1 control-plane" }
-  - { addr: "192.168.50.52", asn: 65012, desc: "C1 worker-1" }
-  - { addr: "192.168.50.53", asn: 65012, desc: "C1 worker-2" }
+  - { addr: "{{k8s_net2_ipv4_prefix}}.51", asn: 65012, desc: "C1 control-plane" }
+  - { addr: "{{k8s_net2_ipv4_prefix}}.52", asn: 65012, desc: "C1 worker-1" }
+  - { addr: "{{k8s_net2_ipv4_prefix}}.53", asn: 65012, desc: "C1 worker-2" }
 
-# 疑似外部ネットワーク側 eBGP ピア
-# 外部GW (例: 192.168.255.1, AS 65100) を後で別ノードに立てる前提
+# K8sノードとの iBGP ピア (IPv6セッション)
+frr_k8s_neighbors_v6:
+  - { addr: "{{k8s_net2_ipv6_prefix}}51", asn: 65012, desc: "C1 control-plane" }
+  - { addr: "{{k8s_net2_ipv6_prefix}}52", asn: 65012, desc: "C1 worker-1" }
+  - { addr: "{{k8s_net2_ipv6_prefix}}53", asn: 65012, desc: "C1 worker-2" }
+
+# 疑似外部ネットワーク側 eBGP ピア (IPv4セッション)
+# 外部GW (192.168.255.81, AS 65100) とIPv4トランスポートで接続
 frr_ebgp_neighbors:
-  - { addr: "192.168.255.1", asn: 65100, desc: "External GW" }
+  - { addr: "{{external_net_ipv4_prefix}}.81", asn: 65100, desc: "External GW" }
+
+# 疑似外部ネットワーク側 eBGP ピア (IPv6セッション)
+frr_ebgp_neighbors_v6:
+  - { addr: "{{external_net_ipv6_prefix}}81", asn: 65100, desc: "External GW" }
 
 # 広告したいプレフィックス (ラボ用)
 # 後で PodCIDR/ServiceCIDR に合わせて調整
 frr_networks_v4:
-  - "192.168.40.0/24"   # Cluster2 K8s ノードセグメント
-  - "192.168.255.0/24"   # 疑似外部ネットワーク
+  - "{{gpm_mgmt_ipv4_prefix}}.0/24"   # Cluster2 管理ネットワーク
+  - "{{k8s_net2_ipv4_prefix}}.0/24"   # Cluster2 K8s ノードセグメント
+  - "{{external_net_ipv4_prefix}}.0/24"   # 疑似外部ネットワーク
 
 frr_networks_v6:
-  - "fd69:6684:61a:3::/64"   # Cluster2 K8s ノードセグメント
-  - "fd69:6684:61a:90::/64"  # 疑似外部ネットワーク
+  - "{{gpm_mgmt_ipv6_prefix}}/64"   # Cluster2  管理ネットワーク
+  - "{{k8s_net2_ipv6_prefix}}/64"   # Cluster2 K8s ノードセグメント
+  - "{{external_net_ipv6_prefix}}/64"  # 疑似外部ネットワーク

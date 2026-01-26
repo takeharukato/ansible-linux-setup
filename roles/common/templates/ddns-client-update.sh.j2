@@ -60,7 +60,7 @@
 #       ZONE_REV6  : IPv6逆引きゾーン (default: {{dns_ipv6_reverse}}.ip6.arpa)
 #          ZONE_FWD / ZONE_REV4 / ZONE_REV6 は, 指定値の末尾ドット有無に関わらず
 #          スクリプト内で「末尾ドットをちょうど1個だけ付与」して正規化する。
-#          例: "example.com" -> "example.com." / "example.com." -> "example.com."
+#          例: "example.org" -> "example.org." / "example.org." -> "example.org."
 #              "1.168.192.in-addr.arpa" -> "1.168.192.in-addr.arpa."
 #              "8.b.d.0.1.0.0.2.ip6.arpa." -> "8.b.d.0.1.0.0.2.ip6.arpa."
 #          注意: ZONE_FWD/ZONE_REV4/ZONE_REV6 を空文字にすると正規化後に "." となる。
@@ -202,7 +202,7 @@
 #
 #     [Error] FQDN is outside forward zone: FQDN=<fqdn> ZONE_FWD=<zone_fwd>(直後に処理中断)
 #             FQDN がフォワードゾーン(ZONE_FWD)の配下(または頂点)ではない。
-#             例: FQDN=host1.example.com. ZONE_FWD=example.org. の場合など。
+#             例: FQDN=host1.example.org. ZONE_FWD=example.org. の場合など。
 #             クロスゾーン操作防止のためエラー終了する。
 #             Error なので LOG_LEVEL > 1 の時だけ出力。
 #             FQDN, ZONE_FWD の設定値を確認のうえ, 対処する。
@@ -1043,8 +1043,8 @@ update_state_file() {
 #        2: IPアドレス不正
 #   その他: 失敗
 # 例:
-#   update_forward_record "host1.example.com." "192.168.20.100"
-#   update_forward_record "host1.example.com." "2001:db8::1"
+#   update_forward_record "host1.example.org." "192.168.20.100"
+#   update_forward_record "host1.example.org." "2001:db8::1"
 update_forward_record() {
     local name="$1"
     local ip="$2"
@@ -1097,13 +1097,13 @@ EOF
 # 逆引き(IPv4)
 #
 # 引数1: オーナー名 (PTRレコードのオーナー名, 例: d.c.b.a.in-addr.arpa.)
-# 引数2: FQDN (PTRレコードの値, 例: host1.example.com.)
+# 引数2: FQDN (PTRレコードの値, 例: host1.example.org.)
 # 復帰値:
 #        0: 成功
 #        1: nsupdate失敗
 #   その他: 失敗
 # 例:
-#   update_ptr4_record "d.c.b.a.in-addr.arpa." "host1.example.com."
+#   update_ptr4_record "d.c.b.a.in-addr.arpa." "host1.example.org."
 #
 update_ptr4_record() {
     local owner="$1"
@@ -1142,13 +1142,13 @@ EOF
 # 逆引き(IPv6)
 #
 # 引数1: オーナー名 (PTRレコードのオーナー名, 例: ニブル(nibble)逆順.ip6.arpa.)
-# 引数2: FQDN (PTRレコードの値, 例: host1.example.com.)
+# 引数2: FQDN (PTRレコードの値, 例: host1.example.org.)
 # 復帰値:
 #        0: 成功
 #        1: nsupdate失敗
 #   その他: 失敗
 # 例:
-#   update_ptr6_record "ニブル(nibble)逆順.ip6.arpa." "host1.example.com."
+#   update_ptr6_record "ニブル(nibble)逆順.ip6.arpa." "host1.example.org."
 #
 update_ptr6_record() {
     local owner="$1"
@@ -1515,7 +1515,7 @@ validate_fqdn() {
     fi
 
     # 末尾ドット直前のドット禁止
-    # 例: example.com.. など
+    # 例: example.org.. など
     base=${_fqdn%.}
     if [[ ${base} == *"." ]]; then
         err_log "FQDN has trailing empty label before final dot: FQDN=${_fqdn}";
@@ -1641,7 +1641,7 @@ main() {
     fi
 
     # FQDN がフォワードゾーン配下(または頂点)であることを検証(クロスゾーン操作防止)
-    # 大文字小文字は区別しない。例: ZONE_FWD=example.com. のとき, FQDN は "host.example.com." または "example.com." を許容
+    # 大文字小文字は区別しない。例: ZONE_FWD=example.org. のとき, FQDN は "host.example.org." または "example.org." を許容
     _fqdn_lc="${FQDN,,}"
     _zone_fwd_lc="${ZONE_FWD,,}"
     case "${_fqdn_lc}" in
