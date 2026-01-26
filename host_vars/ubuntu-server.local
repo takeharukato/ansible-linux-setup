@@ -4,7 +4,7 @@
 #
 # Ubuntu(Debian系)で管理サーバの構築処理を確認するためのテスト用設定ファイル
 #
-# RHEL系管理サーバのIPアドレス末尾
+# Ubuntu系管理サーバのIPアドレス末尾
 ubuntu_server_ipv4_addr_octet: "14"
 ubuntu_server_ipv6_addr_field: "14"
 
