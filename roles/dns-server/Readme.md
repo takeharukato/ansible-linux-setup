@@ -103,7 +103,7 @@ zone "2.0.0.0.a.1.6.0.4.8.6.6.9.6.d.f.ip6.arpa" IN {
 
 ```dns
 $TTL 86400
-@       IN      SOA     mgmt-server.elliptic-curve.net. root.elliptic-curve.net. (
+@       IN      SOA     mgmt-server.example.org. root.example.org. (
         202601201200 ;Serial
         3600            ;Refresh
         1800            ;Retry
@@ -111,7 +111,7 @@ $TTL 86400
         86400           ;Minimum TTL
 )
 
-       IN      NS       mgmt-server.elliptic-curve.net.
+       IN      NS       mgmt-server.example.org.
 
 ; === 動的 DNS (nsupdate) レコード登録ゾーン ===
 ; 以下のネットワークアドレス範囲の逆引きレコード(PTR)は
@@ -123,7 +123,7 @@ $TTL 86400
 ; nsupdate -k /etc/bind/ddns.key
 ; > server 192.168.30.1
 ; > zone 30.168.192.in-addr.arpa.
-; > update add 100.30.168.192.in-addr.arpa 3600 PTR hostname.example.com.
+; > update add 100.30.168.192.in-addr.arpa 3600 PTR hostname.example.org.
 ; > send
 ;
 ```
@@ -137,7 +137,7 @@ $TTL 86400
 DNS_SERVER="192.168.30.1"
 REVERSE_ZONE="30.168.192.in-addr.arpa"
 DDNS_KEY="/etc/bind/ddns.key"
-HOSTNAME="client01.example.com"
+HOSTNAME="client01.example.org"
 IPADDR="192.168.30.100"
 TTL=3600
 

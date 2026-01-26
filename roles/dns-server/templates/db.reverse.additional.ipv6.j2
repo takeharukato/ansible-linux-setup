@@ -31,6 +31,6 @@ $TTL 86400
 ; nsupdate -k /etc/bind/ddns.key
 ; > server 2001:db8::1
 ; > zone {{ additional_network_cidr | ipv6_reverse_zone(additional_network_cidr.split('/')[1] | int) }}.ip6.arpa.
-; > update add 1.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.a.1.6.0.4.8.6.6.9.6.d.f.ip6.arpa 3600 PTR hostname.example.com.
+; > update add 1.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.a.1.6.0.4.8.6.6.9.6.d.f.ip6.arpa 3600 PTR hostname.example.org.
 ; > send
 ;
