@@ -155,7 +155,7 @@ users_listには, 以下の要素からなる辞書のリストを記述する.
 記載例は以下の通り。
 
 ```yaml
-  - { name: 'user1', group: 'user1', password: "{{ 'user1'|password_hash('sha512') }}", update_password: 'on_create', shell: "/bin/zsh", home: "/home/user1", comment: 'Sample User', email: "user1@example.com", github: 'sampleuser' }
+  - { name: 'user1', group: 'user1', password: "{{ 'user1'|password_hash('sha512') }}", update_password: 'on_create', shell: "/bin/zsh", home: "/home/user1", comment: 'Sample User', email: "user1@example.org", github: 'sampleuser' }
 ```
 
 #### users_authorized_keys定義
@@ -216,10 +216,10 @@ users_listには, 以下の要素からなる辞書のリストを記述する.
 |gpm_mgmt_ipv6_network_address|仮想環境内部管理ネットワークのIPv6アドレス|"{{ gpm_mgmt_ipv6_prefix }}"|
 |gpm_mgmt_ipv4_network_cidr|仮想環境内部管理ネットワークのIPv4ネットワークアドレスCIDR|"{{ gpm_mgmt_ipv4_network_address }}/{{ gpm_mgmt_ipv4_addr_prefix_len }}"|
 |gpm_mgmt_ipv6_network_cidr|仮想環境内部管理ネットワークのIPv6ネットワークアドレスCIDR|"{{ gpm_mgmt_ipv6_network_address }}/{{ gpm_mgmt_ipv6_addr_prefix_len }}"|
-|gpm_mgmt_ipv4_router|仮想環境内部管理ネットワークのIPv4ルータアドレス|"{{ gpm_mgmt_ipv4_prefix }}.17"|
-|gpm_mgmt_ipv6_router|仮想環境内部管理ネットワークのIPv6ルータアドレス|"{{ gpm_mgmt_ipv6_prefix }}::17"|
-|gpm_mgmt_ipv4_network_gateway|仮想環境内部管理ネットワークのIPv4ネットワークゲートウェイアドレス|"{{ gpm_mgmt_ipv4_router }}"|
-|gpm_mgmt_ipv6_network_gateway|仮想環境内部管理ネットワークのIPv6ネットワークゲートウェイアドレス|"{{ gpm_mgmt_ipv6_router }}"|
+|gpm_mgmt_router_ipv4_address|仮想環境内部管理ネットワークのIPv4ルータアドレス|"{{ gpm_mgmt_ipv4_prefix }}.17"|
+|gpm_mgmt_router_ipv6_address|仮想環境内部管理ネットワークのIPv6ルータアドレス|"{{ gpm_mgmt_ipv6_prefix }}::17"|
+|gpm_mgmt_ipv4_network_gateway|仮想環境内部管理ネットワークのIPv4ネットワークゲートウェイアドレス|"{{ gpm_mgmt_router_ipv4_address }}"|
+|gpm_mgmt_ipv6_network_gateway|仮想環境内部管理ネットワークのIPv6ネットワークゲートウェイアドレス|"{{ gpm_mgmt_router_ipv6_address }}"|
 |mgmt_nic|デフォルトの管理用ネットワークインターフェース名|"ens160"|
 
 #### クライアントのDomain Name System (DNS) サーバ関連設定
@@ -230,7 +230,7 @@ users_listには, 以下の要素からなる辞書のリストを記述する.
 |ipv4_name_server2|DNSサーバのIPv4アドレス2|"{{router_ipv4_address}}"|
 |ipv6_name_server1|DNSサーバのIPv6アドレス1|"{{devserver_ipv6_address}}"|
 |ipv6_name_server2|DNSサーバのIPv6アドレス2|"2606:4700:4700::1111"|
-|dns_search|DNSサーチドメインを;で区切って指定する|"example.com;sub.example.com"|
+|dns_search|DNSサーチドメインを;で区切って指定する|"example.org;sub.example.org"|
 
 ipv4_name_server1, ipv4_name_server2の両方を設定した場合は両方設定される。ipv4_name_server1, ipv4_name_server2のいずれか一方のみを設定した場合は, その1つのみ設定される。ipv4_name_server1, ipv4_name_server2のいずれも設定しなかった場合は, Dynamic Host Configuration Protocol (DHCP) で取得したDNSサーバが設定される。
 
@@ -289,10 +289,10 @@ ntp_servers_list:
 
 |変数名|意味|設定値の例|
 |---|---|---|
-|dns_server|DNSサーバのドメイン名|"devserver.example.com"|
+|dns_server|DNSサーバのドメイン名|"devserver.example.org"|
 |dns_server_ipv4_address|DNSサーバのIPv4アドレス|"{{devserver_ipv4_address}}"|
 |dns_server_ipv6_address|DNSサーバのIPv6アドレス|"{{devserver_ipv6_address}}"|
-|dns_domain|DNSドメイン名(末尾のドットを除いて指定)|"example.com"|
+|dns_domain|DNSドメイン名(末尾のドットを除いて指定)|"example.org"|
 |dns_network_ipv4_prefix|IPv4ネットワークプレフィクス(末尾のドットを除いて指定)|"{{ network_ipv4_prefix }}"|
 |dns_network|DNSサーバにアクセス可能なホストのIPv4ネットワークアドレス|"{{ network_ipv4_network_address }}"|
 |dns_network_ipv4_prefix_len|DNSサーバの所属するネットワークのIPv4アドレスのプレフィクス長|"{{ network_ipv4_prefix_len }}"|
@@ -356,7 +356,7 @@ external_ntp_servers_list:
 |変数名|意味|設定値の例|
 |---|---|---|
 |rancher_host|Rancherのホスト名|"rancher01"|
-|rancher_cert_domain_name|Rancherのドメイン名|"example.com"|
+|rancher_cert_domain_name|Rancherのドメイン名|"example.org"|
 |rancher_cert_subject_country|Rancher証明書の国|"JP"|
 |rancher_cert_subject_state|Rancher証明書の州|"XXXX"|
 |rancher_cert_subject_locality|Rancher証明書の市町村|"YYYY"|
@@ -385,12 +385,12 @@ NFSマウントは以下のように行われる。
 
 以下の設定の場合
 
-- docker_ce_backup_nfs_server: "nas.example.com"
+- docker_ce_backup_nfs_server: "nas.example.org"
 - docker_ce_backup_nfs_dir: "/share"
 - docker_ce_backup_mount_point: "/mnt"
 
 以下のようにマウントされる:
-`mount -t nfs nas.example.com:/share /mnt`
+`mount -t nfs nas.example.org:/share /mnt`
 
 その後, コンテナイメージのバックアップは, マウントポイント配下の
 バックアップ配置先ディレクトリ`{{ docker_ce_backup_mount_point }}{{ docker_ce_backup_dir_on_nfs }}`に保存される。
@@ -405,7 +405,7 @@ NFSマウントは以下のように行われる。
 |変数名|意味|設定値の例|
 |---|---|---|
 |docker_ce_backup_rotation|デイリーバックアップの世代数|"5"|
-|docker_ce_backup_nfs_server|コンテナイメージのデイリーバックアップ時にマウントするNFSサーバ|"nas.example.com"|
+|docker_ce_backup_nfs_server|コンテナイメージのデイリーバックアップ時にマウントするNFSサーバ|"nas.example.org"|
 |docker_ce_backup_nfs_dir|マウントする共有ディレクトリ|"/share"|
 |docker_ce_backup_mount_point|デイリーバックアップ時のNFSマウントポイント(NFSのマウント/アンマウント時に使用)|"/mnt"|
 |docker_ce_backup_dir_on_nfs|デイリーバックアップ時のNFSマウントポイント配下のバックアップ配置先ディレクトリ|"/Linux/containers"|
@@ -424,12 +424,12 @@ NFSマウントは以下のように行われる。
 
 以下の設定の場合
 
-- user_settings_backup_home_nfs_server: "nas.example.com"
+- user_settings_backup_home_nfs_server: "nas.example.org"
 - user_settings_backup_home_nfs_dir: "/share"
 - user_settings_backup_home_mount_point: "/mnt"
 
 以下のようにマウントされる:
-`mount -t nfs nas.example.com:/share /mnt`
+`mount -t nfs nas.example.org:/share /mnt`
 
 その後, ホームディレクトリのバックアップは, マウントポイント配下の
 以下のバックアップ配置先ディレクトリに保存される。
@@ -484,7 +484,7 @@ Redmineのデイリーバックアップについては, `roles/redmine-server/R
 |変数名|意味|設定値の例|
 |---|---|---|
 |redmine_backup_rotation|バックアップ世代数|7|
-|redmine_backup_nfs_server|マウントするNFSサーバ|"nas.example.com"|
+|redmine_backup_nfs_server|マウントするNFSサーバ|"nas.example.org"|
 |redmine_backup_nfs_dir|マウントする共有ディレクトリ|"/share"|
 |redmine_backup_mount_point|デイリーバックアップ時のNFSマウントポイント(NFSのマウント/アンマウント時に使用)|"/mnt"|
 |redmine_backup_dir_on_nfs|NFSマウントポイント配下のRedmineバックアップ配置先ディレクトリ|"/Linux/Redmine"|
@@ -929,7 +929,7 @@ K8sノードは, 管理用ネットワークと運用ネットワーク(K8sのPo
 |mgmt_nic|管理用のネットワークインターフェース名|"ens160"|
 |k8s_ctrlplane_host|Kubernetes コントロールプレインのホスト名|"k8sctrlplane01.local"|
 |k8s_ctrlplane_endpoint|K8sコントロールプレインのAPI広告エンドポイントアドレス|"fd69:6684:61a:1::41"|
-|k8s_kubelet_nic|K8sのkubeletが使用するNetwork Interface Card (NIC) を指定, 未指定時はmgmt_nicが使用される。運用ネットワーク(K8sネットワーク)内でK8s間の通信を閉じるなら, K8sネットワーク側のNICを指定する。|"ens194"|
+|k8s_kubelet_nic|K8sのkubeletが使用するNetwork Interface Card (NIC) を指定, 未指定時はmgmt_nicが使用される。運用ネットワーク(K8sネットワーク)内でK8s間の通信を閉じるなら, K8sネットワーク側のNICを指定する。|"ens192"|
 |k8s_pod_ipv4_network_cidr|K8s IPv4 PodネットワークアドレスのCIDR|"10.244.0.0/16"|
 |k8s_pod_ipv6_network_cidr|K8s IPv6 PodネットワークアドレスのCIDR|"fdb6:6e92:3cfb:0100::/56"|
 |k8s_cilium_cm_cluster_name|Cilium Cluster Meshのクラスタ名|"cluster1"|
@@ -946,7 +946,7 @@ netif_list変数は, 以下の要素からなる辞書のリストである。
 
 |キー名|設定値|設定値の例|
 |---|---|---|
-|netif|インターフェース名|"ens194"|
+|netif|インターフェース名|"ens192"|
 |mac|インターフェースのMAC アドレス(省略可)。インターフェースのMAC アドレスを指定すると, インターフェース名を対象のNICに対して固定するよう設定される。|"00:50:56:57:36:71"|
 |static_ipv4_addr|静的 IPv4 アドレス(省略可)|"192.168.20.41"|
 |network_ipv4_prefix_len|IPv4 プレフィックス長(省略可)|24|
@@ -960,7 +960,7 @@ netif_list変数は, 以下の要素からなる辞書のリストである。
 |name_server_ipv4_2|セカンダリ IPv4 DNS サーバ (省略可)|"8.8.8.8"|
 |name_server_ipv6_1|優先 IPv6 DNS サーバ (省略可)|"2606:4700:4700::1111"|
 |name_server_ipv6_2|セカンダリ IPv6 DNS サーバ (省略可)|"2001:4860:4860::8888"|
-|dns_search|DNS サーチドメイン ( セミコロン区切りの文字列 )(省略可)|"example.com;sub.example.com"|
+|dns_search|DNS サーチドメイン ( セミコロン区切りの文字列 )(省略可)|"example.org;sub.example.org"|
 |route_metric_ipv4|IPv4の経路メトリック|300|
 |route_metric_ipv6|IPv6の経路メトリック|300|
 

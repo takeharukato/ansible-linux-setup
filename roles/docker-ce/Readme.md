@@ -42,6 +42,7 @@
 | `docker_ce_backup_dir_on_nfs` | `vars/all-config.yml` | マウントポイント配下でアーカイブを保存する相対パス。|
 | `docker_ce_backup_container_image_name` | `defaults/main.yml` | 自前でビルドするバックアップ用コンテナイメージ名。|
 | `nc_command` | `vars/cross-distro.yml` | NFS 疎通確認に利用する netcat コマンド名。|
+|`build_docker_ce_backup_container_image`|`roles/docker-ce/defaults/main.yml`|バックアップ用コンテナイメージを作成しない場合は, `false` を設定する(規定値は, `true`)。|
 
 必要に応じて `group_vars` / `host_vars` で上記変数を上書きし, ロールの挙動を調整します。
 

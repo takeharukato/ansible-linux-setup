@@ -10,19 +10,23 @@ mgmt_nic: "ens160"
 k8s_ctrlplane_host: "k8sctrlplane02.local"
 
 # K8sコントロールプレインのAPI広告エンドポイントアドレス
-# k8s_ctrlplane_endpoint: "192.168.20.51"
-k8s_ctrlplane_endpoint: "fd69:6684:61a:1::51"
+# k8s_ctrlplane_endpoint: "{{gpm_mgmt_ipv4_prefix}}.51"
+k8s_ctrlplane_endpoint: "{{gpm_mgmt_ipv6_prefix}}51"
 
 # K8sのkubeletが使用するNICを指定, 未指定時はmgnt_nicが使用される
 # K8sネットワークないでK8s間の通信を閉じるなら, 以下のように
 # K8sネットワーク側のNICを指定する
 #
-# k8s_kubelet_nic: "ens194"
+# k8s_kubelet_nic: "ens192"
+k8s_kubelet_nic: "ens160"
 
 # IPv4ネットマスクサイズは, 16ビット
 k8s_pod_ipv4_network_cidr: "10.243.0.0/16"
-# IPv6ネットマスクサイズは, 56ビット
-k8s_pod_ipv6_network_cidr: "fdb6:6e92:3cfb:0200::/56"
+# IPv6ネットマスクサイズは, 56ビット (Cluster2専用)
+k8s_pod_ipv6_network_cidr: "fdb6:6e92:3cfb:0100::/56"
+# K8s IPv4/IPv6 Service CIDR
+k8s_pod_ipv4_service_subnet: "10.253.0.0/16"
+k8s_pod_ipv6_service_subnet: "fdb6:6e92:3cfb:feec::/112"
 
 # Clium Cluster Meshのクラスタ名
 k8s_cilium_cm_cluster_name: "cluster2"
@@ -31,15 +35,15 @@ k8s_cilium_cm_cluster_id: "2"
 
 # NICリスト
 # 管理系IF(ens160)
-# ipv4 addr: 192.168.20.53
-# ipv6 addr: fd69:6684:61a:1::53
+# ipv4 addr: 192.168.30.53
+# ipv6 addr: fdad:ba50:248b:1::53
 # DNSは, LAN内のDNSを使用
 #
-# K8sネットワーク(ens194)
+# K8sネットワーク(ens192)
 # 本サーバは, デュアルホーム構成としており, 管理系IFが接続されたスイッチ
 # とK8sクラスタ用IFが接続されたスイッチの2系統のスイッチに接続される
 # K8sクラスタ用IFが接続されたスイッチのネットワークは以下を使用する
-#  IPv4: 192.168.40.0
+#  IPv4: 192.168.50.0
 #  IPv6: fd69:6684:61a:3::
 #
 # 管理系IF経由で外部に出す方針のため, メトリクスは管理系より高めに設定
@@ -50,22 +54,22 @@ k8s_cilium_cm_cluster_id: "2"
 netif_list:
   - netif: "ens160"
     mac: "00:50:56:00:43:0d"
-    static_ipv4_addr: "192.168.20.53"
+    static_ipv4_addr: "{{gpm_mgmt_ipv4_prefix}}.53"
     network_ipv4_prefix_len: 24
-    static_ipv6_addr: "fd69:6684:61a:1::53"
+    static_ipv6_addr: "{{gpm_mgmt_ipv6_prefix}}53"
     network_ipv6_prefix_len: 64
-    gateway4: "{{gateway4}}"
-    gateway6: "{{gateway6}}"
+    gateway4: "{{gpm_mgmt_router_ipv4_address}}"
+    gateway6: "{{gpm_mgmt_router_ipv6_address}}"
     ignore_auto_ipv4_dns: true
     ignore_auto_ipv6_dns: true
     name_server_ipv4_1: "{{ipv4_name_server1}}"
     name_server_ipv4_2: "{{ipv4_name_server2}}"
     name_server_ipv6_1: "{{ipv6_name_server1}}"
     name_server_ipv6_2: "{{ipv6_name_server2}}"
-    dns_search: "example.com"
-  - netif: "ens194"
+    dns_search: "example.org"
+  - netif: "ens192"
     mac: "00:50:56:00:43:17"
-    static_ipv4_addr: "192.168.40.53"
+    static_ipv4_addr: "192.168.50.53"
     network_ipv4_prefix_len: 24
     static_ipv6_addr: "fd69:6684:61a:3::53"
     network_ipv6_prefix_len: 64
@@ -77,11 +81,11 @@ netif_list:
     name_server_ipv6_2: "{{ipv6_name_server2}}"
     route_metric_ipv4: 300
     route_metric_ipv6: 300
-    dns_search: "example.com"
+    dns_search: "example.org"
 
 # Cilium BGP Control Plane 設定
 k8s_bgp:
-  enabled: true
+  enabled: false
   node_name: "k8sworker0202"
   local_asn: 65012
   kubeconfig: "/etc/kubernetes/admin.conf"
@@ -91,8 +95,63 @@ k8s_bgp:
     - ipv4
     - ipv6
   neighbors:
-    - peer_address: "192.168.40.59/32"
+    - peer_address: "192.168.50.59/32"
       peer_asn: 65012
       peer_port: 179
       hold_time_seconds: 90
       connect_retry_seconds: 15
+
+# K8s Worker FRR 設定 (Cilium BGP Control Plane の代替)
+# 注意: k8s_bgp.enabled と k8s_worker_frr.enabled は排他的に使用してください
+k8s_worker_frr:
+  # FRR 有効化 (Cilium BGP Control Plane 無効時のみ有効にする)
+  enabled: true
+
+  # BGP AS 番号 (cluster2 用、DC 代表 FRR と同一)
+  local_asn: 65012
+
+  # RFC 5549 (IPv6 トランスポートで IPv4 NLRI を交換)
+  rfc5549_enabled: false
+
+  # IPv4 トランスポートで IPv6 NLRI を交換 (Multiprotocol BGP)
+  ipv4_transport_ipv6_nlri_enabled: false
+
+  # BGP Router ID (このワーカーノードの管理ネットワーク側 IPv4 アドレス)
+  router_id: "192.168.30.53"
+
+  # クラスタ名 (k8s_cilium_cm_cluster_name と一致させる)
+  cluster_name: "cluster2"
+
+  # DC 代表 FRR ノードのリスニングアドレス (cluster2 用)
+  # IPv4 BGP セッション用
+  dc_frr_addresses:
+    frr02.local: "192.168.50.48"
+
+  # DC 代表 FRR ノードのリスニングアドレス (IPv6 BGP セッション用)
+  dc_frr_addresses_v6:
+    frr02.local: "fd69:6684:61a:3::48"
+
+  # ワーカーノード自身への到達性確保用ホストルート
+  advertise_host_route_ipv4: "192.168.50.53/32"
+  advertise_host_route_ipv6: "fd69:6684:61a:3::53/128"
+
+  # プレフィックス長フィルタ設定 (BGP 送信時のフィルタ)
+  prefix_filter:
+    ipv4:
+      pod_min_length: 24
+      pod_max_length: 28
+      service_min_length: 16
+      service_max_length: 24
+    ipv6:
+      pod_min_length: 56
+      pod_max_length: 64
+      service_min_length: 112
+      service_max_length: 120
+
+  # クラスタ別の Pod/Service ネットワーク CIDR 定義
+  clusters:
+    cluster2:
+      pod_cidrs_v4: ["10.243.0.0/16"]
+      service_cidrs_v4: ["10.253.0.0/16"]
+      pod_cidrs_v6: ["fdb6:6e92:3cfb:0100::/56"]
+      service_cidrs_v6: ["fdb6:6e92:3cfb:feec::/112"]

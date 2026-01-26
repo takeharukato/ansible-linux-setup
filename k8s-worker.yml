@@ -28,6 +28,12 @@
       # - common / k8s-common で基本ツールやディレクトリ整備済み。
       # - k8s-shared-ca で共通 CA が配置済み。
       # - k8s-ctrlplane で kubeadm まわりの設定・スクリプト展開が完了した後に実行。
+    - role: k8s-worker-frr
+      tags: k8s-worker-frr
+      when:
+        - k8s_worker_frr is defined
+        - k8s_worker_frr.enabled | default(false)
+        - not (k8s_bgp.enabled | default(false))
     - role: k8s-kubeconfig
       tags: k8s-kubeconfig
     - role: k8s-hubble-cli

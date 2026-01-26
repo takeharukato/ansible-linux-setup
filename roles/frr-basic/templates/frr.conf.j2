@@ -31,24 +31,28 @@ router bgp {{ frr_bgp_asn }}
  bgp router-id {{ frr_bgp_router_id }}
  no bgp ebgp-requires-policy
 
- ! --- iBGP: K8s ノード ---
+ ! --- iBGP: K8s ノード (IPv4) ---
 {% for n in frr_k8s_neighbors | default([], true) %}
  neighbor {{ n.addr }} remote-as {{ n.asn }}
  neighbor {{ n.addr }} description {{ n.desc }}
-{% if (':' in (n.addr | string)) and ((frr_networks_v4 | default([], true)) | length > 0) %}
- ! IPv6 トランスポートで IPv4 NLRI を運ぶ場合 (RFC 5549) に備える
- neighbor {{ n.addr }} capability extended-nexthop
-{% endif %}
 {% endfor %}
 
- ! --- eBGP: 疑似外部ネットワーク側 ---
+ ! --- iBGP: K8s ノード (IPv6) ---
+{% for n in frr_k8s_neighbors_v6 | default([], true) %}
+ neighbor {{ n.addr }} remote-as {{ n.asn }}
+ neighbor {{ n.addr }} description {{ n.desc }}
+{% endfor %}
+
+ ! --- eBGP: 疑似外部ネットワーク側 (IPv4) ---
 {% for n in frr_ebgp_neighbors | default([], true) %}
  neighbor {{ n.addr }} remote-as {{ n.asn }}
  neighbor {{ n.addr }} description {{ n.desc }}
-{% if (':' in (n.addr | string)) and ((frr_networks_v4 | default([], true)) | length > 0) %}
- ! IPv6 トランスポートで IPv4 NLRI を運ぶ場合 (RFC 5549) に備える
- neighbor {{ n.addr }} capability extended-nexthop
-{% endif %}
+{% endfor %}
+
+ ! --- eBGP: 疑似外部ネットワーク側 (IPv6) ---
+{% for n in frr_ebgp_neighbors_v6 | default([], true) %}
+ neighbor {{ n.addr }} remote-as {{ n.asn }}
+ neighbor {{ n.addr }} description {{ n.desc }}
 {% endfor %}
 
  ! ipv4ネットワーク広告設定
@@ -66,7 +70,7 @@ router bgp {{ frr_bgp_asn }}
 {% for p in frr_networks_v6 | default([], true) %}
   network {{ p }}
 {% endfor %}
-{% for n in (frr_k8s_neighbors | default([], true)) + (frr_ebgp_neighbors | default([], true)) %}
+{% for n in (frr_k8s_neighbors_v6 | default([], true)) + (frr_ebgp_neighbors_v6 | default([], true)) %}
   neighbor {{ n.addr }} activate
 {% endfor %}
  exit-address-family

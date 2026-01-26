@@ -10,5 +10,8 @@
 # Dockerを起動する処理をdirectory.ymlの前に実行
 - include_tasks: service.yml
 - include_tasks: directory.yml
+- include_tasks: docker-backup-image.yml
+  when:
+    - build_docker_ce_backup_container_image|default(false)|bool
 - include_tasks: user_group.yml
 - include_tasks: config.yml

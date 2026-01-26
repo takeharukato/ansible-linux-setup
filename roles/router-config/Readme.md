@@ -1,4 +1,4 @@
-# bastion-config ロール
+# router-config ロール
 
 このロールは踏み台サーバ (ゲートウェイサーバー) のネットワーク設定を行います。具体的には, IPv4/IPv6 パケット転送の有効化, Reverse Path Filtering (RPF) の設定, NAT ルール (iptables/ip6tables) の設定, および sysctl 設定ファイルの生成・配置を実施します。複合ネットワーク環境で管理ネットワークと外部ネットワーク間のトラフィック中継を実現します。
 
@@ -37,7 +37,7 @@ OS 別の詳細は [vars/cross-distro.yml](../../vars/cross-distro.yml) を参�
    - IPv4 Reverse Path Filtering をルーズモードに設定 (`net.ipv4.conf.all.rp_filter=2`, `.default.rp_filter=2`)
    - IPv6 パケット転送の有効化 (`net.ipv6.conf.all.forwarding=1`, `.default.forwarding=1`)
    - 管理インターフェースでのルーター広告受け入れ (`net.ipv6.conf.{{ mgmt_nic }}.accept_ra=2`)
-5. 設定変更時はハンドラ `bastion_config_reload_sysctl` で `sysctl --system` を実行します。
+5. 設定変更時はハンドラ `router_config_reload_sysctl` で `sysctl --system` を実行します。
 6. [tasks/config-nat.yml](tasks/config-nat.yml) で iptables/ip6tables ルールを設定します：
    - **IPv4 NAT**: 管理ネットワークから外部ネットワークへのトラフィックを MASQUERADE で変換
    - **IPv4 FORWARD**: 管理 => 外部, 外部 => 管理のパケット転送を許可 ( conntrack による既確立接続判定 )
@@ -48,7 +48,7 @@ OS 別の詳細は [vars/cross-distro.yml](../../vars/cross-distro.yml) を参�
 ## 利用の流れ
 
 1. 仮想環境と物理ネットワークのインターフェース名およびネットワーク CIDR を [vars/all-config.yml](../../vars/all-config.yml) で定義します。
-2. `make run_bastion_config` などでロールを実行します。
+2. `make run_router_config` などでロールを実行します。
 3. sysctl 設定は即座に反映され, iptables ルール, iptables/ip6tables サービス設定は有効化されます。
 
 ## 検証ポイント

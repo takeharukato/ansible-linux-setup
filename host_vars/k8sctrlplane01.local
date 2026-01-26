@@ -10,19 +10,23 @@ mgmt_nic: "ens160"
 k8s_ctrlplane_host: "k8sctrlplane01.local"
 
 # K8sコントロールプレインのAPI広告エンドポイントアドレス
-# k8s_ctrlplane_endpoint: "192.168.20.41"
-k8s_ctrlplane_endpoint: "fd69:6684:61a:1::41"
+# k8s_ctrlplane_endpoint: "{{gpm_mgmt_ipv4_prefix}}.41"
+k8s_ctrlplane_endpoint: "{{gpm_mgmt_ipv6_prefix}}41"
 
 # K8sのkubeletが使用するNICを指定, 未指定時はmgnt_nicが使用される
 # K8sネットワークないでK8s間の通信を閉じるなら, 以下のように
 # K8sネットワーク側のNICを指定する
 #
-# k8s_kubelet_nic: "ens194"
+# k8s_kubelet_nic: "ens192"
+k8s_kubelet_nic: "ens160"
 
 # IPv4ネットマスクサイズは, 16ビット
 k8s_pod_ipv4_network_cidr: "10.244.0.0/16"
-# IPv6ネットマスクサイズは, 56ビット
-k8s_pod_ipv6_network_cidr: "fdb6:6e92:3cfb:0100::/56"
+# IPv6ネットマスクサイズは, 56ビット (Cluster1専用)
+k8s_pod_ipv6_network_cidr: "fdb6:6e92:3cfb:0200::/56"
+# K8s IPv4/IPv6 Service CIDR
+k8s_pod_ipv4_service_subnet: "10.254.0.0/16"
+k8s_pod_ipv6_service_subnet: "fdb6:6e92:3cfb:feed::/112"
 
 # Clium Cluster Meshのクラスタ名
 k8s_cilium_cm_cluster_name: "cluster1"
@@ -31,15 +35,15 @@ k8s_cilium_cm_cluster_id: 1
 
 # NICリスト
 # 管理系IF(ens160)
-# ipv4 addr: 192.168.20.41
-# ipv6 addr: fd69:6684:61a:1::41
+# ipv4 addr: 192.168.30.41
+# ipv6 addr: fdad:ba50:248b:1::41
 # DNSは, LAN内のDNSを使用
 #
-# K8sネットワーク(ens194)
+# K8sネットワーク(ens192)
 # 本サーバは, デュアルホーム構成としており, 管理系IFが接続されたスイッチ
 # とK8sクラスタ用IFが接続されたスイッチの2系統のスイッチに接続される
 # K8sクラスタ用IFが接続されたスイッチのネットワークは以下を使用する
-#  IPv4: 192.168.30.0
+#  IPv4: 192.168.40.0
 #  IPv6: fd69:6684:61a:2::
 #
 # 管理系IF経由で外部に出す方針のため, メトリクスは管理系より高めに設定
@@ -50,22 +54,22 @@ k8s_cilium_cm_cluster_id: 1
 netif_list:
   - netif: "ens160"
     mac: "00:50:56:00:36:71"
-    static_ipv4_addr: "192.168.20.41"
+    static_ipv4_addr: "{{gpm_mgmt_ipv4_prefix}}.41"
     network_ipv4_prefix_len: 24
-    static_ipv6_addr: "fd69:6684:61a:1::41"
+    static_ipv6_addr: "{{gpm_mgmt_ipv6_prefix}}41"
     network_ipv6_prefix_len: 64
-    gateway4: "{{gateway4}}"
-    gateway6: "{{gateway6}}"
+    gateway4: "{{gpm_mgmt_router_ipv4_address}}"
+    gateway6: "{{gpm_mgmt_router_ipv6_address}}"
     ignore_auto_ipv4_dns: true
     ignore_auto_ipv6_dns: true
     name_server_ipv4_1: "{{ipv4_name_server1}}"
     name_server_ipv4_2: "{{ipv4_name_server2}}"
     name_server_ipv6_1: "{{ipv6_name_server1}}"
     name_server_ipv6_2: "{{ipv6_name_server2}}"
-    dns_search: "example.com"
-  - netif: "ens194"
+    dns_search: "example.org"
+  - netif: "ens192"
     mac: "00:50:56:00:36:7b"
-    static_ipv4_addr: "192.168.30.41"
+    static_ipv4_addr: "192.168.40.41"
     network_ipv4_prefix_len: 24
     static_ipv6_addr: "fd69:6684:61a:2::41"
     network_ipv6_prefix_len: 64
@@ -77,7 +81,7 @@ netif_list:
     name_server_ipv6_2: "{{ipv6_name_server2}}"
     route_metric_ipv4: 300
     route_metric_ipv6: 300
-    dns_search: "example.com"
+    dns_search: "example.org"
 
 # セカンダリネットワークのアドレスレンジ開始アドレス(IPv4)
 k8s_whereabouts_ipv4_range_start: "192.168.30.100"
@@ -90,7 +94,7 @@ k8s_whereabouts_ipv6_range_end: "fd69:6684:61a:2::ffff"
 
 # Cilium BGP Control Plane 設定
 k8s_bgp:
-  enabled: true
+  enabled: false
   node_name: "k8sctrlplane01"
   local_asn: 65011
   kubeconfig: "/etc/kubernetes/admin.conf"
@@ -100,7 +104,7 @@ k8s_bgp:
     - ipv4
     - ipv6
   neighbors:
-    - peer_address: "192.168.30.49/32"
+    - peer_address: "192.168.40.49/32"
       peer_asn: 65011
       peer_port: 179
       hold_time_seconds: 90

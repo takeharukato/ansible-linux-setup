@@ -39,3 +39,27 @@ zone "{{dns_ipv6_reverse}}.ip6.arpa" IN {
         };
 };
 {% endif %}
+
+{% if has_additional_networks %}
+// === 複数ネットワーク逆引きゾーン ===
+{% for network in internal_network_list %}
+{% if network.ipv4 is defined and network.ipv4|length > 0 %}
+zone "{{ network.ipv4 | ipv4_reverse_zone }}.in-addr.arpa" IN {
+        type    master;
+        file    "{{dns_bind_zone_dir}}/db.{{ network.ipv4 | ipv4_reverse_zone }}";
+        update-policy {
+                grant ddns-clients zonesub ANY PTR;
+        };
+};
+{% endif %}
+{% if network.ipv6 is defined and network.ipv6|length > 0 %}
+zone "{{ network.ipv6 | ipv6_reverse_zone(network.ipv6.split('/')[1] | int) }}.ip6.arpa" IN {
+        type    master;
+        file    "{{dns_bind_zone_dir}}/db.{{ network.ipv6 | ipv6_reverse_zone(network.ipv6.split('/')[1] | int) }}";
+        update-policy {
+                grant ddns-clients zonesub ANY PTR;
+        };
+};
+{% endif %}
+{% endfor %}
+{% endif %}

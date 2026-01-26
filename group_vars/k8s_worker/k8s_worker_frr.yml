@@ -1,0 +1,82 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  K8s Worker ノード用 FRR 設定 (グループ変数)
+#  各 K8s ワーカーノードで共通の設定をここに定義
+
+# group_vars/k8s_worker/k8s_worker_frr.yml
+
+# K8s Worker FRR 設定
+k8s_worker_frr:
+  # FRR 有効化フラグ (デフォルト無効)
+  enabled: false
+
+  # BGP AS 番号 (iBGP 構成のため DC 代表 FRR と同一 AS を使用)
+  local_asn: 65011
+
+  # DC 代表 FRR ノードのリスニングアドレス
+  # ワーカーノードからこれらのアドレスに iBGP セッションを確立
+  # キー: FRR ノードのホスト名
+  # 値: iBGP リスニング IPv4 アドレス
+  dc_frr_addresses:
+    frr01.local: "192.168.40.49"
+    frr02.local: "192.168.40.50"
+
+  # プレフィックス長フィルタ設定 (BGP 送信時のフィルタ)
+  prefix_filter:
+    # IPv4 設定
+    ipv4:
+      # Pod ネットワークの許可プレフィックス長範囲
+      pod_min_length: 24
+      pod_max_length: 28
+      # Service ネットワークの許可プレフィックス長範囲
+      service_min_length: 16
+      service_max_length: 24
+    # IPv6 設定
+    ipv6:
+      # Pod ネットワークの許可プレフィックス長範囲
+      pod_min_length: 56
+      pod_max_length: 64
+      # Service ネットワークの許可プレフィックス長範囲
+      service_min_length: 112
+      service_max_length: 120
+
+  # カーネルルーティングテーブルへのインポートフィルタ
+  # DC 代表 FRR から学習した BGP ルートをカーネルに反映する際に使用
+  # 未定義の場合は全 BGP ルートをカーネルに反映 (デフォルト動作)
+  # 定義する場合は、以下のように prefix-list 名のリストを指定
+  # kernel_route_filter:
+  #   ipv4:
+  #     - "PL-V4-KERNEL"
+  #   ipv6:
+  #     - "PL-V6-KERNEL"
+
+  # クラスタ別の Pod/Service ネットワーク CIDR 定義
+  # キー: クラスタ名 (k8s_cilium_cm_cluster_name と一致させる)
+  # 各クラスタで広告する Pod/Service CIDR を定義
+  clusters:
+    cluster1:
+      # Pod ネットワーク CIDR (IPv4)
+      pod_cidrs_v4:
+        - "10.244.0.0/16"
+      # Service ネットワーク CIDR (IPv4)
+      service_cidrs_v4:
+        - "10.254.0.0/16"
+      # Pod ネットワーク CIDR (IPv6)
+      pod_cidrs_v6:
+        - "fdb6:6e92:3cfb:0200::/56"
+      # Service ネットワーク CIDR (IPv6)
+      service_cidrs_v6:
+        - "fdb6:6e92:3cfb:feed::/112"
+
+    cluster2:
+      # Cluster2 の設定
+      pod_cidrs_v4:
+        - "10.243.0.0/16"
+      service_cidrs_v4:
+        - "10.253.0.0/16"
+      pod_cidrs_v6:
+        - "fdb6:6e92:3cfb:0100::/56"
+      service_cidrs_v6:
+        - "fdb6:6e92:3cfb:feec::/112"

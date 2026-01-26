@@ -5,8 +5,9 @@
 # devserver.local
 # rhel-server.local
 # ubuntu-server.local
-[bastion]
-# bastion.local
+# mgmt-server.local
+[router]
+# router.local
 [rancher]
 # rancher01.local
 [k8s_ctrl_plane]
@@ -27,3 +28,10 @@
 # vmlinux3.local
 # vmlinux4.local
 # vmlinux5.local
+[internal-devel]
+# devlinux1.local
+# devlinux2.local
+# devlinux3.local
+# devlinux4.local
+# devlinux5.local
+# devlinux6.local

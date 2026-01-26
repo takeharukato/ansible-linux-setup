@@ -253,6 +253,7 @@ devel_packages:
   - libpam0g-dev
   - libcurl4-openssl-dev
   - libsnappy-dev
+  - libelf-dev
   - zstd
   - default-jdk
   - wkhtmltopdf

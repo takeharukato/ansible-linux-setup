@@ -1,0 +1,60 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  設定関連タスク
+#
+---
+
+# IPv4/IPv6 フォワーディング有効化用 sysctl ドロップイン配置
+- name: Deploy IPv4/IPv6 forwarding sysctl drop-in
+  ansible.builtin.template:
+    src: "90-frr-forwarding.conf.j2"
+    dest: "/etc/sysctl.d/90-frr-forwarding.conf"
+    owner: root
+    group: root
+    mode: "0644"
+  notify: "reload_sysctl"
+
+# FRR設定ファイル配置
+- name: Deploy FRR configuration
+  ansible.builtin.template:
+    src: "frr.conf.j2"
+    dest: "/etc/frr/frr.conf"
+    owner: frr
+    group: "{{ frr_group | default('frr', true) }}"
+    mode: "0640"
+  notify: "restart_frr"
+
+# zebra/bgpd を有効化するための/etc/frr/daemonsファイルを配置
+- name: Enable zebra/bgpd via /etc/frr/daemons
+  ansible.builtin.template:
+    src: "daemons.j2"
+    dest: "/etc/frr/daemons"
+    owner: root
+    group: "{{ frr_group | default('frr', true) }}"
+    mode: "0640"
+  notify: "restart_frr"
+
+# FRR設定ファイルの構文検証
+# 注: --dry-runオプションは FRR 8.1+ で利用可能
+# 古いバージョンでは vtysh -c 'configuration' で代替検証を実施
+- name: Check if vtysh supports --dry-run option
+  ansible.builtin.command: vtysh --help
+  register: vtysh_help
+  changed_when: false
+  failed_when: false
+
+- name: Validate FRR configuration syntax (FRR 8.1+)
+  ansible.builtin.command: vtysh -f /etc/frr/frr.conf --dry-run
+  register: frr_config_validation
+  changed_when: false
+  failed_when: frr_config_validation.rc != 0
+  when: "'--dry-run' in vtysh_help.stdout or '--dry-run' in vtysh_help.stderr"
+
+- name: Validate FRR configuration syntax (legacy method)
+  ansible.builtin.shell: vtysh -c 'configure terminal' < /etc/frr/frr.conf
+  register: frr_config_validation_legacy
+  changed_when: false
+  failed_when: frr_config_validation_legacy.rc != 0
+  when: "'--dry-run' not in vtysh_help.stdout and '--dry-run' not in vtysh_help.stderr"

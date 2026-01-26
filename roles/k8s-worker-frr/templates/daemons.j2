@@ -1,0 +1,18 @@
+# This file is managed by Ansible (role: k8s-worker-frr)
+#
+# Enable required FRR daemons.
+
+zebra=yes
+bgpd=yes
+
+# Optional daemons (not used in this configuration)
+
+# Watchfrr supervises the daemons.
+watchfrr_enable=yes
+
+# Enable vtysh.
+vtysh_enable=yes
+
+# Default options
+zebra_options="-A 127.0.0.1"
+bgpd_options="-A 127.0.0.1"

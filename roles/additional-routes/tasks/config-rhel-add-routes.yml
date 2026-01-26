@@ -1,0 +1,66 @@
+#
+#  設定関連タスク (RHEL NetworkManager用追加ルート設定)
+#
+---
+
+# 追加ルート定義がある場合のみ処理を実行（OS判定はconfig.yml側で実施）
+
+# 使用する接続名 (基本はインターフェース名と同一)
+- name: Set connection name for routes
+  ansible.builtin.set_fact:
+    _add_route_conn: "{{ mgmt_nic }}"
+
+# 接続が存在するか確認（connection.id フィールドを参照）
+- name: Ensure connection exists
+  ansible.builtin.command: "nmcli -g connection.id connection show '{{ _add_route_conn }}'"
+  register: _nm_conn_check
+  changed_when: false
+  failed_when: _nm_conn_check.rc != 0
+
+# ルートのリストを構築
+- name: Initialize route lists
+  ansible.builtin.set_fact:
+    _add_v4_routes: []
+    _add_v6_routes: []
+
+- name: Collect IPv4 routes
+  ansible.builtin.set_fact:
+    _add_v4_routes: "{{ _add_v4_routes + [ item.destination ~ ' ' ~ item.gateway ~ ( ' ' ~ (item.metric | string) if item.metric is defined else '' ) ] }}"
+  loop: "{{ additional_network_routes | selectattr('address_family','equalto','ipv4') | list }}"
+  when: additional_network_routes | selectattr('address_family','equalto','ipv4') | list | length > 0
+
+- name: Collect IPv6 routes
+  ansible.builtin.set_fact:
+    _add_v6_routes: "{{ _add_v6_routes + [ item.destination ~ ' ' ~ item.gateway ~ ( ' ' ~ (item.metric | string) if item.metric is defined else '' ) ] }}"
+  loop: "{{ additional_network_routes | selectattr('address_family','equalto','ipv6') | list }}"
+  when: additional_network_routes | selectattr('address_family','equalto','ipv6') | list | length > 0
+
+# NetworkManager にルートを設定 (既存値を置き換え)
+- name: Apply IPv4 routes
+  ansible.builtin.command: "nmcli connection modify '{{ _add_route_conn }}' ipv4.routes '{{ _add_v4_routes | join(',') }}'"
+  when: _add_v4_routes | length > 0
+  register: _nm_v4_apply
+
+- name: Clear IPv4 routes when none
+  ansible.builtin.command: "nmcli connection modify '{{ _add_route_conn }}' ipv4.routes ''"
+  when: _add_v4_routes | length == 0
+  register: _nm_v4_clear
+  changed_when: _nm_v4_clear.rc == 0
+
+- name: Apply IPv6 routes
+  ansible.builtin.command: "nmcli connection modify '{{ _add_route_conn }}' ipv6.routes '{{ _add_v6_routes | join(',') }}'"
+  when: _add_v6_routes | length > 0
+  register: _nm_v6_apply
+
+- name: Clear IPv6 routes when none
+  ansible.builtin.command: "nmcli connection modify '{{ _add_route_conn }}' ipv6.routes ''"
+  when: _add_v6_routes | length == 0
+  register: _nm_v6_clear
+  changed_when: _nm_v6_clear.rc == 0
+
+# 反映
+- name: Bring connection up to apply routes
+  ansible.builtin.command: "nmcli connection up '{{ _add_route_conn }}'"
+  register: _nm_conn_up
+  changed_when: _nm_conn_up.rc == 0
+  failed_when: _nm_conn_up.rc != 0

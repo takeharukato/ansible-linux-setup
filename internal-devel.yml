@@ -2,7 +2,7 @@
 #  Ansible playbook
 #  Copyright 2020 Takeharu KATO All Rights Reserved.
 #
-- hosts: bastion
+- hosts: internal-devel
   remote_user:  '{{ ansible_user }}'
   become: true
   roles:
@@ -16,22 +16,23 @@
       when: ansible_facts.os_family == "RedHat"
     - role: common
       tags: common
-    - role: kea-dhcp
-      tags: kea-dhcp
-    - role: radvd
-      tags: radvd
-    - role: bastion-config
-      tags: bastion-config
+    - role: ntp-client
+      tags: ntp-client
     - role: user-settings
       tags: user-settings
+    - role: devel-packages
+      tags: devel-packages
     - role: create-users
       tags: create-users
     - role: docker-ce
       tags: docker-ce
+    - role: terraform
+      tags: terraform
+      when:
+        - terraform_enabled | default(false) | bool
     - role: sbom
       tags: sbom
       when:
         - sbom_enabled | default(false) | bool
-# 最後に実行するようにすること
-    - role: force-reboot
+    - role: force-reboot # 最後に実行するようにすること
       tags: force-reboot

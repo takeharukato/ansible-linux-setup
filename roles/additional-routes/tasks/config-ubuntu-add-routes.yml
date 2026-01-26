@@ -1,0 +1,50 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  設定関連タスク (Ubuntu netplan用追加ルート設定)
+#
+---
+
+# netplan設定ディレクトリの存在確認
+- name: Ensure netplan configuration directory exists
+  ansible.builtin.file:
+    path: /etc/netplan
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+# 追加ルート定義ファイルを配置
+- name: Deploy additional routes netplan configuration
+  ansible.builtin.template:
+    src: 30-additional-routes.yaml.j2
+    dest: /etc/netplan/30-additional-routes.yaml
+    owner: root
+    group: root
+    mode: "0600"
+  register: deploy_additional_routes
+
+# netplan設定の文法検証
+- name: Validate netplan configuration
+  ansible.builtin.command: netplan generate
+  changed_when: false
+  register: netplan_validate_result
+
+# 検証エラーをレポート
+- name: Report netplan validation errors
+  ansible.builtin.fail:
+    msg: |
+      netplan configuration validation failed:
+      {{ netplan_validate_result.stderr }}
+  when:
+    - netplan_validate_result.rc != 0
+    - netplan_validate_result.stderr is defined and netplan_validate_result.stderr | length > 0
+
+# 設定を適用
+- name: Apply netplan configuration
+  ansible.builtin.command: netplan apply
+  when:
+    - deploy_additional_routes is changed
+  register: netplan_apply_result
+  failed_when: netplan_apply_result.rc != 0
