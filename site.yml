@@ -15,3 +15,4 @@
 - import_playbook: k8s-worker.yml
 - import_playbook: k8s-ctrl-plane.yml
 - import_playbook: frr.yml
+- import_playbook: internal-devel.yml
