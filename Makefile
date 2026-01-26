@@ -8,6 +8,7 @@ top=.
 	run_docker_ce run_ntp_server run_ntp_client run_nfs_server \
 	run_ldap_server run_redmine_server \
 	run_k8s_common run_k8s_ctrl_plane run_k8s_worker run_netgauge \
+	run_k8s_worker_frr \
 	run_dns_server run_selinux update-ctrlplane-kubeconfig update-worker-kubeconfig \
 	run_terraform run_kea_dhcp run_radvd run_router_config \
 	run_frr_basic run_gitlab_server run_sbom
@@ -177,6 +178,9 @@ run_k8s_ctrl_plane:
 
 run_k8s_worker:
 	ansible-playbook --tags "k8s-worker" ${OPT_COMMON} 2>&1 |tee build-k8s-worker.log
+
+run_k8s_worker_frr:
+	ansible-playbook --tags "k8s-worker-frr" ${OPT_COMMON} 2>&1 |tee build-k8s-worker-frr.log
 
 run_netgauge:
 	ansible-playbook --tags "netgauge" ${OPT_COMMON} 2>&1 |tee build-netgauge.log

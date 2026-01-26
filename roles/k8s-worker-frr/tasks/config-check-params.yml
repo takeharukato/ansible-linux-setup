@@ -1,0 +1,31 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  パラメータ検証タスク
+#
+#  k8s_worker_frr 変数の整合性チェックを行う
+#
+---
+
+- name: RFC 5549 と IPv4 トランスポート IPv6 NLRI が同時有効でないことを確認
+  assert:
+    that:
+      - not (k8s_worker_frr.rfc5549_enabled | default(false) and k8s_worker_frr.ipv4_transport_ipv6_nlri_enabled | default(false))
+    fail_msg: |
+      ERROR: rfc5549_enabled and ipv4_transport_ipv6_nlri_enabled are mutually exclusive.
+      Both cannot be set to true simultaneously.
+
+      Current configuration:
+        rfc5549_enabled: {{ k8s_worker_frr.rfc5549_enabled | default(false) }}
+        ipv4_transport_ipv6_nlri_enabled: {{ k8s_worker_frr.ipv4_transport_ipv6_nlri_enabled | default(false) }}
+
+      Please choose one of the following options:
+        1. rfc5549_enabled: true (Carry IPv4 NLRI over IPv6 transport)
+        2. ipv4_transport_ipv6_nlri_enabled: true (Carry IPv6 NLRI over IPv4 transport)
+        3. Both false (Standard mode: Carry IPv4/IPv6 over separate transports)
+    success_msg: "Parameter validation successful: RFC 5549 and IPv4 transport IPv6 NLRI configuration is valid"
+  tags:
+    - k8s-worker-frr
+    - config
+    - validation

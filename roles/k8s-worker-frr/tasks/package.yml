@@ -1,0 +1,19 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  パッケージ関連処理
+---
+
+# Install FRR package
+- name: Install FRR package
+  ansible.builtin.package:
+    name: "{{ frr_packages }}"
+    state: present
+
+# Enable and start FRR service
+- name: Enable and start FRR service
+  ansible.builtin.service:
+    name: "{{ frr_svc_name }}"
+    enabled: true
+    state: started

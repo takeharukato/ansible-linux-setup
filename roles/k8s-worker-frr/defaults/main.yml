@@ -1,0 +1,62 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  ロール固有変数のデフォルト値
+#  group_vars/all/all.yml やhost_varsで上書き可能とするため,
+#  ロール名/defaults/main.yml に定義している
+
+# roles/k8s-worker-frr/defaults/main.yml
+
+# K8s Worker FRR 設定のデフォルト値
+# 実際の設定は group_vars/k8s_worker/k8s_worker_frr.yml および
+# host_vars/<hostname>.local で定義すること
+k8s_worker_frr:
+  enabled: false
+  local_asn: 0
+  router_id: ""
+  dc_frr_addresses: {}
+  prefix_filter:
+    ipv4:
+      pod_min_length: 24
+      pod_max_length: 28
+      service_min_length: 16
+      service_max_length: 24
+    ipv6:
+      pod_min_length: 56
+      pod_max_length: 64
+      service_min_length: 112
+      service_max_length: 120
+  # kernel_route_filter が未定義の場合は全 BGP ルートをカーネルに反映
+  # 定義する場合は以下のように prefix-list 名を指定:
+  # kernel_route_filter:
+  #   ipv4: ["PL-V4-KERNEL"]
+  #   ipv6: ["PL-V6-KERNEL"]
+  clusters: {}
+  advertise_host_route_ipv4: ""
+  advertise_host_route_ipv6: ""
+  cluster_name: ""
+  # RFC 5549 サポート (IPv6 トランスポートで IPv4 NLRI を運ぶ)
+  # true: IPv6 ネイバーでも IPv4 address-family で経路交換 (オプション1)
+  # false: IPv4/IPv6 を別々のトランスポートで運ぶ (オプション2、デフォルト)
+  rfc5549_enabled: false
+  # IPv4 トランスポートで IPv6 NLRI を運ぶ設定
+  # true: IPv4 ネイバーでも IPv6 address-family で経路交換
+  # false: IPv4/IPv6 を別々のトランスポートで運ぶ (デフォルト)
+  # 注: rfc5549_enabled と ipv4_transport_ipv6_nlri_enabled は排他的
+  ipv4_transport_ipv6_nlri_enabled: false
+  # 経路広告方法の選択
+  # "static": 静的経路定義 + redistribute による広告（他ノードとの互換性重視、デフォルト）
+  # "network": network コマンドによる直接広告（Cilium が経路を作成する前提）
+  route_advertisement_method: "static"
+  # 静的経路の出力インターフェース (route_advertisement_method="static" の場合のみ使用)
+  # 未設定の場合は mgmt_nic 変数を使用 (VMware: ens160, Xen: enX0, その他: eth0)
+  static_route_interface: ""
+
+# vtysh アクセス許可ユーザ・グループ設定
+# vtyshをsudoなしで実行可能とするユーザをリストで指定する
+frr_vtysh_users: []
+# vtyshアクセス許可グループ名
+frr_vtysh_group: "{{ frr_vtysh_group_name | default('frrvty', true) }}"
+# FRRグループ名
+frr_group: "{{ frr_group_name | default('frr', true) }}"

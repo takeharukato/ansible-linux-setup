@@ -1,0 +1,12 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  FRR 再起動ハンドラ
+#
+
+- name: restart frr
+  listen: "restart_frr"
+  ansible.builtin.service:
+    name: "{{ frr_svc_name }}"
+    state: restarted
