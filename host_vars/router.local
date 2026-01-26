@@ -10,7 +10,7 @@
 #  - 192.168.20.253 Xen Orchestra VM
 #
 
-# bastionノードは, 物理サーバ/管理用VMネットワークから仮想化基盤内部の管理ネットワークに
+# routerノードは, 物理サーバ/管理用VMネットワークから仮想化基盤内部の管理ネットワークに
 # 接続するための踏み台ノードとなる
 # 物理サーバ/管理用VMネットワークと仮想化基盤内部の管理ネットワークの双方のvNICを
 # 設定し, 仮想化基盤内部の管理ネットワークから物理サーバ/管理用VMネットワークへ
@@ -19,19 +19,19 @@
 # - 物理サーバ/管理用VMネットワーク上のIPv4アドレス: 192.168.20.10
 # - 仮想化基盤内部の管理ネットワーク上のIPv4アドレス: 192.168.30.10
 
-# bastionのIPアドレス末尾
-bastion_ipv4_addr_octet: "{{gpm_mgmt_ipv4_router_ipv4_addr_octet|default(10,true)}}"
-bastion_ipv6_addr_field: "{{gpm_mgmt_ipv4_router_ipv6_addr_field|default(10,true)}}"
+# routerのIPアドレス末尾
+router_ipv4_addr_octet: "{{gpm_mgmt_ipv4_router_ipv4_addr_octet|default(10,true)}}"
+router_ipv6_addr_field: "{{gpm_mgmt_ipv4_router_ipv6_addr_field|default(10,true)}}"
 
 # 物理サーバ/管理用VMネットワーク内のIPv4アドレス
-bastion_ipv4_address: "{{router_ipv4_prefix}}.{{ bastion_ipv4_addr_octet }}"
+router_ipv4_address: "{{router_ipv4_prefix}}.{{ router_ipv4_addr_octet }}"
 # 物理サーバ/管理用VMネットワーク内のIPv6アドレス
-bastion_ipv6_address: "{{router_ipv6_prefix}}{{ bastion_ipv6_addr_field }}"
+router_ipv6_address: "{{router_ipv6_prefix}}{{ router_ipv6_addr_field }}"
 
 # 仮想環境内部管理ネットワーク内のIPv4アドレス
-gpm_mgmt_bastion_ipv4_address: "{{gpm_mgmt_router_ipv4_address}}"
+gpm_mgmt_router_ipv4_address: "{{gpm_mgmt_router_ipv4_address}}"
 # 仮想環境内部管理ネットワーク内のIPv6アドレス
-gpm_mgmt_bastion_ipv6_address: "{{gpm_mgmt_router_ipv6_address}}"
+gpm_mgmt_router_ipv6_address: "{{gpm_mgmt_router_ipv6_address}}"
 
 # 物理サーバ/管理用VMネットワーク用のvNIC
 mgmt_nic: "ens160"
@@ -41,9 +41,9 @@ gpm_mgmt_nic: "ens192"
 netif_list:
   - netif: "{{mgmt_nic}}"
     mac: "00:50:56:00:46:51"
-    static_ipv4_addr: "{{bastion_ipv4_address}}"
+    static_ipv4_addr: "{{router_ipv4_address}}"
     network_ipv4_prefix_len: "{{network_ipv4_prefix_len}}"
-    static_ipv6_addr: "{{bastion_ipv6_address}}"
+    static_ipv6_addr: "{{router_ipv6_address}}"
     network_ipv6_prefix_len: "{{network_ipv6_prefix_len}}"
     gateway4: "{{gateway4}}"
     gateway6: "{{gateway6}}"
@@ -56,9 +56,9 @@ netif_list:
     dns_search: "example.org"
   - netif: "{{ gpm_mgmt_nic }}"
     mac: "00:50:56:00:46:7c"
-    static_ipv4_addr: "{{gpm_mgmt_bastion_ipv4_address}}"
+    static_ipv4_addr: "{{gpm_mgmt_router_ipv4_address}}"
     network_ipv4_prefix_len: "{{gpm_mgmt_ipv4_addr_prefix_len}}"
-    static_ipv6_addr: "{{gpm_mgmt_bastion_ipv6_address}}"
+    static_ipv6_addr: "{{gpm_mgmt_router_ipv6_address}}"
     network_ipv6_prefix_len: "{{network_ipv6_prefix_len}}"
     ignore_auto_ipv4_dns: true
     ignore_auto_ipv6_dns: true

@@ -2,7 +2,7 @@
 #  Ansible playbook
 #  Copyright 2020 Takeharu KATO All Rights Reserved.
 #
-- hosts: bastion
+- hosts: router
   remote_user:  '{{ ansible_user }}'
   become: true
   roles:
@@ -20,8 +20,8 @@
       tags: kea-dhcp
     - role: radvd
       tags: radvd
-    - role: bastion-config
-      tags: bastion-config
+    - role: router-config
+      tags: router-config
     - role: user-settings
       tags: user-settings
     - role: create-users

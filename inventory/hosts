@@ -6,8 +6,8 @@
 # rhel-server.local
 # ubuntu-server.local
 # mgmt-server.local
-[bastion]
-# bastion.local
+[router]
+# router.local
 [rancher]
 # rancher01.local
 [k8s_ctrl_plane]
