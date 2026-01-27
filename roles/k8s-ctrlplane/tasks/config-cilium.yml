@@ -76,6 +76,24 @@
     iptables-save | grep -v KUBE | iptables-restore
   become: true
 
+# CoreDNS ServiceをデュアルスタックにパッチしてクラスタのIPファミリーポリシーを修正
+- name: Patch CoreDNS service to PreferDualStack
+  become: true
+  command:
+    cmd: >
+      kubectl --kubeconfig /etc/kubernetes/admin.conf
+      patch svc kube-dns -n kube-system
+      --type=merge
+      -p '{"spec":{"ipFamilyPolicy":"PreferDualStack"}}'
+  register: coredns_patch_result
+  failed_when:
+    - coredns_patch_result.rc not in [0, 1]
+    - coredns_patch_result.rc == 1 and
+      ('not patched' not in coredns_patch_result.stdout)
+  changed_when:
+    - coredns_patch_result.rc == 0
+    - "'no change' not in coredns_patch_result.stdout"
+
 # Cilium用の共通CAシークレットを必要に応じて生成/更新
 - name: Ensure Cilium shared CA secret is up to date
   include_role:
