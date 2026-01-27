@@ -69,6 +69,9 @@ k8s_common_packages:
   - kubeadm
   - kubelet
 
+# Kubernetes導入前提パッケージ
+# yqは, common/tasks/yq-package.yml で個別に
+# GitHubからバイナリを導入するためここでは指定しない
 k8s_common_prerequisite_packages:
   - apt-transport-https
   - ca-certificates
@@ -77,7 +80,6 @@ k8s_common_prerequisite_packages:
   - gnupg
   - lsb-release
   - bash-completion
-  - yq
   - jq
   - python3-yaml
 

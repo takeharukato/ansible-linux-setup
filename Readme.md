@@ -33,6 +33,7 @@
         - [`k8s_bgp`変数の`address_families`の要素を辞書として指定する場合の指定方法](#k8s_bgp変数のaddress_familiesの要素を辞書として指定する場合の指定方法)
         - [Multus メタCNI](#multus-メタcni)
         - [Whereabouts CNI](#whereabouts-cni)
+        - [Hubble UI](#hubble-ui)
       - [複数コントロールプレインの操作](#複数コントロールプレインの操作)
         - [kubeconfig ファイルの配置と属性](#kubeconfig-ファイルの配置と属性)
         - [`kubeconfig` ファイルの収集](#kubeconfig-ファイルの収集)
@@ -752,6 +753,23 @@ Whereabouts CNI関連の設定を以下に記載する。
 |k8s_whereabouts_ipv4_range_end|セカンダリネットワークのIPv4アドレス範囲の終了アドレス|"172.22.0.50"|
 |k8s_whereabouts_ipv6_range_start|セカンダリネットワークのIPv6アドレス範囲の開始アドレス (IPv6 を利用する場合)|"fd00:100::10"|
 |k8s_whereabouts_ipv6_range_end|セカンダリネットワークのIPv6アドレス範囲の終了アドレス (IPv6 を利用する場合)|"fd00:100::50"|
+
+##### Hubble UI
+
+Hubble UI関連の設定を以下に記載する。
+
+|変数名|意味|設定値の例|
+|---|---|---|
+|k8s_hubble_ui_config_dir|Hubble UI設定ファイル格納ディレクトリパス|"{{ k8s_kubeadm_config_store }}/hubble-ui"|
+|hubble_ui_enabled|Hubble UI導入関連タスクを実行するかどうか。vars/all-config.ymlやコントロールプレインのhost_varsファイルで, 本変数を`true` に設定した場合は, Hubble UI を導入する。|`false`|
+|hubble_ui_version|Hubble UIのバージョン (Cilium Helm Chartのバージョンと同じ)。空文字列の場合は `k8s_cilium_version` を使用|""|
+|hubble_ui_service_type|Hubble UI Serviceの公開方法。`NodePort`, `LoadBalancer`, `ClusterIP` から選択。現在は, `NodePort`のみ対応。|`"NodePort"`|
+|hubble_ui_nodeport|NodePortを使用する場合のポート番号|`31234`|
+|hubble_ui_replicas|Hubble UI Deploymentのレプリカ数|`1`|
+|hubble_ui_merge_existing_values|既存のCilium Helm valuesとマージするかどうか。`true`の場合、`helm get values`で取得した既存値と新規設定を統合する。**既存のCilium設定を保護するため、デフォルトで`true`に設定されている。**|`true`|
+|hubble_ui_ingress_enabled|Ingressを有効化するかどうか (将来対応予定)|`false`|
+|hubble_ui_ingress_hosts|Ingressのホスト名リスト (将来対応予定)|`[]`|
+|hubble_ui_ingress_class_name|IngressのClass Name (将来対応予定)|`""`|
 
 #### 複数コントロールプレインの操作
 

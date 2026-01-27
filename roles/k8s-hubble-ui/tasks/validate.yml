@@ -1,0 +1,32 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  変数検証タスク
+#
+---
+
+# hubble_ui_enabled の検証
+- name: Assert hubble_ui_enabled is boolean
+  ansible.builtin.assert:
+    that:
+      - hubble_ui_enabled is boolean
+    fail_msg: 'hubble_ui_enabled must be a boolean value (true or false).'
+  changed_when: false
+
+# hubble_ui_version の正規化 (未設定の場合は k8s_cilium_version を使用)
+- name: Set default hubble_ui_version from k8s_cilium_version
+  ansible.builtin.set_fact:
+    hubble_ui_version: "{{ k8s_cilium_version }}"
+  when:
+    - hubble_ui_version is not defined or hubble_ui_version | length == 0
+  changed_when: false
+
+# hubble_ui_version の検証
+- name: Assert hubble_ui_version is defined
+  ansible.builtin.assert:
+    that:
+      - hubble_ui_version is defined
+      - (hubble_ui_version | string | length) > 0
+    fail_msg: 'hubble_ui_version must be set. It should match the Cilium version (e.g., "1.16.0").'
+  changed_when: false

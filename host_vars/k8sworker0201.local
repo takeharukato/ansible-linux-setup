@@ -5,20 +5,26 @@
 
 # 管理ネットワークのNIC
 mgmt_nic: "ens160"
+# K8sネットワークのNIC
+k8s_nic: "ens192"
+
+# k8sworker0201のIPアドレス末尾
+k8sworker0201_ipv4_addr_octet: "52"
+k8sworker0201_ipv6_addr_field: "52"
 
 # K8sコントロールプレインのホスト名
 k8s_ctrlplane_host: "k8sctrlplane02.local"
 
 # K8sコントロールプレインのAPI広告エンドポイントアドレス
-# k8s_ctrlplane_endpoint: "{{gpm_mgmt_ipv4_prefix}}.51"
-k8s_ctrlplane_endpoint: "{{gpm_mgmt_ipv6_prefix}}51"
+k8s_ctrlplane_endpoint: "{{gpm_mgmt_ipv4_prefix}}.51"
+# k8s_ctrlplane_endpoint: "{{gpm_mgmt_ipv6_prefix}}51"
 
 # K8sのkubeletが使用するNICを指定, 未指定時はmgnt_nicが使用される
 # K8sネットワークないでK8s間の通信を閉じるなら, 以下のように
 # K8sネットワーク側のNICを指定する
 #
-# k8s_kubelet_nic: "ens192"
-k8s_kubelet_nic: "ens160"
+# k8s_kubelet_nic: "{{k8s_nic}}"
+k8s_kubelet_nic: "{{mgmt_nic}}"
 
 # IPv4ネットマスクサイズは, 16ビット
 k8s_pod_ipv4_network_cidr: "10.243.0.0/16"
@@ -52,11 +58,11 @@ k8s_cilium_cm_cluster_id: "2"
 # (MACアドレスを指定すると.linkファイルによるインターフェース名固定処理が
 # 実施される)
 netif_list:
-  - netif: "ens160"
+  - netif: "{{mgmt_nic}}"
     mac: "00:50:56:00:d3:9e"
-    static_ipv4_addr: "{{gpm_mgmt_ipv4_prefix}}.52"
+    static_ipv4_addr: "{{gpm_mgmt_ipv4_prefix}}.{{k8sworker0201_ipv4_addr_octet}}"
     network_ipv4_prefix_len: 24
-    static_ipv6_addr: "{{gpm_mgmt_ipv6_prefix}}52"
+    static_ipv6_addr: "{{gpm_mgmt_ipv6_prefix}}{{k8sworker0201_ipv6_addr_field}}"
     network_ipv6_prefix_len: 64
     gateway4: "{{gpm_mgmt_router_ipv4_address}}"
     gateway6: "{{gpm_mgmt_router_ipv6_address}}"
@@ -67,11 +73,11 @@ netif_list:
     name_server_ipv6_1: "{{ipv6_name_server1}}"
     name_server_ipv6_2: "{{ipv6_name_server2}}"
     dns_search: "example.org"
-  - netif: "ens192"
+  - netif: "{{k8s_nic}}"
     mac: "00:50:56:00:d3:a8"
-    static_ipv4_addr: "192.168.50.52"
+    static_ipv4_addr: "192.168.50.{{k8sworker0201_ipv4_addr_octet}}"
     network_ipv4_prefix_len: 24
-    static_ipv6_addr: "fd69:6684:61a:3::52"
+    static_ipv6_addr: "fd69:6684:61a:3::{{k8sworker0201_ipv6_addr_field}}"
     network_ipv6_prefix_len: 64
     ignore_auto_ipv4_dns: true
     ignore_auto_ipv6_dns: true
@@ -117,7 +123,7 @@ k8s_worker_frr:
   ipv4_transport_ipv6_nlri_enabled: false
 
   # BGP Router ID (このワーカーノードの管理ネットワーク側 IPv4 アドレス)
-  router_id: "192.168.30.52"
+  router_id: "192.168.30.{{k8sworker0201_ipv4_addr_octet}}"
 
   # クラスタ名 (k8s_cilium_cm_cluster_name と一致させる)
   cluster_name: "cluster2"
@@ -132,8 +138,8 @@ k8s_worker_frr:
     frr02.local: "fd69:6684:61a:3::48"
 
   # ワーカーノード自身への到達性確保用ホストルート
-  advertise_host_route_ipv4: "192.168.50.52/32"
-  advertise_host_route_ipv6: "fd69:6684:61a:3::52/128"
+  advertise_host_route_ipv4: "192.168.50.{{k8sworker0201_ipv4_addr_octet}}/32"
+  advertise_host_route_ipv6: "fd69:6684:61a:3::{{k8sworker0201_ipv6_addr_field}}/128"
 
   # プレフィックス長フィルタ設定 (BGP 送信時のフィルタ)
   prefix_filter:

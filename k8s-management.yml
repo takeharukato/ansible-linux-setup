@@ -1,0 +1,15 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  Kubernetes管理系コンポーネントのデプロイ
+#  Control plane + Worker構築後に実行することを想定
+#  inventory/hosts の k8s_management グループに登録されたホストで実行される
+#
+- hosts: k8s_management
+  remote_user:  '{{ ansible_user }}'
+  become: true
+  roles:
+    - role: k8s-hubble-ui
+      tags: k8s-hubble-ui
+      when: hubble_ui_enabled | default(false)

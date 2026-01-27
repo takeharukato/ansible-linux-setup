@@ -35,3 +35,6 @@
 # devlinux4.local
 # devlinux5.local
 # devlinux6.local
+[k8s_management]
+# k8sctrlplane01.local
+# k8sctrlplane02.local
