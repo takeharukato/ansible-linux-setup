@@ -18,6 +18,7 @@
 - include_tasks: package.yml
 - include_tasks: kubectl-repositories.yml
 - include_tasks: common-packages.yml
+- include_tasks: yq-package.yml
 - include_tasks: directory.yml
 - include_tasks: directory-dns-client.yml
   when: use_nm_ddns_update_scripts | default(false)

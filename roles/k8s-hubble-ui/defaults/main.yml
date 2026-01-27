@@ -1,0 +1,56 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  ロール固有変数のデフォルト値
+#  group_vars/all/all.yml やhost_varsで上書き可能とするため,
+#  ロール名/defaults/main.yml に定義している
+---
+
+# k8s-common ロールで使用するKubeadm設定保存ディレクトリパスと
+# 同じディレクトリに設定すること
+k8s_kubeadm_config_store: "{{ ansible_home_dir }}/kubeadm"
+
+# Hubble UI 設定ファイル格納ディレクトリパス
+k8s_hubble_ui_config_dir: "{{ k8s_kubeadm_config_store }}/hubble-ui"
+
+# Hubble UI を有効化する場合は true に設定
+# デフォルトは無効, host_vars や vars/all-config.yml で true に設定すると有効化
+hubble_ui_enabled: false
+
+# Hubble UI のバージョン (Cilium Helm Chart のバージョンと同じ)
+# デフォルトでは k8s_cilium_version を使用
+# 明示的に指定する場合は上書き可能
+hubble_ui_version: ""
+
+# Hubble UI Service の公開方法
+# NodePort, LoadBalancer, ClusterIP から選択
+hubble_ui_service_type: "NodePort"
+
+# NodePort を使用する場合のポート番号
+hubble_ui_nodeport: 31234
+
+# Hubble UI の Replica 数
+# helm chart の既定値に合わせて 1 に設定
+# 将来的に可用性要件に応じて変更可能とするために明示的に変数化した
+hubble_ui_replicas: 1
+
+# 既存の Cilium Helm values とマージするかどうか
+# true の場合, helm get values で取得した既存値と新規設定をマージします
+# 既定値: true
+# 注意: 既存の Cilium 設定を保護するためtrue に設定, falseにした場合,
+# Ciliumの他の設定がデフォルト値に戻ることにより, native routing などの
+# 設定が失われ, 動作不良を引き起こす可能性があるため, 修正する場合は
+# 他のロールとの整合性を十分に確認すること。
+hubble_ui_merge_existing_values: true
+
+# 将来対応予定 (Future implementation)
+# Ingress 関連設定
+hubble_ui_ingress:
+  # Ingress を有効化する場合は true に設定
+  # デフォルトは無効
+  enabled: false
+  # Ingress のホスト名リスト
+  hosts: []
+  # Ingress の Class Name
+  className: ""

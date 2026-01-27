@@ -109,3 +109,8 @@ k8s_bgp:
       peer_port: 179
       hold_time_seconds: 90
       connect_retry_seconds: 15
+
+#
+# hubble-uiの導入
+#
+hubble_ui_enabled: true

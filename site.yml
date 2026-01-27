@@ -12,7 +12,8 @@
 - import_playbook: server.yml
 - import_playbook: devel.yml
 - import_playbook: rancher.yml
-- import_playbook: k8s-worker.yml
-- import_playbook: k8s-ctrl-plane.yml
 - import_playbook: frr.yml
+- import_playbook: k8s-ctrl-plane.yml
+- import_playbook: k8s-worker.yml
+- import_playbook: k8s-management.yml
 - import_playbook: internal-devel.yml

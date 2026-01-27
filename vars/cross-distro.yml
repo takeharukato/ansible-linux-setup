@@ -88,6 +88,25 @@ helm_zsh_completion_path_rhel: "/usr/share/zsh/site-functions/_helm"
 helm_zsh_completion_path: "{{ (ansible_facts.os_family == 'Debian') | ternary(helm_zsh_completion_path_debian, helm_zsh_completion_path_rhel) }}"
 
 ##################################################################################
+# yq コマンドパス
+##################################################################################
+# Ubuntu (Debian系) / RHEL系 ともにバイナリ配置された yq を使用
+# (Snapの制限を回避するため、Debian系でもバイナリを使用)
+yq_command_debian: "/usr/local/bin/yq"
+yq_command_rhel: "/usr/bin/yq"
+yq_command: "{{ (ansible_facts.os_family == 'Debian') | ternary(yq_command_debian, yq_command_rhel) }}"
+
+# yq バージョン設定 (Debian/Ubuntu用)
+# latest を指定すると最新版を取得、特定バージョン (例: v4.40.5) も指定可能
+common_yq_version_debian: "latest"
+
+# yq ダウンロードURL設定
+yq_github_base_url: "https://github.com/mikefarah/yq/releases"
+yq_download_url_debian: "{{ yq_github_base_url }}/{{ common_yq_version_debian }}/download/yq_linux_amd64"
+yq_download_url_rhel: ""  # RHEL系はパッケージマネージャで管理
+yq_download_url: "{{ (ansible_facts.os_family == 'Debian') | ternary(yq_download_url_debian, yq_download_url_rhel) }}"
+
+##################################################################################
 # Cilium シェル補完
 ##################################################################################
 cilium_bash_completion_path_debian: "/etc/bash_completion.d/cilium"

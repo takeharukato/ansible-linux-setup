@@ -1,0 +1,26 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  Hubble UI Helm Values Override
+#  このファイルは hubble.ui セクションのみを含む最小限の上書き用設定です
+#
+---
+hubble:
+  relay:
+    enabled: true
+  ui:
+    enabled: {{ hubble_ui_enabled | to_json }}
+    replicas: {{ hubble_ui_replicas }}
+    service:
+      type: {{ hubble_ui_service_type }}
+{% if hubble_ui_service_type == 'NodePort' %}
+      nodePort: {{ hubble_ui_nodeport }}
+{% endif %}
+{% if hubble_ui_ingress.enabled | default(false) %}
+    # 将来対応予定 (Future implementation)
+    # ingress:
+    #   enabled: {{ hubble_ui_ingress.enabled | to_json }}
+    #   hosts: {{ hubble_ui_ingress.hosts | to_json }}
+    #   className: {{ hubble_ui_ingress.className }}
+{% endif %}
