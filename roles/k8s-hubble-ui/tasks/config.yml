@@ -80,10 +80,11 @@
     - helm_get_values_result.stdout | length > 0
 
 # 既存値と新規値をマージ (yq使用)
+# 新規値（Hubble UI設定）を優先するため、右側（fileIndex==1）を後にマージ
 - name: Merge existing values with Hubble UI values
   shell: |
     set -ex
-    {{ yq_command }} eval-all 'select(fileIndex==0) * select(fileIndex==1)' \
+    {{ yq_command }} eval-all '. as $item ireduce ({}; . * $item)' \
       "{{ k8s_hubble_ui_config_dir }}/cilium-existing-values.yml" \
       "{{ k8s_hubble_ui_config_dir }}/hubble-ui-values.yml" \
       > "{{ k8s_hubble_ui_config_dir }}/hubble-ui-values-merged.yml" 2>&1

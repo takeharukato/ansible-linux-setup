@@ -30,6 +30,18 @@ hubble_ui_service_type: "NodePort"
 # NodePort を使用する場合のポート番号
 hubble_ui_nodeport: 31234
 
+# Service の IP Family Policy
+# SingleStack, PreferDualStack, RequireDualStack から選択
+# デュアルスタック環境では PreferDualStack を推奨
+hubble_ui_service_ipFamilyPolicy: "PreferDualStack"
+
+# Service の IP Families
+# IPv4とIPv6の両方をサポートする場合は両方を指定
+# 優先順位は配列の順序で決まる（最初がプライマリ）
+hubble_ui_service_ipFamilies:
+  - IPv4
+  - IPv6
+
 # Hubble UI の Replica 数
 # helm chart の既定値に合わせて 1 に設定
 # 将来的に可用性要件に応じて変更可能とするために明示的に変数化した

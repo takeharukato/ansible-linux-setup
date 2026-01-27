@@ -17,6 +17,8 @@ hubble:
 {% if hubble_ui_service_type == 'NodePort' %}
       nodePort: {{ hubble_ui_nodeport }}
 {% endif %}
+      ipFamilyPolicy: {{ hubble_ui_service_ipFamilyPolicy }}
+      ipFamilies: {{ hubble_ui_service_ipFamilies | to_json }}
 {% if hubble_ui_ingress.enabled | default(false) %}
     # 将来対応予定 (Future implementation)
     # ingress:
