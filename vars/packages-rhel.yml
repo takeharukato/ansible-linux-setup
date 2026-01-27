@@ -67,13 +67,14 @@ k8s_common_packages:
   - kubelet
   - python3-pyyaml
 
+# Kubernetes導入前提パッケージ
+# yqは, common/tasks/yq-package.yml で個別に導入するためここでは指定しない
 k8s_common_prerequisite_packages:
   - ca-certificates
   - curl
   - gnupg2
   - dnf-plugins-core
   - bash-completion
-  - yq
   - jq
 
 k8s_netgauge_packages:
