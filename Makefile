@@ -11,7 +11,7 @@ top=.
 	run_k8s_worker_frr run_k8s_hubble_ui \
 	run_dns_server run_selinux update-ctrlplane-kubeconfig update-worker-kubeconfig \
 	run_terraform run_kea_dhcp run_radvd run_router_config \
-	run_frr_basic run_gitlab_server run_sbom
+	run_frr_basic run_gitlab_server run_sbom run_router_clear_rules
 
 
 # ansibleのログ表示レベル
@@ -208,6 +208,9 @@ run_radvd:
 
 run_router_config:
 	ansible-playbook --tags "router-config" ${OPT_COMMON} 2>&1 |tee build-router-config.log
+
+run_router_clear_rules:
+	ansible-playbook ${VERBOSE} -i ${INVENTORY} router-clear-rules.yml 2>&1 |tee build-router-clear-rules.log
 
 update-ctrlplane-kubeconfig:
 	ansible-playbook -i inventory/hosts k8s-ctrl-plane.yml --tags k8s-kubeconfig 2>&1 |tee build-update-ctrlplane-kubeconfig.log

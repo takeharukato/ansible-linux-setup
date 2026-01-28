@@ -1,0 +1,66 @@
+---
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  ルータのiptables/ip6tablesルールをクリアする専用playbook
+#
+- name: Clear router iptables rules
+  hosts: all
+  gather_facts: true
+  become: true
+
+  tasks:
+    # router-configロールの変数を読み込む
+    - name: Load router-config variables
+      ansible.builtin.include_vars:
+        dir: "{{ playbook_dir }}/roles/router-config/defaults"
+        name: router_config_defaults
+
+    # vars/all-config.ymlとcross-distro.ymlを読み込む
+    - name: Load common variables
+      ansible.builtin.include_vars:
+        file: "{{ item }}"
+      loop:
+        - "{{ playbook_dir }}/vars/all-config.yml"
+        - "{{ playbook_dir }}/vars/cross-distro.yml"
+
+    # ルールクリアタスクを実行
+    - name: Execute config-clear-rules tasks
+      ansible.builtin.include_tasks:
+        file: "{{ playbook_dir }}/roles/router-config/tasks/config-clear-rules.yml"
+      when:
+        - gpm_mgmt_nic is defined
+        - mgmt_nic is defined
+        - gpm_mgmt_nic in ansible_facts.interfaces
+        - mgmt_nic in ansible_facts.interfaces
+
+    # iptables設定を永続化(Ubuntu/Debian)
+    - name: Save iptables rules to iptables-persistent (Debian/Ubuntu)
+      ansible.builtin.shell: |
+        netfilter-persistent save
+      args:
+        executable: /bin/bash
+      when:
+        - ansible_facts.os_family == "Debian"
+      become: true
+
+    # iptables設定を永続化 (RedHat/CentOS)
+    - name: Save iptables rules to iptables-persistent (RedHat/CentOS)
+      ansible.builtin.shell: |
+        iptables-save > "{{ etc_default_dir }}/iptables"
+      args:
+        executable: /bin/bash
+      when:
+        - ansible_facts.os_family == "RedHat"
+      become: true
+
+    # ip6tables設定を永続化 (RedHat/CentOS)
+    - name: Save ip6tables rules to iptables-persistent (RedHat/CentOS)
+      ansible.builtin.shell: |
+        ip6tables-save > "{{ etc_default_dir }}/ip6tables"
+      args:
+        executable: /bin/bash
+      when:
+        - ansible_facts.os_family == "RedHat"
+      become: true

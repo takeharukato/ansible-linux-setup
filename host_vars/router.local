@@ -68,5 +68,23 @@ netif_list:
     name_server_ipv6_2: "{{ipv6_name_server2}}"
     dns_search: "example.org"
 
+#
+# ルーティング動作制御
+#
+# 以下のオプションの双方をfalseに設定した場合は,
+# FORWARD/Network Address Translation (NAT) ともに実施しない。
+# また, 以下のオプションはどちらか一方のみを排他的に指定する。
+# 双方をtrueに設定した場合は, 無効な設定とみなし,
+# FORWARD/Network Address Translation (NAT) ともに実施しない。
+# デフォルト値は, roles/router-config/defaults/main.yml 参照
+#
+# 純粋なルーティング
+# (FORWARDINGのみ実施し, Network Address Translation (NAT) 無し) を
+# 有効化する場合は, trueに設定
+router_forwarding_enabled: false
+
+# Network Address Translation (NAT) 動作を有効化する場合は, trueに設定
+router_nat_enabled: false
+
 # コンテナバックアップ機能を使用しない
 build_docker_ce_backup_container_image: false

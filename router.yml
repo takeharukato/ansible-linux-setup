@@ -20,14 +20,19 @@
       tags: kea-dhcp
     - role: radvd
       tags: radvd
-    - role: router-config
-      tags: router-config
     - role: user-settings
       tags: user-settings
     - role: create-users
       tags: create-users
     - role: docker-ce
       tags: docker-ce
+
+    # 留意事項
+    # Docker起動時にDocker独自のFORWARDチェーンが作成されるため,
+    # ルーティング/NAT設定の優先度確保のため,
+    # docker-ceロールの後にrouter-configロールを実行する必要がある
+    - role: router-config
+      tags: router-config
     - role: sbom
       tags: sbom
       when:

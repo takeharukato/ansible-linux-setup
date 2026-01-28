@@ -40,13 +40,44 @@
     - mgmt_nic is defined
     - gpm_mgmt_nic in ansible_facts.interfaces
     - mgmt_nic in ansible_facts.interfaces
+# 設定切り替えに備えて既存のiptablesルールをクリア
+# router_forwarding_enabled または router_nat_enabled が有効な場合に実行
+- include_tasks: config-clear-rules.yml
+  when:
+    - gpm_mgmt_nic is defined
+    - mgmt_nic is defined
+    - gpm_mgmt_nic in ansible_facts.interfaces
+    - mgmt_nic in ansible_facts.interfaces
+    - ((router_forwarding_enabled | default(false) | bool) or (additional_network_routes is defined and additional_network_routes | length > 0) or (router_nat_enabled | default(false) | bool))
+# router_forwarding_enabledがtrueの場合は純粋な転送（NAT無し）
+# additional_network_routes定義時も転送のみ（NAT無し）
+- include_tasks: config-forward.yml
+  when:
+    - gpm_mgmt_nic is defined
+    - mgmt_nic is defined
+    - gpm_mgmt_nic in ansible_facts.interfaces
+    - mgmt_nic in ansible_facts.interfaces
+    - (router_forwarding_enabled | default(false) | bool) or (additional_network_routes is defined and additional_network_routes | length > 0)
+    - not (router_nat_enabled | default(false) | bool)
+# router_nat_enabledがtrueの場合はNAT設定
+# Ansible管理外のノードでルート設定済みの場合などに使用
+# router_forwarding_enabledまたはadditional_network_routes定義時は転送ルール優先でNATは実行しない
 - include_tasks: config-nat.yml
   when:
     - gpm_mgmt_nic is defined
     - mgmt_nic is defined
     - gpm_mgmt_nic in ansible_facts.interfaces
     - mgmt_nic in ansible_facts.interfaces
+    - router_nat_enabled | default(false) | bool
+    - not (router_forwarding_enabled | default(false) | bool)
+    - additional_network_routes is not defined or additional_network_routes | length == 0
 - include_tasks: config.yml
+  when:
+    - gpm_mgmt_nic is defined
+    - mgmt_nic is defined
+    - gpm_mgmt_nic in ansible_facts.interfaces
+    - mgmt_nic in ansible_facts.interfaces
+- include_tasks: reboot.yml
   when:
     - gpm_mgmt_nic is defined
     - mgmt_nic is defined
