@@ -2,3 +2,27 @@
 #  Ansible playbook
 #  Copyright 2020 Takeharu KATO All Rights Reserved.
 #
+#  Docker設定関連タスク
+
+---
+
+# Docker daemon.json を作成し、iptables管理を無効化
+# 留意事項: router-config ロールが独自にiptablesルールを管理するため
+# Dockerのiptables管理を無効化する
+- name: "Configure Docker daemon.json with iptables disabled"
+  ansible.builtin.copy:
+    dest: /etc/docker/daemon.json
+    content: |
+      {
+        "iptables": false,
+        "log-driver": "json-file",
+        "log-opts": {
+          "max-size": "10m",
+          "max-file": "3"
+        }
+      }
+    owner: root
+    group: root
+    mode: '0644'
+  become: true
+  notify: docker_restarted

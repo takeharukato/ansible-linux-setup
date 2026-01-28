@@ -63,10 +63,10 @@ Docker を再設定したいホストを限定する場合は `-l <hostname>` �
 - `/usr/local/share/docker-backup/` に `Dockerfile` と `backup.sh` があり, `docker images` に `{{ docker_ce_backup_container_image }}` が存在する。
 - バックアップスクリプトを実行すると NFS がマウントされ, `{{ docker_ce_backup_output_dir }}` 配下に `<コンテナ名>-<世代>.tar.xz` が生成される。
 
-## 運用メモ
+## 留意事項
 
 - NFS バックアップはネットワーク到達性に依存するため, `nc_command` が失敗した際のリトライや監視を別途検討してください。
 - `backup-containers` は稼働中コンテナをそのまま対象にするため, 一貫性が必要なアプリケーションは停止手順を組み合わせるか, エクスポート対象がボリュームのみで安全に取得できる構成かを確認してください。
 - Docker CE バージョン固定が必要な場合は `docker_ce_packages` をピン留めするか, 上位で APT/YUM のバージョンロックを設定してください。
-- `templates/docker-bridge.conf.j2` は `rp_filter` を無効化します。セキュリティポリシー上問題となる環境では値を見直し, 必要ならオーバーライドしてください。
-- `docker-ce` ロールは再実行を想定しているため, 変更を加えた後は `ansible-playbook ... --tags docker-ce` を再実行して冪等性を確認することを推奨します。
+- `templates/docker-bridge.conf.j2` は `rp_filter` を無効化します。セキュリティポリシー上問題となる環境では値を見直し, 必要に応じてテンプレートを修正してください。
+- router-config ロールで設定されるiptablesルールを阻害しないようにDockerのiptables管理を無効化するように設定しています。セキュリティポリシー上問題となる環境では値を見直し, 必要に応じてテンプレートを修正してください。
