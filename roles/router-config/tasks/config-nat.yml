@@ -15,6 +15,8 @@
       iptables -A FORWARD -i "{{ gpm_mgmt_nic }}" -o "{{ mgmt_nic }}" -s "{{ gpm_mgmt_ipv4_network_cidr }}" -j ACCEPT
     iptables -C FORWARD -i "{{ mgmt_nic }}" -o "{{ gpm_mgmt_nic }}" -d "{{ gpm_mgmt_ipv4_network_cidr }}" -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT 2>/dev/null || \
      iptables -A FORWARD -i "{{ mgmt_nic }}" -o "{{ gpm_mgmt_nic }}" -d "{{ gpm_mgmt_ipv4_network_cidr }}" -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT
+    iptables -C FORWARD -i "{{ mgmt_nic }}" -o "{{ gpm_mgmt_nic }}" -d "{{ gpm_mgmt_ipv4_network_cidr }}" -j ACCEPT 2>/dev/null || \
+      iptables -A FORWARD -i "{{ mgmt_nic }}" -o "{{ gpm_mgmt_nic }}" -d "{{ gpm_mgmt_ipv4_network_cidr }}" -j ACCEPT
   args:
     executable: /bin/bash
   become: true
@@ -27,6 +29,9 @@
 
     ip6tables -C FORWARD -i "{{ mgmt_nic }}" -o "{{ gpm_mgmt_nic }}" -d "{{ gpm_mgmt_ipv6_network_cidr }}" -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT 2>/dev/null || \
       ip6tables -A FORWARD -i "{{ mgmt_nic }}" -o "{{ gpm_mgmt_nic }}" -d "{{ gpm_mgmt_ipv6_network_cidr }}" -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT
+
+    ip6tables -C FORWARD -i "{{ mgmt_nic }}" -o "{{ gpm_mgmt_nic }}" -d "{{ gpm_mgmt_ipv6_network_cidr }}" -j ACCEPT 2>/dev/null || \
+      ip6tables -A FORWARD -i "{{ mgmt_nic }}" -o "{{ gpm_mgmt_nic }}" -d "{{ gpm_mgmt_ipv6_network_cidr }}" -j ACCEPT
 
     ip6tables -t nat -C POSTROUTING -s "{{ gpm_mgmt_ipv6_network_cidr }}" -o "{{ mgmt_nic }}" -j MASQUERADE 2>/dev/null || \
       ip6tables -t nat -A POSTROUTING -s "{{ gpm_mgmt_ipv6_network_cidr }}" -o "{{ mgmt_nic }}" -j MASQUERADE
