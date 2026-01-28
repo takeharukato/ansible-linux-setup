@@ -1,0 +1,66 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  iptables/ip6tablesルールクリアタスク
+#  設定切り替え前に既存のルールをクリア
+#
+---
+
+# IPv4 FORWARDチェーンから管理ネットワーク関連ルールを削除
+- name: "Clear existing IPv4 FORWARD rules for management networks"
+  ansible.builtin.shell: |
+    # 既存のFORWARDルールを削除（エラーは無視）
+    # 外部向け物理NIC接続ネットワーク => 内部プライベートネットワーク
+    iptables -D FORWARD -s "{{ network_ipv4_network_address }}/{{ network_ipv4_prefix_len }}" \
+      -d "{{ gpm_mgmt_ipv4_network_cidr }}" -i "{{ mgmt_nic }}" -o "{{ gpm_mgmt_nic }}" -j ACCEPT 2>/dev/null || true
+
+    # 内部プライベートネットワーク => 外部向け物理NIC接続ネットワーク
+    iptables -D FORWARD -s "{{ gpm_mgmt_ipv4_network_cidr }}" \
+      -d "{{ network_ipv4_network_address }}/{{ network_ipv4_prefix_len }}" -i "{{ gpm_mgmt_nic }}" -o "{{ mgmt_nic }}" -j ACCEPT 2>/dev/null || true
+
+    # NAT用のFORWARDルールも削除
+    iptables -D FORWARD -i "{{ gpm_mgmt_nic }}" -o "{{ mgmt_nic }}" -s "{{ gpm_mgmt_ipv4_network_cidr }}" -j ACCEPT 2>/dev/null || true
+    iptables -D FORWARD -i "{{ mgmt_nic }}" -o "{{ gpm_mgmt_nic }}" -d "{{ gpm_mgmt_ipv4_network_cidr }}" -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT 2>/dev/null || true
+    iptables -D FORWARD -i "{{ mgmt_nic }}" -o "{{ gpm_mgmt_nic }}" -d "{{ gpm_mgmt_ipv4_network_cidr }}" -j ACCEPT 2>/dev/null || true
+  args:
+    executable: /bin/bash
+  become: true
+
+# IPv4 POSTROUTINGチェーンからNATルールを削除
+- name: "Clear existing IPv4 NAT POSTROUTING rules"
+  ansible.builtin.shell: |
+    # 既存のMASQUERADEルールを削除（エラーは無視）
+    iptables -t nat -D POSTROUTING -s "{{ gpm_mgmt_ipv4_network_cidr }}" -o "{{ mgmt_nic }}" -j MASQUERADE 2>/dev/null || true
+  args:
+    executable: /bin/bash
+  become: true
+
+# IPv6 FORWARDチェーンから管理ネットワーク関連ルールを削除
+- name: "Clear existing IPv6 FORWARD rules for management networks"
+  ansible.builtin.shell: |
+    # 既存のFORWARDルールを削除（エラーは無視）
+    # 外部向け物理NIC接続ネットワーク => 内部プライベートネットワーク
+    ip6tables -D FORWARD -s "{{ network_ipv6_network_address }}/{{ network_ipv6_prefix_len }}" \
+      -d "{{ gpm_mgmt_ipv6_network_cidr }}" -i "{{ mgmt_nic }}" -o "{{ gpm_mgmt_nic }}" -j ACCEPT 2>/dev/null || true
+
+    # 内部プライベートネットワーク => 外部向け物理NIC接続ネットワーク
+    ip6tables -D FORWARD -s "{{ gpm_mgmt_ipv6_network_cidr }}" \
+      -d "{{ network_ipv6_network_address }}/{{ network_ipv6_prefix_len }}" -i "{{ gpm_mgmt_nic }}" -o "{{ mgmt_nic }}" -j ACCEPT 2>/dev/null || true
+
+    # NAT用のFORWARDルールも削除
+    ip6tables -D FORWARD -i "{{ gpm_mgmt_nic }}" -o "{{ mgmt_nic }}" -s "{{ gpm_mgmt_ipv6_network_cidr }}" -j ACCEPT 2>/dev/null || true
+    ip6tables -D FORWARD -i "{{ mgmt_nic }}" -o "{{ gpm_mgmt_nic }}" -d "{{ gpm_mgmt_ipv6_network_cidr }}" -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT 2>/dev/null || true
+    ip6tables -D FORWARD -i "{{ mgmt_nic }}" -o "{{ gpm_mgmt_nic }}" -d "{{ gpm_mgmt_ipv6_network_cidr }}" -j ACCEPT 2>/dev/null || true
+  args:
+    executable: /bin/bash
+  become: true
+
+# IPv6 POSTROUTINGチェーンからNATルールを削除
+- name: "Clear existing IPv6 NAT POSTROUTING rules"
+  ansible.builtin.shell: |
+    # 既存のMASQUERADEルールを削除（エラーは無視）
+    ip6tables -t nat -D POSTROUTING -s "{{ gpm_mgmt_ipv6_network_cidr }}" -o "{{ mgmt_nic }}" -j MASQUERADE 2>/dev/null || true
+  args:
+    executable: /bin/bash
+  become: true

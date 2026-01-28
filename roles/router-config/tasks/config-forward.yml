@@ -1,0 +1,91 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  転送設定関連タスク（NAT無し）
+#  additional_network_routesが定義されている場合に使用
+#
+---
+
+# IPv4双方向転送ルール設定（NAT無し）
+# ルール追加は DOCKER-FORWARD チェーンの後ろに挿入して優先度を確保
+- name: "Configure IPv4 bidirectional FORWARD rules (no NAT)"
+  ansible.builtin.shell: |
+    # 外部向け物理NIC接続ネットワーク => 内部プライベートネットワーク
+    iptables -C FORWARD -s "{{ network_ipv4_network_address }}/{{ network_ipv4_prefix_len }}" \
+      -d "{{ gpm_mgmt_ipv4_network_cidr }}" -i "{{ mgmt_nic }}" -o "{{ gpm_mgmt_nic }}" -j ACCEPT 2>/dev/null || \
+    iptables -A FORWARD -s "{{ network_ipv4_network_address }}/{{ network_ipv4_prefix_len }}" \
+      -d "{{ gpm_mgmt_ipv4_network_cidr }}" -i "{{ mgmt_nic }}" -o "{{ gpm_mgmt_nic }}" -j ACCEPT
+
+    # 内部プライベートネットワーク => 外部向け物理NIC接続ネットワーク
+    iptables -C FORWARD -s "{{ gpm_mgmt_ipv4_network_cidr }}" \
+      -d "{{ network_ipv4_network_address }}/{{ network_ipv4_prefix_len }}" -i "{{ gpm_mgmt_nic }}" -o "{{ mgmt_nic }}" -j ACCEPT 2>/dev/null || \
+    iptables -A FORWARD -s "{{ gpm_mgmt_ipv4_network_cidr }}" \
+      -d "{{ network_ipv4_network_address }}/{{ network_ipv4_prefix_len }}" -i "{{ gpm_mgmt_nic }}" -o "{{ mgmt_nic }}" -j ACCEPT
+  args:
+    executable: /bin/bash
+  become: true
+
+# IPv6双方向転送ルール設定（NAT無し）
+- name: "Configure IPv6 bidirectional FORWARD rules (no NAT)"
+  ansible.builtin.shell: |
+    # 外部向け物理NIC接続ネットワーク => 内部プライベートネットワーク
+    ip6tables -C FORWARD -s "{{ network_ipv6_network_address }}/{{ network_ipv6_prefix_len }}" \
+      -d "{{ gpm_mgmt_ipv6_network_cidr }}" -i "{{ mgmt_nic }}" -o "{{ gpm_mgmt_nic }}" -j ACCEPT 2>/dev/null || \
+    ip6tables -A FORWARD -s "{{ network_ipv6_network_address }}/{{ network_ipv6_prefix_len }}" \
+      -d "{{ gpm_mgmt_ipv6_network_cidr }}" -i "{{ mgmt_nic }}" -o "{{ gpm_mgmt_nic }}" -j ACCEPT
+
+    # 内部プライベートネットワーク => 外部向け物理NIC接続ネットワーク
+    ip6tables -C FORWARD -s "{{ gpm_mgmt_ipv6_network_cidr }}" \
+      -d "{{ network_ipv6_network_address }}/{{ network_ipv6_prefix_len }}" -i "{{ gpm_mgmt_nic }}" -o "{{ mgmt_nic }}" -j ACCEPT 2>/dev/null || \
+    ip6tables -A FORWARD -s "{{ gpm_mgmt_ipv6_network_cidr }}" \
+      -d "{{ network_ipv6_network_address }}/{{ network_ipv6_prefix_len }}" -i "{{ gpm_mgmt_nic }}" -o "{{ mgmt_nic }}" -j ACCEPT
+  args:
+    executable: /bin/bash
+  become: true
+
+# iptables設定を永続化(Ubuntu/Debian)
+- name: "Save iptables rules to iptables-persistent (Debian/Ubuntu)"
+  ansible.builtin.shell: |
+    netfilter-persistent save
+  args:
+    executable: /bin/bash
+  when:
+    - ansible_facts.os_family == "Debian"
+  become: true
+
+# iptables設定を永続化 (RedHat/CentOS)
+- name: "Save iptables rules to iptables-persistent (RedHat/CentOS)"
+  ansible.builtin.shell: |
+    iptables-save > "{{ etc_default_dir }}/iptables"
+  args:
+    executable: /bin/bash
+  when:
+    - ansible_facts.os_family == "RedHat"
+  become: true
+
+# ip6tables設定を永続化 (RedHat/CentOS)
+- name: "Save ip6tables rules to iptables-persistent (RedHat/CentOS)"
+  ansible.builtin.shell: |
+    ip6tables-save > "{{ etc_default_dir }}/ip6tables"
+  args:
+    executable: /bin/bash
+  when:
+    - ansible_facts.os_family == "RedHat"
+  become: true
+
+- name: "Apply iptables rules immediately (RedHat/CentOS)"
+  ansible.builtin.service:
+    name: "{{ iptables_persistent_service }}"
+    state: restarted
+  when:
+    - ansible_facts.os_family == "RedHat"
+  become: true
+
+- name: "Apply ip6tables rules immediately (RedHat/CentOS)"
+  ansible.builtin.service:
+    name: "{{ iptables_persistent_ipv6_service }}"
+    state: restarted
+  when:
+    - ansible_facts.os_family == "RedHat"
+  become: true

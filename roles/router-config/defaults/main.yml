@@ -5,3 +5,43 @@
 #  ロール固有変数のデフォルト値
 #  group_vars/all/all.yml やhost_varsで上書き可能とするため,
 #  ロール名/defaults/main.yml に定義している
+
+################################################################################
+#
+# ルーティング動作制御
+#
+# router_forwarding_enabledとrouter_nat_enabledオプションの双方を
+# falseに設定した場合は, FORWARD/Network Address Translation (NAT)
+# ともに実施しない。
+# また, 以下のオプションはどちらか一方のみを排他的に指定する。
+# 双方をtrueに設定した場合は, 無効な設定とみなし,
+# FORWARD/Network Address Translation (NAT) ともに実施しない。
+################################################################################
+
+# 純粋なルーティング（NAT無し）を有効化する場合はtrueに設定
+# デフォルトはtrue（NAT無しの転送動作）
+#
+# 用途:
+#  - Ansible管理外のノード間でルーティングが必要な場合
+#  - 仮想環境外部に接続しているネットワーク <=> 仮想環境内部プライベートネットワーク間の
+#    通信など
+#
+# 注意:
+#  - router_nat_enabledと同時にtrueにすることはできません
+#  - router_forwarding_enabledがtrueの場合、NATは無効化されます
+#
+# host_vars/で明示的にfalseに設定することで転送を無効化可能
+router_forwarding_enabled: true
+
+################################################################################
+# Network Address Translation (NAT) 設定制御
+################################################################################
+# NAT設定を有効化する場合はtrueに設定
+# デフォルトはfalse（純粋なルーティング動作）
+#
+# 注意:
+#  - router_forwarding_enabledがtrueの場合、本設定は無視されます
+#  - 内部ネットワークからインターネットへのアクセスが必要な場合に使用
+#
+# host_varsで明示的にtrueに設定することでNATを有効化可能
+router_nat_enabled: false
