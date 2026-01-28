@@ -1,18 +1,24 @@
 # This file is managed by Ansible (role: k8s-worker-frr)
 #
-# Enable required FRR daemons.
+# last update: {{ '%Y-%m-%d %H:%M:%S %Z' | strftime(ansible_date_time.epoch) }}
+#
+# FRR Daemon configuration file
+#
 
+# Zebra and BGP デーモンを有効化
 zebra=yes
 bgpd=yes
 
-# Optional daemons (not used in this configuration)
+# オプションのデーモン
 
-# Watchfrr supervises the daemons.
+# Watchfrrによるデーモン監視を有効化
+# デーモンの監視と自動再起動を行う
+#
 watchfrr_enable=yes
 
-# Enable vtysh.
+# vtyshインターフェースを有効化
 vtysh_enable=yes
 
-# Default options
+# デーモンオプション設定
 zebra_options="-A 127.0.0.1"
 bgpd_options="-A 127.0.0.1"
