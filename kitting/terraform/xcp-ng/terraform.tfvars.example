@@ -1,0 +1,323 @@
+# terraform.tfvars.example
+#
+# Copyright 2025 Takeharu KATO  All Rights Reserved.
+# SPDX-License-Identifier: BSD-2-Clause
+# Notes: Portions of this codebase were initially drafted with ChatGPT assistance.
+#
+# Terraform 変数定義例
+# 本ファイルをterraform.tfvarsにコピー, 各パラメタを修正して使用
+#
+# Xen Orchestra接続先, 使用するXCP-ngホスト, ストレージリポジトリを指定の上,
+# VMのパラメタを設定する。VMのパラメタ定義には, locals.tf内の
+# 以下の定義を用いて定義する
+#
+#  - VMテンプレート名
+#  - 使用するネットワークのラベル名
+#  - VMプロファイル
+#
+
+############################################
+# XenOrchestra 接続情報
+############################################
+# 接続先Xen OrchestraのURL
+#   XCP-ng は通常 Xen Orchestra (XO) 経由で管理します。
+#   ws / wss を指定してください (例: wss://xo.example.local)
+xoa_url      = "ws://your-xo-server"
+# Xen Orchestraログイン名
+xoa_username = "admin@admin.net"
+# Xen Orchestraログインパスワードは,
+#   環境変数: TF_VAR_xoa_password を用いて指定してください
+# 例:
+#   export TF_VAR_xoa_password="your_password"
+# 自己証明書によるホストへの接続を許容する
+xoa_insecure = true
+
+##############################################
+# 使用するXCP-ng プール名/ストレージリポジトリ
+##############################################
+# XCP-ngプール名
+xcpng_pool_name = "xcp-ng01"
+# XCP-ng ストレージリポジトリ名
+xcpng_sr_name   = "Local storage"
+
+########################################################
+# VM生成テンプレート
+########################################################
+# Ubuntu VM用テンプレート
+xcpng_template_ubuntu      = "ubuntu-vm"
+# RHEL VM用テンプレート
+xcpng_template_rhel        = "rhel-vm"
+
+########################################################
+# VM共通で使用するネットワーク名(ラベル名)
+########################################################
+# 仮想環境外部へ接続可能なネットワーク(外部ネットワーク)のラベル名
+# 管理サーバ(mgmt-server)や内部ネットワーク用ルータノード(router)など
+# Infrastructure VMで定義されたVM, 外部ネットワークに接続された
+# 開発用VM(vmlinux)が接続されるネットワーク
+xcpng_mgmt_network_name    = "Pool-wide network associated with eth0"
+# 仮想環境内部プライベートネットワーク名
+# (K8sクラスタ構成ノード, devlinuxなど仮想環境内部のVMを管理するために使用)
+xcpng_private_network_name = "GlobalPrivateManagementNetwork"
+
+############################################
+# デフォルトのリソース割り当て量
+# VMプロファイルで明示されていない場合に
+# 使用されるリソース量定義
+############################################
+# ディスク容量 (単位:GiB)
+xcpng_vm_disk_gb = 25
+# 仮想CPU割当数 (単位:個)
+xcpng_vm_vcpus   = 4
+# メモリ割当量 (単位:MiB)
+xcpng_vm_mem_mb  = 4096
+
+##################################################################################
+# Infrastructure VM
+# - 仮想環境内部プライベートネットワーク<=>Pool-wideネットワーク間ルータ (router)
+# - 管理サーバ (mgmt-server)
+# - RHEL管理サーバ検証用VM(rhel-server)
+# - Ubuntu管理サーバ検証用VM(ubuntu-server)
+# - 旧管理サーバ (devserver)
+##################################################################################
+infrastructure_vms = {
+  router = {
+    template_type    = "ubuntu"
+    firmware         = "uefi"
+    resource_profile = "infrastructure"
+    networks = [
+      { network_key = "mgmt", mac_address = "00:50:56:00:46:51" },
+      { network_key = "gpn_mgmt", mac_address = "00:50:56:00:46:7c" }
+    ]
+  }
+  rhel_server = {
+    template_type    = "rhel"
+    firmware         = "bios"
+    resource_profile = "infrastructure"
+    networks = [
+      { network_key = "mgmt", mac_address = "00:50:56:00:eb:bb" },
+      { network_key = "gpn_mgmt", mac_address = "00:50:56:00:eb:7c" }
+    ]
+  }
+  ubuntu_server = {
+    template_type    = "ubuntu"
+    firmware         = "uefi"
+    resource_profile = "infrastructure"
+    networks = [
+      { network_key = "mgmt", mac_address = "00:50:56:00:dd:88" },
+      { network_key = "gpn_mgmt", mac_address = "00:50:56:00:dd:7c" }
+    ]
+  }
+  mgmt_server = {
+    template_type    = "ubuntu"
+    firmware         = "uefi"
+    resource_profile = "infrastructure"
+    networks = [
+      { network_key = "mgmt", mac_address = "00:50:56:00:f3:72" },
+      { network_key = "gpn_mgmt", mac_address = "00:50:56:00:f3:7c" }
+    ]
+  }
+  devserver = {
+    template_type    = "ubuntu"
+    firmware         = "uefi"
+    resource_profile = "infrastructure"
+    networks = [
+      { network_key = "mgmt", mac_address = "00:50:56:00:cd:88" },
+      { network_key = "gpn_mgmt", mac_address = "00:50:56:00:cd:7c" }
+    ]
+  }
+}
+
+####################################################
+# vmlinux 開発 VM (vmlinux1 - vmlinux5)の情報
+# pool-wide networkに接続
+# MACアドレスは自動割当てするよう指定していない
+####################################################
+vmlinux_vms = {
+  vmlinux1 = {
+    template_type    = "ubuntu"
+    firmware         = "uefi"
+    resource_profile = "vmlinux"
+    networks = [
+      { network_key = "mgmt", mac_address = null },
+      { network_key = "gpn_mgmt", mac_address = null }
+    ]
+  }
+  vmlinux2 = {
+    template_type    = "ubuntu"
+    firmware         = "uefi"
+    resource_profile = "vmlinux"
+    networks = [
+      { network_key = "mgmt", mac_address = null },
+      { network_key = "gpn_mgmt", mac_address = null }
+    ]
+  }
+  vmlinux3 = {
+    template_type    = "ubuntu"
+    firmware         = "uefi"
+    resource_profile = "vmlinux"
+    networks = [
+      { network_key = "mgmt", mac_address = null },
+      { network_key = "gpn_mgmt", mac_address = null }
+    ]
+  }
+  vmlinux4 = {
+    template_type    = "rhel"
+    firmware         = "bios"
+    resource_profile = "vmlinux"
+    networks = [
+      { network_key = "mgmt", mac_address = null },
+      { network_key = "gpn_mgmt", mac_address = null }
+    ]
+  }
+  vmlinux5 = {
+    template_type    = "rhel"
+    firmware         = "bios"
+    resource_profile = "vmlinux"
+    networks = [
+      { network_key = "mgmt", mac_address = null },
+      { network_key = "gpn_mgmt", mac_address = null }
+    ]
+  }
+}
+
+####################################################
+# devlinux 開発用VM ( devlinux1 - devlinux5 )の情報
+# 内部プライベートネットワークのみに接続
+# MACアドレスは自動割当てするよう指定していない
+####################################################
+devlinux_vms = {
+  devlinux1 = {
+    template_type    = "ubuntu"
+    firmware         = "uefi"
+    resource_profile = "devlinux"
+    networks = [
+      { network_key = "gpn_mgmt", mac_address = null }
+    ]
+  }
+  devlinux2 = {
+    template_type    = "ubuntu"
+    firmware         = "uefi"
+    resource_profile = "devlinux"
+    networks = [
+      { network_key = "gpn_mgmt", mac_address = null }
+    ]
+  }
+  devlinux3 = {
+    template_type    = "ubuntu"
+    firmware         = "uefi"
+    resource_profile = "devlinux"
+    networks = [
+      { network_key = "gpn_mgmt", mac_address = null }
+    ]
+  }
+  devlinux4 = {
+    template_type    = "rhel"
+    firmware         = "bios"
+    resource_profile = "devlinux"
+    networks = [
+      { network_key = "gpn_mgmt", mac_address = null }
+    ]
+  }
+  devlinux5 = {
+    template_type    = "rhel"
+    firmware         = "bios"
+    resource_profile = "devlinux"
+    networks = [
+      { network_key = "gpn_mgmt", mac_address = null }
+    ]
+  }
+}
+
+################################################
+# Kubernetes クラスタ構成VM
+# - extgw 疑似外部ネットワークのゲートウエイ
+# - frr01-02 各K8sクラスタの代表FRRサーバ
+# - k8sctrlplane01-02 K8sコントロールプレイン
+# - k8sworker0101-0202 K8sワーカーノード
+################################################
+k8s_vms = {
+  k8sctrlplane01 = {
+    template_type    = "ubuntu"
+    firmware         = "uefi"
+    resource_profile = "k8s_ctrlplane"
+    networks = [
+      { network_key = "gpn_mgmt", mac_address = "00:50:56:00:36:71" },
+      { network_key = "k8s_net01", mac_address = "00:50:56:00:36:7b" }
+    ]
+  }
+  k8sworker0101 = {
+    template_type    = "ubuntu"
+    firmware         = "uefi"
+    resource_profile = "k8s_worker"
+    networks = [
+      { network_key = "gpn_mgmt", mac_address = "00:50:56:00:7b:1c" },
+      { network_key = "k8s_net01", mac_address = "00:50:56:00:7b:26" }
+    ]
+  }
+  k8sworker0102 = {
+    template_type    = "ubuntu"
+    firmware         = "uefi"
+    resource_profile = "k8s_worker"
+    networks = [
+      { network_key = "gpn_mgmt", mac_address = "00:50:56:00:bf:1d" },
+      { network_key = "k8s_net01", mac_address = "00:50:56:00:bf:27" }
+    ]
+  }
+  frr01 = {
+    template_type    = "ubuntu"
+    firmware         = "uefi"
+    resource_profile = "frr"
+    networks = [
+      { network_key = "gpn_mgmt", mac_address = "00:50:56:00:4a:12" },
+      { network_key = "k8s_net01", mac_address = "00:50:56:00:4a:1c" },
+      { network_key = "core_net", mac_address = "00:50:56:00:4a:26" }
+    ]
+  }
+  k8sctrlplane02 = {
+    template_type    = "rhel"
+    firmware         = "bios"
+    resource_profile = "k8s_ctrlplane"
+    networks = [
+      { network_key = "gpn_mgmt", mac_address = "00:50:56:00:1f:8b" },
+      { network_key = "k8s_net02", mac_address = "00:50:56:00:1f:95" }
+    ]
+  }
+  k8sworker0201 = {
+    template_type    = "rhel"
+    firmware         = "bios"
+    resource_profile = "k8s_worker"
+    networks = [
+      { network_key = "gpn_mgmt", mac_address = "00:50:56:00:d3:9e" },
+      { network_key = "k8s_net02", mac_address = "00:50:56:00:d3:a8" }
+    ]
+  }
+  k8sworker0202 = {
+    template_type    = "rhel"
+    firmware         = "bios"
+    resource_profile = "k8s_worker"
+    networks = [
+      { network_key = "gpn_mgmt", mac_address = "00:50:56:00:43:0d" },
+      { network_key = "k8s_net02", mac_address = "00:50:56:00:43:17" }
+    ]
+  }
+  frr02 = {
+    template_type    = "rhel"
+    firmware         = "bios"
+    resource_profile = "frr"
+    networks = [
+      { network_key = "gpn_mgmt", mac_address = "00:50:56:00:03:f8" },
+      { network_key = "k8s_net02", mac_address = "00:50:56:00:03:02" },
+      { network_key = "core_net", mac_address = "00:50:56:00:03:0c" }
+    ]
+  }
+  extgw = {
+    template_type    = "rhel"
+    firmware         = "bios"
+    resource_profile = "extgw"
+    networks = [
+      { network_key = "gpn_mgmt", mac_address = "00:50:56:00:b8:e1" },
+      { network_key = "core_net", mac_address = "00:50:56:00:b8:eb" }
+    ]
+  }
+}
