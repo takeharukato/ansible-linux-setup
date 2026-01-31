@@ -8,6 +8,8 @@
     - [内部プライベートネットワーク接続開発用VM(devlinux) (5台)](#内部プライベートネットワーク接続開発用vmdevlinux-5台)
     - [Kubernetes クラスタを構成するVM ( 9台 )](#kubernetes-クラスタを構成するvm--9台-)
   - [本Terraformファイルから生成されるネットワーク構成](#本terraformファイルから生成されるネットワーク構成)
+  - [各VMの設定パラメタの修正方法](#各vmの設定パラメタの修正方法)
+  - [各ネットワークの設定パラメタの修正方法](#各ネットワークの設定パラメタの修正方法)
   - [セットアップ手順](#セットアップ手順)
     - [新規環境の構築](#新規環境の構築)
       - [1. 環境変数の設定](#1-環境変数の設定)
@@ -75,6 +77,37 @@ xcp-ng-base-servers/
 
 ## 本Terraformファイルから作成されるVMの構成
 
+本Terraformファイルから生成される仮想マシン(VM)と用途は, 以下の通りです:
+
+|仮想マシン種別|仮想マシンのラベル名|仮想マシンのキー名|用途|
+|---|---|---|---|
+|Infrastructure VM|router|`router`|pool-wide networkと内部プライベートネットワーク間のルータ, radvd, DHCPv4サーバ|
+|Infrastructure VM|mgmt-server|`mgmt-server`|管理サーバー ( DNS, LDAP, コンテナレジストリなど ) |
+|Infrastructure VM|rhel-server|`rhel-server`|RHELベースの管理サーバー検証用VM|
+|Infrastructure VM|ubuntu-server|`ubuntu-server`|Ubuntuベースの管理サーバー検証用VM|
+|Infrastructure VM|devserver|`devserver`|管理サーバー動作確認用予備VM ( 通常作成不要 ) |
+|pool-wide network接続開発用VM|vmlinux1|`vmlinux1`|外部ネットワーク接続開発VM ( Ubuntu ) |
+|pool-wide network接続開発用VM|vmlinux2|`vmlinux2`|外部ネットワーク接続開発VM ( Ubuntu ) |
+|pool-wide network接続開発用VM|vmlinux3|`vmlinux3`|外部ネットワーク接続開発VM ( Ubuntu ) |
+|pool-wide network接続開発用VM|vmlinux4|`vmlinux4`|外部ネットワーク接続開発VM ( RHEL ) |
+|pool-wide network接続開発用VM|vmlinux5|`vmlinux5`|外部ネットワーク接続開発VM ( RHEL ) |
+|内部プライベートネットワーク接続開発用VM|devlinux1|`devlinux1`|内部ネットワーク接続開発VM ( Ubuntu ) |
+|内部プライベートネットワーク接続開発用VM|devlinux2|`devlinux2`|内部ネットワーク接続開発VM ( Ubuntu ) |
+|内部プライベートネットワーク接続開発用VM|devlinux3|`devlinux3`|内部ネットワーク接続開発VM ( Ubuntu ) |
+|内部プライベートネットワーク接続開発用VM|devlinux4|`devlinux4`|内部ネットワーク接続開発VM ( RHEL ) |
+|内部プライベートネットワーク接続開発用VM|devlinux5|`devlinux5`|内部ネットワーク接続開発VM ( RHEL ) |
+|Kubernetes クラスタVM|k8sctrlplane01|`k8sctrlplane01`|K8s Cluster01 コントロールプレイン|
+|Kubernetes クラスタVM|k8sworker0101|`k8sworker0101`|K8s Cluster01 ワーカーノード1|
+|Kubernetes クラスタVM|k8sworker0102|`k8sworker0102`|K8s Cluster01 ワーカーノード2|
+|Kubernetes クラスタVM|frr01|`frr01`|K8s Cluster01 FRRルーター|
+|Kubernetes クラスタVM|k8sctrlplane02|`k8sctrlplane02`|K8s Cluster02 コントロールプレイン|
+|Kubernetes クラスタVM|k8sworker0201|`k8sworker0201`|K8s Cluster02 ワーカーノード1|
+|Kubernetes クラスタVM|k8sworker0202|`k8sworker0202`|K8s Cluster02 ワーカーノード2|
+|Kubernetes クラスタVM|frr02|`frr02`|K8s Cluster02 FRRルーター|
+|Kubernetes クラスタVM|extgw|`extgw`|疑似外部ネットワークゲートウェイ ( eBGP集約 ) |
+
+**留意事項**: VMのキー名は, terraform.tfvarsの各VMグループ ( `infrastructure_vms`, `vmlinux_vms`, `devlinux_vms`, `k8s_vms` ) 内でVM定義のキーとして使用します。
+
 ### Infrastructure VM ( 5台 )
 
 仮想環境内部のVM間で共通的に使用されるサービスを提供するVM群を`Infrastructure VM`と呼ぶ。
@@ -126,13 +159,110 @@ Kubernetes クラスタを構成するVM群は, 内部プライベートネッ�
 
 ## 本Terraformファイルから生成されるネットワーク構成
 
-本Terraformファイルから生成される仮想ネットワークと用途は, 以下の通り:
+本Terraformファイルから生成される仮想ネットワークと用途は, 以下の通りです:
 
-- GlobalPrivateManagementNetwork: 仮想化基盤内に閉じた内部プライベートネットワーク。本ネットワークに接続された開発VM(devlinux)やK8sクラスタを構成するVM群の構築作業などの管理・運用作業に使用する。
-- K8sNetwork01: Kubernetes Cluster01用のプライベートネットワーク
-- K8sNetwork02: Kubernetes Cluster02用のプライベートネットワーク
-- coreNetwork: Kubernetes クラスタ間でのeBGP広告による経路交換を行うためのネットワーク
-- pool-wide network: XCP-ngのプール間をまたがって接続される管理ネットワーク。仮想環境外部に直接出ることが可能。
+|ネットワークのラベル名|ネットワークのキー名 (`network_key`)|用途|
+|---|---|---|
+|GlobalPrivateManagementNetwork|`gpn_mgmt`|仮想化基盤内に閉じた内部プライベートネットワーク。本ネットワークに接続された開発VM(devlinux)やK8sクラスタを構成するVM群の構築作業などの管理・運用作業に使用する。|
+|K8sNetwork01|`k8s_net01`|Kubernetes Cluster01用のプライベートネットワーク|
+|K8sNetwork02|`k8s_net02`|Kubernetes Cluster02用のプライベートネットワーク|
+|coreNetwork|`core_net`|Kubernetes クラスタ間でのeBGP広告による経路交換を行うためのネットワーク|
+|pool-wide network (※)|`mgmt`|XCP-ngのプール間をまたがって接続される管理ネットワーク。仮想環境外部に直接出ることが可能。Terraform管理外の既存ネットワーク。|
+
+留意事項: `network_key`は, terraform.tfvarsのVMネットワーク設定時に使用するキー名です。VMのnetworks配列内で`network_key`パラメータとして指定します。
+
+## 各VMの設定パラメタの修正方法
+
+本Terraformファイルでは, 各VMについて, 以下のパラメタを個別に設定可能です。未指定時は, 各VM種別ごとのプロファイルに基づいてデフォルト値を設定します。
+
+|パラメタ名|意味|設定値の例|
+|---|---|---|
+|template_type|VM作成時に使用するテンプレート種別|"ubuntu" または "rhel"|
+|firmware|VM起動時のファームウェア種別|"uefi" または "bios"|
+|resource_profile|リソース割り当てプロファイル名|"infrastructure", "vmlinux", "devlinux", "k8s_ctrlplane", "k8s_worker", "frr", "extgw"|
+|networks|接続するネットワークのキー名とMACアドレスのリスト|`[{ network_key = "mgmt", mac_address = "00:50:56:00:46:51" }]`|
+|disk_gb|(オプション) ディスク容量 (単位:GiB)|50|
+|vcpus|(オプション) 仮想CPU数(単位:個)|8|
+|memory_mb|(オプション) メモリ容量 (単位:MiB)|8192|
+|power_state|(オプション) 初期電源状態|"Running" または "Halted"|
+
+VMにパラメタを設定する場合は, 以下の形式で設定対象VMのキー名を指定して設定パラメタを記載したobject変数を設定します。
+
+```hcl
+<設定対象VMのキー名>=<設定パラメタを記載したobject変数>
+```
+
+terraform.tfvarsファイル内に記載する具体的な設定例を以下に示します。
+
+```hcl
+vmlinux_vms = {
+  vmlinux1 = {
+    template_type    = "ubuntu"
+    firmware         = "uefi"
+    resource_profile = "infrastructure"
+    # リソースプロファイルの値をオーバーライドする例
+    disk_gb          = 128      # デフォルトから変更
+    vcpus            = 8        # デフォルトから変更
+    memory_mb        = 16384    # デフォルトから変更
+    networks = [
+      { network_key = "mgmt", mac_address = "00:50:56:00:aa:bb" },
+      { network_key = "gpn_mgmt", mac_address = null }  # MACアドレス自動割り当て
+    ]
+  }
+}
+```
+
+## 各ネットワークの設定パラメタの修正方法
+
+本Terraformファイルでは, 各ネットワーク種別ごとに以下のパラメタを設定可能です。
+
+|パラメタ名|意味|設定値の例|
+|---|---|---|
+|automatic|ネットワークをVMに自動的にアタッチするか|true または false|
+|default_is_locked|ネットワークをデフォルトでロックするか|true または false|
+|mtu|ネットワークのMTU値|1500, 9000など|
+|name_description|ネットワークの説明文|"K8s Cluster 01 Network"|
+|nbd|NBD (Network Block Device)を有効にするか|true または false|
+|vlan|VLAN ID (0はタグなし, 1-4094)|100, 200など|
+|source_pif_device|VLAN作成元の物理インターフェース名 (vlanとセット)|"eth0", "eth1"など|
+
+**留意事項**: `vlan`と`source_pif_device`はXenOrchestra Providerの制約により, セットで指定する必要があります。どちらか一方だけを指定するとエラーになります。
+
+ネットワークにパラメタを設定する場合は, 以下の形式で設定対象ネットワークのキー名を指定して設定パラメタを記載したobject変数を設定します。
+
+```hcl
+<設定対象ネットワークのキー名>=<設定パラメタを記載したobject変数>
+```
+
+terraform.tfvarsファイル内に記載する具体的な設定例を以下に示します。
+
+```hcl
+network_options = {
+  # 例1: 単一ホスト内のプライベートネットワーク
+  gpn_mgmt = {
+    automatic         = false
+    default_is_locked = false
+    mtu               = 1500
+    name_description  = "Global Private Management Network"
+    nbd               = false
+    # vlan と source_pif_device を指定しない = 単一ホスト内のみ
+  }
+  # 例2: 複数ホスト間で拡張可能なVLANネットワーク
+  k8s_net01 = {
+    name_description  = "K8s Cluster 01 Network"
+    vlan              = 100         # VLAN ID
+    source_pif_device = "eth0"      # 物理インターフェース ( vlanとセット )
+    mtu               = 1500
+  }
+  # 例3: ジャンボフレーム対応ネットワーク
+  storage_net = {
+    name_description  = "Storage Network"
+    mtu               = 9000        # ジャンボフレーム
+    vlan              = 200
+    source_pif_device = "eth1"
+  }
+}
+```
 
 ## セットアップ手順
 
@@ -204,7 +334,7 @@ make cluster01        # K8s cluster01全体
 
 ### 既存環境のアップグレード
 
-既存のterraform.tfstateがある環境で、旧構成から新しいモジュール構造にアップグレードする場合はState移行が必要です。
+既存のterraform.tfstateがある環境で, 旧構成から新しいモジュール構造にアップグレードする場合はState移行が必要です。
 
 #### State移行手順
 
@@ -357,7 +487,7 @@ terraform state list  # module.infrastructure_vms["router"]が消えているこ
 
 ## 注意事項
 
-1. パスワード管理: `xoa_password`は環境変数で管理し、terraform.tfvarsには記載しない
+1. パスワード管理: `xoa_password`は環境変数で管理し, terraform.tfvarsには記載しない
 2. State管理: terraform.tfstateはgitignore対象としている。本ファイルのバックアップ等を別途実施することを想定している。
 
 ## トラブルシューティング
@@ -374,7 +504,7 @@ terraform state mv 'xenorchestra_vm.router' 'module.infrastructure_vms["router"]
 
 ### ネットワークが重複作成される場合
 
-ネットワークモジュールはTerraformのステート管理により、一度作成したネットワークは再利用されます。同名ネットワークが既にXCP-ngに存在する場合は、`terraform import`で取り込むことができます。
+ネットワークモジュールはTerraformのステート管理により, 一度作成したネットワークは再利用されます。同名ネットワークが既にXCP-ngに存在する場合は, `terraform import`で取り込むことができます。
 
 ```bash
 # 既存ネットワークをインポート

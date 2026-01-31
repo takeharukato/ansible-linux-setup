@@ -26,4 +26,13 @@ module "network" {
 
   network_name = each.value
   pool_id      = data.xenorchestra_pool.pool.id
+
+  # オプションパラメータ (network_optionsで定義されている場合のみ設定)
+  automatic         = try(var.network_options[each.key].automatic, null)
+  default_is_locked = try(var.network_options[each.key].default_is_locked, null)
+  mtu               = try(var.network_options[each.key].mtu, null)
+  name_description  = try(var.network_options[each.key].name_description, null)
+  nbd               = try(var.network_options[each.key].nbd, null)
+  vlan              = try(var.network_options[each.key].vlan, null)
+  source_pif_device = try(var.network_options[each.key].source_pif_device, null)
 }

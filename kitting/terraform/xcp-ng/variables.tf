@@ -343,6 +343,20 @@ variable "network_names" {
   }
 }
 
+variable "network_options" {
+  description = "Optional network parameters for each network"
+  type = map(object({
+    automatic         = optional(bool)
+    default_is_locked = optional(bool)
+    mtu               = optional(number)
+    name_description  = optional(string)
+    nbd               = optional(bool)
+    vlan              = optional(number)
+    source_pif_device = optional(string)
+  }))
+  default = {}
+}
+
 ############################################
 # Infrastructure VMs
 ############################################

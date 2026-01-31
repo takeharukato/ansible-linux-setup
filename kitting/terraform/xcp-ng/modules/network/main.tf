@@ -19,4 +19,16 @@
 resource "xenorchestra_network" "network" {
   name_label = var.network_name
   pool_id    = var.pool_id
+
+  # オプショナルパラメータ (nullの場合はデフォルト値が使用される)
+  automatic         = var.automatic
+  default_is_locked = var.default_is_locked
+  mtu               = var.mtu
+  name_description  = var.name_description
+  nbd               = var.nbd
+
+  # vlanとsource_pif_deviceはセットで指定する必要がある
+  # 両方がnullでない場合のみ設定する
+  vlan              = var.vlan != null && var.source_pif_device != null ? var.vlan : null
+  source_pif_device = var.vlan != null && var.source_pif_device != null ? var.source_pif_device : null
 }
