@@ -13,15 +13,26 @@
     - gpg
     state: present
 
-# ディストリビューション固有タスクの読み込み（Ansible バージョンに基づいた分岐）
+# ディストリビューション固有タスクの読み込み（ディストリビューションとAnsibleバージョンに基づいた分岐）
 # deb822_repository モジュールは Ansible 2.15 以降で利用可能
-- name: Include distro specific tasks (Ansible >= 2.15)
-  ansible.builtin.include_tasks: "{{ ansible_distribution | lower }}.yml"
-  when: ansible_version.major > 2 or (ansible_version.major == 2 and ansible_version.minor >= 15)
 
-- name: Include distro specific tasks (Ansible < 2.15)
-  ansible.builtin.include_tasks: "{{ ansible_distribution | lower }}-on-rhel9.yml"
-  when: ansible_version.major < 2 or (ansible_version.major == 2 and ansible_version.minor < 15)
+# Debian用
+- name: Include Debian tasks (Ansible >= 2.15)
+  ansible.builtin.include_tasks: debian.yml
+  when:
+    - ansible_distribution == "Debian"
+    - ansible_version.major > 2 or (ansible_version.major == 2 and ansible_version.minor >= 15)
+
+- name: Include Debian tasks (Ansible < 2.15)
+  ansible.builtin.include_tasks: debian-on-rhel9.yml
+  when:
+    - ansible_distribution == "Debian"
+    - ansible_version.major < 2 or (ansible_version.major == 2 and ansible_version.minor < 15)
+
+# Ubuntu用
+- name: Include Ubuntu tasks
+  ansible.builtin.include_tasks: ubuntu.yml
+  when: ansible_distribution == "Ubuntu"
 
 # 外部リポジトリの読み込み（Ansible バージョンに基づいた分岐）
 - name: Include external repositories (Ansible >= 2.15)
