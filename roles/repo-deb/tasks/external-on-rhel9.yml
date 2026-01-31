@@ -1,0 +1,72 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  外部リポジトリ関連タスク
+#
+
+# Docker Community Editionのキーリングを配置する
+- name: Docker keyring
+  when: repo_enable_docker
+  shell: |
+    curl -fsSL "{{ docker_apt_keyring_url }}" | gpg --dearmor > "{{ docker_apt_keyring }}"
+    chmod 0644 "{{ docker_apt_keyring }}"
+
+# Docker repo (APT)を有効にする
+- name: Docker repo (APT)
+  when: repo_enable_docker
+  ansible.builtin.apt_repository:
+    repo: "deb [signed-by={{ docker_apt_keyring }} arch={{ docker_arch_apt }}] {{ docker_apt_uri }} {{ docker_apt_suite }} {{ docker_apt_components }}"
+    state: present
+    filename: "docker"
+  notify: "apt update"
+
+# Kubernetesのキーリングを配置する
+- name: Kubernetes keyring
+  when: repo_enable_kubernetes
+  shell: |
+    curl -fsSL "{{ k8s_apt_keyring_url }}" | gpg --dearmor > "{{ k8s_apt_keyring }}"
+    chmod 0644 "{{ k8s_apt_keyring }}"
+
+# Kubernetes repo (APT)を有効にする
+- name: Kubernetes repo (APT)
+  when: repo_enable_kubernetes
+  ansible.builtin.apt_repository:
+    repo: "deb [signed-by={{ k8s_apt_keyring }}] {{ k8s_apt_uri }} {{ k8s_apt_suites }} {{ k8s_apt_components }}"
+    state: present
+    filename: "kubernetes"
+  notify: "apt update"
+
+# Google Chrome
+- name: Chrome keyring
+  when: repo_enable_chrome
+  shell: |
+    curl -fsSL "{{ chrome_keyring_url }}" | gpg --dearmor > "{{ chrome_keyring_path }}"
+    chmod 0644 "{{ chrome_keyring_path }}"
+
+# Chrome repo (APT)を有効にする
+- name: Chrome repo (APT)
+  when: repo_enable_chrome
+  ansible.builtin.apt_repository:
+    repo: "deb [signed-by={{ chrome_keyring_path }} arch={{ chrome_arch_apt }}] {{ chrome_apt_uri }} {{ chrome_apt_suite }} {{ chrome_apt_components }}"
+    state: present
+    filename: "google-chrome"
+  notify: "apt update"
+
+# Pinning ( 外部を下げる )
+- name: Pin external origins lower than base
+  ansible.builtin.copy:
+    dest: "/etc/apt/preferences.d/99-external.pref"
+    mode: "0644"
+    content: |
+      Package: *
+      Pin: origin "download.docker.com"
+      Pin-Priority: {{ pin_external|int }}
+
+      Package: *
+      Pin: origin "pkgs.k8s.io"
+      Pin-Priority: {{ pin_external|int }}
+
+      Package: *
+      Pin: origin "dl.google.com"
+      Pin-Priority: {{ pin_external|int }}

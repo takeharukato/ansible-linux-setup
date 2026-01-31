@@ -17,7 +17,7 @@ locals {
     infrastructure = {
       vcpus     = 4
       memory_mb = 4096
-      disk_gb   = 256
+      disk_gb   = 128
     }
 
     # 外部ネットワーク(pool-wide network)接続開発用VM

@@ -9,6 +9,14 @@
 - name: Download yq binary (Debian/Ubuntu)
   ansible.builtin.get_url:
     url: "{{ yq_download_url }}"
+    dest: "/tmp/yq_{{ inventory_hostname }}"
+    mode: '0755'
+  delegate_to: localhost
+  when: ansible_facts.os_family == 'Debian'
+
+- name: Copy yq binary to remote (Debian/Ubuntu)
+  ansible.builtin.copy:
+    src: "/tmp/yq_{{ inventory_hostname }}"
     dest: "{{ yq_command_debian }}"
     mode: '0755'
     owner: root

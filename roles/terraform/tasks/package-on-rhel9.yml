@@ -2,7 +2,7 @@
 #  Ansible playbook
 #  Copyright 2020 Takeharu KATO All Rights Reserved.
 #
-#  パッケージ関連処理 (Ansible >= 2.15用)
+#  パッケージ関連処理 (Ansible < 2.15用)
 ---
 
 
@@ -31,18 +31,12 @@
   when:
     - ansible_facts.os_family == "Debian"
 
-# HashiCorpリポジトリを追加 (Debian系, deb822形式)
-- name: "Add HashiCorp APT repository (deb822)"
-  ansible.builtin.deb822_repository:
-    name: "hashicorp"
-    types:
-      - "deb"
-    uris: "{{ terraform_repository_url_debian }}"
-    suites: "{{ ansible_distribution_release }}"
-    components:
-      - "main"
-    enabled: true
-    signed_by: "{{ terraform_apt_keyring_debian }}"
+# HashiCorpリポジトリを追加 (Debian系, apt_repository形式)
+- name: "Add HashiCorp APT repository (APT)"
+  ansible.builtin.apt_repository:
+    repo: "deb [signed-by={{ terraform_apt_keyring_debian }}] {{ terraform_repository_url_debian }} {{ ansible_distribution_release }} main"
+    state: present
+    filename: "hashicorp"
   notify: "apt update"
   when:
     - ansible_facts.os_family == "Debian"

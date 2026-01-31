@@ -319,7 +319,11 @@ variable "xcpng_private_network_name" {
   type        = string
   default     = "GlobalPrivateManagementNetwork"
 }
-
+variable "network_force_create_network" {
+  description = "If true, instruct network modules to always create networks"
+  type        = bool
+  default     = false
+}
 ############################################
 # Network Names
 ############################################
@@ -348,6 +352,9 @@ variable "infrastructure_vms" {
     template_type    = string
     firmware         = string
     resource_profile = string
+    vcpus            = optional(number)
+    memory_mb        = optional(number)
+    disk_gb          = optional(number)
     networks = list(object({
       network_key = string
       mac_address = optional(string)
@@ -379,6 +386,9 @@ variable "vmlinux_vms" {
     template_type    = string
     firmware         = string
     resource_profile = string
+    vcpus            = optional(number)
+    memory_mb        = optional(number)
+    disk_gb          = optional(number)
     networks = list(object({
       network_key = string
       mac_address = optional(string)
@@ -410,6 +420,9 @@ variable "devlinux_vms" {
     template_type    = string
     firmware         = string
     resource_profile = string
+    vcpus            = optional(number)
+    memory_mb        = optional(number)
+    disk_gb          = optional(number)
     networks = list(object({
       network_key = string
       mac_address = optional(string)
@@ -441,6 +454,9 @@ variable "k8s_vms" {
     template_type    = string
     firmware         = string
     resource_profile = string
+    vcpus            = optional(number)
+    memory_mb        = optional(number)
+    disk_gb          = optional(number)
     networks = list(object({
       network_key = string
       mac_address = optional(string)

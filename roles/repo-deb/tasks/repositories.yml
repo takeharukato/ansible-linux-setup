@@ -13,13 +13,24 @@
     - gpg
     state: present
 
-# ディストリビューション固有タスクの読み込み
-- name: Include distro specific tasks
+# ディストリビューション固有タスクの読み込み（Ansible バージョンに基づいた分岐）
+# deb822_repository モジュールは Ansible 2.15 以降で利用可能
+- name: Include distro specific tasks (Ansible >= 2.15)
   ansible.builtin.include_tasks: "{{ ansible_distribution | lower }}.yml"
+  when: ansible_version.major > 2 or (ansible_version.major == 2 and ansible_version.minor >= 15)
 
-# 外部リポジトリの読み込み
-- name: Include external repositories
+- name: Include distro specific tasks (Ansible < 2.15)
+  ansible.builtin.include_tasks: "{{ ansible_distribution | lower }}-on-rhel9.yml"
+  when: ansible_version.major < 2 or (ansible_version.major == 2 and ansible_version.minor < 15)
+
+# 外部リポジトリの読み込み（Ansible バージョンに基づいた分岐）
+- name: Include external repositories (Ansible >= 2.15)
   ansible.builtin.include_tasks: external.yml
+  when: ansible_version.major > 2 or (ansible_version.major == 2 and ansible_version.minor >= 15)
+
+- name: Include external repositories (Ansible < 2.15)
+  ansible.builtin.include_tasks: external-on-rhel9.yml
+  when: ansible_version.major < 2 or (ansible_version.major == 2 and ansible_version.minor < 15)
 
 # パッケージの更新情報を取得する
 - name: apt update forcefully

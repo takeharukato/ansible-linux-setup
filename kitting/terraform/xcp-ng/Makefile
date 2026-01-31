@@ -8,8 +8,9 @@
 .PHONY: clean clean-state distclean
 .PHONY: init validate plan fmt
 .PHONY: prepare build destroy
-.PHONY: router devserver rhel_server ubuntu_server mgmt_server
-.PHONY: destroy-router destroy-devserver destroy-rhel_server destroy-ubuntu_server destroy-mgmt_server
+.PHONY: networks destroy-networks
+.PHONY: router devserver rhel-server ubuntu-server mgmt-server
+.PHONY: destroy-router destroy-devserver destroy-rhel-server destroy-ubuntu-server destroy-mgmt-server
 .PHONY: devlinux1 devlinux2 devlinux3 devlinux4 devlinux5
 .PHONY: destroy-devlinux1 destroy-devlinux2 destroy-devlinux3 destroy-devlinux4 destroy-devlinux5
 .PHONY: vmlinux1 vmlinux2 vmlinux3 vmlinux4 vmlinux5
@@ -49,102 +50,111 @@ fmt:
 prepare: init
 
 ############################################
+# Networks
+############################################
+networks: prepare
+	${TERRAFORM} apply ${TERRAFORM_FLAGS} -target='module.network' 2>&1 | tee $@.log
+
+destroy-networks: prepare
+	${TERRAFORM} destroy ${TERRAFORM_FLAGS} -target='module.network' 2>&1 | tee $@.log
+
+############################################
 # Infrastructure VMs
 ############################################
-router: prepare
+router: networks
 	${TERRAFORM} apply ${TERRAFORM_FLAGS} -target='module.infrastructure_vms["router"]' 2>&1 | tee $@.log
 
-devserver: prepare
+devserver: networks
 	${TERRAFORM} apply ${TERRAFORM_FLAGS} -target='module.infrastructure_vms["devserver"]' 2>&1 | tee $@.log
 
-rhel_server: prepare
-	${TERRAFORM} apply ${TERRAFORM_FLAGS} -target='module.infrastructure_vms["rhel_server"]' 2>&1 | tee $@.log
+rhel-server: networks
+	${TERRAFORM} apply ${TERRAFORM_FLAGS} -target='module.infrastructure_vms["rhel-server"]' 2>&1 | tee $@.log
 
-ubuntu_server: prepare
-	${TERRAFORM} apply ${TERRAFORM_FLAGS} -target='module.infrastructure_vms["ubuntu_server"]' 2>&1 | tee $@.log
+ubuntu-server: networks
+	${TERRAFORM} apply ${TERRAFORM_FLAGS} -target='module.infrastructure_vms["ubuntu-server"]' 2>&1 | tee $@.log
 
-mgmt_server: prepare
-	${TERRAFORM} apply ${TERRAFORM_FLAGS} -target='module.infrastructure_vms["mgmt_server"]' 2>&1 | tee $@.log
+mgmt-server: networks
+	${TERRAFORM} apply ${TERRAFORM_FLAGS} -target='module.infrastructure_vms["mgmt-server"]' 2>&1 | tee $@.log
 
 ############################################
-# Devlinux VMs
+# devlinux VMs
 ############################################
-devlinux1: prepare
+devlinux1: networks
 	${TERRAFORM} apply ${TERRAFORM_FLAGS} -target='module.devlinux_vms["devlinux1"]' 2>&1 | tee $@.log
 
-devlinux2: prepare
+devlinux2: networks
 	${TERRAFORM} apply ${TERRAFORM_FLAGS} -target='module.devlinux_vms["devlinux2"]' 2>&1 | tee $@.log
 
-devlinux3: prepare
+devlinux3: networks
 	${TERRAFORM} apply ${TERRAFORM_FLAGS} -target='module.devlinux_vms["devlinux3"]' 2>&1 | tee $@.log
 
-devlinux4: prepare
+devlinux4: networks
 	${TERRAFORM} apply ${TERRAFORM_FLAGS} -target='module.devlinux_vms["devlinux4"]' 2>&1 | tee $@.log
 
-devlinux5: prepare
+devlinux5: networks
 	${TERRAFORM} apply ${TERRAFORM_FLAGS} -target='module.devlinux_vms["devlinux5"]' 2>&1 | tee $@.log
 
-devlinux: prepare
+devlinux: networks
 	${TERRAFORM} apply ${TERRAFORM_FLAGS} -target='module.devlinux_vms' 2>&1 | tee $@.log
 
 ############################################
-# Vmlinux VMs
+# vmlinux VMs
 ############################################
-vmlinux1: prepare
+vmlinux1: networks
 	${TERRAFORM} apply ${TERRAFORM_FLAGS} -target='module.vmlinux_vms["vmlinux1"]' 2>&1 | tee $@.log
 
-vmlinux2: prepare
+vmlinux2: networks
 	${TERRAFORM} apply ${TERRAFORM_FLAGS} -target='module.vmlinux_vms["vmlinux2"]' 2>&1 | tee $@.log
 
-vmlinux3: prepare
+vmlinux3: networks
 	${TERRAFORM} apply ${TERRAFORM_FLAGS} -target='module.vmlinux_vms["vmlinux3"]' 2>&1 | tee $@.log
 
-vmlinux4: prepare
+vmlinux4: networks
 	${TERRAFORM} apply ${TERRAFORM_FLAGS} -target='module.vmlinux_vms["vmlinux4"]' 2>&1 | tee $@.log
 
-vmlinux5: prepare
+vmlinux5: networks
 	${TERRAFORM} apply ${TERRAFORM_FLAGS} -target='module.vmlinux_vms["vmlinux5"]' 2>&1 | tee $@.log
 
-vmlinux: prepare
+vmlinux: networks
 	${TERRAFORM} apply ${TERRAFORM_FLAGS} -target='module.vmlinux_vms' 2>&1 | tee $@.log
 
 ############################################
 # Kubernetes Lab VMs
 ############################################
-k8sctrlplane01: prepare
+k8sctrlplane01: networks
 	${TERRAFORM} apply ${TERRAFORM_FLAGS} -target='module.k8s_vms["k8sctrlplane01"]' 2>&1 | tee $@.log
 
-k8sworker0101: prepare
+k8sworker0101: networks
 	${TERRAFORM} apply ${TERRAFORM_FLAGS} -target='module.k8s_vms["k8sworker0101"]' 2>&1 | tee $@.log
 
-k8sworker0102: prepare
+k8sworker0102: networks
 	${TERRAFORM} apply ${TERRAFORM_FLAGS} -target='module.k8s_vms["k8sworker0102"]' 2>&1 | tee $@.log
 
-frr01: prepare
+frr01: networks
 	${TERRAFORM} apply ${TERRAFORM_FLAGS} -target='module.k8s_vms["frr01"]' 2>&1 | tee $@.log
 
-k8sctrlplane02: prepare
+k8sctrlplane02: networks
 	${TERRAFORM} apply ${TERRAFORM_FLAGS} -target='module.k8s_vms["k8sctrlplane02"]' 2>&1 | tee $@.log
 
-k8sworker0201: prepare
+k8sworker0201: networks
 	${TERRAFORM} apply ${TERRAFORM_FLAGS} -target='module.k8s_vms["k8sworker0201"]' 2>&1 | tee $@.log
 
-k8sworker0202: prepare
+k8sworker0202: networks
 	${TERRAFORM} apply ${TERRAFORM_FLAGS} -target='module.k8s_vms["k8sworker0202"]' 2>&1 | tee $@.log
 
-frr02: prepare
+frr02: networks
 	${TERRAFORM} apply ${TERRAFORM_FLAGS} -target='module.k8s_vms["frr02"]' 2>&1 | tee $@.log
 
-extgw: prepare
+extgw: networks
 	${TERRAFORM} apply ${TERRAFORM_FLAGS} -target='module.k8s_vms["extgw"]' 2>&1 | tee $@.log
 
-cluster01: prepare k8sctrlplane01 k8sworker0101 k8sworker0102 frr01
+cluster01: networks k8sctrlplane01 k8sworker0101 k8sworker0102 frr01
 
-cluster02: prepare k8sctrlplane02 k8sworker0201 k8sworker0202 frr02
+cluster02: networks k8sctrlplane02 k8sworker0201 k8sworker0202 frr02
 
-frr: prepare frr01 frr02
+frr: networks frr01 frr02
 
-gateways: prepare extgw frr01 frr02
+gateways: networks extgw frr01 frr02
 
 ############################################
 # Destroy Infrastructure VMs
@@ -155,17 +165,17 @@ destroy-router: prepare
 destroy-devserver: prepare
 	${TERRAFORM} destroy ${TERRAFORM_FLAGS} -target='module.infrastructure_vms["devserver"]' 2>&1 | tee $@.log
 
-destroy-rhel_server: prepare
-	${TERRAFORM} destroy ${TERRAFORM_FLAGS} -target='module.infrastructure_vms["rhel_server"]' 2>&1 | tee $@.log
+destroy-rhel-server: prepare
+	${TERRAFORM} destroy ${TERRAFORM_FLAGS} -target='module.infrastructure_vms["rhel-server"]' 2>&1 | tee $@.log
 
-destroy-ubuntu_server: prepare
-	${TERRAFORM} destroy ${TERRAFORM_FLAGS} -target='module.infrastructure_vms["ubuntu_server"]' 2>&1 | tee $@.log
+destroy-ubuntu-server: prepare
+	${TERRAFORM} destroy ${TERRAFORM_FLAGS} -target='module.infrastructure_vms["ubuntu-server"]' 2>&1 | tee $@.log
 
-destroy-mgmt_server: prepare
-	${TERRAFORM} destroy ${TERRAFORM_FLAGS} -target='module.infrastructure_vms["mgmt_server"]' 2>&1 | tee $@.log
+destroy-mgmt-server: prepare
+	${TERRAFORM} destroy ${TERRAFORM_FLAGS} -target='module.infrastructure_vms["mgmt-server"]' 2>&1 | tee $@.log
 
 ############################################
-# Destroy Devlinux VMs
+# Destroy devlinux VMs
 ############################################
 destroy-devlinux1: prepare
 	${TERRAFORM} destroy ${TERRAFORM_FLAGS} -target='module.devlinux_vms["devlinux1"]' 2>&1 | tee $@.log
@@ -263,7 +273,7 @@ migrate-k8s: prepare
 ############################################
 # Build and Destroy
 ############################################
-build: prepare router mgmt_server vmlinux devlinux
+build: prepare router mgmt-server vmlinux devlinux
 
 build-k8s: cluster01 cluster02 extgw
 

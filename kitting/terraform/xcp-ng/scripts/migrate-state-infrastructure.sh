@@ -42,38 +42,45 @@ echo "Current state before migration:" | tee -a "$LOG_FILE"
 terraform state list | tee -a "$LOG_FILE"
 echo "" | tee -a "$LOG_FILE"
 
-# infrastructure VMグループの一覧
-VMS=("router" "rhel_server" "ubuntu_server" "mgmt_server" "devserver")
+# infrastructure VMグループの一覧 (旧リソース名 -> 新key)
+declare -A VMS_MAP=(
+  [router]=router
+  [rhel_server]=rhel-server
+  [ubuntu_server]=ubuntu-server
+  [mgmt_server]=mgmt-server
+  [devserver]=devserver
+)
 
-for vm in "${VMS[@]}"; do
-  echo "Processing VM: $vm" | tee -a "$LOG_FILE"
+for old in "${!VMS_MAP[@]}"; do
+  new=${VMS_MAP[$old]}
+  echo "Processing VM: $old -> $new" | tee -a "$LOG_FILE"
 
-  # 既に移行済みであることを確認
-  if terraform state list | grep -q "module.infrastructure_vms\[\"$vm\"\]"; then
+  # 既に移行済みであることを確認 (新キーで存在するか)
+  if terraform state list | grep -q "module.infrastructure_vms\[\"$new\"\]"; then
     echo "  [OK] Already migrated, skipping" | tee -a "$LOG_FILE"
     continue
   fi
 
-  # cloud-configの移行
-  if terraform state list | grep -q "xenorchestra_cloud_config.$vm"; then
-    CMD="terraform state mv 'xenorchestra_cloud_config.$vm' 'module.infrastructure_vms[\"$vm\"].xenorchestra_cloud_config.this'"
+  # cloud-configの移行 (ソースは旧リソース名)
+  if terraform state list | grep -q "xenorchestra_cloud_config.$old"; then
+    CMD="terraform state mv 'xenorchestra_cloud_config.$old' 'module.infrastructure_vms[\"$new\"].xenorchestra_cloud_config.this'"
     echo "  Migrating cloud-config: $CMD" | tee -a "$LOG_FILE"
     if [ "$DRY_RUN" = false ]; then
       eval "$CMD" 2>&1 | tee -a "$LOG_FILE"
     fi
   else
-    echo "  [WARNING] Cloud-config not found in state" | tee -a "$LOG_FILE"
+    echo "  [WARNING] Cloud-config not found in state for $old" | tee -a "$LOG_FILE"
   fi
 
-  # VMの移行
-  if terraform state list | grep -q "xenorchestra_vm.$vm"; then
-    CMD="terraform state mv 'xenorchestra_vm.$vm' 'module.infrastructure_vms[\"$vm\"].xenorchestra_vm.this'"
+  # VMの移行 (ソースは旧リソース名)
+  if terraform state list | grep -q "xenorchestra_vm.$old"; then
+    CMD="terraform state mv 'xenorchestra_vm.$old' 'module.infrastructure_vms[\"$new\"].xenorchestra_vm.this'"
     echo "  Migrating VM: $CMD" | tee -a "$LOG_FILE"
     if [ "$DRY_RUN" = false ]; then
       eval "$CMD" 2>&1 | tee -a "$LOG_FILE"
     fi
   else
-    echo "  [WARNING] VM not found in state" | tee -a "$LOG_FILE"
+    echo "  [WARNING] VM not found in state for $old" | tee -a "$LOG_FILE"
   fi
 
   echo "" | tee -a "$LOG_FILE"
