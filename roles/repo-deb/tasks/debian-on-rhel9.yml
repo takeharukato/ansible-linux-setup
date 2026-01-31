@@ -1,0 +1,39 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  Debian固有リポジトリ関連タスク
+#
+
+#  Debian/Ubuntu deb リポジトリ設定（apt_repository で対応）
+- name: Configure Debian/Ubuntu deb sources
+  vars:
+    suite: "{{ ansible_distribution_release }}"
+  block:
+    - name: main
+      ansible.builtin.apt_repository:
+        repo: "deb [signed-by={{ debian_archive_keyring }}] {{ debian_archive_uris | default(['http://deb.debian.org/debian']) | first }} {{ suite }} main universe"
+        state: "{{ 'present' if repo_enable_main else 'absent' }}"
+        filename: "debian-main"
+      notify: "apt update"
+
+    - name: updates
+      ansible.builtin.apt_repository:
+        repo: "deb [signed-by={{ debian_archive_keyring }}] {{ debian_updates_uris | default(['http://deb.debian.org/debian']) | first }} {{ suite }}-updates main universe"
+        state: "{{ 'present' if repo_enable_updates else 'absent' }}"
+        filename: "debian-updates"
+      notify: "apt update"
+
+    - name: security
+      ansible.builtin.apt_repository:
+        repo: "deb [signed-by={{ debian_archive_keyring }}] {{ debian_security_uris | default(['http://security.debian.org/debian-security']) | first }} {{ suite }}-security main universe"
+        state: "{{ 'present' if repo_enable_security else 'absent' }}"
+        filename: "debian-security"
+      notify: "apt update"
+
+    - name: backports
+      ansible.builtin.apt_repository:
+        repo: "deb [signed-by={{ debian_archive_keyring }}] {{ debian_backports_uris | default(['http://deb.debian.org/debian']) | first }} {{ suite }}-backports main universe"
+        state: "{{ 'present' if repo_enable_backports else 'absent' }}"
+        filename: "debian-backports"
+      notify: "apt update"
