@@ -21,6 +21,7 @@
         - [ステップ3: 最終検証](#ステップ3-最終検証)
   - [Makefileターゲット](#makefileターゲット)
     - [初期化と検証](#初期化と検証)
+    - [ネットワークターゲット](#ネットワークターゲット)
     - [ビルドターゲット](#ビルドターゲット)
     - [個別VMターゲット](#個別vmターゲット)
     - [削除ターゲット](#削除ターゲット)
@@ -265,10 +266,17 @@ make plan           # 実行計画確認 ( terraform plan )
 make fmt            # コードフォーマット ( terraform fmt )
 ```
 
+### ネットワークターゲット
+
+```bash
+make networks       # ネットワーク作成
+make destroy-networks  # ネットワーク削除
+```
+
 ### ビルドターゲット
 
 ```bash
-make build          # 基本インフラ構築 ( router, mgmt_server, vmlinux, devlinux )
+make build          # 基本インフラ構築 ( router, mgmt-server, vmlinux, devlinux )
 make build-k8s      # K8sクラスター構築 ( cluster01, cluster02, extgw )
 ```
 
@@ -278,9 +286,9 @@ make build-k8s      # K8sクラスター構築 ( cluster01, cluster02, extgw )
 # Infrastructure
 make router
 make devserver
-make rhel_server
-make ubuntu_server
-make mgmt_server
+make rhel-server
+make ubuntu-server
+make mgmt-server
 
 # Devlinux
 make devlinux1      # 個別
@@ -366,7 +374,12 @@ terraform state mv 'xenorchestra_vm.router' 'module.infrastructure_vms["router"]
 
 ### ネットワークが重複作成される場合
 
-ネットワークモジュールは既存検索優先です。同名ネットワークが既に存在する場合は再利用されます。
+ネットワークモジュールはTerraformのステート管理により、一度作成したネットワークは再利用されます。同名ネットワークが既にXCP-ngに存在する場合は、`terraform import`で取り込むことができます。
+
+```bash
+# 既存ネットワークをインポート
+terraform import 'module.network["core_net"].xenorchestra_network.network' <network-id>
+```
 
 ### Validationエラーが出る場合
 

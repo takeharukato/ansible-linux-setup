@@ -18,9 +18,9 @@ module "vmlinux_vms" {
   name            = each.key
   template_id     = local.template_ids[each.value.template_type]
   firmware        = each.value.firmware
-  vcpus           = local.vm_resource_defaults[each.value.resource_profile].vcpus
-  memory_bytes    = local.vm_resource_defaults[each.value.resource_profile].memory_mb * 1024 * 1024
-  disk_bytes      = local.vm_resource_defaults[each.value.resource_profile].disk_gb * 1024 * 1024 * 1024
+  vcpus           = coalesce(each.value.vcpus, local.vm_resource_defaults[each.value.resource_profile].vcpus)
+  memory_bytes    = coalesce(each.value.memory_mb, local.vm_resource_defaults[each.value.resource_profile].memory_mb) * 1024 * 1024
+  disk_bytes      = coalesce(each.value.disk_gb, local.vm_resource_defaults[each.value.resource_profile].disk_gb) * 1024 * 1024 * 1024
   sr_id           = data.xenorchestra_sr.vm_sr.id
   pool_master_id  = data.xenorchestra_pool.pool.master
   power_state     = "Halted"
