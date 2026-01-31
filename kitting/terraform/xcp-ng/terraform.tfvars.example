@@ -59,146 +59,55 @@ xcpng_mgmt_network_name    = "Pool-wide network associated with eth0"
 # 仮想環境内部プライベートネットワーク名
 # (K8sクラスタ構成ノード, devlinuxなど仮想環境内部のVMを管理するために使用)
 xcpng_private_network_name = "GlobalPrivateManagementNetwork"
-
-############################################
-# ネットワーク bonding / private ネットワーク設定
-############################################
-# ボンディングネットワークやプライベートネットワークを設定しない場合
-# (デフォルト動作):
-# network_configs = {}
-
-# ネットワーク詳細設定の例:
+########################################################
+# ネットワークオプション設定
+# 各ネットワークに対して詳細なオプションを設定可能
 #
-# 例1: GPNネットワークにボンディング設定を追加
-# network_configs = {
+# ネットワークの種類:
+# 1. 完全なプライベートネットワーク ( 単一ホスト内のみ ) :
+#    - source_pif_device と vlan を指定しない
+#    - 単一ホスト内でのVM間通信のみ
+#    - ホスト間での通信は不可
+#
+# 2. VLANネットワーク ( 複数ホスト間で拡張可能 ) :
+#    - vlan と source_pif_device の両方を必ず指定
+#    - 同じVLAN IDを持つネットワークを複数ホスト間で共有
+#    - 指定されたPIF上にVLAN IDでタグ付けされたネットワークを作成
+#    - XO GUIではPIFsセクションに表示される
+#
+# 3. タグなしネットワーク ( VLAN 0 ) :
+#    - vlan = 0 と source_pif_device を指定
+#    - タグなし ( untagged ) トラフィックを使用
+#
+# 注意: XenOrchestra Providerの制約により, source_pif_deviceとvlanは
+#       セットで指定する必要があります
+#       どちらか一方だけを指定するとエラーになります
+########################################################
+# network_options = {
+#   # 例1: 単一ホスト内の完全なプライベートネットワーク
 #   gpn_mgmt = {
-#     bonding_network = {
-#       enabled = true
-#       mode    = "balance-alb"
-#       slaves  = ["eth0", "eth1"]
-#     }
+#     automatic         = false
+#     default_is_locked = false
+#     mtu               = 1500
+#     name_description  = "Global Private Management Network"
+#     nbd               = false
+#     # vlan と source_pif_device を指定しない = 単一ホスト内のみ
 #   }
-# }
-#
-# 例2: K8sNetwork01にプライベートネットワークを追加 (VLAN ID 100, MTU 1500)
-# network_configs = {
+#   # 例2: 複数ホスト間で拡張可能なVLANネットワーク
 #   k8s_net01 = {
-#     private_network = {
-#       enabled       = true
-#       vlan_id       = 100
-#       mtu           = 1500
-#       default_route = false
-#     }
+#     name_description  = "K8s Cluster 01 Network"
+#     vlan              = 100         # VLAN ID
+#     source_pif_device = "eth0"      # 物理インターフェース ( vlanとセット )
+#     mtu               = 1500
 #   }
-# }
-#
-# 例3: K8sNetwork02にボンディング + プライベートネットワークを設定
-# 例3: K8sNetwork02にボンディング + プライベートネットワーク + PIF指定を設定
-# network_configs = {
-#   k8s_net02 = {
-#     bonding_network = {
-#       enabled = true
-#       mode    = "balance-alb"
-#       slaves  = ["eth2", "eth3"]
-#     }
-#     private_network = {
-#       enabled       = true
-#       vlan_id       = 200
-#       mtu           = 9000
-#       default_route = false
-#     }
-#     pif_device = "eth0"
-#     }
-#   }
-# }
-#
-# 例4: 複数のネットワークに異なる設定を適用
-# network_configs = {
-#   # gpn_mgmt: デフォルト設定(ボンディング/プライベートなし)
-#
-#   # k8s_net01: ボンディング設定を有効化
-#   k8s_net01 = {
-#     bonding_network = {
-#       enabled = true
-#       mode    = "balance-alb"
-#       slaves  = ["eth0", "eth1"]
-#     }
-#   }
-#
-#   # k8s_net02: プライベートネットワーク設定を有効化 (VLAN 100)
-#   k8s_net02 = {
-#     private_network = {
-#       enabled       = true
-#       vlan_id       = 100
-#       mtu           = 1500
-#       default_route = false
-#     }
-#   }
-#
-#   # core_net: ボンディング + プライベート両方設定
+#   # 例3: タグなしネットワーク
 #   core_net = {
-#     bonding_network = {
-#       enabled = true
-#       mode    = "balance-rr"
-#       slaves  = ["eth2", "eth3", "eth4"]
-#     }
-#     private_network = {
-#       enabled       = true
-#       vlan_id       = 200
-#       mtu           = 9000
-#       default_route = true
-#
-# 例5: 複数ネットワークにPIF設定を追加
-# network_configs = {
-#   # gpn_mgmt: eth0をPIFに指定
-#   gpn_mgmt = {
-#     pif_device = "eth0"
-#   }
-#
-#   # k8s_net01: ボンディング + eth1をPIF指定
-#   k8s_net01 = {
-#     bonding_network = {
-#       enabled = true
-#       mode    = "balance-alb"
-#       slaves  = ["eth0", "eth1"]
-#     }
-#     pif_device = "eth1"
-#   }
-#
-#   # k8s_net02: プライベート + eth2をPIF指定
-#   k8s_net02 = {
-#     private_network = {
-#       enabled       = true
-#       vlan_id       = 100
-#       mtu           = 1500
-#       default_route = false
-#     }
-#     pif_device = "eth2"
+#     name_description  = "Core Network"
+#     vlan              = 0           # タグなし ( untagged )
+#     source_pif_device = "eth1"
 #   }
 # }
-#     }
-#   }
-# }
-#
-# ボンディングモードの説明:
-# - balance-alb:       Adaptive load balancing (推奨)
-# - balance-rr:        Round-robin bonding
-# - balance-xor:       XOR policy
-# - broadcast:         Broadcast mode
-# - 802.3ad:           IEEE 802.3ad Dynamic link aggregation
-# - balance-tlb:       Transmit load balancing
-# - balance-tcp:       TCP load balancing
-#
-# プライベートネットワークのオプション説明:
-# - enabled:           プライベートネットワークを有効化するか
-# - vlan_id:           VLAN ID (指定しない場合は null)
-# - mtu:               最大転送単位 (指定しない場合は null、1500 or 9000 等)
-# - default_route:     このネットワークをデフォルトルートにするか
-#
-# Physical Interface (PIF) 設定:
-# - pif_device:        割り当てるPIF物理インターフェース (例: eth0, eth1, eth2)
-#                      local-execプロビジョナーによりXen Orchestra APIで設定
-network_configs = {}
+network_options = {}
 
 ############################################
 # デフォルトのリソース割り当て量

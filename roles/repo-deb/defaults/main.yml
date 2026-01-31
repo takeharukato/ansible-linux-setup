@@ -22,6 +22,7 @@ ubuntu_sources_components:
   - "universe"
 
 # Debian固有
+debian_suite_on_ansible_lt_2_15: "bookworm"  # Debian 12 (Ansible 2.15未満, RHEL9上で使用)
 debian_archive_uris:
   - "http://deb.debian.org/debian/"
 debian_security_uris:
