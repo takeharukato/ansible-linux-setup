@@ -28,7 +28,7 @@
 # vmlinux3.local
 # vmlinux4.local
 # vmlinux5.local
-[internal-devel]
+[internal_devel]
 # devlinux1.local
 # devlinux2.local
 # devlinux3.local

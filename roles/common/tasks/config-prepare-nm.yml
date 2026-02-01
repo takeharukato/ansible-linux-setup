@@ -172,16 +172,29 @@
     - "nm_reload_and_activate"
 
 #
-# NetworkManagerの設定を更新したらリブート
+# RHEL系: 既存のネットワーク設定がある場合はリブートして古い設定をクリア
 #
+- name: Check for existing network profiles (RHEL)
+  ansible.builtin.find:
+    paths:
+      - /etc/sysconfig/network-scripts
+      - /etc/NetworkManager/system-connections
+    patterns: "ifcfg-*,*.nmconnection"
+  register: existing_profiles
+  when: ansible_facts.os_family == "RedHat"
 
-# マシンをリブートする
-- name: Reboot host gracefully
-  reboot:
+- name: Reboot to clear old network configuration (RHEL only, if profiles exist)
+  ansible.builtin.reboot:
     reboot_timeout: 600
-    msg: "Reboot triggered by role: common"
+    msg: "Reboot to clear legacy network configuration"
     pre_reboot_delay: 2
+  when:
+    - ansible_facts.os_family == "RedHat"
+    - existing_profiles.matched | default(0) > 0
 
-- name: Wait for connection after reboot
-  wait_for_connection:
+- name: Wait for connection after reboot (RHEL)
+  ansible.builtin.wait_for_connection:
     timeout: 300
+  when:
+    - ansible_facts.os_family == "RedHat"
+    - existing_profiles.matched | default(0) > 0
