@@ -25,6 +25,10 @@
   args:
     executable: /bin/bash
   become: true
+  when:
+    - gpm_mgmt_ipv4_network_cidr is defined and gpm_mgmt_ipv4_network_cidr != ''
+    - network_ipv4_network_address is defined and network_ipv4_network_address != ''
+    - network_ipv4_prefix_len is defined and network_ipv4_prefix_len|int > 0
 
 # IPv6双方向転送ルール設定（NAT無し）
 - name: "Configure IPv6 bidirectional FORWARD rules (no NAT)"
@@ -43,6 +47,10 @@
   args:
     executable: /bin/bash
   become: true
+  when:
+    - gpm_mgmt_ipv6_network_cidr is defined and gpm_mgmt_ipv6_network_cidr != ''
+    - network_ipv6_network_address is defined and network_ipv6_network_address != ''
+    - network_ipv6_prefix_len is defined and network_ipv6_prefix_len|int > 0
 
 # iptables設定を永続化(Ubuntu/Debian)
 - name: "Save iptables rules to iptables-persistent (Debian/Ubuntu)"
