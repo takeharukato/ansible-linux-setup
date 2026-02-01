@@ -15,10 +15,14 @@
     content: |
       {
         "iptables": false,
-        "log-driver": "json-file",
+        "ip6tables": false,
+        "ip-forward": false,
+        "ip-masq": false,
+        "userland-proxy": false,
+        "log-driver": "{{ docker_ce_log_driver }}",
         "log-opts": {
-          "max-size": "10m",
-          "max-file": "3"
+          "max-size": "{{ docker_ce_log_opts['max-size'] }}",
+          "max-file": "{{ docker_ce_log_opts['max-file'] }}"
         }
       }
     owner: root
