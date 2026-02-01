@@ -5,6 +5,12 @@
 #  group_vars/all/all.yml やhost_varsで上書き可能とするため,
 #  ロール名/defaults/main.yml に定義している
 ---
+# Docker CE関連設定デフォルト値
+# Dockerログドライバ設定
+docker_ce_log_driver: "json-file"
+docker_ce_log_opts:
+  max-size: "10m"
+  max-file: "3"
 # デイリーバックアップの世代数
 docker_ce_backup_rotation: "5"
 # デイリーバックアップ時のNFSマウントポイント(NFSのマウント/アンマウント時に使用)
