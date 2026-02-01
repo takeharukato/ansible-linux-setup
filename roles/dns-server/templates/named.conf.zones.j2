@@ -42,8 +42,12 @@ zone "{{dns_ipv6_reverse}}.ip6.arpa" IN {
 
 {% if has_additional_networks %}
 // === 複数ネットワーク逆引きゾーン ===
+{% set _primary_ipv4_reverse = dns_ipv4_reverse | default('', true) %}
+{% set _primary_ipv6_reverse = dns_ipv6_reverse | default('', true) %}
 {% for network in internal_network_list %}
 {% if network.ipv4 is defined and network.ipv4|length > 0 %}
+{% set _ipv4_rev = network.ipv4 | ipv4_reverse_zone %}
+{% if _ipv4_rev != _primary_ipv4_reverse %}
 zone "{{ network.ipv4 | ipv4_reverse_zone }}.in-addr.arpa" IN {
         type    master;
         file    "{{dns_bind_zone_dir}}/db.{{ network.ipv4 | ipv4_reverse_zone }}";
@@ -52,7 +56,10 @@ zone "{{ network.ipv4 | ipv4_reverse_zone }}.in-addr.arpa" IN {
         };
 };
 {% endif %}
+{% endif %}
 {% if network.ipv6 is defined and network.ipv6|length > 0 %}
+{% set _ipv6_rev = network.ipv6 | ipv6_reverse_zone(network.ipv6.split('/')[1] | int) %}
+{% if _ipv6_rev != _primary_ipv6_reverse %}
 zone "{{ network.ipv6 | ipv6_reverse_zone(network.ipv6.split('/')[1] | int) }}.ip6.arpa" IN {
         type    master;
         file    "{{dns_bind_zone_dir}}/db.{{ network.ipv6 | ipv6_reverse_zone(network.ipv6.split('/')[1] | int) }}";
@@ -60,6 +67,7 @@ zone "{{ network.ipv6 | ipv6_reverse_zone(network.ipv6.split('/')[1] | int) }}.i
                 grant ddns-clients zonesub ANY PTR;
         };
 };
+{% endif %}
 {% endif %}
 {% endfor %}
 {% endif %}
