@@ -1,15 +1,25 @@
+{% set _has_ipv4_prefix = (dns_network is defined) and ((dns_network | trim) | length > 0) %}
+{% set _has_ipv4_prefix_len = (dns_network_ipv4_prefix_len is defined) and ((dns_network_ipv4_prefix_len | int) > 0) %}
+{% set _has_ipv6_prefix = (dns_network_ipv6_prefix is defined) and ((dns_network_ipv6_prefix | trim) | length > 0) %}
+{% set _has_ipv6_prefix_len = (dns_network_ipv6_prefix_len is defined) and ((dns_network_ipv6_prefix_len | int) > 0) %}
+{% if _has_ipv6_prefix and _has_ipv6_prefix_len %}
 {% set raw = (dns_network_ipv6_prefix | trim) %}
 {% set cidr = (raw.split('/', 1)[1] if '/' in raw else dns_network_ipv6_prefix_len) %}
 {% set base = (raw.split('/', 1)[0] | regex_replace('::?$', '')) ~ '::' %}
+{% endif %}
 
 // ACL(Access Contorol List)で, ネットワークの範囲を定義する。
+{% if _has_ipv4_prefix and _has_ipv4_prefix_len %}
 acl internal-network {
         {{ dns_network|default('', true) }}/{{ dns_network_ipv4_prefix_len|default('', true) }};
 };
+{% endif %}
 
 
 # IPv6 ネットワークの範囲を定義する
+{% if _has_ipv6_prefix and _has_ipv6_prefix_len %}
 acl internal6 { {{ base|default('', true) }}/{{ cidr|default('', true) }}; };
+{% endif %}
 
 options {
         directory "{{ dns_bind_cache_dir }}";
@@ -26,14 +36,18 @@ options {
        // 問い合わせを受け付けるネットワークおよびホスト
         allow-query {
                 localhost;
-                internal-network;
-                internal6;
+                {% if _has_ipv4_prefix and _has_ipv4_prefix_len %}internal-network;{% endif %}
+                {% if _has_ipv6_prefix and _has_ipv6_prefix_len %}internal6;{% endif %}
         };
 
        // 再起問い合わせを許可 ( キャッシュDNSサーバ ( リゾルバ )として動作させる )。無効にする場合は, 「none」。
         recursion yes;
 
-        allow-recursion { internal-network; internal6; localhost; };
+        allow-recursion {
+                localhost;
+                {% if _has_ipv4_prefix and _has_ipv4_prefix_len %}internal-network;{% endif %}
+                {% if _has_ipv6_prefix and _has_ipv6_prefix_len %}internal6;{% endif %}
+        };
         allow-transfer { none; };   // 権威ゾーンの無断 AXFR を防ぐ
 
         // 断片化対策
