@@ -25,6 +25,12 @@ services:
         gitlab_rails['registry_enabled'] = true
         # GitLab Container Registryの外部URLを設定
         registry_external_url 'https://{{ gitlab_hostname }}:{{ gitlab_registry_port }}'
+        # logrotate設定
+        logging['logrotate_frequency'] = '{{ gitlab_logrotate_frequency|default("daily", true) }}'
+        logging['logrotate_maxsize'] = '{{ gitlab_logrotate_maxsize|default("10M", true) }}'
+        logging['logrotate_size'] = '{{ gitlab_logrotate_size|default("10M", true) }}'
+        logging['logrotate_rotate'] = {{ gitlab_logrotate_rotate|default(3, true) }}
+        logging['logrotate_compress'] = '{{ gitlab_logrotate_compress|default("compress", true) }}'
     ports:
       # GitLabの各種ポートをホスト側にマッピング
       # HTTPSポート, HTTPポート, SSHポート, Registryポート
