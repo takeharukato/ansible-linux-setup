@@ -84,6 +84,20 @@ gitlab_backup_script_file: "gitlab-backup.py"
 gitlab_restore_script_file: "gitlab-restore.py"
 # gitlabバックアップバンドルファイル
 gitlab_backup_bundle_file: "gitlab-backup.tar.gz"
+#
+# ログ設定
+#
+# ログローテート頻度
+gitlab_logrotate_frequency: "daily"
+# ログローテートサイズ
+gitlab_logrotate_size: "10M"
+# ログローテート最大サイズ
+gitlab_logrotate_maxsize: "10M"
+# ログローテート世代数
+gitlab_logrotate_rotate: "3"
+# ログローテート圧縮方式
+gitlab_logrotate_compress: "compress"
+
 # -----------------------------------------------------------
 # GitLabデイリーバックアップ関連設定
 # -----------------------------------------------------------
