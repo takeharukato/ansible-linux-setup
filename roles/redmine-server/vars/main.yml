@@ -4,3 +4,5 @@
 #
 #  ロール固有変数
 #
+# Redmine 管理者ユーザ名(変更不可)
+redmine_admin_user: "admin"
