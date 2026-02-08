@@ -28,11 +28,31 @@ root権限で実行されることを想定している。
 処理内容は以下の通り:
 1. 指定されたGitLabコンテナ内でgitlab-backup createコマンドを実行して
    GitLab公式のバックアップアーカイブを生成する。
-2. 生成されたバックアップアーカイブと, メタ情報をまとめたtar.gz形式の
+2. GitLab設定ファイル(gitlab.rb, gitlab-secrets.json)を収集する。
+3. 生成されたバックアップアーカイブ, 設定ファイル, メタ情報をまとめたtar.gz形式の
    バックアップバンドルファイルを作成する。
+4. バンドルファイル内のアーカイブ, 設定ファイル, メタ情報のオーナとグループは
+   gitlab(UID={{gitlab_user_id}}, GID={{gitlab_group_id}})に設定される。
 
 実行例:
 # /srv/gitlab/scripts/gitlab-backup.py
+Backup stored: /srv/gitlab/daily-backup/gitlab-backup.tar.gz
+
+詳細情報付き実行例:
+# /srv/gitlab/scripts/gitlab-backup.py --verbose
+Creating GitLab backup...
+(バックアップコマンドの出力)
+Collecting configuration files from /srv/gitlab/config...
+  Found: gitlab.rb
+  Found: gitlab-secrets.json
+Creating backup bundle: /srv/gitlab/daily-backup/gitlab-backup.tar.gz
+Adding 1765706413_2025_12_14_18.6.2_gitlab_backup.tar with uid={{gitlab_user_id}}, gid={{gitlab_group_id}}
+Adding metadata.json with uid={{gitlab_user_id}}, gid={{gitlab_group_id}}
+Adding config/gitlab.rb with uid={{gitlab_user_id}}, gid={{gitlab_group_id}}
+Adding config/gitlab-secrets.json with uid={{gitlab_user_id}}, gid={{gitlab_group_id}}
+
+Bundle contents: /srv/gitlab/daily-backup/gitlab-backup.tar.gz
+...
 Backup stored: /srv/gitlab/daily-backup/gitlab-backup.tar.gz
 """
 
@@ -63,6 +83,13 @@ BACKUP_ARCHIVE_PATTERN: Final[re.Pattern[str]] = re.compile(
     re.IGNORECASE,
 )
 
+# GitLab のデフォルト UID/GID
+GITLAB_UID: Final[int] = {{gitlab_user_id|default(998)}}
+GITLAB_GID: Final[int] = {{gitlab_group_id|default(998)}}
+
+# GitLab設定ファイルのバックアップ対象リスト
+GITLAB_CONFIG_FILES: Final[list[str]] = ["gitlab.rb", "gitlab-secrets.json"]
+
 
 def parse_args() -> argparse.Namespace:
     """バックアップスクリプトの引数を解析する。
@@ -81,10 +108,18 @@ def parse_args() -> argparse.Namespace:
     """
 
     parser: argparse.ArgumentParser = argparse.ArgumentParser(description="Create and archive GitLab backups")
-    parser.add_argument("--docker-cli", default=os.environ.get("DOCKER_CLI", "docker"))
-    parser.add_argument("--container", default="{{ gitlab_container_name }}")
-    parser.add_argument("--backup-dir", default="{{ gitlab_backup_dir }}")
-    parser.add_argument("--daily-dir", default="{{ gitlab_daily_backup_dir }}")
+    parser.add_argument("--docker-cli", default=os.environ.get("DOCKER_CLI", "docker"),
+                        help="Path to the docker command-line tool (default: %(default)s)")
+    parser.add_argument("--container", default="{{ gitlab_container_name }}"
+                        , help="Name of the GitLab container (default: %(default)s)")
+    parser.add_argument("--backup-dir", default="{{ gitlab_backup_dir }}"
+                        , help="GitLab backup storage directory (default: %(default)s)")
+    parser.add_argument("--daily-dir", default="{{ gitlab_daily_backup_dir }}",
+                        help="GitLab daily backup storage directory (default: %(default)s)")
+    parser.add_argument("--config-dir", default="{{ gitlab_config_dir }}",
+                        help="GitLab configuration directory (default: %(default)s)")
+    parser.add_argument("--verbose", action="store_true",
+                        help="Enable verbose logging during backup creation (default: %(default)s)")
     return parser.parse_args()
 
 
@@ -110,12 +145,13 @@ def abort(message: str, exit_code: int = 1) -> NoReturn:
     sys.exit(exit_code)
 
 
-def run_gitlab_backup(docker_cli: str, container: str) -> dict[str, str]:
+def run_gitlab_backup(docker_cli: str, container: str, verbose: bool = False) -> dict[str, str]:
     """GitLabコンテナ内でバックアップを実行する。
 
     Args:
         docker_cli (str): dockerコマンドの実行パス。
         container (str): 対象となるGitLabコンテナ名。
+        verbose (bool): True の場合, バックアップコマンドの出力を表示する。
 
     Returns:
         dict[str, str]: 取得したバックアップIDやアーカイブ名を保持する情報。
@@ -138,6 +174,10 @@ def run_gitlab_backup(docker_cli: str, container: str) -> dict[str, str]:
         combined: str = (result.stdout or "") + (result.stderr or "")
         abort(f"gitlab-backup create failed: {combined.strip()}")
 
+    # verboseモードが有効な場合, バックアップコマンドの出力を表示する
+    if verbose and result.stdout:
+        print(result.stdout)
+
     # バックアップ生成に成功した場合, 出力からバックアップアーカイブ名を抽出する
     match: Match[str] | None = BACKUP_ARCHIVE_PATTERN.search(result.stdout or "")
     if match is None:
@@ -150,6 +190,52 @@ def run_gitlab_backup(docker_cli: str, container: str) -> dict[str, str]:
         "archive_name": match.group("filename"),
         "raw_stdout": result.stdout,
     }
+
+
+def get_gitlab_uid_gid(docker_cli: str, container: str, verbose: bool = False) -> tuple[int, int]:
+    """GitLabコンテナ内のgitユーザのUID/GIDを取得する。
+
+    Args:
+        docker_cli (str): dockerコマンドのパス。
+        container (str): 対象コンテナ名。
+        verbose (bool): True の場合、取得状況を表示する。
+
+    Returns:
+        tuple[int, int]: (UID, GID)のタプル。取得失敗時はデフォルト値。
+
+    Examples:
+        >>> get_gitlab_uid_gid("docker", "gitlab")  # doctest: +SKIP
+        (998, 998)
+    """
+
+    try:
+        # コンテナ内でid gitコマンドを実行してgitユーザの情報を取得
+        result: subprocess.CompletedProcess[str] = subprocess.run(
+            [docker_cli, "exec", container, "id", "git"],
+            capture_output=True,
+            text=True,
+            timeout=5,
+        )
+
+        if result.returncode == 0:
+            # uid=998(git) gid=998(git) groups=998(git) のような出力から抽出
+            uid_match: re.Match[str] | None = re.search(r"uid=(\d+)", result.stdout)
+            gid_match: re.Match[str] | None = re.search(r"gid=(\d+)", result.stdout)
+
+            if uid_match and gid_match:
+                uid: int = int(uid_match.group(1))
+                gid: int = int(gid_match.group(1))
+                if verbose:
+                    print(f"Detected git user from container: uid={uid}, gid={gid}")
+                return (uid, gid)
+    except Exception as exc:
+        if verbose:
+            print(f"Failed to detect git user UID/GID from container: {exc}")
+
+    # 取得に失敗した場合はデフォルト値を使用
+    if verbose:
+        print(f"Using default UID/GID: uid={GITLAB_UID}, gid={GITLAB_GID}")
+    return (GITLAB_UID, GITLAB_GID)
 
 
 def ensure_directory(path: Path) -> None:
@@ -177,11 +263,51 @@ def ensure_directory(path: Path) -> None:
         abort(f"Unable to create directory {path}: {exc}")
 
 
+def collect_config_files(config_dir: Path, verbose: bool = False) -> list[Path]:
+    """GitLab設定ファイルを収集する。
+
+    Args:
+        config_dir (Path): GitLab設定ディレクトリ。
+        verbose (bool): True の場合, 収集状況を表示する。
+
+    Returns:
+        list[Path]: 存在する設定ファイルのパスリスト。
+
+    Examples:
+        >>> from pathlib import Path
+        >>> from tempfile import TemporaryDirectory
+        >>> with TemporaryDirectory() as tmp:
+        ...     config = Path(tmp)
+        ...     (config / "gitlab.rb").write_text("# config")
+        ...     files = collect_config_files(config)
+        ...     len(files)
+        1
+    """
+
+    found_files: list[Path] = []
+
+    if verbose:
+        print(f"Collecting configuration files from {config_dir}...")
+
+    for filename in GITLAB_CONFIG_FILES:
+        file_path: Path = config_dir / filename
+        if file_path.is_file():
+            found_files.append(file_path)
+            if verbose:
+                print(f"  Found: {filename}")
+        else:
+            if verbose:
+                print(f"  Not found: {filename}")
+
+    return found_files
+
+
 def build_metadata(
     backup_info: dict[str, str],
     archive_path: Path,
     now: dt.datetime,
     container: str,
+    config_files: list[Path],
 ) -> dict[str, str]:
     """バックアップのメタ情報を辞書形式で返却する
 
@@ -222,17 +348,31 @@ def build_metadata(
         "created_at": now.replace(microsecond=0).isoformat(),
         "created_by_host": socket.gethostname(),
         "container_name": container,
+        "config_files": ",".join([f.name for f in config_files]),
+        "config_files_count": str(len(config_files)),
     }
     return metadata
 
 
-def write_bundle(archive_path: Path, metadata: dict[str, str], bundle_path: Path) -> None:
+def write_bundle(
+    archive_path: Path,
+    metadata: dict[str, str],
+    bundle_path: Path,
+    config_files: list[Path],
+    gitlab_uid: int,
+    gitlab_gid: int,
+    verbose: bool = False,
+) -> None:
     """バックアップアーカイブとメタ情報をtar.gzにまとめる。
 
     Args:
         archive_path (Path): バックアップアーカイブのパス。
         metadata (dict[str, str]): メタ情報の辞書。
         bundle_path (Path): 生成するtar.gzパス。
+        config_files (list[Path]): GitLab設定ファイルのパスリスト。
+        gitlab_uid (int): 設定するUID。
+        gitlab_gid (int): 設定するGID。
+        verbose (bool): True の場合, バンドル作成の詳細を表示する。
 
     Raises:
         SystemExit: ディレクトリ作成に失敗した場合。
@@ -263,18 +403,93 @@ def write_bundle(archive_path: Path, metadata: dict[str, str], bundle_path: Path
         tmp_bundle: Path = tmpdir_path / "bundle.tar.gz"
         with tarfile.open(tmp_bundle, mode="w:gz") as tar_file:
             tar_handle: tarfile.TarFile = tar_file
-            tar_handle.add(archive_path, arcname=archive_path.name)
-            tar_handle.add(metadata_path, arcname="metadata.json")
+
+            # バックアップアーカイブをTarInfoを使って追加し, uid/gidを設定する
+            archive_tarinfo: tarfile.TarInfo = tar_handle.gettarinfo(archive_path, arcname=archive_path.name)
+            archive_tarinfo.uid = gitlab_uid
+            archive_tarinfo.gid = gitlab_gid
+            archive_tarinfo.uname = "gitlab"
+            archive_tarinfo.gname = "gitlab"
+            if verbose:
+                print(f"Adding {archive_path.name} with uid={gitlab_uid}, gid={gitlab_gid}")
+            with archive_path.open("rb") as archive_file:
+                tar_handle.addfile(archive_tarinfo, archive_file)
+
+            # メタ情報をTarInfoを使って追加し, uid/gidを設定する
+            metadata_tarinfo: tarfile.TarInfo = tar_handle.gettarinfo(metadata_path, arcname="metadata.json")
+            metadata_tarinfo.uid = gitlab_uid
+            metadata_tarinfo.gid = gitlab_gid
+            metadata_tarinfo.uname = "gitlab"
+            metadata_tarinfo.gname = "gitlab"
+            if verbose:
+                print(f"Adding metadata.json with uid={gitlab_uid}, gid={gitlab_gid}")
+            with metadata_path.open("rb") as metadata_file:
+                tar_handle.addfile(metadata_tarinfo, metadata_file)
+
+            # 設定ファイルをTarInfoを使って追加し, uid/gidを設定する
+            for config_file in config_files:
+                config_tarinfo: tarfile.TarInfo = tar_handle.gettarinfo(
+                    config_file, arcname=f"config/{config_file.name}"
+                )
+                config_tarinfo.uid = gitlab_uid
+                config_tarinfo.gid = gitlab_gid
+                config_tarinfo.uname = "gitlab"
+                config_tarinfo.gname = "gitlab"
+                if verbose:
+                    print(f"Adding config/{config_file.name} with uid={gitlab_uid}, gid={gitlab_gid}")
+                with config_file.open("rb") as cf:
+                    tar_handle.addfile(config_tarinfo, cf)
 
         # バンドルファイルを最終的なバンドルパスに移動する
         tmp_bundle.replace(bundle_path)
+
+
+def display_bundle_contents(bundle_path: Path) -> None:
+    """バックアップバンドルファイルの内容を表示する。
+
+    Args:
+        bundle_path (Path): バンドルファイルのパス。
+
+    Raises:
+        SystemExit: バンドルファイルの読み込みに失敗した場合。
+
+    Examples:
+        >>> from pathlib import Path
+        >>> from tempfile import TemporaryDirectory
+        >>> import tarfile
+        >>> with TemporaryDirectory() as tmp:
+        ...     bundle = Path(tmp) / "test.tar.gz"
+        ...     with tarfile.open(bundle, "w:gz") as tar:
+        ...         pass
+        ...     display_bundle_contents(bundle)  # doctest: +SKIP
+    """
+
+    try:
+        print(f"\nBundle contents: {bundle_path}")
+        with tarfile.open(bundle_path, mode="r:gz") as tar_file:
+            tar_handle: tarfile.TarFile = tar_file
+            members: list[tarfile.TarInfo] = tar_handle.getmembers()
+
+            # ヘッダーを表示
+            print(f"{'Name':<50} {'Size':>12} {'UID':>6} {'GID':>6} {'Owner':<10} {'Group':<10}")
+            print("-" * 100)
+
+            # 各メンバーの情報を表示
+            for member in members:
+                print(
+                    f"{member.name:<50} {member.size:>12} "
+                    f"{member.uid:>6} {member.gid:>6} "
+                    f"{member.uname:<10} {member.gname:<10}"
+                )
+    except Exception as exc:
+        abort(f"Failed to read bundle file {bundle_path}: {exc}")
 
 
 def main() -> None:
     """コマンドラインからバックアップ処理を実行する。
 
     Raises:
-        SystemExit: 各処理で致命的なエラーが発生した場合。
+        SystemExit: root権限で実行されていない場合、または各処理で致命的なエラーが発生した場合。
 
     Examples:
         >>> # 実運用向けコマンドであるためスキップする
@@ -283,6 +498,10 @@ def main() -> None:
 
     # コマンドライン引数を解析する
     args: argparse.Namespace = parse_args()
+
+    # root権限での実行を確認する
+    if os.geteuid() != 0:
+        abort("This script must be run as root")
 
     # バックアップ保存先ディレクトリと日次バックアップディレクトリの存在を保証する
     backup_dir: Path = Path(args.backup_dir)
@@ -293,20 +512,38 @@ def main() -> None:
     # バックアップ取得日時を取得する
     now: dt.datetime = dt.datetime.now(dt.timezone.utc)
 
+    # GitLabコンテナからgitユーザのUID/GIDを取得する
+    gitlab_uid: int
+    gitlab_gid: int
+    gitlab_uid, gitlab_gid = get_gitlab_uid_gid(args.docker_cli, args.container, verbose=args.verbose)
+
     # GitLabコンテナ内で公式手順で指定されたバックアップコマンドを実行する
-    backup_info: dict[str, str] = run_gitlab_backup(args.docker_cli, args.container)
+    if args.verbose:
+        print("Creating GitLab backup...")
+    backup_info: dict[str, str] = run_gitlab_backup(args.docker_cli, args.container, verbose=args.verbose)
 
     # 取得したGitLab公式バックアップアーカイブのパスを構成する
     archive_path: Path = backup_dir / backup_info["archive_name"]
+
+    # GitLab設定ファイルを収集する
+    config_dir: Path = Path(args.config_dir)
+    config_files: list[Path] = collect_config_files(config_dir, verbose=args.verbose)
+
     # バックアップのメタ情報を構築する
-    metadata: dict[str, str] = build_metadata(backup_info, archive_path, now, args.container)
+    metadata: dict[str, str] = build_metadata(backup_info, archive_path, now, args.container, config_files)
 
     # バックアップアーカイブとメタ情報をまとめたバンドルファイルを作成する
     bundle_name: str = "{{ gitlab_backup_bundle_file|default("gitlab-backup.tar.gz", true) }}"
     bundle_path: Path = daily_dir / bundle_name
 
     # バンドルファイルを書き込む
-    write_bundle(archive_path, metadata, bundle_path)
+    if args.verbose:
+        print(f"Creating backup bundle: {bundle_path}")
+    write_bundle(archive_path, metadata, bundle_path, config_files, gitlab_uid, gitlab_gid, verbose=args.verbose)
+
+    # verbose モード時にバンドルファイルの内容を表示する
+    if args.verbose:
+        display_bundle_contents(bundle_path)
 
     # バックアップ完了を通知する
     print(f"Backup stored: {bundle_path}")

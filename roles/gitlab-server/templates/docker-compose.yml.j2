@@ -21,6 +21,9 @@ services:
         external_url 'https://{{ gitlab_hostname }}:{{ gitlab_https_port }}'
         # SSH接続用ポートを設定
         gitlab_rails['gitlab_shell_ssh_port'] = {{ gitlab_ssh_port }}
+        # gitユーザーのUID/GIDを明示的に設定
+        user['uid'] = {{ gitlab_user_id|default(998) }}
+        user['gid'] = {{ gitlab_group_id|default(998) }}
         # GitLab Container Registryを有効化
         gitlab_rails['registry_enabled'] = true
         # GitLab Container Registryの外部URLを設定
