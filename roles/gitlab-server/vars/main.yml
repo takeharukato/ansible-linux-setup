@@ -6,12 +6,12 @@
 #
 ---
 # GitLab用のユーザID, グループID
-# 公式のGitLab Dockerイメージでは, デフォルトでUID/GIDが1000であるため,
+# 公式のGitLab Dockerイメージでは, デフォルトでUID/GIDが998であるため,
 # 設定ファイルのバインドマウントのために, ホスト側でも同じUID/GIDを使用する
 # 公式のGitLab Dockerイメージの仕様に依存する項目であるため, default/main.ymlより
 # 優先されるvars/main.ymlで定義する。all-config.yml等で上書きしないように注意すること
-gitlab_user_id: 1000
-gitlab_group_id: 1000
+gitlab_user_id: 998
+gitlab_group_id: 998
 
 # 上記UID/GIDがホスト側に存在しない場合に作成するユーザ名, グループ名
 gitlab_fallback_user_name: "gitlab"
