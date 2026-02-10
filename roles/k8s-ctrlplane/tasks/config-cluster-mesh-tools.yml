@@ -47,6 +47,8 @@
       --admin-conf "{{ k8s_embed_kubeconfig_admin_conf }}" \
       --output-dir "{{ k8s_embed_kubeconfig_output_dir }}" \
       --file-postfix="{{ k8s_embed_kubeconfig_file_postfix }}" \
+      --context "{{ k8s_embed_kubeconfig_context_name }}" \
+      --user "{{ k8s_embed_kubeconfig_user_name }}" \
       --shared-ca "{{ k8s_embed_kubeconfig_shared_ca_path }}" \
       "{{ k8s_cilium_cm_cluster_name }}"
   args:
