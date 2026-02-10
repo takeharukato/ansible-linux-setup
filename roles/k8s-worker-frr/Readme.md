@@ -15,26 +15,28 @@
     - [DC 代表 FRR および外部ゲートウェイの設定](#dc-代表-frr-および外部ゲートウェイの設定)
       - [DC 代表 FRR 側の対応設定](#dc-代表-frr-側の対応設定)
   - [Cilium BGP Control Plane との排他関係](#cilium-bgp-control-plane-との排他関係)
-  - [主な処理](#主な処理)
+  - [本ロール中で実施する主な処理](#本ロール中で実施する主な処理)
   - [テンプレート / ファイル](#テンプレート--ファイル)
   - [検証ポイント](#検証ポイント)
-  - [実環境における host\_vars/ 設定例](#実環境における-host_vars-設定例)
+  - [host\_vars/ 設定例](#host_vars-設定例)
     - [Cluster1 ワーカーノード設定例](#cluster1-ワーカーノード設定例)
       - [ワーカーノード設定 (host\_vars/k8sworker0101.local)](#ワーカーノード設定-host_varsk8sworker0101local)
-      - [host\_vars/k8sworker0102.local](#host_varsk8sworker0102local)
+      - [ワーカーノード設定 (host\_vars/k8sworker0102.local)](#ワーカーノード設定-host_varsk8sworker0102local)
     - [Cluster2 ワーカーノード設定例](#cluster2-ワーカーノード設定例)
-      - [host\_vars/k8sworker0201.local](#host_varsk8sworker0201local)
-      - [host\_vars/k8sworker0202.local](#host_varsk8sworker0202local)
+      - [ワーカーノード設定 (host\_vars/k8sworker0201.local)](#ワーカーノード設定-host_varsk8sworker0201local)
+      - [ワーカーノード設定 (host\_vars/k8sworker0202.local)](#ワーカーノード設定-host_varsk8sworker0202local)
     - [DC代表FRR設定例](#dc代表frr設定例)
       - [host\_vars/frr01.local (Cluster1 DC代表)](#host_varsfrr01local-cluster1-dc代表)
       - [host\_vars/frr02.local (Cluster2 DC代表)](#host_varsfrr02local-cluster2-dc代表)
-    - [外部ゲートウェイ設定例](#外部ゲートウェイ設定例)
+        - [frr01との差分](#frr01との差分)
+    - [外部ゲートウェイ(extgw)設定例](#外部ゲートウェイextgw設定例)
       - [host\_vars/extgw.local](#host_varsextgwlocal)
     - [ネットワーク構成まとめ](#ネットワーク構成まとめ)
   - [標準デュアルスタックでの検証方法](#標準デュアルスタックでの検証方法)
-    - [標準デュアルスタック設定の特徴](#標準デュアルスタック設定の特徴)
+    - [標準デュアルスタック設定の概要](#標準デュアルスタック設定の概要)
     - [標準デュアルスタック設定例](#標準デュアルスタック設定例)
       - [標準デュアルスタック設定でのワーカーノード設定 (host\_vars/k8sworker0101.local)](#標準デュアルスタック設定でのワーカーノード設定-host_varsk8sworker0101local)
+        - [設定のポイント](#設定のポイント)
       - [DC代表FRR設定 (host\_vars/frr01.local)](#dc代表frr設定-host_varsfrr01local)
     - [前提条件](#前提条件)
     - [1. FRR サービス状態の確認](#1-frr-サービス状態の確認)
@@ -133,10 +135,11 @@
       - [3.4 RFC 5549構成での確認ポイント](#34-rfc-5549構成での確認ポイント)
     - [4. IPv6 Pod 通信が失敗する場合](#4-ipv6-pod-通信が失敗する場合)
     - [5. 経路受信は成功するが, Pod から外部への通信ができない場合](#5-経路受信は成功するが-pod-から外部への通信ができない場合)
+  - [参考リンク](#参考リンク)
 
 ## 概要
 
-Kubernetes ワーカーノード上に FRR (Free Range Routing) を導入し, データセンタ(以下DCと略す) 代表 FRR への iBGP (Internal Border Gateway Protocol) 広告により Pod/Service ネットワークをデータセンター間で共有するロールです。Cilium native routing モードを前提とします。本ロールは, Cilium BGP Control Plane を使用しない場合の代替ルーティング機能です。
+Kubernetes ワーカーノード上に FRR (Free Range Routing) を導入し, データセンタ(以下DCと略す) 代表 FRR への iBGP (Internal Border Gateway Protocol) 広告により Pod/Service ネットワークをデータセンター間で共有するロールです。Cilium native routing モードを前提とします。Cilium BGP Control Plane を使用しない場合の代替ルーティング機能を実現します。
 
 ### 前提
 
@@ -162,28 +165,28 @@ Kubernetes ワーカーノード上に FRR (Free Range Routing) を導入し, �
 
 本ロールは以下の要件を満たすように設計されています:
 
-- **IPv4/IPv6 デュアルスタック対応**: Pod 間通信は主に IPv6 を使用しますが, IPv4 での通信も可能です。
-- **DC 代表 FRR への iBGP 広告**: 各ワーカーノードは DC 代表 FRR (frr01.local, frr02.local) に対して iBGP セッションを確立し, クラスタ全体の Pod ネットワークおよび Service ネットワーク CIDR を広告します。ワーカーノード自身への到達性確保用ホストルート (`/32` または `/128`) も併せて広告します。
-- **プレフィックス長フィルタ**: BGP 送信時に prefix-list と route-map を使用して, 広告するネットワークプレフィックスの下限/上限を制御します。IPv4/IPv6, Pod/Service 別に範囲指定 ( 例: /24-/28 ) が可能です。
-- **カーネルルーティングテーブルへの反映**: DC 代表 FRR から学習した BGP ルートをカーネルのルーティングテーブルに反映し, データセンター間の Pod 間通信を実現します。変数によるフィルタ設定が可能で, デフォルトでは全 BGP ルートを反映します。
-- **複数クラスタ対応**: クラスタ名/ID による変数階層化により, 同一 DC 内の複数 K8s クラスタで異なる Pod/Service CIDR を広告できます。
-- **Cilium BGP Control Plane との排他実行**: `k8s_bgp.enabled` が `false` かつ `k8s_worker_frr.enabled` が `true` の場合のみ動作します。
-- **RFC 5549 サポート**: IPv6 トランスポートで IPv4 NLRI を運ぶ設定をオプションで有効化できます ( デフォルトは無効 ) 。
-- **IPv4 トランスポートで IPv6 NLRI**: IPv4 ネイバーで IPv6 経路を交換する設定をオプションで有効化できます ( デフォルトは無効, RFC 5549 と排他的 ) 。
-- **経路広告方法の選択**: 静的経路定義 + `redistribute static` (デフォルト, 他ノードとの互換性重視) または `network` コマンドによる直接広告 (Cilium がカーネルに経路を作成する前提) を選択できます。
+- IPv4/IPv6 デュアルスタック対応: Pod 間通信は主に IPv6 を使用しますが, IPv4 での通信も可能です。
+- DC 代表 FRR への iBGP 広告: 各ワーカーノードは DC 代表 FRR (frr01.local, frr02.local) に対して iBGP セッションを確立し, クラスタ全体の Pod ネットワークおよび Service ネットワーク CIDR を広告します。ワーカーノード自身への到達性確保用ホストルート (`/32` または `/128`) も併せて広告します。
+- プレフィックス長フィルタ: BGP 送信時に prefix-list と route-map を使用して, 広告するネットワークプレフィックスの下限/上限を制御します。IPv4/IPv6, Pod/Service 別に範囲指定 ( 例: /24-/28 ) が可能です。
+- カーネルルーティングテーブルへの反映: DC 代表 FRR から学習した BGP ルートをカーネルのルーティングテーブルに反映し, データセンター間の Pod 間通信を実現します。変数によるフィルタ設定が可能で, デフォルトでは全 BGP ルートを反映します。
+- 複数クラスタ対応: クラスタ名/ID による変数階層化により, 同一 DC 内の複数 K8s クラスタで異なる Pod/Service CIDR を広告できます。
+- Cilium BGP Control Plane との排他実行: `k8s_bgp.enabled` が `false` かつ `k8s_worker_frr.enabled` が `true` の場合のみ動作します。
+- RFC 5549 サポート: IPv6 トランスポートで IPv4 Network Layer Reachability Information (NLRI) を運ぶ設定をオプションで有効化できます ( デフォルトは無効 ) 。
+- IPv4 トランスポートで IPv6 NLRI: IPv4 ネイバーで IPv6 経路を交換する設定をオプションで有効化できます ( デフォルトは無効, RFC 5549 と排他的 ) 。
+- 経路広告方法の選択: 静的経路定義 + `redistribute static` (デフォルト, 他ノードとの互換性重視) または `network` コマンドによる直接広告 (Cilium がカーネルに経路を作成する前提) を選択できます。
 
 ### 実装方針
 
 本ロールの実装における主要な設計判断と技術的詳細:
 
-- **変数定義**: 本ロールに関連する変数は, パラメタ名から設定値への辞書として定義される `k8s_worker_frr` 変数に設定します。
-- **データセンタ(DC) 代表 FRR の定義**: DC 代表 FRR (frr01.local/frr02.local) の情報は, ワーカーノードの `k8s_worker_frr` 辞書内の `dc_frr_addresses` キーに各 DC FRR ノードのリスニングアドレスをマッピングとして持ちます ( 例: `dc_frr_addresses: {frr01.local: "192.168.40.49"}` ) 。
-- **Pod/Service CIDR 取得**: `k8s_worker_frr` 変数内の `clusters.<cluster_name>` 配下のキー `pod_cidrs_v4`, `service_cidrs_v4`, `pod_cidrs_v6`, `service_cidrs_v6` から取得します。これらのキーの値はネットワーク CIDR のリストです。
-- **ホストルート広告**: ワーカーノードから DC FRR への nexthop 到達性確保のため, ワーカーノード自身への `/32` (IPv4) または `/128` (IPv6) ホストルートを広告します。これらは `k8s_worker_frr` 辞書の `advertise_host_route_ipv4`/`advertise_host_route_ipv6` キーで明示的に指定します。
-- **プレフィックス長フィルタ実現方法**: FRR route-map + prefix-list 定義で実現します。IPv4/IPv6, Pod/Service 別に複数の prefix-list を address-family 別に分けて定義します ( 命名規則: `PL-V4-POD-OUT`, `PL-V4-SVC-OUT`, `PL-V4-HOST-OUT`, `PL-V6-POD-OUT`, `PL-V6-SVC-OUT`, `PL-V6-HOST-OUT` ) 。フィルタの粒度には範囲指定 ( 例: /24-/28 ) を使用します。
-- **Route-map 適用タイミング**: prefix-list フィルタはネイバーへの送信時 ( `neighbor X route-map Y out` ) に適用します。
-- **カーネルルート反映**: zebra のカーネルルート反映用 route-map (`RM-KERNEL-IMPORT`) を用意し, 変数 (`kernel_route_filter`) によってカーネルに反映するルートを指定できるようにしています。デフォルト ( 変数未定義時 ) は全 BGP ルートをカーネルに反映します。
-- **経路広告方法**: 変数 `route_advertisement_method` で 2 つの方式を選択できます。`"static"` (デフォルト) は静的経路定義 + `redistribute static` で BGP に再配送します。この方式はカーネルに経路が存在しなくても広告でき, 他ノードとの互換性が高いです。`"network"` は `network` コマンドで直接広告します。この方式は Cilium がカーネルに経路を作成することを前提とします。
+- 変数定義: 本ロールに関連する変数は, パラメタ名から設定値への辞書として定義される `k8s_worker_frr` 変数に設定します。
+- データセンタ(DC) 代表 FRR の定義: DC 代表 FRR (frr01.local/frr02.local) の情報は, ワーカーノードの `k8s_worker_frr` 辞書内の `dc_frr_addresses` キーに各 DC FRR ノードのリスニングアドレスをマッピングとして持ちます ( 例: `dc_frr_addresses: {frr01.local: "192.168.40.49"}` ) 。
+- Pod/Service CIDR 取得: `k8s_worker_frr` 変数内の `clusters.<cluster_name>` 配下のキー `pod_cidrs_v4`, `service_cidrs_v4`, `pod_cidrs_v6`, `service_cidrs_v6` から取得します。これらのキーの値はネットワーク CIDR のリストです。
+- ホストルート広告: ワーカーノードから DC FRR への nexthop 到達性確保のため, ワーカーノード自身への `/32` (IPv4) または `/128` (IPv6) ホストルートを広告します。これらは `k8s_worker_frr` 辞書の `advertise_host_route_ipv4`/`advertise_host_route_ipv6` キーで明示的に指定します。
+- プレフィックス長フィルタ実現方法: FRR route-map + prefix-list 定義で実現します。IPv4/IPv6, Pod/Service 別に複数の prefix-list を address-family 別に分けて定義します ( 命名規則: `PL-V4-POD-OUT`, `PL-V4-SVC-OUT`, `PL-V4-HOST-OUT`, `PL-V6-POD-OUT`, `PL-V6-SVC-OUT`, `PL-V6-HOST-OUT` ) 。フィルタの粒度には範囲指定 ( 例: /24-/28 ) を使用します。
+- Route-map 適用タイミング: prefix-list フィルタはネイバーへの送信時 ( `neighbor X route-map Y out` ) に適用します。
+- カーネルルート反映: zebra のカーネルルート反映用 route-map (`RM-KERNEL-IMPORT`) を用意し, 変数 (`kernel_route_filter`) によってカーネルに反映するルートを指定できるようにしています。デフォルト ( 変数未定義時 ) は全 BGP ルートをカーネルに反映します。
+- 経路広告方法: 変数 `route_advertisement_method` で 2 つの方式を選択できます。`"static"` (デフォルト) は静的経路定義 + `redistribute static` で BGP に再配送します。この方式はカーネルに経路が存在しなくても広告でき, 他ノードとの互換性が高いです。`"network"` は `network` コマンドで直接広告します。この方式は Cilium がカーネルに経路を作成することを前提とします。
 
 ## 実行フロー
 
@@ -196,27 +199,27 @@ Kubernetes ワーカーノード上に FRR (Free Range Routing) を導入し, �
    - `/etc/sysctl.d/90-frr-forwarding.conf`: IPv4/IPv6 フォワーディングを有効化し, `reload_sysctl` ハンドラを発火させます。
    - `/etc/frr/daemons`: zebra と bgpd を有効化し, `restart_frr` ハンドラを発火させます。
    - `/etc/frr/frr.conf`: BGP 設定, prefix-list, route-map, カーネルインポート設定を含むメイン設定ファイルを配置し, `restart_frr` ハンドラを発火させます。
-   - **FRR 設定の構文検証**: `vtysh -f /etc/frr/frr.conf --dry-run` (FRR 8.1+) で構文を検証します。古いバージョンでは `vtysh -c 'configure terminal' < /etc/frr/frr.conf` を使用します。エラーがあればタスクを即座に停止します。
+   - FRR 設定の構文検証: `vtysh -f /etc/frr/frr.conf --dry-run` (FRR 8.1+) で構文を検証します。古いバージョンでは `vtysh -c 'configure terminal' < /etc/frr/frr.conf` を使用します。エラーがあればタスクを即座に停止します。
 
 ### BGP 設定の詳細
 
 `frr.conf.j2` テンプレートは以下の設定を生成します:
 
-- **BGP 基本設定**: `k8s_worker_frr.local_asn` (iBGP 構成のため DC 代表 FRR と同一 AS (Autonomous System)), および, `k8s_worker_frr.router_id` (ワーカーノードの Router ID) を使用します。
-- **iBGP ネイバー**: `k8s_worker_frr.dc_frr_addresses` で定義された DC 代表 FRR ノードに対して iBGP セッションを確立します。
-- **ネットワーク広告**:
+- BGP 基本設定: `k8s_worker_frr.local_asn` (iBGP 構成のため DC 代表 FRR と同一 AS (Autonomous System)), および, `k8s_worker_frr.router_id` (ワーカーノードの Router ID) を使用します。
+- iBGP ネイバー: `k8s_worker_frr.dc_frr_addresses` で定義された DC 代表 FRR ノードに対して iBGP セッションを確立します。
+- ネットワーク広告:
   - ワーカーノード自身への到達性確保用 `/32` (IPv4) または `/128` (IPv6) ホストルート (`advertise_host_route_ipv4/ipv6`)
   - クラスタ全体の Pod ネットワーク CIDR (`clusters.<cluster_name>.pod_cidrs_v4/v6`)
   - クラスタ全体の Service ネットワーク CIDR (`clusters.<cluster_name>.service_cidrs_v4/v6`)
-- **プレフィックス長フィルタ (送信)**: address-family 別に以下の prefix-list を定義します:
+- プレフィックス長フィルタ (送信): address-family 別に以下の prefix-list を定義します:
   - `PL-V4-POD-OUT`: IPv4 Pod ネットワーク用 (min/max 長は `prefix_filter.ipv4.pod_min_length/pod_max_length`)
   - `PL-V4-SVC-OUT`: IPv4 Service ネットワーク用 (min/max 長は `prefix_filter.ipv4.service_min_length/service_max_length`)
   - `PL-V4-HOST-OUT`: IPv4 ホストルート用 (`/32` のみ許可)
   - `PL-V6-POD-OUT`: IPv6 Pod ネットワーク用 (min/max 長は `prefix_filter.ipv6.pod_min_length/pod_max_length`)
   - `PL-V6-SVC-OUT`: IPv6 Service ネットワーク用 (min/max 長は `prefix_filter.ipv6.service_min_length/service_max_length`)
   - `PL-V6-HOST-OUT`: IPv6 ホストルート用 (`/128` のみ許可)
-- **Route-map (送信)**: `RM-V4-OUT` および `RM-V6-OUT` で上記 prefix-list をマッチし, 各 DC 代表 FRR ネイバーに `neighbor X route-map Y out` で適用します。
-- **カーネルインポート用 route-map**: `RM-KERNEL-IMPORT` を定義し, `ip protocol bgp route-map RM-KERNEL-IMPORT` および `ipv6 protocol bgp route-map RM-KERNEL-IMPORT` でカーネルへのルートインポートを制御します。`kernel_route_filter` が未定義の場合は全 BGP ルートを許可し, 定義されている場合は指定された prefix-list にマッチするルートのみをインポートします。
+- Route-map (送信): `RM-V4-OUT` および `RM-V6-OUT` で上記 prefix-list をマッチし, 各 DC 代表 FRR ネイバーに `neighbor X route-map Y out` で適用します。
+- カーネルインポート用 route-map: `RM-KERNEL-IMPORT` を定義し, `ip protocol bgp route-map RM-KERNEL-IMPORT` および `ipv6 protocol bgp route-map RM-KERNEL-IMPORT` でカーネルへのルートインポートを制御します。`kernel_route_filter` が未定義の場合は全 BGP ルートを許可し, 定義されている場合は指定された prefix-list にマッチするルートのみをインポートします。
 
 ## 主要変数
 
@@ -335,17 +338,24 @@ k8s_worker_frr:
   enabled: false  # コントロールプレインではワーカー用FRRを無効化
 ```
 
-**注**: コントロールプレインノードでは `enabled: false` を明示的に設定するか, 変数を未定義のままにします。
+コントロールプレインノードでは **`enabled: false` を明示的に設定**するか, **変数を未定義**のままにします。
 
 ### DC 代表 FRR および外部ゲートウェイの設定
 
-**frr01.local, frr02.local, extgw.local** などのDC代表FRRノードや外部ゲートウェイは, 本ロール (`k8s-worker-frr`) の対象外です。これらのノードは別のロール ( 例: `frr-basic` ) で管理され, 独自のBGP設定を持ちます。
+frr01.local, frr02.local, extgw.local などのDC代表FRRノードや外部ゲートウェイは, 本ロール (`k8s-worker-frr`) の対象外です。これらのノードは別のロール ( 例: `frr-basic` ) で管理され, 独自のBGP設定を持ちます。
 
 本ロールはK8sワーカーノード上でのみ実行され, これらのFRRノードに対して `dc_frr_addresses` で定義されたアドレスに接続します。
 
 #### DC 代表 FRR 側の対応設定
 
-DC代表FRR (frr01.local等) では, K8sワーカーノードの**K8sネットワーク側アドレス**をiBGPピアとして設定します。例えば `frr01.local` の設定:
+DC代表FRR (frr01.local等) では, K8sワーカーノードのK8sネットワーク側アドレスをiBGPピアとして設定します。
+
+例えば, 以下のように設定する場合,
+
+- ワーカーノード側では `advertise_host_route_ipv4: "192.168.40.42/32"` でK8sネットワーク側アドレスをホストルートとして広告します。
+- DC代表FRR側では `frr_k8s_neighbors` で同じK8sネットワーク側アドレスをiBGPピアとして設定します。
+
+上記の場合のDC代表FRR(frr01.local)の設定例を以下に示します:
 
 ```yaml
 # K8sノードとの iBGP ピア (IPv4セッション)
@@ -370,32 +380,14 @@ frr_ebgp_neighbors_v6:
   - { addr: "fd69:6684:61a:90::81", asn: 65100, desc: "External GW" }
 ```
 
-**重要**:
-
-- ワーカーノード側では `advertise_host_route_ipv4: "192.168.40.42/32"` でK8sネットワーク側アドレスをホストルートとして広告します。
-- DC代表FRR側では `frr_k8s_neighbors` で同じK8sネットワーク側アドレスをiBGPピアとして設定します。
-
 ## Cilium BGP Control Plane との排他関係
 
 本ロールは Cilium BGP Control Plane を使用しない場合の代替ルーティング機能です。以下の条件で排他実行されます:
 
-- **本ロール実行条件**: `k8s_worker_frr.enabled` が `true` **かつ** `k8s_bgp.enabled` が `false`
-- **Cilium BGP Control Plane 実行条件**: `k8s_bgp.enabled` が `true`
+- 本ロール実行条件: `k8s_worker_frr.enabled` が `true`, かつ, `k8s_bgp.enabled` が `false`
+- Cilium BGP Control Plane 実行条件: `k8s_bgp.enabled` が `true`
 
-両方を同時に有効化することはできません。`k8s-worker.yml` で以下のように制御されています:
-
-```yaml
-    - role: k8s-worker
-      tags: k8s-worker
-    - role: k8s-worker-frr
-      tags: k8s-worker-frr
-      when:
-        - k8s_worker_frr is defined
-        - k8s_worker_frr.enabled | default(false)
-        - not (k8s_bgp.enabled | default(false))
-```
-
-## 主な処理
+## 本ロール中で実施する主な処理
 
 - **FRR パッケージのインストール**: `frr_packages` で定義されたパッケージをインストールし, FRR サービスを有効化, 起動します。
 - **IPv4/IPv6 フォワーディング有効化**: sysctl ドロップイン `/etc/sysctl.d/90-frr-forwarding.conf` を配置し, `net.ipv4.ip_forward` と `net.ipv6.conf.all.forwarding` を `1` に設定します。
@@ -410,9 +402,13 @@ frr_ebgp_neighbors_v6:
 
 ## テンプレート / ファイル
 
-- `templates/frr.conf.j2`: FRR メイン設定ファイルのテンプレート。BGP 設定, prefix-list, route-map, カーネルインポート設定を含みます。
-- `templates/daemons.j2`: FRR デーモン有効化設定のテンプレート。zebra と bgpd を有効化します。
-- `templates/90-frr-forwarding.conf.j2`: IPv4/IPv6 フォワーディング有効化用 sysctl 設定のテンプレート。
+本ロールでは以下のファイルを出力します:
+
+| テンプレートファイル名 | 出力先パス | 説明 |
+| --- | --- | --- |
+| `templates/frr.conf.j2` | `/etc/frr/frr.conf` | FRR メイン設定ファイルのテンプレート。BGP 設定, prefix-list, route-map, カーネルインポート設定を含みます。 |
+| `templates/daemons.j2` | `/etc/frr/daemons` | FRR デーモン有効化設定のテンプレート。zebra と bgpd を有効化します。 |
+| `templates/90-frr-forwarding.conf.j2` | `/etc/sysctl.d/90-frr-forwarding.conf` | IPv4/IPv6 フォワーディング有効化用 sysctl 設定のテンプレート。 |
 
 ## 検証ポイント
 
@@ -426,9 +422,9 @@ frr_ebgp_neighbors_v6:
 - `/etc/sysctl.d/90-frr-forwarding.conf` が配置され, `sysctl net.ipv4.ip_forward` および `sysctl net.ipv6.conf.all.forwarding` が `1` を返す。
 - 他 DC のワーカーノードから本ワーカーノードの Pod への疎通が可能である (ping テストなど)。
 
-## 実環境における host_vars/ 設定例
+## host_vars/ 設定例
 
-以下は実際の環境で使用されているホスト固有の設定例です。
+本節では, 具体的にhost_vars/ファイルへの設定する設定値の例を示します。
 
 ### Cluster1 ワーカーノード設定例
 
@@ -450,15 +446,19 @@ k8s_worker_frr:
   advertise_host_route_ipv6: "fd69:6684:61a:2::42/128"
 ```
 
-**設定のポイント**:
+設定のポイント:
 
-- **管理側IPv4アドレス**: `192.168.30.42` (Router IDに使用)
-- **K8sネットワーク側IPv4アドレス**: `192.168.40.42` (ホストルート広告)
-- **K8sネットワーク側IPv6アドレス**: `fd69:6684:61a:2::42` (ホストルート広告)
-- **DC代表FRR**: `frr01.local` (192.168.40.49 / fd69:6684:61a:2::49)
-- **標準デュアルスタック構成**: IPv4とIPv6を別々のトランスポートで運用
+| 項目 | 値 | 補足 |
+| --- | --- | --- |
+| 管理側IPv4アドレス | `192.168.30.42` | Router IDに使用 |
+| K8sネットワーク側IPv4アドレス | `192.168.40.42` | ホストルート広告に使用 |
+| K8sネットワーク側IPv6アドレス | `fd69:6684:61a:2::42` | ホストルート広告に使用 |
+| DC代表FRR | `frr01.local` (IPv4アドレス: 192.168.40.49, IPv6アドレス: fd69:6684:61a:2::49 ) | |
 
-#### host_vars/k8sworker0102.local
+#### ワーカーノード設定 (host_vars/k8sworker0102.local)
+
+k8sworker0102.localの設定を以下に示します。
+k8sworker0101.localとの差分は, Router IDとホストルートのアドレスのみです。 (`.42`  =>  `.43`)
 
 ```yaml
 k8s_worker_frr:
@@ -476,11 +476,9 @@ k8s_worker_frr:
   advertise_host_route_ipv6: "fd69:6684:61a:2::43/128"
 ```
 
-**k8sworker0101との差分**: Router IDとホストルートのアドレスが異なるのみ (`.42`  =>  `.43`)
-
 ### Cluster2 ワーカーノード設定例
 
-#### host_vars/k8sworker0201.local
+#### ワーカーノード設定 (host_vars/k8sworker0201.local)
 
 ```yaml
 k8s_worker_frr:
@@ -498,14 +496,16 @@ k8s_worker_frr:
   advertise_host_route_ipv6: "fd69:6684:61a:3::52/128"
 ```
 
-**Cluster1との差分**:
+Cluster1との差分は以下の通りです:
 
-- **AS番号**: `65012` (Cluster1は65011)
-- **クラスタ名**: `cluster2`
-- **DC代表FRR**: `frr02.local` (192.168.50.48 / fd69:6684:61a:3::48)
-- **アドレス体系**: K8sネットワークが `192.168.50.x` / `fd69:6684:61a:3::x`
+- AS番号: `65012` (Cluster1は65011)
+- クラスタ名: `cluster2`
+- DC代表FRR: `frr02.local` (192.168.50.48 / fd69:6684:61a:3::48)
+- アドレス体系: K8sネットワークが `192.168.50.0/24` / `fd69:6684:61a:3::/64`
 
-#### host_vars/k8sworker0202.local
+#### ワーカーノード設定 (host_vars/k8sworker0202.local)
+
+k8sworker0201との差分は, Router IDとホストルートのアドレスのみです (`.52`  =>  `.53`)。
 
 ```yaml
 k8s_worker_frr:
@@ -522,8 +522,6 @@ k8s_worker_frr:
   advertise_host_route_ipv4: "192.168.50.53/32"
   advertise_host_route_ipv6: "fd69:6684:61a:3::53/128"
 ```
-
-**k8sworker0201との差分**: Router IDとホストルートのアドレスが異なるのみ (`.52`  =>  `.53`)
 
 ### DC代表FRR設定例
 
@@ -551,13 +549,6 @@ frr_ebgp_neighbors_v6:
   - { addr: "fd69:6684:61a:90::81", asn: 65100, desc: "External GW" }
 ```
 
-**設定のポイント**:
-
-- **frr-basicロールで管理**: k8s-worker-frrロールの対象外
-- **iBGPピア**: Cluster1の全K8sノード (コントロールプレイン含む)
-- **eBGPピア**: 外部ゲートウェイ (extgw.local, AS 65100)
-- **標準デュアルスタック**: IPv4とIPv6で別々のピアリスト
-
 #### host_vars/frr02.local (Cluster2 DC代表)
 
 ```yaml
@@ -582,12 +573,17 @@ frr_ebgp_neighbors_v6:
   - { addr: "fd69:6684:61a:90::81", asn: 65100, desc: "External GW" }
 ```
 
-**frr01との差分**:
+##### frr01との差分
 
-- **AS番号**: `65012` (Cluster2)
-- **アドレス体系**: `192.168.50.x` / `fd69:6684:61a:3::x`
+- AS番号: `65012` (Cluster2)
+- アドレス体系: `192.168.50.x` / `fd69:6684:61a:3::x`
 
-### 外部ゲートウェイ設定例
+### 外部ゲートウェイ(extgw)設定例
+
+本例では, データセンター間のゲートウェイとして機能するノードとして, extgwを導入します。本ノードの設定方針は以下の通りです:
+
+- iBGPピア: なし (K8sノードとは直接接続しない)
+- eBGPピア: frr01 (AS 65011) とfrr02 (AS 65012)
 
 #### host_vars/extgw.local
 
@@ -607,12 +603,6 @@ frr_ebgp_neighbors_v6:
   - { addr: "fd69:6684:61a:90::48", asn: 65012, desc: "Cluster2 Gateway (frr02)" }
 ```
 
-**設定のポイント**:
-
-- **iBGPピア**: なし (K8sノードとは直接接続しない)
-- **eBGPピア**: frr01 (AS 65011) とfrr02 (AS 65012)
-- **役割**: データセンター間のゲートウェイとして機能
-
 ### ネットワーク構成まとめ
 
 | ノード | AS | 管理IPv4 | K8sネットワークIPv4 | K8sネットワークIPv6 | DC代表FRR |
@@ -625,24 +615,23 @@ frr_ebgp_neighbors_v6:
 | frr02 | 65012 | 192.168.30.48 | 192.168.50.48 | fd69:6684:61a:3::48 | - |
 | extgw | 65100 | 192.168.30.81 | 192.168.255.81 | fd69:6684:61a:90::81 | - |
 
-**BGP接続構成**:
+DC間通信の経路広告をextgw経由で実施する構成となっており, BGP接続の関係をまとめると以下のようになります:
 
-- **Cluster1 (AS 65011)**: k8sworker01xx <=> (iBGP) <=> frr01 <=> (eBGP) <=> extgw
-- **Cluster2 (AS 65012)**: k8sworker02xx <=> (iBGP) <=> frr02 <=> (eBGP) <=> extgw
-- **クラスタ間通信**: extgw経由でルートを交換
+- Cluster1 (AS 65011): k8sworker01xx <=> (iBGP) <=> frr01 <=> (eBGP) <=> extgw
+- Cluster2 (AS 65012): k8sworker02xx <=> (iBGP) <=> frr02 <=> (eBGP) <=> extgw
 
 ## 標準デュアルスタックでの検証方法
 
 以下は標準デュアルスタック構成 (IPv4とIPv6を別々のトランスポートで運ぶ) での具体的な検証手順です。
 
-### 標準デュアルスタック設定の特徴
+### 標準デュアルスタック設定の概要
 
 標準デュアルスタック構成では, IPv4とIPv6で独立したBGPセッションを確立します:
 
-- **IPv4 BGPセッション**: IPv4トランスポートでIPv4ルートを交換
-- **IPv6 BGPセッション**: IPv6トランスポートでIPv6ルートを交換
-- **セッション数**: 2つ (IPv4用とIPv6用)
-- **設定キー**: `dc_frr_addresses` (IPv4) と `dc_frr_addresses_v6` (IPv6) の両方が必要
+- IPv4 BGPセッション: IPv4トランスポートでIPv4ルートを交換
+- IPv6 BGPセッション: IPv6トランスポートでIPv6ルートを交換
+- セッション数: 2つ (IPv4用とIPv6用)
+- 設定対象ansible変数: `dc_frr_addresses` (IPv4) と `dc_frr_addresses_v6` (IPv6) の両方が必要
 
 ### 標準デュアルスタック設定例
 
@@ -670,7 +659,7 @@ k8s_worker_frr:
   advertise_host_route_ipv6: "fd69:6684:61a:2::42/128"
 ```
 
-**設定のポイント**:
+##### 設定のポイント
 
 - `ipv4_transport_ipv6_nlri_enabled: false` (デフォルト値, 明示的に記載)
 - `dc_frr_addresses` と `dc_frr_addresses_v6` の両方を定義
@@ -703,16 +692,16 @@ frr_ebgp_neighbors_v6:
 
 本例で使用する設定値:
 
-- **検証対象ワーカーノード**: `k8sworker0101.local`
-- **AS 番号 (iBGP)**: `65011`
-- **ワーカーノード管理側 IPv4 アドレス**: `192.168.30.42`
-- **ワーカーノード DC 接続側 IPv4 アドレス**: `192.168.40.42`
-- **ワーカーノード DC 接続側 IPv6 アドレス**: `fd69:6684:61a:2::42`
-- **BGP Router ID**: `192.168.30.42`
-- **iBGP ピア (DC 代表 FRR)**:
+- 検証対象ワーカーノード: `k8sworker0101.local`
+- AS 番号 (iBGP): `65011`
+- ワーカーノード管理側 IPv4 アドレス: `192.168.30.42`
+- ワーカーノード DC 接続側 IPv4 アドレス: `192.168.40.42`
+- ワーカーノード DC 接続側 IPv6 アドレス: `fd69:6684:61a:2::42`
+- BGP Router ID: `192.168.30.42`
+- iBGP ピア (DC 代表 FRR):
   - `frr01.local`: IPv4 `192.168.40.49`, IPv6 `fd69:6684:61a:2::49` (AS 65011)
-- **クラスタ名**: `cluster1`
-- **広告する経路**:
+- クラスタ名: `cluster1`
+- 広告する経路:
   - ホストルート IPv4: `192.168.40.42/32`
   - ホストルート IPv6: `fd69:6684:61a:2::42/128`
   - Pod CIDR IPv4: `10.244.0.0/16`
@@ -4273,3 +4262,17 @@ kubectl exec -it test-pod-c1 -- traceroute -n 192.168.255.48
 ```
 
 パケットがどこで止まるか確認
+
+## 参考リンク
+
+- [FRR 基本設定 (Integrated Config File
+)](https://docs.frrouting.org/en/latest/basic.html#config-file)
+- [FRR VTYSH設定](https://docs.frrouting.org/en/latest/vtysh.html)
+- [FRR BGP設定](https://docs.frrouting.org/en/latest/bgp.html)
+- [FRR filtering設定](https://docs.frrouting.org/en/latest/filter.html)
+- [FRR route map設定](https://docs.frrouting.org/en/latest/routemap.html)
+- [Zebra Route Filtering機能によるルートマップの適用](https://docs.frrouting.org/en/latest/zebra.html#clicmd-ip-protocol-PROTOCOL-route-map-ROUTEMAP)
+- [RFC 4724 - Graceful Restart Mechanism for BGP](https://tex2e.github.io/rfc-translater/html/rfc4724.html)
+- [RFC 4760 - Multiprotocol Extensions for BGP-4](https://tex2e.github.io/rfc-translater/html/rfc4760.html)
+- [RFC 5549 - Advertising IPv4 Network Layer Reachability Information with an IPv6 Next Hop](https://tex2e.github.io/rfc-translater/html/rfc5549.html)
+- [RFC 8950 - Advertising IPv4 Network Layer Reachability Information (NLRI) with an IPv6 Next Hop](https://tex2e.github.io/rfc-translater/html/rfc8950.html) RFC5549の修正版
