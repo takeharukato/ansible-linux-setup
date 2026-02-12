@@ -18,6 +18,8 @@
       tags: common
     - role: ntp-client
       tags: ntp-client
+    - role: aide
+      tags: aide
     - role: user-settings
       tags: user-settings
     - role: create-users

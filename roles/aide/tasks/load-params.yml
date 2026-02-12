@@ -1,0 +1,29 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  設定関連タスク
+#
+---
+
+# Ubuntu用パッケージ名読み込み
+- name: include ubuntu package names
+  include_vars: ../vars/packages-ubuntu.yml
+  when: ansible_facts.os_family == 'Debian'
+
+# RHEL用パッケージ名読み込み
+- name: include RHEL package names
+  include_vars: ../vars/packages-rhel.yml
+  when: ansible_facts.os_family == 'RedHat'
+
+# ディストリビューション差異吸収用パラメータ読み込み
+- name: include cross-distro.yml
+  include_vars: ../vars/cross-distro.yml
+
+# 共通設定読み込み
+- name: include config vars
+  include_vars: ../vars/all-config.yml
+
+# Kubernetes API広告アドレス設定読み込み
+- name: include K8s API address vars
+  include_vars: ../vars/k8s-api-address.yml
