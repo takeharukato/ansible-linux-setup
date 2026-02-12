@@ -8,3 +8,7 @@
 
 # kubectl シェル補完設定
 kubectl_completion_enabled: true
+# k8s-python開発パッケージ群(ランタイム)インストール有無
+k8s_python_packages_enabled: true
+# Kubernetes開発関連Pythonパッケージインストール有無n
+k8s_python_devel_packages_enabled: true

@@ -78,3 +78,8 @@ k8s_pod_cidrs:
 # が正しいと考えられる
 # (参考: https://kubernetes.io/docs/tasks/administer-cluster/reserve-compute-resources/)
 k8s_use_kubepods_cpuset: false
+
+# k8s-python開発パッケージ群(ランタイム)インストール有無
+k8s_python_packages_enabled: true
+# Kubernetes開発関連Pythonパッケージインストール有無n
+k8s_python_devel_packages_enabled: false
