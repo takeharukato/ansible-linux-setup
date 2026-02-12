@@ -92,6 +92,7 @@
 | `nm_ns_update_sysconfig_path` | `{{ common_envdir }}/{{ nm_ns_update_base }}` | Dispatcher 用環境ファイルの配置先。 |
 | `nm_ns_update_iface_allow_regex` | `"^{{ _common_network_iface }}$"` | Dispatcher が処理する IF の正規表現。 |
 | `nm_ns_update_iface_deny_regex` | `{{ common_iface_deny_regex }}` | Dispatcher が除外する IF の正規表現。 |
+| `mdns_enabled` | `false` | RFC 6762 multicast DNSによる名前解決機能(`avahi daemon`など)を利用する場合は, `true`に設定する。 |
 
 ## 再起動発生ポイント
 

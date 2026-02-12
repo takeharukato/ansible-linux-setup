@@ -2,26 +2,12 @@
 #  -*- coding:utf-8 mode:yaml -*-
 #
 [server]
-# devserver.local
+# mgmt-server.local
 # rhel-server.local
 # ubuntu-server.local
-# mgmt-server.local
+# devserver.local
 [router]
 # router.local
-[rancher]
-# rancher01.local
-[k8s_ctrl_plane]
-# k8sctrlplane01.local
-# k8sctrlplane02.local
-[k8s_worker]
-# k8sworker0101.local
-# k8sworker0102.local
-# k8sworker0201.local
-# k8sworker0202.local
-[frr]
-# extgw.local
-# frr01.local
-# frr02.local
 [devel]
 # vmlinux1.local
 # vmlinux2.local
@@ -35,6 +21,20 @@
 # devlinux4.local
 # devlinux5.local
 # devlinux6.local
+[frr]
+# extgw.local
+# frr01.local
+# frr02.local
+[k8s_ctrl_plane]
+# k8sctrlplane01.local
+# k8sctrlplane02.local
+[k8s_worker]
+# k8sworker0101.local
+# k8sworker0102.local
+# k8sworker0201.local
+# k8sworker0202.local
 [k8s_management]
 # k8sctrlplane01.local
 # k8sctrlplane02.local
+[rancher]
+# rancher01.local

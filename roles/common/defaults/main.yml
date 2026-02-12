@@ -21,6 +21,10 @@ xcpng_xe_guest_utilities_rpm_url: "https://github.com/xenserver/xe-guest-utiliti
 xcpng_xen_store_rpm_url: "https://github.com/xenserver/xe-guest-utilities/releases/download/v{{ xcpng_xe_guest_utilities_version }}/xe-guest-utilities-xenstore-{{ xcpng_xe_guest_utilities_version }}-{{ xcpng_xe_guest_utilities_release }}.x86_64.rpm"
 xcpng_xe_guest_utilities_deb_url: "https://github.com/xenserver/xe-guest-utilities/releases/download/v{{ xcpng_xe_guest_utilities_version }}/xe-guest-utilities_{{ xcpng_xe_guest_utilities_version }}-{{ xcpng_xe_guest_utilities_release }}_amd64.deb"
 
+# mDNS導入有無
+# AvahiマルチキャストDNSサービスを導入する場合はtrue
+mdns_enabled: false
+
 # Firewall設定
 enable_firewall: false
 

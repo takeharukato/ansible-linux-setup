@@ -172,6 +172,10 @@ dns_host_list:
   - { name: 'mgmt-server', ipv4_addr: '{{mgmt_server_ipv4_addr_octet}}'}
   - { name: 'nas', ipv4_addr: '31'}
 
+# mDNS導入有無 (multicast DNS, Avahi)
+# マルチキャストDNSサービスを導入する場合はtrue
+mdns_enabled: false
+
 #
 # multicast DNS (mDNS) ホスト名登録設定
 #

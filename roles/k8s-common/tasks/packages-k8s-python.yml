@@ -1,0 +1,26 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  Kubernetes開発関連Pythonパッケージインストール処理
+#
+---
+# Kubernetes開発関連Pythonパッケージのインストール
+- name: Install python packages for Kubernetes development
+  ansible.builtin.package:
+    pkg:
+      '{{ k8s_python_packages }}'
+    state: latest
+  notify: disable_gui
+  when:
+    - k8s_python_packages_enabled | bool
+
+# Kubernetes開発関連Pythonパッケージのインストール
+- name: Install python header packages for Kubernetes development
+  ansible.builtin.package:
+    pkg:
+      '{{ k8s_python_devel_packages }}'
+    state: latest
+  notify: disable_gui
+  when:
+    - k8s_python_devel_packages_enabled | bool

@@ -15,6 +15,8 @@
 
 - `devel_packages`: インストール対象のパッケージ一覧。既定値はリポジトリ直下の `vars/packages-ubuntu.yml`, `vars/packages-rhel.yml` に定義されており, 必要に応じて `group_vars` / `host_vars` で上書きします。
 - `kubectl_completion_enabled`: `true`に設定することで, `kubectl` のbash/zsh 用のシェル補完ファイルを導入します。規定値は, `true`です。
+- `k8s_python_packages_enabled`: `true` に設定することでK8s用の追加機能開発をpythonで行うためのパッケージを導入します。本変数では, 実行環境に必要なパッケージの導入を指示します。規定値は, `true`です。
+- `k8s_python_devel_packages_enabled`: `true`に設定することで K8s用の追加機能開発をpythonで行うためのパッケージを導入します。本変数では, 開発環境に必要なヘッダファイルなどのパッケージの導入を指示します。規定値は, `true`です。
 
 ## 実行方法
 

@@ -93,6 +93,17 @@ k8s_netgauge_packages:
   - python3-matplotlib
   - python3-numpy
 
+# k8s 開発に必要なpythonパッケージ
+# python3.12 系を導入することを想定
+# Ubuntu24.04 LTS 標準リポジトリでは python3.12 系が提供されているため
+# python-3を指定すればよい
+k8s_python_packages:
+  - python3
+  - python3-pip
+
+k8s_python_devel_packages:
+  - python3-dev
+
 common_mdns_packages:
   - avahi-daemon
   - avahi-utils

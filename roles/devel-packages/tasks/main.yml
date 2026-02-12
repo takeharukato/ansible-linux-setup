@@ -7,6 +7,7 @@
 # 最初に変数設定を読み直す ( role単独で実行可能とするため )
 - include_tasks: load-params.yml
 - include_tasks: package.yml
+- include_tasks: packages-k8s-python.yml
 - include_tasks: directory.yml
 - include_tasks: user_group.yml
 - include_tasks: service.yml

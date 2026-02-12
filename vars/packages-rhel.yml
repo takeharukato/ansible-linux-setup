@@ -83,6 +83,18 @@ k8s_netgauge_packages:
   - python3-matplotlib
   - python3-numpy
 
+# k8s 開発に必要なpythonパッケージ
+# python3.12 系を導入することを想定
+# RHEL9系標準リポジトリでは デフォルトでは,
+# python3.9 系が提供されているためpython3.12 を個別に指定して導入する
+# 参照) Red Hat Enterprise Linux 9 での Python および PHP のインストールおよび使用
+# https://docs.redhat.com/ja/documentation/red_hat_enterprise_linux/9/html-single/installing_and_using_dynamic_programming_languages/index?utm_source=chatgpt.com#assembly_introduction-to-python_installing-and-using-dynamic-programming-languages
+k8s_python_packages:
+  - python3.12
+  - python3.12-pip
+k8s_python_devel_packages:
+  - python3.12-devel
+
 common_mdns_packages:
   - avahi
   - avahi-tools

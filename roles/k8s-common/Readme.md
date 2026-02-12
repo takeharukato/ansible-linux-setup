@@ -41,6 +41,8 @@ Kubernetes ノード共通の前提条件を整えるロールです。制御プ
 | `k8s_common_ports` | `[]` | UFW/firewalld で開放するポートまたはポートレンジ (`6443`, `30000-32767` など)。|
 | `k8s_pod_cidrs` | IPv4/IPv6 の Pod CIDR リスト | Pod ネットワーク許可ルールに利用。|
 | `k8s_use_kubepods_cpuset` | `false` | `true` で kubepods スライスの cpuset をアプリケーション CPU に固定します。|
+|`k8s_python_packages_enabled`|`true`| `true` で K8s用の追加機能開発をpythonで行うためのパッケージを導入します。本変数では, 実行環境に必要なパッケージの導入を指示します。|
+|`k8s_python_devel_packages_enabled`|`false`| `true` で K8s用の追加機能開発をpythonで行うためのパッケージを導入します。本変数では, 開発環境に必要なヘッダファイルなどのパッケージの導入を指示します。|
 
 その他, `firewall_backend`・`enable_firewall`・`k8s_reserved_system_cpus_default`・`k8s_operator_github_key_list` などの変数がロールの挙動を制御します。詳細は `defaults/main.yml` と `vars/` 配下のファイルを参照してください。
 
