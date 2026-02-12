@@ -1,0 +1,12 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  パッケージ関連処理
+---
+
+# Install Advanced Intrusion Detection Environment (AIDE) package
+- name: Install AIDE package
+  ansible.builtin.package:
+    name: "{{ aide_packages }}"
+    state: present

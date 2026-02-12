@@ -1,0 +1,21 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  ファイル・ディレクトリ作成関連タスク
+#
+#  注記:本来は, AIDEの設定ファイルに対するドロップインディレクトリをUbuntu/Debian系
+#       に寄せて, /etc/aide/aide.conf.d ディレクトリを作成するようRHEL系でも処理を追加し
+#       統一した運用を行えることが望ましいが, 現状RHEL9系に標準で搭載されているAIDEの
+#       バージョン0.16では, ワイルドカードや@@x_includeディレクティブがサポートされておらず,
+#       ドロップインディレクトリの自動読み込みが行えないため, RHEL系ではドロップインディレクトリを
+#       作成しないようにした。
+#       このため, 本ファイルで実施する処理はない。
+#
+#   本ロール作成時のUbuntu/Debian系とRHEL系におけるAIDEの差異は以下の通り:
+#  - Debian/Ubuntu: /etc/aide/aide.conf.d ディレクトリはパッケージにより自動作成され,
+#                   標準でドロップインディレクトリとしてサポートされている
+#  - RHEL/AlmaLinux: AIDE 0.16ではワイルドカードや@@x_includeをサポートしていないため,
+#                    ドロップインディレクトリの自動読み込みができない
+#
+---

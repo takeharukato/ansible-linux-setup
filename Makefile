@@ -10,8 +10,9 @@ top=.
 	run_k8s_common run_k8s_ctrl_plane run_k8s_worker run_netgauge \
 	run_k8s_worker_frr run_k8s_hubble_ui \
 	run_dns_server run_selinux update-ctrlplane-kubeconfig update-worker-kubeconfig \
-	run_terraform run_kea_dhcp run_radvd run_router_config \
-	run_frr_basic run_gitlab_server run_sbom run_router_clear_rules
+	run_terraform run_kea_dhcp run_radvd run_router_config run_router_clear_rules \
+	run_aide run_frr_basic run_gitlab_server \
+	run_sbom
 
 
 # ansibleのログ表示レベル
@@ -193,6 +194,9 @@ run_frr_basic:
 
 run_gitlab_server:
 	ansible-playbook --tags "gitlab-server" ${OPT_COMMON} 2>&1 |tee build-gitlab-server.log
+
+run_aide:
+	ansible-playbook --tags "aide" ${OPT_COMMON} 2>&1 |tee build-aide.log
 
 run_sbom:
 	ansible-playbook --tags "sbom" ${OPT_COMMON} --extra-vars=sbom_enabled=true 2>&1 |tee build-sbom.log

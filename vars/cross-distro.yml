@@ -627,6 +627,31 @@ frr_group_rhel:   "frrvty"
 frr_group_name: "{{ (ansible_facts.os_family == 'Debian') | ternary(frr_group_debian, frr_group_rhel) }}"
 
 ########################################################################################
+# Advanced Intrusion Detection Environment (AIDE)
+########################################################################################
+aide_packages_debian:
+  - aide
+aide_packages_rhel:
+  - aide
+aide_packages: "{{ (ansible_facts.os_family == 'Debian') | ternary(aide_packages_debian, aide_packages_rhel) }}"
+# AIDE 設定ファイルパス
+aide_config_path_debian: "/etc/aide/aide.conf"
+aide_config_path_rhel:   "/etc/aide.conf"
+aide_config_path: "{{ (ansible_facts.os_family == 'Debian') | ternary(aide_config_path_debian, aide_config_path_rhel) }}"
+# AIDE データベースパス
+aide_database_path_debian: "/var/lib/aide/aide.db.gz"
+aide_database_path_rhel:   "/var/lib/aide/aide.db.gz"
+aide_database_path: "{{ (ansible_facts.os_family == 'Debian') | ternary(aide_database_path_debian, aide_database_path_rhel) }}"
+# AIDE drop-in ディレクトリ
+# Debian系では, /etc/aide/aide.conf.d が標準の drop-in ディレクトリ
+aide_config_dropin_dir_debian: "/etc/aide/aide.conf.d"
+# RHEL9系では, drop-inディレクトリが存在しない
+# AIDEのバージョンが0.16であるため, @@includeディレクティブで正規表現による
+# ファイルインクルードが行えないことが原因。将来的にバージョンアップで対応される
+# 可能性があるため, 将来の差分に備えて変数として定義しておく。
+aide_config_dropin_dir_rhel: "{{ aide_config_dropin_dir_debian }}"
+aide_config_dropin_dir: "{{ (ansible_facts.os_family == 'Debian') | ternary(aide_config_dropin_dir_debian, aide_config_dropin_dir_rhel) }}"
+########################################################################################
 # xcp-ng ( Xen Cloud Platform Next Generation )
 ########################################################################################
 xe_linux_service_name_debian: "xe-linux-distribution"
