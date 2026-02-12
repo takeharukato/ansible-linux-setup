@@ -34,6 +34,7 @@ common_packages:
   - connect-proxy
   - tree
   - ansible
+  - ansible-lint
   - nfs-common
   - bind9-dnsutils
   - netcat-openbsd
