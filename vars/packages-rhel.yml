@@ -33,6 +33,7 @@ common_packages:
   - vim-enhanced
   - tree
   - ansible-core
+  - ansible-lint
   - nfs-utils
   - bind-utils
   - nmap-ncat
