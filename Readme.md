@@ -11,7 +11,7 @@
       - [users\_authorized\_keys定義](#users_authorized_keys定義)
       - [ネットワーク設定](#ネットワーク設定)
       - [クライアントのDomain Name System (DNS) サーバ関連設定](#クライアントのdomain-name-system-dns-サーバ関連設定)
-      - [multicast Domain Name Server (mDNS) 関連設定](#multicast-domain-name-server-mdns-関連設定)
+      - [multicast DNS (mDNS) 関連設定](#multicast-dns-mdns-関連設定)
       - [Network Time Protocol (NTP) クライアントの設定](#network-time-protocol-ntp-クライアントの設定)
       - [Domain Name System (DNS) サーバの設定](#domain-name-system-dns-サーバの設定)
       - [Network File System (NFS) サーバの設定](#network-file-system-nfs-サーバの設定)
@@ -255,10 +255,15 @@ dns_host_list
   - { name: 'nas', ipv4_addr: '31'}
 ```
 
-#### multicast Domain Name Server (mDNS) 関連設定
+#### multicast DNS (mDNS) 関連設定
 
-mdns_host_listに以下の要素からなる辞書のリストを記述することで,
-ユーザの.ssh/configファイルに`ホスト名.local`のホスト情報を追記する。
+RFC 6762 multicast DNSによる名前解決を行うためのパッケージ(`avahi`, `nss-mdns`など)を導入する場合は,
+`mdns_enabled`変数を`true`に設定する。
+
+|変数名|意味|設定値の例|
+| `mdns_enabled`|RFC 6762 multicast DNSによる名前解決機能(`avahi daemon`など)を利用する場合は, `true`に設定する。|`false`|
+
+また, mdns_host_listに以下の要素からなる辞書のリストを記述することで, ユーザの.ssh/configファイルに`ホスト名.local`のホスト情報を追記することができる。
 
 |キー名|設定値|設定値の例|
 |---|---|---|
@@ -1037,3 +1042,4 @@ jinja2で変数定義の有無の確認と中身が空で無いことの確認�
 テンプレート中での時刻取得 ( roles/common/templates/_bshrc.proxy.j2 な
 どの記述の参考にした )
 - [k8s クラスタを気軽に遊べる環境を作っている](https://nabeop.hatenablog.com/entry/2019/07/27/165036), [vagrant-k8s-metallb](https://github.com/nabeo/vagrant-k8s-metallb) 実験用K8sクラスタの構成方法について参考にした。
+- [RFC 6762 multicast DNS](https://tex2e.github.io/rfc-translater/html/rfc6762.html) multicast DNSのRFC

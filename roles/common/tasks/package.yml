@@ -13,6 +13,8 @@
     state: latest
   notify:
     - avahi_restarted_and_enabled
+  when:
+    - mdns_enabled|bool
 
 # 言語パッケージのインストール
 - name: Install language packages
