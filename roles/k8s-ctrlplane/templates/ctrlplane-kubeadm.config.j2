@@ -59,8 +59,6 @@ resolvConf: "{{ kubelet_resolv_conf_path }}"
 {% if k8s_reserved_system_cpus_default is defined and k8s_reserved_system_cpus_default|default('',true)|length %}
 cpuManagerPolicy: "static"
 reservedSystemCPUs: "{{k8s_reserved_system_cpus_default}}"
-{% else %}
-cpuManagerPolicy: "static"
 {% endif %}
 
 enforceNodeAllocatable:

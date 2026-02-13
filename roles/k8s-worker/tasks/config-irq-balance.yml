@@ -1,0 +1,14 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  irq バランスサービス削除関連タスク
+#
+
+#
+# irq バランスサービスの削除
+#
+- name: Remove irq balance package
+  package:
+    name: "{{ irq_balance_package }}"
+    state: absent
