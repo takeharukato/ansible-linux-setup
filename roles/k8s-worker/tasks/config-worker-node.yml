@@ -6,44 +6,96 @@
 #
 
 #
-# irq バランスサービスの削除
-#
-- name: Remove irq balance package
-  package:
-    name: "{{ irq_balance_package }}"
-    state: absent
-
-#
 # アプリケーション動作用CPUマスク算出
 #
 
-- block:
+- name: Calculate first app cpu
+  shell: |
+    expr  $(echo {{ k8s_reserved_system_cpus_default }}|awk -F '-' '{print $2}') + 1
+  register: k8s_worker_first_cpu_id
+  ignore_errors: true
+  changed_when: False
 
-  - name: Calculate first app cpu
-    shell: |
-      expr  $(echo {{ k8s_reserved_system_cpus_default }}|awk -F '-' '{print $2}') + 1
-    register: k8s_worker_first_cpu_id
-    ignore_errors: true
-    changed_when: False
+- name: Calculate last app cpu
+  shell: |
+    expr `lscpu -p=CPU | grep -v '^#' 2>/dev/null|wc -l || nproc --all` - 1
+  register: k8s_worker_last_cpu_id
+  ignore_errors: true
+  changed_when: False
 
-  - name: Calculate last app cpu
-    shell: |
-      expr `lscpu -p=CPU | grep -v '^#' 2>/dev/null|wc -l || nproc --all` - 1
-    register: k8s_worker_last_cpu_id
-    ignore_errors: true
-    changed_when: False
-
-  - name: Create app cpu range
-    shell: |
-      echo "{{ k8s_worker_first_cpu_id.stdout }}-{{ k8s_worker_last_cpu_id.stdout }}"
-    register: k8s_worker_app_cpu_range
-    changed_when: False
-    when:
-      - k8s_worker_first_cpu_id.rc == 0
-      - k8s_worker_last_cpu_id.rc == 0
-
+- name: Create app cpu range
+  shell: |
+    echo "{{ k8s_worker_first_cpu_id.stdout }}-{{ k8s_worker_last_cpu_id.stdout }}"
+  register: k8s_worker_app_cpu_range
+  changed_when: False
   when:
-    - k8s_reserved_system_cpus_default is defined
+    - k8s_worker_first_cpu_id.rc == 0
+    - k8s_worker_last_cpu_id.rc == 0
+
+#
+# 起動時の処理
+#
+
+#
+# Unboundedなカーネルスレッドの片寄せ
+#
+
+# ワーカーキューセットアップスクリプトの生成
+- name: Generate pin-worker-queue.sh
+  template:
+    src: pin-worker-queue.sh.j2
+    dest: "{{ k8s_node_setup_tools_dir }}/pin-worker-queue.sh"
+    owner: root
+    group: root
+    mode: 0755
+    backup: no
+
+# SystemD pin-worker-queue サービスファイルの生成
+- name: Generate pin-worker-queue SystemD service
+  template:
+    src: pin-worker-queue.service.j2
+    dest: /etc/systemd/system/pin-worker-queue.service
+    owner: root
+    group: root
+    mode: 0755
+    backup: no
+
+# SystemD pin-worker-queue サービスの登録
+- name: Register pin-worker-queue service
+  systemd_service:
+    name: pin-worker-queue
+    enabled: true
+
+
+#
+# 割込みの片寄せ
+#
+
+# 割込み片寄せセットアップスクリプトの生成
+- name: Generate pin-irqs.py
+  template:
+    src: pin-irqs.py.j2
+    dest: "{{ k8s_node_setup_tools_dir }}/pin-irqs.py"
+    owner: root
+    group: root
+    mode: 0755
+    backup: no
+
+# SystemD pin-irqs サービスファイルの生成
+- name: Generate pin-irqs SystemD service
+  template:
+    src: pin-irqs.service.j2
+    dest: /etc/systemd/system/pin-irqs.service
+    owner: root
+    group: root
+    mode: 0755
+    backup: no
+
+# SystemD pin-irqs サービスの登録
+- name: Register pin-irqs service
+  systemd_service:
+    name: pin-irqs
+    enabled: true
 
 #
 # システムプロセス用コアに
@@ -254,102 +306,35 @@
     when:
       - not grub_cmdline_check_systemd_cpu_affinity.changed
 
+  #
+  # GRUB 設定の更新 (Debian 系)
+  #
+  - include_tasks: config-grub-debian.yml
+    when:
+      - ansible_facts.os_family == 'Debian'
+
+  #
+  # GRUB 設定の更新 (RHEL 系)
+  #
+  - include_tasks: config-grub-rhel.yml
+    when:
+      - ansible_facts.os_family == 'RedHat'
+
+  #
+  # 再起動
+  #
+
+  # マシンをリブートする
+  - name: Reboot host gracefully
+    reboot:
+      reboot_timeout: 600
+      msg: "Reboot triggered by role: k8s-worker"
+      pre_reboot_delay: 2
+
+  # ssh が使えるようになるのを待つ
+  - name: Wait for connection after reboot
+    wait_for_connection:
+      timeout: 300
+
   when:
     - k8s_worker_app_cpu_range.rc == 0
-    - k8s_reserved_system_cpus_default is defined
-
-#
-# GRUB 設定の更新 (Debian 系)
-#
-- include_tasks: config-grub-debian.yml
-  when:
-    - ansible_facts.os_family == 'Debian'
-
-#
-# GRUB 設定の更新 (RHEL 系)
-#
-- include_tasks: config-grub-rhel.yml
-  when:
-    - ansible_facts.os_family == 'RedHat'
-
-#
-# 起動時の処理
-#
-
-#
-# Unboundedなカーネルスレッドの片寄せ
-#
-
-# ワーカーキューセットアップスクリプトの生成
-- name: Generate pin-worker-queue.sh
-  template:
-    src: pin-worker-queue.sh.j2
-    dest: "{{ k8s_node_setup_tools_dir }}/pin-worker-queue.sh"
-    owner: root
-    group: root
-    mode: 0755
-    backup: no
-
-# SystemD pin-worker-queue サービスファイルの生成
-- name: Generate pin-worker-queue SystemD service
-  template:
-    src: pin-worker-queue.service.j2
-    dest: /etc/systemd/system/pin-worker-queue.service
-    owner: root
-    group: root
-    mode: 0755
-    backup: no
-
-# SystemD pin-worker-queue サービスの登録
-- name: Register pin-worker-queue service
-  systemd_service:
-    name: pin-worker-queue
-    enabled: true
-
-
-#
-# 割込みの片寄せ
-#
-
-# 割込み片寄せセットアップスクリプトの生成
-- name: Generate pin-irqs.py
-  template:
-    src: pin-irqs.py.j2
-    dest: "{{ k8s_node_setup_tools_dir }}/pin-irqs.py"
-    owner: root
-    group: root
-    mode: 0755
-    backup: no
-
-# SystemD pin-irqs サービスファイルの生成
-- name: Generate pin-irqs SystemD service
-  template:
-    src: pin-irqs.service.j2
-    dest: /etc/systemd/system/pin-irqs.service
-    owner: root
-    group: root
-    mode: 0755
-    backup: no
-
-# SystemD pin-irqs サービスの登録
-- name: Register pin-irqs service
-  systemd_service:
-    name: pin-irqs
-    enabled: true
-
-
-#
-# 再起動
-#
-
-# マシンをリブートする
-- name: Reboot host gracefully
-  reboot:
-    reboot_timeout: 600
-    msg: "Reboot triggered by role: common"
-    pre_reboot_delay: 2
-
-# ssh が使えるようになるのを待つ
-- name: Wait for connection after reboot
-  wait_for_connection:
-    timeout: 300
