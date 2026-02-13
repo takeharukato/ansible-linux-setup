@@ -1,0 +1,86 @@
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: kube-multus-ds
+  namespace: {{ .Values.namespace }}
+  labels:
+    {{- include "multus-cni.labels" . | nindent 4 }}
+spec:
+  selector:
+    matchLabels:
+      {{- include "multus-cni.selectorLabels" . | nindent 6 }}
+  updateStrategy:
+    type: {{ .Values.updateStrategy.type }}
+  template:
+    metadata:
+      labels:
+        {{- include "multus-cni.selectorLabels" . | nindent 8 }}
+        tier: {{ .Values.labels.tier }}
+        app: {{ .Values.labels.app }}
+    spec:
+      hostNetwork: {{ .Values.hostNetwork }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      serviceAccountName: {{ include "multus-cni.serviceAccountName" . }}
+      containers:
+      - name: kube-multus
+        image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+        imagePullPolicy: {{ .Values.image.pullPolicy }}
+        command: ["/thin_entrypoint"]
+        args:
+        {{- range .Values.multus.args }}
+        - {{ . | quote }}
+        {{- end }}
+        resources:
+          {{- toYaml .Values.resources | nindent 10 }}
+        securityContext:
+          {{- toYaml .Values.securityContext | nindent 10 }}
+        terminationMessagePolicy: FallbackToLogsOnError
+        volumeMounts:
+        - name: cni
+          mountPath: /host{{ .Values.cni.confDir }}
+        - name: cnibin
+          mountPath: /host{{ .Values.cni.binDir }}
+        {{- if .Values.cniConfig.enabled }}
+        - name: multus-cfg
+          mountPath: /tmp/multus-conf
+        {{- end }}
+      initContainers:
+        - name: install-multus-binary
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command: ["/install_multus"]
+          args:
+            - "--type"
+            - {{ .Values.installType | quote }}
+          resources:
+            {{- toYaml .Values.initResources | nindent 12 }}
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          terminationMessagePolicy: FallbackToLogsOnError
+          volumeMounts:
+            - name: cnibin
+              mountPath: /host{{ .Values.cni.binDir }}
+              mountPropagation: Bidirectional
+      terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds }}
+      volumes:
+        - name: cni
+          hostPath:
+            path: {{ .Values.cni.confDir }}
+        - name: cnibin
+          hostPath:
+            path: {{ .Values.cni.binDir }}
+        {{- if .Values.cniConfig.enabled }}
+        - name: multus-cfg
+          configMap:
+            name: multus-cni-config
+            items:
+            - key: cni-conf.json
+              path: cni-conf.json
+        {{- end }}

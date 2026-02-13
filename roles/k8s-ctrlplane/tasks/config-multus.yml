@@ -9,24 +9,37 @@
 - name: wait for kube-api-server
   local_action: wait_for host={{ k8s_ctrlplane_endpoint }} port=6443 state=started
 
+# Multus Helm Chart をリモートホストにコピー
+- name: Copy Multus Helm Chart to remote host
+  copy:
+    src: "{{ k8s_multus_helm_chart_source }}/"
+    dest: "{{ k8s_multus_helm_chart_path }}/"
+    owner: root
+    group: root
+    mode: preserve
+  become: true
 
-# Multus CNIのインストール
-# https://github.com/k8snetworkplumbingwg/multus-cni/blob/master/docs/quickstart.md
-# に従ってインストールする
-- name: Install Multus
-  shell: |
-    kubectl apply -f {{ k8s_multus_daemonset_manifest_url}}
-  args:
-    executable: /bin/bash
-  register: multus_install_command
-  changed_when: "'created' in multus_install_command.stdout or 'configured' in multus_install_command.stdout"
-
-# テスト用Podのマニュフェスト生成
-- name: Setup a test pod manifest
+# Multus Values ファイル生成
+- name: Setup Multus Helm values file
   template:
-    src: app-pod.yml.j2
-    dest: "{{ k8s_multus_config_dir }}/app-pod.yml"
+    src: multus-values.yml.j2
+    dest: "{{ k8s_multus_config_dir }}/multus-values.yml"
     owner: root
     group: root
     mode: 0644
     backup: no
+
+# Multus CNIのインストール（Helm経由）
+# https://github.com/k8snetworkplumbingwg/multus-cni/blob/master/docs/quickstart.md
+# の機能をHelm Chartで実装
+- name: Install Multus via Helm
+  shell: |
+    helm upgrade --install multus-cni {{ k8s_multus_helm_chart_path }} \
+    --namespace kube-system \
+    --version {{ k8s_multus_helm_chart_version }} \
+    -f {{ k8s_multus_config_dir }}/multus-values.yml
+  environment:
+    KUBECONFIG: /etc/kubernetes/admin.conf
+  become: true
+  register: multus_helm_install
+  changed_when: "'deployed' in multus_helm_install.stdout or 'upgraded' in multus_helm_install.stdout"

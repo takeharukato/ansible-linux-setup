@@ -24,7 +24,18 @@
   when:
     - k8s_bgp is defined
     - k8s_bgp.enabled | default(false)
+- include_tasks: config-cleanup-multus.yml
+  when:
+    - k8s_multus_enabled | default(false)
 - include_tasks: config-multus.yml
+  when:
+    - k8s_multus_enabled | default(false)
+    - not (k8s_multus_kubectl_apply_enabled | default(false))
+- include_tasks: config-kubectl-applied-multus.yml
+  when:
+    - k8s_multus_enabled | default(false)
+    - k8s_multus_kubectl_apply_enabled | default(false)
+- include_tasks: directory-multus-test-pod.yml
   when: k8s_multus_enabled | default(false)
 - include_tasks: config-whereabouts.yml
   when: k8s_whereabouts_enabled | default(false)
