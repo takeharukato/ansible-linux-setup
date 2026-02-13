@@ -1,0 +1,25 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  既存のMultusリソースをクリーンアップ
+#
+
+# kube-apiが使えるようになるのを待ち合わせる
+- name: wait for kube-api-server
+  local_action: wait_for host={{ k8s_ctrlplane_endpoint }} port=6443 state=started
+
+# 既存のMultusリソースをクリーンアップ（Helm管理への移行時）
+- name: Cleanup existing Multus resources (if cleanup enabled)
+  shell: |
+    kubectl delete daemonset -n kube-system kube-multus-ds --ignore-not-found=true
+    kubectl delete clusterrole multus --ignore-not-found=true
+    kubectl delete clusterrolebinding multus --ignore-not-found=true
+    kubectl delete serviceaccount -n kube-system multus --ignore-not-found=true
+    kubectl delete configmap -n kube-system multus-cni-config --ignore-not-found=true
+  environment:
+    KUBECONFIG: /etc/kubernetes/admin.conf
+  become: true
+  when: k8s_multus_cleanup_resources | default(false)
+  register: multus_cleanup_result
+  changed_when: "'deleted' in multus_cleanup_result.stdout"

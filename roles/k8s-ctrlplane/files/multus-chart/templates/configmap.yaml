@@ -1,0 +1,11 @@
+{{- if .Values.cniConfig.enabled }}
+kind: ConfigMap
+apiVersion: v1
+metadata:
+  name: multus-cni-config
+  namespace: {{ .Values.namespace }}
+  labels:
+    {{- include "multus-cni.labels" . | nindent 4 }}
+data:
+  cni-conf.json: {{ .Values.cniConfig.data | quote }}
+{{- end }}

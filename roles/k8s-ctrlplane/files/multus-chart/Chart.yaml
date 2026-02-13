@@ -1,0 +1,14 @@
+apiVersion: v2
+name: multus-cni
+description: A Helm chart for Multus CNI - a CNI plugin to enable attaching multiple network interfaces to pods in Kubernetes
+type: application
+version: 4.2.3
+appVersion: "v4.2.3"
+keywords:
+  - multus
+  - cni
+  - network
+  - kubernetes
+home: https://github.com/k8snetworkplumbingwg/multus-cni
+sources:
+  - https://github.com/k8snetworkplumbingwg/multus-cni

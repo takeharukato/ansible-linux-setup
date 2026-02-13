@@ -1,0 +1,109 @@
+# Default values for multus-cni.
+# This is a YAML-formatted file.
+# Declare variables to be passed into your templates.
+
+# Namespace where Multus will be deployed
+namespace: kube-system
+
+# Multus container image configuration
+image:
+  repository: ghcr.io/k8snetworkplumbingwg/multus-cni
+  tag: v4.2.3
+  pullPolicy: IfNotPresent
+
+# Service Account name
+serviceAccount:
+  name: multus
+
+# CNI configuration
+cni:
+  # CNI binary directory on the host
+  binDir: /opt/cni/bin
+  # CNI configuration directory on the host
+  confDir: /etc/cni/net.d
+  # Auto-configuration directory
+  autoConfigDir: /etc/cni/net.d
+
+# Multus daemon configuration
+multus:
+  # Configuration file mode: "auto" for automatic detection
+  confFile: auto
+  # Additional arguments for multus daemon
+  args:
+    - "--multus-conf-file=auto"
+    - "--multus-autoconfig-dir=/host/etc/cni/net.d"
+    - "--cni-conf-dir=/host/etc/cni/net.d"
+
+# Resource requests and limits
+resources:
+  requests:
+    cpu: "100m"
+    memory: "50Mi"
+  limits:
+    cpu: "100m"
+    memory: "50Mi"
+
+# Init container resources
+initResources:
+  requests:
+    cpu: "10m"
+    memory: "15Mi"
+
+# Tolerations for Multus DaemonSet
+tolerations:
+  - operator: Exists
+    effect: NoSchedule
+  - operator: Exists
+    effect: NoExecute
+
+# Node selector
+nodeSelector: {}
+
+# Use host network
+hostNetwork: true
+
+# Security context
+securityContext:
+  privileged: true
+
+# Termination grace period in seconds
+terminationGracePeriodSeconds: 10
+
+# Update strategy
+updateStrategy:
+  type: RollingUpdate
+
+# Labels
+labels:
+  tier: node
+  app: multus
+  name: multus
+
+# ConfigMap with CNI configuration
+# This is a sample configuration that will be overridden in most deployments
+cniConfig:
+  enabled: false
+  data: |
+    {
+      "name": "multus-cni-network",
+      "type": "multus",
+      "capabilities": {
+        "portMappings": true
+      },
+      "delegates": [
+        {
+          "cniVersion": "0.3.1",
+          "name": "default-cni-network",
+          "plugins": [
+            {
+              "type": "cilium-cni",
+              "name": "cilium"
+            }
+          ]
+        }
+      ],
+      "kubeconfig": "/etc/cni/net.d/multus.d/multus.kubeconfig"
+    }
+
+# Install type for multus binary
+installType: thin
