@@ -28,6 +28,10 @@
       tags: k8s-shared-ca
     - role: k8s-ctrlplane
       tags: k8s-ctrlplane
+    - role: k8s-multus
+      tags: k8s-multus
+    - role: k8s-whereabouts
+      tags: k8s-whereabouts
       # k8s-kubeconfigの呼び出し条件を満たしたタイミングで実行
       # - common / k8s-common で基本ツールやディレクトリ整備済み。
       # - k8s-shared-ca で共通 CA が配置済み。
