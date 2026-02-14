@@ -1,0 +1,37 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  タスクメイン部
+#
+#  include_tasksで他のタスクを読み込む
+#
+
+# 最初に変数設定を読み直す ( role単独で実行可能とするため )
+- include_tasks: load-params.yml
+- include_tasks: package.yml
+- include_tasks: directory.yml
+- include_tasks: user_group.yml
+- include_tasks: service.yml
+- include_tasks: config-whereabouts.yml
+  when:
+    - k8s_multus_enabled | default(false)
+    - k8s_whereabouts_enabled | default(false)
+    - >-
+      (
+        network_ipv4_cidr is defined
+        and (network_ipv4_cidr | string | length) > 0
+        and k8s_whereabouts_ipv4_range_start is defined
+        and (k8s_whereabouts_ipv4_range_start | string | length) > 0
+        and k8s_whereabouts_ipv4_range_end is defined
+        and (k8s_whereabouts_ipv4_range_end | string | length) > 0
+      )
+      or
+      (
+        network_ipv6_cidr is defined
+        and (network_ipv6_cidr | string | length) > 0
+        and k8s_whereabouts_ipv6_range_start is defined
+        and (k8s_whereabouts_ipv6_range_start | string | length) > 0
+        and k8s_whereabouts_ipv6_range_end is defined
+        and (k8s_whereabouts_ipv6_range_end | string | length) > 0
+      )

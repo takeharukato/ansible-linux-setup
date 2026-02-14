@@ -35,6 +35,9 @@ spec:
       "ipam": {
         "type": "whereabouts",
         {# ホストNIC(VM上のvNIC)のIPv4ネットワークCIDR #}
+      {% if network_ipv4_cidr is defined and (network_ipv4_cidr | string | length) > 0
+            and k8s_whereabouts_ipv4_range_start is defined and (k8s_whereabouts_ipv4_range_start | string | length) > 0
+            and k8s_whereabouts_ipv4_range_end is defined and (k8s_whereabouts_ipv4_range_end | string | length) > 0 %}
         "range": "{{network_ipv4_cidr}}",
         {#
         IPv4アドレス付与範囲
@@ -42,16 +45,18 @@ spec:
         #}
         "range_start": "{{k8s_whereabouts_ipv4_range_start}}",
         "range_end": "{{k8s_whereabouts_ipv4_range_end}}",
+      {% endif %}
         {#
-        IPv4アドレス付与範囲
+        IPv6アドレス付与範囲
         IPv6 (VM側のIPv6 IPアドレスに合わせる)
-        (本playbook作成時に使用したVMがIPv6リーチャブルでないため未使用)
         #}
-        {#
+      {% if network_ipv6_cidr is defined and (network_ipv6_cidr | string | length) > 0
+            and k8s_whereabouts_ipv6_range_start is defined and (k8s_whereabouts_ipv6_range_start | string | length) > 0
+            and k8s_whereabouts_ipv6_range_end is defined and (k8s_whereabouts_ipv6_range_end | string | length) > 0 %}
         "range6": "{{network_ipv6_cidr}}",
         "range_start6": "{{k8s_whereabouts_ipv6_range_start}}",
         "range_end6": "{{k8s_whereabouts_ipv6_range_end}}",
-        #}
+      {% endif %}
         {# ログファイル出力先 #}
         "log_file": "/var/log/whereabouts.log",
         {# ログレベル #}

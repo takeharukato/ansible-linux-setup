@@ -29,7 +29,8 @@
     mode: 0644
     backup: no
 
-- name: Setup NetworkAttachmentDefinition (NAD)
+# NetworkAttachmentDefinition (NAD)適用
+- name: Apply NetworkAttachmentDefinition (NAD)
   shell: |
     kubectl apply -f "{{ k8s_whereabouts_config_dir }}/ipvlan-wb-nad.yml"
   environment:

@@ -2,7 +2,7 @@
 
 ## 概要
 
-`create-embedded-kubeconfig.py` は 管理者用 kubeconfig ファイル(`admin.conf`)から取得したクラスタ証明書を kubeconfig に埋め込み, 単一ファイルで配布可能な設定を生成するユーティリティです。`kubectl config view --raw --flatten` の結果を基に, 証明書ファイルを base64 形式で取り込み, `Cilium Cluster Mesh` などの相互接続環境で利用しやすい kubeconfig を作成します。また, `--shared-ca` オプションを指定した場合は共通 CA 証明書を最優先で埋め込み, クラスタ間で 使用される CA 証明書を`--shared-ca` オプションで指定された共通 CS 証明書に統一します。管理者用 kubeconfig ファイル(`admin.conf`)の読み取りに sudo が必要な場合は, 自動的に `sudo` 付きで `kubectl` を実行します。
+`create-embedded-kubeconfig.py` は管理者用 kubeconfig ファイル(`admin.conf`)から取得したクラスタ証明書を kubeconfig に埋め込み, 単一ファイルで配布可能な設定を生成するユーティリティです。`kubectl config view --raw --flatten` の結果を基に, `certificate-authority-data` または `certificate-authority` のファイルを base64 形式で埋め込み, `Cilium Cluster Mesh` などの相互接続環境で利用しやすい kubeconfig を作成します。`--shared-ca` オプションを指定した場合は共通 CA 証明書を最優先で埋め込み, クラスタ間で使用される CA 証明書を指定した共通 CA 証明書に統一します。管理者用 kubeconfig ファイル(`admin.conf`)の読み取りに sudo が必要な場合は, 自動的に `sudo` 付きで `kubectl` を実行します。埋め込み元の CA 情報が取得できない場合は `insecure-skip-tls-verify: true` にフォールバックします。
 
 ## 必要環境
 
@@ -37,12 +37,12 @@ create-embedded-kubeconfig.py cluster1 \
   --file-postfix embedded
 ```
 
-このコマンド例では `cluster1-embedded.kubeconfig` が指定ディレクトリに生成されます。
+このコマンド例では `cluster1-embedded.kubeconfig` が指定ディレクトリに生成されます。`--file-postfix` に `.kubeconfig` が含まれない場合は自動的に付与されます。
 
 本ツールは, 実行ユーザで対象クラスタの管理者用 kubeconfig ファイル(`admin.conf`)を参照可能であることを確認し, `sudo` が必要な場合はスクリプト内で, `sudo`を自動付与して管理者用 kubeconfig ファイル(`admin.conf`)を参照します。
 `sudo` を使いたくない場合は, 実行ユーザーへの読み取り権限を, 管理者用 kubeconfig ファイル(`admin.conf`)に付与してください。
 
-共通 CA 証明書を埋め込みたい場合は, `--shared-ca` に PEM 形式の証明書パスを指定してください。
+共通 CA 証明書を埋め込みたい場合は, `--shared-ca` に PEM 形式の証明書パスを指定してください。指定した CA を読み込んだ後, base64 に変換して埋め込みます。
 
 ```bash
 create-embedded-kubeconfig.py cluster1 \
@@ -57,6 +57,8 @@ create-embedded-kubeconfig.py [-h]
                               [-o OUTPUT_DIR | --output-dir OUTPUT_DIR]
                               [-p FILE_PREFIX | --file-prefix FILE_PREFIX]
                               [-P FILE_POSTFIX | --file-postfix FILE_POSTFIX]
+                              [-u USER | --user USER]
+                              [-x CONTEXT | --context CONTEXT]
                               [--shared-ca SHARED_CA]
                               [-v | --verbose]
                               cluster_name
@@ -71,9 +73,29 @@ create-embedded-kubeconfig.py [-h]
 | `-o`, `--output-dir` | 出力ディレクトリを指定します。省略時はコマンド実行時のカレントディレクトリに書き込みます。 |
 | `-p`, `--file-prefix` | 出力ファイル名のプレフィックスを明示します。省略時は `cluster_name` を利用します。 |
 | `-P`, `--file-postfix` | 出力ファイル名のサフィックスを指定します。既定値は `-embedded.kubeconfig` です。`.kubeconfig` が含まれない場合は自動で付与されます。 |
+| `-u`, `--user` | `contexts.context.user` と `users.name` を指定したユーザ名に変更します。省略時は変更しません。 |
+| `-x`, `--context` | `contexts.name` と `current-context` を指定したコンテキスト名に変更します。省略時は変更しません。 |
 | `--shared-ca` | 共有 CA 証明書 (PEM) のパスを指定します。指定された証明書を最優先で埋め込みます。省略時は管理者用 kubeconfig 内の CA を利用します。 |
 | `-v` | ログを INFO レベルで表示します。 |
 | `-vv` | ログを DEBUG レベルまで表示します。 |
+
+## 本ロールから導入した場合の各オプションの既定値
+
+本ロール (`k8s-ctrlplane`) で `config-cluster-mesh-tools.yml` から実行する際に使われる既定値は以下の通りです。
+
+| オプション | Ansible 変数 | 既定値 | 備考 |
+| --- | --- | --- | --- |
+| `--admin-conf` | `k8s_embed_kubeconfig_admin_conf` | `/etc/kubernetes/admin.conf` | - |
+| `--output-dir` | `k8s_embed_kubeconfig_output_dir` | `/home/kube/.kube` | `k8s_operator_user: kube`, `k8s_operator_home: /home/kube` の既定値に基づく |
+| `--file-postfix` | `k8s_embed_kubeconfig_file_postfix` | `-embedded.kubeconfig` | - |
+| `--file-prefix` | (なし) | 位置引数 `cluster_name` | 省略時は `cluster_name`変数の値を使用 |
+| `--context` | `k8s_embed_kubeconfig_context_name` | 空文字列 | `k8s_cilium_cm_cluster_name` 未設定時は指定しない |
+| `--user` | `k8s_embed_kubeconfig_user_name` | 空文字列 | `k8s_cilium_cm_cluster_name` 未設定時は指定しない |
+| `--shared-ca` | `k8s_embed_kubeconfig_shared_ca_path` | 空文字列 | 未設定時は指定しない |
+
+注記:
+- `k8s_embed_kubeconfig_shared_ca_path` は `k8s-shared-ca` ロール実行時に `{{ k8s_shared_ca_output_dir }}/{{ k8s_shared_ca_cert_filename }}` が設定されます。
+- `--context` と `--user` を指定しない場合, 既存 kubeconfig の current-context と user 設定を維持します。
 
 ## ログ出力
 
@@ -102,6 +124,8 @@ create-embedded-kubeconfig.py [-h]
 | `admin.conf requires sudo: <path>` | INFO | 管理者用 kubeconfig ファイル(`admin.conf`)の読み取りに sudo が必要と判定した場合に表示されます。 | sudo を許容する場合はそのまま継続してください。sudo を避けたい場合は 管理者用 kubeconfig ファイル(`admin.conf`)のパーミッションを実行ユーザーに付与してください。 |
 | `Saved kubeconfig snapshot to <path>` | INFO | `kubectl` の結果をそのまま保存した段階で表示されます。 | 一次出力先のファイル(`<path>`)が生成され, 続く処理で同じファイルが証明書付きで上書きされることを確認してください。 |
 | `Wrote embedded kubeconfig to <path>` | INFO | 証明書を埋め込んだ後で保存した段階に表示されます。 | 生成済みの配布用 kubeconfig ファイル(`<path>`)が適切な保存場所であることを確認してください。 |
+| `Loaded shared CA certificate (<n> bytes) from <path>` | INFO | `--shared-ca` で指定した CA ファイルを読み込んだ直後に表示されます。 | 読み込んだ CA ファイルが正しいことを確認してください。 |
+| `Embedded CA source: <source>` | INFO | どの CA 情報を埋め込んだかを示します (`shared-ca` / `embedded-data` / `file:<path>` など)。 | 期待した CA が埋め込まれていることを確認してください。 |
 | `===== kubeconfig summary (<label>) =====` | INFO | `-v` 以上指定時に, 要約表示の開始時に出力されます。 | ラベル (`<label>`) を見て処理段階 ( 例: `before embed` / `after embed` )を把握してください。 |
 | `file-path: <path>` | INFO | サマリ表示中に対象ファイルのパスを示します。 | 表示されたファイルの保存先(`<path>`)が期待どおりであることを確認してください。 |
 | `sha256: <digest>` | INFO | サマリ表示で計算されたファイルの SHA256 を示します。 | 算出されたハッシュ値(`<digest>`)を控え, 配布後の整合性チェックに利用してください。 |
@@ -127,6 +151,8 @@ create-embedded-kubeconfig.py [-h]
 | `===== end of summary (<label>) =====` | INFO | サマリ表示の終了時に出力されます。 | 特別な対応は不要です。ラベル (`<label>`) を見て処理段階 ( 例: `before embed` / `after embed` )を把握してください。サマリ内容を確認し終えたら次の作業に進んでください。 |
 | `No CA found; falling back to --insecure-skip-tls-verify` | WARNING | 埋め込み対象の CA を取得できなかった際に, TLS 検証をスキップしたことを示します。 | CA 情報を整備し, 可能な限り TLS 検証を有効化した状態で再生成してください。 |
 | `Updated contexts referencing '<old>' to new cluster '<new>'` | INFO | 既存コンテキストが新しいクラスタ名に書き換わった際に表示されます。 | 新しいクラスタ名(`<new>`)が期待どおりであることを確認してください。 |
+| `Modified context name to '<name>'` | INFO | `--context` 指定でコンテキスト名を更新した場合に表示されます。 | 意図したコンテキスト名になっていることを確認してください。 |
+| `Modified user name to '<name>'` | INFO | `--user` 指定でユーザ名を更新した場合に表示されます。 | 意図したユーザ名になっていることを確認してください。 |
 | `Cluster '<name>' not found` | ERROR | 現在のコンテキストが参照するクラスタを管理者用 kubeconfig ファイル(`admin.conf`)から取得できなかった場合に表示されます。 | 管理者用 kubeconfig ファイル(`admin.conf`)内のクラスタ名(`<name>`)と `cluster_name` の対応を確認し, 修正後に再実行してください。 |
 | `No contexts found in kubeconfig` | ERROR | 管理者用 kubeconfig ファイル(`admin.conf`)にコンテキスト定義が含まれていない場合に表示されます。 | 入力 kubeconfig を `kubectl config view --raw` などで確認し, コンテキストを定義してから再実行してください。 |
 | `Unable to determine current context` | ERROR | `current-context` を特定できなかった場合に表示されます。 | 管理者用 kubeconfig ファイル(`admin.conf`)に設定項目(`current-context`)または少なくとも 1 つのコンテキストが定義されていることを確認してください。 |
@@ -134,6 +160,8 @@ create-embedded-kubeconfig.py [-h]
 | `Context spec is missing` | ERROR | コンテキストの `context` フィールドが欠落している場合に表示されます。 | kubeconfig のコンテキスト定義を修正し, クラスタとユーザーを指定してください。 |
 | `No clusters defined in kubeconfig` | ERROR | `clusters` 配列が空の場合に表示されます。 | 入力 kubeconfig にクラスタ定義を追加してから再実行してください。 |
 | `Current context does not reference a cluster` | ERROR | 現在のコンテキストが `cluster` を指さない場合に表示されます。 | コンテキスト定義に `cluster` を設定し, 再実行してください。 |
+| `Current context does not reference a user` | ERROR | 現在のコンテキストが `user` を指さない場合に表示されます。 | コンテキスト定義に `user` を設定し, 再実行してください。 |
+| `No user credentials available to create new user entry` | ERROR | 既存のユーザ情報が取得できず, 新規ユーザを作成できない場合に表示されます。 | 入力 kubeconfig にユーザ認証情報が含まれていることを確認してください。 |
 | `Cluster server endpoint is missing` | ERROR | クラスタ定義から `server` URL が欠落している場合に表示されます。 | 管理者用 kubeconfig ファイル(`admin.conf`)のクラスタ定義に API サーバー URL を追記してください。 |
 | `Unexpected kubeconfig structure` | ERROR | YAML 解析結果が辞書形式でなかった場合に表示されます。 | 管理者用 kubeconfig ファイル(`admin.conf`)を `kubectl config view --raw` で再生成し, 形式が破損していないことを確認してください。 |
 

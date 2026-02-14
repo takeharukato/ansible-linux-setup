@@ -1,0 +1,12 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  ファイル・ディレクトリ作成関連タスク
+#
+
+- name: "make {{ k8s_whereabouts_config_dir }}"
+  file:
+    path: "{{ k8s_whereabouts_config_dir }}"
+    state: directory
+    mode: "755"

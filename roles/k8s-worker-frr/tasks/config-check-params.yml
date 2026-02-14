@@ -7,8 +7,8 @@
 #  k8s_worker_frr 変数の整合性チェックを行う
 #
 ---
-
-- name: RFC 5549 と IPv4 トランスポート IPv6 NLRI が同時有効でないことを確認
+# RFC 5549 と IPv4 トランスポート IPv6 NLRI が同時有効でないことを確認
+- name: "Validate FRR configuration parameters: Ensure RFC 5549 and IPv4 transport IPv6 NLRI are not both enabled"
   assert:
     that:
       - not (k8s_worker_frr.rfc5549_enabled | default(false) and k8s_worker_frr.ipv4_transport_ipv6_nlri_enabled | default(false))

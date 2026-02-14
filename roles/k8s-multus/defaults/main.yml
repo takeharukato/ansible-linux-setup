@@ -1,0 +1,47 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#  ロール固有変数のデフォルト値
+#  group_vars/all/all.yml やhost_varsで上書き可能とするため,
+#  ロール名/defaults/main.yml に定義している
+---
+
+# Kubernetesオペレータユーザ設定
+k8s_operator_user: "kube"
+# Kubernetesオペレータユーザのホームディレクトリ
+k8s_operator_home: "/home/kube"
+# Kubernetesオペレータユーザのデフォルトシェル
+k8s_operator_shell: "/bin/bash"
+# Kubernetesオペレータユーザの所属グループ
+k8s_operator_groups_list: "{{ adm_groups }}"
+
+
+# Multusディレクトリパス
+k8s_multus_config_dir: "{{ k8s_kubeadm_config_store }}/multus"
+
+# Multus CNIを有効化する
+k8s_multus_enabled: false
+# Multus CNIのバージョン(v4.2.3など上流イメージのタグを指定)
+k8s_multus_version: "v4.2.3"
+# Multus Helm Chartのバージョン
+k8s_multus_helm_chart_version: "{{ k8s_multus_version }}"
+# Multus Helm Chartのソースパス (Ansible コントロールノード側のローカル Chart)
+k8s_multus_helm_chart_source: "{{ role_path }}/files/multus-chart"
+# Multus Helm Chartのデプロイ先パス (リモートホスト側の Chart 配置先)
+k8s_multus_helm_chart_path: "{{ k8s_multus_config_dir }}/chart"
+# Multusコンテナイメージのリポジトリ
+k8s_multus_image_repository: "ghcr.io/k8snetworkplumbingwg/multus-cni"
+# Multusコンテナイメージのバージョン
+k8s_multus_image_version: "{{ k8s_multus_version }}"
+# Multus CNI バイナリディレクトリ
+k8s_multus_cni_bin_dir: "/opt/cni/bin"
+# Multus CNI 設定ディレクトリ
+k8s_multus_cni_conf_dir: "/etc/cni/net.d"
+# Multus インストールタイプ (thin or thick)
+k8s_multus_install_type: "thin"
+# Helm再導入前に既存のMultusリソースを削除するか
+k8s_multus_cleanup_resources: true
+# Multusデーモンセット適用マニュフェストのURL (kubectl apply 用)
+k8s_multus_daemonset_manifest_url: "https://raw.githubusercontent.com/k8snetworkplumbingwg/multus-cni/refs/tags/{{ k8s_multus_version }}/deployments/multus-daemonset.yml"
+# multusをkubectl applyで導入する場合はtrueに設定
+k8s_multus_kubectl_apply_enabled: false
