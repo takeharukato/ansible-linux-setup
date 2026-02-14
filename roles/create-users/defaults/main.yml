@@ -5,6 +5,20 @@
 #  group_vars/all/all.yml やhost_varsで上書き可能とするため,
 #  ロール名/defaults/main.yml に定義している
 ---
+# 作成するユーザのリスト
+# 以下のキーを持つ辞書のリストとして定義する:
+#   - name    ユーザ名
+#   - group   ユーザの所属グループ (ユーザと同名のグループを作成する場合は省略可能)
+#   - password ユーザのパスワード (ハッシュ化された文字列を指定する必要がある)
+#   - update_password ユーザのパスワードを更新する条件
+#     - on_create: ユーザが存在しない場合にのみパスワードを設定する
+#     - always: ユーザが存在する場合でもパスワードを更新する
+#   - shell  ユーザのログインシェル (省略した場合は /bin/bash になる)
+#   - home   ユーザのホームディレクトリ (省略した場合は /home/ユーザ名 になる)
+#   - comment ユーザのコメント (ユーザのフルネームなどを指定する)
+#   - email ユーザのメールアドレス (.gitconfigのuser.emailに使用する)
+#   - github ユーザのGitHubアカウント (公開鍵取得処理で使用する)
+users_list: []
 
 # ユーザごとに任意の公開鍵を追記する場合に使用
 # 形式: ユーザ名文字列から.ssh/authorized_keysに追記する公開鍵文字列のリストへのマッピング
@@ -19,3 +33,9 @@
 #     - "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIExampleKeyForBobOne bob@example"
 #     - "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQDBExampleKeyForBobTwo bob@workstation"
 users_authorized_keys: {}
+
+# users_authorized_keysに記載されたユーザがホスト上に存在しない場合に
+# デフォルトパラメータでユーザを自動作成する場合は, trueに設定する
+# true: 存在しないユーザを自動作成する
+# false: 存在しないユーザへの公開鍵追加をスキップする
+auto_user_add_for_users_authorized_keys: false

@@ -29,14 +29,44 @@ enable_firewall: false
 #
 # ユーザ設定
 #
+# 以下のキーを持つ辞書のリストとして定義する:
+#   - name    ユーザ名
+#   - group   ユーザの所属グループ (ユーザと同名のグループを作成する場合は省略可能)
+#   - password ユーザのパスワード (ハッシュ化された文字列を指定する必要がある)
+#   - update_password ユーザのパスワードを更新する条件
+#     - on_create: ユーザが存在しない場合にのみパスワードを設定する
+#     - always: ユーザが存在する場合でもパスワードを更新する
+#   - shell  ユーザのログインシェル (省略した場合は /bin/bash になる)
+#   - home   ユーザのホームディレクトリ (省略した場合は /home/ユーザ名 になる)
+#   - comment ユーザのコメント (ユーザのフルネームなどを指定する)
+#   - email ユーザのメールアドレス (.gitconfigのuser.emailに使用する)
+#   - github ユーザのGitHubアカウント (公開鍵取得処理で使用する)
 users_list:
   - { name: 'user1', group: 'user1', password: "{{ 'user1'|password_hash('sha512') }}", update_password: 'on_create', shell: "/bin/zsh", home: "/home/user1", comment: 'Sample User', email: "user1@example.org", github: 'sampleuser' }
 
-# ユーザごとの追加公開鍵 (必要に応じて設定)
-# 形式: ユーザ名文字列から.ssh/authorized_keysに追記する公開鍵文字列のリストへのマッピング
+#
+# 公開鍵追加設定
+#
+
+# users_authorized_keysに記載されたユーザがホスト上に存在しない場合に
+# デフォルトパラメータでユーザを自動作成する場合は, trueに設定する
+#   true: 存在しないユーザを自動作成する
+#   false: 存在しないユーザへの公開鍵追加をスキップする
+auto_user_add_for_users_authorized_keys: false
+
+# ユーザごとの追加公開鍵リスト ( 必要に応じて設定 )
+#   形式: ユーザ名文字列から.ssh/authorized_keysに追記する公開鍵文字列のリストへのマッピング
+#
+# users_listへのユーザ登録の有無に依らず, users_authorized_keysに記載された公開鍵が
+# 対象ユーザの.ssh/authorized_keysに追加される。
+#
+# ユーザが存在しない場合の動作は auto_user_add_for_users_authorized_keys 変数で制御します。
+#
+# 書式:
 # users_authorized_keys:
 #  "ユーザ名":
 #    - "公開鍵文字列1 (.ssh/authorized_keysに追記する形式)"
+#
 # 例:
 # users_authorized_keys:
 #   "alice":

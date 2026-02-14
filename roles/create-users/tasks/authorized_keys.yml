@@ -3,62 +3,280 @@
 #  Copyright 2020 Takeharu KATO All Rights Reserved.
 #  ユーザごとの公開鍵を authorized_keys に追加登録するタスク
 ---
-# users_authorized_keys から鍵リストを抽出し, 処理対象ユーザを組み立てる
-- name: Build manual authorized key entries
+
+# users_authorized_keys が空の場合は処理をスキップするための
+# フラグ(has_authorized_keys_config)を設定
+- name: Check if users_authorized_keys is defined and not empty
   ansible.builtin.set_fact:
-    # manual_users_with_keys: users_authorized_keys で設定された鍵を持つユーザ情報の一時リスト
-    manual_users_with_keys: "{{ (manual_users_with_keys | default([])) + [ manual_user_dict | combine({'manual_keys': manual_key_list}) ] }}"
-  vars:
-    # manual_key_list: 該当ユーザに定義された users_authorized_keys の鍵リスト
-    manual_user_name: "{{ item.name | default('', true) }}"
-    manual_user_group: "{{ item.group | default(manual_user_name, true) }}"
-    manual_user_home: "{{ item.home | default('/home/' ~ manual_user_name, true) }}"
-    manual_user_shell: "{{ item.shell | default('/bin/bash', true) }}"
-    manual_user_comment: "{{ item.comment | default(manual_user_name, true) }}"
-    manual_user_dict: "{{ item | combine({'name': manual_user_name, 'group': manual_user_group, 'home': manual_user_home, 'shell': manual_user_shell, 'comment': manual_user_comment}, recursive=true) }}"
-    manual_key_list: "{{ users_authorized_keys.get(manual_user_name, []) | default([], true) }}"
-  loop: "{{ users_list | default([], true) }}"
-  loop_control:
-    label: "{{ manual_user_name | default('unknown', true) }}"
-  when:
-    - ( manual_user_name | length ) > 0
-    - ( manual_key_list | default([], true) | length ) > 0
-    - ( users_list | default([], true) | length ) > 0
+    has_authorized_keys_config: "{{ (users_authorized_keys | default({}, true) | length) > 0 }}"
   changed_when: false
 
-# 抽出した鍵を authorized_keys に追記する
-- name: Ensure manual authorized keys are present
-  ansible.builtin.authorized_key:
-    # item.0: users_list のユーザ情報 (辞書)
-    user: "{{ item.0.name }}"
-    # item.1: users_authorized_keys で定義された公開鍵文字列
-    key: "{{ item.1 }}"
-    state: present
-    path: "{{ item.0.home }}/.ssh/authorized_keys"
-  loop: "{{ manual_users_with_keys | default([], true) | subelements('manual_keys') }}"
+# フェーズ1: ユーザ存在確認
+# users_authorized_keys に記載されたユーザがホスト上に存在するか確認する
+# users_authorized_keys変数は辞書形式(ユーザー名をキーとする構造)で定義されているため,
+# dict2itemsフィルターによって[{key: "user1", value: [...]}, {key: "user2", value: [...]}]のような
+# 配列形式に変換し, Ansibleのloopディレクティブで反復処理が可能な形式に変換する。
+# default({}, true)により, 変数が未定義やnullの場合は, 空の辞書を使用するようにしている。
+# authorized_keys_user_checkという変数に以下の結果を登録する:
+#   - item.key: ユーザ名
+#   - item.value: users_authorized_keysで指定された公開鍵のリスト
+#   - ansible_facts.getent_passwd: getent passwdコマンドの結果 (ユーザ情報の辞書)
+#   - skipped: ループがスキップされたかどうかのフラグ
+# 例えば, users_authorized_keysに以下のような定義がある場合:
+# users_authorized_keys:
+#   "alice":
+#     - "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIExampleKeyForAlice alice@example"
+#   "bob":
+#     - "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIExampleKeyForBobOne bob@example"
+#     - "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQDBExampleKeyForBobTwo bob@workstation"
+# ループの各反復で, item.keyは "alice" や "bob" などのユーザ名を表し, item.valueは
+# それぞれのユーザに対応する公開鍵のリストを表す。
+# ループの結果として, authorized_keys_user_checkには各ユーザの存在情報が格納される。
+# 例えば, aliceがホスト上に存在する場合は, authorized_keys_user_checkには, 以下のような要素が含まれる:
+#  {
+#    "item": {
+#      "key": "alice",
+#      "value": ["ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIExampleKeyForAlice alice@example"]
+#    },
+#    "ansible_facts": {
+#      "getent_passwd": {
+#        "alice": {
+#          "name": "alice",
+#          "uid": 1001,
+#          "gid": 1001,
+#          "home": "/home/alice",
+#          "shell": "/bin/bash"
+#        }
+#      }
+#    },
+#    "skipped": false
+#  }
+# 逆に, bobがホスト上に存在しない場合は, authorized_keys_user_checkの該当する要素には,
+# 以下のようにgetent_passwdにbobの情報が存在せず, skippedはfalseとなる。
+#  {
+#    "item": {
+#      "key": "bob",
+#      "value": [
+#        "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIExampleKeyForBobOne bob@example",
+#        "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQDBExampleKeyForBobTwo bob@workstation"
+#      ]
+#    },
+#    "ansible_facts": {
+#      "getent_passwd": {
+#      }
+#   },
+#    "skipped": false
+#  }
+#
+- name: Check if users in users_authorized_keys exist
+  ansible.builtin.getent:
+    database: passwd
+    key: "{{ item.key }}"
+    fail_key: false
+  loop: "{{ users_authorized_keys | default({}, true) | dict2items }}"
   loop_control:
-    label: "{{ item.0.name }}"
+    label: "{{ item.key }}"
   when:
-    - manual_users_with_keys | default([], true) | length > 0
-    - item.0.name is defined
-    - ( item.0.name | default('', true) | length ) > 0
+    - has_authorized_keys_config | default(false, true)
+    - item.key is defined
+    - ( item.key | default('', true) | length ) > 0
+  register: authorized_keys_user_check
+  changed_when: false
+
+# フェーズ2a: 不足ユーザのグループ作成
+# users_authorized_keys に記載されたユーザがホスト上に存在しない場合に, auto_user_add_for_users_authorized_keys が trueの場合はユーザを自動作成する
+# ユーザの作成には ansible.builtin.user モジュールを使用し, 以下のパラメータでユーザを作成する
+#   - name: ユーザ名 (item.item.key)
+#   - group: ユーザと同名のグループ
+- name: Create group for missing users in users_authorized_keys
+  ansible.builtin.group:
+    name: "{{ item.item.key }}"
+    state: present
+  loop: "{{ authorized_keys_user_check.results | default([], true) }}"
+  loop_control:
+    label: "{{ item.item.key | default('unknown', true) }}"
+  when:
+    - has_authorized_keys_config | default(false, true)
+    - auto_user_add_for_users_authorized_keys | default(false, true)
+    - not item.skipped | default(false)
+    - item.ansible_facts is defined
+    - item.ansible_facts.getent_passwd is defined
+    - item.ansible_facts.getent_passwd[item.item.key] is not defined
   become: true
 
-# 追記後にソート・重複排除と権限整備を行う
-- name: Normalize authorized_keys after manual additions
-  ansible.builtin.shell: |
-    set -o pipefail
-    cat "{{ item.home }}/.ssh/authorized_keys" | sort | uniq | sudo -u "{{ item.name }}" tee "{{ item.home }}/.ssh/authorized_keys.tmp" >/dev/null
-    sudo -u "{{ item.name }}" mv "{{ item.home }}/.ssh/authorized_keys.tmp" "{{ item.home }}/.ssh/authorized_keys"
-    sudo chmod 600 "{{ item.home }}/.ssh/authorized_keys"
-    sudo chown "{{ item.name }}:{{ item.group }}" "{{ item.home }}/.ssh/authorized_keys"
-  args:
-    executable: /bin/bash
-  loop: "{{ manual_users_with_keys | default([], true) }}"
+# フェーズ2b: 不足ユーザの作成
+# users_authorized_keys に記載されたユーザがホスト上に存在しない場合に, auto_user_add_for_users_authorized_keys が trueの場合はユーザを自動作成する
+# ユーザの作成には ansible.builtin.user モジュールを使用し, 以下のパラメータでユーザを作成する
+#   - name: ユーザ名 (item.item.key)
+#   - group: ユーザと同名のグループ
+#   - shell: /bin/bash
+#   - home: /home/ユーザ名
+#   - create_home: true
+#   - update_password: on_create
+#   - state: present
+# 新規作成されるユーザはパスワードなしで作成されるため,
+# 以下の条件で使用すること:
+#   - パスワード認証でのログイン不可
+#   - suコマンドでのユーザ切り替え不可
+#   - SSH公開鍵認証のみでログイン可能
+- name: Create missing users in users_authorized_keys
+  ansible.builtin.user:
+    name: "{{ item.item.key }}"
+    group: "{{ item.item.key }}"
+    shell: "/bin/bash"
+    home: "/home/{{ item.item.key }}"
+    create_home: true
+    update_password: on_create
+    state: present
+  loop: "{{ authorized_keys_user_check.results | default([], true) }}"
   loop_control:
-    label: "{{ item.name }}"
+    label: "{{ item.item.key | default('unknown', true) }}"
   when:
-    - ( manual_users_with_keys | default([], true) | length ) > 0
-    - item.name is defined
-    - ( item.name | default('', true) | length ) > 0
+    - has_authorized_keys_config | default(false, true)
+    - auto_user_add_for_users_authorized_keys | default(false, true)
+    - not item.skipped | default(false)
+    - item.ansible_facts is defined
+    - item.ansible_facts.getent_passwd is defined
+    - item.ansible_facts.getent_passwd[item.item.key] is not defined
+  become: true
+
+# フェーズ3a: .ssh ディレクトリ作成
+# .ssh ディレクトリが存在しない場合は作成する
+# 1. 対象ユーザのホームディレクトリに .ssh ディレクトリが存在するか確認し, 存在しない場合は作成する
+# 2. loopディレクティブを使用して, users_authorized_keys に記載されたユーザを処理する
+# 3. when条件で, ユーザが存在する場合, または auto_user_add_for_users_authorized_keys が
+#    trueの場合に処理を実行するようにする
+- name: Ensure .ssh directory exists for users_authorized_keys users
+  ansible.builtin.file:
+    path: "/home/{{ item.item.key }}/.ssh"
+    state: directory
+    owner: "{{ item.item.key }}"
+    group: "{{ item.item.key }}"
+    mode: "0700"
+  loop: "{{ authorized_keys_user_check.results | default([], true) }}"
+  loop_control:
+    label: "{{ item.item.key | default('unknown', true) }}"
+  when:
+    - has_authorized_keys_config | default(false, true)
+    - not item.skipped | default(false)
+    - item.ansible_facts is defined
+    - item.ansible_facts.getent_passwd is defined
+    - (item.ansible_facts.getent_passwd[item.item.key] is defined) or
+      (auto_user_add_for_users_authorized_keys | default(false, true))
+  become: true
+
+# フェーズ3b: authorized_keys ファイルの存在確認と作成
+# .ssh/authorized_keys ファイルが存在しない場合は作成する
+- name: Ensure authorized_keys exists for users_authorized_keys users
+  ansible.builtin.file:
+    path: "/home/{{ item.item.key }}/.ssh/authorized_keys"
+    state: touch
+    owner: "{{ item.item.key }}"
+    group: "{{ item.item.key }}"
+    mode: "0600"
+    modification_time: preserve
+    access_time: preserve
+  loop: "{{ authorized_keys_user_check.results | default([], true) }}"
+  loop_control:
+    label: "{{ item.item.key | default('unknown', true) }}"
+  when:
+    - has_authorized_keys_config | default(false, true)
+    - not item.skipped | default(false)
+    - item.ansible_facts is defined
+    - item.ansible_facts.getent_passwd is defined
+    - (item.ansible_facts.getent_passwd[item.item.key] is defined) or
+      (auto_user_add_for_users_authorized_keys | default(false, true))
+  become: true
+
+# 処理対象ユーザの辞書を構築 (公開鍵を持ち, かつユーザが存在する)
+# authorized_keys_user_check の結果から, users_authorized_keys に記載されたユーザのうち,
+# ホスト上に存在するユーザを抽出して authorized_keys_target_dict という辞書を構築する。
+# authorized_keys_target_dict の形式は以下のようになる:
+# {
+#   "ユーザ名1": ["公開鍵文字列1", "公開鍵文字列2", ...],
+#   "ユーザ名2": ["公開鍵文字列1", "公開鍵文字列2", ...],
+#   ...
+# }
+- name: Build target user dictionary for authorized_keys
+  ansible.builtin.set_fact:
+    authorized_keys_target_dict: >-
+      {{
+        authorized_keys_target_dict | default({}) |
+        combine({item.item.key: users_authorized_keys[item.item.key]})
+      }}
+  loop: "{{ authorized_keys_user_check.results | default([], true) }}"
+  loop_control:
+    label: "{{ item.item.key | default('unknown', true) }}"
+  when:
+    - has_authorized_keys_config | default(false, true)
+    - not item.skipped | default(false)
+    - item.ansible_facts is defined
+    - item.ansible_facts.getent_passwd is defined
+    - (item.ansible_facts.getent_passwd[item.item.key] is defined) or
+      (auto_user_add_for_users_authorized_keys | default(false, true))
+  changed_when: false
+
+# フェーズ4: 公開鍵ファイルの存在を確認し, 存在する場合は公開鍵を追記する
+# 処理内容:
+#   1. 対象ユーザの .ssh/authorized_keys ファイルに
+#      users_authorized_keys で指定された公開鍵を追記する
+#   2. loopディレクティブを使用して, users_authorized_keys に記載されたユーザと公開鍵の組み合わせを処理する
+#
+#  loopディレクティブでは, subelements('value')フィルターによって展開されたデータ構造を
+#  処理する。
+#  item.0は親要素(ユーザー情報を含む辞書)
+#  item.1は子要素(個々の公開鍵文字列)
+#  例えば, user1が2つの公開鍵を持つ場合,
+#  item.0はuser1の情報を含む辞書,
+#  item.1はそれぞれの公開鍵文字列となる。
+- name: Ensure authorized keys are present
+  ansible.builtin.authorized_key:
+    user: "{{ item.0.key }}"
+    key: "{{ item.1 }}"
+    state: present
+    path: "/home/{{ item.0.key }}/.ssh/authorized_keys"
+  loop: "{{ authorized_keys_target_dict | default({}, true) | dict2items | subelements('value') }}"
+  loop_control:
+    label: "{{ item.0.key }}"
+  when:
+    - has_authorized_keys_config | default(false, true)
+    - authorized_keys_target_dict | default({}, true) | length > 0
+  become: true
+
+# フェーズ5: 正規化処理(ソート・重複排除と権限整備)前処理
+# 処理内容:
+#   1. 対象ユーザの .ssh/authorized_keys ファイルの内容を base64エンコードされた形式で取得する
+#   2. 取得した内容は item.content に格納される
+- name: Read authorized_keys file
+  ansible.builtin.slurp:
+    src: "/home/{{ item }}/.ssh/authorized_keys"
+  loop: "{{ authorized_keys_target_dict | default({}, true) | dict2items | map(attribute='key') | list }}"
+  loop_control:
+    label: "{{ item }}"
+  when:
+    - has_authorized_keys_config | default(false, true)
+    - authorized_keys_target_dict | default({}, true) | length > 0
+  register: authorized_keys_content
+  become: true
+
+# フェーズ6: 正規化処理(ソート・重複排除と権限整備)
+# authorized_keys ファイルの内容を正規化するための処理
+# 処理内容:
+#   1. base64エンコードされた既存ファイルの内容(item.content | b64decode)を改行で分割する
+#   2. 空行を除外(select())した後, 重複を削除(unique)してアルファベット順にソート(sort)する
+#   3. 最後に改行で結合し直して, 末尾に改行文字を追加する
+- name: Normalize authorized_keys (sort and remove duplicates)
+  ansible.builtin.copy:
+    content: "{{ (item.content | b64decode).split('\n') | select() | unique | sort | join('\n') }}\n"
+    dest: "/home/{{ item.item }}/.ssh/authorized_keys"
+    owner: "{{ item.item }}"
+    group: "{{ item.item }}"
+    mode: "0600"
+  loop: "{{ authorized_keys_content.results | default([], true) }}"
+  loop_control:
+    label: "{{ item.item }}"
+  when:
+    - has_authorized_keys_config | default(false, true)
+    - authorized_keys_target_dict | default({}, true) | length > 0
+    - not item.skipped | default(false)
   become: true
