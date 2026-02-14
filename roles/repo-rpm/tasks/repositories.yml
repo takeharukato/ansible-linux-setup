@@ -6,7 +6,7 @@
 #
 
 # リポジトリ関連処理の方針:
-# 1. Red Hat Enterprise Linux (RHEL) 9 環境で最初に Extra Packages for Enterprise Linux (EPEL) を再生成する
+# 1. Red Hat Enterprise Linux (RHEL) 系環境で最初に Extra Packages for Enterprise Linux (EPEL) を再生成する
 # 2. 既存の /etc/yum.repos.d/epel*.repo は完全に削除する
 # 3. epel-release の導入後に再度 epel*.repo を削除し重複キーの混入を防ぐ
 # 4. ansible.builtin.yum_repository で epel を新規生成する
@@ -16,12 +16,11 @@
 # 8. 以降で dnf-plugins-core を導入する
 #
 
-# (A) RHEL 9 での事前健全化処理
-- name: Sanitize repository settings on RHEL 9 before any package operations
+# (A) RHEL 系での事前健全化処理
+- name: Sanitize repository settings on RHEL family before any package operations
   when:
     - ansible_facts.os_family == "RedHat"
     - ansible_facts.pkg_mgr == "dnf"
-    - (ansible_facts.distribution_major_version | int) == 9
   block:
 
     - name: remove epel repo files if present
@@ -39,18 +38,18 @@
         regexp: '^repo_gpgcheck='
         state: absent
 
-    # Red Hat Enterprise Linux (RHEL) 9 の CodeReady Builder を有効化する
-    - name: Enable CodeReady Builder on Red Hat Enterprise Linux (RHEL) 9
+    # Red Hat Enterprise Linux (RHEL) の CodeReady Builder を有効化する
+    - name: Enable CodeReady Builder on Red Hat Enterprise Linux (RHEL)
       ansible.builtin.command: >
         subscription-manager repos
-        --enable codeready-builder-for-rhel-9-{{ ansible_facts.architecture }}-rpms
+        --enable codeready-builder-for-rhel-{{ ansible_facts.distribution_major_version }}-{{ ansible_facts.architecture }}-rpms
       register: _crb_rhel
       changed_when: "'enabled' in (_crb_rhel.stdout | default('',true))"
       failed_when: false
       when: ansible_distribution | lower == 'redhat'
 
-    # AlmaLinux 9 または Rocky Linux 9 の CodeReady Linux Builder (CRB) を有効化する
-    - name: Enable CodeReady Linux Builder (CRB) on AlmaLinux or Rocky Linux 9
+    # AlmaLinux または Rocky Linux の CodeReady Linux Builder (CRB) を有効化する
+    - name: Enable CodeReady Linux Builder (CRB) on AlmaLinux or Rocky Linux
       ansible.builtin.command: dnf config-manager --set-enabled crb
       register: _crb_extra
       changed_when: "'enabled' in (_crb_extra.stdout | default('',true))"
@@ -68,7 +67,7 @@
       failed_when: false
 
     # epel-release を Extra Packages for Enterprise Linux (EPEL) を参照せずに導入する
-    - name: Ensure epel-release is present on RHEL 9 without contacting EPEL
+    - name: Ensure epel-release is present on RHEL family without contacting EPEL
       ansible.builtin.dnf:
         name: epel-release
         state: present
@@ -88,12 +87,12 @@
     - name: Configure Extra Packages for Enterprise Linux (EPEL)
       ansible.builtin.yum_repository:
         name: epel
-        description: "Extra Packages for Enterprise Linux 9 - $basearch"
-        metalink: "https://mirrors.fedoraproject.org/metalink?repo=epel-9&arch=$basearch"
+        description: "Extra Packages for Enterprise Linux {{ ansible_facts.distribution_major_version }} - $basearch"
+        metalink: "https://mirrors.fedoraproject.org/metalink?repo=epel-{{ ansible_facts.distribution_major_version }}&arch=$basearch"
         enabled: true
         gpgcheck: true
         repo_gpgcheck: false
-        gpgkey: "file:///etc/pki/rpm-gpg/RPM-GPG-KEY-EPEL-9"
+        gpgkey: "file:///etc/pki/rpm-gpg/RPM-GPG-KEY-EPEL-{{ ansible_facts.distribution_major_version }}"
         skip_if_unavailable: true
         state: present
         file: epel

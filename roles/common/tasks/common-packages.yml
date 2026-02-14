@@ -25,6 +25,16 @@
     - disable_gui
     - "{{ pkg_autoremove_handler }}"
 
+# Google Chrome パッケージが自動作成する .list ファイルを削除
+# （repo-deb ロールで .sources ファイルを使用しているため、重複を防ぐ）
+- name: Remove auto-generated google-chrome.list if present
+  ansible.builtin.file:
+    path: "/etc/apt/sources.list.d/google-chrome.list"
+    state: absent
+  when:
+    - ansible_facts.os_family == 'Debian'
+    - repo_enable_chrome | default(true)
+
 # apt file update
 - name: apt-file update
   shell: |
