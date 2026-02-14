@@ -61,3 +61,108 @@
         enabled: "{{ repo_enable_backports }}"
         signed_by: "{{ debian_archive_keyring }}"
       notify: "apt update"
+
+# Docker Community Editionのキーリングを配置する
+- name: Docker keyring
+  when: repo_enable_docker
+  shell: |
+    curl -fsSL "{{ docker_apt_keyring_url }}" | gpg --dearmor > "{{ docker_apt_keyring }}"
+    chmod 0644 "{{ docker_apt_keyring }}"
+
+# 古いDocker repo形式を削除
+- name: Remove legacy docker repo
+  when: repo_enable_docker
+  ansible.builtin.file:
+    path: "/etc/apt/sources.list.d/docker.list"
+    state: absent
+  notify: "apt_update_repo_deb"
+
+# Docker repo (deb822)を有効にする
+- name: Docker repo (deb822)
+  when: repo_enable_docker
+  ansible.builtin.deb822_repository:
+    name: "docker"
+    types:
+      - "deb"
+    uris: "{{ docker_apt_uri }}"
+    suites: "{{ docker_apt_suite }}"
+    components: "{{ docker_apt_components }}"
+    architectures: "{{ docker_arch_apt }}"
+    enabled: true
+    signed_by: "{{ docker_apt_keyring }}"
+  notify: "apt_update_repo_deb"
+
+# Kubernetesのキーリングを配置する
+- name: Kubernetes keyring
+  when: repo_enable_kubernetes
+  shell: |
+    curl -fsSL "{{ k8s_apt_keyring_url }}" | gpg --dearmor > "{{ k8s_apt_keyring }}"
+    chmod 0644 "{{ k8s_apt_keyring }}"
+
+# 古いKubernetes repo形式を削除
+- name: Remove legacy kubernetes repo
+  when: repo_enable_kubernetes
+  ansible.builtin.file:
+    path: "/etc/apt/sources.list.d/kubernetes.list"
+    state: absent
+  notify: "apt_update_repo_deb"
+
+# Kubernetes repo (deb822)を有効にする
+- name: Kubernetes repo (deb822)
+  when: repo_enable_kubernetes
+  ansible.builtin.deb822_repository:
+    name: "kubernetes"
+    types: "deb"
+    uris: "{{ k8s_apt_uri }}"
+    suites: "{{ k8s_apt_suites }}"
+    components: "{{ k8s_apt_components }}"
+    enabled: true
+    signed_by: "{{ k8s_apt_keyring }}"
+  notify: "apt_update_repo_deb"
+
+# Google Chrome
+- name: Chrome keyring
+  when: repo_enable_chrome
+  shell: |
+    curl -fsSL "{{ chrome_keyring_url }}" | gpg --dearmor > "{{ chrome_keyring_path }}"
+    chmod 0644 "{{ chrome_keyring_path }}"
+
+# 古いChrome repo形式を削除
+- name: Remove legacy google-chrome repo
+  when: repo_enable_chrome
+  ansible.builtin.file:
+    path: "/etc/apt/sources.list.d/google-chrome.list"
+    state: absent
+  notify: "apt_update_repo_deb"
+
+# Chrome repo (deb822)を有効にする
+- name: Chrome repo (deb822)
+  when: repo_enable_chrome
+  ansible.builtin.deb822_repository:
+    name: "google-chrome"
+    types: "deb"
+    uris: "{{ chrome_apt_uri }}"
+    suites: "{{ chrome_apt_suite }}"
+    components: "{{ chrome_apt_components }}"
+    architectures: "{{ chrome_arch_apt }}"
+    enabled: true
+    signed_by: "{{ chrome_keyring_path }}"
+  notify: "apt_update_repo_deb"
+
+# Pinning ( 外部を下げる )
+- name: Pin external origins lower than base
+  ansible.builtin.copy:
+    dest: "/etc/apt/preferences.d/99-external.pref"
+    mode: "0644"
+    content: |
+      Package: *
+      Pin: origin "download.docker.com"
+      Pin-Priority: {{ pin_external|int }}
+
+      Package: *
+      Pin: origin "pkgs.k8s.io"
+      Pin-Priority: {{ pin_external|int }}
+
+      Package: *
+      Pin: origin "dl.google.com"
+      Pin-Priority: {{ pin_external|int }}
