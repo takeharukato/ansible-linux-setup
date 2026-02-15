@@ -4,5 +4,6 @@
 #
 #  ハンドラ定義
 #
+- import_tasks: disable-gui.yml
 - import_tasks: sysctl.yml
 - import_tasks: reboot-node.yml
