@@ -4,7 +4,7 @@
 #
 top=.
 .PHONY: clean distclean run run_common run_user_settings run_create_users \
-	run_devel_packages cloc mk_arc mk_role_arc ansible-lint \
+	run_post_user_create run_devel_packages cloc mk_arc mk_role_arc ansible-lint \
 	run_docker_ce run_ntp_server run_ntp_client run_nfs_server \
 	run_ldap_server run_redmine_server \
 	run_k8s_common run_k8s_ctrl_plane run_k8s_multus run_k8s_whereabouts \
@@ -14,7 +14,6 @@ top=.
 	run_terraform run_kea_dhcp run_radvd run_router_config run_router_clear_rules \
 	run_aide run_frr_basic run_gitlab_server \
 	run_sbom
-
 
 # ansibleのログ表示レベル
 VERBOSE=-vvv
@@ -147,6 +146,9 @@ run_user_settings:
 
 run_create_users:
 	ansible-playbook --tags "create-users" ${OPT_COMMON} 2>&1 |tee build-create-users.log
+
+run_post_user_create:
+	ansible-playbook --tags "post-user-create" ${OPT_COMMON} 2>&1 |tee build-post-user-create.log
 
 run_devel_packages:
 	ansible-playbook --tags "devel-packages" ${OPT_COMMON} 2>&1 |tee build-devel.log

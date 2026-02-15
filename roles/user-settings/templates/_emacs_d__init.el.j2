@@ -40,51 +40,57 @@
 ;; 設定ファイル読み込み
 ;;
 (load "basic-settings.el") ;; 基本設定
-(load "japanese-environment.el") ;; japanese-environment.el
-(load "screen-settings.el") ;; screen-settings.el
-(load "aspell-settings.el") ;; aspell-settings.el
+(load "japanese-environment.el") ;; 日本語環境設定 japanese-environment.el
+
+;;
+;; 以降の設定ファイルは, パッケージを導入作業を含め, 必要に応じて
+;; 利用者側で有効化することを想定している
+;;
+
+;; (load "screen-settings.el") ;; screen-settings.el
+;; (load "aspell-settings.el") ;; aspell-settings.el
 
 ;;
 ;; C言語
 ;;
-(load "c-mode-settings.el") ;; c-mode-settings.el
-(load "bsdc-mode-settings.el") ;; bsdc-mode-settings.el
-(load "linux-c-mode-settings.el") ;; linux-c-mode-settings.el
-(load "hos-c-mode-settings.el") ;; hos-c-mode-settings.el
+;; (load "c-mode-settings.el") ;; c-mode-settings.el
+;; (load "bsdc-mode-settings.el") ;; bsdc-mode-settings.el
+;; (load "linux-c-mode-settings.el") ;; linux-c-mode-settings.el
+;; (load "hos-c-mode-settings.el") ;; hos-c-mode-settings.el
 
 ;;
 ;; 開発環境
 ;;
-(load "cmake-settings.el") ;; cmake-settings.el
-(load "gnu-global-settings.el") ;; gnu-global-settings.el
-(load "gud-settings.el") ;; gud-settings.el
+;; (load "cmake-settings.el") ;; cmake-settings.el
+;; (load "gnu-global-settings.el") ;; gnu-global-settings.el
+;; (load "gud-settings.el") ;; gud-settings.el
 
-(load "markdown-mode-settings.el") ;; markdown-mode-settings.el
-(load "yaml-mode-settings.el") ;; yaml-mode-settings.el
+;; (load "markdown-mode-settings.el") ;; markdown-mode-settings.el
+;; (load "yaml-mode-settings.el") ;; yaml-mode-settings.el
 
-(load "dockerfile-mode-settings.el") ;; dockerfile-mode-settings.el
-(load "docker-compose-mode-settings.el") ;; docker-compose-mode-settings.el
-(load "docker-tramp-mode-settings.el") ;; docker-tramp-mode-settings.el
+;; (load "dockerfile-mode-settings.el") ;; dockerfile-mode-settings.el
+;; (load "docker-compose-mode-settings.el") ;; docker-compose-mode-settings.el
+;; (load "docker-tramp-mode-settings.el") ;; docker-tramp-mode-settings.el
 
 ;;
 ;; C#
 ;;
-(load "c-sharp-mode-settings.el") ;; c-sharp-mode-settings.el
+;; (load "c-sharp-mode-settings.el") ;; c-sharp-mode-settings.el
 
 ;;
 ;; python
 ;;
-(load "python3-settings.el") ;; python3-settings.el
+;; (load "python3-settings.el") ;; python3-settings.el
 
 ;;
 ;; Rust
 ;;
-(load "rust-settings.el") ;; rust-settings.el
+;; (load "rust-settings.el") ;; rust-settings.el
 
 ;;
 ;; latex
 ;;
 
 ;;
-(load "auctex-mode-settings.el") ;; auctex-mode-settings.el
-(load "yatex-mode-setting.el") ;; yatex-mode-setting.el
+;; (load "auctex-mode-settings.el") ;; auctex-mode-settings.el
+;; (load "yatex-mode-setting.el") ;; yatex-mode-setting.el

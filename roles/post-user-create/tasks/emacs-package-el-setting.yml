@@ -1,0 +1,307 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  post-user-create ロール
+#  既存ユーザへのEmacs設定ファイル（オプション）配布タスク
+#
+#  本ファイルは scripts/generate-emacs-settings.sh により自動生成されます
+#  emacs_optional_settings_files の定義を更新した場合は、
+#  このスクリプトを再実行してください。
+
+# ユーザの ~/.emacs.d/user_settings ディレクトリを作成（存在しない場合）
+- name: Create user .emacs.d/user_settings directory
+  vars:
+    outer_user_name: "{{ outer_item.name | default('', true) }}"
+    outer_user_group: "{{ outer_item.group | default(outer_item.name | default('', true), true) }}"
+    outer_user_home: "{{ outer_item.home | default('/home/' ~ (outer_item.name | default('', true)), true) }}"
+  file:
+    path: "{{ outer_user_home }}/.emacs.d/user_settings"
+    state: directory
+    owner: "{{ outer_user_name }}"
+    group: "{{ outer_user_group }}"
+    mode: "0755"
+  when:
+    - ( outer_user_name | length ) > 0
+
+# オプション設定ファイルの配布（テンプレートからユーザホームに直接配置）
+
+# aspell-settings.el
+- name: Deploy aspell-settings.el from template to user home
+  vars:
+    outer_user_name: "{{ outer_item.name | default('', true) }}"
+    outer_user_home: "{{ outer_item.home | default('/home/' ~ (outer_item.name | default('', true)), true) }}"
+  template:
+    src: _emacs_d__aspell-settings.el.j2
+    dest: "{{ outer_user_home }}/.emacs.d/user_settings/aspell-settings.el"
+    owner: "{{ outer_user_name }}"
+    group: "{{ outer_user_name }}"
+    mode: 0644
+  when:
+    - ( outer_user_name | length ) > 0
+
+# auctex-mode-settings.el
+- name: Deploy auctex-mode-settings.el from template to user home
+  vars:
+    outer_user_name: "{{ outer_item.name | default('', true) }}"
+    outer_user_home: "{{ outer_item.home | default('/home/' ~ (outer_item.name | default('', true)), true) }}"
+  template:
+    src: _emacs_d__auctex-mode-settings.el.j2
+    dest: "{{ outer_user_home }}/.emacs.d/user_settings/auctex-mode-settings.el"
+    owner: "{{ outer_user_name }}"
+    group: "{{ outer_user_name }}"
+    mode: 0644
+  when:
+    - ( outer_user_name | length ) > 0
+
+# bsdc-mode-settings.el
+- name: Deploy bsdc-mode-settings.el from template to user home
+  vars:
+    outer_user_name: "{{ outer_item.name | default('', true) }}"
+    outer_user_home: "{{ outer_item.home | default('/home/' ~ (outer_item.name | default('', true)), true) }}"
+  template:
+    src: _emacs_d__bsdc-mode-settings.el.j2
+    dest: "{{ outer_user_home }}/.emacs.d/user_settings/bsdc-mode-settings.el"
+    owner: "{{ outer_user_name }}"
+    group: "{{ outer_user_name }}"
+    mode: 0644
+  when:
+    - ( outer_user_name | length ) > 0
+
+# c-mode-settings.el
+- name: Deploy c-mode-settings.el from template to user home
+  vars:
+    outer_user_name: "{{ outer_item.name | default('', true) }}"
+    outer_user_home: "{{ outer_item.home | default('/home/' ~ (outer_item.name | default('', true)), true) }}"
+  template:
+    src: _emacs_d__c-mode-settings.el.j2
+    dest: "{{ outer_user_home }}/.emacs.d/user_settings/c-mode-settings.el"
+    owner: "{{ outer_user_name }}"
+    group: "{{ outer_user_name }}"
+    mode: 0644
+  when:
+    - ( outer_user_name | length ) > 0
+
+# c-sharp-mode-settings.el
+- name: Deploy c-sharp-mode-settings.el from template to user home
+  vars:
+    outer_user_name: "{{ outer_item.name | default('', true) }}"
+    outer_user_home: "{{ outer_item.home | default('/home/' ~ (outer_item.name | default('', true)), true) }}"
+  template:
+    src: _emacs_d__c-sharp-mode-settings.el.j2
+    dest: "{{ outer_user_home }}/.emacs.d/user_settings/c-sharp-mode-settings.el"
+    owner: "{{ outer_user_name }}"
+    group: "{{ outer_user_name }}"
+    mode: 0644
+  when:
+    - ( outer_user_name | length ) > 0
+
+# cmake-settings.el
+- name: Deploy cmake-settings.el from template to user home
+  vars:
+    outer_user_name: "{{ outer_item.name | default('', true) }}"
+    outer_user_home: "{{ outer_item.home | default('/home/' ~ (outer_item.name | default('', true)), true) }}"
+  template:
+    src: _emacs_d__cmake-settings.el.j2
+    dest: "{{ outer_user_home }}/.emacs.d/user_settings/cmake-settings.el"
+    owner: "{{ outer_user_name }}"
+    group: "{{ outer_user_name }}"
+    mode: 0644
+  when:
+    - ( outer_user_name | length ) > 0
+
+# docker-compose-mode-settings.el
+- name: Deploy docker-compose-mode-settings.el from template to user home
+  vars:
+    outer_user_name: "{{ outer_item.name | default('', true) }}"
+    outer_user_home: "{{ outer_item.home | default('/home/' ~ (outer_item.name | default('', true)), true) }}"
+  template:
+    src: _emacs_d__docker-compose-mode-settings.el.j2
+    dest: "{{ outer_user_home }}/.emacs.d/user_settings/docker-compose-mode-settings.el"
+    owner: "{{ outer_user_name }}"
+    group: "{{ outer_user_name }}"
+    mode: 0644
+  when:
+    - ( outer_user_name | length ) > 0
+
+# docker-tramp-mode-settings.el
+- name: Deploy docker-tramp-mode-settings.el from template to user home
+  vars:
+    outer_user_name: "{{ outer_item.name | default('', true) }}"
+    outer_user_home: "{{ outer_item.home | default('/home/' ~ (outer_item.name | default('', true)), true) }}"
+  template:
+    src: _emacs_d__docker-tramp-mode-settings.el.j2
+    dest: "{{ outer_user_home }}/.emacs.d/user_settings/docker-tramp-mode-settings.el"
+    owner: "{{ outer_user_name }}"
+    group: "{{ outer_user_name }}"
+    mode: 0644
+  when:
+    - ( outer_user_name | length ) > 0
+
+# dockerfile-mode-settings.el
+- name: Deploy dockerfile-mode-settings.el from template to user home
+  vars:
+    outer_user_name: "{{ outer_item.name | default('', true) }}"
+    outer_user_home: "{{ outer_item.home | default('/home/' ~ (outer_item.name | default('', true)), true) }}"
+  template:
+    src: _emacs_d__dockerfile-mode-settings.el.j2
+    dest: "{{ outer_user_home }}/.emacs.d/user_settings/dockerfile-mode-settings.el"
+    owner: "{{ outer_user_name }}"
+    group: "{{ outer_user_name }}"
+    mode: 0644
+  when:
+    - ( outer_user_name | length ) > 0
+
+# gnu-global-settings.el
+- name: Deploy gnu-global-settings.el from template to user home
+  vars:
+    outer_user_name: "{{ outer_item.name | default('', true) }}"
+    outer_user_home: "{{ outer_item.home | default('/home/' ~ (outer_item.name | default('', true)), true) }}"
+  template:
+    src: _emacs_d__gnu-global-settings.el.j2
+    dest: "{{ outer_user_home }}/.emacs.d/user_settings/gnu-global-settings.el"
+    owner: "{{ outer_user_name }}"
+    group: "{{ outer_user_name }}"
+    mode: 0644
+  when:
+    - ( outer_user_name | length ) > 0
+
+# gud-settings.el
+- name: Deploy gud-settings.el from template to user home
+  vars:
+    outer_user_name: "{{ outer_item.name | default('', true) }}"
+    outer_user_home: "{{ outer_item.home | default('/home/' ~ (outer_item.name | default('', true)), true) }}"
+  template:
+    src: _emacs_d__gud-settings.el.j2
+    dest: "{{ outer_user_home }}/.emacs.d/user_settings/gud-settings.el"
+    owner: "{{ outer_user_name }}"
+    group: "{{ outer_user_name }}"
+    mode: 0644
+  when:
+    - ( outer_user_name | length ) > 0
+
+# hos-c-mode-settings.el
+- name: Deploy hos-c-mode-settings.el from template to user home
+  vars:
+    outer_user_name: "{{ outer_item.name | default('', true) }}"
+    outer_user_home: "{{ outer_item.home | default('/home/' ~ (outer_item.name | default('', true)), true) }}"
+  template:
+    src: _emacs_d__hos-c-mode-settings.el.j2
+    dest: "{{ outer_user_home }}/.emacs.d/user_settings/hos-c-mode-settings.el"
+    owner: "{{ outer_user_name }}"
+    group: "{{ outer_user_name }}"
+    mode: 0644
+  when:
+    - ( outer_user_name | length ) > 0
+
+# linux-c-mode-settings.el
+- name: Deploy linux-c-mode-settings.el from template to user home
+  vars:
+    outer_user_name: "{{ outer_item.name | default('', true) }}"
+    outer_user_home: "{{ outer_item.home | default('/home/' ~ (outer_item.name | default('', true)), true) }}"
+  template:
+    src: _emacs_d__linux-c-mode-settings.el.j2
+    dest: "{{ outer_user_home }}/.emacs.d/user_settings/linux-c-mode-settings.el"
+    owner: "{{ outer_user_name }}"
+    group: "{{ outer_user_name }}"
+    mode: 0644
+  when:
+    - ( outer_user_name | length ) > 0
+
+# markdown-mode-settings.el
+- name: Deploy markdown-mode-settings.el from template to user home
+  vars:
+    outer_user_name: "{{ outer_item.name | default('', true) }}"
+    outer_user_home: "{{ outer_item.home | default('/home/' ~ (outer_item.name | default('', true)), true) }}"
+  template:
+    src: _emacs_d__markdown-mode-settings.el.j2
+    dest: "{{ outer_user_home }}/.emacs.d/user_settings/markdown-mode-settings.el"
+    owner: "{{ outer_user_name }}"
+    group: "{{ outer_user_name }}"
+    mode: 0644
+  when:
+    - ( outer_user_name | length ) > 0
+
+# package-settings.el
+- name: Deploy package-settings.el from template to user home
+  vars:
+    outer_user_name: "{{ outer_item.name | default('', true) }}"
+    outer_user_home: "{{ outer_item.home | default('/home/' ~ (outer_item.name | default('', true)), true) }}"
+  template:
+    src: _emacs_d__package-settings.el.j2
+    dest: "{{ outer_user_home }}/.emacs.d/user_settings/package-settings.el"
+    owner: "{{ outer_user_name }}"
+    group: "{{ outer_user_name }}"
+    mode: 0644
+  when:
+    - ( outer_user_name | length ) > 0
+
+# python3-settings.el
+- name: Deploy python3-settings.el from template to user home
+  vars:
+    outer_user_name: "{{ outer_item.name | default('', true) }}"
+    outer_user_home: "{{ outer_item.home | default('/home/' ~ (outer_item.name | default('', true)), true) }}"
+  template:
+    src: _emacs_d__python3-settings.el.j2
+    dest: "{{ outer_user_home }}/.emacs.d/user_settings/python3-settings.el"
+    owner: "{{ outer_user_name }}"
+    group: "{{ outer_user_name }}"
+    mode: 0644
+  when:
+    - ( outer_user_name | length ) > 0
+
+# rust-settings.el
+- name: Deploy rust-settings.el from template to user home
+  vars:
+    outer_user_name: "{{ outer_item.name | default('', true) }}"
+    outer_user_home: "{{ outer_item.home | default('/home/' ~ (outer_item.name | default('', true)), true) }}"
+  template:
+    src: _emacs_d__rust-settings.el.j2
+    dest: "{{ outer_user_home }}/.emacs.d/user_settings/rust-settings.el"
+    owner: "{{ outer_user_name }}"
+    group: "{{ outer_user_name }}"
+    mode: 0644
+  when:
+    - ( outer_user_name | length ) > 0
+
+# screen-settings.el
+- name: Deploy screen-settings.el from template to user home
+  vars:
+    outer_user_name: "{{ outer_item.name | default('', true) }}"
+    outer_user_home: "{{ outer_item.home | default('/home/' ~ (outer_item.name | default('', true)), true) }}"
+  template:
+    src: _emacs_d__screen-settings.el.j2
+    dest: "{{ outer_user_home }}/.emacs.d/user_settings/screen-settings.el"
+    owner: "{{ outer_user_name }}"
+    group: "{{ outer_user_name }}"
+    mode: 0644
+  when:
+    - ( outer_user_name | length ) > 0
+
+# yaml-mode-settings.el
+- name: Deploy yaml-mode-settings.el from template to user home
+  vars:
+    outer_user_name: "{{ outer_item.name | default('', true) }}"
+    outer_user_home: "{{ outer_item.home | default('/home/' ~ (outer_item.name | default('', true)), true) }}"
+  template:
+    src: _emacs_d__yaml-mode-settings.el.j2
+    dest: "{{ outer_user_home }}/.emacs.d/user_settings/yaml-mode-settings.el"
+    owner: "{{ outer_user_name }}"
+    group: "{{ outer_user_name }}"
+    mode: 0644
+  when:
+    - ( outer_user_name | length ) > 0
+
+# yatex-mode-setting.el
+- name: Deploy yatex-mode-setting.el from template to user home
+  vars:
+    outer_user_name: "{{ outer_item.name | default('', true) }}"
+    outer_user_home: "{{ outer_item.home | default('/home/' ~ (outer_item.name | default('', true)), true) }}"
+  template:
+    src: _emacs_d__yatex-mode-setting.el.j2
+    dest: "{{ outer_user_home }}/.emacs.d/user_settings/yatex-mode-setting.el"
+    owner: "{{ outer_user_name }}"
+    group: "{{ outer_user_name }}"
+    mode: 0644
+  when:
+    - ( outer_user_name | length ) > 0

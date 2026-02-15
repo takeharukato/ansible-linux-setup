@@ -1,0 +1,24 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  設定関連タスク
+#
+---
+
+#
+# install-emacs-packages.sh
+#
+# Emacs パッケージインストールスクリプトを作成する
+# このスクリプトは post-user-create ロール独自の管理下にあり,
+# create_user_emacs_package_list で指定されたパッケージをインストール対象とする
+- name: Create /etc/skel/bin/install-emacs-packages.sh
+  template:
+    src: install-emacs-packages.sh.j2
+    dest: /etc/skel/bin/install-emacs-packages.sh
+    owner: root
+    group: root
+    mode: 0755
+    backup: no
+  when:
+    - create_emacs_package_install_script|default(false)

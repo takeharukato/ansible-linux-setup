@@ -38,13 +38,15 @@ Host {{ host.name }}.local
 {% endfor %}
 {% for host in dns_host_list %}
 Host {{ host.name }}.{{ dns_domain }}
-{% if host.name == router_host %}
-   #
-   # 旧形式の鍵を受け付けるように設定
-   #
-   KexAlgorithms +diffie-hellman-group14-sha1
-   HostKeyAlgorithms=+ssh-rsa
-   PubkeyAcceptedAlgorithms=+ssh-rsa
+{% if ssh_legacy_key_hosts is defined and (ssh_legacy_key_hosts | default([], true) | length) > 0 %}
+{% if host.name in ssh_legacy_key_hosts %}
+  #
+  # 旧形式の鍵を受け付けるように設定
+  #
+  KexAlgorithms +diffie-hellman-group14-sha1
+  HostKeyAlgorithms=+ssh-rsa
+  PubkeyAcceptedAlgorithms=+ssh-rsa
+{% endif %}
 {% endif %}
 {% endfor %}
 Host github.com

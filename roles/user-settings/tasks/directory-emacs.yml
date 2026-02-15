@@ -1,0 +1,74 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#  Emacs関連ファイル・ディレクトリ作成関連タスク
+
+#
+# emacs.dのディレクトリスケルトン
+#
+- name: Create /etc/skel/.emacs.d
+  file:
+    path: "/etc/skel/.emacs.d"
+    state: directory
+    owner: "root"
+    group: "root"
+    mode: "700"
+
+#
+# emacs.d/user_settings/のディレクトリスケルトン
+#
+- name: Create /etc/skel/.emacs.d/user_settings
+  file:
+    path: "/etc/skel/.emacs.d/user_settings"
+    state: directory
+    owner: "root"
+    group: "root"
+    mode: "700"
+
+#
+#  init.elのスケルトン
+#
+- name: Deploy a .emacs.d/init.el
+  template:
+    src: _emacs_d__init.el.j2
+    dest: /etc/skel/.emacs.d/init.el
+    owner: root
+    group: root
+    mode: 0644
+    backup: no
+
+#
+# proxy-settings.elのスケルトン
+#
+- name: Deploy a .emacs.d/user_settings/proxy-settings.el
+  template:
+    src: _emacs_d__proxy-settings.el.j2
+    dest: /etc/skel/.emacs.d/user_settings/proxy-settings.el
+    owner: root
+    group: root
+    mode: 0644
+    backup: no
+
+#
+# basic-settings.elのスケルトン
+#
+- name: Deploy a .emacs.d/user_settings/basic-settings.el
+  template:
+    src: _emacs_d__basic-settings.el.j2
+    dest: /etc/skel/.emacs.d/user_settings/basic-settings.el
+    owner: root
+    group: root
+    mode: 0644
+    backup: no
+
+#
+# japanese-environment.elのスケルトン
+#
+- name: Deploy a .emacs.d/user_settings/japanese-environment.el
+  template:
+    src: _emacs_d__japanese-environment.el.j2
+    dest: /etc/skel/.emacs.d/user_settings/japanese-environment.el
+    owner: root
+    group: root
+    mode: 0644
+    backup: no

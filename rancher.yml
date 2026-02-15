@@ -20,10 +20,12 @@
       tags: ntp-client
     - role: user-settings
       tags: user-settings
-    - role: docker-ce
-      tags: docker-ce
     - role: create-users
       tags: create-users
+    - role: post-user-create
+      tags: post-user-create
+    - role: docker-ce
+      tags: docker-ce
     - role: k8s-common
       tags: k8s-common
     - role: rancher

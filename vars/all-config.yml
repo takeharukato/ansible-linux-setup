@@ -468,23 +468,6 @@ gitlab_backup_mount_point: "/mnt"
 # NFSマウントポイント配下のGitlabバックアップ配置先ディレクトリ
 gitlab_backup_dir_on_nfs: "/Linux/Gitlab"
 
-#
-# emacsのパッケージ(ユーザ毎にインストールする)
-#
-create_user_emacs_package_list:
-  - docker
-  - dockerfile-mode
-  - docker-compose-mode
-  - tramp-container
-  - counsel-tramp
-  - rust-mode
-  - csharp-mode
-  - auctex
-  - cmake-mode
-  - migemo
-  - plantuml-mode
-  - yaml-mode
-
 # Terraformをインストールする場合は true
 terraform_enabled: false
 

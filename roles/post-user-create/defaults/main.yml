@@ -1,0 +1,56 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  post-user-create ロール固有変数のデフォルト値
+#  ユーザ作成後に実行される操作に関連する変数を定義する
+#
+#  group_vars/all/all.yml やhost_varsで上書き可能とするため,
+#  ロール名/defaults/main.yml に定義している
+---
+
+#
+# Emacs関連設定
+#
+
+# 追加インストールするEmacs用パッケージリスト
+# create_emacs_package_install_scriptがtrueの場合,
+# create_user_emacs_package_listで指定したパッケージをインストールする
+create_user_emacs_package_list: []
+
+# emacsパッケージインストールスクリプトを作成する場合は, trueを指定する
+# create_user_emacs_package_listが空でなければ自動的にtrueになる
+# 無条件にemacsパッケージインストールスクリプトを作成したい場合は,
+# vars/all-config.ymlやhost_varsでtrueを指定する
+create_emacs_package_install_script: "{{ create_user_emacs_package_list | length > 0 }}"
+
+# オプション Emacs 設定ファイル（テンプレートベース）
+# post-user-create ロールがこれらのファイルを各ユーザホームに配置する
+emacs_optional_settings_files:
+  - aspell-settings.el
+  - auctex-mode-settings.el
+  - bsdc-mode-settings.el
+  - c-mode-settings.el
+  - c-sharp-mode-settings.el
+  - cmake-settings.el
+  - docker-compose-mode-settings.el
+  - docker-tramp-mode-settings.el
+  - dockerfile-mode-settings.el
+  - gnu-global-settings.el
+  - gud-settings.el
+  - hos-c-mode-settings.el
+  - linux-c-mode-settings.el
+  - markdown-mode-settings.el
+  - package-settings.el
+  - python3-settings.el
+  - rust-settings.el
+  - screen-settings.el
+  - yaml-mode-settings.el
+  - yatex-mode-setting.el
+
+#
+# ユーザ情報
+#
+
+# ユーザ情報リスト
+users_list: []

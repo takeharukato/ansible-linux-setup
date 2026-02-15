@@ -15,18 +15,6 @@
     mode: "755"
 
 #
-# install-emacs-packages.sh
-#
-- name: Create bin/install-emacs-packages.sh
-  template:
-    src: install-emacs-packages.sh.j2
-    dest: /etc/skel/bin/install-emacs-packages.sh
-    owner: root
-    group: root
-    mode: 0755
-    backup: no
-
-#
 # clean-all-docker-images.sh
 #
 - name: Create bin/clean-all-docker-images.sh
@@ -37,6 +25,8 @@
     group: root
     mode: 0755
     backup: no
+  when:
+    - create_docker_image_operation_script|default(false)
 
 #
 # run-docker.sh
@@ -49,3 +39,5 @@
     group: root
     mode: 0755
     backup: no
+  when:
+    - create_docker_image_operation_script|default(false)
