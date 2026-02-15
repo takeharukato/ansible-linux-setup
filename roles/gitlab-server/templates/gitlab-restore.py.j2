@@ -33,31 +33,30 @@ GitLab公式のリストアコマンドによる復元処理を実行する。
 3. バックアップアーカイブをGitLabバックアップディレクトリに配置する。
 4. pumaとsidekiqサービスを停止する。
 5. gitlab-backup restore コマンドを実行して復元処理を行う。
-6. gitlab-ctl reconfigure と gitlab-ctl start を実行してGitLabを再構成し起動する。
-7. pumaとsidekiqサービスが稼働状態になるのを待機する。
+6. gitlab-ctl reconfigureを実行してGitLabを再構成する(--skip-reconfigureで省略可)。
+7. gitlab-ctl start を実行してGitLabを起動する。
+8. pumaとsidekiqサービスが稼働状態になるのを待機する。
 
 実行例:
- # /srv/gitlab/scripts/gitlab-restore.py --verbose /srv/gitlab/daily-backup/gitlab-backup.tar.gz
- Restoring configuration files...
-   Restored: gitlab.rb with uid={{gitlab_user_id}}, gid={{gitlab_group_id}}
-   Restored: gitlab-secrets.json with uid={{gitlab_user_id}}, gid={{gitlab_group_id}}
- Restored 2 configuration file(s)
- Staged backup archive: /srv/gitlab/data/backups/1765706413_2025_12_14_18.6.2_gitlab_backup.tar
- Stopping puma and sidekiq services...
- Detected puma state 'down' via 'down: puma:'
- Detected sidekiq state 'down' via 'down: sidekiq:'
- Restoring backup ID 1765706413_2025_12_14_18.6.2...
- Reconfiguring and starting GitLab...
- Waiting for puma and sidekiq services to be running...
- Detected puma state 'run' via 'run: puma:'
- Detected sidekiq state 'run' via 'run: sidekiq:'
- Restore completed successfully
-
-設定ファイルの復元をスキップする実行例:
- # /srv/gitlab/scripts/gitlab-restore.py --skip-config --verbose /srv/gitlab/daily-backup/gitlab-backup.tar.gz
- Skipping configuration files restoration
- Staged backup archive: /srv/gitlab/data/backups/1765706413_2025_12_14_18.6.2_gitlab_backup.tar
- (以降は通常と同じ)
+ $ sudo /srv/gitlab/scripts/gitlab-restore.py --verbose gitlab-backup.tar.gz
+Detected git user from container: uid=998, gid=998
+Restoring configuration files...
+Restoring configuration files to /srv/gitlab/config...
+  Restored: gitlab-secrets.json with uid=998, gid=998
+  Restored: gitlab.rb with uid=998, gid=998
+Restored 2 configuration file(s)
+Staged backup archive: /srv/gitlab/data/backups/1771092024_2026_02_14_18.6.2_gitlab_backup.tar
+Stopping puma and sidekiq services...
+Detected puma state 'down' via 'down: puma:'
+Detected sidekiq state 'down' via 'down: sidekiq:'
+Restoring backup ID 1771092024_2026_02_14_18.6.2...
+Reconfiguring GitLab after restore by running 'gitlab-ctl reconfigure'...
+Reconfiguration completed
+Starting GitLab...
+Waiting for puma and sidekiq services to be running...
+Detected puma state 'run' via 'run: puma:'
+Detected sidekiq state 'run' via 'run: sidekiq:'
+Restore completed successfully
 """
 
 from __future__ import annotations
@@ -126,6 +125,8 @@ SERVICE_RUN_PATTERN_TEMPLATE: Final[str] = r"^\s*(?:ok:\s+)?run:\s+{service}(?::
 # GitLab のデフォルト UID/GID
 GITLAB_UID: Final[int] = {{gitlab_user_id|default(998)}}
 GITLAB_GID: Final[int] = {{gitlab_group_id|default(998)}}
+# GitLabコンテナからUID/GIDを検出する際のタイムアウト時間(秒)
+GITLAB_UID_GID_DETECT_TIMEOUT: Final[float] = 5.0
 
 def parse_args() -> argparse.Namespace:
     """復元スクリプトの引数を解析する。
@@ -159,6 +160,8 @@ def parse_args() -> argparse.Namespace:
                         help="Seconds to wait for service state transitions (default: %(default)s)")
     parser.add_argument("--skip-config", action="store_true",
                         help="Skip restoring configuration files (gitlab.rb, gitlab-secrets.json), (default: %(default)s)")
+    parser.add_argument("--skip-reconfigure", action="store_true",
+                        help="Skip 'gitlab-ctl reconfigure' after restore (default: %(default)s)")
     parser.add_argument("--verbose", action="store_true",
                         help="Enable verbose logging during state checks (default: %(default)s)")
     return parser.parse_args()
@@ -186,11 +189,12 @@ def abort(message: str, exit_code: int = 1) -> NoReturn:
     sys.exit(exit_code)
 
 
-def run_command(command: list[str]) -> subprocess.CompletedProcess[str]:
+def run_command(command: list[str], timeout: float | None = None) -> subprocess.CompletedProcess[str]:
     """サブプロセスを実行して結果を取得する。
 
     Args:
         command (list[str]): 実行するコマンドと引数。
+        timeout (float | None): タイムアウト時間(秒)。Noneの場合は無制限。
 
     Returns:
         subprocess.CompletedProcess[str]: 実行結果情報。
@@ -201,7 +205,7 @@ def run_command(command: list[str]) -> subprocess.CompletedProcess[str]:
         'ok'
     """
 
-    return subprocess.run(command, capture_output=True, text=True)
+    return subprocess.run(command, capture_output=True, text=True, timeout=timeout)
 
 
 def ensure_file(path: Path) -> None:
@@ -442,6 +446,7 @@ def docker_exec(
     *args: str,
     interactive: bool = False,
     tty: bool = False,
+    timeout: float | None = None,
 ) -> subprocess.CompletedProcess[str]:
     """docker exec を実行してコマンド結果を取得する。
 
@@ -449,6 +454,9 @@ def docker_exec(
         docker_cli (str): dockerコマンドのパス。
         container (str): 対象コンテナ名。
         *args (str): コンテナ内で実行するコマンド。
+        interactive (bool): True の場合, 標準入力を割り当てて実行する。
+        tty (bool): True の場合, 擬似TTYを割り当てて実行する。
+        timeout (float | None): タイムアウト時間(秒)。Noneの場合は無制限。
 
     Returns:
         subprocess.CompletedProcess[str]: 実行結果。
@@ -475,7 +483,7 @@ def docker_exec(
     command.extend(args)
 
     # コマンドを実行して結果を返す
-    return run_command(command)
+    return run_command(command, timeout=timeout)
 
 
 def docker_exec_checked(
@@ -485,6 +493,7 @@ def docker_exec_checked(
     expected_codes: Sequence[int] | None = None,
     interactive: bool = False,
     tty: bool = False,
+    timeout: float | None = None,
 ) -> str:
     """docker exec の結果を検証して標準出力を返す。
 
@@ -495,6 +504,7 @@ def docker_exec_checked(
         expected_codes (Sequence[int] | None): 許容する終了コード。
         interactive (bool): True の場合, 標準入力を割り当てて実行する。
         tty (bool): True の場合, 擬似TTYを割り当てて実行する。
+        timeout (float | None): タイムアウト時間(秒)。Noneの場合は無制限。
 
     Returns:
         str: 標準出力と標準エラーを結合した文字列。
@@ -516,6 +526,7 @@ def docker_exec_checked(
         *args,
         interactive=interactive,
         tty=tty,
+        timeout=timeout,
     )
 
     # 終了コードを検証する
@@ -550,7 +561,7 @@ def get_gitlab_uid_gid(docker_cli: str, container: str, verbose: bool = False) -
             [docker_cli, "exec", container, "id", "git"],
             capture_output=True,
             text=True,
-            timeout=5,
+            timeout=GITLAB_UID_GID_DETECT_TIMEOUT,
         )
 
         if result.returncode == 0:
@@ -753,7 +764,10 @@ def main() -> None:
 
         # バックアップ復元処理を非対話的に実行する。
         # GITLAB_ASSUME_YES=1を指定することで対話確認をスキップする。
+        # DISABLE_EXTENSION_VERSIONS_CHECK=trueを指定することで、PostgreSQL拡張機能の
+        # 所有者チェックとバージョンチェックを無効化する。
         # See: https://docs.gitlab.com/omnibus/gitlab-ctl.html#gitlab-backup-restore
+        # See: https://docs.gitlab.com/ee/administration/backup_restore/restore_gitlab.html
 
         if args.verbose:
             print(f"Restoring backup ID {metadata['backup_id']}...")
@@ -763,15 +777,26 @@ def main() -> None:
             args.container,
             "env",
             "GITLAB_ASSUME_YES=1",
+            "DISABLE_EXTENSION_VERSIONS_CHECK=true",
             "gitlab-backup",
             "restore",
             f"BACKUP={metadata['backup_id']}",
         )
 
-        # 復元後にGitLabを再構成してサービスを起動する
+        # 復元後にGitLabを再構成する
+        if not args.skip_reconfigure:
+            if args.verbose:
+                print("Reconfiguring GitLab after restore by running 'gitlab-ctl reconfigure'...")
+            docker_exec_checked(args.docker_cli, args.container, "gitlab-ctl", "reconfigure", timeout=600.0)
+            if args.verbose:
+                print("Reconfiguration completed")
+        else:
+            if args.verbose:
+                print("Skipping GitLab reconfiguration after restore since --skip-reconfigure option is specified.")
+
+        # GitLabサービスを起動する
         if args.verbose:
-            print("Reconfiguring and starting GitLab...")
-        docker_exec_checked(args.docker_cli, args.container, "gitlab-ctl", "reconfigure")
+            print("Starting GitLab...")
         docker_exec_checked(args.docker_cli, args.container, "gitlab-ctl", "start")
 
         # pumaとsidekiqサービスが稼働状態になるのを待機する

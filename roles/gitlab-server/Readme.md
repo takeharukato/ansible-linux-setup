@@ -450,6 +450,7 @@ GitLabのバックアップを作成およびアーカイブする
                     [--check-interval CHECK_INTERVAL]
                     [--timeout TIMEOUT]
                     [--skip-config]
+                    [--skip-reconfigure]
                     [--verbose]
                     bundle
 
@@ -465,8 +466,11 @@ GitLabのバックアップを作成およびアーカイブする
   --config-dir CONFIG_DIR GitLab設定ディレクトリを指定する。未指定時は, `gitlab_config_dir` 変数の内容に従って設定される。 規定値は, `/srv/gitlab/config` となる。
   --check-interval CHECK_INTERVAL サービス状態チェック間隔 ( 単位:秒, 規定値は, 3 秒 )
   --timeout TIMEOUT サービス状態遷移待機時間 ( 単位:秒, 規定値は, 120 秒)
-  --skip-config 設定ファイル ( gitlab.rb, gitlab-secrets.json ) の復元をスキップする
-  (規定値は, `false`, 設定ファイル ( gitlab.rb, gitlab-secrets.json ) の復元を試みる)
+  --skip-config 設定ファイル ( gitlab.rb), Gitlabの機密情報ファイル(gitlab-secrets.json ) の復元をスキップする
+  (規定値は, `false`, 設定ファイル ( gitlab.rb), Gitlabの機密情報ファイル(gitlab-secrets.json ) の復元を試みる)
+  --skip-reconfigure (`gitlab-ctl reconfigure`による)再設定処理(設定ファイル(gitlab.rb)を反映する処理)をスキップする(規定値は, `false`, 再設定処理 (`gitlab-ctl reconfigure`)を実行する)。
+    gitlab.rbを永続化しない運用(キャッシュ内の設定のみで動作し, gitlab.rbへの書き戻しを行わない設定で動作する環境)の場合で, かつ, DBの内容に変更がない場合, 例えば, gitlab-secrets.jsonのみの変更の場合に使用することを想定したオプションである。
+    本ロールでは, `docker-compose.yml`内で, 環境変数を用いて, Gitlabの動作オプションを指定しているため, 本オプションを使用する必要はない, また, Gitlabの公式手順でもDB更新後の再構築を行うことが推奨されているため, 通常運用では使用しないオプションであるため, 規定値は, `false`となっている。
   --verbose リストア動作中の詳細ログ出力を有効化 (規定値は, `false`, 詳細ログを表示しない)
 ```
 
