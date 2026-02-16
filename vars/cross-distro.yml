@@ -54,6 +54,17 @@ adm_groups_rhel:
 
 adm_groups: "{{ (ansible_facts.os_family == 'Debian') | ternary(adm_groups_debian, adm_groups_rhel) }}"
 
+########################################################################################
+# getent passwd フィールドインデックス
+########################################################################################
+
+# getent passwd 戻り値の GECOS フィールドを指定するインデックス
+# passwd データベースフォーマット: [password(0), uid(1), gid(2), gecos(3), home(4), shell(5)]
+# 現在のところ Debian/RHEL で同一だが, 将来の差分に備えて分離して定義する
+getent_passwd_field_gecos_debian: 3
+getent_passwd_field_gecos_rhel:   3
+getent_passwd_field_gecos: "{{ (ansible_facts.os_family == 'Debian') | ternary(getent_passwd_field_gecos_debian, getent_passwd_field_gecos_rhel) }}"
+
 ##################################################################################
 # kubectl シェル補完
 ##################################################################################

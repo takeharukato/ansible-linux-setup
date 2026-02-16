@@ -49,8 +49,9 @@
   when:
     - user_settings_create_aspell_skel|default(false)
 
-# git関連ファイル, ディレクトリ作成関連タスク
-- include_tasks: directory-git.yml
+# git関連ファイル作成タスク
+# /etc/skelに.gitignoreを配置
+- include_tasks: directory-gitignore.yml
   when:
     - user_settings_create_git_skel|default(false)
 

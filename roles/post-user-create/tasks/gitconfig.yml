@@ -1,0 +1,32 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#  .gitconfig作成関連タスク
+
+#
+# システムからユーザ情報を取得 (GECOS フィールド取得のため)
+#
+- name: Gather user information from system
+  ansible.builtin.getent:
+    database: passwd
+  become: true
+
+#
+# 各ユーザのホームディレクトリに.gitconfigを配置
+#
+- name: Deploy .gitconfig for each user
+  vars:
+    user_home: "{{ item.home | default('/home/' ~ item.name, true) }}"
+  template:
+    src: _gitconfig.j2
+    dest: "{{ user_home }}/.gitconfig"
+    owner: "{{ item.name }}"
+    group: "{{ item.name }}"
+    mode: 0644
+    backup: no
+  loop: "{{ users_list | default([], true) }}"
+  when:
+    - ( users_list | default([], true) | length ) > 0
+    - item.name is defined
+    - ( item.name | default('', true) | length ) > 0
+  become: true

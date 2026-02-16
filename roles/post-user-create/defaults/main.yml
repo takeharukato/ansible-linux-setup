@@ -54,3 +54,13 @@ emacs_optional_settings_files:
 
 # ユーザ情報リスト
 users_list: []
+
+#
+# Git関連設定
+#
+
+# 各ユーザのホームディレクトリに .gitconfig を作成する場合は, trueを指定する
+post_user_create_gitconfig_enabled: false
+# .gitconfig の user.name にログイン名を使用する場合は, trueを指定する
+# false の場合は, システムのユーザエントリから GECOS フィールドを取得して使用する
+post_user_create_gitconfig_use_login_name: true

@@ -1,22 +1,10 @@
 #  -*- coding:utf-8 mode:yaml -*-
 #  Ansible playbook
 #  Copyright 2020 Takeharu KATO All Rights Reserved.
-#  git関連ファイル・ディレクトリ作成関連タスク
+#  .gitignore作成関連タスク
 
 #
-# .gitconfigのスケルトン
-#
-- name: Deploy a .gitconfig
-  template:
-    src: _gitconfig.j2
-    dest: /etc/skel/.gitconfig
-    owner: root
-    group: root
-    mode: 0644
-    backup: no
-
-#
-# .gitignoreのスケルトン
+# /etc/skel/.gitignoreのスケルトン
 #
 - name: Deploy a .gitignore
   template:

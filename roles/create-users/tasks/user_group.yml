@@ -98,23 +98,6 @@
     - ( item.github | default('', true) | length ) > 0
   become: true
 
-# .gitconfig
-- name: .gitconfig for user
-  vars:
-    user_home: "{{ item.home | default('/home/' ~ item.name, true) }}"
-  template:
-    src: _gitconfig.j2
-    dest: "{{ user_home }}/.gitconfig"
-    owner: "{{ item.name }}"
-    group: "{{ item.name }}"
-    backup: no
-  loop: "{{ users_list | default([], true) }}"
-  when:
-    - ( users_list | default([], true) | length ) > 0
-    - item.name is defined
-    - ( item.name | default('', true) | length ) > 0
-  become: true
-
 # 管理系グループを作成しておく ( 存在していれば無変更 )
 - name: Ensure admin groups exist
   ansible.builtin.group:

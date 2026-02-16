@@ -16,7 +16,7 @@
 - directory-screen.yml: screen用の設定ファイル (`.screenrc`) を `/etc/skel` に展開します (`user_settings_create_screen_skel` で制御)。
 - directory-tmux.yml: tmux用の設定ファイル (`.tmux.conf`) を `/etc/skel` に展開します (`user_settings_create_tmux_skel` で制御)。
 - directory-aspell.yml: aspell用の設定ファイル (`.aspell.conf`) を `/etc/skel` に展開します (`user_settings_create_aspell_skel` で制御)。
-- directory-git.yml: Git用の設定ファイル (`.gitconfig`) を `/etc/skel` に展開します (`user_settings_create_git_skel` で制御)。オプションで `.gitignore` も展開できます (`user_settings_create_gitignore_on_homedir_skel` で制御)。
+- directory-gitignore.yml: Git用の無視ファイルリスト (`.gitignore`) を `/etc/skel` に展開します (`user_settings_create_git_skel` および `user_settings_create_gitignore_on_homedir_skel` で制御)。
 - directory-gdb.yml: GDB用の設定ファイル (`.gdbinit`) を `/etc/skel` に展開します (`user_settings_create_gdb_skel` で制御)。
 - directory-home-backup-script.yml: ホームディレクトリバックアップスクリプトを `/usr/local/bin/backup-home` に配置します (`user_settings_backup_home_script_enabled` および関連変数で制御)。
 - directory-emacs.yml: `/etc/skel/.emacs.d` ツリーを作成し, `init.el` と必須設定ファイル (`proxy-settings.el`, `basic-settings.el`, `japanese-environment.el`) を展開します (`user_settings_create_emacs_skel` で制御)。
@@ -47,7 +47,7 @@ Emacs パッケージの管理 ( インストール対象パッケージの指�
 | `user_settings_create_screen_skel` | `false` | screen用の設定ファイルを作成する場合は `true` を指定します。 |
 | `user_settings_create_tmux_skel` | `false` | tmux用の設定ファイルを作成する場合は `true` を指定します。 |
 | `user_settings_create_aspell_skel` | `false` | aspell用の設定ファイルを作成する場合は `true` を指定します。 |
-| `user_settings_create_git_skel` | `false` | Git用の設定ファイル (`.gitconfig`) を作成する場合は `true` を指定します。 |
+| `user_settings_create_git_skel` | `false` | Git用の設定ファイル (`.gitignore`) を `/etc/skel` に作成する場合は `true` を指定します。 |
 | `user_settings_create_gitignore_on_homedir_skel` | `false` | デフォルトの `.gitignore` をホームディレクトリ直下 (`/etc/skel/.gitignore`) に作成する場合は `true` を指定します。 |
 | `user_settings_create_gdb_skel` | `false` | GDB用の設定ファイルを作成する場合は `true` を指定します。 |
 | `user_settings_create_emacs_skel` | `false` | Emacs用の基本設定ファイルを作成する場合は `true` を指定します。 |
@@ -171,6 +171,7 @@ sudo /usr/local/bin/backup-home
 
 1. ユーザ作成フロー: 本ロール,  `create-users` ロール,  `post-user-create` ロール の順序で実行されます。既存ユーザに対する Emacs パッケージ導入は `post-user-create` ロールで行われるため, 同じプレイブックで適切な順序に配置してください。詳細は `post-user-create` ロールの Readme.md を参照してください。
 2. 各スケルトン設定ファイルの作成要否は `user_settings_create_*_skel` 変数で個別に制御できます。不要な設定ファイルは `false` に設定してスキップしてください。
+3. Git 設定: 2026-02-16以降, `.gitconfig` は `post-user-create` ロールで各ユーザのホームディレクトリに作成されます (`post_user_create_gitconfig_enabled: true` の場合)。本ロールでは `/etc/skel/.gitignore` のみを管理します。
 4. ホームディレクトリバックアップスクリプトを有効化する場合は, 以下の条件をすべて満たす必要があります:
    - `user_settings_backup_home_script_enabled: true`
    - `user_settings_backup_home_nfs_server` が空でない
@@ -184,7 +185,7 @@ sudo /usr/local/bin/backup-home
 
 `make run_user_settings` などでロールを実行し, `/etc/skel` 配下のスケルトンと補助スクリプトが生成されることを確認します:
 
-- `/etc/skel` に各種設定ファイル (`.bashrc`, `.zshrc`, `.ssh/config`, `.gitconfig`, `.tmux.conf`, `.screenrc` など) がテンプレート由来で配置され, 所有者 `root:root`・適切なパーミッションになっていること。
+- `/etc/skel` に各種設定ファイル (`.bashrc`, `.zshrc`, `.ssh/config`, `.tmux.conf`, `.screenrc` など) がテンプレート由来で配置され, 所有者 `root:root`・適切なパーミッションになっていること。
 - `/etc/skel/.gitignore` は `user_settings_create_gitignore_on_homedir_skel: true` の場合のみ作成されること。
 - `/etc/skel/.emacs.d/init.el` および `/etc/skel/.emacs.d/user_settings/` に必須設定ファイル ( `proxy-settings.el`, `basic-settings.el`, `japanese-environment.el` ) が存在すること (`user_settings_create_emacs_skel: true` の場合)。
 - `/etc/skel/bin/clean-all-docker-images.sh` と `/etc/skel/bin/run-docker.sh` が `0755` で作成され, 新規ユーザホームにも複製されること (`create_docker_image_operation_script: true` の場合)。

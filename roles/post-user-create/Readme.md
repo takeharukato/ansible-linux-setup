@@ -16,6 +16,22 @@
 
 ## 機能
 
+### Git 設定ファイル作成
+
+`post_user_create_gitconfig_enabled` が `true` の場合, `users_list` に定義された各ユーザのホームディレクトリに `.gitconfig` を作成します。
+
+- `post_user_create_gitconfig_use_login_name` が `true` (既定) の場合, `user.name` にログイン名を使用します。
+- `false` の場合は, システムのユーザエントリから GECOS フィールドを取得して使用します。
+
+#### 補足事項: ディストリビューション別 GECOS フィールド取得用変数について
+
+GECOS フィールドのインデックスは `vars/cross-distro.yml` の `getent_passwd_field_gecos` 変数で定義されています。将来的に, ディストリビューション間で乖離が発生した場合は, `vars/cross-distro.yml` の以下の変数を修正してください:
+
+```yaml
+getent_passwd_field_gecos_debian: 3
+getent_passwd_field_gecos_rhel:   3
+```
+
 ### Emacs パッケージ導入
 
 `create_emacs_package_install_script` が `true` で, `create_user_emacs_package_list` に1要素以上定義されている場合, 以下の処理を実行します:
@@ -28,6 +44,14 @@
 ## 関連変数
 
 本ロールで使用される変数は以下の通りです。これらの変数は `group_vars/all/all.yml` または `host_vars` で上書き可能です。
+
+### Git関連変数
+
+| 変数名 | 既定値 | 説明 |
+| --- | --- | --- |
+| `post_user_create_gitconfig_enabled` | `false` | 各ユーザのホームディレクトリに `.gitconfig` を作成する場合は `true` を指定します。 |
+| `post_user_create_gitconfig_use_login_name` | `true` | `.gitconfig` の `user.name` にログイン名を使用する場合は `true` を指定します。`false` の場合はシステムのユーザエントリから GECOS フィールドを取得して使用します。 |
+
 
 ### Emacs関連変数
 
@@ -135,6 +159,8 @@ bash roles/post-user-create/tasks/generate-emacs-settings.sh roles/post-user-cre
 
 ## 検証ポイント
 
+- `post_user_create_gitconfig_enabled: true` の場合, `users_list` に定義された各ユーザのホームディレクトリに `.gitconfig` が存在し, 所有者が適切（ユーザ自身）であること。
+- `.gitconfig` の `user.name` が `post_user_create_gitconfig_use_login_name` の設定に応じて正しく設定されていること（ログイン名またはシステムの GECOS フィールド）。
 - `create_user_emacs_package_list` を更新した際はロールを再実行し，各ユーザホームの `~/bin/install-emacs-packages.sh` が新しいパッケージを取り込むことを確認してください。
 - 既存ユーザで `create_user_emacs_package_list` にパッケージが記載されている場合、`~/bin/install-emacs-packages.sh` が自動的にコピーされること。
 - スクリプトが実行可能（`0755`）で、当該ユーザ権限で実行されることを確認すること。
