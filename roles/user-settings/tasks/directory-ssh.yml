@@ -1,0 +1,39 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#  ssh関連ファイル・ディレクトリ作成関連タスク
+---
+#
+# sshのディレクトリスケルトン
+#
+- name: Create /etc/skel/.ssh
+  file:
+    path: "/etc/skel/.ssh"
+    state: directory
+    owner: "root"
+    group: "root"
+    mode: "700"
+
+#
+# sshのauthorized_keys
+#
+- name: Create empty /etc/skel/.ssh/authorized_keys
+  template:
+    src: _ssh__authorized_keys.j2
+    dest: /etc/skel/.ssh/authorized_keys
+    owner: root
+    group: root
+    mode: 0600
+    backup: no
+
+#
+# sshのconfig
+#
+- name: Create /etc/skel/.ssh/config
+  template:
+    src: _ssh__config.j2
+    dest: /etc/skel/.ssh/config
+    owner: root
+    group: root
+    mode: 0600
+    backup: no

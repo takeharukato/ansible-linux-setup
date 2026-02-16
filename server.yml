@@ -20,6 +20,8 @@
       tags: user-settings
     - role: create-users
       tags: create-users
+    - role: post-user-create
+      tags: post-user-create
     - role: ntp-server
       tags: ntp-server
     - role: dns-server

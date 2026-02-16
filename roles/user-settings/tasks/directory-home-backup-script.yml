@@ -1,0 +1,33 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#  ホームディレクトリのバックアップスクリプト作成関連タスク
+---
+#
+# ホームディレクトリバックアップスクリプト
+#
+- name: "Deploy home directory backup script to {{ user_settings_backup_bin_dir }}"
+  template:
+    src: backup-home.j2
+    dest: "{{ user_settings_backup_bin_dir }}/backup-home"
+    owner: root
+    group: root
+    mode: 0755
+    backup: no
+
+- name: "Create {{ user_settings_backup_share_dir }} directory"
+  file:
+    path: "{{ user_settings_backup_share_dir }}"
+    state: directory
+    owner: root
+    group: root
+    mode: 0755
+
+- name: "Deploy backup-home crontab example to {{ user_settings_backup_share_dir }}"
+  template:
+    src: backup-home.cron.example.j2
+    dest: "{{ user_settings_backup_share_dir }}/backup-home.cron.example"
+    owner: root
+    group: root
+    mode: 0644
+    backup: no

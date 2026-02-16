@@ -1,0 +1,28 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+# Emacs パッケージのインストールタスク
+---
+
+#  Emacs用パッケージのインストールタスクを呼び出すEmacs パッケージラッパータスク
+#  Emacs パッケージのインストールタスクはユーザごとに実行する必要があるため, with_itemsでユーザリストをループさせて呼び出す
+- name: Install emacs packages
+  include_tasks: emacs-package-install.yml
+  with_items:
+    "{{ users_list | default([], true) }}"
+  loop_control:
+    loop_var: outer_item
+  when:
+    - ( users_list | default([], true) | length ) > 0
+    - create_emacs_package_install_script|default(false) == true
+    - ( create_user_emacs_package_list | default([], true) | length ) > 0
+
+#  Emacs設定ファイル（オプション）の配布タスク
+#  user-settings ロールのスケルトンに含まれるオプション設定ファイルを既存ユーザに配布
+- name: Deploy emacs optional settings files
+  include_tasks: emacs-package-el-setting.yml
+  with_items:
+    "{{ users_list | default([], true) }}"
+  loop_control:
+    loop_var: outer_item
+  when:
+    - ( users_list | default([], true) | length ) > 0

@@ -24,10 +24,12 @@
       tags: aide
     - role: user-settings
       tags: user-settings
-    - role: devel-packages
-      tags: devel-packages
     - role: create-users
       tags: create-users
+    - role: post-user-create
+      tags: post-user-create
+    - role: devel-packages
+      tags: devel-packages
     - role: docker-ce
       tags: docker-ce
     - role: terraform

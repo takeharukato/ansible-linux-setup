@@ -24,6 +24,8 @@
       tags: user-settings
     - role: create-users
       tags: create-users
+    - role: post-user-create
+      tags: post-user-create
     - role: docker-ce
       tags: docker-ce
 

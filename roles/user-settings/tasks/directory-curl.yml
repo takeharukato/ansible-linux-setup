@@ -1,0 +1,16 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#  curl関連ファイル・ディレクトリ作成関連タスク
+
+#
+# .curlrc
+#
+- name: Create /etc/skel/.curlrc
+  template:
+    src: _curlrc.j2
+    dest: /etc/skel/.curlrc
+    owner: root
+    group: root
+    mode: 0644
+    backup: no

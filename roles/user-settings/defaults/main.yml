@@ -5,21 +5,79 @@
 #  group_vars/all/all.yml やhost_varsで上書き可能とするため,
 #  ロール名/defaults/main.yml に定義している
 ---
+#
+# /etc/skel配下にユーザの設定ファイルを配置するかどうかのフラグ
+#
+# Bash用の設定ファイルを作成する場合は, trueを指定する
+user_settings_create_bash_skel: false
+# zsh用の設定ファイルを作成する場合は, trueを指定する
+user_settings_create_zsh_skel: false
+# ssh用の設定ファイルを作成する場合は, trueを指定する
+user_settings_create_ssh_skel: false
+# curl用の設定ファイルを作成する場合は, trueを指定する
+user_settings_create_curl_skel: false
+# wget用の設定ファイルを作成する場合は, trueを指定する
+user_settings_create_wget_skel: false
+# screen用の設定ファイルを作成する場合は, trueを指定する
+user_settings_create_screen_skel: false
+# tmux用の設定ファイルを作成する場合は, trueを指定する
+user_settings_create_tmux_skel: false
+# aspell用の設定ファイルを作成する場合は, trueを指定する
+user_settings_create_aspell_skel: false
+# git用の設定ファイルを作成する場合は, trueを指定する
+user_settings_create_git_skel: false
+# デフォルトの.gitignoreをホームディレクトリ直下に作成する場合は, trueを指定する
+user_settings_create_gitignore_on_homedir_skel: false
+# gdb用の設定ファイルを作成する場合は, trueを指定する
+user_settings_create_gdb_skel: false
 
 #
 # ホームディレクトリのバックアップ
 #
+# ホームディレクトリのバックアップスクリプトを作成する場合は, trueを指定する
+user_settings_backup_home_script_enabled: false
+
 # バックアップ世代数
 user_settings_backup_home_rotation: 2
+# マウントするNFSサーバ
+user_settings_backup_home_nfs_server: ""
+# マウントする共有ディレクトリ
+user_settings_backup_home_nfs_dir: ""
 # デイリーバックアップ時のNFSマウントポイント(NFSのマウント/アンマウント時に使用)
 user_settings_backup_home_mount_point: "/mnt"
 # デイリーバックアップ時のNFSマウントポイント配下のバックアップ配置先ディレクトリ
+user_settings_backup_dir_on_nfs: ""
+# デイリーバックアップ時のNFSマウントポイント配下のバックアップ配置先ディレクトリ
 user_settings_backup_output_dir: "{{ user_settings_backup_home_mount_point }}{{ user_settings_backup_dir_on_nfs }}"
-# 作成するユーザ
-users_list: []
-# Emacs用パッケージリスト
-create_user_emacs_package_list: []
+# バックアップ対象ユーザのリスト
+user_settings_backup_users_list: []
+# backup-homeスクリプトを配置するディレクトリ
+user_settings_backup_bin_dir: "/usr/local/bin"
+# crontab例など関連ファイルを配置するディレクトリ
+user_settings_backup_share_dir: "/usr/local/share/backup-home"
+
+#
+# Emacs関連設定
+#
+# user-settings ロールが .emacs.d/init.el を各ユーザのホームディレクトリに配置する
+# emacs用の以下の基本設定ファイルを作成する場合は, trueを指定する
+# - init.el Emacsの初期化ファイル
+# - basic-settings.el Emacsの基本設定ファイル(ロードパス, キーバインドなどの基本的な設定を記述するファイル)
+# - japanese-environment.el 日本語環境設定ファイル
+# - proxy-settings.el プロキシ設定ファイル
+user_settings_create_emacs_skel: false
+
+#
+# Docker関連設定
+#
+# Dockerイメージ操作用スクリプト作成要否
+# 各ユーザのホームディレクトリに, Dockerイメージのビルドやコンテナの起動/停止などの
+# 操作を行うスクリプトを配置する場合は, trueを指定する
+create_docker_image_operation_script: false
+
+#
 # 代理サーバ設定
+#
 proxy_server: ""
 # 代理サーバ設定ポート
 proxy_port: ""
@@ -29,3 +87,13 @@ proxy_user: ""
 proxy_password: ""
 # proxy除外ホストリスト
 no_proxy: ""
+
+#
+# SSH関連設定
+#
+# 旧形式の鍵を受け付けるホスト一覧
+# 対象ホスト名のみ指定する（FQDNはテンプレート側で付与）
+# 例:
+# ssh_legacy_key_hosts:
+#   - "router"
+ssh_legacy_key_hosts: []

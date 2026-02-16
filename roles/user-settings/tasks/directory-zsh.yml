@@ -1,0 +1,65 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#  zsh関連ファイル・ディレクトリ作成関連タスク
+---
+
+#
+# zsh用のプロキシ設定ファイルの生成
+#
+- name: Deploy a proxy setting file for zsh
+  template:
+    src: _bshrc.proxy.j2
+    dest: /etc/skel/.zshrc.proxy
+    owner: root
+    group: root
+    mode: 0644
+    backup: no
+
+#
+# zprofileのスケルトンファイル
+#
+- name: Deploy a zprofile skeleton
+  template:
+    src: _zprofile.j2
+    dest: /etc/skel/.zprofile
+    owner: root
+    group: root
+    mode: 0644
+    backup: no
+
+#
+# zshrcのスケルトンファイル
+#
+- name: Deploy a zshrc skeleton
+  template:
+    src: _zshrc.j2
+    dest: /etc/skel/.zshrc
+    owner: root
+    group: root
+    mode: 0644
+    backup: no
+
+#
+# zshrc.commonのスケルトンファイル
+#
+- name: Deploy a zshrc.common skeleton
+  template:
+    src: _zshrc_common.j2
+    dest: /etc/skel/.zshrc.common
+    owner: root
+    group: root
+    mode: 0644
+    backup: no
+
+#
+# zshrc.mine.sample のスケルトンファイル
+#
+- name: Deploy a zshrc.mine.sample skeleton
+  template:
+    src: _zshrc.mine.sample.j2
+    dest: /etc/skel/.zshrc.mine.sample
+    owner: root
+    group: root
+    mode: 0644
+    backup: no

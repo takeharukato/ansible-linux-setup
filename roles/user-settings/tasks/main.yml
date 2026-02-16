@@ -8,8 +8,86 @@
 - include_tasks: load-params.yml
 - include_tasks: package.yml
 - include_tasks: directory.yml
+
+# bash関連ファイル, ディレクトリ作成関連タスク
+- include_tasks: directory-bash.yml
+  when:
+    - user_settings_create_bash_skel|default(false)
+
+# zsh関連ファイル, ディレクトリ作成関連タスク
+- include_tasks: directory-zsh.yml
+  when:
+    - user_settings_create_zsh_skel|default(false)
+
+# ssh関連ファイル, ディレクトリ作成関連タスク
+- include_tasks: directory-ssh.yml
+  when:
+    - user_settings_create_ssh_skel|default(false)
+
+# curl関連ファイル, ディレクトリ作成関連タスク
+- include_tasks: directory-curl.yml
+  when:
+    - user_settings_create_curl_skel|default(false)
+
+# wget関連ファイル, ディレクトリ作成関連タスク
+- include_tasks: directory-wget.yml
+  when:
+    - user_settings_create_wget_skel|default(false)
+
+# GNU screen関連ファイル, ディレクトリ作成関連タスク
+- include_tasks: directory-screen.yml
+  when:
+    - user_settings_create_screen_skel|default(false)
+
+# tmux関連ファイル, ディレクトリ作成関連タスク
+- include_tasks: directory-tmux.yml
+  when:
+    - user_settings_create_tmux_skel|default(false)
+
+# aspell関連ファイル, ディレクトリ作成関連タスク
+- include_tasks: directory-aspell.yml
+  when:
+    - user_settings_create_aspell_skel|default(false)
+
+# git関連ファイル作成タスク
+# /etc/skelに.gitignoreを配置
+- include_tasks: directory-gitignore.yml
+  when:
+    - user_settings_create_git_skel|default(false)
+
+# gdb関連ファイル, ディレクトリ作成関連タスク
+- include_tasks: directory-gdb.yml
+  when:
+    - user_settings_create_gdb_skel|default(false)
+
+# ホームディレクトリのバックアップ関連タスク
+# バックアップスクリプトで必要な変数が全て定義されている場合にのみ,
+# バックアップスクリプト関連タスクを実行する
+- include_tasks: directory-home-backup-script.yml
+  when:
+    - user_settings_backup_home_script_enabled|default(false)
+    - (user_settings_backup_home_nfs_server|default("", true)) | length > 0
+    - (user_settings_backup_home_nfs_dir|default("", true)) | length > 0
+    - (user_settings_backup_home_mount_point|default("", true)) | length > 0
+    - (user_settings_backup_dir_on_nfs|default("", true)) | length > 0
+    - (user_settings_backup_output_dir|default("", true)) | length > 0
+    - (user_settings_backup_users_list | default([], true)) | length > 0
+    - (user_settings_backup_home_rotation|default(0, true)) > 0
+
+# Emacs関連ファイル, ディレクトリ作成関連タスク
+- include_tasks: directory-emacs.yml
+  when:
+    - user_settings_create_emacs_skel|default(false)
+
 - include_tasks: service.yml
 - include_tasks: config.yml
 - include_tasks: user_group.yml
+
+# ホームディレクトリのコマンドファイル作成関連タスク
+# 留意事項: install-emacs-packages.shの生成処理を含むため,
+# emacs-package-el-setting.ymlやemacs-package.ymlよりも前に呼び出す必要がある
 - include_tasks: home-command.yml
-- include_tasks: emacs-package.yml
+
+# emacsパッケージ用設定ファイル（オプション）の配布は post-user-create ロールで実行される
+
+# Emacs パッケージ導入は post-user-create ロールで実行される

@@ -4,3 +4,10 @@
 	editor = emacs -nw
 [fetch]
 	prune = true
+[user]
+{% if user_settings_gitconfig_use_login_name | default(true) %}
+	name = {{ item.name }}
+{% else %}
+	name = {{ item.comment | default(item.name, true) }}
+{% endif %}
+	email = {{ item.email | default('', true) }}

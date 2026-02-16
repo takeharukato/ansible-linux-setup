@@ -1,0 +1,18 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#  .gitignore作成関連タスク
+
+#
+# /etc/skel/.gitignoreのスケルトン
+#
+- name: Deploy a .gitignore
+  template:
+    src: _gitignore.j2
+    dest: /etc/skel/.gitignore
+    owner: root
+    group: root
+    mode: 0644
+    backup: no
+  when:
+    - user_settings_create_gitignore_on_homedir_skel|default(false, true)

@@ -1,0 +1,27 @@
+[push]
+	default = simple
+[core]
+	editor = emacs -nw
+[fetch]
+	prune = true
+{# ユーザ情報から login name を抽出 ( 未定義時は空文字列 )  #}
+{% set user_name_value = item.name | default('', true) %}
+{# システムの passwd エントリから GECOS フィールドを抽出 ( vars/cross-distro.yml で定義されたインデックスを使用 )  #}
+{% set user_gecos_value = getent_passwd[item.name][getent_passwd_field_gecos] | default('', true) %}
+{# ユーザ設定値: ログイン名を優先するか GECOS を優先するか ( 既定: ログイン名優先 )  #}
+{% set use_login = post_user_create_gitconfig_use_login_name %}
+{# user.name の最終値を決定:
+   - use_login=true: login_name を優先、取得に失敗した場合は GECOS を使用
+   - use_login=false: GECOS を優先、取得に失敗した場合は login_name を使用
+   結果が空の場合は [user] セクション全体を出力しない
+#}
+{% if use_login %}
+  {% set final_name = user_name_value or user_gecos_value %}
+{% else %}
+  {% set final_name = user_gecos_value or user_name_value %}
+{% endif %}
+{% if final_name %}
+[user]
+	name = {{ final_name }}
+	email = {{ item.email | default('', true) }}
+{% endif %}
