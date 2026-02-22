@@ -34,8 +34,6 @@
     set -o pipefail
     ip6tables -C FORWARD -i "{{ gpm_mgmt_nic }}" -o "{{ mgmt_nic }}" -s "{{ gpm_mgmt_ipv6_network_cidr }}" -j ACCEPT 2>/dev/null || \
       ip6tables -A FORWARD -i "{{ gpm_mgmt_nic }}" -o "{{ mgmt_nic }}" -s "{{ gpm_mgmt_ipv6_network_cidr }}" -j ACCEPT
-  register: _result
-  changed_when: _result.rc == 0
 
     ip6tables -C FORWARD -i "{{ mgmt_nic }}" -o "{{ gpm_mgmt_nic }}" -d "{{ gpm_mgmt_ipv6_network_cidr }}" -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT 2>/dev/null || \
       ip6tables -A FORWARD -i "{{ mgmt_nic }}" -o "{{ gpm_mgmt_nic }}" -d "{{ gpm_mgmt_ipv6_network_cidr }}" -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT
@@ -52,6 +50,8 @@
     - gpm_mgmt_ipv6_network_cidr is defined and gpm_mgmt_ipv6_network_cidr != ''
     - network_ipv6_network_address is defined and network_ipv6_network_address != ''
     - network_ipv6_prefix_len is defined and network_ipv6_prefix_len|int > 0
+  register: _result
+  changed_when: _result.rc == 0
 
 # iptables設定を永続化(Ubuntu/Debian)
 - name: "Save iptables rules to iptables-persistent (Debian/Ubuntu)"

@@ -29,8 +29,13 @@
 # create_user_emacs_package_list が1要素以上の場合にのみ実行する
 - name: "Emacs Package"
   ansible.builtin.include_tasks: emacs-package.yml
+  when:
+    - create_emacs_package_install_script|default(false)
+    - ( create_user_emacs_package_list | default([], true) | length ) > 0
 # Git 設定ファイル作成タスク
 # post_user_create_gitconfig_enabled が true の場合,
 # 各ユーザのホームディレクトリに .gitconfig を作成する
 - name: "Gitconfig"
   ansible.builtin.include_tasks: gitconfig.yml
+  when:
+    - post_user_create_gitconfig_enabled|default(false)

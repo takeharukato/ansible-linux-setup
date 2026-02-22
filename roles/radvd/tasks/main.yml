@@ -11,13 +11,36 @@
 # 最初に変数設定を読み直す ( role単独で実行可能とするため )
 - name: "Load Params"
   ansible.builtin.include_tasks: load-params.yml
+  when:
+    - radvd_nic is defined
+    - radvd_nic in ansible_facts.interfaces
+
 - name: "Package"
   ansible.builtin.include_tasks: package.yml
+  when:
+    - radvd_nic is defined
+    - radvd_nic in ansible_facts.interfaces
+
 - name: "Directory"
   ansible.builtin.include_tasks: directory.yml
+  when:
+    - radvd_nic is defined
+    - radvd_nic in ansible_facts.interfaces
+
 - name: "User Group"
   ansible.builtin.include_tasks: user_group.yml
+  when:
+    - radvd_nic is defined
+    - radvd_nic in ansible_facts.interfaces
+
 - name: "Config"
   ansible.builtin.include_tasks: config.yml
+  when:
+    - radvd_nic is defined
+    - radvd_nic in ansible_facts.interfaces
+
 - name: "Service"
   ansible.builtin.include_tasks: service.yml
+  when:
+    - radvd_nic is defined
+    - radvd_nic in ansible_facts.interfaces

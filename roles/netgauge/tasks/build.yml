@@ -7,7 +7,10 @@
 
 - name: Make build directory name
   ansible.builtin.shell: |
-    echo "{{netgauge_build_dest}}/build-{{ ansible_hostname }}"
+    set -o pipefail
+    echo "{{ netgauge_build_dest }}/build-{{ ansible_hostname }}"
+  args:
+    executable: /bin/bash
   register: netgauge_build_dir
   changed_when: netgauge_build_dir.rc == 0
 
@@ -15,10 +18,12 @@
   ansible.builtin.file:
     path: "{{ netgauge_build_dir.stdout }}"
     state: directory
+    mode: "0755"
   delegate_to: localhost
 
 - name: Extract netgauge archive
   ansible.builtin.shell: |
+    set -o pipefail
     if [ -d "{{ netgauge_build_dir.stdout }}" ]; then
       cwd=`pwd`
       cd "{{ netgauge_build_dir.stdout }}"
@@ -37,80 +42,77 @@
 
 - name: Configure netgauge
   ansible.builtin.shell: |
+    set -o pipefail
     if [ -d "{{ netgauge_build_dir.stdout }}" ]; then
       cwd=`pwd`
-  register: _result
-  changed_when: _result.rc == 0
-
       if [ -d "{{ netgauge_build_dir.stdout }}/{{ netgauge_basename }}" ]; then
         cd "{{ netgauge_build_dir.stdout }}/{{ netgauge_basename }}"
-        ./configure `echo "{{ netgauge_configure }}"`|tee this-configure.log || true
+        ./configure `echo "{{ netgauge_configure }}"` | tee this-configure.log || true
       fi
-
       cd ${cwd}
     fi
   args:
     executable: /bin/bash
   delegate_to: localhost
   timeout: 1800 # タイムアウト 30分
-
-- name: Build netgauge
-  ansible.builtin.shell: |
-    if [ -d "{{ netgauge_build_dir.stdout }}" ]; then
-      cwd=`pwd`
   register: _result
   changed_when: _result.rc == 0
 
+- name: Build netgauge
+  ansible.builtin.shell: |
+    set -o pipefail
+    if [ -d "{{ netgauge_build_dir.stdout }}" ]; then
+      cwd=`pwd`
       if [ -d "{{ netgauge_build_dir.stdout }}/{{ netgauge_basename }}" ]; then
         cd "{{ netgauge_build_dir.stdout }}/{{ netgauge_basename }}"
         gmake |& tee this-build.log || true
       fi
-
       cd ${cwd}
     fi
   args:
     executable: /bin/bash
   delegate_to: localhost
   timeout: 1800 # タイムアウト 30分
-
-- name: Install netgauge
-  ansible.builtin.shell: |
-    if [ -d "{{ netgauge_build_dir.stdout }}" ]; then
-      cwd=`pwd`
   register: _result
   changed_when: _result.rc == 0
 
-      if [ -d "{{ netgauge_build_dir.stdout }}/{{netgauge_basename}}" ]; then
-        cd "{{ netgauge_build_dir.stdout }}/{{netgauge_basename}}"
-        sudo gmake prefix={{netgauge_build_dest}} install |& tee this-install.log || true
+- name: Install netgauge
+  ansible.builtin.shell: |
+    set -o pipefail
+    if [ -d "{{ netgauge_build_dir.stdout }}" ]; then
+      cwd=`pwd`
+      if [ -d "{{ netgauge_build_dir.stdout }}/{{ netgauge_basename }}" ]; then
+        cd "{{ netgauge_build_dir.stdout }}/{{ netgauge_basename }}"
+        sudo gmake prefix={{ netgauge_build_dest }} install |& tee this-install.log || true
       fi
-
       cd ${cwd}
     fi
   args:
     executable: /bin/bash
   delegate_to: localhost
   timeout: 1800 # タイムアウト 30分
+  register: _result
+  changed_when: _result.rc == 0
 
-- name: "Remove {{netgauge_dir}}"
+- name: "Remove {{ netgauge_dir }}"
   ansible.builtin.file:
-    path: "{{netgauge_dir}}"
+    path: "{{ netgauge_dir }}"
     state: absent
   become: true
 
-- name: "Create {{netgauge_dir}}"
+- name: "Create {{ netgauge_dir }}"
   ansible.builtin.file:
-    path: "{{netgauge_dir}}"
+    path: "{{ netgauge_dir }}"
     state: directory
     owner: "root"
     group: "root"
     mode: "0755"
   become: true
 
-- name: "Copy {{netgauge_dir}}/bin"
+- name: "Copy {{ netgauge_dir }}/bin"
   ansible.builtin.copy:
-    src: "{{netgauge_build_dest}}/bin"
-    dest: "{{netgauge_dir}}"
+    src: "{{ netgauge_build_dest }}/bin"
+    dest: "{{ netgauge_dir }}"
     owner: "root"
     group: "root"
     mode: "0755"

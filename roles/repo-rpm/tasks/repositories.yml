@@ -69,7 +69,7 @@
     # epel-release を Extra Packages for Enterprise Linux (EPEL) を参照せずに導入する
     - name: Ensure epel-release is present on RHEL family without contacting EPEL
       ansible.builtin.dnf:
-        name: Epel-release
+        name: epel-release
         state: present
         disablerepo: "epel*"
 
@@ -86,7 +86,7 @@
     # ansible.builtin.yum_repository で Extra Packages for Enterprise Linux (EPEL) を新規生成する
     - name: Configure Extra Packages for Enterprise Linux (EPEL)
       ansible.builtin.yum_repository:
-        name: Epel
+        name: epel
         description: "Extra Packages for Enterprise Linux {{ ansible_facts.distribution_major_version }} - $basearch"
         metalink: "https://mirrors.fedoraproject.org/metalink?repo=epel-{{ ansible_facts.distribution_major_version }}&arch=$basearch"
         enabled: true
