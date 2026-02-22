@@ -57,22 +57,28 @@
 
 ```text
 .
-|-- Makefile      playbook実行, アーカイブ作成用Makefile
-|-- Readme.md     本文書
-|-- ansible.cfg   playbook実行時の設定
-|-- basic.yml     基本サーバ実施ロール定義
-|-- devel.yml     開発サーバ実施ロール定義
-|-- group_vars    グループ固有の変数
-|-- host_vars     ホスト固有の変数定義
-|-- inventory/hosts    サーバ種別単位とホスト名の対応関係定義
-|-- k8s-ctrl-plane.yml Kubernetes コントロールプレイン実施ロール定義
-|-- k8s-worker.yml     Kubernetes ワーカーノード実施ロール定義
-|-- kitting            Virtual Machine (VM)イメージ作成関連スクリプト格納ディレクトリ
-|-- rancher.yml        Rancherノード実施ロール定義
-|-- roles              各種ロール定義
-|-- server.yml         管理サーバノード実施ロール定義
-|-- site.yml           メインサイト定義
-`-- vars               設定関連変数定義
+|-- Makefile               playbook実行, アーカイブ作成用Makefile
+|-- Readme.md              本文書
+|-- ansible.cfg            playbook実行時の設定
+|-- ansible-lint.yml       ansible-lint設定ファイル
+|-- basic.yml              基本サーバ設定実施用ロール構成定義
+|-- devel.yml              開発サーバ設定実施用ロール構成定義
+|-- frr.yml                FRRoutingノード設定実施用ロール構成定義
+|-- group_vars             グループ固有の変数
+|-- host_vars              ホスト固有の変数定義
+|-- internal-devel.yml     内部開発サーバ設定実施用ロール構成定義
+|-- inventory/hosts        サーバ種別単位とホスト名の対応関係定義
+|-- k8s-ctrl-plane.yml     Kubernetes コントロールプレイン設定実施用ロール構成定義
+|-- k8s-management.yml     Kubernetes クラスタ構築後設定実施用ロール構成定義
+|-- k8s-worker.yml         Kubernetes ワーカーノード設定実施用ロール構成定義
+|-- kitting                Virtual Machine (VM)イメージ作成関連スクリプト格納ディレクトリ
+|-- rancher.yml            Rancherノード設定実施用ロール構成定義
+|-- roles                  各種ロール定義
+|-- router.yml             ルータノード設定実施用ロール構成定義
+|-- router-clear-rules.yml ルータノードのファイアウォールルールクリア用ロール定義
+|-- server.yml             管理サーバノード設定実施用ロール構成定義
+|-- site.yml               メインサイト定義
+`-- vars                   設定関連変数定義
 ```
 
 ## 使用法
@@ -375,9 +381,9 @@ external_ntp_servers_list:
 |rancher_wait_host_stopped|Rancherサービス停止を待ち合わせる(接続先)ホスト名/IPアドレス|"127.0.0.1"|
 |rancher_wait_host_started|Rancherサービス開始を待ち合わせる(接続先)ホスト名/IPアドレス|"{{ inventory_hostname }}"|
 |rancher_wait_timeout|Rancherサービス待ち合わせ時間(単位: 秒)|300|
-|rancher_wait_delay|Rancherサービス待ち合わせる際の開始遅延時間(単位: 秒)|5|
-|rancher_wait_sleep|Rancherサービス待ち合わせる際の待機間隔(単位: 秒)|2|
-|rancher_wait_delegate_to|Rancherサービス待ち合わせる際の接続元ホスト名/IPアドレス|"localhost"|
+|rancher_wait_delay|Rancherサービスを待ち合わせる際の開始遅延時間(単位: 秒)|5|
+|rancher_wait_sleep|Rancherサービスを待ち合わせる際の待機間隔(単位: 秒)|2|
+|rancher_wait_delegate_to|Rancherサービスを待ち合わせる際の接続元ホスト名/IPアドレス|"localhost"|
 
 #### Docker Community Edition関連設定
 
@@ -536,9 +542,9 @@ create_user_emacs_package_list:
 |openldap_wait_host_stopped|OpenLDAPサービス停止を待ち合わせる(接続先)ホスト名/IPアドレス|"127.0.0.1"|
 |openldap_wait_host_started|OpenLDAPサービス開始を待ち合わせる(接続先)ホスト名/IPアドレス|"{{ inventory_hostname }}"|
 |openldap_wait_timeout|OpenLDAPサービス待ち合わせ時間(単位: 秒)|600|
-|openldap_wait_delay|OpenLDAPサービス待ち合わせる際の開始遅延時間(単位: 秒)|5|
-|openldap_wait_sleep|OpenLDAPサービス待ち合わせる際の待機間隔(単位: 秒)|2|
-|openldap_wait_delegate_to|OpenLDAPサービス待ち合わせる際の接続元ホスト名/IPアドレス|"localhost"|
+|openldap_wait_delay|OpenLDAPサービスを待ち合わせる際の開始遅延時間(単位: 秒)|5|
+|openldap_wait_sleep|OpenLDAPサービスを待ち合わせる際の待機間隔(単位: 秒)|2|
+|openldap_wait_delegate_to|OpenLDAPサービスを待ち合わせる際の接続元ホスト名/IPアドレス|"localhost"|
 
 #### Redmine関連設定
 
@@ -555,9 +561,9 @@ Redmineのデイリーバックアップについては, `roles/redmine-server/R
 |redmine_wait_host_stopped|Redmineサービス停止を待ち合わせる(接続先)ホスト名/IPアドレス|"127.0.0.1"|
 |redmine_wait_host_started|Redmineサービス開始を待ち合わせる(接続先)ホスト名/IPアドレス|"{{ inventory_hostname }}"|
 |redmine_wait_timeout|Redmineサービス待ち合わせ時間(単位: 秒)|300|
-|redmine_wait_delay|Redmineサービス待ち合わせる際の開始遅延時間(単位: 秒)|5|
-|redmine_wait_sleep|Redmineサービス待ち合わせる際の待機間隔(単位: 秒)|2|
-|redmine_wait_delegate_to|Redmineサービス待ち合わせる際の接続元ホスト名/IPアドレス|"localhost"|
+|redmine_wait_delay|Redmineサービスを待ち合わせる際の開始遅延時間(単位: 秒)|5|
+|redmine_wait_sleep|Redmineサービスを待ち合わせる際の待機間隔(単位: 秒)|2|
+|redmine_wait_delegate_to|Redmineサービスを待ち合わせる際の接続元ホスト名/IPアドレス|"localhost"|
 
 #### Gitlab関連設定
 
@@ -579,9 +585,9 @@ Gitlabの公開URL, イメージファイル関連の設定を記載する。
 | gitlab_wait_host_stopped | GitLabサービス停止を待ち合わせる(接続先)ホスト名/IPアドレス。| "127.0.0.1" |
 | gitlab_wait_host_started | GitLabサービス開始を待ち合わせる(接続先)ホスト名/IPアドレス。 | "{{ inventory_hostname }}" |
 | gitlab_wait_timeout | GitLabサービス待ち合わせ時間(単位: 秒)。| 600 |
-| gitlab_wait_delay | GitLabサービス待ち合わせる際の開始遅延時間(単位: 秒)。| 5 |
-| gitlab_wait_sleep | GitLabサービス待ち合わせる際の待機間隔(単位: 秒)。| 2 |
-| gitlab_wait_delegate_to | GitLabサービス待ち合わせる際の接続元ホスト名/IPアドレス。| "localhost" |
+| gitlab_wait_delay | GitLabサービスを待ち合わせる際の開始遅延時間(単位: 秒)。| 5 |
+| gitlab_wait_sleep | GitLabサービスを待ち合わせる際の待機間隔(単位: 秒)。| 2 |
+| gitlab_wait_delegate_to | GitLabサービスを待ち合わせる際の接続元ホスト名/IPアドレス。| "localhost" |
 
 上記設定を行うと, 以下のようにGitlab環境が構築される:
 
