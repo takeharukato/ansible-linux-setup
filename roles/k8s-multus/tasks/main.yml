@@ -20,9 +20,18 @@
   ansible.builtin.include_tasks: service.yml
 - name: "Config Cleanup Multus"
   ansible.builtin.include_tasks: config-cleanup-multus.yml
+  when:
+    - k8s_multus_enabled | default(false)
 - name: "Config Multus"
   ansible.builtin.include_tasks: config-multus.yml
+  when:
+    - k8s_multus_enabled | default(false)
+    - not (k8s_multus_kubectl_apply_enabled | default(false))
 - name: "Config Kubectl Applied Multus"
   ansible.builtin.include_tasks: config-kubectl-applied-multus.yml
+  when:
+    - k8s_multus_enabled | default(false)
+    - k8s_multus_kubectl_apply_enabled | default(false)
 - name: "Directory Multus Test Pod"
   ansible.builtin.include_tasks: directory-multus-test-pod.yml
+  when: k8s_multus_enabled | default(false)
