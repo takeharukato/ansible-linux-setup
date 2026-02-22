@@ -134,6 +134,7 @@
     - ansible_facts.os_family == "RedHat"
     - "'firewalld' in firewall_backend"
     - k8s_ctrlplane_is_ipv4
+    - "'/' in item"
 
 # コントロールプレインのみに許可するポートを開放 (10250/tcp ( kubelet )など)
 # IPv6版
@@ -151,7 +152,7 @@
     - ansible_facts.os_family == "RedHat"
     - "'firewalld' in firewall_backend"
     - k8s_ctrlplane_is_ipv6
-
+    - "'/' in item"
 # NodePort 解放 ( 範囲, プロトコルをそのまま add-portに渡す )
 - name: "Allow worker inbound ports ( {{ k8s_worker_node_ports }} ) permanently via firewalld"
   become: true
