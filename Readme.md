@@ -20,11 +20,12 @@
       - [Rancher 関連設定](#rancher-関連設定)
       - [Docker Community Edition関連設定](#docker-community-edition関連設定)
         - [コンテナイメージのバックアップ設定](#コンテナイメージのバックアップ設定)
+      - [ユーザ設定ファイルスケルトンの生成](#ユーザ設定ファイルスケルトンの生成)
       - [ホームディレクトリのバックアップ](#ホームディレクトリのバックアップ)
+      - [Emacsパッケージ関連設定](#emacsパッケージ関連設定)
       - [Lightweight Directory Access Protocol (LDAP) サーバ関連設定](#lightweight-directory-access-protocol-ldap-サーバ関連設定)
       - [Redmine関連設定](#redmine関連設定)
       - [Gitlab関連設定](#gitlab関連設定)
-      - [Emacsパッケージ関連設定](#emacsパッケージ関連設定)
       - [Kubernetes関連設定](#kubernetes関連設定)
         - [K8sクラスタ間の接続設定](#k8sクラスタ間の接続設定)
         - [FRRoutingの設定](#frroutingの設定)
@@ -423,6 +424,25 @@ NFSマウントは以下のように行われる。
 |docker_ce_backup_mount_point|デイリーバックアップ時のNFSマウントポイント(NFSのマウント/アンマウント時に使用)|"/mnt"|
 |docker_ce_backup_dir_on_nfs|デイリーバックアップ時のNFSマウントポイント配下のバックアップ配置先ディレクトリ|"/Linux/containers"|
 
+#### ユーザ設定ファイルスケルトンの生成
+
+以下の変数を設定することで, ユーザ設定ファイルスケルトン(/etc/skel配下のファイル群)の生成有無を指定する:
+
+|変数名|意味|設定値の例|
+|---|---|---|
+|user_settings_create_bash_skel|Bash用の設定ファイルを作成する場合は true を指定する。規定値は false。|false|
+|user_settings_create_zsh_skel|zsh用の設定ファイルを作成する場合は true を指定する。規定値は false。|false|
+|user_settings_create_ssh_skel|SSH用の設定ファイルを作成する場合は true を指定する。規定値は false。|false|
+|user_settings_create_curl_skel|curl用の設定ファイルを作成する場合は true を指定する。規定値は false。|false|
+|user_settings_create_wget_skel|wget用の設定ファイルを作成する場合は true を指定する。規定値は false。|false|
+|user_settings_create_screen_skel|screen用の設定ファイルを作成する場合は true を指定する。規定値は false。|false|
+|user_settings_create_tmux_skel|tmux用の設定ファイルを作成する場合は true を指定する。規定値は false。|false|
+|user_settings_create_aspell_skel|aspell用の設定ファイルを作成する場合は true を指定する。規定値は false。|false|
+|user_settings_create_git_skel|Git用の設定ファイル (.gitignore) を /etc/skel に作成する場合は true を指定する。規定値は false。|false|
+|user_settings_create_gitignore_on_homedir_skel|デフォルトの .gitignore をホームディレクトリ直下 (/etc/skel/.gitignore) に作成する場合は true を指定する。規定値は false。|false|
+|user_settings_create_gdb_skel|GDB用の設定ファイルを作成する場合は true を指定する。規定値は false。|false|
+|user_settings_create_emacs_skel|Emacs用の基本設定ファイルを作成する場合は true を指定する。規定値は false。|false|
+
 #### ホームディレクトリのバックアップ
 
 指定したユーザのホームディレクトリをNFSサーバ上にバックアップするためのスクリプトを
@@ -476,6 +496,28 @@ NFSマウントは以下のように行われる。
 ```yaml
 user_settings_backup_users_list:
     - user1
+```
+
+#### Emacsパッケージ関連設定
+
+ユーザ作成時に導入されるEmacsパッケージのパッケージ名を`create_user_emacs_package_list`にリスト形式で指定する。規定値は, 空リスト(`[]`)として定義される。
+
+記載例は以下の通り:
+
+```yaml
+create_user_emacs_package_list:
+  - docker
+  - dockerfile-mode
+  - docker-compose-mode
+  - tramp-container
+  - counsel-tramp
+  - rust-mode
+  - csharp-mode
+  - auctex
+  - cmake-mode
+  - migemo
+  - plantuml-mode
+  - yaml-mode
 ```
 
 #### Lightweight Directory Access Protocol (LDAP) サーバ関連設定
@@ -549,28 +591,6 @@ Gitlabの公開URL, イメージファイル関連の設定を記載する。
 Gitlabの既定の設定の場合, `8080`ポートや`2222`番ポートが他の用途に使用されている
 可能性があるため, 公開ポート番号を変更している。
 GitLab Web UI (HTTPS)ポート(`gitlab_https_port`)やGitLab Container Registryのポート(`gitlab_registry_port`)を変更する際は, `roles/gitlab-server/templates/docker-compose.yml.j2`で設定しているGitlabの`external_url`, `registry_external_url`との整合性を保つように設定すること。
-
-#### Emacsパッケージ関連設定
-
-ユーザ作成時に導入されるEmacsパッケージのパッケージ名を`create_user_emacs_package_list`にリスト形式で指定する。
-
-記載例は以下の通り:
-
-```yaml
-create_user_emacs_package_list:
-  - docker
-  - dockerfile-mode
-  - docker-compose-mode
-  - tramp-container
-  - counsel-tramp
-  - rust-mode
-  - csharp-mode
-  - auctex
-  - cmake-mode
-  - migemo
-  - plantuml-mode
-  - yaml-mode
-```
 
 #### Kubernetes関連設定
 
