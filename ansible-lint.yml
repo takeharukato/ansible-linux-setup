@@ -19,10 +19,11 @@
 #   (yaml[line-length]ルール)を適用しない。URLやコマンドなどの長い文字列が
 #   頻繁に出現するため, 現時点ではエラーとしない方針。
 #
-# - packageモジュールで最新バージョンをインストールするタスクのnameに
-#   latestという文字列が含まれていてもエラーとしない(package-latestルール)
-#   セキュリティ修正などを取り込むため, 最新版数を使用するというルール
-#   としているため
+# - Jinjaテンプレート内のスペースに関するルール(jinja[spacing]ルール)を適用しない
+#   k8s-ctrlplaneのconfig.ymlなどで, podSubnet_orderedやserviceSubnet_orderedなど
+#   ','で区切られたリストを生成する必要があるため,
+#   スペースを入れることが必ずしも正しいとは言えないことから,
+#   エラーとしない方針とした。
 #
 # - タスク内で条件付き逐次処理として, when: <register_var> is changed パターンを
 #   使用しているケース(no-handlerルール)。これらは, block内での
@@ -31,12 +32,18 @@
 #   とリブートは, 後続タスクの成功と必要な同期性に依存しているため, 現在の設計のまま
 #   許容する方針。
 #
+# - packageモジュールで最新バージョンをインストールするタスクのnameに
+#   latestという文字列が含まれていてもエラーとしない(package-latestルール)
+#   セキュリティ修正などを取り込むため, 最新版数を使用するというルール
+#   としているため
+#
 skip_list:
   - role-name
   - var-naming[pattern]
   - name[template]
   - yaml[line-length]
-  - package-latest
+  - jinja[spacing]
   - no-handler
+  - package-latest
 exclude_paths:
   - docs

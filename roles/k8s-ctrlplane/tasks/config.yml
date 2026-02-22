@@ -48,8 +48,8 @@
 # service IP family "10.245.0.0/16" must match public address family "fd69:6684:61a:1::41"
 - name: Order subnets to match API family
   ansible.builtin.set_fact:
-    podSubnet_ordered: "{{ (k8s_ctrlplane_is_ipv6 | default(false) | bool) | ternary(_pods_v6 + _pods_v4, _pods_v4 + _pods_v6) | join(', ') }}"
-    serviceSubnet_ordered: "{{ (k8s_ctrlplane_is_ipv6 | default(false) | bool) | ternary(_svc_v6 + _svc_v4, _svc_v4 + _svc_v6) | join(', ') }}"
+    podSubnet_ordered: "{{ (k8s_ctrlplane_is_ipv6 | default(false) | bool) | ternary(_pods_v6 + _pods_v4, _pods_v4 + _pods_v6) | join(',') }}"
+    serviceSubnet_ordered: "{{ (k8s_ctrlplane_is_ipv6 | default(false) | bool) | ternary(_svc_v6 + _svc_v4, _svc_v4 + _svc_v6) | join(',') }}"
 
 # bind-address も条件で作る (v6 のときは ::, v4 のときは 0.0.0.0)
 - name: Decide bind-address by API family
