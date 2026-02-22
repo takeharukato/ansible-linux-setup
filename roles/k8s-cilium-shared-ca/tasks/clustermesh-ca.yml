@@ -6,12 +6,12 @@
 # Cluster Mesh 用 TLS シークレットの生成と適用を全体で制御する
 - name: Manage Cilium Cluster Mesh TLS secret
   when:
-    - k8s_cilium_shared_ca_enabled | bool
-    - k8s_cilium_clustermesh_secret_enabled | bool
+    - k8s_cilium_shared_ca_enabled | default(false) | bool
+    - k8s_cilium_clustermesh_secret_enabled | default(false) | bool
   block:
     # 共通CAのパスと生成済み TLS 証明書/鍵のパスを決定する
     - name: Resolve shared CA paths for Cluster Mesh
-      set_fact:
+      ansible.builtin.set_fact:
         _clustermesh_ca_cert_path: "{{ _cilium_ca_cert_path if (_cilium_ca_cert_path is defined and (_cilium_ca_cert_path | string | length) > 0) else (k8s_cilium_shared_ca_cert_path if (k8s_cilium_shared_ca_cert_path | string | length) > 0 else k8s_cilium_shared_ca_output_dir ~ '/' ~ k8s_cilium_shared_ca_cert_filename) }}"
         _clustermesh_ca_key_path: "{{ _cilium_ca_key_path if (_cilium_ca_key_path is defined and (_cilium_ca_key_path | string | length) > 0) else (k8s_cilium_shared_ca_key_path if (k8s_cilium_shared_ca_key_path | string | length) > 0 else k8s_cilium_shared_ca_output_dir ~ '/' ~ k8s_cilium_shared_ca_key_filename) }}"
         _clustermesh_tls_cert_path: "{{ k8s_cilium_shared_ca_output_dir }}/{{ k8s_cilium_clustermesh_tls_cert_filename }}"
@@ -20,21 +20,21 @@
 
     # 共通CA証明書が存在するか検査する
     - name: Stat shared CA certificate for Cluster Mesh
-      stat:
+      ansible.builtin.stat:
         path: "{{ _clustermesh_ca_cert_path }}"
         follow: true
       register: _clustermesh_ca_cert_stat
 
     # 共通CA秘密鍵が存在するか検査する
     - name: Stat shared CA key for Cluster Mesh
-      stat:
+      ansible.builtin.stat:
         path: "{{ _clustermesh_ca_key_path }}"
         follow: true
       register: _clustermesh_ca_key_stat
 
     # 共通CA証明書/鍵が揃っていることを保証する
     - name: Ensure shared CA files for Cluster Mesh exist
-      fail:
+      ansible.builtin.fail:
         msg: |
           Shared CA required for Cluster Mesh TLS generation is missing.
           certificate={{ _clustermesh_ca_cert_path }}, key={{ _clustermesh_ca_key_path }}
@@ -45,7 +45,7 @@
     # TLS ファイル配置先ディレクトリを root 権限で作成する
     - name: Ensure Cluster Mesh TLS output directory exists
       become: true
-      file:
+      ansible.builtin.file:
         path: "{{ k8s_cilium_shared_ca_output_dir }}"
         state: directory
         owner: root
@@ -55,7 +55,7 @@
     # TLS サーバ秘密鍵が無ければ新規生成する
     - name: Generate Cluster Mesh TLS private key if absent
       become: true
-      command:
+      ansible.builtin.command:
         cmd: openssl genrsa -out {{ _clustermesh_tls_key_path }} {{ k8s_cilium_clustermesh_tls_key_size }}
       args:
         creates: "{{ _clustermesh_tls_key_path }}"
@@ -63,7 +63,7 @@
     # 生成済み秘密鍵のパーミッションを固定する
     - name: Set permissions on Cluster Mesh TLS private key
       become: true
-      file:
+      ansible.builtin.file:
         path: "{{ _clustermesh_tls_key_path }}"
         owner: root
         group: root
@@ -71,14 +71,14 @@
 
     # 既存の TLS 証明書の有無を確認する
     - name: Stat Cluster Mesh TLS certificate
-      stat:
+      ansible.builtin.stat:
         path: "{{ _clustermesh_tls_cert_path }}"
         follow: true
       register: _clustermesh_cert_stat
 
     # 連番管理用のシリアルファイルの有無を確認する
     - name: Stat Cluster Mesh serial file
-      stat:
+      ansible.builtin.stat:
         path: "{{ _clustermesh_tls_serial_path }}"
         follow: true
       register: _clustermesh_serial_stat
@@ -86,7 +86,7 @@
     # シリアルファイルが無い場合は初期値を作成する
     - name: Initialize Cluster Mesh serial file when missing
       become: true
-      copy:
+      ansible.builtin.copy:
         dest: "{{ _clustermesh_tls_serial_path }}"
         content: "01\n"
         owner: root
@@ -101,38 +101,42 @@
       block:
         # OpenSSL の一時作業ディレクトリを確保する
         - name: Create temporary workspace for Cluster Mesh certificate
-          tempfile:
+          ansible.builtin.tempfile:
             state: directory
             suffix: "-clustermesh"
           register: _clustermesh_tmp
 
         # SAN を含む OpenSSL 設定ファイルをレンダリングする
         - name: Render OpenSSL config for Cluster Mesh certificate
-          template:
+          ansible.builtin.template:
             src: "cilium-clustermesh-openssl.cnf.j2"
             dest: "{{ _clustermesh_tmp.path }}/openssl.cnf"
             mode: "0600"
 
         # 秘密鍵を用いて CSR を生成する
         - name: Generate Cluster Mesh TLS certificate signing request
-          command:
+          ansible.builtin.command:
             cmd: openssl req -new -key {{ _clustermesh_tls_key_path }} -out {{ _clustermesh_tmp.path }}/cilium-clustermesh.csr -config {{ _clustermesh_tmp.path }}/openssl.cnf
+          register: _result
+          changed_when: _result.rc == 0
 
         # 共通CAで CSR を署名し TLS 証明書を発行する
         - name: Sign Cluster Mesh TLS certificate
-          command:
+          ansible.builtin.command:
             cmd: openssl x509 -req -in {{ _clustermesh_tmp.path }}/cilium-clustermesh.csr -CA {{ _clustermesh_ca_cert_path }} -CAkey {{ _clustermesh_ca_key_path }} -CAserial {{ _clustermesh_tls_serial_path }} -out {{ _clustermesh_tls_cert_path }} -days {{ k8s_cilium_clustermesh_tls_valid_days }} -sha256 -extensions v3_req -extfile {{ _clustermesh_tmp.path }}/openssl.cnf
+          register: _result
+          changed_when: _result.rc == 0
 
         # 一時作業ディレクトリを削除して後片付けする
         - name: Remove temporary workspace for Cluster Mesh certificate
-          file:
+          ansible.builtin.file:
             path: "{{ _clustermesh_tmp.path }}"
             state: absent
 
     # TLS 証明書のパーミッションを root 固定で整える
     - name: Set permissions on Cluster Mesh TLS certificate
       become: true
-      file:
+      ansible.builtin.file:
         path: "{{ _clustermesh_tls_cert_path }}"
         owner: root
         group: root
@@ -140,32 +144,32 @@
 
     # Secret へ埋め込む TLS 証明書を base64 取得する
     - name: Load Cluster Mesh TLS certificate
-      slurp:
+      ansible.builtin.slurp:
         src: "{{ _clustermesh_tls_cert_path }}"
       register: _clustermesh_tls_cert_data
 
     # Secret へ埋め込む TLS 秘密鍵を base64 取得する
     - name: Load Cluster Mesh TLS private key
-      slurp:
+      ansible.builtin.slurp:
         src: "{{ _clustermesh_tls_key_path }}"
       register: _clustermesh_tls_key_data
 
     # Secret に同梱する共通CA証明書を読み込む
     - name: Load Cilium shared CA certificate for Cluster Mesh
-      slurp:
+      ansible.builtin.slurp:
         src: "{{ _clustermesh_ca_cert_path }}"
       register: _clustermesh_ca_cert_data
 
     # Secret manifest を格納する一時ファイルを用意する
     - name: Create temporary manifest for Cluster Mesh secret
-      tempfile:
+      ansible.builtin.tempfile:
         state: file
         suffix: "-cilium-clustermesh-secret.yaml"
       register: _clustermesh_manifest
 
     # Secret manifest を TLS/CA の base64 データ込みで出力する
     - name: Render Cluster Mesh secret manifest
-      template:
+      ansible.builtin.template:
         src: "cilium-clustermesh-secret.yaml.j2"
         dest: "{{ _clustermesh_manifest.path }}"
         mode: "0600"
@@ -177,13 +181,13 @@
     # 生成した manifest を適用して Secret を作成/更新する
     - name: Apply Cluster Mesh secret
       become: true
-      shell: |
+      ansible.builtin.shell: |
         kubectl --kubeconfig {{ cilium_shared_ca_kubeconfig }} apply -f {{ _clustermesh_manifest.path }}
       register: _clustermesh_apply
       changed_when: "'created' in _clustermesh_apply.stdout or 'configured' in _clustermesh_apply.stdout or 'created' in _clustermesh_apply.stderr or 'configured' in _clustermesh_apply.stderr"
 
     # manifest の一時ファイルを削除してクリーンアップする
     - name: Remove temporary manifest for Cluster Mesh secret
-      file:
+      ansible.builtin.file:
         path: "{{ _clustermesh_manifest.path }}"
         state: absent

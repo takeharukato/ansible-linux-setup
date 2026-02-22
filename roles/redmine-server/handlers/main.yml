@@ -7,3 +7,6 @@
 # 処理を直接書かずにincludeすること
 # 例:
 # - import_tasks: docker.yml
+
+- name: "Reload Sysctl"
+  ansible.builtin.import_tasks: reload-sysctl.yml

@@ -4,13 +4,13 @@
 {# #}
 {# 追加ルート定義設定テンプレート (Ubuntu netplan用) #}
 {# #}
-{% if additional_network_routes | default([]) | length > 0 %}
+{% if additional_network_routes | default([], true) | length > 0 %}
 network:
   version: 2
   ethernets:
     {{ mgmt_nic }}:
       routes:
-{% for route in additional_network_routes | default([]) %}
+{% for route in additional_network_routes | default([], true) %}
 {% if route.address_family == 'ipv4' or route.address_family == 'ipv6' %}
         # ゲートウェイへの直接ルート
         - to: {{ route.gateway }}
@@ -28,5 +28,3 @@ network:
 {% endif %}
 {% endfor %}
 {% endif %}
-
-

@@ -4,24 +4,48 @@
 #  タスクメイン部
 #  include_tasksで他のタスクを読み込む
 
+# Ubuntu/Debian系でのフロントエンドロック獲得可能になるのを
+# 待ち合わせ, 後続のapt updateの失敗を防止する
+- name: "Wait frontend lockfile on Debian family"
+  ansible.builtin.include_tasks: config-wait-frontend-lock.yml
+  when: ansible_facts.os_family == 'Debian'
+
 # 最初に変数設定を読み直す ( role単独で実行可能とするため )
-- include_tasks: load-params.yml
-- include_tasks: config-pre-check.yml
-- include_tasks: config-timezone.yml
-- include_tasks: config-disable-firewall.yml
+- name: "Load Params"
+  ansible.builtin.include_tasks: load-params.yml
+- name: "Config Pre Check"
+  ansible.builtin.include_tasks: config-pre-check.yml
+- name: "Config Timezone"
+  ansible.builtin.include_tasks: config-timezone.yml
+- name: "Config Disable Firewall"
+  ansible.builtin.include_tasks: config-disable-firewall.yml
   when: not enable_firewall | default(false,true)
-- include_tasks: config-prepare-nm.yml
-- include_tasks: config-network-multi.yml
-- include_tasks: config-sudoer.yml
-- include_tasks: sysctl.yml
-- include_tasks: cron-setting.yml
-- include_tasks: package.yml
-- include_tasks: kubectl-repositories.yml
-- include_tasks: common-packages.yml
-- include_tasks: yq-package.yml
-- include_tasks: directory.yml
-- include_tasks: directory-dns-client.yml
+- name: "Prepare Network Manager"
+  ansible.builtin.include_tasks: config-prepare-nm.yml
+- name: "Config Network Multi"
+  ansible.builtin.include_tasks: config-network-multi.yml
+- name: "Config Sudoer"
+  ansible.builtin.include_tasks: config-sudoer.yml
+- name: "Sysctl"
+  ansible.builtin.include_tasks: sysctl.yml
+- name: "Cron Setting"
+  ansible.builtin.include_tasks: cron-setting.yml
+- name: "Package"
+  ansible.builtin.include_tasks: package.yml
+- name: "Kubectl Repositories"
+  ansible.builtin.include_tasks: kubectl-repositories.yml
+- name: "Common Packages"
+  ansible.builtin.include_tasks: common-packages.yml
+- name: "Yq Package"
+  ansible.builtin.include_tasks: yq-package.yml
+- name: "Directory"
+  ansible.builtin.include_tasks: directory.yml
+- name: "Directory Dns Client"
+  ansible.builtin.include_tasks: directory-dns-client.yml
   when: use_nm_ddns_update_scripts | default(false)
-- include_tasks: service.yml
-- include_tasks: user_group.yml
-- include_tasks: reboot.yml
+- name: "Service"
+  ansible.builtin.include_tasks: service.yml
+- name: "User Group"
+  ansible.builtin.include_tasks: user_group.yml
+- name: "Reboot"
+  ansible.builtin.include_tasks: reboot.yml

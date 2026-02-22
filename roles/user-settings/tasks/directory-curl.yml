@@ -7,10 +7,10 @@
 # .curlrc
 #
 - name: Create /etc/skel/.curlrc
-  template:
+  ansible.builtin.template:
     src: _curlrc.j2
     dest: /etc/skel/.curlrc
     owner: root
     group: root
-    mode: 0644
-    backup: no
+    mode: '0644'
+    backup: false

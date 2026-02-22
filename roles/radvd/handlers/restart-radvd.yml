@@ -6,7 +6,7 @@
 #
 ---
 # radvdサービスを再起動
-- name: "radvd_restart_service"
+- name: "Radvd_restart_service"
   listen: "radvd_restart_service"
   ansible.builtin.systemd:
     name: "{{ radvd_service_name }}"

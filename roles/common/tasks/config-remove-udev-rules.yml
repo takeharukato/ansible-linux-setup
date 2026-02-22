@@ -7,7 +7,7 @@
 
 # 75-persistent-net-generator.rules の存在確認
 - name: "Collect 75-persistent-net-generator.rules metadata"
-  stat:
+  ansible.builtin.stat:
     path: "{{ item }}"
   loop: "{{ udev_net_generator_paths | default([], true) }}"
   register: stat_75
@@ -19,7 +19,7 @@
 # .rulesという拡張子でない限り, udevルールとして認識されないため
 # マスクとして機能する
 - name: "Backup {{ item.item }} to {{ item.item }}.orig"
-  copy:
+  ansible.builtin.copy:
     src: "{{ item.item }}"
     dest: "{{ item.item }}.orig"
     remote_src: true
@@ -36,7 +36,7 @@
 # /etc/udev/rules.d/75-persistent-net-generator.rulesが優先されるため
 # udevによるネットワークインターフェースの生成が行われなくなる
 - name: "Create empty 75-persistent-net-generator.rules (disable net generator rules)"
-  copy:
+  ansible.builtin.copy:
     dest: "/etc/udev/rules.d/75-persistent-net-generator.rules"
     content: ""
     owner: root
@@ -48,17 +48,22 @@
 
 # 更新したルールの反映
 - name: "Reload udev rules"
-  shell: |
+  ansible.builtin.shell: |
+    set -o pipefail
     udevadm control --reload-rules && udevadm trigger
+  args:
+    executable: /bin/bash
   become: true
   when:
     - udev_net_generator_paths is defined
     - (udev_net_generator_paths | default([], true) | length ) > 0
+  register: _result
+  changed_when: _result.rc == 0
 
 
 # 70-persistent-net.rules のバックアップと空ファイル作成
 - name: "Collect 70-persistent-net.rules metadata"
-  stat:
+  ansible.builtin.stat:
     path: "{{ item }}"
   loop: "{{ udev_persistent_net_rules_paths | default([], true) }}"
   register: stat_70
@@ -70,7 +75,7 @@
 # .rulesという拡張子でない限り, udevルールとして認識されないため
 # マスクとして機能する
 - name: "Backup {{ item.item }} to {{ item.item }}.orig"
-  copy:
+  ansible.builtin.copy:
     src: "{{ item.item }}"
     dest: "{{ item.item }}.orig"
     remote_src: true
@@ -86,7 +91,7 @@
 # /etc/udev/rules.d/70-persistent-net.rulesが優先されるため
 # udevによるネットワークインターフェース名の永続化が行われなくなる
 - name: "Create empty 70-persistent-net.rules (mask persistent rules)"
-  copy:
+  ansible.builtin.copy:
     dest: "/etc/udev/rules.d/70-persistent-net.rules"
     content: ""
     owner: root
@@ -95,16 +100,21 @@
 
 # 更新したルールの反映
 - name: "Reload udev rules"
-  shell: |
+  ansible.builtin.shell: |
+    set -o pipefail
     udevadm control --reload-rules && udevadm trigger
+  args:
+    executable: /bin/bash
   become: true
   when:
     - udev_net_generator_paths is defined
     - (udev_net_generator_paths | default([], true) | length ) > 0
+  register: _result
+  changed_when: _result.rc == 0
 
 # ifcfg-* ファイルの検出
 - name: Find ifcfg-* files
-  find:
+  ansible.builtin.find:
     paths: "{{ etc_default_dir }}/network-scripts/"
     patterns: "ifcfg-*"
     file_type: file
@@ -112,7 +122,7 @@
 
 # ifcfg-* ファイルの削除
 - name: Remove ifcfg files
-  file:
+  ansible.builtin.file:
     path: "{{ item.path }}"
     state: absent
   loop: "{{ ifcfg_files.files }}"

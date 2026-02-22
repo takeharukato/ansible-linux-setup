@@ -12,6 +12,7 @@
   ansible.builtin.shell: |
     # 既存のFORWARDルールを削除（エラーは無視）
     # 外部向け物理NIC接続ネットワーク => 内部プライベートネットワーク
+    set -o pipefail
     iptables -D FORWARD -s "{{ network_ipv4_network_address }}/{{ network_ipv4_prefix_len }}" \
       -d "{{ gpm_mgmt_ipv4_network_cidr }}" -i "{{ mgmt_nic }}" -o "{{ gpm_mgmt_nic }}" -j ACCEPT 2>/dev/null || true
 
@@ -30,11 +31,14 @@
     - gpm_mgmt_ipv4_network_cidr is defined and gpm_mgmt_ipv4_network_cidr != ''
     - network_ipv4_network_address is defined and network_ipv4_network_address != ''
     - network_ipv4_prefix_len is defined and network_ipv4_prefix_len|int > 0
+  register: _result
+  changed_when: _result.rc == 0
 
 # IPv4 POSTROUTINGチェーンからNATルールを削除
 - name: "Clear existing IPv4 NAT POSTROUTING rules"
   ansible.builtin.shell: |
     # 既存のMASQUERADEルールを削除（エラーは無視）
+    set -o pipefail
     iptables -t nat -D POSTROUTING -s "{{ gpm_mgmt_ipv4_network_cidr }}" -o "{{ mgmt_nic }}" -j MASQUERADE 2>/dev/null || true
   args:
     executable: /bin/bash
@@ -43,12 +47,15 @@
     - gpm_mgmt_ipv4_network_cidr is defined and gpm_mgmt_ipv4_network_cidr != ''
     - network_ipv4_network_address is defined and network_ipv4_network_address != ''
     - network_ipv4_prefix_len is defined and network_ipv4_prefix_len|int > 0
+  register: _result
+  changed_when: _result.rc == 0
 
 # IPv6 FORWARDチェーンから管理ネットワーク関連ルールを削除
 - name: "Clear existing IPv6 FORWARD rules for management networks"
   ansible.builtin.shell: |
     # 既存のFORWARDルールを削除（エラーは無視）
     # 外部向け物理NIC接続ネットワーク => 内部プライベートネットワーク
+    set -o pipefail
     ip6tables -D FORWARD -s "{{ network_ipv6_network_address }}/{{ network_ipv6_prefix_len }}" \
       -d "{{ gpm_mgmt_ipv6_network_cidr }}" -i "{{ mgmt_nic }}" -o "{{ gpm_mgmt_nic }}" -j ACCEPT 2>/dev/null || true
 
@@ -67,11 +74,14 @@
     - gpm_mgmt_ipv6_network_cidr is defined and gpm_mgmt_ipv6_network_cidr != ''
     - network_ipv6_network_address is defined and network_ipv6_network_address != ''
     - network_ipv6_prefix_len is defined and network_ipv6_prefix_len|int > 0
+  register: _result
+  changed_when: _result.rc == 0
 
 # IPv6 POSTROUTINGチェーンからNATルールを削除
 - name: "Clear existing IPv6 NAT POSTROUTING rules"
   ansible.builtin.shell: |
     # 既存のMASQUERADEルールを削除（エラーは無視）
+    set -o pipefail
     ip6tables -t nat -D POSTROUTING -s "{{ gpm_mgmt_ipv6_network_cidr }}" -o "{{ mgmt_nic }}" -j MASQUERADE 2>/dev/null || true
   args:
     executable: /bin/bash
@@ -80,3 +90,5 @@
     - gpm_mgmt_ipv6_network_cidr is defined and gpm_mgmt_ipv6_network_cidr != ''
     - network_ipv6_network_address is defined and network_ipv6_network_address != ''
     - network_ipv6_prefix_len is defined and network_ipv6_prefix_len|int > 0
+  register: _result
+  changed_when: _result.rc == 0

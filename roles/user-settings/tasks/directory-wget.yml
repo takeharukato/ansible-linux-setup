@@ -7,10 +7,10 @@
 # wgetrc
 #
 - name: Create /etc/skel/.wgetrc
-  template:
+  ansible.builtin.template:
     src: _wgetrc.j2
     dest: /etc/skel/.wgetrc
     owner: root
     group: root
-    mode: 0644
-    backup: no
+    mode: '0644'
+    backup: false

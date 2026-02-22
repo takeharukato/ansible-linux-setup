@@ -5,7 +5,7 @@
 # last update: {{ '%Y-%m-%d %H:%M:%S %Z' | strftime(ansible_date_time.epoch) }}
 
 {# IPv6 のときだけ [addr]:port にする #}
-{% set join_endpoint = ('[' ~ k8s_ctrlplane_endpoint ~ ']:6443') if k8s_ctrlplane_is_ipv6 else (k8s_ctrlplane_endpoint ~ ':6443') %}
+{% set join_endpoint = k8s_ctrlplane_host_bracketed ~ ':' ~ k8s_ctrlplane_port %}
 
 #
 # ワーカーノード用kubeadmのコンフィグレーションファイル

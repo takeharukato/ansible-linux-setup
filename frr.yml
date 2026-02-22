@@ -2,8 +2,10 @@
 #  Ansible playbook
 #  Copyright 2020 Takeharu KATO All Rights Reserved.
 #
-- hosts: frr
-  remote_user:  '{{ ansible_user }}'
+
+- name: Configure FRR nodes
+  hosts: frr
+  remote_user: '{{ ansible_user }}'
   become: true
   roles:
     - role: selinux

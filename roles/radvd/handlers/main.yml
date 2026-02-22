@@ -4,4 +4,5 @@
 #
 #  サービス起動ハンドラ
 #
-- import_tasks: restart-radvd.yml
+- name: "Restart Radvd"
+  ansible.builtin.import_tasks: restart-radvd.yml

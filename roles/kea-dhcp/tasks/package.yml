@@ -6,8 +6,8 @@
 ---
 
 # kea-dhcpサーバーパッケージのインストール
-- name: install kea-dhcp server packages
-  package:
+- name: Install kea-dhcp server packages
+  ansible.builtin.package:
     name: "{{ kea_dhcp4_server_packages }}"
     state: present
   become: true

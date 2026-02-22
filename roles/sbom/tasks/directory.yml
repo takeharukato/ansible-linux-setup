@@ -12,7 +12,7 @@
     state: directory
     mode: '0755'
   become: true
-  when: sbom_create_drop_path | bool
+  when: sbom_create_drop_path | default(false) | bool
 
 - name: Ensure build components path exists (optional)
   ansible.builtin.file:
@@ -20,5 +20,5 @@
     state: directory
     mode: '0755'
   become: true
-  when: sbom_create_build_components_path | bool
+  when: sbom_create_build_components_path | default(false) | bool
 # EOF

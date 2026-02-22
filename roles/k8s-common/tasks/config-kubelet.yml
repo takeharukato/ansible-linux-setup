@@ -76,11 +76,11 @@
     node_ip_arg: "{{ node_ips_ordered | join(',') }}"
 
 # kubelet config
-- name: "setup {{etc_default_dir}}/kubelet"
-  template:
+- name: "Setup {{etc_default_dir}}/kubelet"
+  ansible.builtin.template:
     src: default-kubelet-config.j2
     dest: "{{etc_default_dir}}/kubelet"
     owner: root
     group: root
-    mode: 0644
-    backup: no
+    mode: '0644'
+    backup: false

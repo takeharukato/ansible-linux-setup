@@ -5,19 +5,19 @@
 #  設定関連タスク
 #
 
-- name: include ubuntu package names
-  include_vars: ../vars/packages-ubuntu.yml
+- name: Include ubuntu package names
+  ansible.builtin.include_vars: ../vars/packages-ubuntu.yml
   when: ansible_facts.os_family == 'Debian'
 
-- name: include RHEL package names
-  include_vars: ../vars/packages-rhel.yml
+- name: Include RHEL package names
+  ansible.builtin.include_vars: ../vars/packages-rhel.yml
   when: ansible_facts.os_family == 'RedHat'
 
-- name: include cross-distro.yml
-  include_vars: ../vars/cross-distro.yml
+- name: Include cross-distro.yml
+  ansible.builtin.include_vars: ../vars/cross-distro.yml
 
-- name: include config vars
-  include_vars: ../vars/all-config.yml
+- name: Include config vars
+  ansible.builtin.include_vars: ../vars/all-config.yml
 
-- name: include k8s api address vars
-  include_vars: ../vars/k8s-api-address.yml
+- name: Include k8s api address vars
+  ansible.builtin.include_vars: ../vars/k8s-api-address.yml

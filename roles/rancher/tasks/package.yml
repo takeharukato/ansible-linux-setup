@@ -6,14 +6,15 @@
 #
 
 # 証明書が既にあるか確認する
-- name: "stat {{ rancher_cert_dir }}/cert.pem"
-  stat: path="{{ rancher_cert_dir }}/cert.pem"
+- name: "Stat {{ rancher_cert_dir }}/cert.pem"
+  ansible.builtin.stat:
+    path: "{{ rancher_cert_dir }}/cert.pem"
   register: cert_check
 
 # pyOpenSSL をインストールするためにpipを導入し,
 # OpenSSLの秘密鍵を生成するためにpyOpenSSL をインストール
 - name: Install pip/pyOpenSSL for pyOpenSSL
-  package:
+  ansible.builtin.package:
     pkg:
       '{{ rancher_pyopenssl_packages }}'
     state:

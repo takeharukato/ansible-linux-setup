@@ -57,12 +57,14 @@ zone "{{ network.ipv4 | ipv4_reverse_zone }}.in-addr.arpa" IN {
 };
 {% endif %}
 {% endif %}
-{% if network.ipv6 is defined and network.ipv6|length > 0 %}
-{% set _ipv6_rev = network.ipv6 | ipv6_reverse_zone(network.ipv6.split('/')[1] | int) %}
+{% if network.ipv6 is defined and network.ipv6|length > 0 and '/' in network.ipv6 %}
+{% set ipv6_parts = network.ipv6.split('/') %}
+{% set ipv6_prefix = (ipv6_parts[1] | int) if ipv6_parts | length >= 2 else 128 %}
+{% set _ipv6_rev = ipv6_parts[0] | ipv6_reverse_zone(ipv6_prefix) %}
 {% if _ipv6_rev != _primary_ipv6_reverse %}
-zone "{{ network.ipv6 | ipv6_reverse_zone(network.ipv6.split('/')[1] | int) }}.ip6.arpa" IN {
+zone "{{ _ipv6_rev }}.ip6.arpa" IN {
         type    master;
-        file    "{{dns_bind_zone_dir}}/db.{{ network.ipv6 | ipv6_reverse_zone(network.ipv6.split('/')[1] | int) }}";
+        file    "{{dns_bind_zone_dir}}/db.{{ _ipv6_rev }}";
         update-policy {
                 grant ddns-clients zonesub ANY PTR;
         };

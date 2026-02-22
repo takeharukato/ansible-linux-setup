@@ -11,31 +11,28 @@
 # 変数を読み込み, パスを解決する
 # ( role単位で実行可能とするため)
 - name: Load parameter files
-  ansible.builtin.include_tasks:
-    file: load-params.yml
+  ansible.builtin.include_tasks: load-params.yml
 
 # kubeconfig 関連の派生変数を計算
 - name: Prepare kubeconfig variables
-  ansible.builtin.include_tasks:
-    file: prepare-vars.yml
+  ansible.builtin.include_tasks: prepare-vars.yml
 
 # パッケージインストール関連タスクを読み込み
 - name: Include package tasks
-  ansible.builtin.include_tasks:
-    file: package.yml
+  ansible.builtin.include_tasks: package.yml
 
 # ディレクトリ関連タスクを読み込み
-- ansible.builtin.include_tasks:
-    file: directory.yml
+- name: Include directory tasks
+  ansible.builtin.include_tasks: directory.yml
 
 # ユーザ/グループ関連タスクを読み込み
-- ansible.builtin.include_tasks:
-    file: user_group.yml
+- name: Include user_group tasks
+  ansible.builtin.include_tasks: user_group.yml
 
 # サービス関連タスクを読み込み
-- ansible.builtin.include_tasks:
-    file: service.yml
+- name: Include service tasks
+  ansible.builtin.include_tasks: service.yml
 
 # 設定関連タスクを読み込み
-- ansible.builtin.include_tasks:
-    file: config.yml
+- name: Include config tasks
+  ansible.builtin.include_tasks: config.yml

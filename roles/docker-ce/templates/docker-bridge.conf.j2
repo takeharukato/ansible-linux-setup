@@ -19,6 +19,21 @@ net.bridge.bridge-nf-call-ip6tables = 1
 # 必要に応じてコメントアウトを外して有効化する。
 # net.bridge.bridge-nf-call-arptables = 1
 
+# IPv4 フォワーディングを有効化
+net.ipv4.ip_forward = 1
+
+# IPv6 フォワーディングを有効化
+net.ipv6.conf.all.forwarding = 1
+net.ipv6.conf.default.forwarding = 1
+
+# IPv6ソケットがIPv4も受け入れるように設定
+# この設定により[::]:portバインディングでIPv4とIPv6の両方をリッスン可能
+net.ipv6.bindv6only = 0
+
+# 管理インターフェースでルーター広告(RA)を受け入れる
+# フォワーディングが有効でもRAを受け入れるようにする
+net.ipv6.conf.{{ mgmt_nic|default('ens160',true) }}.accept_ra = 2
+
 # 無効化推奨とされている逆引きパスフィルタリングを無効化
 net.ipv4.conf.all.rp_filter = 0
 # 逆引きパスフィルタリングを無効化

@@ -8,12 +8,18 @@
 #
 
 # 最初に変数設定を読み直す ( role単独で実行可能とするため )
-- include_tasks: load-params.yml
-- include_tasks: package.yml
-- include_tasks: directory.yml
-- include_tasks: user_group.yml
-- include_tasks: service.yml
-- include_tasks: config-whereabouts.yml
+- name: "Load Params"
+  ansible.builtin.include_tasks: load-params.yml
+- name: "Package"
+  ansible.builtin.include_tasks: package.yml
+- name: "Directory"
+  ansible.builtin.include_tasks: directory.yml
+- name: "User Group"
+  ansible.builtin.include_tasks: user_group.yml
+- name: "Service"
+  ansible.builtin.include_tasks: service.yml
+- name: "Config Whereabouts"
+  ansible.builtin.include_tasks: config-whereabouts.yml
   when:
     - k8s_multus_enabled | default(false)
     - k8s_whereabouts_enabled | default(false)

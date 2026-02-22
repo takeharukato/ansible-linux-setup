@@ -13,6 +13,8 @@
     subscription-manager repos --list-enabled \
       | awk -F': *' '/Repo ID:/ {print $2}' \
       | grep -qx "rhel-{{ ansible_distribution_major_version }}-for-{{ ansible_architecture }}-baseos-rpms"
+  args:
+    executable: /bin/bash
   register: baseos_enabled
   changed_when: false
   failed_when: false
@@ -25,6 +27,8 @@
   ansible.builtin.command:
     cmd: "subscription-manager repos --enable=rhel-{{ ansible_distribution_major_version }}-for-{{ ansible_architecture }}-baseos-rpms"
   notify: "rpm makecache"
+  register: _result
+  changed_when: _result.rc == 0
 
 # AppStream detection
 - name: Detect AppStream enabled (RHEL)
@@ -34,6 +38,8 @@
     subscription-manager repos --list-enabled \
       | awk -F': *' '/Repo ID:/ {print $2}' \
       | grep -qx "rhel-{{ ansible_distribution_major_version }}-for-{{ ansible_architecture }}-appstream-rpms"
+  args:
+    executable: /bin/bash
   register: appstream_enabled
   changed_when: false
   failed_when: false
@@ -46,6 +52,8 @@
   ansible.builtin.command:
     cmd: "subscription-manager repos --enable=rhel-{{ ansible_distribution_major_version }}-for-{{ ansible_architecture }}-appstream-rpms"
   notify: "rpm makecache"
+  register: _result
+  changed_when: _result.rc == 0
 
 # CRB detection
 - name: Detect CodeReady Builder enabled (RHEL)
@@ -55,6 +63,8 @@
     subscription-manager repos --list-enabled \
       | awk -F': *' '/Repo ID:/ {print $2}' \
       | grep -qx "codeready-builder-for-rhel-{{ ansible_distribution_major_version }}-{{ ansible_architecture }}-rpms"
+  args:
+    executable: /bin/bash
   register: crb_enabled
   changed_when: false
   failed_when: false
@@ -67,3 +77,5 @@
   ansible.builtin.command:
     cmd: "subscription-manager repos --enable=codeready-builder-for-rhel-{{ ansible_distribution_major_version }}-{{ ansible_architecture }}-rpms"
   notify: "rpm makecache"
+  register: _result
+  changed_when: _result.rc == 0

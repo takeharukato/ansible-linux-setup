@@ -22,7 +22,7 @@ pkg_mgr_family_map:
 pkg_mgr: "{{ ansible_pkg_mgr | default('unknown') }}"
 pkg_mgr_family: "{{ pkg_mgr_family_map[pkg_mgr] | default('unknown') }}"
 pkg_mgr_is_debian: "{{ pkg_mgr_family == 'debian' }}"
-pkg_mgr_is_rhel:   "{{ pkg_mgr_family == 'rhel' }}"
+pkg_mgr_is_rhel: "{{ pkg_mgr_family == 'rhel' }}"
 
 ########################################################################################
 # コンフィグレーションディレクトリ
@@ -38,7 +38,7 @@ grub_default_cfg_path_debian: "{{ etc_default_dir }}/grub"
 
 grub_default_cfg_path: "{{ (ansible_facts.os_family == 'Debian') | ternary(grub_default_cfg_path_debian, grub_default_cfg_path_rhel) }}"
 grub_cmdline_var_name_debian: "GRUB_CMDLINE_LINUX"
-grub_cmdline_var_name_rhel:   "GRUB_CMDLINE_LINUX"
+grub_cmdline_var_name_rhel: "GRUB_CMDLINE_LINUX"
 grub_cmdline_var_name: "{{ (ansible_facts.os_family == 'Debian') | ternary(grub_cmdline_var_name_debian, grub_cmdline_var_name_rhel) }}"
 irq_balance_package_rhel: "irqbalance"
 irq_balance_package_debian: "irqbalance"
@@ -62,7 +62,7 @@ adm_groups: "{{ (ansible_facts.os_family == 'Debian') | ternary(adm_groups_debia
 # passwd データベースフォーマット: [password(0), uid(1), gid(2), gecos(3), home(4), shell(5)]
 # 現在のところ Debian/RHEL で同一だが, 将来の差分に備えて分離して定義する
 getent_passwd_field_gecos_debian: 3
-getent_passwd_field_gecos_rhel:   3
+getent_passwd_field_gecos_rhel: 3
 getent_passwd_field_gecos: "{{ (ansible_facts.os_family == 'Debian') | ternary(getent_passwd_field_gecos_debian, getent_passwd_field_gecos_rhel) }}"
 
 ##################################################################################
@@ -197,7 +197,7 @@ _netif_list_effective: "{{ (netif_list | default([], true)) if ((netif_list | de
 # ルート CA / 信頼ストア
 ########################################################################################
 ca_trust_update_debian: "update-ca-certificates"
-ca_trust_update_rhel:   "update-ca-trust extract"
+ca_trust_update_rhel: "update-ca-trust extract"
 
 ########################################################################################
 # Firewall / ネットワーク
@@ -216,10 +216,10 @@ firewall_backend: "{{ (ansible_facts.os_family == 'Debian') | ternary(firewall_b
 # リポジトリ登録時のコードネーム
 # 例: noble (24.04), jammy (22.04), focal (20.04), bionic (18.04)
 repo_codename_debian: "{{ ansible_lsb.codename | default('noble') }}"
-repo_codename_rhel:   "{{ ansible_distribution_major_version | default('9') }}"
+repo_codename_rhel: "{{ ansible_distribution_major_version | default('9') }}"
 
 repo_repository_path_debian: "/etc/apt/sources.list.d"
-repo_repository_path_rhel:   "/etc/yum.repos.d"
+repo_repository_path_rhel: "/etc/yum.repos.d"
 
 repo_keyring_path_debian: "/etc/apt/keyrings"
 
@@ -232,9 +232,9 @@ docker_repo_url_debian: "https://download.docker.com/linux/ubuntu"
 docker_keyring_path_debian: "{{ repo_keyring_path_debian }}/docker.gpg"
 
 # RHEL/AlmaLinux — yum repository 方式
-docker_repo_gpg_rhel:   "https://download.docker.com/linux/centos/gpg"
-docker_repo_url_rhel:   "https://download.docker.com/linux/centos/9/$basearch/stable"
-docker_repo_name_rhel:  "docker-ce-stable"
+docker_repo_gpg_rhel: "https://download.docker.com/linux/centos/gpg"
+docker_repo_url_rhel: "https://download.docker.com/linux/centos/9/$basearch/stable"
+docker_repo_name_rhel: "docker-ce-stable"
 
 # Docker CE パッケージ群
 docker_ce_remove_packages_debian:
@@ -298,17 +298,17 @@ docker_ce_prereq_packages: "{{ (ansible_facts.os_family == 'Debian') | ternary(d
 
 # Kubernetes 公開鍵 URL
 k8s_pubkey_url_debian: "https://pkgs.k8s.io/core:/stable:/v{{ k8s_major_minor }}/deb/Release.key"
-k8s_pubkey_url_rhel:   "https://pkgs.k8s.io/core:/stable:/v{{ k8s_major_minor }}/rpm/repodata/repomd.xml.key"
+k8s_pubkey_url_rhel: "https://pkgs.k8s.io/core:/stable:/v{{ k8s_major_minor }}/rpm/repodata/repomd.xml.key"
 k8s_pubkey_url: "{{ (ansible_facts.os_family == 'Debian') | ternary(k8s_pubkey_url_debian, k8s_pubkey_url_rhel) }}"
 
 # Kubernetes リポジトリ URL
 k8s_repo_url_debian: "https://pkgs.k8s.io/core:/stable:/v{{ k8s_major_minor }}/deb/"
-k8s_repo_url_rhel:   "https://pkgs.k8s.io/core:/stable:/v{{ k8s_major_minor }}/rpm/"
+k8s_repo_url_rhel: "https://pkgs.k8s.io/core:/stable:/v{{ k8s_major_minor }}/rpm/"
 k8s_repo_url: "{{ (ansible_facts.os_family == 'Debian') | ternary(k8s_repo_url_debian, k8s_repo_url_rhel) }}"
 
 # kubelet 用 resolv.conf パス
 kubelet_resolv_conf_path_debian: "/run/systemd/resolve/resolv.conf"
-kubelet_resolv_conf_path_rhel:   "/etc/resolv.conf"
+kubelet_resolv_conf_path_rhel: "/etc/resolv.conf"
 kubelet_resolv_conf_path: "{{ (ansible_facts.os_family == 'Debian') | ternary(kubelet_resolv_conf_path_debian, kubelet_resolv_conf_path_rhel) }}"
 
 # RHEL/AlmaLinux は yum repository 方式のため不要
@@ -342,7 +342,7 @@ google_dl_google_pubkey: "https://dl.google.com/linux/{{ google_dl_google_pubkey
 google_dl_google_pubkey_path_debian: "{{ repo_keyring_path_debian }}/google-linux.gpg"
 
 google_chrome_repo_debian: "https://dl.google.com/linux/chrome/deb/"
-google_chrome_repo_rhel:  "https://dl.google.com/linux/chrome/rpm/stable/x86_64"
+google_chrome_repo_rhel: "https://dl.google.com/linux/chrome/rpm/stable/x86_64"
 
 google_chrome_repo: "{{ (ansible_facts.os_family == 'Debian') | ternary(google_chrome_repo_debian, google_chrome_repo_rhel) }}"
 
@@ -364,18 +364,18 @@ terraform_apt_repository_list_debian : /etc/apt/sources.list.d/hashicorp.list
 # iptables 永続化パッケージ
 ########################################################################################
 iptables_persistent_package_debian: "iptables-persistent"
-iptables_services_package_rhel:   "iptables-services"
+iptables_services_package_rhel: "iptables-services"
 iptables_persistent_package: "{{ (ansible_facts.os_family == 'Debian') | ternary(iptables_persistent_package_debian, iptables_services_package_rhel) }}"
 
 # iptables 永続化サービス名
 # Debian(Ubuntu)は, systemdサービスではないが, 便宜上サービス名として扱う
 iptables_persistent_service_debian: "iptables-persistent"
-iptables_persistent_service_rhel:   "iptables"
+iptables_persistent_service_rhel: "iptables"
 iptables_persistent_service: "{{ (ansible_facts.os_family == 'Debian') | ternary(iptables_persistent_service_debian, iptables_persistent_service_rhel) }}"
 
 # Debian(Ubuntu)は, systemdサービスではないが, 便宜上サービス名として扱う
 iptables_persistent_ipv6_service_debian: "iptables-persistent"
-iptables_persistent_ipv6_service_rhel:   "ip6tables"
+iptables_persistent_ipv6_service_rhel: "ip6tables"
 iptables_persistent_ipv6_service: "{{ (ansible_facts.os_family == 'Debian') | ternary(iptables_persistent_ipv6_service_debian, iptables_persistent_ipv6_service_rhel) }}"
 
 ########################################################################################
@@ -400,7 +400,7 @@ kea_lease_db_name: "{{ (ansible_facts.os_family == 'Debian') | ternary(kea_lease
 # kea-dhcp4-server サービス名 (Debian)
 kea_dhcp4_server_service_debian: "kea-dhcp4-server"
 # kea-dhcp4 サービス名 (RHEL)
-kea_dhcp4_server_service_rhel:   "kea-dhcp4"
+kea_dhcp4_server_service_rhel: "kea-dhcp4"
 # kea-dhcp4-server サービス名
 kea_dhcp4_server_service: "{{ (ansible_facts.os_family == 'Debian') | ternary(kea_dhcp4_server_service_debian, kea_dhcp4_server_service_rhel) }}"
 
@@ -409,15 +409,15 @@ kea_dhcp4_server_service: "{{ (ansible_facts.os_family == 'Debian') | ternary(ke
 # 相違はないが将来の差分に備えて分離して定義
 ########################################################################################
 radvd_package_debian: "radvd"
-radvd_package_rhel:   "radvd"
+radvd_package_rhel: "radvd"
 radvd_package: "{{ (ansible_facts.os_family == 'Debian') | ternary(radvd_package_debian, radvd_package_rhel) }}"
 
 radvd_service_name_debian: "radvd"
-radvd_service_name_rhel:   "radvd"
+radvd_service_name_rhel: "radvd"
 radvd_service_name: "{{ (ansible_facts.os_family == 'Debian') | ternary(radvd_service_name_debian, radvd_service_name_rhel) }}"
 
 radvd_config_file_path_debian: "/etc/radvd.conf"
-radvd_config_file_path_rhel:   "/etc/radvd.conf"
+radvd_config_file_path_rhel: "/etc/radvd.conf"
 radvd_config_file_path: "{{ (ansible_facts.os_family == 'Debian') | ternary(radvd_config_file_path_debian, radvd_config_file_path_rhel) }}"
 
 ########################################################################################
@@ -431,17 +431,17 @@ ntp_client_is_systemd_timesyncd: "{{ ntp_client_choice == 'systemd-timesyncd' }}
 
 # 基本パス
 ntp_client_chrony_conf_dir_debian: "/etc/chrony"
-ntp_client_chrony_conf_dir_rhel:   "/etc"
+ntp_client_chrony_conf_dir_rhel: "/etc"
 ntp_client_chrony_conf_path_debian: "{{ ntp_client_chrony_conf_dir_debian }}/chrony.conf"
-ntp_client_chrony_conf_path_rhel:   "{{ ntp_client_chrony_conf_dir_rhel }}/chrony.conf"
+ntp_client_chrony_conf_path_rhel: "{{ ntp_client_chrony_conf_dir_rhel }}/chrony.conf"
 
 # サービス名
 ntp_client_chrony_service_debian: "chrony"
-ntp_client_chrony_service_rhel:   "chronyd"
+ntp_client_chrony_service_rhel: "chronyd"
 ntp_client_systemd_timesyncd_conf_path: "/etc/systemd/timesyncd.conf.d/99-timesyncd.conf"
 ntp_client_systemd_timesyncd_service: "systemd-timesyncd"
-ntp_server_service_debian:  "chrony"
-ntp_server_service_rhel:    "chronyd"
+ntp_server_service_debian: "chrony"
+ntp_server_service_rhel: "chronyd"
 ntp_server_chrony_service: "{{ (ansible_facts.os_family == 'Debian') | ternary(ntp_server_service_debian, ntp_server_service_rhel) }}"
 ntp_client_service: "{{ (ansible_facts.os_family == 'Debian') | ternary(ntp_client_is_chrony | ternary(ntp_client_chrony_service_debian, ntp_client_systemd_timesyncd_service), ntp_client_chrony_service_rhel) }}"
 
@@ -452,7 +452,7 @@ ntp_client_chrony_conf_dir: "{{ (ansible_facts.os_family == 'Debian') | ternary(
 
 # drop-in ディレクトリ
 ntp_chrony_conf_drop_in_dir_debian: "/etc/chrony/conf.d"
-ntp_chrony_conf_drop_in_dir_rhel:   "/etc/chrony.d"
+ntp_chrony_conf_drop_in_dir_rhel: "/etc/chrony.d"
 
 ntp_client_chrony_conf_drop_in_dir: "{{ (ansible_facts.os_family == 'Debian') | ternary(ntp_chrony_conf_drop_in_dir_debian, ntp_chrony_conf_drop_in_dir_rhel) }}"
 ntp_server_chrony_conf_drop_in_dir: "{{ (ansible_facts.os_family == 'Debian') | ternary(ntp_chrony_conf_drop_in_dir_debian, ntp_chrony_conf_drop_in_dir_rhel) }}"
@@ -483,18 +483,18 @@ ntp_server_packages: "{{ (ansible_facts.os_family == 'Debian') | ternary(ntp_ser
 
 # ptrace有効化設定ファイルパス
 sysctl_ptrace_conf_path_debian: "/etc/sysctl.d/10-ptrace.conf"
-sysctl_ptrace_conf_path_rhel:   "/etc/sysctl.d/10-ptrace.conf"
+sysctl_ptrace_conf_path_rhel: "/etc/sysctl.d/10-ptrace.conf"
 sysctl_ptrace_conf_path: "{{ (ansible_facts.os_family == 'Debian') | ternary(sysctl_ptrace_conf_path_debian, sysctl_ptrace_conf_path_rhel) }}"
 
 # dmesg有効化設定ファイルパス
 sysctl_dmesg_conf_path_debian: "/etc/sysctl.d/10-kernel-hardening.conf"
-sysctl_dmesg_conf_path_rhel:   "/etc/sysctl.d/10-kernel-hardening.conf"
+sysctl_dmesg_conf_path_rhel: "/etc/sysctl.d/10-kernel-hardening.conf"
 sysctl_dmesg_conf_path: "{{ (ansible_facts.os_family == 'Debian') | ternary(sysctl_dmesg_conf_path_debian, sysctl_dmesg_conf_path_rhel) }}"
 
 # ファイル監視数設定ファイルパス
 # 99-sysctl.conf ではなく 90-xxx.conf として, 99-sysctl.conf で上書きされるようにする。
 sysctl_inotify_conf_path_debian: "/etc/sysctl.d/90-sysctl-inotify.conf"
-sysctl_inotify_conf_path_rhel:   "/etc/sysctl.d/90-sysctl-inotify.conf"
+sysctl_inotify_conf_path_rhel: "/etc/sysctl.d/90-sysctl-inotify.conf"
 sysctl_inotify_conf_path: "{{ (ansible_facts.os_family == 'Debian') | ternary(sysctl_inotify_conf_path_debian, sysctl_inotify_conf_path_rhel) }}"
 
 ########################################################################################
@@ -527,7 +527,7 @@ pkgs_devel_debian: #[build-essential, git, make, gcc, g++, pkg-config, python3, 
   - python3
   - python3-pip
 
-pkgs_devel_rhel:  # [gcc, gcc-c++, make, git, pkgconfig, python3, python3-pip]
+pkgs_devel_rhel: # [gcc, gcc-c++, make, git, pkgconfig, python3, python3-pip]
   - gcc
   - gcc-c++
   - make
@@ -538,9 +538,9 @@ pkgs_devel_rhel:  # [gcc, gcc-c++, make, git, pkgconfig, python3, python3-pip]
 
 # k8s-ctrlplane / k8s-worker で追加
 pkgs_k8s_ctrlplane_extra_debian: []
-pkgs_k8s_ctrlplane_extra_rhel:   []
-pkgs_k8s_worker_extra_debian:    []
-pkgs_k8s_worker_extra_rhel:      []
+pkgs_k8s_ctrlplane_extra_rhel: []
+pkgs_k8s_worker_extra_debian: []
+pkgs_k8s_worker_extra_rhel: []
 
 ########################################################################################
 # nfs-server
@@ -569,9 +569,9 @@ dns_bind_package_rhel:
 dns_bind_packages: "{{ (ansible_facts.os_family == 'Debian') | ternary(dns_bind_package_debian, dns_bind_package_rhel) }}"
 
 # === 実行ユーザ/グループ/サービス名 ===
-dns_bind_user:  "{{ (ansible_facts.os_family == 'Debian') | ternary('bind',  'named') }}"
+dns_bind_user: "{{ (ansible_facts.os_family == 'Debian') | ternary('bind',  'named') }}"
 dns_bind_group: "{{ (ansible_facts.os_family == 'Debian') | ternary('bind',  'named') }}"
-dns_bind_service:   "named"
+dns_bind_service: "named"
 
 # rndc 鍵関連
 # RHEL 系では /etc/rndc.key, Debian 系では /etc/bind/rndc.key に配置される
@@ -589,13 +589,13 @@ dns_rndc_key_path: "{{ (ansible_facts.os_family == 'Debian') | ternary('/etc/bin
 
 # === ディレクトリ/主要ファイル ===
 # 設定ディレクトリ
-dns_bind_conf_dir:  "{{ (ansible_facts.os_family == 'Debian') | ternary('/etc/bind', '/etc/named') }}"
+dns_bind_conf_dir: "{{ (ansible_facts.os_family == 'Debian') | ternary('/etc/bind', '/etc/named') }}"
 # メイン設定ファイル
 dns_bind_main_conf: "{{ (ansible_facts.os_family == 'Debian') | ternary('/etc/bind/named.conf', '/etc/named.conf') }}"
 # ゾーン格納ディレクトリ
-dns_bind_zone_dir:  "{{ (ansible_facts.os_family == 'Debian') | ternary('/var/lib/bind', '/var/named/zone') }}"
+dns_bind_zone_dir: "{{ (ansible_facts.os_family == 'Debian') | ternary('/var/lib/bind', '/var/named/zone') }}"
 # ランタイム ( PID 等 )ディレクトリ ( 存在しなければ作成 )
-dns_bind_run_dir:   "{{ (ansible_facts.os_family == 'Debian') | ternary('/run/named', '/run/named') }}"
+dns_bind_run_dir: "{{ (ansible_facts.os_family == 'Debian') | ternary('/run/named', '/run/named') }}"
 # キャッシュディレクトリ
 dns_bind_cache_dir: "{{ (ansible_facts.os_family == 'Debian') | ternary('/var/cache/bind', '/var/named') }}"
 # オプションファイル
@@ -613,11 +613,11 @@ dns_bind_selinux_target: "/var/named(/.*)?"
 ########################################################################################
 # rancher ( 要 Docker; Helm はバイナリ導入前提が多いため OS パッケージは任意 )
 pkgs_rancher_debian: []
-pkgs_rancher_rhel:   []
+pkgs_rancher_rhel: []
 
 # user-settings ( OSパッケージに依らない前提のため空 )
 pkgs_user_settings_debian: []
-pkgs_user_settings_rhel:   []
+pkgs_user_settings_rhel: []
 
 ########################################################################################
 # FRR ( FRRouting )
@@ -630,11 +630,11 @@ frr_packages_rhel:
 frr_packages: "{{ (ansible_facts.os_family == 'Debian') | ternary(frr_packages_debian, frr_packages_rhel) }}"
 frr_svc_name: "frr"
 frr_vtysh_group_debian: "frrvty"
-frr_vtysh_group_rhel:   "frrvty"
+frr_vtysh_group_rhel: "frrvty"
 frr_vtysh_group_name: "{{ (ansible_facts.os_family == 'Debian') | ternary(frr_vtysh_group_debian, frr_vtysh_group_rhel) }}"
 
 frr_group_debian: "frrvty"
-frr_group_rhel:   "frrvty"
+frr_group_rhel: "frrvty"
 frr_group_name: "{{ (ansible_facts.os_family == 'Debian') | ternary(frr_group_debian, frr_group_rhel) }}"
 
 ########################################################################################
@@ -647,11 +647,11 @@ aide_packages_rhel:
 aide_packages: "{{ (ansible_facts.os_family == 'Debian') | ternary(aide_packages_debian, aide_packages_rhel) }}"
 # AIDE 設定ファイルパス
 aide_config_path_debian: "/etc/aide/aide.conf"
-aide_config_path_rhel:   "/etc/aide.conf"
+aide_config_path_rhel: "/etc/aide.conf"
 aide_config_path: "{{ (ansible_facts.os_family == 'Debian') | ternary(aide_config_path_debian, aide_config_path_rhel) }}"
 # AIDE データベースパス
 aide_database_path_debian: "/var/lib/aide/aide.db.gz"
-aide_database_path_rhel:   "/var/lib/aide/aide.db.gz"
+aide_database_path_rhel: "/var/lib/aide/aide.db.gz"
 aide_database_path: "{{ (ansible_facts.os_family == 'Debian') | ternary(aide_database_path_debian, aide_database_path_rhel) }}"
 # AIDE drop-in ディレクトリ
 # Debian系では, /etc/aide/aide.conf.d が標準の drop-in ディレクトリ
@@ -666,7 +666,7 @@ aide_config_dropin_dir: "{{ (ansible_facts.os_family == 'Debian') | ternary(aide
 # xcp-ng ( Xen Cloud Platform Next Generation )
 ########################################################################################
 xe_linux_service_name_debian: "xe-linux-distribution"
-xe_linux_service_name_rhel:   "xe-linux-distribution"
+xe_linux_service_name_rhel: "xe-linux-distribution"
 xe_linux_service_name: "{{ (ansible_facts.os_family == 'Debian') | ternary(xe_linux_service_name_debian, xe_linux_service_name_rhel) }}"
 
 ########################################################################################
@@ -675,31 +675,31 @@ xe_linux_service_name: "{{ (ansible_facts.os_family == 'Debian') | ternary(xe_li
 
 # SSH デーモンは両系とも "sshd" で共通だが, 明示変数として定義しておく
 sshd_service_name_debian: sshd
-sshd_service_name_rhel:   sshd
+sshd_service_name_rhel: sshd
 sshd_service_name: "{{ (ansible_facts.os_family == 'Debian') | ternary(sshd_service_name_debian, sshd_service_name_rhel) }}"
 
 # firewall サービス名
 firewalld_service_name: firewalld
-ufw_service_name:       ufw
+ufw_service_name: ufw
 firewall_service_name: "{{ (ansible_facts.os_family == 'Debian') | ternary(ufw_service_name, firewalld_service_name) }}"
 
 # netcat コマンド名
 nc_command_debian: "nc"
 # RHEL 系では nmap-ncat パッケージに含まれる nc (netcatへのシンボリックリンク) を使用
-nc_command_rhel:   "nc"
+nc_command_rhel: "nc"
 nc_command: "{{ (ansible_facts.os_family == 'Debian') | ternary(nc_command_debian, nc_command_rhel) }}"
 
 # pssh コマンド名
 pssh_command_debian: "parallel-ssh"
-pssh_command_rhel:   "pssh"
+pssh_command_rhel: "pssh"
 pnuke_command_debian: "parallel-nuke"
-pnuke_command_rhel:   "pnuke"
+pnuke_command_rhel: "pnuke"
 prync_command_debian: "parallel-rsync"
-prync_command_rhel:   "prync"
+prync_command_rhel: "prync"
 pscp_command_debian: "parallel-scp"
-pscp_command_rhel:   "pscp"
+pscp_command_rhel: "pscp"
 pslurp_command_debian: "parallel-slurp"
-pslurp_command_rhel:   "pslurp"
+pslurp_command_rhel: "pslurp"
 pssh_command: "{{ (ansible_facts.os_family == 'Debian') | ternary(pssh_command_debian, pssh_command_rhel) }}"
 pnuke_command: "{{ (ansible_facts.os_family == 'Debian') | ternary(pnuke_command_debian, pnuke_command_rhel) }}"
 prync_command: "{{ (ansible_facts.os_family == 'Debian') | ternary(prync_command_debian, prync_command_rhel) }}"
@@ -715,7 +715,7 @@ pslurp_command: "{{ (ansible_facts.os_family == 'Debian') | ternary(pslurp_comma
 # Debian系では /usr/sbin/nologin, RHEL系では /sbin/nologin が一般的であるため,
 # 互換性確保のため分離して定義する。
 nologin_shell_debian: "/usr/sbin/nologin"
-nologin_shell_rhel:   "/sbin/nologin"
+nologin_shell_rhel: "/sbin/nologin"
 nologin_shell: "{{ (ansible_facts.os_family == 'Debian') | ternary(nologin_shell_debian, nologin_shell_rhel) }}"
 
 ########################################################################################
@@ -726,4 +726,4 @@ sysctl_dropin_path: "/etc/sysctl.d/99-custom.conf"
 
 # 汎用テンプレートで使える OS 判定の糖衣
 is_debian: "{{ ansible_facts.os_family == 'Debian' }}"
-is_rhel:   "{{ ansible_facts.os_family == 'RedHat' }}"
+is_rhel: "{{ ansible_facts.os_family == 'RedHat' }}"

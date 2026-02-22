@@ -5,7 +5,7 @@
 #  ファイル・ディレクトリ作成関連タスク
 #
 - name: "Ensure chrony drop-in directory:{{ ntp_server_chrony_conf_drop_in_dir }} exists"
-  file:
+  ansible.builtin.file:
     path: "{{ ntp_server_chrony_conf_drop_in_dir }}"
     state: directory
     mode: "0755"

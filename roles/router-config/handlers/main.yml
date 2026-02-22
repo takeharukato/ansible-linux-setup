@@ -4,4 +4,5 @@
 #
 #  サービス起動ハンドラ
 #
-- import_tasks: reload-sysctl.yml
+- name: "Reload Sysctl"
+  ansible.builtin.import_tasks: reload-sysctl.yml

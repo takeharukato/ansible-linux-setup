@@ -13,12 +13,12 @@
 # このスクリプトは post-user-create ロール独自の管理下にあり,
 # create_user_emacs_package_list で指定されたパッケージをインストール対象とする
 - name: Create /etc/skel/bin/install-emacs-packages.sh
-  template:
+  ansible.builtin.template:
     src: install-emacs-packages.sh.j2
     dest: /etc/skel/bin/install-emacs-packages.sh
     owner: root
     group: root
-    mode: 0755
-    backup: no
+    mode: '0755'
+    backup: false
   when:
     - create_emacs_package_install_script|default(false)

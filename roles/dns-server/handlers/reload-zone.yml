@@ -3,8 +3,10 @@
 #  Copyright 2020 Takeharu KATO All Rights Reserved.
 #
 
-- name: reload_zone  # notify の reload_zone に対応
+- name: Reload_zone # notify の reload_zone に対応
   listen: reload_zone
-  shell: |
+  ansible.builtin.shell: |
     rndc reload
   become: true
+  register: _result
+  changed_when: _result.rc == 0

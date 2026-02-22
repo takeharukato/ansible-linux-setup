@@ -89,7 +89,7 @@
   ansible.builtin.set_fact:
     k8s_kubeconfig_embedded_map: >-
       {{
-        k8s_kubeconfig_embedded_map | default({}) |
+        k8s_kubeconfig_embedded_map | default({}, true) |
         combine({
           item.item: {
             'cluster_name': hostvars[item.item].k8s_kubeconfig_cluster_name |
@@ -99,7 +99,7 @@
           }
         })
       }}
-  loop: "{{ k8s_kubeconfig_embedded_slurp_results.results | default([]) | selectattr('content', 'defined') | list }}"
+  loop: "{{ k8s_kubeconfig_embedded_slurp_results.results | default([], true) | selectattr('content', 'defined') | list }}"
   loop_control:
     label: "{{ item.item }}"
   run_once: true
@@ -121,7 +121,7 @@
     prefix: k8s-kubeconfig-
   register: k8s_kubeconfig_merge_tmp_dir_result
   when:
-    - (k8s_kubeconfig_embedded_map_local | default({})) | length > 0
+    - (k8s_kubeconfig_embedded_map_local | default({}, true)) | length > 0
 
 - name: Record temporary merge paths
   ansible.builtin.set_fact:
@@ -138,7 +138,7 @@
     owner: "root"
     group: "root"
     mode: "0600"
-  loop: "{{ k8s_kubeconfig_embedded_map_local | default({}) | dict2items }}"
+  loop: "{{ k8s_kubeconfig_embedded_map_local | default({}, true) | dict2items }}"
   loop_control:
     label: "{{ item.value.cluster_name }}"
   when:
@@ -146,7 +146,7 @@
 
 - name: Build kubeconfig merge source list
   ansible.builtin.set_fact:
-    k8s_kubeconfig_merge_sources: "{{ k8s_kubeconfig_embedded_map_local | default({}) | dict2items | map(attribute='value.cluster_name') | map('regex_replace', '^(.*)$', k8s_kubeconfig_merge_tmp_dir ~ '/\\1' ~ k8s_embed_kubeconfig_file_postfix) | unique | list }}"
+    k8s_kubeconfig_merge_sources: "{{ k8s_kubeconfig_embedded_map_local | default({}, true) | dict2items | map(attribute='value.cluster_name') | map('regex_replace', '^(.*)$', k8s_kubeconfig_merge_tmp_dir ~ '/\\1' ~ k8s_embed_kubeconfig_file_postfix) | unique | list }}"
   when:
     - k8s_kubeconfig_merge_tmp_dir is defined
 
@@ -155,17 +155,17 @@
     path: "{{ k8s_kubeconfig_merged_system_path }}"
     state: absent
   when:
-    - k8s_kubeconfig_merge_sources | default([]) | length > 0
+    - k8s_kubeconfig_merge_sources | default([], true) | length > 0
 
 # 収集した kubeconfig を統合
 - name: Merge embedded kubeconfigs into temporary output
   ansible.builtin.command:
-    argv: "{{ [k8s_create_unique_kubeconfig_script_path, '--output', k8s_kubeconfig_merge_output_tmp] + (k8s_kubeconfig_merge_sources | default([])) }}"
+    argv: "{{ [k8s_create_unique_kubeconfig_script_path, '--output', k8s_kubeconfig_merge_output_tmp] + (k8s_kubeconfig_merge_sources | default([], true)) }}"
   environment:
     KUBECONFIG: ""
   changed_when: false
   when:
-    - k8s_kubeconfig_merge_sources | default([]) | length > 0
+    - k8s_kubeconfig_merge_sources | default([], true) | length > 0
 
 - name: Install merged kubeconfig to system directory
   ansible.builtin.copy:

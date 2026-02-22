@@ -23,7 +23,7 @@
     - ansible_facts.pkg_mgr == "dnf"
   block:
 
-    - name: remove epel repo files if present
+    - name: Remove epel repo files if present
       ansible.builtin.file:
         path: "{{ item }}"
         state: absent

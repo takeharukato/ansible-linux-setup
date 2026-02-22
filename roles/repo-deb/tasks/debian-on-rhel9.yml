@@ -8,30 +8,30 @@
 #  Debian/Ubuntu deb リポジトリ設定（apt_repository で対応）
 - name: Configure Debian/Ubuntu deb sources
   block:
-    - name: main
+    - name: Main
       ansible.builtin.apt_repository:
         repo: "deb [signed-by={{ debian_archive_keyring }}] {{ debian_archive_uris | default(['http://deb.debian.org/debian']) | first }} {{ debian_suite_on_ansible_lt_2_15 }} main universe"
         state: "{{ 'present' if repo_enable_main else 'absent' }}"
         filename: "debian-main"
-      notify: "apt update"
+      notify: "apt_update_repo_deb"
 
-    - name: updates
+    - name: Updates
       ansible.builtin.apt_repository:
         repo: "deb [signed-by={{ debian_archive_keyring }}] {{ debian_updates_uris | default(['http://deb.debian.org/debian']) | first }} {{ debian_suite_on_ansible_lt_2_15 }}-updates main universe"
         state: "{{ 'present' if repo_enable_updates else 'absent' }}"
         filename: "debian-updates"
-      notify: "apt update"
+      notify: "apt_update_repo_deb"
 
-    - name: security
+    - name: Security
       ansible.builtin.apt_repository:
         repo: "deb [signed-by={{ debian_archive_keyring }}] {{ debian_security_uris | default(['http://security.debian.org/debian-security']) | first }} {{ debian_suite_on_ansible_lt_2_15 }}-security main universe"
         state: "{{ 'present' if repo_enable_security else 'absent' }}"
         filename: "debian-security"
-      notify: "apt update"
+      notify: "apt_update_repo_deb"
 
-    - name: backports
+    - name: Backports
       ansible.builtin.apt_repository:
         repo: "deb [signed-by={{ debian_archive_keyring }}] {{ debian_backports_uris | default(['http://deb.debian.org/debian']) | first }} {{ debian_suite_on_ansible_lt_2_15 }}-backports main universe"
         state: "{{ 'present' if repo_enable_backports else 'absent' }}"
         filename: "debian-backports"
-      notify: "apt update"
+      notify: "apt_update_repo_deb"

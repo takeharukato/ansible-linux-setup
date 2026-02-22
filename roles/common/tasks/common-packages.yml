@@ -17,13 +17,13 @@
 
 # 基本コマンドのインストール
 - name: Install common packages
-  package:
+  ansible.builtin.package:
     pkg:
       '{{ common_packages }}'
     state: latest
   notify:
     - disable_gui
-    - "{{ pkg_autoremove_handler }}"
+    - "pkg-autoremove"
 
 # Google Chrome パッケージが自動作成する .list ファイルを削除
 # （repo-deb ロールで .sources ファイルを使用しているため、重複を防ぐ）
@@ -36,11 +36,13 @@
     - repo_enable_chrome | default(true)
 
 # apt file update
-- name: apt-file update
-  shell: |
+- name: "APT File Update"
+  ansible.builtin.shell: |
     apt-file update
   become: true
   when: ansible_facts.os_family == 'Debian'
   notify:
     - disable_gui
-    - "{{ pkg_autoremove_handler }}"
+    - "pkg-autoremove"
+  register: _result
+  changed_when: _result.rc == 0

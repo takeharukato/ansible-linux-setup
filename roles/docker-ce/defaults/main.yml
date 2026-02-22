@@ -28,4 +28,4 @@ docker_ce_backup_container_image: "{{ docker_ce_backup_container_image_name }}:l
 # docker fileの場所
 docker_ce_backup_dockerfile_dir: "/usr/local/share/docker-backup"
 # コンテナイメージバックアップを作成する場合はtrueに設定する
-build_docker_ce_backup_container_image: true
+build_docker_ce_backup_container_image: false

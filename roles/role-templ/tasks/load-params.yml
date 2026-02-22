@@ -7,23 +7,23 @@
 ---
 
 # Ubuntu用パッケージ名読み込み
-- name: include ubuntu package names
-  include_vars: ../vars/packages-ubuntu.yml
+- name: Include ubuntu package names
+  ansible.builtin.include_vars: ../vars/packages-ubuntu.yml
   when: ansible_facts.os_family == 'Debian'
 
 # RHEL用パッケージ名読み込み
-- name: include RHEL package names
-  include_vars: ../vars/packages-rhel.yml
+- name: Include RHEL package names
+  ansible.builtin.include_vars: ../vars/packages-rhel.yml
   when: ansible_facts.os_family == 'RedHat'
 
 # ディストリビューション差異吸収用パラメータ読み込み
-- name: include cross-distro.yml
-  include_vars: ../vars/cross-distro.yml
+- name: Include cross-distro.yml
+  ansible.builtin.include_vars: ../vars/cross-distro.yml
 
 # 共通設定読み込み
-- name: include config vars
-  include_vars: ../vars/all-config.yml
+- name: Include config vars
+  ansible.builtin.include_vars: ../vars/all-config.yml
 
 # Kubernetes API広告アドレス設定読み込み
-- name: include K8s API address vars
-  include_vars: ../vars/k8s-api-address.yml
+- name: Include K8s API address vars
+  ansible.builtin.include_vars: ../vars/k8s-api-address.yml

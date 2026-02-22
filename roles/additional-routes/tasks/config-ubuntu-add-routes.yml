@@ -47,4 +47,5 @@
   when:
     - deploy_additional_routes is changed
   register: netplan_apply_result
+  changed_when: netplan_apply_result.rc == 0
   failed_when: netplan_apply_result.rc != 0

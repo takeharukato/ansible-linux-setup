@@ -7,10 +7,10 @@
 # tmux.confのスケルトン
 #
 - name: Deploy a tmux.conf
-  template:
+  ansible.builtin.template:
     src: _tmux.conf.j2
     dest: /etc/skel/.tmux.conf
     owner: root
     group: root
-    mode: 0644
-    backup: no
+    mode: '0644'
+    backup: false

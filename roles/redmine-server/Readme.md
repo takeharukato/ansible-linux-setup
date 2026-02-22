@@ -4,6 +4,7 @@
   - [ロール内変数一覧](#ロール内変数一覧)
   - [ロール内の動作](#ロール内の動作)
   - [導入されるファイル](#導入されるファイル)
+  - [テンプレート/出力ファイル](#テンプレート出力ファイル)
     - [バックアップスクリプト](#バックアップスクリプト)
     - [リストアスクリプト](#リストアスクリプト)
     - [定期バックアップ](#定期バックアップ)
@@ -29,6 +30,7 @@
       - [論理リストア](#論理リストア)
       - [オフラインボリュームコピー](#オフラインボリュームコピー)
       - [権限整合 (PostgreSQLデータ)](#権限整合-postgresqlデータ)
+  - [検証ポイント](#検証ポイント)
   - [参考リンク](#参考リンク)
 
 Redmine導入ロール。
@@ -61,6 +63,12 @@ http://ホスト名:8080/
 | `redmine_service` | `redmine` | Redmine サービス名 (docker compose)。 |
 | `redmine_service_port` | `8080` | Redmine 公開ポート (ホスト側)。 |
 | `redmine_admin_password` | `admin` | Redmine 管理者パスワード (未定義/空の場合は `admin`)。 |
+| `redmine_wait_host_stopped` | `"127.0.0.1"` | Redmineサービス停止を待ち合わせる(接続先)ホスト名/IPアドレス。 |
+| `redmine_wait_host_started` | `"{{ inventory_hostname }}"` | Redmineサービス開始を待ち合わせる(接続先)ホスト名/IPアドレス。 |
+| `redmine_wait_timeout` | `300` | Redmineサービス待ち合わせ時間(単位: 秒)。 |
+| `redmine_wait_delay` | `5` | Redmineサービス待ち合わせる際の開始遅延時間(単位: 秒)。 |
+| `redmine_wait_sleep` | `2` | Redmineサービス待ち合わせる際の待機間隔(単位: 秒)。 |
+| `redmine_wait_delegate_to` | `"localhost"` | Redmineサービス待ち合わせる際の接続元ホスト名/IPアドレス。 |
 | `redmine_db_image` | `postgres:15.1-bullseye` | PostgreSQL コンテナイメージ。 |
 | `redmine_db_service` | `redmine-db` | PostgreSQL サービス名 (docker compose)。 |
 | `redmine_db_name` | `redmine` | PostgreSQL データベース名。 |
@@ -71,13 +79,15 @@ http://ホスト名:8080/
 | `redmine_backup_dir_on_nfs` | `/redmine-backup` | NFS 配下のバックアップ配置先ディレクトリ。 |
 | `redmine_backup_output_dir` | `{{redmine_backup_mount_point}}{{ redmine_backup_dir_on_nfs }}` | NFS 上のバックアップ出力先フルパス。 |
 | `redmine_backup_nfs_server` | `localhost` | デイリーバックアップ先の NFS サーバ。 |
+| `mgmt_nic` | (環境依存) | 管理用ネットワークインターフェース名。sysctl 設定で RA (Router Advertisement, ルータ広告) 受信を有効化する際に使用します。|
 
 ## ロール内の動作
 
-1. [tasks/load-params.yml](roles/redmine-server/tasks/load-params.yml#L8-L23) で OS 別パッケージ名や共通変数を読み込み。
-2. [tasks/directory.yml](roles/redmine-server/tasks/directory.yml#L8-L78) で Docker ボリューム作成, 主要ディレクトリ作成, テンプレート ([templates/docker-compose.yml.j2](roles/redmine-server/templates/docker-compose.yml.j2), [templates/backup-redmine-data.sh.j2](roles/redmine-server/templates/backup-redmine-data.sh.j2), [templates/restore-redmine-data.sh.j2](roles/redmine-server/templates/restore-redmine-data.sh.j2), [templates/daily-backup-redmine.sh.j2](roles/redmine-server/templates/daily-backup-redmine.sh.j2)) を配置。
-3. [tasks/service.yml](roles/redmine-server/tasks/service.yml#L7-L25) で `docker compose down` / `docker compose up -d` を実行し, `{{ redmine_service_port }}` の起動待ち合わせを実施。
-4. [tasks/service.yml](roles/redmine-server/tasks/service.yml#L27-L37) で Redmine 管理者のパスワードを `redmine_admin_password`変数の設定値に従って設定する。`redmine_admin_password`変数が未定義の場合, または, 設定値が空文字列の場合は, `admin`を管理者パスワード(RedmineのDockerHubコンテナのデフォルト設定値)として設定する。
+1. [tasks/load-params.yml](tasks/load-params.yml) で OS 別パッケージ名や共通変数を読み込み。
+2. [tasks/directory.yml](tasks/directory.yml) で Docker ボリューム作成, 主要ディレクトリ作成, テンプレート ([templates/docker-compose.yml.j2](templates/docker-compose.yml.j2), [templates/backup-redmine-data.sh.j2](templates/backup-redmine-data.sh.j2), [templates/restore-redmine-data.sh.j2](templates/restore-redmine-data.sh.j2), [templates/daily-backup-redmine.sh.j2](templates/daily-backup-redmine.sh.j2)) を配置。
+3. [tasks/sysctl.yml](tasks/sysctl.yml) が `templates/90-redmine-forwarding.conf.j2` を `/etc/sysctl.d/90-redmine-forwarding.conf` に配置し, IPv4/IPv6 フォワーディング (`net.ipv4.ip_forward`, `net.ipv6.conf.all.forwarding`, `net.ipv6.conf.default.forwarding`), 管理 IF (Interface, インターフェース) の RA (Router Advertisement, ルータ広告) 受信 (`net.ipv6.conf.<mgmt_nic>.accept_ra`) を有効化します。配置時は `redmine_reload_sysctl` ハンドラを通知し, `sysctl --system` で設定を反映します。
+4. [tasks/service.yml](tasks/service.yml) で `docker compose down` / `docker compose up -d` を実行し, `{{ redmine_service_port }}` の起動待ち合わせを実施。
+5. [tasks/service.yml](tasks/service.yml) で Redmine 管理者のパスワードを `redmine_admin_password`変数の設定値に従って設定する。`redmine_admin_password`変数が未定義の場合, または, 設定値が空文字列の場合は, `admin`を管理者パスワード(RedmineのDockerHubコンテナのデフォルト設定値)として設定する。
 
 ## 導入されるファイル
 
@@ -92,6 +102,16 @@ http://ホスト名:8080/
   - backup-redmine-data.sh Redmineのデータベース, Redmineに登録されたファイル(添付ファイルなど)をバックアップするためのスクリプト
   - restore-redmine-data.sh バックアップファイルの内容をRedmineに反映するためのスクリプト
   - daily-backup-redmine.sh backup-redmine-data.shを用いて, `backup` ディレクトリにバックアップファイルを作成するためのスクリプト。crontabに登録することで定期バックアップを採取するために使用する。
+
+## テンプレート/出力ファイル
+
+| テンプレート名 | 出力先ファイル (既定値) | 説明 |
+| --- | --- | --- |
+| `docker-compose.yml.j2` | `/data/redmine/docker/docker-compose.yml` | Redmine 本体と PostgreSQL (ポストグレスキューエル, リレーショナルデータベース管理システム) の Docker Compose 定義ファイル。コンテナの環境変数, ポートマッピング, ボリューム設定を含みます。|
+| `backup-redmine-data.sh.j2` | `/data/redmine/scripts/backup-redmine-data.sh` | Redmine のデータベースと添付ファイルをバックアップするスクリプト。PostgreSQL の論理バックアップ (`pg_dump`) と添付ファイルの tar アーカイブを作成します。|
+| `restore-redmine-data.sh.j2` | `/data/redmine/scripts/restore-redmine-data.sh` | バックアップアーカイブから Redmine のデータベースと添付ファイルをリストアするスクリプト。PostgreSQL の論理リストア (`pg_restore`) と tar 展開を実行します。|
+| `daily-backup-redmine.sh.j2` | `/data/redmine/scripts/daily-backup-redmine.sh` | デイリーバックアップを NFS (Network File System, ネットワークファイルシステム) サーバにコピーするスクリプト。crontab に登録して定期バックアップを実行します。|
+| `90-redmine-forwarding.conf.j2` | `/etc/sysctl.d/90-redmine-forwarding.conf` | IPv4/IPv6 フォワーディングと RA 受信を有効化する sysctl 設定ファイル。Docker ネットワークの正常動作に必要です。|
 
 ### バックアップスクリプト
 
@@ -163,6 +183,10 @@ pg_dump が出力する ( または出力可能な ) 主な内容は次のとお
 - 外部に依存する実体 ( 例 : 外部ファイル Foreign Data Wrapper (以下, FDW と記す) の実体データ ) は, 定義は出るが中身は対象外。
 
 ## 用語定義
+
+- Docker (ドッカー): コンテナ型仮想化技術を実装したオープンソースのプラットフォーム。アプリケーションとその実行環境を軽量な仮想コンテナとしてパッケージ化し, ホストOS上で隔離して実行する。仮想マシンと異なり, ゲストOSを必要とせず, ホストOSのカーネルを共有することで高速起動と低オーバーヘッドを実現する。コンテナイメージの作成, 配布, 実行を管理する Docker Engine と, イメージを保管・共有する Docker Hub などのレジストリから構成される。
+
+- Docker Compose (ドッカー コンポーズ): 複数のDockerコンテナで構成されるアプリケーションを定義・実行するためのツール。YAML形式の設定ファイル (docker-compose.yml) に複数サービスの構成 (イメージ, ポート, ボリューム, 環境変数, 依存関係等) を宣言的に記述し, `docker compose up` コマンド一つで全サービスを一括起動できる。開発環境やテスト環境での複数コンテナの連携管理を簡素化し, サービス間のネットワーク構成や起動順序制御を自動化する。
 
 - Docker Compose サービス ( 以下, サービスと記す ) : docker-compose.yml の services: 直下に定義する構成単位。サービスは1つの機能役割 ( 例 : アプリケーション, データベース ) を実行するコンテナの実行仕様を記述する。
   - 機能役割の粒度: Web アプリケーション用 ( 例 : redmine ), データベース用 ( 例 : redmine-db ) という役割ごとに分離。
@@ -466,6 +490,15 @@ chown -R "$uid:$gid" "$mp"
 # chown -R "$uid:$gid" "$mp"
 #
 ```
+
+## 検証ポイント
+
+- `/data/redmine` 以下に docker, scripts, backup ディレクトリが作成されていること。
+- `/etc/sysctl.d/90-redmine-forwarding.conf` が配備され, `sysctl net.ipv4.ip_forward`, `sysctl net.ipv6.conf.all.forwarding` が `1` に設定されていること。
+- `docker compose -f /data/redmine/docker/docker-compose.yml ps` で Redmine と PostgreSQL (ポストグレスキューエル, リレーショナルデータベース管理システム) コンテナが稼働していること。
+- Redmine サービスが `http://ホスト名:8080/` でアクセス可能なこと。
+- バックアップスクリプト実行時に `/data/redmine/backup/redmine.dump.gz`, `/data/redmine/backup/redmine_files.tgz` が生成されること。
+- リストアスクリプト実行後にバックアップしたプロジェクトやチケットが復元されていること。
 
 ## 参考リンク
 

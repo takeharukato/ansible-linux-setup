@@ -6,9 +6,11 @@
 
 
 # update Grub
-- name: update grub
-  shell: |
+- name: Update grub
+  ansible.builtin.shell: |
     update-grub
   when:
     - ansible_facts.os_family == 'Debian'
   become: true
+  register: _result
+  changed_when: _result.rc == 0

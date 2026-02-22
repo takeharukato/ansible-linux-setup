@@ -4,26 +4,26 @@
 #
 #  パッケージ関連処理
 #
-- name: remove containerd
-  package:
+- name: Remove containerd
+  ansible.builtin.package:
     pkg:
       '{{ k8s_containerd_packages }}'
     state: absent
 
 - name: Install transport-https ca-certificates curl
-  package:
+  ansible.builtin.package:
     pkg:
       "{{ k8s_common_prerequisite_packages }}"
     state: latest
 
-- name: install containerd
-  package:
+- name: Install containerd
+  ansible.builtin.package:
     pkg:
       '{{ k8s_containerd_packages }}'
     state: latest
 
-- name: install kubectl/kubeadm/kubelet
-  package:
+- name: Install kubectl/kubeadm/kubelet
+  ansible.builtin.package:
     pkg:
       '{{ k8s_common_packages  }}'
     state: latest

@@ -17,6 +17,14 @@ Kubernetes ワーカーノードをクラスタへ再参加させるためのロ
 | 変数名 | 既定値 | 説明 |
 | --- | --- | --- |
 | `k8s_ctrlplane_endpoint` | 各 `host_vars` | コントロールプレーン API アドレス。API 待機, firewall 設定, `kubeadm join` に使用します。|
+| `k8s_api_wait_host` | `"{{ k8s_ctrlplane_endpoint }}"` | Kubernetes APIサーバの待ち合わせ先(接続先)ホスト名/IPアドレス。|
+| `k8s_api_wait_port` | `"{{ k8s_ctrlplane_port }}"` | Kubernetes APIサーバの待ち合わせ先ポート番号。|
+| `k8s_api_wait_timeout` | `600` | Kubernetes APIサーバ待ち合わせ時間(単位: 秒)。|
+| `k8s_api_wait_delay` | `2` | Kubernetes APIサーバ待ち合わせる際の開始遅延時間(単位: 秒)。|
+| `k8s_api_wait_sleep` | `1` | Kubernetes APIサーバ待ち合わせる際の待機間隔(単位: 秒)。|
+| `k8s_api_wait_delegate_to` | `"localhost"` | Kubernetes APIサーバ待ち合わせる際の接続元ホスト名/IPアドレス。|
+| `k8s_containerd_wait_timeout` | `60` | containerdソケット待ち合わせ時間(単位: 秒)。|
+| `k8s_containerd_wait_delegate_to` | `"localhost"` | containerdソケット待ち合わせる際の接続元ホスト名/IPアドレス。|
 | `k8s_ctrlplane_host` | 各 `host_vars` | `delegate_to` で kubeadm/kubectl を実行するコントロールプレーンホスト。|
 | `enable_firewall` | `false` (`vars/all-config.yml`) | true の場合に firewall タスクを有効化します。|
 | `firewall_backend` | OS 判定で `['ufw']` または `['firewalld']` | firewall 実装の選択。複数指定時はループで順次処理します。|

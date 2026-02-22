@@ -17,13 +17,13 @@
 - name: Deploy .gitconfig for each user
   vars:
     user_home: "{{ item.home | default('/home/' ~ item.name, true) }}"
-  template:
+  ansible.builtin.template:
     src: _gitconfig.j2
     dest: "{{ user_home }}/.gitconfig"
     owner: "{{ item.name }}"
     group: "{{ item.name }}"
-    mode: 0644
-    backup: no
+    mode: '0644'
+    backup: false
   loop: "{{ users_list | default([], true) }}"
   when:
     - ( users_list | default([], true) | length ) > 0

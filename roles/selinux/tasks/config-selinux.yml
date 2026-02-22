@@ -113,20 +113,20 @@
     mode: '0000'
   when:
     - se_config_file.stat.exists
-    - need_full_relabel | bool
+    - need_full_relabel | default(false) | bool
 
 # マシンをリブートする
 # 「リラベルが必要」or「disabled へ変更が入った」場合
 # マシンをリブートする
 - name: Reboot host gracefully to disable SELinux
-  reboot:
-    reboot_timeout: 600
+  ansible.builtin.reboot:
+    reboot_timeout: "{{ reboot_timeout_sec }}"
     msg: "Reboot triggered by role: selinux"
     pre_reboot_delay: 2
   when:
     - se_config_file.stat.exists
     - (
-        need_full_relabel | bool
+        need_full_relabel | default(false) | bool
         or
         (
           common_selinux_state == 'disabled'
@@ -135,14 +135,3 @@
           and (persist_selinux is defined and persist_selinux is changed)
         )
       )
-
-# Reboot 後の接続待ち
-- name: Wait for connection after reboot
-  wait_for_connection:
-    timeout: 300
-  when:
-    - common_selinux_state == 'disabled'
-    - getenforce_out.stdout is defined
-    - getenforce_out.stdout != 'Disabled'
-    - se_config_file.stat.exists
-    - (persist_selinux is defined and persist_selinux is changed)

@@ -9,8 +9,8 @@
 ---
 
 # 最初に変数設定を読み直す ( role単独で実行可能とするため )
-- include_tasks: load-params.yml
-
+- name: "Load Params"
+  ansible.builtin.include_tasks: load-params.yml
 # パッケージ関連タスクの読み込み（Ansible バージョンに基づいた分岐）
 # deb822_repository モジュールは Ansible 2.15 以降で利用可能
 - name: Include package tasks (Ansible >= 2.15)
@@ -21,7 +21,11 @@
   ansible.builtin.include_tasks: package-on-rhel9.yml
   when: ansible_version.major < 2 or (ansible_version.major == 2 and ansible_version.minor < 15)
 
-- include_tasks: directory.yml
-- include_tasks: user_group.yml
-- include_tasks: service.yml
-- include_tasks: config.yml
+- name: "Directory"
+  ansible.builtin.include_tasks: directory.yml
+- name: "User Group"
+  ansible.builtin.include_tasks: user_group.yml
+- name: "Service"
+  ansible.builtin.include_tasks: service.yml
+- name: "Config"
+  ansible.builtin.include_tasks: config.yml

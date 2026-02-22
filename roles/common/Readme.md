@@ -4,6 +4,7 @@
 
 ## タスク構成
 
+- **config-wait-frontend-lock.yml** (Debian系のみ): リポジトリ設定や後続のパッケージ操作で `apt update` を実行する前に, システム起動時やバックグラウンドで動作する `cloud-init`, `unattended-upgrades` などが apt/dpkg ロックを保持している場合に備えてロック解放を待機します。`fuser` コマンドで4つのロックファイル (`/var/lib/dpkg/lock-frontend`, `/var/lib/dpkg/lock`, `/var/cache/apt/archives/lock`, `/var/lib/apt/lists/lock`) を監視し, 各ロックファイルに対して `apt_lock_check_interval` (既定5秒) 間隔でロック解放を確認, 最大 `apt_lock_wait_timeout` (既定1800秒=30分) まで待機します。全ロックが解放された後に後続タスクへ進むことで, ロック競合によるエラーを防ぎます。`psmisc` パッケージ (fuser コマンド提供) を事前にインストールします。
 - **load-params.yml**: `roles/common/vars/*.yml` を順に取り込み, OS 別パッケージ名 (`packages-*.yml`), クロスディストロ変数 (`cross-distro.yml`), 共通設定 (`all-config.yml`), Kubernetes API 情報 (`k8s-api-address.yml`) を確定します。
 - **config-pre-check.yml**: `mgmt_nic` が未指定の場合は `common_default_nic` で補完し, 0 文字のままなら失敗させます。ネットワーク処理の前提をここで固めます。
 - **config-timezone.yml**: `common_timezone` が非空なら `timezone` モジュールで恒久設定します。
@@ -45,6 +46,9 @@
 | `common_disable_cron_mails` | `false` | true で `/etc/crontab` の `MAILTO` を空文字へ統一します。 |
 | `common_envdir` | `/etc/default` ( Debian系の場合 ), `/etc/sysconfig` ( RHEL系の場合 ) | 環境ファイルを配置するディレクトリを OS に応じて切り替えます。 |
 | `common_iface_deny_regex` | `"^(docker\|br-\|veth\|virbr\|vboxnet\|vmnet\|vnet\|tun\|tap\|wg\|tailscale\|zt\|lo)"` | DNS 更新対象から除外したいインターフェース名の正規表現。 |
+| `apt_lock_wait_timeout` | `1800` | apt実行時のロック待ち合わせ最大時間 (秒)。Debian系のみ有効で, cloud-initやunattended-upgradesなどのバックグラウンドプロセスがロックを解放するまで待機します。最大リトライ回数は `apt_lock_wait_timeout / apt_lock_check_interval` で算出されます (既定360回)。詳細は `config-wait-frontend-lock.yml` を参照。 |
+| `apt_lock_check_interval` | `5` | aptロックファイルの確認間隔 (秒)。Debian系のみ有効で, `fuser` コマンドでロックファイルを使用しているプロセスの有無をこの間隔でチェックします。詳細は `config-wait-frontend-lock.yml` を参照。 |
+| `apt_lock_files` | `["/var/lib/dpkg/lock-frontend", "/var/lib/dpkg/lock", "/var/cache/apt/archives/lock", "/var/lib/apt/lists/lock"]` | 監視対象のaptロックファイルリスト。Debian系のみ有効で, これらすべてのロックが解放されるまで待機します。各ファイルに対して順次 `fuser` でプロセスによるロック保持を確認します。詳細は `config-wait-frontend-lock.yml` を参照。 |
 | `common_autonetconfig_prefix` | `{{ netconfig_prefix }}` | 既存自動ネットワーク設定を退避するパスのプレフィックスです。 |
 | `use_nm_ddns_update_scripts` | `false` | Dynamic DNS 連携スクリプト一式を展開する。 |
 | `common_sysctl_user_ptrace_enable` | `true` | true で `kernel.yama.ptrace_scope` を 0 に設定しユーザ ptrace を許可します。 |
@@ -101,6 +105,7 @@
 
 ## 検証ポイント
 
+- Debian 系では `config-wait-frontend-lock.yml` によるaptロック待ち合わせが正常に動作すること。`journalctl` や Ansible 出力で各ロックファイル (`/var/lib/dpkg/lock-frontend`, `/var/lib/dpkg/lock`, `/var/cache/apt/archives/lock`, `/var/lib/apt/lists/lock`) に対して `fuser` チェックが実行され, ロック未使用 (rc=1) で待機が完了していることを確認します。cloud-init や unattended-upgrades 実行中の場合は, リトライログ (attempts > 1) が出力され, 最大 `apt_lock_wait_timeout` 秒まで待機します。
 - NetworkManager 切り替え後に `nmcli device status` で不要な legacy 接続が残存していないこと, `ip -br addr` でテンプレート通りの IP が得られていること。
 - `/etc/sysctl.d/10-ptrace.conf`, `/etc/sysctl.d/10-kernel-hardening.conf`, `/etc/sysctl.d/90-sysctl-inotify.conf` に意図した値が書き込まれ, `sysctl --system` 後に `sysctl kernel.yama.ptrace_scope` などが反映されていること。
 - `sudo -l` で `sudo_dropin_prefix` 付きのドロップインが読み込まれていること。`visudo -cf /etc/sudoers` が成功すること。

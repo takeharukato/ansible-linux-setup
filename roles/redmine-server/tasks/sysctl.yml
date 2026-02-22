@@ -1,0 +1,16 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  sysctl 設定関連タスク
+#
+---
+- name: Deploy Redmine IPv4 and IPv6 forwarding sysctl drop-in
+  ansible.builtin.template:
+    src: 90-redmine-forwarding.conf.j2
+    dest: /etc/sysctl.d/90-redmine-forwarding.conf
+    owner: root
+    group: root
+    mode: '0644'
+  notify: "redmine_reload_sysctl"
+  become: true

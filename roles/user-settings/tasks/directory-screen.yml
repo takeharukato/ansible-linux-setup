@@ -7,10 +7,10 @@
 # screenrcのスケルトン
 #
 - name: Deploy a screenrc
-  template:
+  ansible.builtin.template:
     src: _screenrc.j2
     dest: /etc/skel/.screenrc
     owner: root
     group: root
-    mode: 0644
-    backup: no
+    mode: '0644'
+    backup: false

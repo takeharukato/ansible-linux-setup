@@ -5,6 +5,21 @@
 #  group_vars/all/all.yml やhost_varsで上書き可能とするため,
 #  ロール名/defaults/main.yml に定義している
 ---
+# 再起動後の応答待ちのタイムアウト時間 (秒)
+reboot_timeout_sec: 600
+
+# aptロック待ち合わせ設定 (Debian系のみ)
+# aptコマンド実行時に他プロセスがロックを保持している場合の最大待機時間 (秒)
+apt_lock_wait_timeout: 1800
+# aptロックファイルの確認間隔 (秒)
+apt_lock_check_interval: 5
+# 監視対象のaptロックファイルリスト
+apt_lock_files:
+  - "/var/lib/dpkg/lock-frontend"
+  - "/var/lib/dpkg/lock"
+  - "/var/cache/apt/archives/lock"
+  - "/var/lib/apt/lists/lock"
+
 # タイムゾーン
 common_timezone: "Asia/Tokyo"
 

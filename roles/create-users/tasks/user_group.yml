@@ -31,8 +31,8 @@
     group: "{{ user_group }}"
     groups:
       - "{{ user_group }}"
-    comment:  "{{ user_comment }}"
-    home:  "{{ user_home }}"
+    comment: "{{ user_comment }}"
+    home: "{{ user_home }}"
     shell: "{{ user_shell }}"
     update_password: "{{ user_update_password }}"
   loop: "{{ users_list | default([], true) }}"
@@ -80,15 +80,11 @@
 
 # authorized_keys に GitHub からインポート
 - name: Import authorized key from GitHub
-  vars:
-    user_group: "{{ item.group | default(item.name, true) }}"
-    user_home: "{{ item.home | default('/home/' ~ item.name, true) }}"
-  shell: |
-    curl -fsSL https://github.com/"{{ item.github }}".keys|sudo -u "{{ item.name }}" tee -a "{{ user_home }}"/.ssh/authorized_keys
-    cat "{{ user_home }}"/.ssh/authorized_keys|sort|uniq|sudo -u "{{ item.name }}" tee "{{ user_home }}"/.ssh/authorized_keys.tmp
-    sudo -u "{{ item.name }}" mv "{{ user_home }}"/.ssh/authorized_keys.tmp "{{ user_home }}"/.ssh/authorized_keys
-    sudo chmod 600 "{{ user_home }}"/.ssh/authorized_keys
-    sudo chown "{{ item.name }}:{{ user_group }}" "{{ user_home }}"/.ssh/authorized_keys
+  ansible.posix.authorized_key:
+    user: "{{ item.name }}"
+    state: present
+    key: "https://github.com/{{ item.github }}.keys"
+    exclusive: false
   loop: "{{ users_list | default([], true) }}"
   when:
     - item.name is defined
@@ -113,7 +109,7 @@
   ansible.builtin.user:
     name: "{{ item.name }}"
     groups: "{{ adm_groups | default([], true) | join(',') }}"
-    append: yes
+    append: true
   loop: "{{ users_list | default([], true) }}"
   when:
     - ( users_list | default([], true) | length ) > 0

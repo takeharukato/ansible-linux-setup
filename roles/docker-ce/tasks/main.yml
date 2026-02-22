@@ -4,14 +4,21 @@
 #
 
 # 最初に変数設定を読み直す ( role単独で実行可能とするため )
-- include_tasks: load-params.yml
-- include_tasks: package.yml
+- name: "Load Params"
+  ansible.builtin.include_tasks: load-params.yml
+- name: "Package"
+  ansible.builtin.include_tasks: package.yml
 # Dockerfileからコンテナを作成するために
 # Dockerを起動する処理をdirectory.ymlの前に実行
-- include_tasks: service.yml
-- include_tasks: directory.yml
-- include_tasks: docker-backup-image.yml
+- name: "Service"
+  ansible.builtin.include_tasks: service.yml
+- name: "Directory"
+  ansible.builtin.include_tasks: directory.yml
+- name: "Docker Backup Image"
+  ansible.builtin.include_tasks: docker-backup-image.yml
   when:
     - build_docker_ce_backup_container_image|default(false)|bool
-- include_tasks: user_group.yml
-- include_tasks: config.yml
+- name: "User Group"
+  ansible.builtin.include_tasks: user_group.yml
+- name: "Config"
+  ansible.builtin.include_tasks: config.yml

@@ -8,7 +8,7 @@
 
 # Terraform導入に必要なパッケージをインストール
 - name: "Install required packages for terraform"
-  package:
+  ansible.builtin.package:
     name:
       - gnupg
       - software-properties-common
@@ -18,23 +18,28 @@
 
 # HashiCorpリポジトリを追加 (Debian系)
 - name: "Update apt cache before adding HashiCorp repository"
-  apt:
-    update_cache: yes
+  ansible.builtin.apt:
+    update_cache: true
   when:
     - ansible_facts.os_family == "Debian"
 
 # HashiCorp GPGキーを追加 (Debian系)
 - name: "Add HashiCorp GPG key"
-  shell: |
+  ansible.builtin.shell: |
+    set -o pipefail
     curl -fsSL {{ terraform_repository_url_debian }}/gpg | gpg --dearmor -o "{{ terraform_apt_keyring_debian }}"
     chmod 0644 "{{ terraform_apt_keyring_debian }}"
+  args:
+    executable: /bin/bash
   when:
     - ansible_facts.os_family == "Debian"
+  register: _result
+  changed_when: _result.rc == 0
 
 # HashiCorpリポジトリを追加 (Debian系, deb822形式)
 - name: "Add HashiCorp APT repository (deb822)"
   ansible.builtin.deb822_repository:
-    name: "hashicorp"
+    name: "Hashicorp"
     types:
       - "deb"
     uris: "{{ terraform_repository_url_debian }}"
@@ -43,31 +48,31 @@
       - "main"
     enabled: true
     signed_by: "{{ terraform_apt_keyring_debian }}"
-  notify: "apt update"
+  notify: "apt_update_repo_deb"
   when:
     - ansible_facts.os_family == "Debian"
 
 # リポジトリ追加後にaptキャッシュを更新 (Debian系)
 - name: "Update apt cache"
-  apt:
-    update_cache: yes
+  ansible.builtin.apt:
+    update_cache: true
   when:
     - ansible_facts.os_family == "Debian"
 
 # HashiCorpリポジトリを追加 (RHEL系)
 - name: "Ensure HashiCorp YUM repository is present (RHEL)"
   ansible.builtin.yum_repository:
-    name: "hashicorp"
+    name: "Hashicorp"
     description: "HashiCorp Stable - $basearch"
     baseurl: "{{ terraform_repository_url_rhel }}/RHEL/$releasever/$basearch/stable"
-    gpgcheck: yes
+    gpgcheck: true
     gpgkey: "{{ terraform_repository_url_rhel }}/gpg"
-    enabled: yes
+    enabled: true
   when:
     - ansible_facts.os_family == "RedHat"
 
 # terraformをインストール
 - name: "Install terraform package"
-  package:
+  ansible.builtin.package:
     name: terraform
     state: present

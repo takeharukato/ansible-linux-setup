@@ -6,8 +6,9 @@
 #  Control plane + Worker構築後に実行することを想定
 #  inventory/hosts の k8s_management グループに登録されたホストで実行される
 #
-- hosts: k8s_management
-  remote_user:  '{{ ansible_user }}'
+- name: Configure k8s control planes after installation.
+  hosts: k8s_management
+  remote_user: '{{ ansible_user }}'
   become: true
   roles:
     - role: k8s-hubble-ui

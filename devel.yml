@@ -2,10 +2,11 @@
 #  Ansible playbook
 #  Copyright 2020 Takeharu KATO All Rights Reserved.
 #
-- hosts:
+- name: Configure hosts for development
+  hosts:
     - devel
     - internal_devel
-  remote_user:  '{{ ansible_user }}'
+  remote_user: '{{ ansible_user }}'
   become: true
   roles:
     - role: selinux

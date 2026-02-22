@@ -3,23 +3,17 @@
 #
 
 - block:
-
-  # マシンをリブートする
-  - name: Reboot host gracefully
-    reboot:
-      reboot_timeout: 600
-      msg: "Reboot triggered by role: common"
-      pre_reboot_delay: 2
-
-  # ssh が使えるようになるのを待つ
-  - name: Wait for connection after reboot
-    wait_for_connection:
-      timeout: 300
+    # マシンをリブートする
+    - name: Reboot host gracefully
+      ansible.builtin.reboot:
+        reboot_timeout: "{{ reboot_timeout_sec }}"
+        msg: "Reboot triggered by role: common"
+        pre_reboot_delay: 2
 
   when: force_reboot | default(false) | bool
 
 # ログを残したい場合のみ
 - name: Reboot skipped (force_reboot is false)
-  debug:
+  ansible.builtin.debug:
     msg: "Reboot skipped because force_reboot is not set to true"
   when: not (force_reboot | default(false) | bool)

@@ -19,7 +19,7 @@
   become: true
   # kubectl が存在し, シェル補完が有効な場合にのみ実行
   when:
-    - kubectl_completion_enabled | bool
+    - kubectl_completion_enabled | default(false) | bool
     - kubectl_lookup.rc == 0
   block:
     # kubectl 実行ファイルのパスを変数に設定

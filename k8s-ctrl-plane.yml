@@ -2,8 +2,9 @@
 #  Ansible playbook
 #  Copyright 2020 Takeharu KATO All Rights Reserved.
 #
-- hosts: k8s_ctrl_plane
-  remote_user:  '{{ ansible_user }}'
+- name: Configure control planes
+  hosts: k8s_ctrl_plane
+  remote_user: '{{ ansible_user }}'
   become: true
   roles:
     - role: selinux

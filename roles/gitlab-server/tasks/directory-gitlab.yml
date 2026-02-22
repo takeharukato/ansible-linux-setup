@@ -45,7 +45,7 @@
 
 # GitLab Homeディレクトリ(/srv/gitlab)作成
 - name: "Create GitLab Home directory ({{ gitlab_home_dir }})"
-  file:
+  ansible.builtin.file:
     path: "{{ gitlab_home_dir }}"
     state: directory
     owner: "{{ gitlab_user_id }}"
@@ -55,7 +55,7 @@
 
 # GitLab用設定ファイル格納ディレクトリ作成
 - name: "Create GitLab configuration directory ({{ gitlab_config_dir }})"
-  file:
+  ansible.builtin.file:
     path: "{{ gitlab_config_dir }}"
     state: directory
     owner: "{{ gitlab_user_id }}"
@@ -65,7 +65,7 @@
 
 # GitLab用ログ格納ディレクトリ作成
 - name: "Create GitLab logs directory ({{ gitlab_logs_dir }})"
-  file:
+  ansible.builtin.file:
     path: "{{ gitlab_logs_dir }}"
     state: directory
     owner: "{{ gitlab_user_id }}"
@@ -75,7 +75,7 @@
 
 # GitLab用データ格納ディレクトリ作成
 - name: "Create GitLab data directory ({{ gitlab_data_dir }})"
-  file:
+  ansible.builtin.file:
     path: "{{ gitlab_data_dir }}"
     state: directory
     owner: "{{ gitlab_user_id }}"
@@ -85,7 +85,7 @@
 
 # GitLabバックアップ格納ディレクトリ作成
 - name: "Create GitLab backup directory ({{ gitlab_backup_dir }})"
-  file:
+  ansible.builtin.file:
     path: "{{ gitlab_backup_dir }}"
     state: directory
     owner: "{{ gitlab_user_id }}"
@@ -95,7 +95,7 @@
 
 # GitLab日次バックアップ退避ディレクトリ作成
 - name: "Create GitLab daily backup directory ({{ gitlab_daily_backup_dir }})"
-  file:
+  ansible.builtin.file:
     path: "{{ gitlab_daily_backup_dir }}"
     state: directory
     owner: "{{ gitlab_user_id }}"
@@ -105,7 +105,7 @@
 
 # GitLab管理用スクリプト格納ディレクトリ作成
 - name: "Create GitLab scripts directory ({{ gitlab_scripts_dir }})"
-  file:
+  ansible.builtin.file:
     path: "{{ gitlab_scripts_dir }}"
     state: directory
     owner: "{{ gitlab_user_id }}"
@@ -145,7 +145,7 @@
 
 # GitLab Runner用設定ファイル格納ディレクトリ作成
 - name: "Create Gitlab runner configuration directory ({{ gitlab_runner_config_dir }})"
-  file:
+  ansible.builtin.file:
     path: "{{ gitlab_runner_config_dir }}"
     state: directory
     owner: "{{ gitlab_user_id }}"

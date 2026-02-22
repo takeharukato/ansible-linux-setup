@@ -80,8 +80,8 @@ mac-address={{ item.mac }}
 {% set have_v4_gw   = (gw4 | length) %}
 {% set have_v6_gw   = (gw6 | length) %}
 
-{% set v4_never_def = (item.never_default_ipv4 | default(false)) or (have_v4_addr and (not have_v4_gw)) %}
-{% set v6_never_def = (item.never_default_ipv6 | default(false)) or (have_v6_addr and (not have_v6_gw)) %}
+{% set v4_never_def = (item.never_default_ipv4 | default(false, true)) or (have_v4_addr and (not have_v4_gw)) %}
+{% set v6_never_def = (item.never_default_ipv6 | default(false, true)) or (have_v6_addr and (not have_v6_gw)) %}
 
 {# DNS search 最終値のソース ( item優先, all-configのdns_search, 無設定 ) #}
 
@@ -112,7 +112,7 @@ mac-address={{ item.mac }}
                              | list
                              | join(';')) %}
 {% else %}
-  {% set _dns_search_val = (_dns_search_raw | string | replace(',', ';') | trim) %}
+  {% set _dns_search_val = (_dns_search_raw | default('', true) | string | replace(',', ';') | trim) %}
 {% endif %}
 
 {# ここまで計算ブロック #}
@@ -127,7 +127,7 @@ address1={{ item.static_ipv4_addr }}/{{ item.network_ipv4_prefix_len }}{% if hav
 {% endif %}
 
 {% set v4_dns_list = [] %}
-{% if item.ignore_auto_ipv4_dns | default(false) %}
+{% if item.ignore_auto_ipv4_dns | default(false, true) %}
   {% if item.name_server_ipv4_1 | default('', true) | length %}{% set _ = v4_dns_list.append(item.name_server_ipv4_1) %}{% endif %}
   {% if item.name_server_ipv4_2 | default('', true) | length %}{% set _ = v4_dns_list.append(item.name_server_ipv4_2) %}{% endif %}
   {% if not v4_dns_list and ipv4_name_server1 | default('', true) | length %}{% set _ = v4_dns_list.append(ipv4_name_server1) %}{% endif %}
@@ -162,7 +162,7 @@ address1={{ item.static_ipv6_addr }}/{{ item.network_ipv6_prefix_len }}{% if hav
 {% endif %}
 
 {% set v6_dns_list = [] %}
-{% if item.ignore_auto_ipv6_dns | default(false) %}
+{% if item.ignore_auto_ipv6_dns | default(false, true) %}
   {% if item.name_server_ipv6_1 | default('', true) | length %}{% set _ = v6_dns_list.append(item.name_server_ipv6_1) %}{% endif %}
   {% if item.name_server_ipv6_2 | default('', true) | length %}{% set _ = v6_dns_list.append(item.name_server_ipv6_2) %}{% endif %}
   {% if not v6_dns_list and ipv6_name_server1 | default('', true) | length %}{% set _ = v6_dns_list.append(ipv6_name_server1) %}{% endif %}

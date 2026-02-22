@@ -7,7 +7,7 @@
 # sshのディレクトリスケルトン
 #
 - name: Create /etc/skel/.ssh
-  file:
+  ansible.builtin.file:
     path: "/etc/skel/.ssh"
     state: directory
     owner: "root"
@@ -18,22 +18,22 @@
 # sshのauthorized_keys
 #
 - name: Create empty /etc/skel/.ssh/authorized_keys
-  template:
+  ansible.builtin.template:
     src: _ssh__authorized_keys.j2
     dest: /etc/skel/.ssh/authorized_keys
     owner: root
     group: root
-    mode: 0600
-    backup: no
+    mode: '0600'
+    backup: false
 
 #
 # sshのconfig
 #
 - name: Create /etc/skel/.ssh/config
-  template:
+  ansible.builtin.template:
     src: _ssh__config.j2
     dest: /etc/skel/.ssh/config
     owner: root
     group: root
-    mode: 0600
-    backup: no
+    mode: '0600'
+    backup: false

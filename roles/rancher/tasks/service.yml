@@ -6,41 +6,66 @@
 #
 
 # 動作しているサービスを停止
-- name: stop rancher
-  shell: |
+- name: Stop rancher
+  ansible.builtin.shell: |
+    set -o pipefail
     docker stop `docker ps|grep rancher|awk -F' ' '{print $1;}'`
+  args:
+    executable: /bin/bash
   ignore_errors: true
   become: true
+  changed_when: false
 
 
 # コンテナの停止を待ち合わせる
 - name: Wait for stop container
-  local_action: wait_for host={{ inventory_hostname }} port=443 state=stopped
-
-# コンテナをリムーブ
-- name: remove containers
-  shell: |
+  ansible.builtin.wait_for:
+    host: "{{ rancher_wait_host_stopped }}"
+    port: "{{ rancher_service_port }}"
+    state: stopped
+    timeout: "{{ rancher_wait_timeout }}"
+    delay: "{{ rancher_wait_delay }}"
+    sleep: "{{ rancher_wait_sleep }}"
+  delegate_to: "{{ rancher_wait_delegate_to }}"
+- name: Remove containers
+  ansible.builtin.shell: |
+    set -o pipefail
     docker ps -a|grep rancher|while read line
     do
     docker rm -f `echo $line|awk -F' ' '{print $1;}'`
     done
+  args:
+    executable: /bin/bash
   ignore_errors: true
   become: true
+  changed_when: false
 
 # コンテナイメージをリムーブ
-- name: remove containers
-  shell: |
+- name: Remove containers
+  ansible.builtin.shell: |
+    set -o pipefail
     docker rmi `docker images|grep rancher|awk -F' ' '{print $3;}'`
+  args:
+    executable: /bin/bash
   ignore_errors: true
   become: true
+  changed_when: false
 
 # サービス起動
 - name: Invoke rancher service
-  shell: |
+  ansible.builtin.shell: |
     docker run -d --restart=unless-stopped --name rancher -p 80:80 -p 443:443 --privileged -e CATTLE_BOOTSTRAP_PASSWORD=admin -v {{ rancher_cert_dir }}/cert.pem:/etc/rancher/ssl/cert.pem -v {{ rancher_cert_dir }}/key.pem:/etc/rancher/ssl/key.pem -v {{ rancher_cert_dir }}/cert.pem:/etc/rancher/ssl/cacerts.pem {{ rancher_image }}
   become: true
+  register: _result
+  changed_when: _result.rc == 0
 
 # コンテナの開始を待ち合わせる
 - name: Wait for start container
-  local_action: wait_for host="{{ inventory_hostname }}" port=443 state=started
-  timeout: "{{ rancher_start_timeout }}"
+  ansible.builtin.wait_for:
+    host: "{{ rancher_wait_host_started }}"
+    port: "{{ rancher_service_port }}"
+    state: started
+    timeout: "{{ rancher_wait_timeout }}"
+    delay: "{{ rancher_wait_delay }}"
+    sleep: "{{ rancher_wait_sleep }}"
+  delegate_to: "{{ rancher_wait_delegate_to }}"

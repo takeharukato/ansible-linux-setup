@@ -3,9 +3,9 @@
 #  Copyright 2020 Takeharu KATO All Rights Reserved.
 
 # chronyを再起動する
-- name: restart_chrony
+- name: Restart_chrony
   listen: "restart_chrony"
-  systemd:
+  ansible.builtin.systemd:
     name: "{{ ntp_client_chrony_service }}"
     state: restarted
     enabled: true

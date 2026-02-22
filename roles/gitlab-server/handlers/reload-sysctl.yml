@@ -1,0 +1,11 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+# sysctlのリロードハンドラ
+#
+- name: Reload sysctl
+  listen: "gitlab_reload_sysctl"
+  ansible.builtin.command: sysctl --system
+  register: _result
+  changed_when: _result.rc == 0

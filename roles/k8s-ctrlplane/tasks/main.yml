@@ -8,20 +8,33 @@
 #
 
 # 最初に変数設定を読み直す ( role単独で実行可能とするため )
-- include_tasks: load-params.yml
-- include_tasks: package.yml
-- include_tasks: directory.yml
-- include_tasks: user_group.yml
-- include_tasks: service.yml
-- include_tasks: config-k8sctrlplane-firewall.yml
+- name: "Load Params"
+  ansible.builtin.include_tasks: load-params.yml
+- name: "Package"
+  ansible.builtin.include_tasks: package.yml
+- name: "Directory"
+  ansible.builtin.include_tasks: directory.yml
+- name: "User Group"
+  ansible.builtin.include_tasks: user_group.yml
+- name: "Service"
+  ansible.builtin.include_tasks: service.yml
+- name: "Config K8Sctrlplane Firewall"
+  ansible.builtin.include_tasks: config-k8sctrlplane-firewall.yml
   when: enable_firewall | default(false,true)
-- include_tasks: config-helm.yml
-- include_tasks: config-k8s-helm-shell-completion.yml
-- include_tasks: config-k8s-cilium-shell-completion.yml
-- include_tasks: config.yml
-- include_tasks: config-cilium.yml
-- include_tasks: config-cilium-bgp-cplane.yml
+- name: "Config Helm"
+  ansible.builtin.include_tasks: config-helm.yml
+- name: "Config K8S Helm Shell Completion"
+  ansible.builtin.include_tasks: config-k8s-helm-shell-completion.yml
+- name: "Config K8S Cilium Shell Completion"
+  ansible.builtin.include_tasks: config-k8s-cilium-shell-completion.yml
+- name: "Config"
+  ansible.builtin.include_tasks: config.yml
+- name: "Config Cilium"
+  ansible.builtin.include_tasks: config-cilium.yml
+- name: "Config Cilium Bgp Cplane"
+  ansible.builtin.include_tasks: config-cilium-bgp-cplane.yml
   when:
     - k8s_bgp is defined
     - k8s_bgp.enabled | default(false)
-- include_tasks: config-cluster-mesh-tools.yml
+- name: "Config Cluster Mesh Tools"
+  ansible.builtin.include_tasks: config-cluster-mesh-tools.yml

@@ -9,7 +9,7 @@
 # Gitlabのクリーンインストールが指定されている場合,
 # 既存の設定を削除する
 - name: "Remove existing GitLab configuration for clean install"
-  file:
+  ansible.builtin.file:
     path: "{{ item }}"
     state: absent
   loop:
@@ -18,24 +18,28 @@
     - "{{ gitlab_data_dir }}"
   become: true
   when:
-    - gitlab_clean_install | bool
+    - gitlab_clean_install | default(false) | bool
 
 # Gitlabのクリーンインストールが指定されている場合,
 # 既存のgitlabホームディレクトリを削除する
 - name: "Remove existing GitLab home directory for clean install"
-  file:
+  ansible.builtin.file:
     path: "{{ gitlab_home_dir }}"
     state: absent
   when:
-    - gitlab_clean_install | bool
+    - gitlab_clean_install | default(false) | bool
   become: true
 
 # gitlabのコンテナ/イメージ削除が指定されている場合,
 # 既存のコンテナ/イメージを削除する
 - name: "Remove existing GitLab Docker containers and images"
   ansible.builtin.shell: |
+    set -o pipefail
     docker image rm -f $(docker image ls -aq --filter=reference='{{ gitlab_docker_image }}') || true
     docker image rm -f $(docker image ls -aq --filter=reference='{{ gitlab_runner_docker_image }}') || true
+  args:
+    executable: /bin/bash
   when:
-    - gitlab_remove_container_images | bool
+    - gitlab_remove_container_images | default(false) | bool
   become: true
+  changed_when: false

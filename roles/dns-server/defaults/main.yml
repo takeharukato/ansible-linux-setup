@@ -14,19 +14,19 @@ dns_ddns_key_name: "ddns-clients"
 #
 
 # === 実行ユーザ/グループ/サービス名 ===
-dns_bind_user:  "{{ (ansible_facts.os_family == 'Debian') | ternary('bind',  'named') }}"
+dns_bind_user: "{{ (ansible_facts.os_family == 'Debian') | ternary('bind',  'named') }}"
 dns_bind_group: "{{ (ansible_facts.os_family == 'Debian') | ternary('bind',  'named') }}"
-dns_bind_service:   "named"
+dns_bind_service: "named"
 
 # === ディレクトリ/主要ファイル ===
 # 設定ディレクトリ
-dns_bind_conf_dir:  "{{ (ansible_facts.os_family == 'Debian') | ternary('/etc/bind', '/etc/named') }}"
+dns_bind_conf_dir: "{{ (ansible_facts.os_family == 'Debian') | ternary('/etc/bind', '/etc/named') }}"
 # メイン設定ファイル
 dns_bind_main_conf: "{{ (ansible_facts.os_family == 'Debian') | ternary('/etc/bind/named.conf', '/etc/named.conf') }}"
 # ゾーン格納ディレクトリ
-dns_bind_zone_dir:  "{{ (ansible_facts.os_family == 'Debian') | ternary('/var/lib/bind', '/var/named/zone') }}"
+dns_bind_zone_dir: "{{ (ansible_facts.os_family == 'Debian') | ternary('/var/lib/bind', '/var/named/zone') }}"
 # ランタイム ( PID 等 )ディレクトリ ( 存在しなければ作成 )
-dns_bind_run_dir:   "{{ (ansible_facts.os_family == 'Debian') | ternary('/run/named', '/run/named') }}"
+dns_bind_run_dir: "{{ (ansible_facts.os_family == 'Debian') | ternary('/run/named', '/run/named') }}"
 # キャッシュディレクトリ
 dns_bind_cache_dir: "{{ (ansible_facts.os_family == 'Debian') | ternary('/var/cache/bind', '/var/named') }}"
 # オプションファイル

@@ -7,7 +7,7 @@
 
 # ntpサーバ
 - name: Install chrony
-  package:
+  ansible.builtin.package:
     pkg:
       '{{ ntp_server_packages }}'
     state: latest

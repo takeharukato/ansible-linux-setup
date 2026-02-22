@@ -11,7 +11,7 @@
 # ansible ユーザをdockerグループに追加
 - name: Add ansible user into docker group
   ansible.builtin.user:
-    name: ansible
+    name: Ansible
     groups: docker
     append: true
 

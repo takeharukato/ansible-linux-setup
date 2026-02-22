@@ -1,18 +1,24 @@
 #  -*- coding:utf-8 mode:yaml -*-
 #  Ansible playbook
 #  Copyright 2020 Takeharu KATO All Rights Reserved.
-# autoremove
+# Autoremove関連のハンドラ
 
-- name: apt autoremove (Debian)
+# Debian系での不要パッケージの自動削除処理
+- name: "APT Autoremove (Debian)"
   listen: "pkg-autoremove"
-  shell: |
+  ansible.builtin.shell: |
     apt autoremove -y
   become: true
   when: ansible_facts.os_family == 'Debian'
+  register: _result
+  changed_when: _result.rc == 0
 
-- name: dnf autoremove (RHEL)
+# RHEL系での不要パッケージの自動削除処理
+- name: "DNF Autoremove (RHEL)"
   listen: "pkg-autoremove"
-  shell: |
+  ansible.builtin.shell: |
     dnf autoremove -y
   become: true
   when: ansible_facts.os_family == 'RedHat'
+  register: _result
+  changed_when: _result.rc == 0

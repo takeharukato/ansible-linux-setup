@@ -13,12 +13,15 @@
   args:
     chdir: "{{ gitlab_home_dir }}"
   become: true
+  register: _result
+  changed_when: _result.rc == 0
 
 # GitLabサービスの開始を確認する
 - name: Check GitLab service container status
   ansible.builtin.shell: |
     docker ps --filter "name={{ gitlab_container_name }}"
   register: gitlab_container_status
+  changed_when: false
   become: true
 
 # Display GitLabサービスのコンテナ状態を表示する
@@ -31,6 +34,7 @@
   ansible.builtin.shell: |
     docker ps --filter "name={{ gitlab_runner_container_name }}"
   register: gitlab_runner_container_status
+  changed_when: false
   become: true
 
 # Display GitLabサービスのコンテナ状態を表示する
@@ -41,22 +45,35 @@
 # リモートホスト上でGitLabコンテナのHTTPSポートが開くまで待機
 - name: Wait for GitLab HTTPS port on remote host
   ansible.builtin.wait_for:
+    host: "{{ gitlab_wait_host_started }}"
     port: "{{ gitlab_https_port }}"
     state: started
+    timeout: "{{ gitlab_wait_timeout }}"
+    delay: "{{ gitlab_wait_delay }}"
+    sleep: "{{ gitlab_wait_sleep }}"
+  delegate_to: "{{ gitlab_wait_delegate_to }}"
 
-# リモートホスト上でGitLabコンテナのSSHポートが開くまで待機
 - name: Wait for GitLab SSH port on remote host
   ansible.builtin.wait_for:
+    host: "{{ gitlab_wait_host_started }}"
     port: "{{ gitlab_ssh_port }}"
     state: started
+    timeout: "{{ gitlab_wait_timeout }}"
+    delay: "{{ gitlab_wait_delay }}"
+    sleep: "{{ gitlab_wait_sleep }}"
+  delegate_to: "{{ gitlab_wait_delegate_to }}"
 
-# リモートホスト上でGitLabコンテナのRegistryポートが開くまで待機
 - name: Wait for GitLab Registry port on remote host
   ansible.builtin.wait_for:
+    host: "{{ gitlab_wait_host_started }}"
     port: "{{ gitlab_registry_port }}"
     state: started
+    timeout: "{{ gitlab_wait_timeout }}"
+    delay: "{{ gitlab_wait_delay }}"
+    sleep: "{{ gitlab_wait_sleep }}"
+  delegate_to: "{{ gitlab_wait_delegate_to }}"
 
-- name: "Display GitLab access information"
+- name: Display GitLab configuration
   ansible.builtin.debug:
     msg: |
       GitLab configuration:

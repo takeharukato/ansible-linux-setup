@@ -2,6 +2,7 @@
 #  Ansible playbook
 #  Copyright 2020 Takeharu KATO All Rights Reserved.
 #
-
 skip_list:
   - role-name
+  - name[template]
+

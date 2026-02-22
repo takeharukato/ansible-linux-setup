@@ -5,7 +5,7 @@
 
 # /usr/local/binを作成
 - name: "Create /usr/local/bin"
-  file:
+  ansible.builtin.file:
     path: "/usr/local/bin"
     state: directory
     owner: "root"
@@ -14,7 +14,7 @@
 
 # /usr/local/shareを作成
 - name: "Create /usr/local/share"
-  file:
+  ansible.builtin.file:
     path: "/usr/local/share"
     state: directory
     owner: "root"

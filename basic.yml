@@ -2,8 +2,9 @@
 #  Ansible playbook
 #  Copyright 2020 Takeharu KATO All Rights Reserved.
 #
-- hosts: basic
-  remote_user:  '{{ ansible_user }}'
+- name: Basic host configuration
+  hosts: basic
+  remote_user: '{{ ansible_user }}'
   become: true
   roles:
     - role: selinux

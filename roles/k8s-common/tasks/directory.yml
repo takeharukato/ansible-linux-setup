@@ -7,8 +7,8 @@
 
 
 # kubeadm設定ファイル格納ディレクトリを作成
-- name: make kubeadm config file dir
-  file:
+- name: Make kubeadm config file dir
+  ansible.builtin.file:
     path: "{{ k8s_kubeadm_config_store }}"
     state: directory
     owner: "ansible"
@@ -17,7 +17,7 @@
 
 # k8s_node_setup_prefixディレクトリを作成
 - name: "Create directory {{ k8s_node_setup_tools_prefix }}"
-  file:
+  ansible.builtin.file:
     path: "{{ k8s_node_setup_tools_prefix }}"
     state: directory
     owner: "root"
@@ -26,7 +26,7 @@
 
 # k8s_node_setup_tools_dirディレクトリを作成
 - name: "Create directory {{ k8s_node_setup_tools_dir }}"
-  file:
+  ansible.builtin.file:
     path: "{{ k8s_node_setup_tools_dir }}"
     state: directory
     owner: "root"
@@ -35,7 +35,7 @@
 
 # k8s_node_setup_tools_docs_dirディレクトリを作成
 - name: "Create directory {{ k8s_node_setup_tools_docs_dir }}"
-  file:
+  ansible.builtin.file:
     path: "{{ k8s_node_setup_tools_docs_dir }}"
     state: directory
     owner: "root"

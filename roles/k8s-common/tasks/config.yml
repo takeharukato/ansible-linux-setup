@@ -8,50 +8,56 @@
 # Containerdの設定
 
 # overlay, br_netfilter モジュールのロード
-- name: load overlay, br_netfilter modules
-  shell: |
+- name: Load overlay, br_netfilter modules
+  ansible.builtin.shell: |
     modprobe overlay
     modprobe br_netfilter
   become: true
+  register: _result
+  changed_when: _result.rc == 0
 
 
 # moduleの設定
-- name: setup modules /etc/modules-load.d/k8s.conf
-  template:
+- name: Setup modules /etc/modules-load.d/k8s.conf
+  ansible.builtin.template:
     src: modules-k8s.conf.j2
     dest: /etc/modules-load.d/k8s.conf
     owner: root
     group: root
-    mode: 0644
-    backup: no
+    mode: '0644'
+    backup: false
 
 # IPv4/IPv6フォワーディングを有効化
-- name: setup containerd /etc/sysctl.d/99-k8s-cri.conf
-  template:
+- name: Setup containerd /etc/sysctl.d/99-k8s-cri.conf
+  ansible.builtin.template:
     src: 99-k8s-cri.conf.j2
     dest: /etc/sysctl.d/99-k8s-cri.conf
     owner: root
     group: root
-    mode: 0644
-    backup: no
+    mode: '0644'
+    backup: false
   notify: "apply_sysctl"
 
-- name: apply sysctl immediately
+- name: Apply sysctl immediately
   ansible.builtin.command: sysctl --system
   become: true
+  register: _result
+  changed_when: _result.rc == 0
 
 
 #
 # GRUB 設定の更新 (Debian 系)
 #
-- include_tasks: config-grub-debian.yml
+- ansible.builtin.include_tasks: config-grub-debian.yml
+  name: "Config Grub Debian"
   when:
     - ansible_facts.os_family == 'Debian'
 
 #
 # GRUB 設定の更新 (RHEL 系)
 #
-- include_tasks: config-grub-rhel.yml
+- ansible.builtin.include_tasks: config-grub-rhel.yml
+  name: "Config Grub Rhel"
   when:
     - ansible_facts.os_family == 'RedHat'
 
@@ -59,7 +65,7 @@
 # containerd の設定
 #
 - name: Create /etc/systemd/system/containerd.service.d
-  file:
+  ansible.builtin.file:
     path: "/etc/systemd/system/containerd.service.d"
     state: directory
     owner: "root"
@@ -67,28 +73,33 @@
     mode: "755"
 
 - name: Create /etc/containerd directory
-  file:
+  ansible.builtin.file:
     path: "/etc/containerd"
     state: directory
     owner: "root"
     group: "root"
     mode: "755"
 
-- name: rm /etc/containerd/config.toml
-  file:
+- name: Rm /etc/containerd/config.toml
+  ansible.builtin.file:
     path: "/etc/containerd/config.toml"
     state: absent
   become: true
 
 # Containerd の設定ファイルを生成
 - name: "Generate containerd config"
-  shell: |
+  ansible.builtin.shell: |
+    set -o pipefail
     containerd config default | sudo tee /etc/containerd/config.toml
+  args:
+    executable: /bin/bash
   become: true
+  register: _result
+  changed_when: _result.rc == 0
 
 # Containerd 側 Cgroup ドライバーとしてSystemdを選択
 - name: "Set the systemd driver as containerd cgroup driver"
-  lineinfile:
+  ansible.builtin.lineinfile:
     path: /etc/containerd/config.toml
     state: "present"
     backrefs: "yes"
@@ -97,18 +108,18 @@
   become: true
 
 # containerd config
-- name: setup containerd service
-  template:
+- name: Setup containerd service
+  ansible.builtin.template:
     src: containerd-override.conf.j2
     dest: /etc/systemd/system/containerd.service.d/override.conf
     owner: root
     group: root
-    mode: 0644
-    backup: no
+    mode: '0644'
+    backup: false
 
 # restart containerd
-- name: restart containerd immediately
-  systemd:
+- name: Restart containerd immediately
+  ansible.builtin.systemd:
     name: containerd
     state: restarted
     enabled: true
@@ -116,11 +127,7 @@
 
 # マシンをリブートする
 - name: Reboot host gracefully
-  reboot:
-    reboot_timeout: 600
+  ansible.builtin.reboot:
+    reboot_timeout: "{{ reboot_timeout_sec }}"
     msg: "Reboot triggered by role: common"
     pre_reboot_delay: 2
-
-- name: Wait for connection after reboot
-  wait_for_connection:
-    timeout: 300

@@ -40,7 +40,7 @@
 # cron.daily/backup-home
 #
 #   MAILTO="" # バックアップスクリプトの出力をメールで送信しないようにする
-#   0 3 * * * sudo {{ backup_home_script_path }}
+#   0 3 * * * sudo {{ user_settings_backup_bin_dir|default('/usr/local/bin', true) }}/backup-home
 #
 # 使用するansible変数の説明:
 # - nc_command: netcatコマンド (例: "nc" または "ncat")

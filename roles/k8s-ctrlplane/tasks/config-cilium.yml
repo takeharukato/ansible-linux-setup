@@ -6,10 +6,15 @@
 #
 
 # kube-apiが使えるようになるのを待ち合わせる
-- name: wait for kube-api-server
-  local_action: wait_for host={{ k8s_ctrlplane_endpoint }} port=6443 state=started
-
-#
+- name: Wait for kube-api-server
+  ansible.builtin.wait_for:
+    host: "{{ k8s_api_wait_host }}"
+    port: "{{ k8s_api_wait_port }}"
+    state: started
+    timeout: "{{ k8s_api_wait_timeout }}"
+    delay: "{{ k8s_api_wait_delay }}"
+    sleep: "{{ k8s_api_wait_sleep }}"
+  delegate_to: "{{ k8s_api_wait_delegate_to }}"
 # kube-proxyの削除時に以下のRole Based Access Control (RBAC) エラーが
 # 発生する場合があるため, kubernetes-admin へ cluster-admin 権限を付与する。
 #
@@ -21,7 +26,7 @@
 # kube-proxy削除前に kubernetes-admin へ cluster-admin 権限を付与 (初回作成)
 - name: Create clusterrolebinding for kubernetes-admin
   become: true
-  command:
+  ansible.builtin.command:
     cmd: >
       kubectl --kubeconfig /etc/kubernetes/admin.conf
       create clusterrolebinding kubernetes-admin
@@ -37,7 +42,8 @@
 # 既存の clusterrolebinding がある場合は apply で状態を整合化する
 - name: Reconcile clusterrolebinding for kubernetes-admin
   become: true
-  shell: |
+  ansible.builtin.shell: |
+    set -o pipefail
     cat <<'EOF' | kubectl --kubeconfig /etc/kubernetes/admin.conf apply -f -
     apiVersion: rbac.authorization.k8s.io/v1
     kind: ClusterRoleBinding
@@ -57,78 +63,88 @@
   when:
     - kubernetes_admin_crb_create.rc == 1
     - "'AlreadyExists' in kubernetes_admin_crb_create.stderr"
+  changed_when: false
 
 # kube-proxyのDaemonSetを削除
-- name: remove kube-proxy
-  shell: |
+- name: Remove kube-proxy
+  ansible.builtin.shell: |
     kubectl delete daemonsets.apps -n kube-system kube-proxy
   become: true
+  register: _result
+  changed_when: _result.rc == 0
 
 # kube-proxyのConfigMapを削除
-- name: remove kube-proxy configmap
-  shell: |
+- name: Remove kube-proxy configmap
+  ansible.builtin.shell: |
     kubectl delete configmaps -n kube-system kube-proxy
   become: true
+  register: _result
+  changed_when: _result.rc == 0
 
 # Remove kube-proxy related iptables rules
-- name: delete kube-proxy iptables
-  shell: |
+- name: Delete kube-proxy iptables
+  ansible.builtin.shell: |
+    set -o pipefail
     iptables-save | grep -v KUBE | iptables-restore
+  args:
+    executable: /bin/bash
   become: true
+  changed_when: false
 
 # Cilium用の共通CAシークレットを必要に応じて生成/更新
 - name: Ensure Cilium shared CA secret is up to date
-  include_role:
+  ansible.builtin.include_role:
     name: k8s-cilium-shared-ca
   when: k8s_cilium_shared_ca_enabled | default(false)
   tags: k8s-cilium-shared-ca
 
 # Ciliumインストール用のHelmのvaluesファイルを作成
 - name: Setup values file
-  template:
+  ansible.builtin.template:
     src: cilium-install.yml.j2
     dest: "{{ k8s_cilium_config_dir }}/cilium-install.yml"
     owner: root
     group: root
-    mode: 0644
-    backup: no
+    mode: '0644'
+    backup: false
 
 #
 # Ciliumのインストール
 # 以下で実行した場合の helm get values -n kube-system cilium の結果は以下の通り:
 #
-#USER-SUPPLIED VALUES:
-#autoDirectNodeRoutes: true
-#bpf:
-#  masquerade: true
-#clustermesh:
-#  enabled: false
-#cni:
-#  exclusive: false
-#enable-ipv6-masquerade: false
-#hubble:
-#  relay:
-#    enabled: false
-#  ui:
-#    enabled: false
-#image:
-#  tag: v1.16.0
-#  useDigest: false
-#ipMasqAgent:
-#  enabled: false
-#ipam:
-#  mode: kubernetes
-#ipv4NativeRoutingCIDR: 10.244.0.0/16
-#ipv6:
-#  enabled: true
+# USER-SUPPLIED VALUES:
+# autoDirectNodeRoutes: true
+# bpf:
+#   masquerade: true
+# clustermesh:
+#   enabled: false
+# cni:
+#   exclusive: false
+# enable-ipv6-masquerade: false
+# hubble:
+#   relay:
+#     enabled: false
+#   ui:
+#     enabled: false
+# image:
+#   tag: v1.16.0
+#   useDigest: false
+# ipMasqAgent:
+#   enabled: false
+# ipam:
+#   mode: kubernetes
+# ipv4NativeRoutingCIDR: 10.244.0.0/16
+# ipv6:
+#   enabled: true
 # ipv6NativeRoutingCIDR: fdb6:6e92:3cfb::/56
 # k8sServiceHost: 192.168.20.41
-# k8sServicePort: 6443# USER-SUPPLIED VALUES:
+# k8sServicePort: 6443
+# USER-SUPPLIED VALUES:
 #
 # 上記設定をコマンドラインで記載すると以下のようになる。
 # 各設定の意味を以下にしめす。
 #
-#helm install cilium cilium/cilium
+# helm install cilium cilium/cilium
 #  Cilium の Helm チャートを新規インストールする
 #   ( 同名リリースが既にあると失敗するため, 反復適用時(kubeadm resetしない場合)は, helm upgrade --installとする )。
 #
@@ -145,33 +161,33 @@
 #   Cilium Cluster Meshコンポーネントを導入しない
 #   デフォルトでも導入されないが, 明示するようにしている。
 #
-#--namespace kube-system
+# --namespace kube-system
 #  Cilium のリソース ( DaemonSet/Deployment など ) を kube-system に作成。
 #  cpusetの設定で, アプリケーションPodと分離することを想定して設定。
 #
-#--set ipam.mode=kubernetes
+# --set ipam.mode=kubernetes
 #  IP アドレス管理を Kubernetes IPAM に設定。各ノードの spec.podCIDR を使って Pod に IP を割り当てる。
 #
-#--set k8sServiceHost={{ k8s_ctrlplane_endpoint }}
+# --set k8sServiceHost={{ k8s_ctrlplane_endpoint }}
 #  Cilium エージェントが Kubernetes API サーバへ接続する宛先ホスト/IP を明示。
 #   ( kube-proxy 置換時に必要な設定。コントロールプレーンの IP を指定 )
 #
-#--set k8sServicePort=6443
+# --set k8sServicePort=6443
 #  上記 API サーバのポート。
 #
-#--set kubeProxyReplacement=true
+# --set kubeProxyReplacement=true
 #  kube-proxy を完全に eBPF で置換。Service/負荷分散/NAT を Cilium が担当する。
 #
-#--set bpf.masquerade=true
+# --set bpf.masquerade=true
 #  Pod->外部 への NAT を eBPF で実施 ( = enable-ipv4-masquerade=true ) 。
 #
-#--set ipMasqAgent.enabled=false
+# --set ipMasqAgent.enabled=false
 #  ip-masq-agent を無効化。上の eBPF マスカレードと役割が重複するためオフに設定。
 #
-#--set routingMode=native
+# --set routingMode=native
 #  トンネルを使わず L3 直行 ( native routing )  で動作。ノード間に L3 到達性と適切なルート ( 直行ルート ) が必要。
 #
-#--set autoDirectNodeRoutes=true
+# --set autoDirectNodeRoutes=true
 #  Cilium が 各ノードの PodCIDR への直行ルートを自動追加する。
 #   ( NIC 自動検出に失敗する環境では --set devices="{ens160}" などの明示指定やnetplanなどのOS側の設定が必要 )
 #
@@ -194,14 +210,16 @@
 #   Cilium中で実施する他のCNIの設定値の削除処理を抑止する
 #
 - name: Install Cilium
-  shell: |
+  ansible.builtin.shell: |
     helm install cilium cilium/cilium \
     --namespace kube-system \
     --version {{ k8s_cilium_helm_chart_version }} \
     -f {{ k8s_cilium_config_dir }}/cilium-install.yml
+  register: _result
+  changed_when: _result.rc == 0
 
 # マシンをリブートする
 - name: Reboot host gracefully
-  reboot:
-    reboot_timeout: 600
+  ansible.builtin.reboot:
+    reboot_timeout: "{{ reboot_timeout_sec }}"
     pre_reboot_delay: 2

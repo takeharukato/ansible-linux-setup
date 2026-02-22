@@ -20,9 +20,11 @@
 # Kubernetes GPG keyを配置・登録する
 - name: Fetch Kubernetes GPG key
   when: repo_enable_kubernetes
-  shell: |
+  ansible.builtin.shell: |
     curl -fsSL "{{ k8s_gpgkey_url }}" > "{{ k8s_gpgkey_file }}"
     chmod 0644 "{{ k8s_gpgkey_file }}"
+  register: _result
+  changed_when: _result.rc == 0
 
 # Kubernetes GPG keyをインポートする
 - name: Import Kubernetes GPG key
@@ -71,7 +73,7 @@
 - name: Configure Google Chrome repo
   when: repo_enable_chrome
   ansible.builtin.yum_repository:
-    name: "google-chrome"
+    name: "Google-chrome"
     description: "Google Chrome - stable"
     baseurl: "{{ chrome_rpm_baseurl }}"
     enabled: true
@@ -106,7 +108,7 @@
 - name: Configure Docker CE repo
   when: repo_enable_docker
   ansible.builtin.yum_repository:
-    name: "docker-ce"
+    name: "Docker-ce"
     description: "Docker CE"
     baseurl: "{{ docker_ce_rpm_baseurl }}"
     enabled: true

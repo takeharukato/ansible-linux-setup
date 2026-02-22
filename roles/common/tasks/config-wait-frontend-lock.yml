@@ -1,0 +1,27 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+# Debian系でのフロントエンドロック獲得失敗により
+# apt updateが失敗しないようにするためのタスク
+#
+
+# ロックファイル監視処理のためにpsmiscパッケージをインストール
+- name: "Ensure psmisc package is installed (provides fuser command)"
+  ansible.builtin.package:
+    name: psmisc
+    state: present
+  become: true
+
+# aptのロックファイルを監視し、ロックが解除されるまで待機する
+- name: "Wait for apt lock files to be released"
+  ansible.builtin.command:
+    cmd: "fuser {{ item }}"
+  register: apt_lock_check
+  changed_when: false
+  failed_when: false
+  until: apt_lock_check.rc == 1
+  retries: "{{ (apt_lock_wait_timeout / apt_lock_check_interval) | int }}"
+  delay: "{{ apt_lock_check_interval }}"
+  loop: "{{ apt_lock_files }}"
+  become: true

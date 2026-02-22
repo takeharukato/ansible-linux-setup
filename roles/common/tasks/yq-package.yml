@@ -34,7 +34,7 @@
 
 # yq コマンドのパスを確認
 - name: Verify yq command is available
-  command: "{{ yq_command }} --version"
+  ansible.builtin.command: "{{ yq_command }} --version"
   register: yq_version_check
   failed_when: false
   changed_when: false
@@ -42,12 +42,12 @@
 
 # yq が正常にインストールされているか確認
 - name: Display yq version
-  debug:
+  ansible.builtin.debug:
     msg: "yq version: {{ yq_version_check.stdout }}"
   when: yq_version_check.rc == 0
 
 # yq のインストールに失敗した場合は警告
 - name: Warn if yq installation failed
-  debug:
+  ansible.builtin.debug:
     msg: "WARNING: yq command is not available at {{ yq_command }}. Some features may not work."
   when: yq_version_check.rc != 0

@@ -1,0 +1,19 @@
+#  -*- coding:utf-8 mode:jinja2 -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+# Redmine 用 IPv4/IPv6 フォワーディング設定
+#
+{# 日付の取得 #}
+# last update: {{ '%Y-%m-%d %H:%M:%S %Z' | strftime(ansible_date_time.epoch) }}
+
+# IPv4 フォワーディングを有効化
+net.ipv4.ip_forward = 1
+
+# IPv6 フォワーディングを有効化
+net.ipv6.conf.all.forwarding = 1
+net.ipv6.conf.default.forwarding = 1
+
+# 管理インターフェースでルーター広告(RA)を受け入れる
+# フォワーディングが有効でもRAを受け入れるようにする
+net.ipv6.conf.{{ mgmt_nic|default('ens160',true) }}.accept_ra = 2

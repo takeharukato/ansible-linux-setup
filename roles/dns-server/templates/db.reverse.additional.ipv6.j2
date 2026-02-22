@@ -25,6 +25,7 @@ $TTL 86400
 ; 以下のネットワークアドレス範囲の逆引きレコード(PTR)は
 ; nsupdateで動的に登録してください。
 ;
+{% if '/' in additional_network_cidr %}
 ; 登録対象ネットワーク: {{ additional_network_cidr }}
 ;
 ; 登録例:
@@ -34,3 +35,4 @@ $TTL 86400
 ; > update add 1.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.a.1.6.0.4.8.6.6.9.6.d.f.ip6.arpa 3600 PTR hostname.example.org.
 ; > send
 ;
+{% endif %}

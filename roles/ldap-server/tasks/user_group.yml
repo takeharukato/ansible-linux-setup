@@ -8,4 +8,4 @@
 #   user:
 #     name: {{ openldap_server_user }}
 #     state: present
-#     createhome: no
+#     createhome: false

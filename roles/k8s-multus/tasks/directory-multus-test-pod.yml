@@ -7,10 +7,10 @@
 
 # テスト用Podのマニュフェスト生成
 - name: Setup a test pod manifest for Multus
-  template:
+  ansible.builtin.template:
     src: app-pod.yml.j2
     dest: "{{ k8s_multus_config_dir }}/app-pod.yml"
     owner: root
     group: root
-    mode: 0644
-    backup: no
+    mode: '0644'
+    backup: false

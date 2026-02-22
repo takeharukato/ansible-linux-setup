@@ -1,9 +1,8 @@
 - block:
-
-  # マシンをリブートする
-  - name: "Reboot node gracefully"
-    listen: "reboot_node_handler"
-    reboot:
-      reboot_timeout: 600
-      msg: "Reboot triggered by role: k8s-ctrlplane"
-      pre_reboot_delay: 2
+    # マシンをリブートする
+    - name: "Reboot node gracefully"
+      listen: "reboot_node_handler"
+      ansible.builtin.reboot:
+        reboot_timeout: "{{ reboot_timeout_sec }}"
+        msg: "Reboot triggered by role: k8s-ctrlplane"
+        pre_reboot_delay: 2

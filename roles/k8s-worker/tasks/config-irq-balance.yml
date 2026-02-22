@@ -9,6 +9,6 @@
 # irq バランスサービスの削除
 #
 - name: Remove irq balance package
-  package:
+  ansible.builtin.package:
     name: "{{ irq_balance_package }}"
     state: absent

@@ -5,21 +5,39 @@
 #  サービス関連処理
 #
 - name: Stop openldap container
-  shell: |
+  ansible.builtin.shell: |
     cd "{{ openldap_docker_dir }}"
     docker compose down
   ignore_errors: true
+  register: _result
+  changed_when: _result.rc == 0
 
 # コンテナの停止を待ち合わせる
 - name: Wait for stop LDAP container
-  local_action: wait_for host={{ inventory_hostname }} port=389 state=stopped
+  ansible.builtin.wait_for:
+    host: "{{ openldap_wait_host_stopped }}"
+    port: "{{ openldap_service_port }}"
+    state: stopped
+    timeout: "{{ openldap_wait_timeout }}"
+    delay: "{{ openldap_wait_delay }}"
+    sleep: "{{ openldap_wait_sleep }}"
+  delegate_to: "{{ openldap_wait_delegate_to }}"
 
 - name: Start openldap container
-  shell: |
+  ansible.builtin.shell: |
     cd "{{ openldap_docker_dir }}"
     docker compose up -d
   ignore_errors: true
+  register: _result
+  changed_when: _result.rc == 0
 
 # コンテナの開始を待ち合わせる
 - name: Wait for start LDAP container
-  local_action: wait_for host={{ inventory_hostname }} port=389 state=started
+  ansible.builtin.wait_for:
+    host: "{{ openldap_wait_host_started }}"
+    port: "{{ openldap_service_port }}"
+    state: started
+    timeout: "{{ openldap_wait_timeout }}"
+    delay: "{{ openldap_wait_delay }}"
+    sleep: "{{ openldap_wait_sleep }}"
+  delegate_to: "{{ openldap_wait_delegate_to }}"

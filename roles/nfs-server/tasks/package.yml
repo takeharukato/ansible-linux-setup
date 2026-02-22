@@ -7,7 +7,7 @@
 
 #
 - name: Install nfs-kernel-server packages
-  package:
+  ansible.builtin.package:
     pkg:
       '{{ nfs_server_packages }}'
     state: latest

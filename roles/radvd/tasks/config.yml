@@ -7,7 +7,7 @@
 ---
 # radvd設定ファイルを配置
 - name: "Deploy radvd configuration file"
-  template:
+  ansible.builtin.template:
     src: radvd.conf.j2
     dest: "{{ radvd_config_file_path }}"
     owner: root

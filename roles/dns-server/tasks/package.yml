@@ -6,7 +6,7 @@
 
 # bind9パッケージをインストール
 - name: Install bind9 packages
-  package:
+  ansible.builtin.package:
     pkg:
       '{{ dns_bind_packages }}'
     state: latest

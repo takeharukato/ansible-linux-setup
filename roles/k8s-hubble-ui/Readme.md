@@ -29,6 +29,12 @@ Cilium Hubble UI を Kubernetes クラスタに導入するロールです。Hub
 
 | 変数名 | 既定値 | 説明 |
 | --- | --- | --- |
+| `k8s_api_wait_host` | `"{{ k8s_ctrlplane_endpoint }}"` | Kubernetes APIサーバの待ち合わせ先(接続先)ホスト名/IPアドレス。|
+| `k8s_api_wait_port` | `"{{ k8s_ctrlplane_port }}"` | Kubernetes APIサーバの待ち合わせ先ポート番号。|
+| `k8s_api_wait_timeout` | `600` | Kubernetes APIサーバ待ち合わせ時間(単位: 秒)。|
+| `k8s_api_wait_delay` | `2` | Kubernetes APIサーバ待ち合わせる際の開始遅延時間(単位: 秒)。|
+| `k8s_api_wait_sleep` | `1` | Kubernetes APIサーバ待ち合わせる際の待機間隔(単位: 秒)。|
+| `k8s_api_wait_delegate_to` | `"localhost"` | Kubernetes APIサーバ待ち合わせる際の接続元ホスト名/IPアドレス。|
 | `k8s_hubble_ui_config_dir` | `"{{ k8s_kubeadm_config_store }}/hubble-ui"` | Hubble UI 設定ファイル格納ディレクトリパスを指定します。Helm values ファイルなどがここに保存されます。 |
 | `hubble_ui_enabled` | `false` | Hubble UI を有効化するかどうかを指定します。`true` に設定すると Hubble UI がインストールされます。 |
 | `hubble_ui_version` | `""` (自動設定) | Hubble UI のバージョンを指定します。空文字列の場合は `k8s_cilium_version` の値を使用します。Cilium Helm Chart のバージョンと一致させる必要があります。 |

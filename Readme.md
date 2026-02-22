@@ -367,6 +367,12 @@ external_ntp_servers_list:
 |rancher_cert_subject_state|Rancher証明書の州|"XXXX"|
 |rancher_cert_subject_locality|Rancher証明書の市町村|"YYYY"|
 |rancher_cert_subject_org|Rancher証明書の組織名|"example-org"|
+|rancher_wait_host_stopped|Rancherサービス停止を待ち合わせる(接続先)ホスト名/IPアドレス|"127.0.0.1"|
+|rancher_wait_host_started|Rancherサービス開始を待ち合わせる(接続先)ホスト名/IPアドレス|"{{ inventory_hostname }}"|
+|rancher_wait_timeout|Rancherサービス待ち合わせ時間(単位: 秒)|300|
+|rancher_wait_delay|Rancherサービス待ち合わせる際の開始遅延時間(単位: 秒)|5|
+|rancher_wait_sleep|Rancherサービス待ち合わせる際の待機間隔(単位: 秒)|2|
+|rancher_wait_delegate_to|Rancherサービス待ち合わせる際の接続元ホスト名/IPアドレス|"localhost"|
 
 #### Docker Community Edition関連設定
 
@@ -481,6 +487,12 @@ user_settings_backup_users_list:
 |ldap_domain|LDAPのドメイン名|"example.org"|
 |ldap_admin_password|LDAP管理者のパスワード|"ldap"|
 |ldap_admin_port|LDAP管理WEB画面ポート番号|10443|
+|openldap_wait_host_stopped|OpenLDAPサービス停止を待ち合わせる(接続先)ホスト名/IPアドレス|"127.0.0.1"|
+|openldap_wait_host_started|OpenLDAPサービス開始を待ち合わせる(接続先)ホスト名/IPアドレス|"{{ inventory_hostname }}"|
+|openldap_wait_timeout|OpenLDAPサービス待ち合わせ時間(単位: 秒)|600|
+|openldap_wait_delay|OpenLDAPサービス待ち合わせる際の開始遅延時間(単位: 秒)|5|
+|openldap_wait_sleep|OpenLDAPサービス待ち合わせる際の待機間隔(単位: 秒)|2|
+|openldap_wait_delegate_to|OpenLDAPサービス待ち合わせる際の接続元ホスト名/IPアドレス|"localhost"|
 
 #### Redmine関連設定
 
@@ -494,6 +506,12 @@ Redmineのデイリーバックアップについては, `roles/redmine-server/R
 |redmine_backup_nfs_dir|マウントする共有ディレクトリ|"/share"|
 |redmine_backup_mount_point|デイリーバックアップ時のNFSマウントポイント(NFSのマウント/アンマウント時に使用)|"/mnt"|
 |redmine_backup_dir_on_nfs|NFSマウントポイント配下のRedmineバックアップ配置先ディレクトリ|"/Linux/Redmine"|
+|redmine_wait_host_stopped|Redmineサービス停止を待ち合わせる(接続先)ホスト名/IPアドレス|"127.0.0.1"|
+|redmine_wait_host_started|Redmineサービス開始を待ち合わせる(接続先)ホスト名/IPアドレス|"{{ inventory_hostname }}"|
+|redmine_wait_timeout|Redmineサービス待ち合わせ時間(単位: 秒)|300|
+|redmine_wait_delay|Redmineサービス待ち合わせる際の開始遅延時間(単位: 秒)|5|
+|redmine_wait_sleep|Redmineサービス待ち合わせる際の待機間隔(単位: 秒)|2|
+|redmine_wait_delegate_to|Redmineサービス待ち合わせる際の接続元ホスト名/IPアドレス|"localhost"|
 
 #### Gitlab関連設定
 
@@ -509,9 +527,15 @@ Gitlabの公開URL, イメージファイル関連の設定を記載する。
 | gitlab_runner_docker_image | GitLab Runner Docker イメージ。GitLab 本体とメジャーバージョン, マイナーバージョンを合わせること。 | "gitlab/gitlab-runner:ubuntu-v18.6.6" |
 | gitlab_backup_rotation | デイリーバックアップのローテーション世代数 | 7 |
 | gitlab_backup_nfs_server | Gitlabのバックアップバンドルファイルを保存するNFSサーバ | "nfs.example.org" |
-| gitlab_backup_nfs_dir | Gitlabのバックアップバンドルファイルを保存するNFSサーバのマウント時に指定する共有ディレクトリ名 | "share" |
+| gitlab_backup_nfs_dir | Gitlabのバックアップバンドルファイルを保存するNFSサーバのマウント時に指定する共有ディレクトリ名| "share" |
 | gitlab_backup_mount_point | デイリーバックアップ時のNFSマウントポイント(NFSのマウント/アンマウント時に使用) | "/mnt" |
 | gitlab_backup_dir_on_nfs | デイリーバックアップ時のNFSマウントポイント配下のバックアップ配置先ディレクトリ | "/gitlab-backups" |
+| gitlab_wait_host_stopped | GitLabサービス停止を待ち合わせる(接続先)ホスト名/IPアドレス。| "127.0.0.1" |
+| gitlab_wait_host_started | GitLabサービス開始を待ち合わせる(接続先)ホスト名/IPアドレス。 | "{{ inventory_hostname }}" |
+| gitlab_wait_timeout | GitLabサービス待ち合わせ時間(単位: 秒)。| 600 |
+| gitlab_wait_delay | GitLabサービス待ち合わせる際の開始遅延時間(単位: 秒)。| 5 |
+| gitlab_wait_sleep | GitLabサービス待ち合わせる際の待機間隔(単位: 秒)。| 2 |
+| gitlab_wait_delegate_to | GitLabサービス待ち合わせる際の接続元ホスト名/IPアドレス。| "localhost" |
 
 上記設定を行うと, 以下のようにGitlab環境が構築される:
 
@@ -567,6 +591,14 @@ Kubernetes (以下K8sと記す)関連の設定を以下に記載する。
 |k8s_reserved_system_cpus_default|K8sのシステムCentral Processing Unit ( CPU ) 予約範囲。未定義時は, システム用CPUを予約しない。|"0-1"|
 |k8s_worker_enable_nodeport|NodePortによるサービスネットワーク公開を行う場合は, trueに設定(将来対応)|false|
 |k8s_worker_nodeport_range|NodePortの範囲|"30000-32767"|
+|k8s_api_wait_host|Kubernetes APIサーバの待ち合わせ先(接続先)ホスト名/IPアドレス|"{{ k8s_ctrlplane_endpoint }}"|
+|k8s_api_wait_port|Kubernetes APIサーバの待ち合わせ先ポート番号|"{{ k8s_ctrlplane_port }}"|
+|k8s_api_wait_timeout|Kubernetes APIサーバ待ち合わせ時間(単位: 秒)|600|
+|k8s_api_wait_delay|Kubernetes APIサーバ待ち合わせる際の開始遅延時間(単位: 秒)|2|
+|k8s_api_wait_sleep|Kubernetes APIサーバ待ち合わせる際の待機間隔(単位: 秒)|1|
+|k8s_api_wait_delegate_to|Kubernetes APIサーバ待ち合わせる際の接続元ホスト名/IPアドレス|"localhost"|
+|k8s_containerd_wait_timeout|containerdソケット待ち合わせ時間(単位: 秒)|60|
+|k8s_containerd_wait_delegate_to|containerdソケット待ち合わせる際の接続元ホスト名/IPアドレス|"localhost"|
 |k8s_operator_authorized_key_list|K8sオペレータアカウント(`kube`)に追加で登録したい公開鍵のリスト。各要素はGitHub 取得分と合わせてソート, 重複排除され, K8sオペレータアカウント(`kube`)の公開鍵に反映されます。|`[]`|
 |k8s_operator_github_key_list|K8sオペレータアカウント(`kube`)の公開鍵をGitHubから取得する際の, Githubアカウントを設定するマッピングのリストです。`[ { github: '<アカウント名>' } ]` のようなリストを設定することで, `https://github.com/<account>.keys` から鍵を取得し, K8sオペレータアカウント(`kube`)の公開鍵に追加します。取得した公開鍵は, `k8s_operator_authorized_key_list`の設定値と合わせてソート, 重複排除され, K8sオペレータアカウント(`kube`)の公開鍵に反映されます。|`[]`|
 |k8s_helm_completion_enabled|`true` の場合, Helm の bash / zsh 補完ファイルを生成・配置します。|`true`|

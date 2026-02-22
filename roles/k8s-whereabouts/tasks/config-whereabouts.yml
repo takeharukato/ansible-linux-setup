@@ -6,33 +6,44 @@
 #
 
 # kube-apiが使えるようになるのを待ち合わせる
-- name: wait for kube-api-server
-  local_action: wait_for host={{ k8s_ctrlplane_endpoint }} port=6443 state=started
+- name: Wait for kube-api-server
+  ansible.builtin.wait_for:
+    host: "{{ k8s_api_wait_host }}"
+    port: "{{ k8s_api_wait_port }}"
+    state: started
+    timeout: "{{ k8s_api_wait_timeout }}"
+    delay: "{{ k8s_api_wait_delay }}"
+    sleep: "{{ k8s_api_wait_sleep }}"
+  delegate_to: "{{ k8s_api_wait_delegate_to }}"
 
 # Whereaboutsのインストール
 - name: Install Whereabouts
-  shell: |
+  ansible.builtin.shell: |
     helm upgrade --install whereabouts {{ k8s_whereabouts_chart_url }} \
     --namespace kube-system \
     --version {{ k8s_whereabouts_helm_chart_version }}
   environment:
     KUBECONFIG: /etc/kubernetes/admin.conf
   become: true
+  register: _result
+  changed_when: _result.rc == 0
 
 # NetworkAttachmentDefinition (NAD)設定ファイル生成
 - name: Setup whereabouts NetworkAttachmentDefinition (NAD) file
-  template:
+  ansible.builtin.template:
     src: ipvlan-wb-nad.yml.j2
     dest: "{{ k8s_whereabouts_config_dir }}/ipvlan-wb-nad.yml"
     owner: root
     group: root
-    mode: 0644
-    backup: no
+    mode: '0644'
+    backup: false
 
 # NetworkAttachmentDefinition (NAD)適用
 - name: Apply NetworkAttachmentDefinition (NAD)
-  shell: |
+  ansible.builtin.shell: |
     kubectl apply -f "{{ k8s_whereabouts_config_dir }}/ipvlan-wb-nad.yml"
   environment:
     KUBECONFIG: /etc/kubernetes/admin.conf
   become: true
+  register: _result
+  changed_when: _result.rc == 0

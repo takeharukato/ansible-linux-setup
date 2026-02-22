@@ -3,12 +3,14 @@
 #  Copyright 2020 Takeharu KATO All Rights Reserved.
 #  設定関連タスク
 # 自動設定ファイルの存在確認
-- name: "stat {{ common_autonetconfig_prefix }}/{{ item }}"
-  stat: path="{{ common_autonetconfig_prefix }}/{{ item }}"
+- name: "Stat {{ common_autonetconfig_prefix }}/{{ item }}"
+  ansible.builtin.stat:
+    path: "{{ common_autonetconfig_prefix }}/{{ item }}"
   register: netcfg_stat
 
 # 自動設定ファイルの除去
-- name: "move {{ common_autonetconfig_prefix }}/{{ item }}"
-  command: mv "{{ common_autonetconfig_prefix }}/{{ item }}" "{{ common_autonetconfig_prefix }}/{{ item }}.old"
+- name: "Move {{ common_autonetconfig_prefix }}/{{ item }}"
+  ansible.builtin.command: mv "{{ common_autonetconfig_prefix }}/{{ item }}" "{{ common_autonetconfig_prefix }}/{{ item }}.old"
   when:
     - netcfg_stat.stat.exists
+  changed_when: false

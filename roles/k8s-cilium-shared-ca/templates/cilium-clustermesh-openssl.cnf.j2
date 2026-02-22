@@ -4,7 +4,7 @@
 # last update: {{ '%Y-%m-%d %H:%M:%S %Z' | strftime(ansible_date_time.epoch) }}
 #
 #
-{% set _subject = k8s_cilium_clustermesh_tls_subject | default('/CN=clustermesh-apiserver') %}
+{% set _subject = k8s_cilium_clustermesh_tls_subject | default('/CN=clustermesh-apiserver', true) %}
 {% if _subject.startswith('/CN=') %}
 {% set common_name = _subject[4:] %}
 {% else %}

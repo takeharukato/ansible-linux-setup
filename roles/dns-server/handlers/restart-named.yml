@@ -6,13 +6,13 @@
 - name: systemd daemon-reload
   listen: "Reload systemd & restart named"
   become: true
-  systemd:
+  ansible.builtin.systemd:
     daemon_reload: true
 
-- name: restart named
+- name: Restart named
   listen: "Reload systemd & restart named"
   become: true
-  systemd:
+  ansible.builtin.systemd:
     name: "{{ dns_bind_service }}"
     state: restarted
     enabled: true

@@ -4,8 +4,8 @@
 #  ファイル・ディレクトリ作成関連タスク
 
 # 公開ディレクトリを作成
-- name: create nfs export directory
-  file:
+- name: Create nfs export directory
+  ansible.builtin.file:
     path: "{{ nfs_export_directory }}"
     state: directory
     owner: "root"

@@ -15,7 +15,7 @@
     outer_user_name: "{{ outer_item.name | default('', true) }}"
     outer_user_group: "{{ outer_item.group | default(outer_item.name | default('', true), true) }}"
     outer_user_home: "{{ outer_item.home | default('/home/' ~ (outer_item.name | default('', true)), true) }}"
-  file:
+  ansible.builtin.file:
     path: "{{ outer_user_home }}/.emacs.d/user_settings"
     state: directory
     owner: "{{ outer_user_name }}"
@@ -31,12 +31,12 @@
   vars:
     outer_user_name: "{{ outer_item.name | default('', true) }}"
     outer_user_home: "{{ outer_item.home | default('/home/' ~ (outer_item.name | default('', true)), true) }}"
-  template:
+  ansible.builtin.template:
     src: _emacs_d__aspell-settings.el.j2
     dest: "{{ outer_user_home }}/.emacs.d/user_settings/aspell-settings.el"
     owner: "{{ outer_user_name }}"
     group: "{{ outer_user_name }}"
-    mode: 0644
+    mode: '0644'
   when:
     - ( outer_user_name | length ) > 0
 
@@ -45,12 +45,12 @@
   vars:
     outer_user_name: "{{ outer_item.name | default('', true) }}"
     outer_user_home: "{{ outer_item.home | default('/home/' ~ (outer_item.name | default('', true)), true) }}"
-  template:
+  ansible.builtin.template:
     src: _emacs_d__auctex-mode-settings.el.j2
     dest: "{{ outer_user_home }}/.emacs.d/user_settings/auctex-mode-settings.el"
     owner: "{{ outer_user_name }}"
     group: "{{ outer_user_name }}"
-    mode: 0644
+    mode: '0644'
   when:
     - ( outer_user_name | length ) > 0
 
@@ -59,12 +59,12 @@
   vars:
     outer_user_name: "{{ outer_item.name | default('', true) }}"
     outer_user_home: "{{ outer_item.home | default('/home/' ~ (outer_item.name | default('', true)), true) }}"
-  template:
+  ansible.builtin.template:
     src: _emacs_d__bsdc-mode-settings.el.j2
     dest: "{{ outer_user_home }}/.emacs.d/user_settings/bsdc-mode-settings.el"
     owner: "{{ outer_user_name }}"
     group: "{{ outer_user_name }}"
-    mode: 0644
+    mode: '0644'
   when:
     - ( outer_user_name | length ) > 0
 
@@ -73,12 +73,12 @@
   vars:
     outer_user_name: "{{ outer_item.name | default('', true) }}"
     outer_user_home: "{{ outer_item.home | default('/home/' ~ (outer_item.name | default('', true)), true) }}"
-  template:
+  ansible.builtin.template:
     src: _emacs_d__c-mode-settings.el.j2
     dest: "{{ outer_user_home }}/.emacs.d/user_settings/c-mode-settings.el"
     owner: "{{ outer_user_name }}"
     group: "{{ outer_user_name }}"
-    mode: 0644
+    mode: '0644'
   when:
     - ( outer_user_name | length ) > 0
 
@@ -87,12 +87,12 @@
   vars:
     outer_user_name: "{{ outer_item.name | default('', true) }}"
     outer_user_home: "{{ outer_item.home | default('/home/' ~ (outer_item.name | default('', true)), true) }}"
-  template:
+  ansible.builtin.template:
     src: _emacs_d__c-sharp-mode-settings.el.j2
     dest: "{{ outer_user_home }}/.emacs.d/user_settings/c-sharp-mode-settings.el"
     owner: "{{ outer_user_name }}"
     group: "{{ outer_user_name }}"
-    mode: 0644
+    mode: '0644'
   when:
     - ( outer_user_name | length ) > 0
 
@@ -101,12 +101,12 @@
   vars:
     outer_user_name: "{{ outer_item.name | default('', true) }}"
     outer_user_home: "{{ outer_item.home | default('/home/' ~ (outer_item.name | default('', true)), true) }}"
-  template:
+  ansible.builtin.template:
     src: _emacs_d__cmake-settings.el.j2
     dest: "{{ outer_user_home }}/.emacs.d/user_settings/cmake-settings.el"
     owner: "{{ outer_user_name }}"
     group: "{{ outer_user_name }}"
-    mode: 0644
+    mode: '0644'
   when:
     - ( outer_user_name | length ) > 0
 
@@ -115,12 +115,12 @@
   vars:
     outer_user_name: "{{ outer_item.name | default('', true) }}"
     outer_user_home: "{{ outer_item.home | default('/home/' ~ (outer_item.name | default('', true)), true) }}"
-  template:
+  ansible.builtin.template:
     src: _emacs_d__docker-compose-mode-settings.el.j2
     dest: "{{ outer_user_home }}/.emacs.d/user_settings/docker-compose-mode-settings.el"
     owner: "{{ outer_user_name }}"
     group: "{{ outer_user_name }}"
-    mode: 0644
+    mode: '0644'
   when:
     - ( outer_user_name | length ) > 0
 
@@ -129,12 +129,12 @@
   vars:
     outer_user_name: "{{ outer_item.name | default('', true) }}"
     outer_user_home: "{{ outer_item.home | default('/home/' ~ (outer_item.name | default('', true)), true) }}"
-  template:
+  ansible.builtin.template:
     src: _emacs_d__docker-tramp-mode-settings.el.j2
     dest: "{{ outer_user_home }}/.emacs.d/user_settings/docker-tramp-mode-settings.el"
     owner: "{{ outer_user_name }}"
     group: "{{ outer_user_name }}"
-    mode: 0644
+    mode: '0644'
   when:
     - ( outer_user_name | length ) > 0
 
@@ -143,12 +143,12 @@
   vars:
     outer_user_name: "{{ outer_item.name | default('', true) }}"
     outer_user_home: "{{ outer_item.home | default('/home/' ~ (outer_item.name | default('', true)), true) }}"
-  template:
+  ansible.builtin.template:
     src: _emacs_d__dockerfile-mode-settings.el.j2
     dest: "{{ outer_user_home }}/.emacs.d/user_settings/dockerfile-mode-settings.el"
     owner: "{{ outer_user_name }}"
     group: "{{ outer_user_name }}"
-    mode: 0644
+    mode: '0644'
   when:
     - ( outer_user_name | length ) > 0
 
@@ -157,12 +157,12 @@
   vars:
     outer_user_name: "{{ outer_item.name | default('', true) }}"
     outer_user_home: "{{ outer_item.home | default('/home/' ~ (outer_item.name | default('', true)), true) }}"
-  template:
+  ansible.builtin.template:
     src: _emacs_d__gnu-global-settings.el.j2
     dest: "{{ outer_user_home }}/.emacs.d/user_settings/gnu-global-settings.el"
     owner: "{{ outer_user_name }}"
     group: "{{ outer_user_name }}"
-    mode: 0644
+    mode: '0644'
   when:
     - ( outer_user_name | length ) > 0
 
@@ -171,12 +171,12 @@
   vars:
     outer_user_name: "{{ outer_item.name | default('', true) }}"
     outer_user_home: "{{ outer_item.home | default('/home/' ~ (outer_item.name | default('', true)), true) }}"
-  template:
+  ansible.builtin.template:
     src: _emacs_d__gud-settings.el.j2
     dest: "{{ outer_user_home }}/.emacs.d/user_settings/gud-settings.el"
     owner: "{{ outer_user_name }}"
     group: "{{ outer_user_name }}"
-    mode: 0644
+    mode: '0644'
   when:
     - ( outer_user_name | length ) > 0
 
@@ -185,12 +185,12 @@
   vars:
     outer_user_name: "{{ outer_item.name | default('', true) }}"
     outer_user_home: "{{ outer_item.home | default('/home/' ~ (outer_item.name | default('', true)), true) }}"
-  template:
+  ansible.builtin.template:
     src: _emacs_d__hos-c-mode-settings.el.j2
     dest: "{{ outer_user_home }}/.emacs.d/user_settings/hos-c-mode-settings.el"
     owner: "{{ outer_user_name }}"
     group: "{{ outer_user_name }}"
-    mode: 0644
+    mode: '0644'
   when:
     - ( outer_user_name | length ) > 0
 
@@ -199,12 +199,12 @@
   vars:
     outer_user_name: "{{ outer_item.name | default('', true) }}"
     outer_user_home: "{{ outer_item.home | default('/home/' ~ (outer_item.name | default('', true)), true) }}"
-  template:
+  ansible.builtin.template:
     src: _emacs_d__linux-c-mode-settings.el.j2
     dest: "{{ outer_user_home }}/.emacs.d/user_settings/linux-c-mode-settings.el"
     owner: "{{ outer_user_name }}"
     group: "{{ outer_user_name }}"
-    mode: 0644
+    mode: '0644'
   when:
     - ( outer_user_name | length ) > 0
 
@@ -213,12 +213,12 @@
   vars:
     outer_user_name: "{{ outer_item.name | default('', true) }}"
     outer_user_home: "{{ outer_item.home | default('/home/' ~ (outer_item.name | default('', true)), true) }}"
-  template:
+  ansible.builtin.template:
     src: _emacs_d__markdown-mode-settings.el.j2
     dest: "{{ outer_user_home }}/.emacs.d/user_settings/markdown-mode-settings.el"
     owner: "{{ outer_user_name }}"
     group: "{{ outer_user_name }}"
-    mode: 0644
+    mode: '0644'
   when:
     - ( outer_user_name | length ) > 0
 
@@ -227,12 +227,12 @@
   vars:
     outer_user_name: "{{ outer_item.name | default('', true) }}"
     outer_user_home: "{{ outer_item.home | default('/home/' ~ (outer_item.name | default('', true)), true) }}"
-  template:
+  ansible.builtin.template:
     src: _emacs_d__package-settings.el.j2
     dest: "{{ outer_user_home }}/.emacs.d/user_settings/package-settings.el"
     owner: "{{ outer_user_name }}"
     group: "{{ outer_user_name }}"
-    mode: 0644
+    mode: '0644'
   when:
     - ( outer_user_name | length ) > 0
 
@@ -241,12 +241,12 @@
   vars:
     outer_user_name: "{{ outer_item.name | default('', true) }}"
     outer_user_home: "{{ outer_item.home | default('/home/' ~ (outer_item.name | default('', true)), true) }}"
-  template:
+  ansible.builtin.template:
     src: _emacs_d__python3-settings.el.j2
     dest: "{{ outer_user_home }}/.emacs.d/user_settings/python3-settings.el"
     owner: "{{ outer_user_name }}"
     group: "{{ outer_user_name }}"
-    mode: 0644
+    mode: '0644'
   when:
     - ( outer_user_name | length ) > 0
 
@@ -255,12 +255,12 @@
   vars:
     outer_user_name: "{{ outer_item.name | default('', true) }}"
     outer_user_home: "{{ outer_item.home | default('/home/' ~ (outer_item.name | default('', true)), true) }}"
-  template:
+  ansible.builtin.template:
     src: _emacs_d__rust-settings.el.j2
     dest: "{{ outer_user_home }}/.emacs.d/user_settings/rust-settings.el"
     owner: "{{ outer_user_name }}"
     group: "{{ outer_user_name }}"
-    mode: 0644
+    mode: '0644'
   when:
     - ( outer_user_name | length ) > 0
 
@@ -269,12 +269,12 @@
   vars:
     outer_user_name: "{{ outer_item.name | default('', true) }}"
     outer_user_home: "{{ outer_item.home | default('/home/' ~ (outer_item.name | default('', true)), true) }}"
-  template:
+  ansible.builtin.template:
     src: _emacs_d__screen-settings.el.j2
     dest: "{{ outer_user_home }}/.emacs.d/user_settings/screen-settings.el"
     owner: "{{ outer_user_name }}"
     group: "{{ outer_user_name }}"
-    mode: 0644
+    mode: '0644'
   when:
     - ( outer_user_name | length ) > 0
 
@@ -283,12 +283,12 @@
   vars:
     outer_user_name: "{{ outer_item.name | default('', true) }}"
     outer_user_home: "{{ outer_item.home | default('/home/' ~ (outer_item.name | default('', true)), true) }}"
-  template:
+  ansible.builtin.template:
     src: _emacs_d__yaml-mode-settings.el.j2
     dest: "{{ outer_user_home }}/.emacs.d/user_settings/yaml-mode-settings.el"
     owner: "{{ outer_user_name }}"
     group: "{{ outer_user_name }}"
-    mode: 0644
+    mode: '0644'
   when:
     - ( outer_user_name | length ) > 0
 
@@ -297,11 +297,11 @@
   vars:
     outer_user_name: "{{ outer_item.name | default('', true) }}"
     outer_user_home: "{{ outer_item.home | default('/home/' ~ (outer_item.name | default('', true)), true) }}"
-  template:
+  ansible.builtin.template:
     src: _emacs_d__yatex-mode-setting.el.j2
     dest: "{{ outer_user_home }}/.emacs.d/user_settings/yatex-mode-setting.el"
     owner: "{{ outer_user_name }}"
     group: "{{ outer_user_name }}"
-    mode: 0644
+    mode: '0644'
   when:
     - ( outer_user_name | length ) > 0

@@ -12,12 +12,13 @@
 # 再起動前に udevルール削除を行う
 # cloud-init の無効化からNetworkManager設定までの間に
 # 再起動が入らないようにすること
-- include_tasks: config-disable-cloud-init.yml
+- ansible.builtin.include_tasks: config-disable-cloud-init.yml
+  name: "Config Disable Cloud Init"
   when: ansible_facts.os_family == "RedHat"
 
 # 自動設定ファイルの存在確認と除去
 - name: "Remove setup auto network config files"
-  include_tasks: move-default-netplans.yml
+  ansible.builtin.include_tasks: move-default-netplans.yml
   when:
     - ansible_facts.os_family == "Debian"
     - common_autonetconfig_files_debian is defined
@@ -62,7 +63,8 @@
 # 現在アクティブな NM 接続が割り当てられているデバイス一覧を配列化
 - name: Build active device set
   ansible.builtin.set_fact:
-    _nm_active_devices: "{{ (_nm_active_devs_cmd.stdout | default('') ).split('\n')
+    _nm_active_devices: "{{ (_nm_active_devs_cmd.stdout | default('', true) | string)
+                            | split('\n')
                             | map('trim') | reject('equalto','') | unique | list }}"
 
 # .link の出力ディレクトリを必ず作成します。
@@ -199,8 +201,8 @@
                 static_ipv6_addr: ""
                 network_ipv6_prefix_len: 0
                 gateway6: "{{ gateway6 | default('', true) }}"
-                ignore_auto_ipv4_dns: "{{ _mgmt_ignore_auto_ipv4_dns | bool }}"
-                ignore_auto_ipv6_dns: "{{ _mgmt_ignore_auto_ipv6_dns | bool }}"
+                ignore_auto_ipv4_dns: "{{ _mgmt_ignore_auto_ipv4_dns | default(false) | bool }}"
+                ignore_auto_ipv6_dns: "{{ _mgmt_ignore_auto_ipv6_dns | default(false) | bool }}"
                 name_server_ipv4_1: "{{ ipv4_name_server1 | default('', true) }}"
                 name_server_ipv4_2: "{{ ipv4_name_server2 | default('', true) }}"
                 name_server_ipv6_1: "{{ ipv6_name_server1 | default('', true) }}"
@@ -229,8 +231,8 @@
             mode: "0600"
 
         # 文法チェックのためのnetplan generate実行
-        - name: netplan generate (syntax check)
-          command: netplan generate
+        - name: Netplan generate (syntax check)
+          ansible.builtin.command: netplan generate
           register: netplan_generate
           changed_when: netplan_generate.rc == 0
           failed_when: netplan_generate.rc != 0
@@ -254,6 +256,7 @@
 # nmcli 出力をシェルで YAML 配列に整形 ( Jinja フィルタ依存を避けるため )
 - name: Convert nmcli output to YAML rows
   ansible.builtin.shell: |
+    set -o pipefail
     set -eu
     nmcli -t -f NAME,UUID,TYPE,DEVICE,AUTOCONNECT,FILENAME connection show |
     awk -F':' 'BEGIN{ print "---"; print "_rows:" }
@@ -332,6 +335,8 @@
   when:
     - (_obsolete_conn_uuids | default([]) | length) > 0
     - item is not match('^$')
+  register: _result
+  changed_when: _result.rc == 0
 
 # 実在する keyfile のみ削除 ( /etc 配下のみ )
 - name: Stat obsolete keyfiles (existence check)
@@ -358,7 +363,8 @@
 
 # 再起動前に, 不要な udev ルールを削除 ( RHEL 系のみ )
 # ネットワークインターフェース名の固定化を確実にするため
-- include_tasks: config-remove-udev-rules.yml
+- ansible.builtin.include_tasks: config-remove-udev-rules.yml
+  name: "Config Remove Udev Rules"
   when: ansible_facts.os_family == "RedHat"
 
 #
@@ -370,17 +376,12 @@
 # .link の適用順序
 #  事前に .link を配置し, 名称固定が反映された後に NetworkManager の
 #  keyfile が読み込まれるため, 固定ネットワークインターフェース名設定の
-#  確実性を重視するし, 強制リブートする。
+#  確実性を重視し, 強制リブートする。
 #
 
 # マシンをリブートする
 - name: Reboot host gracefully
-  reboot:
-    reboot_timeout: 600
+  ansible.builtin.reboot:
+    reboot_timeout: "{{ reboot_timeout_sec }}"
     msg: "Reboot triggered by role: common"
     pre_reboot_delay: 2
-
-# リブート後の接続待機
-- name: Wait for connection after reboot
-  wait_for_connection:
-    timeout: 300

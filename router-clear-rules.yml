@@ -15,7 +15,7 @@
     - name: Load router-config variables
       ansible.builtin.include_vars:
         dir: "{{ playbook_dir }}/roles/router-config/defaults"
-        name: router_config_defaults
+        name: Router_config_defaults
 
     # vars/all-config.ymlとcross-distro.ymlを読み込む
     - name: Load common variables

@@ -10,21 +10,27 @@
 #
 
 - name: Calculate first app cpu
-  shell: |
+  ansible.builtin.shell: |
+    set -o pipefail
     expr  $(echo {{ k8s_reserved_system_cpus_default }}|awk -F '-' '{print $2}') + 1
+  args:
+    executable: /bin/bash
   register: k8s_worker_first_cpu_id
   ignore_errors: true
   changed_when: False
 
 - name: Calculate last app cpu
-  shell: |
+  ansible.builtin.shell: |
+    set -o pipefail
     expr `lscpu -p=CPU | grep -v '^#' 2>/dev/null|wc -l || nproc --all` - 1
+  args:
+    executable: /bin/bash
   register: k8s_worker_last_cpu_id
   ignore_errors: true
   changed_when: False
 
 - name: Create app cpu range
-  shell: |
+  ansible.builtin.shell: |
     echo "{{ k8s_worker_first_cpu_id.stdout }}-{{ k8s_worker_last_cpu_id.stdout }}"
   register: k8s_worker_app_cpu_range
   changed_when: False
@@ -42,27 +48,27 @@
 
 # ワーカーキューセットアップスクリプトの生成
 - name: Generate pin-worker-queue.sh
-  template:
+  ansible.builtin.template:
     src: pin-worker-queue.sh.j2
     dest: "{{ k8s_node_setup_tools_dir }}/pin-worker-queue.sh"
     owner: root
     group: root
-    mode: 0755
-    backup: no
+    mode: '0755'
+    backup: false
 
 # SystemD pin-worker-queue サービスファイルの生成
 - name: Generate pin-worker-queue SystemD service
-  template:
+  ansible.builtin.template:
     src: pin-worker-queue.service.j2
     dest: /etc/systemd/system/pin-worker-queue.service
     owner: root
     group: root
-    mode: 0755
-    backup: no
+    mode: '0755'
+    backup: false
 
 # SystemD pin-worker-queue サービスの登録
 - name: Register pin-worker-queue service
-  systemd_service:
+  ansible.builtin.systemd_service:
     name: pin-worker-queue
     enabled: true
 
@@ -73,27 +79,27 @@
 
 # 割込み片寄せセットアップスクリプトの生成
 - name: Generate pin-irqs.py
-  template:
+  ansible.builtin.template:
     src: pin-irqs.py.j2
     dest: "{{ k8s_node_setup_tools_dir }}/pin-irqs.py"
     owner: root
     group: root
-    mode: 0755
-    backup: no
+    mode: '0755'
+    backup: false
 
 # SystemD pin-irqs サービスファイルの生成
 - name: Generate pin-irqs SystemD service
-  template:
+  ansible.builtin.template:
     src: pin-irqs.service.j2
     dest: /etc/systemd/system/pin-irqs.service
     owner: root
     group: root
-    mode: 0755
-    backup: no
+    mode: '0755'
+    backup: false
 
 # SystemD pin-irqs サービスの登録
 - name: Register pin-irqs service
-  systemd_service:
+  ansible.builtin.systemd_service:
     name: pin-irqs
     enabled: true
 
@@ -103,238 +109,226 @@
 #
 
 - block:
+    - name: Check if nohz_full is configured in the boot command
+      ansible.builtin.lineinfile:
+        backup: true
+        path: "{{ grub_default_cfg_path }}"
+        regexp: '^{{ grub_cmdline_var_name }}=".*nohz_full'
+        state: absent
+      check_mode: true
+      register: grub_cmdline_check_nohz_full
 
-  - name: check if nohz_full is configured in the boot command
-    lineinfile:
-      backup: true
-      path: "{{ grub_default_cfg_path }}"
-      regexp: '^{{ grub_cmdline_var_name }}=".*nohz_full'
-      state: absent
-    check_mode: true
-    register: grub_cmdline_check_nohz_full
+    - name: Replace nohz_full if present
+      ansible.builtin.lineinfile:
+        path: "{{ grub_default_cfg_path }}"
+        backrefs: true
+        regexp: '^({{ grub_cmdline_var_name }}="[^"]*?\b)nohz_full=[^\s"]+([^"]*")$'
+        line: '\1nohz_full={{ k8s_worker_app_cpu_range.stdout }}\2'
+        backup: true
+      when:
+        - grub_cmdline_check_nohz_full.changed
 
-  - name: replace nohz_full if present
-    lineinfile:
-      path: "{{ grub_default_cfg_path }}"
-      backrefs: true
-      regexp: '^({{ grub_cmdline_var_name }}="[^"]*?\b)nohz_full=[^\s"]+([^"]*")$'
-      line: '\1nohz_full={{ k8s_worker_app_cpu_range.stdout }}\2'
-      backup: true
-    when:
-      - grub_cmdline_check_nohz_full.changed
+    - name: Insert nohz_full if missing
+      ansible.builtin.lineinfile:
+        backrefs: true
+        path: "{{ grub_default_cfg_path }}"
+        regexp: "^({{ grub_cmdline_var_name }}=\".*)\"$"
+        line: '\1 nohz_full={{ k8s_worker_app_cpu_range.stdout }}"'
+      when:
+        - not grub_cmdline_check_nohz_full.changed
 
+    - name: Check if isolcpus is configured in the boot command
+      ansible.builtin.lineinfile:
+        backup: true
+        path: "{{ grub_default_cfg_path }}"
+        regexp: '^{{ grub_cmdline_var_name }}=".*isolcpus'
+        state: absent
+      check_mode: true
+      register: grub_cmdline_check_isolcpus
 
-  - name: insert nohz_full if missing
-    lineinfile:
-      backrefs: true
-      path: "{{ grub_default_cfg_path }}"
-      regexp: "^({{ grub_cmdline_var_name }}=\".*)\"$"
-      line: '\1 nohz_full={{ k8s_worker_app_cpu_range.stdout }}"'
-    when:
-      - not grub_cmdline_check_nohz_full.changed
+    - name: Replace isolcpus if present
+      ansible.builtin.lineinfile:
+        path: "{{ grub_default_cfg_path }}"
+        backrefs: true
+        regexp: '^({{ grub_cmdline_var_name }}="[^"]*?\b)isolcpus=[^\s"]+([^"]*")$'
+        line: '\1isolcpus=domain,managed,managed_irq,{{ k8s_worker_app_cpu_range.stdout }}\2'
+        backup: true
+      when:
+        - grub_cmdline_check_isolcpus.changed
 
-  - name: check if isolcpus is configured in the boot command
-    lineinfile:
-      backup: true
-      path: "{{ grub_default_cfg_path }}"
-      regexp: '^{{ grub_cmdline_var_name }}=".*isolcpus'
-      state: absent
-    check_mode: true
-    register: grub_cmdline_check_isolcpus
+    - name: Insert isolcpus if missing
+      ansible.builtin.lineinfile:
+        backrefs: true
+        path: "{{ grub_default_cfg_path }}"
+        regexp: "^({{ grub_cmdline_var_name }}=\".*)\"$"
+        line: '\1 isolcpus=managed,{{ k8s_worker_app_cpu_range.stdout }}"'
+      when:
+        - not grub_cmdline_check_isolcpus.changed
 
-  - name: replace isolcpus if present
-    lineinfile:
-      path: "{{ grub_default_cfg_path }}"
-      backrefs: true
-      regexp: '^({{ grub_cmdline_var_name }}="[^"]*?\b)isolcpus=[^\s"]+([^"]*")$'
-      line: '\1isolcpus=domain,managed,managed_irq,{{ k8s_worker_app_cpu_range.stdout }}\2'
-      backup: true
-    when:
-      - grub_cmdline_check_isolcpus.changed
+    - name: Check if rcu_nocbs is configured in the boot command
+      ansible.builtin.lineinfile:
+        backup: true
+        path: "{{ grub_default_cfg_path }}"
+        regexp: '^{{ grub_cmdline_var_name }}=".*rcu_nocbs'
+        state: absent
+      check_mode: true
+      register: grub_cmdline_check_rcu_nocbs
 
-  - name: insert isolcpus if missing
-    lineinfile:
-      backrefs: true
-      path: "{{ grub_default_cfg_path }}"
-      regexp: "^({{ grub_cmdline_var_name }}=\".*)\"$"
-      line: '\1 isolcpus=managed,{{ k8s_worker_app_cpu_range.stdout }}"'
-    when:
-      - not grub_cmdline_check_isolcpus.changed
+    - name: Replace rcu_nocbs if present
+      ansible.builtin.lineinfile:
+        path: "{{ grub_default_cfg_path }}"
+        backrefs: true
+        regexp: '^({{ grub_cmdline_var_name }}="[^"]*?\b)rcu_nocbs=[^\s"]+([^"]*")$'
+        line: '\1rcu_nocbs={{ k8s_worker_app_cpu_range.stdout }}\2'
+        backup: true
+      when:
+        - grub_cmdline_check_rcu_nocbs.changed
 
+    - name: Insert rcu_nocbs if missing
+      ansible.builtin.lineinfile:
+        backrefs: true
+        path: "{{ grub_default_cfg_path }}"
+        regexp: "^({{ grub_cmdline_var_name }}=\".*)\"$"
+        line: '\1 rcu_nocbs={{ k8s_worker_app_cpu_range.stdout }}"'
+      when:
+        - not grub_cmdline_check_rcu_nocbs.changed
 
-  - name: check if rcu_nocbs is configured in the boot command
-    lineinfile:
-      backup: true
-      path: "{{ grub_default_cfg_path }}"
-      regexp: '^{{ grub_cmdline_var_name }}=".*rcu_nocbs'
-      state: absent
-    check_mode: true
-    register: grub_cmdline_check_rcu_nocbs
+    - name: Check if irqaffinity is configured in the boot command
+      ansible.builtin.lineinfile:
+        backup: true
+        path: "{{ grub_default_cfg_path }}"
+        regexp: '^{{ grub_cmdline_var_name }}=".*irqaffinity'
+        state: absent
+      check_mode: true
+      register: grub_cmdline_check_irqaffinity
 
-  - name: replace rcu_nocbs if present
-    lineinfile:
-      path: "{{ grub_default_cfg_path }}"
-      backrefs: true
-      regexp: '^({{ grub_cmdline_var_name }}="[^"]*?\b)rcu_nocbs=[^\s"]+([^"]*")$'
-      line: '\1rcu_nocbs={{ k8s_worker_app_cpu_range.stdout }}\2'
-      backup: true
-    when:
-      - grub_cmdline_check_rcu_nocbs.changed
+    - name: Replace irqaffinity if present
+      ansible.builtin.lineinfile:
+        path: "{{ grub_default_cfg_path }}"
+        backrefs: true
+        regexp: '^({{ grub_cmdline_var_name }}="[^"]*?\b)irqaffinity=[^\s"]+([^"]*")$'
+        line: '\1irqaffinity={{ k8s_reserved_system_cpus_default }}\2'
+        backup: true
+      when:
+        - grub_cmdline_check_irqaffinity.changed
 
-  - name: insert rcu_nocbs if missing
-    lineinfile:
-      backrefs: true
-      path: "{{ grub_default_cfg_path }}"
-      regexp: "^({{ grub_cmdline_var_name }}=\".*)\"$"
-      line: '\1 rcu_nocbs={{ k8s_worker_app_cpu_range.stdout }}"'
-    when:
-      - not grub_cmdline_check_rcu_nocbs.changed
+    - name: Insert irqaffinity if missing
+      ansible.builtin.lineinfile:
+        backrefs: true
+        path: "{{ grub_default_cfg_path }}"
+        regexp: "^({{ grub_cmdline_var_name }}=\".*)\"$"
+        line: '\1 irqaffinity={{ k8s_reserved_system_cpus_default }}"'
+      when:
+        - not grub_cmdline_check_irqaffinity.changed
 
+    - name: Check if workqueue.unbound_cpus is configured in the boot command
+      ansible.builtin.lineinfile:
+        backup: true
+        path: "{{ grub_default_cfg_path }}"
+        regexp: '^{{ grub_cmdline_var_name }}=".*workqueue\.unbound_cpus'
+        state: absent
+      check_mode: true
+      register: grub_cmdline_check_workqueue_unbound_cpus
 
-  - name: check if irqaffinity is configured in the boot command
-    lineinfile:
-      backup: true
-      path: "{{ grub_default_cfg_path }}"
-      regexp: '^{{ grub_cmdline_var_name }}=".*irqaffinity'
-      state: absent
-    check_mode: true
-    register: grub_cmdline_check_irqaffinity
+    - name: Replace workqueue.unbound_cpus if present
+      ansible.builtin.lineinfile:
+        path: "{{ grub_default_cfg_path }}"
+        backrefs: true
+        regexp: '^({{ grub_cmdline_var_name }}="[^"]*?\b)workqueue\.unbound_cpus=[^\s"]+([^"]*")$'
+        line: '\1workqueue.unbound_cpus={{ k8s_reserved_system_cpus_default }}\2'
+        backup: true
+      when:
+        - grub_cmdline_check_workqueue_unbound_cpus.changed
 
-  - name: replace irqaffinity if present
-    lineinfile:
-      path: "{{ grub_default_cfg_path }}"
-      backrefs: true
-      regexp: '^({{ grub_cmdline_var_name }}="[^"]*?\b)irqaffinity=[^\s"]+([^"]*")$'
-      line: '\1irqaffinity={{ k8s_reserved_system_cpus_default }}\2'
-      backup: true
-    when:
-      - grub_cmdline_check_irqaffinity.changed
+    - name: Insert workqueue.unbound_cpus if missing
+      ansible.builtin.lineinfile:
+        backrefs: true
+        path: "{{ grub_default_cfg_path }}"
+        regexp: "^({{ grub_cmdline_var_name }}=\".*)\"$"
+        line: '\1 workqueue.unbound_cpus={{ k8s_reserved_system_cpus_default }}"'
+      when:
+        - not grub_cmdline_check_workqueue_unbound_cpus.changed
 
-  - name: insert irqaffinity if missing
-    lineinfile:
-      backrefs: true
-      path: "{{ grub_default_cfg_path }}"
-      regexp: "^({{ grub_cmdline_var_name }}=\".*)\"$"
-      line: '\1 irqaffinity={{ k8s_reserved_system_cpus_default }}"'
-    when:
-      - not grub_cmdline_check_irqaffinity.changed
+    - name: Check if workqueue.default_affinity_scope is configured in the boot command
+      ansible.builtin.lineinfile:
+        backup: true
+        path: "{{ grub_default_cfg_path }}"
+        regexp: '^{{ grub_cmdline_var_name }}=".*workqueue\.default_affinity_scope'
+        state: absent
+      check_mode: true
+      register: grub_cmdline_check_workqueue_default_affinity_scope
 
+    - name: Replace workqueue.default_affinity_scope if present
+      ansible.builtin.lineinfile:
+        path: "{{ grub_default_cfg_path }}"
+        backrefs: true
+        regexp: '^({{ grub_cmdline_var_name }}="[^"]*?\b)workqueue\.default_affinity_scope=[^\s"]+([^"]*")$'
+        line: '\1workqueue.default_affinity_scope=cpu\2'
+        backup: true
+      when:
+        - grub_cmdline_check_workqueue_default_affinity_scope.changed
 
-  - name: check if workqueue.unbound_cpus is configured in the boot command
-    lineinfile:
-      backup: true
-      path: "{{ grub_default_cfg_path }}"
-      regexp: '^{{ grub_cmdline_var_name }}=".*workqueue\.unbound_cpus'
-      state: absent
-    check_mode: true
-    register: grub_cmdline_check_workqueue_unbound_cpus
+    - name: Insert workqueue.default_affinity_scope if missing
+      ansible.builtin.lineinfile:
+        backrefs: true
+        path: "{{ grub_default_cfg_path }}"
+        regexp: "^({{ grub_cmdline_var_name }}=\".*)\"$"
+        line: '\1 workqueue.default_affinity_scope=cpu"'
+      when:
+        - not grub_cmdline_check_workqueue_default_affinity_scope.changed
 
-  - name: replace workqueue.unbound_cpus if present
-    lineinfile:
-      path: "{{ grub_default_cfg_path }}"
-      backrefs: true
-      regexp: '^({{ grub_cmdline_var_name }}="[^"]*?\b)workqueue\.unbound_cpus=[^\s"]+([^"]*")$'
-      line: '\1workqueue.unbound_cpus={{ k8s_reserved_system_cpus_default }}\2'
-      backup: true
-    when:
-      - grub_cmdline_check_workqueue_unbound_cpus.changed
+    - name: Check if systemd.cpu_affinity is configured in the boot command
+      ansible.builtin.lineinfile:
+        backup: true
+        path: "{{ grub_default_cfg_path }}"
+        regexp: '^{{ grub_cmdline_var_name }}=".*systemd\.cpu_affinity'
+        state: absent
+      check_mode: true
+      register: grub_cmdline_check_systemd_cpu_affinity
 
-  - name: insert workqueue.unbound_cpus if missing
-    lineinfile:
-      backrefs: true
-      path: "{{ grub_default_cfg_path }}"
-      regexp: "^({{ grub_cmdline_var_name }}=\".*)\"$"
-      line: '\1 workqueue.unbound_cpus={{ k8s_reserved_system_cpus_default }}"'
-    when:
-      - not grub_cmdline_check_workqueue_unbound_cpus.changed
+    - name: Replace systemd.cpu_affinity if present
+      ansible.builtin.lineinfile:
+        path: "{{ grub_default_cfg_path }}"
+        backrefs: true
+        regexp: '^({{ grub_cmdline_var_name }}="[^"]*?\b)systemd\.cpu_affinity==[^\s"]+([^"]*")$'
+        line: '\1systemd.cpu_affinity={{ k8s_reserved_system_cpus_default }}\2'
+        backup: true
+      when:
+        - grub_cmdline_check_systemd_cpu_affinity.changed
 
+    - name: Insert systemd.cpu_affinity if missing
+      ansible.builtin.lineinfile:
+        backrefs: true
+        path: "{{ grub_default_cfg_path }}"
+        regexp: "^({{ grub_cmdline_var_name }}=\".*)\"$"
+        line: '\1 systemd.cpu_affinity={{ k8s_reserved_system_cpus_default }}"'
+      when:
+        - not grub_cmdline_check_systemd_cpu_affinity.changed
 
-  - name: check if workqueue.default_affinity_scope is configured in the boot command
-    lineinfile:
-      backup: true
-      path: "{{ grub_default_cfg_path }}"
-      regexp: '^{{ grub_cmdline_var_name }}=".*workqueue\.default_affinity_scope'
-      state: absent
-    check_mode: true
-    register: grub_cmdline_check_workqueue_default_affinity_scope
+    #
+    # GRUB 設定の更新 (Debian 系)
+    #
+    - ansible.builtin.include_tasks: config-grub-debian.yml
+      name: "Config Grub Debian"
+      when:
+        - ansible_facts.os_family == 'Debian'
+    #
+    # GRUB 設定の更新 (RHEL 系)
+    #
+    - ansible.builtin.include_tasks: config-grub-rhel.yml
+      name: "Config Grub Rhel"
+      when:
+        - ansible_facts.os_family == 'RedHat'
+    #
+    # 再起動
+    #
 
-
-  - name: replace workqueue.default_affinity_scope if present
-    lineinfile:
-      path: "{{ grub_default_cfg_path }}"
-      backrefs: true
-      regexp: '^({{ grub_cmdline_var_name }}="[^"]*?\b)workqueue\.default_affinity_scope=[^\s"]+([^"]*")$'
-      line: '\1workqueue.default_affinity_scope=cpu\2'
-      backup: true
-    when:
-      - grub_cmdline_check_workqueue_default_affinity_scope.changed
-
-  - name: insert workqueue.default_affinity_scope if missing
-    lineinfile:
-      backrefs: true
-      path: "{{ grub_default_cfg_path }}"
-      regexp: "^({{ grub_cmdline_var_name }}=\".*)\"$"
-      line: '\1 workqueue.default_affinity_scope=cpu"'
-    when:
-      - not grub_cmdline_check_workqueue_default_affinity_scope.changed
-
-  - name: check if systemd.cpu_affinity is configured in the boot command
-    lineinfile:
-      backup: true
-      path: "{{ grub_default_cfg_path }}"
-      regexp: '^{{ grub_cmdline_var_name }}=".*systemd\.cpu_affinity'
-      state: absent
-    check_mode: true
-    register: grub_cmdline_check_systemd_cpu_affinity
-
-  - name: replace systemd.cpu_affinity if present
-    lineinfile:
-      path: "{{ grub_default_cfg_path }}"
-      backrefs: true
-      regexp: '^({{ grub_cmdline_var_name }}="[^"]*?\b)systemd\.cpu_affinity==[^\s"]+([^"]*")$'
-      line: '\1systemd.cpu_affinity={{ k8s_reserved_system_cpus_default }}\2'
-      backup: true
-    when:
-      - grub_cmdline_check_systemd_cpu_affinity.changed
-
-  - name: insert systemd.cpu_affinity if missing
-    lineinfile:
-      backrefs: true
-      path: "{{ grub_default_cfg_path }}"
-      regexp: "^({{ grub_cmdline_var_name }}=\".*)\"$"
-      line: '\1 systemd.cpu_affinity={{ k8s_reserved_system_cpus_default }}"'
-    when:
-      - not grub_cmdline_check_systemd_cpu_affinity.changed
-
-  #
-  # GRUB 設定の更新 (Debian 系)
-  #
-  - include_tasks: config-grub-debian.yml
-    when:
-      - ansible_facts.os_family == 'Debian'
-
-  #
-  # GRUB 設定の更新 (RHEL 系)
-  #
-  - include_tasks: config-grub-rhel.yml
-    when:
-      - ansible_facts.os_family == 'RedHat'
-
-  #
-  # 再起動
-  #
-
-  # マシンをリブートする
-  - name: Reboot host gracefully
-    reboot:
-      reboot_timeout: 600
-      msg: "Reboot triggered by role: k8s-worker"
-      pre_reboot_delay: 2
-
-  # ssh が使えるようになるのを待つ
-  - name: Wait for connection after reboot
-    wait_for_connection:
-      timeout: 300
+    # マシンをリブートする
+    - name: Reboot host gracefully
+      ansible.builtin.reboot:
+        reboot_timeout: "{{ reboot_timeout_sec }}"
+        msg: "Reboot triggered by role: k8s-worker"
+        pre_reboot_delay: 2
 
   when:
     - k8s_worker_app_cpu_range.rc == 0

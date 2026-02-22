@@ -6,32 +6,32 @@
 # ユーザ資格での ptrace を有効化する
 - name: Enable ptrace from user processes
   ansible.builtin.sysctl:
-    name: kernel.yama.ptrace_scope
-    value: "{{ common_sysctl_user_ptrace_enable | bool | ternary('0', '1') }}"
+    name: Kernel.yama.ptrace_scope
+    value: "{{ common_sysctl_user_ptrace_enable | default(false) | bool | ternary('0', '1') }}"
     state: present
     sysctl_file: "{{ sysctl_ptrace_conf_path }}"
-    reload: yes
-    ignoreerrors: yes  # カーネルによっては当該 sysctl が未提供の場合があるため
+    reload: true
+    ignoreerrors: true  # カーネルによっては当該 sysctl が未提供の場合があるため
 
 
 # ユーザ資格での dmesg を有効化する
 - name: Enable dmesg from user processes
   ansible.builtin.sysctl:
-    name: kernel.dmesg_restrict
-    value: "{{ common_sysctl_user_dmesg_enable | bool | ternary('0', '1') }}"
+    name: Kernel.dmesg_restrict
+    value: "{{ common_sysctl_user_dmesg_enable | default(false) | bool | ternary('0', '1') }}"
     state: present
     sysctl_file: "{{ sysctl_dmesg_conf_path }}"
-    reload: yes
-    ignoreerrors: yes  # カーネルによっては当該 sysctl が未提供の場合があるため
+    reload: true
+    ignoreerrors: true  # カーネルによっては当該 sysctl が未提供の場合があるため
 
 # ファイル監視
 # common_sysctl_inotify_max_user_watches変数で, 設定値が指定されていない場合は
 # デフォルト値8192を設定 (defaults/main.ymlで指定されるためはずだが念のため)
 - name: "Enlarge file observation limit"
-  lineinfile:
+  ansible.builtin.lineinfile:
     path: "{{ sysctl_inotify_conf_path }}"
     regexp: '^\s*fs.inotify.max_user_watches\s*=.*'
     line: 'fs.inotify.max_user_watches={{ common_sysctl_inotify_max_user_watches|int|default(8192, true) }}'
-    create: yes
+    create: true
     state: present
   notify: "common_reload_sysctl"

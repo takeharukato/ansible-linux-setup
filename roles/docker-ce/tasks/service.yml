@@ -4,7 +4,7 @@
 #
 
 - name: Create bridge relevant module config
-  template:
+  ansible.builtin.template:
     src: docker-bridge.conf.j2
     dest: /etc/modules-load.d/99-docker-bridge.conf
     mode: '0644'
@@ -12,6 +12,8 @@
 
 - name: Apply bridge relevant sysctl config
   ansible.builtin.command: sysctl --system
+  register: _result
+  changed_when: _result.rc == 0
 
 # Dockerサービスを有効化
 - name: Enable docker service

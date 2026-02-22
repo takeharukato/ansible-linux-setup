@@ -3,5 +3,7 @@
 #  Copyright 2020 Takeharu KATO All Rights Reserved.
 #
 #  サービス起動ハンドラ
-- import_tasks: reload-sysctl.yml
-- import_tasks: restart-frr.yml
+- name: "Reload Sysctl"
+  ansible.builtin.import_tasks: reload-sysctl.yml
+- name: "Restart Frr"
+  ansible.builtin.import_tasks: restart-frr.yml

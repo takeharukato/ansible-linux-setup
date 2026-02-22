@@ -16,7 +16,16 @@
     grub2_out: "{{ (_efi.stat.exists | bool) | ternary('/boot/efi/EFI/redhat/grub.cfg', '/boot/grub2/grub.cfg') }}"
 
 - name: Regenerate grub2 config
-  ansible.builtin.command: >
-    grub2-mkconfig -o {{ grub2_out }}
+  ansible.builtin.shell: |
+    if command -v grub2-mkconfig >/dev/null 2>&1; then
+      grub2-mkconfig -o {{ grub2_out }}
+    elif command -v grub-mkconfig >/dev/null 2>&1; then
+      grub-mkconfig -o {{ grub2_out }}
+    else
+      echo "grub2-mkconfig or grub-mkconfig not found" >&2
+      exit 1
+    fi
+  args:
+    executable: /bin/bash
   register: grub_mkconfig_out
   changed_when: "'Saved' in grub_mkconfig_out.stdout or 'Saving' in grub_mkconfig_out.stdout or grub_mkconfig_out.rc == 0"

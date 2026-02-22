@@ -8,3 +8,5 @@
 ---
 # ノード設定後に再起動するかどうか
 force_reboot: false
+# 再起動後の応答待ちのタイムアウト時間 (秒)
+reboot_timeout_sec: 600

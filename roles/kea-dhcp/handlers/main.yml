@@ -4,4 +4,5 @@
 #
 #  サービス起動ハンドラ
 #
-- import_tasks: restart_dhcp4_server.yml
+- name: "Restart Dhcp4 Server"
+  ansible.builtin.import_tasks: restart_dhcp4_server.yml

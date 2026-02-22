@@ -2,8 +2,9 @@
 #  Ansible playbook
 #  Copyright 2020 Takeharu KATO All Rights Reserved.
 #
-- hosts: router
-  remote_user:  '{{ ansible_user }}'
+- name: Configure router hosts
+  hosts: router
+  remote_user: '{{ ansible_user }}'
   become: true
   roles:
     - role: selinux

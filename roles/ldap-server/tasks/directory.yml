@@ -6,42 +6,42 @@
 #
 
 - name: "Create {{openldap_docker_dir}}"
-  file:
+  ansible.builtin.file:
     path: "{{openldap_docker_dir}}"
     state: directory
     mode: "755"
 
 - name: "Create {{openldap_docker_dir}}/docker-compose.yml"
-  template:
+  ansible.builtin.template:
     src: docker-compose.yml.j2
     dest: "{{openldap_docker_dir}}/docker-compose.yml"
     owner: root
     group: root
-    mode: 0644
-    backup: no
+    mode: '0644'
+    backup: false
 
 - name: "Create {{openldap_scripts_dir}}"
-  file:
+  ansible.builtin.file:
     path: "{{openldap_scripts_dir}}"
     state: directory
     mode: "755"
 
 # バックアップ作業用スクリプトを作成
 - name: "Create {{openldap_scripts_dir}}/backup-ldap-data.sh"
-  template:
+  ansible.builtin.template:
     src: backup-ldap-data.sh.j2
     dest: "{{openldap_scripts_dir}}/backup-ldap-data.sh"
     owner: root
     group: root
-    mode: 0755
-    backup: no
+    mode: '0755'
+    backup: false
 
 # リストア作業用スクリプトを作成
 - name: "Create {{openldap_scripts_dir}}/restore-ldap-data.sh"
-  template:
+  ansible.builtin.template:
     src: restore-ldap-data.sh.j2
     dest: "{{openldap_scripts_dir}}/restore-ldap-data.sh"
     owner: root
     group: root
-    mode: 0755
-    backup: no
+    mode: '0755'
+    backup: false

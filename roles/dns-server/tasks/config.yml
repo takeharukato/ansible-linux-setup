@@ -5,29 +5,29 @@
 
 # named.conf および ゾーンファイルの配置
 - name: "Deploy {{dns_bind_conf_dir}}"
-  file:
+  ansible.builtin.file:
     path: "{{dns_bind_conf_dir}}"
     state: directory
     owner: root
     group: root
-    mode: 0755
+    mode: '0755'
 
 # ゾーンファイル格納ディレクトリの配置
 - name: "Deploy {{dns_bind_zone_dir}}"
-  file:
+  ansible.builtin.file:
     path: "{{dns_bind_zone_dir}}"
     state: directory
     owner: "{{ dns_bind_user }}"
     group: "{{ dns_bind_group }}"
-    mode: 0775
+    mode: '0775'
 
 - name: "Ensure managed-keys directory exists"
-  file:
+  ansible.builtin.file:
     path: "{{ dns_bind_cache_dir }}/dynamic"
     state: directory
     owner: "{{ dns_bind_user }}"
     group: "{{ dns_bind_group }}"
-    mode: 0750
+    mode: '0750'
   when:
     - dns_bind_cache_dir | default('', true) | length > 0
 
@@ -45,7 +45,7 @@
 # named.conf を「最小で安全な形」に置換 ( 裸のディレクティブを排除 )
 - name: "Write clean {{dns_bind_main_conf}} (include options file first)"
   become: true
-  template:
+  ansible.builtin.template:
     src: rhel-named.conf.j2
     dest: "{{dns_bind_main_conf}}"
     owner: root
@@ -56,112 +56,114 @@
 
 # named.confに自ドメインのゾーンファイル定義の読込み処理を追加する
 - name: "Add zone configuration line into {{ dns_bind_main_conf }}"
-  lineinfile:
+  ansible.builtin.lineinfile:
     path: "{{ dns_bind_main_conf }}"
     regexp: 'include .+{{dns_bind_conf_dir}}/named\.conf\.zones.+;'
     line: 'include "{{dns_bind_conf_dir}}/named.conf.zones";'
 
 # namedの動作オプションファイルを作成する  ( Debian系専用 )
 - name: "Deploy {{ dns_bind_options_conf_path }}"
-  template:
+  ansible.builtin.template:
     src: named.conf.options.j2
     dest: "{{ dns_bind_options_conf_path }}"
     owner: root
     group: "{{ dns_bind_group }}"
-    mode: 0640
+    mode: '0640'
     backup: true
   when:
     - ansible_facts.os_family == "Debian"
 
 # namedの動作オプションファイルを作成する ( RHEL系専用 )
 - name: "Deploy {{ dns_bind_options_conf_path }} (RHEL only)"
-  template:
+  ansible.builtin.template:
     src: rhel-named.conf.options.j2
     dest: "{{ dns_bind_options_conf_path }}"
     owner: root
     group: "{{ dns_bind_group }}"
-    mode: 0640
+    mode: '0640'
     backup: true
   when:
     - ansible_facts.os_family == "RedHat"
 
 # ゾーンファイル定義を作成する
 - name: "Deploy {{dns_bind_conf_dir}}/named.conf.zones"
-  template:
+  ansible.builtin.template:
     src: named.conf.zones.j2
     dest: "{{dns_bind_conf_dir}}/named.conf.zones"
     owner: root
     group: "{{ dns_bind_group }}"
-    mode: 0640
+    mode: '0640'
     backup: true
 
 # シリアル番号が設定されていなければ日付と時刻から生成
-- set_fact:
+- ansible.builtin.set_fact:
     bind_serial: "{{ '%Y%m%d%H' | strftime() }}"
   when:
     - bind_serial is not defined
 
 # ゾーンファイルを作成する
 - name: "Deploy {{dns_bind_zone_dir}}/db.{{dns_domain}}"
-  template:
+  ansible.builtin.template:
     src: db.forward.conf.j2
     dest: "{{dns_bind_zone_dir}}/db.{{dns_domain}}"
     owner: "{{ dns_bind_user }}"
     group: "{{ dns_bind_group }}"
-    mode: 0644
+    mode: '0644'
     backup: true
 
 # 逆引きゾーンファイルを作成する
 - name: "Deploy {{dns_bind_zone_dir}}/db.{{dns_ipv4_reverse}}"
-  template:
+  ansible.builtin.template:
     src: db.reverse.j2
     dest: "{{dns_bind_zone_dir}}/db.{{dns_ipv4_reverse}}"
     owner: "{{ dns_bind_user }}"
     group: "{{ dns_bind_group }}"
-    mode: 0644
+    mode: '0644'
     backup: true
 
 # 逆引きIPv6ゾーンファイルを作成する
 - name: "Deploy {{dns_bind_zone_dir}}/db.{{dns_network_ipv6_prefix_filename}}"
-  template:
+  ansible.builtin.template:
     src: db.reverse.ipv6.j2
     dest: "{{dns_bind_zone_dir}}/db.{{dns_network_ipv6_prefix_filename}}"
     owner: "{{ dns_bind_user }}"
     group: "{{ dns_bind_group }}"
-    mode: 0644
+    mode: '0644'
     backup: true
 
 # === 複数ネットワーク逆引きゾーンファイル生成 ===
 # IPv4 逆引きゾーンファイルを複数ネットワーク分作成する
 - name: "Deploy IPv4 reverse zone files for additional networks"
-  template:
+  ansible.builtin.template:
     src: db.reverse.additional.j2
     dest: "{{dns_bind_zone_dir}}/db.{{ item.ipv4 | ipv4_reverse_zone }}"
     owner: "{{ dns_bind_user }}"
     group: "{{ dns_bind_group }}"
-    mode: 0644
+    mode: '0644'
     backup: true
   when:
     - has_additional_networks
     - item.ipv4 is defined
     - item.ipv4 | length > 0
+    - "'/' in item.ipv4"
   with_items: "{{ internal_network_list | default([], true) }}"
   vars:
     additional_network_cidr: "{{ item.ipv4 }}"
 
 # IPv6 逆引きゾーンファイルを複数ネットワーク分作成する
 - name: "Deploy IPv6 reverse zone files for additional networks"
-  template:
+  ansible.builtin.template:
     src: db.reverse.additional.ipv6.j2
-    dest: "{{dns_bind_zone_dir}}/db.{{ item.ipv6 | ipv6_reverse_zone(item.ipv6.split('/')[1] | int) }}"
+    dest: "{{dns_bind_zone_dir}}/db.{{ item.ipv6 | ipv6_reverse_zone((item.ipv6.split('/')[1] if '/' in item.ipv6 else 128) | int) }}"
     owner: "{{ dns_bind_user }}"
     group: "{{ dns_bind_group }}"
-    mode: 0644
+    mode: '0644'
     backup: true
   when:
     - has_additional_networks
     - item.ipv6 is defined
     - item.ipv6 | length > 0
+    - "'/' in item.ipv6"
   with_items: "{{ internal_network_list | default([], true) }}"
   vars:
     additional_network_cidr: "{{ item.ipv6 }}"
@@ -175,7 +177,7 @@
     line: 'include "{{ dns_bind_options_conf_path }}";'
     insertafter: EOF
     state: present
-    backup: yes
+    backup: true
   notify:
     - "named_check_conf"
     - "Reload systemd & restart named"
@@ -257,11 +259,12 @@
     - ansible_selinux is defined and ansible_selinux.status != "disabled"
 
 # named.conf の構文とゾーンをチェック
-- name: named-checkconf (syntax & zones)
+- name: Named-checkconf (syntax & zones)
   become: true
   ansible.builtin.command: named-checkconf -z
   when:
     - ansible_facts.os_family == "RedHat"
+  changed_when: false
 
 # named サービスが起動中であることを確認する
 - name: "Check if {{ dns_bind_service }} is running"
@@ -274,7 +277,7 @@
 # DNS起動中の場合は, ジャーナルの同期とクリーンアップを行う
 - name: Sync and clean journals before restart
   become: true
-  command: rndc sync -clean
+  ansible.builtin.command: rndc sync -clean
   register: rndc_sync
   changed_when: false
   failed_when: rndc_sync.rc not in [0]
@@ -283,10 +286,10 @@
 # namedを起動する
 - block:
     - name: systemd daemon-reload
-      systemd:
+      ansible.builtin.systemd:
         daemon_reload: true
-    - name: restart named
-      systemd:
+    - name: Restart named
+      ansible.builtin.systemd:
         name: "{{ dns_bind_service }}"
         state: restarted
         enabled: true
@@ -294,6 +297,8 @@
 
 # ゾーンファイルをリロードする
 - name: "Reload zone files"
-  shell: |
+  ansible.builtin.shell: |
     rndc reload
   become: true
+  register: _result
+  changed_when: _result.rc == 0
