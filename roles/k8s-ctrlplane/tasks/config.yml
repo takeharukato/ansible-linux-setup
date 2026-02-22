@@ -247,11 +247,6 @@
 # マシンをリブートする
 - name: Reboot host gracefully
   ansible.builtin.reboot:
-    reboot_timeout: 600
+    reboot_timeout: "{{ reboot_timeout_sec }}"
     msg: "Reboot triggered by role: common"
     pre_reboot_delay: 2
-
-# ssh が使えるようになるのを待つ
-- name: Wait for connection after reboot
-  ansible.builtin.wait_for_connection:
-    timeout: 300

@@ -376,17 +376,12 @@
 # .link の適用順序
 #  事前に .link を配置し, 名称固定が反映された後に NetworkManager の
 #  keyfile が読み込まれるため, 固定ネットワークインターフェース名設定の
-#  確実性を重視するし, 強制リブートする。
+#  確実性を重視し, 強制リブートする。
 #
 
 # マシンをリブートする
 - name: Reboot host gracefully
   ansible.builtin.reboot:
-    reboot_timeout: 600
+    reboot_timeout: "{{ reboot_timeout_sec }}"
     msg: "Reboot triggered by role: common"
     pre_reboot_delay: 2
-
-# リブート後の接続待機
-- name: Wait for connection after reboot
-  ansible.builtin.wait_for_connection:
-    timeout: 300

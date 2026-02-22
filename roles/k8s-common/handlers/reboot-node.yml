@@ -3,6 +3,6 @@
     - name: "Reboot node gracefully"
       listen: "reboot_node_handler"
       ansible.builtin.reboot:
-        reboot_timeout: 600
+        reboot_timeout: "{{ reboot_timeout_sec }}"
         msg: "Reboot triggered by role: common"
         pre_reboot_delay: 2

@@ -120,7 +120,7 @@
 # マシンをリブートする
 - name: Reboot host gracefully to disable SELinux
   ansible.builtin.reboot:
-    reboot_timeout: 600
+    reboot_timeout: "{{ reboot_timeout_sec }}"
     msg: "Reboot triggered by role: selinux"
     pre_reboot_delay: 2
   when:
@@ -135,14 +135,3 @@
           and (persist_selinux is defined and persist_selinux is changed)
         )
       )
-
-# Reboot 後の接続待ち
-- name: Wait for connection after reboot
-  ansible.builtin.wait_for_connection:
-    timeout: 300
-  when:
-    - common_selinux_state == 'disabled'
-    - getenforce_out.stdout is defined
-    - getenforce_out.stdout != 'Disabled'
-    - se_config_file.stat.exists
-    - (persist_selinux is defined and persist_selinux is changed)

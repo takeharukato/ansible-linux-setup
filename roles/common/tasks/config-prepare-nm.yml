@@ -185,16 +185,9 @@
 
 - name: Reboot to clear old network configuration (RHEL only, if profiles exist)
   ansible.builtin.reboot:
-    reboot_timeout: 600
+    reboot_timeout: "{{ reboot_timeout_sec }}"
     msg: "Reboot to clear legacy network configuration"
     pre_reboot_delay: 2
-  when:
-    - ansible_facts.os_family == "RedHat"
-    - existing_profiles.matched | default(0) > 0
-
-- name: Wait for connection after reboot (RHEL)
-  ansible.builtin.wait_for_connection:
-    timeout: 300
   when:
     - ansible_facts.os_family == "RedHat"
     - existing_profiles.matched | default(0) > 0

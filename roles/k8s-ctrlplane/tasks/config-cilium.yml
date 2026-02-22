@@ -219,5 +219,5 @@
 # マシンをリブートする
 - name: Reboot host gracefully
   ansible.builtin.reboot:
-    reboot_timeout: 600
+    reboot_timeout: "{{ reboot_timeout_sec }}"
     pre_reboot_delay: 2
