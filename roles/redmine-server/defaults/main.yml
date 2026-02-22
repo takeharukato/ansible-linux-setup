@@ -34,6 +34,13 @@ redmine_service_port: 8080
 # Redmine 管理者パスワード
 redmine_admin_password: "admin"
 
+# Redmineサービス待機設定
+redmine_wait_host_stopped: "127.0.0.1"
+redmine_wait_host_started: "{{ inventory_hostname }}"
+redmine_wait_timeout: 300
+redmine_wait_delay: 5
+redmine_wait_sleep: 2
+
 # PostgreSQL用Dockerイメージ
 redmine_db_image: "postgres:15.1-bullseye"
 # PostgreSQLサービス名

@@ -8,9 +8,12 @@
 # kube-apiが使えるようになるのを待ち合わせる
 - name: Wait for kube-api-server
   ansible.builtin.wait_for:
-    host: "{{ k8s_ctrlplane_endpoint }}"
-    port: 6443
+    host: "{{ k8s_api_wait_host }}"
+    port: "{{ k8s_api_wait_port }}"
     state: started
+    timeout: "{{ k8s_api_wait_timeout }}"
+    delay: "{{ k8s_api_wait_delay }}"
+    sleep: "{{ k8s_api_wait_sleep }}"
 
 # ジョイントークンを変数に格納
 # ssh 192.168.20.41 "sudo kubeadm token list|grep -v TOKEN"|awk -F' ' '{print $1}'
@@ -56,9 +59,12 @@
 # kube-apiが使えるようになるのを待ち合わせる
 - name: Wait for kube-api-server
   ansible.builtin.wait_for:
-    host: "{{ k8s_ctrlplane_endpoint }}"
-    port: 6443
+    host: "{{ k8s_api_wait_host }}"
+    port: "{{ k8s_api_wait_port }}"
     state: started
+    timeout: "{{ k8s_api_wait_timeout }}"
+    delay: "{{ k8s_api_wait_delay }}"
+    sleep: "{{ k8s_api_wait_sleep }}"
 
 # 既にjoin済みだった場合は, 対象コントロールプレインに対して以下を実行して, ノード登録を抹消すること
 # 参考) http://stackoverflow.com/questions/35757620/how-to-gracefully-remove-a-node-from-kubernetes
@@ -186,7 +192,7 @@
     - name: Wait for containerd socket
       ansible.builtin.wait_for:
         path: /var/run/containerd/containerd.sock
-        timeout: 60
+        timeout: "{{ k8s_containerd_wait_timeout }}"
       become: true
 
     - name: Setup worker node

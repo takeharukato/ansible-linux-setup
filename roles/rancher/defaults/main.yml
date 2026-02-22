@@ -13,6 +13,16 @@ rancher_user: "rancher"
 #  Rancher起動待ちタイムアウト(単位:秒)
 rancher_start_timeout: 300
 
+# Rancherサービスポート
+rancher_service_port: 443
+
+# Rancherサービス待機設定
+rancher_wait_host_stopped: "127.0.0.1"
+rancher_wait_host_started: "{{ inventory_hostname }}"
+rancher_wait_timeout: "{{ rancher_start_timeout }}"
+rancher_wait_delay: 5
+rancher_wait_sleep: 2
+
 # 証明書格納先ディレクトリ
 rancher_cert_dir: "/etc/rancher/ssl"
 

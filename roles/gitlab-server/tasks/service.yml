@@ -45,20 +45,32 @@
 # リモートホスト上でGitLabコンテナのHTTPSポートが開くまで待機
 - name: Wait for GitLab HTTPS port on remote host
   ansible.builtin.wait_for:
+    host: "{{ gitlab_wait_host_started }}"
     port: "{{ gitlab_https_port }}"
     state: started
+    timeout: "{{ gitlab_wait_timeout }}"
+    delay: "{{ gitlab_wait_delay }}"
+    sleep: "{{ gitlab_wait_sleep }}"
 
 # リモートホスト上でGitLabコンテナのSSHポートが開くまで待機
 - name: Wait for GitLab SSH port on remote host
   ansible.builtin.wait_for:
+    host: "{{ gitlab_wait_host_started }}"
     port: "{{ gitlab_ssh_port }}"
     state: started
+    timeout: "{{ gitlab_wait_timeout }}"
+    delay: "{{ gitlab_wait_delay }}"
+    sleep: "{{ gitlab_wait_sleep }}"
 
 # リモートホスト上でGitLabコンテナのRegistryポートが開くまで待機
 - name: Wait for GitLab Registry port on remote host
   ansible.builtin.wait_for:
+    host: "{{ gitlab_wait_host_started }}"
     port: "{{ gitlab_registry_port }}"
     state: started
+    timeout: "{{ gitlab_wait_timeout }}"
+    delay: "{{ gitlab_wait_delay }}"
+    sleep: "{{ gitlab_wait_sleep }}"
 
 - name: "Display GitLab access information"
   ansible.builtin.debug:

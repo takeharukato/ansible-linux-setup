@@ -14,6 +14,9 @@ openldap_docker_dir: "/data/openldap/docker"
 openldap_scripts_dir: "/data/openldap/scripts"
 openldap_database_dir: "/data/openldap/slapd/database"
 openldap_config_dir: "/data/openldap/slapd/config"
+openldap_service_port: 389
+openldap_wait_host_stopped: "127.0.0.1"
+openldap_wait_host_started: "{{ inventory_hostname }}"
 openldap_wait_timeout: 600
 openldap_wait_delay: 5
 openldap_wait_sleep: 2

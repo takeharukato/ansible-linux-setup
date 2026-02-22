@@ -20,9 +20,12 @@
 # コンテナの停止を待ち合わせる
 - name: Wait for stop container
   ansible.builtin.wait_for:
-    host: "{{ inventory_hostname }}"
-    port: 443
+    host: "{{ rancher_wait_host_stopped }}"
+    port: "{{ rancher_service_port }}"
     state: stopped
+    timeout: "{{ rancher_wait_timeout }}"
+    delay: "{{ rancher_wait_delay }}"
+    sleep: "{{ rancher_wait_sleep }}"
 
 # コンテナをリムーブ
 - name: Remove containers
@@ -60,7 +63,9 @@
 # コンテナの開始を待ち合わせる
 - name: Wait for start container
   ansible.builtin.wait_for:
-    host: "{{ inventory_hostname }}"
-    port: 443
+    host: "{{ rancher_wait_host_started }}"
+    port: "{{ rancher_service_port }}"
     state: started
-    timeout: "{{ rancher_start_timeout }}"
+    timeout: "{{ rancher_wait_timeout }}"
+    delay: "{{ rancher_wait_delay }}"
+    sleep: "{{ rancher_wait_sleep }}"

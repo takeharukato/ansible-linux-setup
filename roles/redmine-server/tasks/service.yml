@@ -15,9 +15,12 @@
 # コンテナの停止を待ち合わせる
 - name: Wait for stop redmine container
   ansible.builtin.wait_for:
-    host: "{{ inventory_hostname }}"
+    host: "{{ redmine_wait_host_stopped }}"
     port: "{{ redmine_service_port }}"
     state: stopped
+    timeout: "{{ redmine_wait_timeout }}"
+    delay: "{{ redmine_wait_delay }}"
+    sleep: "{{ redmine_wait_sleep }}"
 
 - name: Start redmine container
   ansible.builtin.shell: |
@@ -30,9 +33,12 @@
 # コンテナの開始を待ち合わせる
 - name: Wait for start redmine container
   ansible.builtin.wait_for:
-    host: "{{ inventory_hostname }}"
+    host: "{{ redmine_wait_host_started }}"
     port: "{{ redmine_service_port }}"
     state: started
+    timeout: "{{ redmine_wait_timeout }}"
+    delay: "{{ redmine_wait_delay }}"
+    sleep: "{{ redmine_wait_sleep }}"
 
 # redmine管理者パスワード設定
 - name: Ensure Redmine admin password

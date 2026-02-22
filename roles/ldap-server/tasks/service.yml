@@ -15,8 +15,8 @@
 # コンテナの停止を待ち合わせる
 - name: Wait for stop LDAP container
   ansible.builtin.wait_for:
-    host: 127.0.0.1
-    port: 389
+    host: "{{ openldap_wait_host_stopped }}"
+    port: "{{ openldap_service_port }}"
     state: stopped
     timeout: "{{ openldap_wait_timeout }}"
     delay: "{{ openldap_wait_delay }}"
@@ -33,8 +33,8 @@
 # コンテナの開始を待ち合わせる
 - name: Wait for start LDAP container
   ansible.builtin.wait_for:
-    host: "{{ inventory_hostname }}"
-    port: 389
+    host: "{{ openldap_wait_host_started }}"
+    port: "{{ openldap_service_port }}"
     state: started
     timeout: "{{ openldap_wait_timeout }}"
     delay: "{{ openldap_wait_delay }}"

@@ -30,3 +30,40 @@
     - gitlab_docker_compose_file_stat.stat.exists
   become: true
   changed_when: false
+
+# GitLabサービスの停止を確認する
+- name: Wait for GitLab HTTPS port to stop
+  ansible.builtin.wait_for:
+    host: "{{ gitlab_wait_host_stopped }}"
+    port: "{{ gitlab_https_port }}"
+    state: stopped
+    timeout: "{{ gitlab_wait_timeout }}"
+    delay: "{{ gitlab_wait_delay }}"
+    sleep: "{{ gitlab_wait_sleep }}"
+  when:
+    - gitlab_home_dir_stat.stat.exists
+    - gitlab_docker_compose_file_stat.stat.exists
+
+- name: Wait for GitLab SSH port to stop
+  ansible.builtin.wait_for:
+    host: "{{ gitlab_wait_host_stopped }}"
+    port: "{{ gitlab_ssh_port }}"
+    state: stopped
+    timeout: "{{ gitlab_wait_timeout }}"
+    delay: "{{ gitlab_wait_delay }}"
+    sleep: "{{ gitlab_wait_sleep }}"
+  when:
+    - gitlab_home_dir_stat.stat.exists
+    - gitlab_docker_compose_file_stat.stat.exists
+
+- name: Wait for GitLab Registry port to stop
+  ansible.builtin.wait_for:
+    host: "{{ gitlab_wait_host_stopped }}"
+    port: "{{ gitlab_registry_port }}"
+    state: stopped
+    timeout: "{{ gitlab_wait_timeout }}"
+    delay: "{{ gitlab_wait_delay }}"
+    sleep: "{{ gitlab_wait_sleep }}"
+  when:
+    - gitlab_home_dir_stat.stat.exists
+    - gitlab_docker_compose_file_stat.stat.exists

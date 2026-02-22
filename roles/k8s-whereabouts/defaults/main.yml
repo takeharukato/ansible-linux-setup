@@ -8,6 +8,13 @@
 # 再起動後の応答待ちのタイムアウト時間 (秒)
 reboot_timeout_sec: 600
 
+# kube-api待機設定
+k8s_api_wait_host: "{{ k8s_ctrlplane_endpoint }}"
+k8s_api_wait_port: "{{ k8s_ctrlplane_port }}"
+k8s_api_wait_timeout: 600
+k8s_api_wait_delay: 2
+k8s_api_wait_sleep: 1
+
 # Kubernetesオペレータユーザ設定
 k8s_operator_user: "kube"
 # Kubernetesオペレータユーザのホームディレクトリ

@@ -11,7 +11,7 @@ apiVersion: kubeadm.k8s.io/v1beta4
 kind: InitConfiguration
 localAPIEndpoint:
   advertiseAddress: {{k8s_ctrlplane_endpoint}}
-  bindPort: 6443
+  bindPort: {{ k8s_ctrlplane_port }}
 nodeRegistration:
   # 念のため, kubelet の node-ip を明示(リンクローカル/複数NICでの誤設定防止)
   kubeletExtraArgs:

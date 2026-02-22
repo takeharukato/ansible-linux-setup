@@ -23,6 +23,13 @@ gitlab_ssh_port: 2224
 # GitLab Container Registry 公開ポート
 gitlab_registry_port: 5050
 
+# GitLabサービス待機設定
+gitlab_wait_host_stopped: "127.0.0.1"
+gitlab_wait_host_started: "{{ inventory_hostname }}"
+gitlab_wait_timeout: 600
+gitlab_wait_delay: 5
+gitlab_wait_sleep: 2
+
 # GitLab外部URL設定
 gitlab_external_url: "https://{{ gitlab_hostname }}:{{ gitlab_https_port }}"
 # GitLab Container Registry外部URL設定

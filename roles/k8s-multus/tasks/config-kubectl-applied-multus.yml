@@ -8,9 +8,12 @@
 # kube-apiが使えるようになるのを待ち合わせる
 - name: Wait for kube-api-server
   ansible.builtin.wait_for:
-    host: "{{ k8s_ctrlplane_endpoint }}"
-    port: 6443
+    host: "{{ k8s_api_wait_host }}"
+    port: "{{ k8s_api_wait_port }}"
     state: started
+    timeout: "{{ k8s_api_wait_timeout }}"
+    delay: "{{ k8s_api_wait_delay }}"
+    sleep: "{{ k8s_api_wait_sleep }}"
 
 # Multus CNIのインストール
 # https://github.com/k8snetworkplumbingwg/multus-cni/blob/master/docs/quickstart.md
