@@ -3,8 +3,8 @@
 {# 管理対象スイートとコンポーネントを算出 #}
 {% set suite = ubuntu_sources_suite %}
 {% set components = ubuntu_sources_components %}
-{% set archive_uris = ubuntu_archive_uris | default(['http://archive.ubuntu.com/ubuntu/']) %}
-{% set backports_uris = ubuntu_backports_uris | default(archive_uris) %}
+{% set archive_uris = ubuntu_archive_uris | default(['http://archive.ubuntu.com/ubuntu/'], true) %}
+{% set backports_uris = ubuntu_backports_uris | default(archive_uris, true) %}
 {% set main_suites = [suite] %}
 {% if repo_enable_updates | bool %}
 {%     set main_suites = main_suites + [suite ~ '-updates'] %}
@@ -27,7 +27,7 @@ Signed-By: {{ ubuntu_archive_keyring }}
 
 {% endif %}
 {% if repo_enable_security | bool %}
-{%     set security_uris = ubuntu_security_uris | default(['http://security.ubuntu.com/ubuntu/']) %}
+{%     set security_uris = ubuntu_security_uris | default(['http://security.ubuntu.com/ubuntu/'], true) %}
 Types: deb
 URIs: {{ security_uris | join(' ') }}
 Suites: {{ suite }}-security

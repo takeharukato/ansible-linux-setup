@@ -649,7 +649,7 @@ main() {
         case "${STATE}" in
             hostname|reapply)
                 # Ansible 既定値 から 環境ファイル から 最後に common_default_nic の順でフォールバック
-                IFACE="{{ (mgmt_nic | default(common_default_nic) ) | trim }}"
+                IFACE="{{ (mgmt_nic | default(common_default_nic | default('eth0', true), true) ) | trim }}"
 
                     if [[ -z "${IFACE}" ]]; then
                         err_log "Cannot determine IFACE to handle for STATE=${STATE}; IFACE was '${IFACE}'"

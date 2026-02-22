@@ -28,4 +28,4 @@
 # 参考) https://github.com/kubernetes/kubernetes/issues/125348
 #
 # --node-ip は値がある時だけ付与する (--node-ipの前に空白を入れる必要があることに注意)
-KUBELET_EXTRA_ARGS="{{ k8s_kubelet_extra_args_common | default('') }}{% if node_ip_arg | default('') | length > 0 %} --node-ip={{ node_ip_arg }}{% endif %}"
+KUBELET_EXTRA_ARGS="{{ k8s_kubelet_extra_args_common | default('', true) }}{% if node_ip_arg | default('', true) | length > 0 %} --node-ip={{ node_ip_arg }}{% endif %}"

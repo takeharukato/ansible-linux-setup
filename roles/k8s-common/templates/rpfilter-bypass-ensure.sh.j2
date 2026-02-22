@@ -67,7 +67,7 @@ ensure_out_ip6() {
   fi
 
   # 物理 NIC 名は必要に応じて上書き可能にしておく ( デフォルト ens160 )
-  PHY_IF="{{ hostvars[inventory_hostname].k8s_phy_if | default('ens160') }}"
+  PHY_IF="{{ hostvars[inventory_hostname].k8s_phy_if | default('ens160', true) }}"
   if has_link "${PHY_IF}"; then
     nft add rule ip6 "${tbl}" "${chn}" oifname "${PHY_IF}" tcp dport { 8080, 8181 } ct state new,established accept
   fi

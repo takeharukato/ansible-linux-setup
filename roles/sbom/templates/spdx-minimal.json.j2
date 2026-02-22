@@ -8,7 +8,7 @@
     "created": "{{ spdx_created }}",
     "creators": [
       "Tool: ansible-role-sbom",
-      "Organization: {{ spdx_supplier | default('NOASSERTION') }}"
+      "Organization: {{ spdx_supplier | default('NOASSERTION', true) }}"
     ]
   },
   "documentDescribes": [
@@ -21,10 +21,10 @@
       "downloadLocation": "NOASSERTION",
       "filesAnalyzed": false,
       "licenseConcluded": "NOASSERTION",
-      "licenseDeclared": {{ spdx_root_license | default('LicenseRef-UNKNOWN') | to_json }},
+      "licenseDeclared": {{ spdx_root_license | default('LicenseRef-UNKNOWN', true) | to_json }},
       "copyrightText": "NOASSERTION",
-      "versionInfo": "{{ spdx_root_version | default('NOASSERTION') }}",
-      "supplier": "Organization: {{ spdx_supplier | default('NOASSERTION') }}"
+      "versionInfo": "{{ spdx_root_version | default('NOASSERTION', true) }}",
+      "supplier": "Organization: {{ spdx_supplier | default('NOASSERTION', true) }}"
     }{% if spdx_packages | length > 0 %},{% endif %}
 {% for p in spdx_packages %}
     {
@@ -33,8 +33,8 @@
       "downloadLocation": "NOASSERTION",
       "filesAnalyzed": false,
       "licenseConcluded": "NOASSERTION",
-      "licenseDeclared": {{ p.license | default('LicenseRef-UNKNOWN') | to_json }},
-      "copyrightText": {{ p.copyrightText | default('NOASSERTION') | to_json }}{% if p.version is defined and (p.version | string) | length > 0 %},
+      "licenseDeclared": {{ p.license | default('LicenseRef-UNKNOWN', true) | to_json }},
+      "copyrightText": {{ p.copyrightText | default('NOASSERTION', true) | to_json }}{% if p.version is defined and (p.version | string) | length > 0 %},
       "versionInfo": "{{ p.version }}"{% endif %}{% if p.purl is defined and (p.purl | string) | length > 0 %},
       "externalRefs": [
         {
