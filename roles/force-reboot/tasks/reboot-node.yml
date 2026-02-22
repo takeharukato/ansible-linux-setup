@@ -3,6 +3,7 @@
 #
 
 - name: Force reboot if enabled
+  when: force_reboot | default(false) | bool
   block:
     # マシンをリブートする
     - name: Reboot host gracefully
@@ -11,7 +12,6 @@
         msg: "Reboot triggered by role: common"
         pre_reboot_delay: 2
 
-  when: force_reboot | default(false) | bool
 
 # ログを残したい場合のみ
 - name: Reboot skipped (force_reboot is false)

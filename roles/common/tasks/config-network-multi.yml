@@ -12,8 +12,8 @@
 # 再起動前に udevルール削除を行う
 # cloud-init の無効化からNetworkManager設定までの間に
 # 再起動が入らないようにすること
-- ansible.builtin.include_tasks: config-disable-cloud-init.yml
-  name: "Config Disable Cloud Init"
+- name: "Config Disable Cloud Init"
+  ansible.builtin.include_tasks: config-disable-cloud-init.yml
   when: ansible_facts.os_family == "RedHat"
 
 # 自動設定ファイルの存在確認と除去
@@ -359,8 +359,8 @@
 
 # 再起動前に, 不要な udev ルールを削除 ( RHEL 系のみ )
 # ネットワークインターフェース名の固定化を確実にするため
-- ansible.builtin.include_tasks: config-remove-udev-rules.yml
-  name: "Config Remove Udev Rules"
+- name: "Config Remove Udev Rules"
+  ansible.builtin.include_tasks: config-remove-udev-rules.yml
   when: ansible_facts.os_family == "RedHat"
 
 #

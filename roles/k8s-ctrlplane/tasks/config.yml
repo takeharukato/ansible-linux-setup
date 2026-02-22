@@ -104,6 +104,11 @@
       become: true
 
     - name: Restore shared CA assets after kubeadm reset
+      when:
+        - k8s_shared_ca_source_cert | default('', true) | length > 0
+        - k8s_shared_ca_source_key | default('', true) | length > 0
+        - k8s_shared_ca_cert_path | default('', true) | length > 0
+        - k8s_shared_ca_key_path | default('', true) | length > 0
       block:
         - name: Ensure shared CA directory exists after kubeadm reset
           ansible.builtin.file:
@@ -152,11 +157,6 @@
           become: true
           when: k8s_shared_ca_replace_kube_ca | default(false, true) | bool
 
-      when:
-        - k8s_shared_ca_source_cert | default('', true) | length > 0
-        - k8s_shared_ca_source_key | default('', true) | length > 0
-        - k8s_shared_ca_cert_path | default('', true) | length > 0
-        - k8s_shared_ca_key_path | default('', true) | length > 0
 
     # setup control plane with kubeadm
     - name: Setup control plane

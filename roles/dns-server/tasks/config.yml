@@ -286,6 +286,7 @@
 
 # namedを起動する
 - name: Restart DNS service
+  become: true
   block:
     - name: systemd daemon-reload
       ansible.builtin.systemd:
@@ -295,7 +296,6 @@
         name: "{{ dns_bind_service }}"
         state: restarted
         enabled: true
-  become: true
 
 # ゾーンファイルをリロードする
 - name: "Reload zone files"
