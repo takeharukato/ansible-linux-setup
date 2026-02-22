@@ -29,8 +29,8 @@
 - name: Generate OpenSSL self certificate file
   ansible.builtin.shell: |
     openssl rsa -in "{{ rancher_cert_dir }}/encrypted.key.pem" -out "{{ rancher_cert_dir }}/key.pem" -passin pass:ansible
-    openssl req -new -key "{{ rancher_cert_dir }}/key.pem" -out "{{ rancher_cert_dir }}/csr.pem" -subj "/C={{rancher_cert_subject_country}}/ST={{rancher_cert_subject_state}}/L={{rancher_cert_subject_locality}}/O={{rancher_cert_subject_org}}/CN=*.{{ rancher_cert_domain_name }}"
-    echo "subjectAltName = DNS:{{rancher_host}}.{{ rancher_cert_domain_name }}, DNS:*.{{ rancher_cert_domain_name }}" > "{{ rancher_cert_dir }}/san.txt"
+    openssl req -new -key "{{ rancher_cert_dir }}/key.pem" -out "{{ rancher_cert_dir }}/csr.pem" -subj "/C={{ rancher_cert_subject_country }}/ST={{ rancher_cert_subject_state }}/L={{ rancher_cert_subject_locality }}/O={{ rancher_cert_subject_org }}/CN=*.{{ rancher_cert_domain_name }}"
+    echo "subjectAltName = DNS:{{ rancher_host }}.{{ rancher_cert_domain_name }}, DNS:*.{{ rancher_cert_domain_name }}" > "{{ rancher_cert_dir }}/san.txt"
     openssl x509 -req -days 3650 -in "{{ rancher_cert_dir }}/csr.pem" -signkey "{{ rancher_cert_dir }}/key.pem" -out "{{ rancher_cert_dir }}/cert.pem" -extfile "{{ rancher_cert_dir }}/san.txt"
   when:
     - not cert_check.stat.exists

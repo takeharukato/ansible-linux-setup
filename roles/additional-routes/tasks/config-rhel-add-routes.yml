@@ -25,14 +25,14 @@
 
 - name: Collect IPv4 routes
   ansible.builtin.set_fact:
-    _add_v4_routes: "{{ _add_v4_routes + [ item.destination ~ ' ' ~ item.gateway ~ ( ' ' ~ (item.metric | string) if item.metric is defined else '' ) ] }}"
-  loop: "{{ additional_network_routes | selectattr('address_family','equalto','ipv4') | list }}"
+    _add_v4_routes: "{{ _add_v4_routes + [ item.destination ~ ' ' ~ item.gateway ~ (' ' ~ (item.metric | string) if item.metric is defined else '') ] }}"
+  loop: "{{ additional_network_routes | selectattr('address_family', 'equalto', 'ipv4') | list }}"
   when: additional_network_routes | selectattr('address_family','equalto','ipv4') | list | length > 0
 
 - name: Collect IPv6 routes
   ansible.builtin.set_fact:
-    _add_v6_routes: "{{ _add_v6_routes + [ item.destination ~ ' ' ~ item.gateway ~ ( ' ' ~ (item.metric | string) if item.metric is defined else '' ) ] }}"
-  loop: "{{ additional_network_routes | selectattr('address_family','equalto','ipv6') | list }}"
+    _add_v6_routes: "{{ _add_v6_routes + [ item.destination ~ ' ' ~ item.gateway ~ (' ' ~ (item.metric | string) if item.metric is defined else '') ] }}"
+  loop: "{{ additional_network_routes | selectattr('address_family', 'equalto', 'ipv6') | list }}"
   when: additional_network_routes | selectattr('address_family','equalto','ipv6') | list | length > 0
 
 # NetworkManager にルートを設定 (既存値を置き換え)

@@ -189,7 +189,7 @@
   become: true
   ansible.builtin.command: >
     firewall-cmd --permanent --add-port="{{ item }}"
-  loop: "{{ k8s_common_ports| default([], true) }}"
+  loop: "{{ k8s_common_ports | default([], true) }}"
   when:
     - ansible_facts.os_family == "RedHat"
     - "'firewalld' in firewall_backend"

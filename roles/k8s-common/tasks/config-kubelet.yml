@@ -13,7 +13,7 @@
 # 1) kubelet が使う NIC 名を決定 ( k8s_kubelet_nic > mgmt_nic )
 - name: Decide interface name for kubelet (prefer k8s_kubelet_nic, else mgmt_nic)
   ansible.builtin.set_fact:
-    _kubelet_if_name: "{{ k8s_kubelet_nic if (k8s_kubelet_nic is defined and (k8s_kubelet_nic|length)>0) else (mgmt_nic if (mgmt_nic is defined and (mgmt_nic|length)>0) else '') }}"
+    _kubelet_if_name: "{{ k8s_kubelet_nic if (k8s_kubelet_nic is defined and (k8s_kubelet_nic | length) > 0) else (mgmt_nic if (mgmt_nic is defined and (mgmt_nic | length) > 0) else '') }}"
 
 # 2) 未指定なら即エラー
 - name: Ensure kubelet interface name is specified
@@ -27,7 +27,7 @@
 
 - name: Build candidate list for kubelet interface
   ansible.builtin.set_fact:
-    _kubelet_candidates: "{{ _k8s_common_netif_items | selectattr('netif','equalto', _kubelet_if_name) | list }}"
+    _kubelet_candidates: "{{ _k8s_common_netif_items | selectattr('netif', 'equalto', _kubelet_if_name) | list }}"
 
 - name: Ensure chosen interface exists in _k8s_common_netif_items
   ansible.builtin.assert:
@@ -68,7 +68,7 @@
 # 7) コントロールプレイン広告用アドレス順序で並べ替え
 - name: Order node IPs to match control-plane advertisement (list only)
   ansible.builtin.set_fact:
-    node_ips_ordered: "{{ ( [node_ipv6_addr, node_ipv4_addr] if (k8s_ctrlplane_is_ipv6 | default(false)) else [node_ipv4_addr, node_ipv6_addr] ) | reject('equalto','') | list }}"
+    node_ips_ordered: "{{ ([node_ipv6_addr, node_ipv4_addr] if (k8s_ctrlplane_is_ipv6 | default(false)) else [node_ipv4_addr, node_ipv6_addr]) | reject('equalto', '') | list }}"
 
 # 8) --node-ip引数文字列を構築
 - name: Build --node-ip argument string
@@ -76,10 +76,10 @@
     node_ip_arg: "{{ node_ips_ordered | join(',') }}"
 
 # kubelet config
-- name: "Setup {{etc_default_dir}}/kubelet"
+- name: "Setup {{ etc_default_dir }}/kubelet"
   ansible.builtin.template:
     src: default-kubelet-config.j2
-    dest: "{{etc_default_dir}}/kubelet"
+    dest: "{{ etc_default_dir }}/kubelet"
     owner: root
     group: root
     mode: '0644'

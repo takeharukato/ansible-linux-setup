@@ -20,7 +20,7 @@ docker_ce_backup_nfs_dir: "/share"
 # デイリーバックアップ時のNFSマウントポイント配下のバックアップ配置先ディレクトリ
 docker_ce_backup_dir_on_nfs: "/containers/docker-ce/daily-backup"
 # デイリーバックアップ時のNFSマウントポイント配下のバックアップ配置先ディレクトリ
-docker_ce_backup_output_dir: "{{docker_ce_backup_mount_point}}{{ docker_ce_backup_dir_on_nfs }}"
+docker_ce_backup_output_dir: "{{ docker_ce_backup_mount_point }}{{ docker_ce_backup_dir_on_nfs }}"
 # バックアップ用コンテナイメージ名
 docker_ce_backup_container_image_name: "local-boombatower-docker-backup"
 # バックアップ用コンテナイメージ

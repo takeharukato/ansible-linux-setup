@@ -17,61 +17,61 @@
   changed_when: vol_results.stdout |default('',true)|length > 0
   failed_when: vol_results.rc != 0
 
-- name: "Create {{redmine_docker_dir}}"
+- name: "Create {{ redmine_docker_dir }}"
   ansible.builtin.file:
-    path: "{{redmine_docker_dir}}"
+    path: "{{ redmine_docker_dir }}"
     state: directory
     mode: "755"
   become: true
 
-- name: "Create {{redmine_scripts_dir}}"
+- name: "Create {{ redmine_scripts_dir }}"
   ansible.builtin.file:
-    path: "{{redmine_scripts_dir}}"
+    path: "{{ redmine_scripts_dir }}"
     state: directory
     mode: "755"
   become: true
 
-- name: "Create {{redmine_backup_dir}}"
+- name: "Create {{ redmine_backup_dir }}"
   ansible.builtin.file:
-    path: "{{redmine_backup_dir}}"
+    path: "{{ redmine_backup_dir }}"
     state: directory
     mode: "755"
   become: true
 
-- name: "Create {{redmine_docker_dir}}/docker-compose.yml"
+- name: "Create {{ redmine_docker_dir }}/docker-compose.yml"
   ansible.builtin.template:
     src: docker-compose.yml.j2
-    dest: "{{redmine_docker_dir}}/docker-compose.yml"
+    dest: "{{ redmine_docker_dir }}/docker-compose.yml"
     owner: root
     group: root
     mode: '0644'
     backup: false
 
 # バックアップ作業用スクリプトを作成
-- name: "Create {{redmine_scripts_dir}}/backup-redmine-data.sh"
+- name: "Create {{ redmine_scripts_dir }}/backup-redmine-data.sh"
   ansible.builtin.template:
     src: backup-redmine-data.sh.j2
-    dest: "{{redmine_scripts_dir}}/backup-redmine-data.sh"
+    dest: "{{ redmine_scripts_dir }}/backup-redmine-data.sh"
     owner: root
     group: root
     mode: '0755'
     backup: false
 
 # リストア作業用スクリプトを作成
-- name: "Create {{redmine_scripts_dir}}/restore-redmine-data.sh"
+- name: "Create {{ redmine_scripts_dir }}/restore-redmine-data.sh"
   ansible.builtin.template:
     src: restore-redmine-data.sh.j2
-    dest: "{{redmine_scripts_dir}}/restore-redmine-data.sh"
+    dest: "{{ redmine_scripts_dir }}/restore-redmine-data.sh"
     owner: root
     group: root
     mode: '0755'
     backup: false
 
 # デイリーバックアップスクリプトを作成
-- name: "Create {{redmine_scripts_dir}}/daily-backup-redmine.sh"
+- name: "Create {{ redmine_scripts_dir }}/daily-backup-redmine.sh"
   ansible.builtin.template:
     src: daily-backup-redmine.sh.j2
-    dest: "{{redmine_scripts_dir}}/daily-backup-redmine.sh"
+    dest: "{{ redmine_scripts_dir }}/daily-backup-redmine.sh"
     owner: root
     group: root
     mode: '0755'

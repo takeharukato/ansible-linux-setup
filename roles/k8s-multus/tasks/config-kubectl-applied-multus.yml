@@ -21,7 +21,7 @@
 # に従ってインストールする
 - name: Install Multus
   ansible.builtin.shell: |
-    kubectl apply -f {{ k8s_multus_daemonset_manifest_url}}
+    kubectl apply -f {{ k8s_multus_daemonset_manifest_url }}
   args:
     executable: /bin/bash
   register: multus_install_command

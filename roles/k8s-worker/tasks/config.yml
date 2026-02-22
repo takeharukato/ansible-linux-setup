@@ -117,7 +117,7 @@
 - name: Drain "{{ k8s_worker_hostname.stdout }}"
   ansible.builtin.shell: |
     set -o pipefail
-    kubectl drain "{{ k8s_worker_hostname.stdout }}" --ignore-daemonsets  --delete-emptydir-data -v=6 --timeout={{ k8s_drain_timeout_minutes|default(5,true)|int }}m
+    kubectl drain "{{ k8s_worker_hostname.stdout }}" --ignore-daemonsets  --delete-emptydir-data -v=6 --timeout={{ k8s_drain_timeout_minutes | default(5, true) | int }}m
   args:
     executable: /bin/bash
   delegate_to: "{{ k8s_ctrlplane_host }}"
@@ -133,7 +133,7 @@
   failed_when: false
 
 - name: "Wait {{ k8s_worker_delete_wait_sec }} seconds for the worker node deletion to complete."
-  ansible.builtin.shell: "sleep {{ k8s_worker_delete_wait_sec|default(5,true)|int }}"
+  ansible.builtin.shell: "sleep {{ k8s_worker_delete_wait_sec | default(5, true) | int }}"
   async: 1
   poll: 0
   register: _result

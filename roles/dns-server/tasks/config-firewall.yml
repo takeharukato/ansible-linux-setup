@@ -7,9 +7,7 @@
 # firewalld zone 引数を構築 (dns_bind_firewall_zoneがnull/未設定時に対応)
 - name: Build firewalld zone arg (safe for None)
   ansible.builtin.set_fact:
-    fw_zone_arg: "{{ '--zone=' + dns_bind_firewall_zone
-                    if (dns_bind_firewall_zone | default('',true) | length) > 0
-                    else '' }}"
+    fw_zone_arg: "{{ '--zone=' + dns_bind_firewall_zone if (dns_bind_firewall_zone | default('', true) | length) > 0 else '' }}"
 
 # service_facts モジュールでサービス状態を収集
 - name: Collect service facts
@@ -20,8 +18,7 @@
 - name: Detect firewalld running
   ansible.builtin.set_fact:
     firewalld_running: >-
-      {{ ('firewalld.service' in ansible_facts.services) and
-          (ansible_facts.services['firewalld.service'].state == 'running') }}
+      {{ ('firewalld.service' in ansible_facts.services) and (ansible_facts.services['firewalld.service'].state == 'running') }}
 
 # ufw が使えるか検出
 - name: Detect ufw usable

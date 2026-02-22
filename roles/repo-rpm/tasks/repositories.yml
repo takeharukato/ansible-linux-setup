@@ -27,7 +27,7 @@
       ansible.builtin.file:
         path: "{{ item }}"
         state: absent
-      loop: "{{ lookup('ansible.builtin.fileglob', '/etc/yum.repos.d/epel*.repo', wantlist=True) | default([],true) }}"
+      loop: "{{ lookup('ansible.builtin.fileglob', '/etc/yum.repos.d/epel*.repo', wantlist=True) | default([], true) }}"
       loop_control:
         label: "{{ item }}"
 
@@ -61,7 +61,7 @@
       ansible.builtin.file:
         path: "{{ item }}"
         state: absent
-      loop: "{{ lookup('ansible.builtin.fileglob', '/etc/yum.repos.d/epel*.repo', wantlist=True) | default([],true) }}"
+      loop: "{{ lookup('ansible.builtin.fileglob', '/etc/yum.repos.d/epel*.repo', wantlist=True) | default([], true) }}"
       loop_control:
         label: "{{ item }}"
       failed_when: false
@@ -78,7 +78,7 @@
       ansible.builtin.file:
         path: "{{ item }}"
         state: absent
-      loop: "{{ lookup('ansible.builtin.fileglob', '/etc/yum.repos.d/epel*.repo', wantlist=True) | default([],true) }}"
+      loop: "{{ lookup('ansible.builtin.fileglob', '/etc/yum.repos.d/epel*.repo', wantlist=True) | default([], true) }}"
       loop_control:
         label: "{{ item }}"
       failed_when: false

@@ -465,7 +465,7 @@ ntp_client_chrony_conf_drop_in_path: "{{ ntp_client_chrony_conf_drop_in_dir }}/9
 
 ntp_server_service: "{{ (ansible_facts.os_family == 'Debian') | ternary(ntp_server_service_debian, ntp_server_service_rhel) }}"
 
-ntp_client_packages_debian: "{{ntp_client_is_chrony | ternary(['chrony'], ['systemd-timesyncd'])}}"
+ntp_client_packages_debian: "{{ ntp_client_is_chrony | ternary(['chrony'], ['systemd-timesyncd']) }}"
 ntp_client_packages_rhel:
   - chrony
 
@@ -569,8 +569,8 @@ dns_bind_package_rhel:
 dns_bind_packages: "{{ (ansible_facts.os_family == 'Debian') | ternary(dns_bind_package_debian, dns_bind_package_rhel) }}"
 
 # === 実行ユーザ/グループ/サービス名 ===
-dns_bind_user: "{{ (ansible_facts.os_family == 'Debian') | ternary('bind',  'named') }}"
-dns_bind_group: "{{ (ansible_facts.os_family == 'Debian') | ternary('bind',  'named') }}"
+dns_bind_user: "{{ (ansible_facts.os_family == 'Debian') | ternary('bind', 'named') }}"
+dns_bind_group: "{{ (ansible_facts.os_family == 'Debian') | ternary('bind', 'named') }}"
 dns_bind_service: "named"
 
 # rndc 鍵関連

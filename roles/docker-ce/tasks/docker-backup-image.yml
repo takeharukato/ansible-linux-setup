@@ -60,7 +60,7 @@
 - name: "Build docker-backup container image"
   ansible.builtin.shell: |
     cd {{ docker_ce_backup_dockerfile_dir }}
-    docker build -t "{{docker_ce_backup_container_image_name}}" .
+    docker build -t "{{ docker_ce_backup_container_image_name }}" .
   become: true
   register: _result
   changed_when: _result.rc == 0

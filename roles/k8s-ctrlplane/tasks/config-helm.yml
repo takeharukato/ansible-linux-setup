@@ -65,10 +65,10 @@
   register: _result
   changed_when: _result.rc == 0
 
-- name: Add Cilium Repository for "{{k8s_operator_user}}"
+- name: Add Cilium Repository for "{{ k8s_operator_user }}"
   ansible.builtin.shell: |
-    sudo -u "{{k8s_operator_user}}" helm repo add cilium {{ k8s_cilium_helm_repo_url }}
-    sudo -u "{{k8s_operator_user}}" helm repo update cilium
+    sudo -u "{{ k8s_operator_user }}" helm repo add cilium {{ k8s_cilium_helm_repo_url }}
+    sudo -u "{{ k8s_operator_user }}" helm repo update cilium
   become: true
   register: _result
   changed_when: _result.rc == 0

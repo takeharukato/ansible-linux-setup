@@ -58,11 +58,7 @@
     - name: Evaluate user-provided CA validity
       ansible.builtin.set_fact:
         _shared_ca_user_valid: >-
-          {{
-            (_shared_ca_user_dir != "") and
-            (_shared_ca_user_cert is defined and _shared_ca_user_cert.stat.exists and (_shared_ca_user_cert.stat.isreg | default(false, true)) and _shared_ca_user_cert.stat.readable) and
-            (_shared_ca_user_key is defined and _shared_ca_user_key.stat.exists and (_shared_ca_user_key.stat.isreg | default(false, true)) and _shared_ca_user_key.stat.readable)
-          }}
+          {{ (_shared_ca_user_dir != "") and (_shared_ca_user_cert is defined and _shared_ca_user_cert.stat.exists and (_shared_ca_user_cert.stat.isreg | default(false, true)) and _shared_ca_user_cert.stat.readable) and (_shared_ca_user_key is defined and _shared_ca_user_key.stat.exists and (_shared_ca_user_key.stat.isreg | default(false, true)) and _shared_ca_user_key.stat.readable) }}
 
     # 指定されたCAが不正な場合に警告を出す
     - name: Warn when user-provided CA is invalid
@@ -77,10 +73,7 @@
     - name: Evaluate bundled CA validity
       ansible.builtin.set_fact:
         _shared_ca_role_valid: >-
-          {{
-            (_shared_ca_role_cert.stat.exists and (_shared_ca_role_cert.stat.isreg | default(false, true)) and _shared_ca_role_cert.stat.readable) and
-            (_shared_ca_role_key.stat.exists and (_shared_ca_role_key.stat.isreg | default(false, true)) and _shared_ca_role_key.stat.readable)
-          }}
+          {{ (_shared_ca_role_cert.stat.exists and (_shared_ca_role_cert.stat.isreg | default(false, true)) and _shared_ca_role_cert.stat.readable) and (_shared_ca_role_key.stat.exists and (_shared_ca_role_key.stat.isreg | default(false, true)) and _shared_ca_role_key.stat.readable) }}
 
     # 生成を無効化している場合に指定されたCAを必須にする
     - name: Require user-provided CA when creation disabled
@@ -219,7 +212,7 @@
 # 共通CAソースを保持するホスト名を決定する
 - name: Determine host holding shared CA source
   ansible.builtin.set_fact:
-    _shared_ca_source_host: "{{ k8s_shared_ca_source_host | default('localhost',true) }}"
+    _shared_ca_source_host: "{{ k8s_shared_ca_source_host | default('localhost', true) }}"
 
 # 共通CAソースホストがインベントリに存在するか検証する
 - name: Validate shared CA source host exists in inventory

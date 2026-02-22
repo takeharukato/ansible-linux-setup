@@ -6,7 +6,7 @@
 #  group_vars/all/all.yml やhost_varsで上書き可能とするため,
 #  ロール名/defaults/main.yml に定義している
 # kea-dhcpサーバーがバインドするインターフェース
-kea_dhcp_interface: "{{ gpm_mgmt_nic| default(mgmt_nic, true) }}"
+kea_dhcp_interface: "{{ gpm_mgmt_nic | default(mgmt_nic, true) }}"
 # kea-dhcpサーバーの設定ファイルパス
 kea_dhcp_config_file: /etc/kea/kea-dhcp4.conf
 
@@ -33,14 +33,14 @@ kea_rebind_timer_wait_time: 1800
 kea_valid_lifetime: 14400
 # DHCP DNSサーバーアドレスリスト
 kea_dns_servers:
-  - "{{dns_server_ipv4_address}}"
+  - "{{ dns_server_ipv4_address }}"
 # DHCPドメイン名
 kea_domain_name: "{{ dns_domain }}"
 # DHCPドメインサーチリスト
 kea_domain_search:
   - "{{ dns_domain }}"
 # DHCPサブネット
-kea_subnet: "{{ gpm_mgmt_ipv4_network_cidr}}"
+kea_subnet: "{{ gpm_mgmt_ipv4_network_cidr }}"
 # DHCPアドレスプール範囲
 kea_pool: "{{ gpm_mgmt_ipv4_prefix }}.100 - {{ gpm_mgmt_ipv4_prefix }}.254"
 # ゲートウエイアドレス

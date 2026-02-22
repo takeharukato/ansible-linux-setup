@@ -63,9 +63,7 @@
 # 現在アクティブな NM 接続が割り当てられているデバイス一覧を配列化
 - name: Build active device set
   ansible.builtin.set_fact:
-    _nm_active_devices: "{{ (_nm_active_devs_cmd.stdout | default('', true) | string)
-                            | split('\n')
-                            | map('trim') | reject('equalto','') | unique | list }}"
+    _nm_active_devices: "{{ (_nm_active_devs_cmd.stdout | default('', true) | string) | split('\n') | map('trim') | reject('equalto', '') | unique | list }}"
 
 # .link の出力ディレクトリを必ず作成します。
 - name: Ensure .link output directory exists
@@ -185,9 +183,7 @@
         # Debian 系で使用する有効 NIC 名を算出 ( mgmt_nic  =>  common_default_nic  =>  ansible_facts の順 )
         - name: Compute effective mgmt NIC on Debian
           ansible.builtin.set_fact:
-            _effective_mgmt_nic: "{{ (mgmt_nic | default('', true)) if (mgmt_nic | default('', true) | length) > 0
-                                    else ((common_default_nic | default('', true)) if (common_default_nic | default('', true) | length) > 0
-                                    else (ansible_facts.default_ipv4.interface | default('', true))) }}"
+            _effective_mgmt_nic: "{{ (mgmt_nic | default('', true)) if (mgmt_nic | default('', true) | length) > 0 else ((common_default_nic | default('', true)) if (common_default_nic | default('', true) | length) > 0 else (ansible_facts.default_ipv4.interface | default('', true))) }}"
 
         # 反復元が空, または netif が空のとき, DHCP / SLAAC の 1 エントリを生成
         - name: Ensure at least one Debian netplan item
@@ -286,28 +282,28 @@
 
 - name: Build active connection name set and pair list
   ansible.builtin.set_fact:
-    _nm_active_names: "{{ ((_nm_active_pairs_cmd.stdout | default('')).split('\n') | map('trim') | reject('equalto','') | map('regex_replace','^(.*?):(.*)$','\\1') | unique | list) }}"
-    _nm_active_pairs: "{{ ((_nm_active_pairs_cmd.stdout | default('')).split('\n') | map('trim') | reject('equalto','') | map('regex_replace','^(.*?):(.*)$','{\"NAME\":\"\\1\",\"DEVICE\":\"\\2\"}') | map('from_json') | list) }}"
+    _nm_active_names: "{{ ((_nm_active_pairs_cmd.stdout | default('')).split('\n') | map('trim') | reject('equalto', '') | map('regex_replace', '^(.*?):(.*)$', '\\1') | unique | list) }}"
+    _nm_active_pairs: "{{ ((_nm_active_pairs_cmd.stdout | default('')).split('\n') | map('trim') | reject('equalto', '') | map('regex_replace', '^(.*?):(.*)$', '{\"NAME\":\"\\1\", \"DEVICE\":\"\\2\"}') | map('from_json') | list) }}"
 
 # 許可する接続名 ( 今回作成した接続ID = netif )
 - name: Build allowed connection NAME list (we created)
   ansible.builtin.set_fact:
-    _allowed_conn_names: "{{ (_netif_items | default([], true) | map(attribute='netif') | select('string') | reject('equalto','') | list) }}"
+    _allowed_conn_names: "{{ (_netif_items | default([], true) | map(attribute='netif') | select('string') | reject('equalto', '') | list) }}"
 
 # 今回デプロイした keyfile パスのホワイトリスト
 - name: Build allowed keyfile path list
   ansible.builtin.set_fact:
-    _allowed_keyfiles: "{{ (_netif_items | default([]) | map(attribute='netif') | select('string') | reject('equalto','') | map('regex_replace','^(.*)$','/etc/NetworkManager/system-connections/\\1.nmconnection') | list) }}"
+    _allowed_keyfiles: "{{ (_netif_items | default([]) | map(attribute='netif') | select('string') | reject('equalto', '') | map('regex_replace', '^(.*)$', '/etc/NetworkManager/system-connections/\\1.nmconnection') | list) }}"
 
 # /etc 配下にある接続に限定 ( 実体 keyfile を持つもの )
 - name: Build candidate rows under /etc
   ansible.builtin.set_fact:
-    _etc_rows: "{{ (_nm_rows | default([]) | selectattr('FILENAME','defined') | selectattr('FILENAME','search','^/etc/NetworkManager/system-connections/') | list) }}"
+    _etc_rows: "{{ (_nm_rows | default([]) | selectattr('FILENAME', 'defined') | selectattr('FILENAME', 'search', '^/etc/NetworkManager/system-connections/') | list) }}"
 
 # IEEE 802.3 (有線 Ethernet) のみ対象
 - name: Filter ethernet connections under /etc
   ansible.builtin.set_fact:
-    _etc_eth_rows: "{{ (_etc_rows | default([]) | selectattr('TYPE','equalto','802-3-ethernet') | list) }}"
+    _etc_eth_rows: "{{ (_etc_rows | default([]) | selectattr('TYPE', 'equalto', '802-3-ethernet') | list) }}"
 
 # 削除候補を安全に抽出
 #  - NAME が今回作成した接続名に含まれない
@@ -315,7 +311,7 @@
 #  - DEVICE が現在の管理IF, SSH経路IF, アクティブデバイスに一致しない
 - name: Build safe obsolete connection rows
   ansible.builtin.set_fact:
-    _obsolete_rows_safe: "{{ (_etc_eth_rows | default([]) | rejectattr('NAME','in', _allowed_conn_names | default([])) | rejectattr('NAME','in', _nm_active_names | default([])) | rejectattr('DEVICE','equalto', _current_mgmt_iface | default('')) | rejectattr('DEVICE','equalto', _ssh_route_iface | default('')) | rejectattr('DEVICE','in', _nm_active_devices | default([])) | rejectattr('NAME','equalto','') | rejectattr('UUID','equalto','') | list) }}"
+    _obsolete_rows_safe: "{{ (_etc_eth_rows | default([]) | rejectattr('NAME', 'in', _allowed_conn_names | default([])) | rejectattr('NAME', 'in', _nm_active_names | default([])) | rejectattr('DEVICE', 'equalto', _current_mgmt_iface | default('')) | rejectattr('DEVICE', 'equalto', _ssh_route_iface | default('')) | rejectattr('DEVICE', 'in', _nm_active_devices | default([])) | rejectattr('NAME', 'equalto', '') | rejectattr('UUID', 'equalto', '') | list) }}"
 
 - name: Build identifiers of obsolete connections
   ansible.builtin.set_fact:
@@ -342,14 +338,14 @@
 - name: Stat obsolete keyfiles (existence check)
   ansible.builtin.stat:
     path: "{{ item }}"
-  loop: "{{ _obsolete_keyfiles | default([]) | unique | reject('equalto','') | list }}"
+  loop: "{{ _obsolete_keyfiles | default([]) | unique | reject('equalto', '') | list }}"
   register: _obsolete_keyfiles_stats
   changed_when: false
 
 # 存在する keyfile のみ抽出
 - name: Filter existing obsolete keyfiles
   ansible.builtin.set_fact:
-    _obsolete_keyfiles_existing: "{{ (_obsolete_keyfiles_stats.results | default([]) | selectattr('stat.exists','defined') | selectattr('stat.exists') | map(attribute='stat.path') | list) }}"
+    _obsolete_keyfiles_existing: "{{ (_obsolete_keyfiles_stats.results | default([]) | selectattr('stat.exists', 'defined') | selectattr('stat.exists') | map(attribute='stat.path') | list) }}"
 
 # ファイルを削除
 - name: Remove obsolete keyfiles on disk (under /etc)

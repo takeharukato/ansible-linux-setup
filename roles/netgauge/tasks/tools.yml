@@ -4,91 +4,91 @@
 #
 #  データ収集スクリプトタスク
 #
-- name: "Create {{netgauge_dir}}/bin"
+- name: "Create {{ netgauge_dir }}/bin"
   ansible.builtin.file:
-    path: "{{netgauge_dir}}/bin"
+    path: "{{ netgauge_dir }}/bin"
     state: directory
     owner: "root"
     group: "root"
     mode: "0755"
   become: true
 
-- name: "Create {{netgauge_dir}}/bin/00_detect_cpus.sh"
+- name: "Create {{ netgauge_dir }}/bin/00_detect_cpus.sh"
   ansible.builtin.template:
     src: 00_detect_cpus.sh.j2
-    dest: "{{netgauge_dir}}/bin/00_detect_cpus.sh"
+    dest: "{{ netgauge_dir }}/bin/00_detect_cpus.sh"
     owner: root
     group: root
     mode: '0755'
     backup: false
 
-- name: "Create {{netgauge_dir}}/bin/10_prepare_cgroup.sh"
+- name: "Create {{ netgauge_dir }}/bin/10_prepare_cgroup.sh"
   ansible.builtin.template:
     src: 10_prepare_cgroup.sh.j2
-    dest: "{{netgauge_dir}}/bin/10_prepare_cgroup.sh"
+    dest: "{{ netgauge_dir }}/bin/10_prepare_cgroup.sh"
     owner: root
     group: root
     mode: '0755'
     backup: false
 
-- name: "Create {{netgauge_dir}}/bin/20_launch_netgauge.sh"
+- name: "Create {{ netgauge_dir }}/bin/20_launch_netgauge.sh"
   ansible.builtin.template:
     src: 20_launch_netgauge.sh.j2
-    dest: "{{netgauge_dir}}/bin/20_launch_netgauge.sh"
+    dest: "{{ netgauge_dir }}/bin/20_launch_netgauge.sh"
     owner: root
     group: root
     mode: '0755'
     backup: false
 
-- name: "Create {{netgauge_dir}}/bin/25_flatten_values.sh"
+- name: "Create {{ netgauge_dir }}/bin/25_flatten_values.sh"
   ansible.builtin.template:
     src: 25_flatten_values.sh.j2
-    dest: "{{netgauge_dir}}/bin/25_flatten_values.sh"
+    dest: "{{ netgauge_dir }}/bin/25_flatten_values.sh"
     owner: root
     group: root
     mode: '0755'
     backup: false
 
-- name: "Create {{netgauge_dir}}/bin/30_plot_all.sh"
+- name: "Create {{ netgauge_dir }}/bin/30_plot_all.sh"
   ansible.builtin.template:
     src: 30_plot_all.sh.j2
-    dest: "{{netgauge_dir}}/bin/30_plot_all.sh"
+    dest: "{{ netgauge_dir }}/bin/30_plot_all.sh"
     owner: root
     group: root
     mode: '0755'
     backup: false
 
-- name: "Create {{netgauge_dir}}/bin/50_cpu_list.py"
+- name: "Create {{ netgauge_dir }}/bin/50_cpu_list.py"
   ansible.builtin.template:
     src: 50_cpu_list.py.j2
-    dest: "{{netgauge_dir}}/bin/50_cpu_list.py"
+    dest: "{{ netgauge_dir }}/bin/50_cpu_list.py"
     owner: root
     group: root
     mode: '0755'
     backup: false
 
-- name: "Create {{netgauge_dir}}/bin/60_fft_plot.py"
+- name: "Create {{ netgauge_dir }}/bin/60_fft_plot.py"
   ansible.builtin.template:
     src: 60_fft_plot.py.j2
-    dest: "{{netgauge_dir}}/bin/60_fft_plot.py"
+    dest: "{{ netgauge_dir }}/bin/60_fft_plot.py"
     owner: root
     group: root
     mode: '0755'
     backup: false
 
-- name: "Create {{netgauge_dir}}/bin/90_get_app_cpu_noise.sh"
+- name: "Create {{ netgauge_dir }}/bin/90_get_app_cpu_noise.sh"
   ansible.builtin.template:
     src: 90_get_app_cpu_noise.sh.j2
-    dest: "{{netgauge_dir}}/bin/90_get_app_cpu_noise.sh"
+    dest: "{{ netgauge_dir }}/bin/90_get_app_cpu_noise.sh"
     owner: root
     group: root
     mode: '0755'
     backup: false
 
-- name: "Create {{netgauge_dir}}/bin/plot_hist.gp"
+- name: "Create {{ netgauge_dir }}/bin/plot_hist.gp"
   ansible.builtin.template:
     src: plot_hist.gp
-    dest: "{{netgauge_dir}}/bin/plot_hist.gp"
+    dest: "{{ netgauge_dir }}/bin/plot_hist.gp"
     owner: root
     group: root
     mode: '0644'

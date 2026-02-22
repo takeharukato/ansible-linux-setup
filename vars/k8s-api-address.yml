@@ -58,10 +58,10 @@ k8s_ctrlplane_is_ipv4: '{{ ((k8s_ctrlplane_host_part | default("") | string) | r
 k8s_ctrlplane_host_bracketed: "{{ k8s_ctrlplane_is_ipv6 | ternary('[' ~ k8s_ctrlplane_host_part ~ ']', k8s_ctrlplane_host_part) }}"
 
 # Kubernetes コントロールプレーンポート部抽出 ( 指定がなければ 6443 )
-k8s_ctrlplane_port_br: "{{ k8s_ctrlplane_endpoint_norm | regex_replace('^\\[[^\\]]+\\]:(\\d+)$','\\1') }}"
+k8s_ctrlplane_port_br: "{{ k8s_ctrlplane_endpoint_norm | regex_replace('^\\[[^\\]]+\\]:(\\d+)$', '\\1') }}"
 
 # Kubernetes コントロールプレーンポート部抽出 ( 指定がなければ 6443 ) --- IGNORE ---
-k8s_ctrlplane_port_unbr: "{{ k8s_ctrlplane_endpoint_norm | regex_replace('^[^:\\[\\]]+:(\\d+)$','\\1') }}"
+k8s_ctrlplane_port_unbr: "{{ k8s_ctrlplane_endpoint_norm | regex_replace('^[^:\\[\\]]+:(\\d+)$', '\\1') }}"
 
 # Kubernetes コントロールプレーンポート番号 ( 指定がなければ 6443 )
-k8s_ctrlplane_port: "{{ (k8s_ctrlplane_port_br != k8s_ctrlplane_endpoint_norm) | ternary(k8s_ctrlplane_port_br, (k8s_ctrlplane_port_unbr != k8s_ctrlplane_endpoint_norm) | ternary(k8s_ctrlplane_port_unbr, '6443') ) }}"
+k8s_ctrlplane_port: "{{ (k8s_ctrlplane_port_br != k8s_ctrlplane_endpoint_norm) | ternary(k8s_ctrlplane_port_br, (k8s_ctrlplane_port_unbr != k8s_ctrlplane_endpoint_norm) | ternary(k8s_ctrlplane_port_unbr, '6443')) }}"
