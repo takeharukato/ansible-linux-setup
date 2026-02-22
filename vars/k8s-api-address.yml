@@ -13,7 +13,7 @@ k8s_ctrlplane_endpoint_norm: "{{ k8s_ctrlplane_endpoint | string | trim }}"
 # Kubernetes コントロールプレーンホスト部抽出
 # [IPv6] 形式や host:port 形式から“ホスト  ( またはIP  ) だけ”を取り出す
 #
-#regex_replace('^\\[([^\\]]+)\\](?::\\d+)?$', '\\1')
+# regex_replace('^\\[([^\\]]+)\\](?::\\d+)?$', '\\1')
 #  対象: [...] で括られたIPv6リテラル  ( 例: [2001:db8::1] や [2001:db8::1]:6443  ) 。
 #  正規表現の意味:
 #  ^…$ で全体一致。
@@ -21,7 +21,7 @@ k8s_ctrlplane_endpoint_norm: "{{ k8s_ctrlplane_endpoint | string | trim }}"
 #  (?::\\d+)? は末尾の :ポート番号 を任意で許容。
 #  置換: \\1  ( = 括弧の中身だけ  )  括弧とポートを除去し , 2001:db8::1 だけにする。
 #
-#regex_replace('^([^:\\[\\]]+)(?::\\d+)?$', '\\1')
+# regex_replace('^([^:\\[\\]]+)(?::\\d+)?$', '\\1')
 #
 #  対象: コロンや角括弧を含まない通常のホスト名/IPv4に , 任意で :ポート が付く形  ( 例: example.org:8080, 192.168.0.1:6443, example.org  ) 。
 #  正規表現の意味:

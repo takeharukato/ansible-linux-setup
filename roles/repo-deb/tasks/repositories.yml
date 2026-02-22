@@ -9,8 +9,8 @@
 - name: Ensure base deps
   ansible.builtin.package:
     name:
-    - ca-certificates
-    - gpg
+      - ca-certificates
+      - gpg
     state: present
 
 # ディストリビューション固有タスクの読み込み（ディストリビューションとAnsibleバージョンに基づいた分岐）

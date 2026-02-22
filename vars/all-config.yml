@@ -198,7 +198,7 @@ dns_search: "example.org"
 # IPv6 AAAAレコード対応は未
 #
 dns_host_list:
-  - { name: "{{ router_host }}",  ipv4_addr: '{{ router_ipv4_addr_octet }}'}
+  - { name: "{{ router_host }}", ipv4_addr: '{{ router_ipv4_addr_octet }}'}
   - { name: 'mgmt-server', ipv4_addr: '{{ mgmt_server_ipv4_addr_octet }}'}
   - { name: 'nas', ipv4_addr: '31'}
 
@@ -278,7 +278,7 @@ nfs_network: "{{ network_ipv4_network_address }}/{{ network_ipv4_prefix_len }}"
 nfs_options: "rw,no_root_squash,sync,no_subtree_check,no_wdelay"
 
 #
-#NTPサーバ
+# NTPサーバ
 #
 external_ntp_servers_list:
   - ntp.nict.jp
@@ -289,7 +289,7 @@ external_ntp_servers_list:
 ntp_allow: "{{ network_ipv4_network_address }}/{{ network_ipv4_prefix_len }}"
 
 #
-#プロキシ設定
+# プロキシ設定
 #
 no_proxy: ""
 proxy_server: ""
