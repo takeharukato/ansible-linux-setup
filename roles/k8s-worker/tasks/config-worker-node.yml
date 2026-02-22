@@ -69,7 +69,7 @@
 # SystemD pin-worker-queue サービスの登録
 - name: Register pin-worker-queue service
   ansible.builtin.systemd_service:
-    name: Pin-worker-queue
+    name: pin-worker-queue
     enabled: true
 
 
@@ -100,7 +100,7 @@
 # SystemD pin-irqs サービスの登録
 - name: Register pin-irqs service
   ansible.builtin.systemd_service:
-    name: Pin-irqs
+    name: pin-irqs
     enabled: true
 
 #
@@ -310,11 +310,15 @@
     #
     - ansible.builtin.include_tasks: config-grub-debian.yml
       name: "Config Grub Debian"
+      when:
+        - ansible_facts.os_family == 'Debian'
     #
     # GRUB 設定の更新 (RHEL 系)
     #
     - ansible.builtin.include_tasks: config-grub-rhel.yml
       name: "Config Grub Rhel"
+      when:
+        - ansible_facts.os_family == 'RedHat'
     #
     # 再起動
     #
