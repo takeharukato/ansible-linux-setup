@@ -97,3 +97,9 @@ no_proxy: ""
 # ssh_legacy_key_hosts:
 #   - "router"
 ssh_legacy_key_hosts: []
+
+#
+# multicast DNSリスト
+# sshのconfigファイルに, mDNSでホスト名解決する
+# ホストを指定するためのリスト
+mdns_host_list: []

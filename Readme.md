@@ -263,9 +263,10 @@ RFC 6762 multicast DNSによる名前解決を行うためのパッケージ(`av
 `mdns_enabled`変数を`true`に設定する。
 
 |変数名|意味|設定値の例|
-| `mdns_enabled`|RFC 6762 multicast DNSによる名前解決機能(`avahi daemon`など)を利用する場合は, `true`に設定する。|`false`|
+|---|---|---|
+| `mdns_enabled`|RFC 6762 multicast DNSによる名前解決機能(`avahi daemon`など)を利用する場合は, `true`に設定する。規定値は, `false`。|`false`|
 
-また, mdns_host_listに以下の要素からなる辞書のリストを記述することで, ユーザの.ssh/configファイルに`ホスト名.local`のホスト情報を追記することができる。
+また, `mdns_host_list`に以下の要素からなる辞書のリストを記述することで, ユーザの.ssh/configファイルに`ホスト名.local`のホスト情報を追記することができる:
 
 |キー名|設定値|設定値の例|
 |---|---|---|
@@ -278,6 +279,8 @@ mdns_host_list:
   - { name: 'vmlinux1'}
   - { name: 'vmlinux2'}
 ```
+
+`mdns_host_list`の規定値は, 空リスト(`[]`)として定義される。
 
 #### Network Time Protocol (NTP) クライアントの設定
 
