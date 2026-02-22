@@ -139,7 +139,8 @@
   register: _result
   changed_when: false
 
-- block:
+- name: Reset worker node configuration
+  block:
     - name: Reset configuration
       ansible.builtin.shell: |
         kubeadm reset -f

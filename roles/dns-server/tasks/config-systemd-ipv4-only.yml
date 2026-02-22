@@ -22,7 +22,8 @@
   when:
     - not (dns_bind_ipv4_only | default(false))
 
-- block:
+- name: Configure DNS service for IPv4 only
+  block:
     - name: Get current ExecStart from systemd (resolved value)
       ansible.builtin.command: systemctl show -p ExecStart --value {{ dns_bind_service }}
       register: dns_exec_show

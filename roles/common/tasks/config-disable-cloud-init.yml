@@ -34,7 +34,8 @@
 
 # /etc/cloud/cloud.cfg.d/99-disable-network-config.cfg を作成して
 # cloud-init のネットワーク設定を無効化
-- block:
+- name: Disable cloud-init network configuration
+  block:
     # /etc/cloud/cloud.cfg.d ディレクトリの存在保証
     - name: Ensure /etc/cloud/cloud.cfg.d exists
       ansible.builtin.file:

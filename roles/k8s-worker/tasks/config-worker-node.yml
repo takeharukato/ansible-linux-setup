@@ -108,7 +108,8 @@
 # システムスレッド/割り込みを寄せるためのカーネルコマンドラインの設定
 #
 
-- block:
+- name: Configure kernel boot parameters
+  block:
     - name: Check if nohz_full is configured in the boot command
       ansible.builtin.lineinfile:
         backup: true

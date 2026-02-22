@@ -30,6 +30,8 @@
   ansible.builtin.include_tasks: sysctl.yml
 - name: "Cron Setting"
   ansible.builtin.include_tasks: cron-setting.yml
+  when:
+    - common_disable_cron_mails | default(false)
 - name: "Package"
   ansible.builtin.include_tasks: package.yml
 - name: "Kubectl Repositories"

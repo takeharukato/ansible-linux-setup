@@ -17,7 +17,17 @@
 #   セキュリティ修正などを取り込むため, 最新版数を使用するというルール
 #   としているため
 #
+# - タスク内で条件付き逐次処理として, when: <register_var> is changed パターンを
+#   使用しているケース(no-handlerルール)。これらは, block内での
+#   緊密な依存関係と即座の実行を必要とし, handler化による遅延実行は許容できない。
+#   特に, additional-routes のnetplan適用や, k8s-worker の kernel parameter設定
+#   とリブートは, 後続タスクの成功と必要な同期性に依存しているため, 現在の設計のまま
+#   許容する方針。
+#
 skip_list:
   - role-name
   - name[template]
   - package-latest
+  - no-handler
+exclude_paths:
+  - docs

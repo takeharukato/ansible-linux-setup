@@ -13,7 +13,8 @@
 # 設定を更新したらリブート
 #
 
-- block:
+- name: Disable GUI and reboot
+  block:
     # GUIを無効化する
     - name: Disable_gui
       ansible.builtin.shell: |

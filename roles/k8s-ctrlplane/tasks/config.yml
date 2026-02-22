@@ -71,7 +71,8 @@
     mode: '0644'
     backup: false
 
-- block:
+- name: Reset kubeadm and setup kubelet
+  block:
     - name: Reset configuration
       ansible.builtin.shell: |
         kubeadm reset -f
@@ -181,7 +182,8 @@
     - "reboot_node_handler"
 
 
-- block:
+- name: Create kubeconfig directory structure
+  block:
     - name: Make .kube dir for root
       ansible.builtin.file:
         path: "/root/.kube"

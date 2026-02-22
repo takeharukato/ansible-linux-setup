@@ -38,7 +38,8 @@
     - k8s_worker_first_cpu_id.rc == 0
     - k8s_worker_last_cpu_id.rc == 0
 
-- block:
+- name: Configure CPU shielding and kubepods slice
+  block:
     #
     # KubePods 用の Slice 設定
     #

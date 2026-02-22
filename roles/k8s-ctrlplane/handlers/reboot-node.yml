@@ -1,4 +1,5 @@
-- block:
+- name: Reboot node gracefully
+  block:
     # マシンをリブートする
     - name: "Reboot node gracefully"
       listen: "reboot_node_handler"

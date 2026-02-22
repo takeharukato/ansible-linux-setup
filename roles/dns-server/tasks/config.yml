@@ -96,7 +96,8 @@
     backup: true
 
 # シリアル番号が設定されていなければ日付と時刻から生成
-- ansible.builtin.set_fact:
+- name: "Set bind_serial from current datetime if not defined"
+  ansible.builtin.set_fact:
     bind_serial: "{{ '%Y%m%d%H' | strftime() }}"
   when:
     - bind_serial is not defined
@@ -284,7 +285,8 @@
   when: named_service_state.rc == 0
 
 # namedを起動する
-- block:
+- name: Restart DNS service
+  block:
     - name: systemd daemon-reload
       ansible.builtin.systemd:
         daemon_reload: true
