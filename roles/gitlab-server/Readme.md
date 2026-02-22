@@ -46,6 +46,12 @@ GitLab の初期ルートパスワードファイルや公開 URL, 通信ポー�
 | `gitlab_https_port` | `9443` | GitLab Web UI (HTTPS) 公開ポート。|
 | `gitlab_ssh_port` | `2224` | GitLab SSH (リポジトリ操作用) 公開ポート。|
 | `gitlab_registry_port` | `5050` | コンテナレジストリ公開ポート。|
+| `gitlab_wait_host_stopped` | `"127.0.0.1"` | GitLabサービス停止を待ち合わせる(接続先)ホスト名/IPアドレス。|
+| `gitlab_wait_host_started` | `"{{ inventory_hostname }}"` | GitLabサービス開始を待ち合わせる(接続先)ホスト名/IPアドレス。|
+| `gitlab_wait_timeout` | `600` | GitLabサービス待ち合わせ時間(単位: 秒)。|
+| `gitlab_wait_delay` | `5` | GitLabサービス待ち合わせる際の開始遅延時間(単位: 秒)。|
+| `gitlab_wait_sleep` | `2` | GitLabサービス待ち合わせる際の待機間隔(単位: 秒)。|
+| `gitlab_wait_delegate_to` | `"localhost"` | GitLabサービス待ち合わせる際の接続元ホスト名/IPアドレス。|
 | `gitlab_external_url` | `https://{{ gitlab_hostname }}:{{ gitlab_https_port }}` | Web UI へアクセスする外部 URL。|
 | `gitlab_docker_image` | `gitlab/gitlab-ce:18.6.2-ce.0` | GitLab Omnibus Docker イメージ。公式の推奨に従って, バージョン名を明示してイメージを指定してください。|
 | `gitlab_runner_docker_image` | `gitlab/gitlab-runner:ubuntu-v18.6.6` | GitLab Runner Docker イメージ。GitLab 本体とメジャーバージョン, マイナーバージョンを合わせてください。|

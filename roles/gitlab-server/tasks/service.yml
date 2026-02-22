@@ -51,8 +51,8 @@
     timeout: "{{ gitlab_wait_timeout }}"
     delay: "{{ gitlab_wait_delay }}"
     sleep: "{{ gitlab_wait_sleep }}"
+  delegate_to: "{{ gitlab_wait_delegate_to }}"
 
-# リモートホスト上でGitLabコンテナのSSHポートが開くまで待機
 - name: Wait for GitLab SSH port on remote host
   ansible.builtin.wait_for:
     host: "{{ gitlab_wait_host_started }}"
@@ -61,8 +61,8 @@
     timeout: "{{ gitlab_wait_timeout }}"
     delay: "{{ gitlab_wait_delay }}"
     sleep: "{{ gitlab_wait_sleep }}"
+  delegate_to: "{{ gitlab_wait_delegate_to }}"
 
-# リモートホスト上でGitLabコンテナのRegistryポートが開くまで待機
 - name: Wait for GitLab Registry port on remote host
   ansible.builtin.wait_for:
     host: "{{ gitlab_wait_host_started }}"
@@ -71,8 +71,9 @@
     timeout: "{{ gitlab_wait_timeout }}"
     delay: "{{ gitlab_wait_delay }}"
     sleep: "{{ gitlab_wait_sleep }}"
+  delegate_to: "{{ gitlab_wait_delegate_to }}"
 
-- name: "Display GitLab access information"
+- name: Display GitLab configuration
   ansible.builtin.debug:
     msg: |
       GitLab configuration:

@@ -63,6 +63,12 @@ http://ホスト名:8080/
 | `redmine_service` | `redmine` | Redmine サービス名 (docker compose)。 |
 | `redmine_service_port` | `8080` | Redmine 公開ポート (ホスト側)。 |
 | `redmine_admin_password` | `admin` | Redmine 管理者パスワード (未定義/空の場合は `admin`)。 |
+| `redmine_wait_host_stopped` | `"127.0.0.1"` | Redmineサービス停止を待ち合わせる(接続先)ホスト名/IPアドレス。 |
+| `redmine_wait_host_started` | `"{{ inventory_hostname }}"` | Redmineサービス開始を待ち合わせる(接続先)ホスト名/IPアドレス。 |
+| `redmine_wait_timeout` | `300` | Redmineサービス待ち合わせ時間(単位: 秒)。 |
+| `redmine_wait_delay` | `5` | Redmineサービス待ち合わせる際の開始遅延時間(単位: 秒)。 |
+| `redmine_wait_sleep` | `2` | Redmineサービス待ち合わせる際の待機間隔(単位: 秒)。 |
+| `redmine_wait_delegate_to` | `"localhost"` | Redmineサービス待ち合わせる際の接続元ホスト名/IPアドレス。 |
 | `redmine_db_image` | `postgres:15.1-bullseye` | PostgreSQL コンテナイメージ。 |
 | `redmine_db_service` | `redmine-db` | PostgreSQL サービス名 (docker compose)。 |
 | `redmine_db_name` | `redmine` | PostgreSQL データベース名。 |

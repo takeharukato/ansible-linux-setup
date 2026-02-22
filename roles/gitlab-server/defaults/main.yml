@@ -24,11 +24,18 @@ gitlab_ssh_port: 2224
 gitlab_registry_port: 5050
 
 # GitLabサービス待機設定
+# GitLabサービス停止を待ち合わせる(接続先)ホスト名/IPアドレス
 gitlab_wait_host_stopped: "127.0.0.1"
+# GitLabサービス開始を待ち合わせる(接続先)ホスト名/IPアドレス
 gitlab_wait_host_started: "{{ inventory_hostname }}"
+# GitLabサービス待ち合わせ時間(単位: 秒)
 gitlab_wait_timeout: 600
+# GitLabサービス待ち合わせる際の開始遅延時間(単位: 秒)
 gitlab_wait_delay: 5
+# GitLabサービス待ち合わせる際の待機間隔(単位: 秒)
 gitlab_wait_sleep: 2
+# GitLabサービス待ち合わせる際の接続元ホスト名/IPアドレス
+gitlab_wait_delegate_to: "localhost"
 
 # GitLab外部URL設定
 gitlab_external_url: "https://{{ gitlab_hostname }}:{{ gitlab_https_port }}"

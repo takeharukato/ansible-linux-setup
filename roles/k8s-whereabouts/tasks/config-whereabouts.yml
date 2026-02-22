@@ -14,6 +14,7 @@
     timeout: "{{ k8s_api_wait_timeout }}"
     delay: "{{ k8s_api_wait_delay }}"
     sleep: "{{ k8s_api_wait_sleep }}"
+  delegate_to: "{{ k8s_api_wait_delegate_to }}"
 
 # Whereaboutsのインストール
 - name: Install Whereabouts

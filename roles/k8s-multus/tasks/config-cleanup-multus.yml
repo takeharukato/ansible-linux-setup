@@ -14,6 +14,7 @@
     timeout: "{{ k8s_api_wait_timeout }}"
     delay: "{{ k8s_api_wait_delay }}"
     sleep: "{{ k8s_api_wait_sleep }}"
+  delegate_to: "{{ k8s_api_wait_delegate_to }}"
 
 # 既存のMultusリソースをクリーンアップ（Helm管理への移行時）
 - name: Cleanup existing Multus resources (if cleanup enabled)

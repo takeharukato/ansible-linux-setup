@@ -14,8 +14,7 @@
     timeout: "{{ k8s_api_wait_timeout }}"
     delay: "{{ k8s_api_wait_delay }}"
     sleep: "{{ k8s_api_wait_sleep }}"
-
-# Multus Helm Chart をリモートホストにコピー
+  delegate_to: "{{ k8s_api_wait_delegate_to }}"
 - name: Copy Multus Helm Chart to remote host
   ansible.builtin.copy:
     src: "{{ k8s_multus_helm_chart_source }}/"

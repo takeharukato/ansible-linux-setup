@@ -15,8 +15,7 @@
     timeout: "{{ k8s_api_wait_timeout }}"
     delay: "{{ k8s_api_wait_delay }}"
     sleep: "{{ k8s_api_wait_sleep }}"
-
-# Cilium CRD の存在確認
+  delegate_to: "{{ k8s_api_wait_delegate_to }}"
 - name: Wait for Cilium CRD availability
   ansible.builtin.command: kubectl --kubeconfig /etc/kubernetes/admin.conf get crd ciliumidentities.cilium.io
   register: cilium_crd_check

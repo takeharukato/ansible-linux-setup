@@ -21,6 +21,7 @@
     timeout: "{{ redmine_wait_timeout }}"
     delay: "{{ redmine_wait_delay }}"
     sleep: "{{ redmine_wait_sleep }}"
+  delegate_to: "{{ redmine_wait_delegate_to }}"
 
 - name: Start redmine container
   ansible.builtin.shell: |
@@ -39,8 +40,7 @@
     timeout: "{{ redmine_wait_timeout }}"
     delay: "{{ redmine_wait_delay }}"
     sleep: "{{ redmine_wait_sleep }}"
-
-# redmine管理者パスワード設定
+  delegate_to: "{{ redmine_wait_delegate_to }}"
 - name: Ensure Redmine admin password
   ansible.builtin.shell: |
     set -o pipefail

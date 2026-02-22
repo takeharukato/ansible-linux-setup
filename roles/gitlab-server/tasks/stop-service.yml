@@ -40,6 +40,7 @@
     timeout: "{{ gitlab_wait_timeout }}"
     delay: "{{ gitlab_wait_delay }}"
     sleep: "{{ gitlab_wait_sleep }}"
+  delegate_to: "{{ gitlab_wait_delegate_to }}"
   when:
     - gitlab_home_dir_stat.stat.exists
     - gitlab_docker_compose_file_stat.stat.exists
@@ -52,6 +53,7 @@
     timeout: "{{ gitlab_wait_timeout }}"
     delay: "{{ gitlab_wait_delay }}"
     sleep: "{{ gitlab_wait_sleep }}"
+  delegate_to: "{{ gitlab_wait_delegate_to }}"
   when:
     - gitlab_home_dir_stat.stat.exists
     - gitlab_docker_compose_file_stat.stat.exists
@@ -64,6 +66,7 @@
     timeout: "{{ gitlab_wait_timeout }}"
     delay: "{{ gitlab_wait_delay }}"
     sleep: "{{ gitlab_wait_sleep }}"
+  delegate_to: "{{ gitlab_wait_delegate_to }}"
   when:
     - gitlab_home_dir_stat.stat.exists
     - gitlab_docker_compose_file_stat.stat.exists

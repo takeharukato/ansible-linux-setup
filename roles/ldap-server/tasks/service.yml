@@ -21,6 +21,7 @@
     timeout: "{{ openldap_wait_timeout }}"
     delay: "{{ openldap_wait_delay }}"
     sleep: "{{ openldap_wait_sleep }}"
+  delegate_to: "{{ openldap_wait_delegate_to }}"
 
 - name: Start openldap container
   ansible.builtin.shell: |
@@ -39,3 +40,4 @@
     timeout: "{{ openldap_wait_timeout }}"
     delay: "{{ openldap_wait_delay }}"
     sleep: "{{ openldap_wait_sleep }}"
+  delegate_to: "{{ openldap_wait_delegate_to }}"

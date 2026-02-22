@@ -15,9 +15,19 @@ openldap_scripts_dir: "/data/openldap/scripts"
 openldap_database_dir: "/data/openldap/slapd/database"
 openldap_config_dir: "/data/openldap/slapd/config"
 openldap_service_port: 389
+
+# OpenLDAPサービス待機設定
+# OpenLDAPサービス停止を待ち合わせる(接続先)ホスト名/IPアドレス
 openldap_wait_host_stopped: "127.0.0.1"
+# OpenLDAPサービス開始を待ち合わせる(接続先)ホスト名/IPアドレス
 openldap_wait_host_started: "{{ inventory_hostname }}"
+# OpenLDAPサービス待ち合わせ時間(単位: 秒)
 openldap_wait_timeout: 600
+# OpenLDAPサービス待ち合わせる際の開始遅延時間(単位: 秒)
 openldap_wait_delay: 5
+# OpenLDAPサービス待ち合わせる際の待機間隔(単位: 秒)
 openldap_wait_sleep: 2
+# OpenLDAPサービス待ち合わせる際の接続元ホスト名/IPアドレス
+openldap_wait_delegate_to: "localhost"
+
 openldap_enable_ipv6: true

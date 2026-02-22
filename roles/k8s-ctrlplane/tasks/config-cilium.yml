@@ -14,8 +14,7 @@
     timeout: "{{ k8s_api_wait_timeout }}"
     delay: "{{ k8s_api_wait_delay }}"
     sleep: "{{ k8s_api_wait_sleep }}"
-
-#
+  delegate_to: "{{ k8s_api_wait_delegate_to }}"
 # kube-proxyの削除時に以下のRole Based Access Control (RBAC) エラーが
 # 発生する場合があるため, kubernetes-admin へ cluster-admin 権限を付与する。
 #

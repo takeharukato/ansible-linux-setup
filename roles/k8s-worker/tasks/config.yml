@@ -14,8 +14,7 @@
     timeout: "{{ k8s_api_wait_timeout }}"
     delay: "{{ k8s_api_wait_delay }}"
     sleep: "{{ k8s_api_wait_sleep }}"
-
-# ジョイントークンを変数に格納
+  delegate_to: "{{ k8s_api_wait_delegate_to }}"
 # ssh 192.168.20.41 "sudo kubeadm token list|grep -v TOKEN"|awk -F' ' '{print $1}'
 - name: Get join token in token list
   ansible.builtin.shell: |
@@ -65,6 +64,7 @@
     timeout: "{{ k8s_api_wait_timeout }}"
     delay: "{{ k8s_api_wait_delay }}"
     sleep: "{{ k8s_api_wait_sleep }}"
+  delegate_to: "{{ k8s_api_wait_delegate_to }}"
 
 # 既にjoin済みだった場合は, 対象コントロールプレインに対して以下を実行して, ノード登録を抹消すること
 # 参考) http://stackoverflow.com/questions/35757620/how-to-gracefully-remove-a-node-from-kubernetes
@@ -193,6 +193,7 @@
       ansible.builtin.wait_for:
         path: /var/run/containerd/containerd.sock
         timeout: "{{ k8s_containerd_wait_timeout }}"
+      delegate_to: "{{ k8s_containerd_wait_delegate_to }}"
       become: true
 
     - name: Setup worker node

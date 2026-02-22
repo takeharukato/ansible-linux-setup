@@ -26,8 +26,7 @@
     timeout: "{{ rancher_wait_timeout }}"
     delay: "{{ rancher_wait_delay }}"
     sleep: "{{ rancher_wait_sleep }}"
-
-# コンテナをリムーブ
+  delegate_to: "{{ rancher_wait_delegate_to }}"
 - name: Remove containers
   ansible.builtin.shell: |
     set -o pipefail
@@ -69,3 +68,4 @@
     timeout: "{{ rancher_wait_timeout }}"
     delay: "{{ rancher_wait_delay }}"
     sleep: "{{ rancher_wait_sleep }}"
+  delegate_to: "{{ rancher_wait_delegate_to }}"

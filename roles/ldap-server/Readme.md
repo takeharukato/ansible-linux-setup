@@ -23,6 +23,13 @@ osixia/openldapを使用してOpenLDAPサーバを構築します。
 | `openldap_scripts_dir` | `/data/openldap/scripts` | バックアップ / リストア用スクリプトの配置先ディレクトリ。|
 | `openldap_database_dir` | `/data/openldap/slapd/database` | LDAP データベースの永続化ディレクトリ。Docker ボリュームとしてマウントされます。|
 | `openldap_config_dir` | `/data/openldap/slapd/config` | LDAP 設定ファイルの永続化ディレクトリ。Docker ボリュームとしてマウントされます。|
+| `openldap_service_port` | `389` | OpenLDAP サービスポート番号。|
+| `openldap_wait_host_stopped` | `"127.0.0.1"` | OpenLDAPサービス停止を待ち合わせる(接続先)ホスト名/IPアドレス。|
+| `openldap_wait_host_started` | `"{{ inventory_hostname }}"` | OpenLDAPサービス開始を待ち合わせる(接続先)ホスト名/IPアドレス。|
+| `openldap_wait_timeout` | `600` | OpenLDAPサービス待ち合わせ時間(単位: 秒)。|
+| `openldap_wait_delay` | `5` | OpenLDAPサービス待ち合わせる際の開始遅延時間(単位: 秒)。|
+| `openldap_wait_sleep` | `2` | OpenLDAPサービス待ち合わせる際の待機間隔(単位: 秒)。|
+| `openldap_wait_delegate_to` | `"localhost"` | OpenLDAPサービス待ち合わせる際の接続元ホスト名/IPアドレス。|
 | `mgmt_nic` | (環境依存) | 管理用ネットワークインターフェース名。sysctl 設定で RA (Router Advertisement, ルータ広告) 受信を有効化する際に使用します。|
 
 必要に応じて `group_vars` / `host_vars` で上記変数を上書きし, ロールの挙動を調整します。

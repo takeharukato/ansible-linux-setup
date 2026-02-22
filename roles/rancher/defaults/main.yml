@@ -17,11 +17,18 @@ rancher_start_timeout: 300
 rancher_service_port: 443
 
 # Rancherサービス待機設定
+# Rancherサービス停止を待ち合わせる(接続先)ホスト名/IPアドレス
 rancher_wait_host_stopped: "127.0.0.1"
+# Rancherサービス開始を待ち合わせる(接続先)ホスト名/IPアドレス
 rancher_wait_host_started: "{{ inventory_hostname }}"
+# Rancherサービス待ち合わせ時間(単位: 秒)
 rancher_wait_timeout: "{{ rancher_start_timeout }}"
+# Rancherサービス待ち合わせる際の開始遅延時間(単位: 秒)
 rancher_wait_delay: 5
+# Rancherサービス待ち合わせる際の待機間隔(単位: 秒)
 rancher_wait_sleep: 2
+# Rancherサービス待ち合わせる際の接続元ホスト名/IPアドレス
+rancher_wait_delegate_to: "localhost"
 
 # 証明書格納先ディレクトリ
 rancher_cert_dir: "/etc/rancher/ssl"
