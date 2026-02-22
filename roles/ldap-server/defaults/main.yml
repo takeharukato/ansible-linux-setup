@@ -14,3 +14,7 @@ openldap_docker_dir: "/data/openldap/docker"
 openldap_scripts_dir: "/data/openldap/scripts"
 openldap_database_dir: "/data/openldap/slapd/database"
 openldap_config_dir: "/data/openldap/slapd/config"
+openldap_wait_timeout: 600
+openldap_wait_delay: 5
+openldap_wait_sleep: 2
+openldap_enable_ipv6: true
