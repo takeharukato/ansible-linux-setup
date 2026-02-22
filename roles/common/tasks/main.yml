@@ -13,7 +13,8 @@
   ansible.builtin.include_tasks: config-timezone.yml
 - name: "Config Disable Firewall"
   ansible.builtin.include_tasks: config-disable-firewall.yml
-- name: "Config Prepare Nm"
+  when: not enable_firewall | default(false,true)
+- name: "Prepare Network Manager"
   ansible.builtin.include_tasks: config-prepare-nm.yml
 - name: "Config Network Multi"
   ansible.builtin.include_tasks: config-network-multi.yml
@@ -35,6 +36,7 @@
   ansible.builtin.include_tasks: directory.yml
 - name: "Directory Dns Client"
   ansible.builtin.include_tasks: directory-dns-client.yml
+  when: use_nm_ddns_update_scripts | default(false)
 - name: "Service"
   ansible.builtin.include_tasks: service.yml
 - name: "User Group"

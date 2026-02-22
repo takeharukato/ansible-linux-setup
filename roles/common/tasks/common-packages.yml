@@ -23,7 +23,7 @@
     state: latest
   notify:
     - disable_gui
-    - "{{ pkg_autoremove_handler }}"
+    - "pkg-autoremove"
 
 # Google Chrome パッケージが自動作成する .list ファイルを削除
 # （repo-deb ロールで .sources ファイルを使用しているため、重複を防ぐ）
@@ -43,6 +43,6 @@
   when: ansible_facts.os_family == 'Debian'
   notify:
     - disable_gui
-    - "{{ pkg_autoremove_handler }}"
+    - "pkg-autoremove"
   register: _result
   changed_when: _result.rc == 0

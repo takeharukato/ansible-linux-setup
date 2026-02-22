@@ -12,7 +12,7 @@
   register: _result
   changed_when: _result.rc == 0
 
-- name: dnf-plugins-core autoremove (RHEL)
+- name: DNF-plugins-core autoremove (RHEL)
   listen: "pkg-autoremove"
   ansible.builtin.shell: |
     dnf autoremove -y

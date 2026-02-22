@@ -14,6 +14,8 @@
 # 再起動が入らないようにすること
 - ansible.builtin.include_tasks: config-disable-cloud-init.yml
   name: "Config Disable Cloud Init"
+  when: ansible_facts.os_family == "RedHat"
+
 # 自動設定ファイルの存在確認と除去
 - name: "Remove setup auto network config files"
   ansible.builtin.include_tasks: move-default-netplans.yml
@@ -363,6 +365,8 @@
 # ネットワークインターフェース名の固定化を確実にするため
 - ansible.builtin.include_tasks: config-remove-udev-rules.yml
   name: "Config Remove Udev Rules"
+  when: ansible_facts.os_family == "RedHat"
+
 #
 # NetworkManagerの設定を更新したらリブート
 #
