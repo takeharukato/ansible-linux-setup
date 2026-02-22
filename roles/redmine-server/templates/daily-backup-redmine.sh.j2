@@ -10,7 +10,7 @@
 #以下の設定では, 毎日午前3時に`/data/redmine/backup`にバックアップファイルを生成する。
 #
 #```:crontab
-#0 3 * * * /data/redmine/scripts/daily-backup-redmine.sh
+#0 3 * * * sudo {{ redmine_scripts_dir|default('/data/redmine/scripts', true) }}/daily-backup-redmine.sh
 #```
 #
 
