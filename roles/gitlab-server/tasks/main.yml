@@ -25,6 +25,9 @@
   when: gitlab_hostname is defined and gitlab_hostname != ""
 - include_tasks: user_group.yml
   when: gitlab_hostname is defined and gitlab_hostname != ""
+# sysctl設定をサービス起動前に適用
+- include_tasks: sysctl.yml
+  when: gitlab_hostname is defined and gitlab_hostname != ""
 # サービス起動タスクを実行する
 - include_tasks: service.yml
   when: gitlab_hostname is defined and gitlab_hostname != ""
