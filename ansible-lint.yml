@@ -2,7 +2,22 @@
 #  Ansible playbook
 #  Copyright 2020 Takeharu KATO All Rights Reserved.
 #
+#  ansible-lintの設定ファイル
+#
+# - ansibleのロール命名規則に関するルールに
+#   従っていなくてもエラーとしない(role-nameルール)
+#   命名規則を特に決めていないため, 必要に応じて後で修正を実施する方針。
+#
+# - Ansibleタスクのname:フィールドにテンプレート変数が含まれている場合に
+#   エラーとするルール(name[template]ルール)を適用しない
+#   後でまとめて対応する予定のため, 現時点ではエラーとしない方針。
+#
+# - packageモジュールで最新バージョンをインストールするタスクのnameに
+#   latestという文字列が含まれていてもエラーとしない(package-latestルール)
+#   セキュリティ修正などを取り込むため, 最新版数を使用するというルール
+#   としているため
+#
 skip_list:
   - role-name
   - name[template]
-
+  - package-latest

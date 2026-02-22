@@ -23,6 +23,7 @@
     src: "{{ item.item }}"
     dest: "{{ item.item }}.orig"
     remote_src: true
+    mode: '0644'
   loop: "{{ stat_75.results | default([]) }}"
   when:
     - stat_75 is defined
@@ -79,6 +80,7 @@
     src: "{{ item.item }}"
     dest: "{{ item.item }}.orig"
     remote_src: true
+    mode: '0644'
   loop: "{{ stat_70.results | default([], true) }}"
   when:
     - stat_70 is defined

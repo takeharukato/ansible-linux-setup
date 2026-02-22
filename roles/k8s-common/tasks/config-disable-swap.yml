@@ -53,6 +53,7 @@
     path: /etc/sysctl.d/99-disable-swap.conf
     create: true
     line: 'vm.swappiness = 0'
+    mode: '0644'
 
 # 設定を反映
 - name: Apply sysctl
