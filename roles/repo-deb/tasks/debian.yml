@@ -21,7 +21,7 @@
           - "universe"
         enabled: "{{ repo_enable_main }}"
         signed_by: "{{ debian_archive_keyring }}"
-      notify: "apt update"
+      notify: "apt_update_repo_deb"
 
     - name: Updates
       ansible.builtin.deb822_repository:
@@ -34,7 +34,7 @@
           - "universe"
         enabled: "{{ repo_enable_updates }}"
         signed_by: "{{ debian_archive_keyring }}"
-      notify: "apt update"
+      notify: "apt_update_repo_deb"
 
     - name: Security
       ansible.builtin.deb822_repository:
@@ -47,7 +47,7 @@
           - "universe"
         enabled: "{{ repo_enable_security }}"
         signed_by: "{{ debian_archive_keyring }}"
-      notify: "apt update"
+      notify: "apt_update_repo_deb"
 
     - name: Backports
       ansible.builtin.deb822_repository:
@@ -60,10 +60,10 @@
           - "universe"
         enabled: "{{ repo_enable_backports }}"
         signed_by: "{{ debian_archive_keyring }}"
-      notify: "apt update"
+      notify: "apt_update_repo_deb"
 
 # Docker Community Editionのキーリングを配置する
-- name: docker keyring
+- name: Docker keyring
   when: repo_enable_docker
   ansible.builtin.shell: |
     set -o pipefail
@@ -83,7 +83,7 @@
   notify: "apt_update_repo_deb"
 
 # Docker repo (deb822)を有効にする
-- name: docker repo (deb822)
+- name: Docker repo (deb822)
   when: repo_enable_docker
   ansible.builtin.deb822_repository:
     name: "Docker"
@@ -143,7 +143,7 @@
   changed_when: _result.rc == 0
 
 # 古いChrome repo形式を削除
-- name: Remove legacy google-chrome repo
+- name: Remove legacy Google Chrome repo
   when: repo_enable_chrome
   ansible.builtin.file:
     path: "/etc/apt/sources.list.d/google-chrome.list"

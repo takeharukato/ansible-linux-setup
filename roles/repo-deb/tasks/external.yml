@@ -6,7 +6,7 @@
 #
 
 # Docker Community Editionのキーリングを配置する
-- name: docker keyring
+- name: Docker keyring
   when: repo_enable_docker
   ansible.builtin.shell: |
     set -o pipefail
@@ -26,7 +26,7 @@
   notify: "apt_update_repo_deb"
 
 # Docker repo (deb822)を有効にする
-- name: docker repo (deb822)
+- name: Docker repo (deb822)
   when: repo_enable_docker
   ansible.builtin.deb822_repository:
     name: "Docker"

@@ -42,7 +42,7 @@
     repo: "deb [signed-by={{ terraform_apt_keyring_debian }}] {{ terraform_repository_url_debian }} {{ ansible_distribution_release }} main"
     state: present
     filename: "hashicorp"
-  notify: "apt update"
+  notify: "apt_update_repo_deb"
   when:
     - ansible_facts.os_family == "Debian"
 

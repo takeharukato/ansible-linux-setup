@@ -48,7 +48,7 @@
       - "main"
     enabled: true
     signed_by: "{{ terraform_apt_keyring_debian }}"
-  notify: "apt update"
+  notify: "apt_update_repo_deb"
   when:
     - ansible_facts.os_family == "Debian"
 

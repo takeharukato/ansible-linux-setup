@@ -6,7 +6,7 @@
 #
 
 # Docker Community Editionのキーリングを配置する
-- name: docker keyring
+- name: Docker keyring
   when: repo_enable_docker
   ansible.builtin.shell: |
     set -o pipefail
@@ -18,7 +18,7 @@
   changed_when: _result.rc == 0
 
 # 古いDocker repo形式を削除
-- name: Remove legacy docker repo
+- name: Remove legacy Docker repo
   when: repo_enable_docker
   ansible.builtin.file:
     path: "/etc/apt/sources.list.d/docker.list"
@@ -26,7 +26,7 @@
   notify: "apt_update_repo_deb"
 
 # Docker repo (APT)を有効にする
-- name: docker repo (APT)
+- name: Docker repo (APT)
   when: repo_enable_docker
   ansible.builtin.apt_repository:
     repo: "deb [signed-by={{ docker_apt_keyring }} arch={{ docker_arch_apt }}] {{ docker_apt_uri }} {{ docker_apt_suite }} {{ docker_apt_components }}"
@@ -47,7 +47,7 @@
   changed_when: _result.rc == 0
 
 # 古いKubernetes repo形式を削除
-- name: Remove legacy kubernetes repo
+- name: Remove legacy Kubernetes repo
   when: repo_enable_kubernetes
   ansible.builtin.file:
     path: "/etc/apt/sources.list.d/kubernetes.list"
@@ -76,7 +76,7 @@
   changed_when: _result.rc == 0
 
 # 古いChrome repo形式を削除
-- name: Remove legacy google-chrome repo
+- name: Remove legacy Google Chrome repo
   when: repo_enable_chrome
   ansible.builtin.file:
     path: "/etc/apt/sources.list.d/google-chrome.list"
