@@ -41,8 +41,10 @@ interface {{ radvd_nic|default('ens192',true) }} {
         };
 
         # DNSサーバ情報を広告する
-        RDNSS {{ radvd_dns_servers | default([], true) | join(' ') }} {};
+        RDNSS {{ radvd_dns_servers | default([], true) | join(' ') }} {
+        };
         # DNS-Serchdomain List (DNSサフィックス)を広告する
-        DNSSL {{ radvd_search_domains | default([], true) | join(' ') }};
+        DNSSL {{ radvd_search_domains | default([], true) | join(' ') }} {
+        };
 
 };
