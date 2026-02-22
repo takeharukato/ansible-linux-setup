@@ -27,16 +27,16 @@
 # CSV -> list ( 空白除去 )
 - name: Normalize network CIDR inputs
   ansible.builtin.set_fact:
-    _pods_list: "{{ (k8s_pod_network_cidr | default('',true) | regex_replace('\\s','')).split(',') | reject('equalto','') | list }}"
-    _services_list: "{{ (k8s_service_subnet  | default('',true) | regex_replace('\\s','')).split(',') | reject('equalto','') | list }}"
+    _pods_list: "{{ (k8s_pod_network_cidr | default('', true) | regex_replace('\\s', '')).split(',') | reject('equalto', '') | list }}"
+    _services_list: "{{ (k8s_service_subnet | default('', true) | regex_replace('\\s', '')).split(',') | reject('equalto', '') | list }}"
 
 # v6 と v4 に分割
 - name: Split v6/v4 for pods and services
   ansible.builtin.set_fact:
-    _pods_v6: "{{ _pods_list     | select('search', ':')         | list }}"
-    _pods_v4: "{{ _pods_list     | reject('search', ':')         | list }}"
-    _svc_v6: "{{ _services_list | select('search', ':')         | list }}"
-    _svc_v4: "{{ _services_list | reject('search', ':')         | list }}"
+    _pods_v6: "{{ _pods_list | select('search', ':') | list }}"
+    _pods_v4: "{{ _pods_list | reject('search', ':') | list }}"
+    _svc_v6: "{{ _services_list | select('search', ':') | list }}"
+    _svc_v4: "{{ _services_list | reject('search', ':') | list }}"
 
 # API のファミリに合わせて IPv6, IPv4 か IPv4 から IPv6 に並べ替え
 # 本項目を実施しないと, kubeadm init 時にAPIサーバが起動しない
@@ -49,7 +49,7 @@
 - name: Order subnets to match API family
   ansible.builtin.set_fact:
     podSubnet_ordered: "{{ (k8s_ctrlplane_is_ipv6 | default(false) | bool) | ternary(_pods_v6 + _pods_v4, _pods_v4 + _pods_v6) | join(',') }}"
-    serviceSubnet_ordered: "{{ (k8s_ctrlplane_is_ipv6 | default(false) | bool) | ternary(_svc_v6  + _svc_v4, _svc_v4  + _svc_v6)  | join(',') }}"
+    serviceSubnet_ordered: "{{ (k8s_ctrlplane_is_ipv6 | default(false) | bool) | ternary(_svc_v6 + _svc_v4, _svc_v4 + _svc_v6) | join(',') }}"
 
 # bind-address も条件で作る (v6 のときは ::, v4 のときは 0.0.0.0)
 - name: Decide bind-address by API family
@@ -71,7 +71,8 @@
     mode: '0644'
     backup: false
 
-- block:
+- name: Reset kubeadm and setup kubelet
+  block:
     - name: Reset configuration
       ansible.builtin.shell: |
         kubeadm reset -f
@@ -103,6 +104,11 @@
       become: true
 
     - name: Restore shared CA assets after kubeadm reset
+      when:
+        - k8s_shared_ca_source_cert | default('', true) | length > 0
+        - k8s_shared_ca_source_key | default('', true) | length > 0
+        - k8s_shared_ca_cert_path | default('', true) | length > 0
+        - k8s_shared_ca_key_path | default('', true) | length > 0
       block:
         - name: Ensure shared CA directory exists after kubeadm reset
           ansible.builtin.file:
@@ -151,11 +157,6 @@
           become: true
           when: k8s_shared_ca_replace_kube_ca | default(false, true) | bool
 
-      when:
-        - k8s_shared_ca_source_cert | default('', true) | length > 0
-        - k8s_shared_ca_source_key | default('', true) | length > 0
-        - k8s_shared_ca_cert_path | default('', true) | length > 0
-        - k8s_shared_ca_key_path | default('', true) | length > 0
 
     # setup control plane with kubeadm
     - name: Setup control plane
@@ -181,7 +182,8 @@
     - "reboot_node_handler"
 
 
-- block:
+- name: Create kubeconfig directory structure
+  block:
     - name: Make .kube dir for root
       ansible.builtin.file:
         path: "/root/.kube"

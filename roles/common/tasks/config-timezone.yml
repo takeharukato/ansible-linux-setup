@@ -11,6 +11,6 @@
 #
 
 - name: "Setup time zone {{ common_timezone }}"
-  timezone:
+  community.general.timezone:
     name: "{{ common_timezone }}"
   when: common_timezone is defined and ( (common_timezone|default('',true)|length) > 0 )

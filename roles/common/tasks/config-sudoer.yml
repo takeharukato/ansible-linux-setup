@@ -73,17 +73,7 @@
 - name: Build final target groups (autodetect + extra)
   ansible.builtin.set_fact:
     sudo_nopasswd_groups_final: >-
-      {{
-        (
-          (
-            ([ 'sudo' ] if (sudo_nopasswd_groups_autodetect | default(false) | bool and (getent_sudo.ansible_facts.getent_group.sudo is defined)) else [])
-            +
-            ([ 'wheel' ] if (sudo_nopasswd_groups_autodetect | default(false) | bool and (getent_wheel.ansible_facts.getent_group.wheel is defined)) else [])
-          )
-          | unique
-        )
-        + (sudo_nopasswd_groups_extra | default([],true))
-      | unique }}
+      {{ (((['sudo'] if (sudo_nopasswd_groups_autodetect | default(false) | bool and (getent_sudo.ansible_facts.getent_group.sudo is defined)) else []) + (['wheel'] if (sudo_nopasswd_groups_autodetect | default(false) | bool and (getent_wheel.ansible_facts.getent_group.wheel is defined)) else [])) | unique) + (sudo_nopasswd_groups_extra | default([], true)) | unique }}
 
 # =========================
 # 1) ユーザ単位の設定
@@ -92,7 +82,7 @@
   ansible.builtin.getent:
     database: passwd
     key: "{{ item }}"
-  loop: "{{ sudo_nopasswd_users | default([],true) }}"
+  loop: "{{ sudo_nopasswd_users | default([], true) }}"
   register: _getent_users
   failed_when: false
   when: (sudo_nopasswd_users | default([],true)) | length > 0
@@ -100,13 +90,7 @@
 - name: Filter only users that actually exist
   ansible.builtin.set_fact:
     sudo_nopasswd_users_existing: >-
-      {{
-        _getent_users.results
-        | selectattr('ansible_facts.getent_passwd', 'defined')
-        | rejectattr('ansible_facts.getent_passwd', 'equalto', {})
-        | map(attribute='item')
-        | list
-      }}
+      {{ _getent_users.results | selectattr('ansible_facts.getent_passwd', 'defined') | rejectattr('ansible_facts.getent_passwd', 'equalto', {}) | map(attribute='item') | list }}
   when: (sudo_nopasswd_users | default([],true)) | length > 0
 
 - name: Create user drop-ins with visudo validation
@@ -117,14 +101,14 @@
     group: root
     mode: '0440'
     validate: 'visudo -cf %s'
-  loop: "{{ sudo_nopasswd_users_existing | default([],true) }}"
+  loop: "{{ sudo_nopasswd_users_existing | default([], true) }}"
   when: not (sudo_nopasswd_absent | default(false) | bool)
 
 - name: Remove user drop-ins when rollback requested
   ansible.builtin.file:
     path: "/etc/sudoers.d/{{ sudo_dropin_prefix }}-user-{{ item }}"
     state: absent
-  loop: "{{ sudo_nopasswd_users_existing | default([],true) }}"
+  loop: "{{ sudo_nopasswd_users_existing | default([], true) }}"
   when: sudo_nopasswd_absent | default(false) | bool
 
 # =========================
@@ -138,14 +122,14 @@
     group: root
     mode: '0440'
     validate: 'visudo -cf %s'
-  loop: "{{ sudo_nopasswd_groups_final | default([],true) }}"
+  loop: "{{ sudo_nopasswd_groups_final | default([], true) }}"
   when: not (sudo_nopasswd_absent | default(false) | bool)
 
 - name: Remove group drop-ins when rollback requested
   ansible.builtin.file:
     path: "/etc/sudoers.d/{{ sudo_dropin_prefix }}-group-{{ item }}"
     state: absent
-  loop: "{{ sudo_nopasswd_groups_final | default([],true) }}"
+  loop: "{{ sudo_nopasswd_groups_final | default([], true) }}"
   when: sudo_nopasswd_absent | default(false) | bool
 
 # =========================

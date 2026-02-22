@@ -68,9 +68,9 @@
 - name: Delete rpfix table(s) safely
   become: true
   ansible.builtin.command: nft delete table {{ item.item }} rpfix
-  loop: "{{ nft_check.results|default([], true) }}"
+  loop: "{{ nft_check.results | default([], true) }}"
   loop_control:
-    label: "{{ item.item|default('', true) }}"
+    label: "{{ item.item | default('', true) }}"
   when:
     - item.rc == 0
     - nft_cmd is defined

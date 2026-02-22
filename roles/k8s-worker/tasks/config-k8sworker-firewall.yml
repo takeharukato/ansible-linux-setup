@@ -128,7 +128,7 @@
 
 # コントロールプレインのみに許可するポートを開放 (10250/tcp ( kubelet )など)
 # IPv4版
-- name: "Allow {{k8s_worker_node_ports_from_ctrlplane}} from control-plane (IPv4) via firewalld"
+- name: "Allow {{ k8s_worker_node_ports_from_ctrlplane }} from control-plane (IPv4) via firewalld"
   ansible.builtin.command: >
     firewall-cmd --permanent
     --add-rich-rule='rule family="ipv4"
@@ -136,7 +136,7 @@
       port port="{{ item.split('/')[0] }}"
       protocol="{{ item.split('/')[1] }}"
       accept'
-  loop: "{{k8s_worker_node_ports_from_ctrlplane}}"
+  loop: "{{ k8s_worker_node_ports_from_ctrlplane }}"
   notify: "reload firewalld"
   when:
     - ansible_facts.os_family == "RedHat"
@@ -148,7 +148,7 @@
 
 # コントロールプレインのみに許可するポートを開放 (10250/tcp ( kubelet )など)
 # IPv6版
-- name: "Allow {{k8s_worker_node_ports_from_ctrlplane}} from control-plane (IPv6) via firewalld"
+- name: "Allow {{ k8s_worker_node_ports_from_ctrlplane }} from control-plane (IPv6) via firewalld"
   ansible.builtin.command: >
     firewall-cmd --permanent
     --add-rich-rule='rule family="ipv6"

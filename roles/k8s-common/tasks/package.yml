@@ -25,6 +25,6 @@
 - name: Install kubectl/kubeadm/kubelet
   ansible.builtin.package:
     pkg:
-      '{{ k8s_common_packages  }}'
+      '{{ k8s_common_packages }}'
     state: latest
   become: true

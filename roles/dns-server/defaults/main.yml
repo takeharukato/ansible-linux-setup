@@ -14,8 +14,8 @@ dns_ddns_key_name: "ddns-clients"
 #
 
 # === 実行ユーザ/グループ/サービス名 ===
-dns_bind_user: "{{ (ansible_facts.os_family == 'Debian') | ternary('bind',  'named') }}"
-dns_bind_group: "{{ (ansible_facts.os_family == 'Debian') | ternary('bind',  'named') }}"
+dns_bind_user: "{{ (ansible_facts.os_family == 'Debian') | ternary('bind', 'named') }}"
+dns_bind_group: "{{ (ansible_facts.os_family == 'Debian') | ternary('bind', 'named') }}"
 dns_bind_service: "named"
 
 # === ディレクトリ/主要ファイル ===
@@ -89,4 +89,4 @@ dns_ddns_key_secret: ""
 # === 複数ネットワーク逆引きゾーン対応 ===
 # internal_network_list が定義かつ非空の場合、追加の逆引きゾーンを生成する
 # (名前付き参照用の共通変数。テンプレート・タスク双方で条件判定に使用)
-has_additional_networks: "{{ internal_network_list is defined and internal_network_list|length > 0 }}"
+has_additional_networks: "{{ internal_network_list is defined and internal_network_list | length > 0 }}"

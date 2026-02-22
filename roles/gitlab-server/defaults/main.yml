@@ -130,7 +130,7 @@ gitlab_backup_mount_point: "/mnt"
 # デイリーバックアップ時のNFSマウントポイント配下のバックアップ配置先ディレクトリ
 gitlab_backup_dir_on_nfs: "/gitlab-backups"
 # デイリーバックアップ時のNFSマウントポイント配下のバックアップ先ディレクトリパス
-gitlab_backup_output_dir: "{{gitlab_backup_mount_point}}{{ gitlab_backup_dir_on_nfs }}"
+gitlab_backup_output_dir: "{{ gitlab_backup_mount_point }}{{ gitlab_backup_dir_on_nfs }}"
 # -----------------------------------------------------------
 # GitLab Runner関連ディレクトリ
 # -----------------------------------------------------------

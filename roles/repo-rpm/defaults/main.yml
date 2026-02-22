@@ -38,21 +38,21 @@ priority_chrome: 85
 priority_docker_ce: 70
 
 # Alma/Rocky ミラー
-almalinux_mirror_baseos: "https://mirrors.almalinux.org/mirrorlist/{{ansible_distribution_major_version}}/baseos"
-almalinux_mirror_appstream: "https://mirrors.almalinux.org/mirrorlist/{{ansible_distribution_major_version}}/appstream"
-almalinux_mirror_crb: "https://mirrors.almalinux.org/mirrorlist/{{ansible_distribution_major_version}}/crb"
+almalinux_mirror_baseos: "https://mirrors.almalinux.org/mirrorlist/{{ ansible_distribution_major_version }}/baseos"
+almalinux_mirror_appstream: "https://mirrors.almalinux.org/mirrorlist/{{ ansible_distribution_major_version }}/appstream"
+almalinux_mirror_crb: "https://mirrors.almalinux.org/mirrorlist/{{ ansible_distribution_major_version }}/crb"
 almalinux_gpgkey_file: "/etc/pki/rpm-gpg/RPM-GPG-KEY-AlmaLinux-9"
 
 # EPEL
-epel_gpgkey_url: "https://dl.fedoraproject.org/pub/epel/RPM-GPG-KEY-EPEL-{{ansible_distribution_major_version}}"
-epel_gpgkey_file: "/etc/pki/rpm-gpg/RPM-GPG-KEY-EPEL-{{ansible_distribution_major_version}}"
-epel_mirrorlist: "https://mirrors.fedoraproject.org/metalink?repo=epel-{{ansible_distribution_major_version}}&arch=$basearch"
+epel_gpgkey_url: "https://dl.fedoraproject.org/pub/epel/RPM-GPG-KEY-EPEL-{{ ansible_distribution_major_version }}"
+epel_gpgkey_file: "/etc/pki/rpm-gpg/RPM-GPG-KEY-EPEL-{{ ansible_distribution_major_version }}"
+epel_mirrorlist: "https://mirrors.fedoraproject.org/metalink?repo=epel-{{ ansible_distribution_major_version }}&arch=$basearch"
 
 # Kubernetes (pkgs.k8s.io)
 k8s_major_minor: "1.31"
 k8s_repo_name: "kubernetes"
-k8s_baseurl: "https://pkgs.k8s.io/core:/stable:/v{{k8s_major_minor}}/rpm/"
-k8s_gpgkey_url: "https://pkgs.k8s.io/core:/stable:/v{{k8s_major_minor}}/rpm/repodata/repomd.xml.key"
+k8s_baseurl: "https://pkgs.k8s.io/core:/stable:/v{{ k8s_major_minor }}/rpm/"
+k8s_gpgkey_url: "https://pkgs.k8s.io/core:/stable:/v{{ k8s_major_minor }}/rpm/repodata/repomd.xml.key"
 k8s_gpgkey_file: "/etc/pki/rpm-gpg/RPM-GPG-KEY-kubernetes"
 
 # Chrome

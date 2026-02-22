@@ -44,6 +44,7 @@
       when:
         - ansible_facts.os_family == "Debian"
       become: true
+      changed_when: false
 
     # iptables設定を永続化 (RedHat/CentOS)
     - name: Save iptables rules to iptables-persistent (RedHat/CentOS)
@@ -54,6 +55,7 @@
       when:
         - ansible_facts.os_family == "RedHat"
       become: true
+      changed_when: false
 
     # ip6tables設定を永続化 (RedHat/CentOS)
     - name: Save ip6tables rules to iptables-persistent (RedHat/CentOS)
@@ -64,3 +66,4 @@
       when:
         - ansible_facts.os_family == "RedHat"
       become: true
+      changed_when: false

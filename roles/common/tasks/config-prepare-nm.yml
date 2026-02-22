@@ -73,7 +73,7 @@
     enabled: false
   when:
     - ansible_facts.os_family == "RedHat"
-  ignore_errors: true
+  failed_when: false
 
 # ディレクトリは root:root 0700 が推奨
 - name: Ensure system-connections directory exists

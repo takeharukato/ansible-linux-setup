@@ -48,16 +48,16 @@
 #
 # GRUB 設定の更新 (Debian 系)
 #
-- ansible.builtin.include_tasks: config-grub-debian.yml
-  name: "Config Grub Debian"
+- name: "Config Grub Debian"
+  ansible.builtin.include_tasks: config-grub-debian.yml
   when:
     - ansible_facts.os_family == 'Debian'
 
 #
 # GRUB 設定の更新 (RHEL 系)
 #
-- ansible.builtin.include_tasks: config-grub-rhel.yml
-  name: "Config Grub Rhel"
+- name: "Config Grub Rhel"
+  ansible.builtin.include_tasks: config-grub-rhel.yml
   when:
     - ansible_facts.os_family == 'RedHat'
 

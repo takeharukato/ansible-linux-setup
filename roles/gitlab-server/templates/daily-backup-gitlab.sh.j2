@@ -10,7 +10,7 @@
 #以下の設定では, 毎日午前3時に`/data/gitlab/backup`にバックアップファイルを生成する。
 #
 #```:crontab
-#0 3 * * * /data/gitlab/scripts/daily-backup-gitlab.sh
+#0 3 * * * sudo {{ gitlab_scripts_dir|default('/srv/gitlab/scripts', true) }}/daily-backup-gitlab.sh
 #```
 #
 

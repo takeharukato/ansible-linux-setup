@@ -42,7 +42,7 @@ enable_firewall: false
 #   - email ユーザのメールアドレス (.gitconfigのuser.emailに使用する)
 #   - github ユーザのGitHubアカウント (公開鍵取得処理で使用する)
 users_list:
-  - { name: 'user1', group: 'user1', password: "{{ 'user1'|password_hash('sha512') }}", update_password: 'on_create', shell: "/bin/zsh", home: "/home/user1", comment: 'Sample User', email: "user1@example.org", github: 'sampleuser' }
+  - { name: 'user1', group: 'user1', password: "{{ 'user1' | password_hash('sha512') }}", update_password: 'on_create', shell: "/bin/zsh", home: "/home/user1", comment: 'Sample User', email: "user1@example.org", github: 'sampleuser' }
 
 #
 # 公開鍵追加設定
@@ -97,16 +97,16 @@ sudo_nopasswd_absent: false
 router_host: 'router'
 router_ipv4_prefix: "192.168.20"
 router_ipv4_addr_octet: "1"
-router_ipv4_address: "{{router_ipv4_prefix}}.{{router_ipv4_addr_octet}}"
+router_ipv4_address: "{{ router_ipv4_prefix }}.{{ router_ipv4_addr_octet }}"
 router_ipv6_prefix: "fd69:6684:61a:1::"
 router_ipv6_addr_field: "1"
-router_ipv6_address: "{{router_ipv6_prefix}}{{router_ipv6_addr_field}}"
+router_ipv6_address: "{{ router_ipv6_prefix }}{{ router_ipv6_addr_field }}"
 
 # 管理サーバ設定
 mgmt_server_ipv4_addr_octet: "11"
 mgmt_server_ipv6_addr_field: "11"
-mgmt_server_ipv4_address: "{{router_ipv4_prefix}}.{{mgmt_server_ipv4_addr_octet}}"
-mgmt_server_ipv6_address: "{{router_ipv6_prefix}}{{mgmt_server_ipv6_addr_field}}"
+mgmt_server_ipv4_address: "{{ router_ipv4_prefix }}.{{ mgmt_server_ipv4_addr_octet }}"
+mgmt_server_ipv6_address: "{{ router_ipv6_prefix }}{{ mgmt_server_ipv6_addr_field }}"
 
 #
 # 物理サーバ/管理用VMネットワークの設定
@@ -116,17 +116,17 @@ network_ipv4_prefix_len: 24
 # 物理サーバ/管理用VMネットワークのIPv6ネットワークプレフィクス長
 network_ipv6_prefix_len: 64
 # 物理サーバ/管理用VMネットワークのIPv4ネットワークのプレフィクスアドレス
-network_ipv4_prefix: "{{router_ipv4_prefix}}"
+network_ipv4_prefix: "{{ router_ipv4_prefix }}"
 # 物理サーバ/管理用VMネットワークのIPv6ネットワークのプレフィクスアドレス
-network_ipv6_prefix: "{{router_ipv6_prefix}}"
+network_ipv6_prefix: "{{ router_ipv6_prefix }}"
 # 物理サーバ/管理用VMネットワークのIPv4ネットワークアドレス
-network_ipv4_network_address: "{{router_ipv4_prefix}}.0"
+network_ipv4_network_address: "{{ router_ipv4_prefix }}.0"
 # 物理サーバ/管理用VMネットワークのIPv6ネットワークアドレス
-network_ipv6_network_address: "{{router_ipv6_prefix}}"
+network_ipv6_network_address: "{{ router_ipv6_prefix }}"
 # 物理サーバ/管理用VMネットワークのIPv4/Gatewayアドレス
-gateway4: "{{router_ipv4_address}}"
+gateway4: "{{ router_ipv4_address }}"
 # 物理サーバ/管理用VMネットワークのIPv6/Gatewayアドレス
-gateway6: "{{router_ipv6_address}}"
+gateway6: "{{ router_ipv6_address }}"
 
 #
 # 仮想環境内部管理ネットワーク設定
@@ -166,8 +166,8 @@ gpm_mgmt_ipv6_network_gateway: "{{ gpm_mgmt_router_ipv6_address }}"
 #
 internal_network_list:
   # 仮想環境内部管理ネットワーク
-  - ipv4: "{{gpm_mgmt_ipv4_network_cidr}}"
-    ipv6: "{{gpm_mgmt_ipv6_network_cidr}}"
+  - ipv4: "{{ gpm_mgmt_ipv4_network_cidr }}"
+    ipv6: "{{ gpm_mgmt_ipv6_network_cidr }}"
 
 
 # クライアントのDNSサーバの設定
@@ -181,11 +181,11 @@ internal_network_list:
 # 外部のDNSサーバへの問い合わせは, DNSサーバ内でフォワーダとして設定する。
 #
 # DNSサーバのIPv4アドレス
-ipv4_name_server1: "{{mgmt_server_ipv4_address}}"
+ipv4_name_server1: "{{ mgmt_server_ipv4_address }}"
 # DNSサーバのIPv4アドレス(代替)
-ipv4_name_server2: "{{router_ipv4_address}}"
+ipv4_name_server2: "{{ router_ipv4_address }}"
 # DNSサーバのIPv6アドレス
-ipv6_name_server1: "{{mgmt_server_ipv6_address}}"
+ipv6_name_server1: "{{ mgmt_server_ipv6_address }}"
 # DNSサーバのIPv6アドレス(代替)
 # CloudflareのパブリックDNSリゾルバ
 ipv6_name_server2: "2606:4700:4700::1111"
@@ -198,8 +198,8 @@ dns_search: "example.org"
 # IPv6 AAAAレコード対応は未
 #
 dns_host_list:
-  - { name: "{{ router_host }}",  ipv4_addr: '{{router_ipv4_addr_octet}}'}
-  - { name: 'mgmt-server', ipv4_addr: '{{mgmt_server_ipv4_addr_octet}}'}
+  - { name: "{{ router_host }}", ipv4_addr: '{{ router_ipv4_addr_octet }}'}
+  - { name: 'mgmt-server', ipv4_addr: '{{ mgmt_server_ipv4_addr_octet }}'}
   - { name: 'nas', ipv4_addr: '31'}
 
 # mDNS導入有無 (multicast DNS, Avahi)
@@ -222,7 +222,7 @@ mdns_host_list:
 #
 
 ntp_servers_list:
-  - "{{mgmt_server_ipv4_address}}"
+  - "{{ mgmt_server_ipv4_address }}"
 
 #
 # DNSサーバの設定
@@ -230,9 +230,9 @@ ntp_servers_list:
 # DNSサーバ名
 dns_server: "mgmt-server.example.org"
 # DNSサーバのIPv4アドレス
-dns_server_ipv4_address: "{{mgmt_server_ipv4_address}}"
+dns_server_ipv4_address: "{{ mgmt_server_ipv4_address }}"
 # DNSサーバのIPv6アドレス (未使用)
-dns_server_ipv6_address: "{{mgmt_server_ipv6_address}}"
+dns_server_ipv6_address: "{{ mgmt_server_ipv6_address }}"
 # ドメイン名
 dns_domain: "example.org"
 # namedのACLに設定するIPv4ネットワークアドレス
@@ -278,7 +278,7 @@ nfs_network: "{{ network_ipv4_network_address }}/{{ network_ipv4_prefix_len }}"
 nfs_options: "rw,no_root_squash,sync,no_subtree_check,no_wdelay"
 
 #
-#NTPサーバ
+# NTPサーバ
 #
 external_ntp_servers_list:
   - ntp.nict.jp
@@ -289,7 +289,7 @@ external_ntp_servers_list:
 ntp_allow: "{{ network_ipv4_network_address }}/{{ network_ipv4_prefix_len }}"
 
 #
-#プロキシ設定
+# プロキシ設定
 #
 no_proxy: ""
 proxy_server: ""
@@ -320,7 +320,7 @@ docker_ce_users:
 # コンテナイメージのバックアップ設定
 #
 # NFSマウントは以下のように行われる。
-#   mount -t nfs {{docker_ce_backup_nfs_server}}:{{docker_ce_backup_nfs_dir}} {{ docker_ce_backup_mount_point }}
+#   mount -t nfs {{ docker_ce_backup_nfs_server }}:{{ docker_ce_backup_nfs_dir }} {{ docker_ce_backup_mount_point }}
 #  例:
 #   docker_ce_backup_nfs_server: "nas.example.org"
 #   docker_ce_backup_nfs_dir: "/share"
@@ -351,7 +351,7 @@ docker_ce_backup_dir_on_nfs: "/Linux/containers"
 # ホームディレクトリのバックアップ
 #
 # NFSマウントは以下のように行われる。
-#   mount -t nfs {{user_settings_backup_home_nfs_server}}:{{user_settings_backup_home_nfs_dir}} {{ user_settings_backup_home_mount_point }}
+#   mount -t nfs {{ user_settings_backup_home_nfs_server }}:{{ user_settings_backup_home_nfs_dir }} {{ user_settings_backup_home_mount_point }}
 #  例:
 #   user_settings_backup_home_nfs_server: "nas.example.org"
 #   user_settings_backup_home_nfs_dir: "/share"
@@ -400,7 +400,7 @@ ldap_admin_port: 10443
 #
 # デイリーバックアップ関連設定
 # NFSマウントは以下のように行われる。
-#   mount -t nfs {{redmine_backup_nfs_server}}:{{redmine_backup_nfs_dir}} {{ redmine_backup_mount_point }}
+#   mount -t nfs {{ redmine_backup_nfs_server }}:{{ redmine_backup_nfs_dir }} {{ redmine_backup_mount_point }}
 #  例:
 #   redmine_backup_nfs_server: "nas.example.org"
 #   redmine_backup_nfs_dir: "/share"
@@ -439,7 +439,7 @@ redmine_backup_dir_on_nfs: "/Linux/Redmine"
 #
 # デイリーバックアップ関連設定
 # NFSマウントは以下のように行われる。
-#   mount -t nfs {{gitlab_backup_nfs_server}}:{{gitlab_backup_nfs_dir}} {{ gitlab_backup_mount_point }}
+#   mount -t nfs {{ gitlab_backup_nfs_server }}:{{ gitlab_backup_nfs_dir }} {{ gitlab_backup_mount_point }}
 #  例:
 #   gitlab_backup_nfs_server: "nas.example.org"
 #   gitlab_backup_nfs_dir: "/share"

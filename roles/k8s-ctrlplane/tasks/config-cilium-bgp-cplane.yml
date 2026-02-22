@@ -16,7 +16,11 @@
     sleep: "{{ k8s_api_wait_sleep }}"
   delegate_to: "{{ k8s_api_wait_delegate_to }}"
 
-- block:
+- name: Setup Cilium BGP variables
+  when:
+    - k8s_bgp is defined
+    - k8s_bgp.enabled | default(false, true)
+  block:
     - name: Compute Cilium BGP node identity
       ansible.builtin.set_fact:
         cilium_bgp_node_name: "{{ k8s_bgp.node_name | default(ansible_hostname, true) }}"
@@ -105,6 +109,3 @@
       delegate_to: "{{ cilium_bgp_delegate_host }}"
       register: cilium_bgp_apply_result
       changed_when: "'configured' in cilium_bgp_apply_result.stdout or 'created' in cilium_bgp_apply_result.stdout"
-  when:
-    - k8s_bgp is defined
-    - k8s_bgp.enabled | default(false, true)

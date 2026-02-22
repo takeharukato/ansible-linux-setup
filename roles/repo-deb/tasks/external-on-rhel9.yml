@@ -100,12 +100,12 @@
     content: |
       Package: *
       Pin: origin "download.docker.com"
-      Pin-Priority: {{ pin_external|int }}
+      Pin-Priority: {{ pin_external | int }}
 
       Package: *
       Pin: origin "pkgs.k8s.io"
-      Pin-Priority: {{ pin_external|int }}
+      Pin-Priority: {{ pin_external | int }}
 
       Package: *
       Pin: origin "dl.google.com"
-      Pin-Priority: {{ pin_external|int }}
+      Pin-Priority: {{ pin_external | int }}

@@ -13,7 +13,7 @@
     loop_var: outer_item
   when:
     - ( users_list | default([], true) | length ) > 0
-    - create_emacs_package_install_script|default(false) == true
+    - create_emacs_package_install_script | default(false) | bool
     - ( create_user_emacs_package_list | default([], true) | length ) > 0
 
 #  Emacs設定ファイル（オプション）の配布タスク

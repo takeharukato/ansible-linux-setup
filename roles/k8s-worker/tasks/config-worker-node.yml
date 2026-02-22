@@ -17,7 +17,7 @@
     executable: /bin/bash
   register: k8s_worker_first_cpu_id
   ignore_errors: true
-  changed_when: False
+  changed_when: false
 
 - name: Calculate last app cpu
   ansible.builtin.shell: |
@@ -27,13 +27,13 @@
     executable: /bin/bash
   register: k8s_worker_last_cpu_id
   ignore_errors: true
-  changed_when: False
+  changed_when: false
 
 - name: Create app cpu range
   ansible.builtin.shell: |
     echo "{{ k8s_worker_first_cpu_id.stdout }}-{{ k8s_worker_last_cpu_id.stdout }}"
   register: k8s_worker_app_cpu_range
-  changed_when: False
+  changed_when: false
   when:
     - k8s_worker_first_cpu_id.rc == 0
     - k8s_worker_last_cpu_id.rc == 0
@@ -108,7 +108,10 @@
 # システムスレッド/割り込みを寄せるためのカーネルコマンドラインの設定
 #
 
-- block:
+- name: Configure kernel boot parameters
+  when:
+    - k8s_worker_app_cpu_range.rc == 0
+  block:
     - name: Check if nohz_full is configured in the boot command
       ansible.builtin.lineinfile:
         backup: true
@@ -308,15 +311,15 @@
     #
     # GRUB 設定の更新 (Debian 系)
     #
-    - ansible.builtin.include_tasks: config-grub-debian.yml
-      name: "Config Grub Debian"
+    - name: "Config Grub Debian"
+      ansible.builtin.include_tasks: config-grub-debian.yml
       when:
         - ansible_facts.os_family == 'Debian'
     #
     # GRUB 設定の更新 (RHEL 系)
     #
-    - ansible.builtin.include_tasks: config-grub-rhel.yml
-      name: "Config Grub Rhel"
+    - name: "Config Grub Rhel"
+      ansible.builtin.include_tasks: config-grub-rhel.yml
       when:
         - ansible_facts.os_family == 'RedHat'
     #
@@ -329,6 +332,3 @@
         reboot_timeout: "{{ reboot_timeout_sec }}"
         msg: "Reboot triggered by role: k8s-worker"
         pre_reboot_delay: 2
-
-  when:
-    - k8s_worker_app_cpu_range.rc == 0

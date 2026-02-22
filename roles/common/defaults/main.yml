@@ -51,7 +51,7 @@ common_selinux_state: "permissive"
 common_disable_cron_mails: false
 
 # 環境ファイルの格納ディレクトリ ( OSで切替 )
-common_envdir: "{{ etc_default_dir | default( (ansible_facts.os_family | default('RedHat')) == 'Debian' | ternary('/etc/default', '/etc/sysconfig') ) }}"
+common_envdir: "{{ etc_default_dir | default((ansible_facts.os_family | default('RedHat')) == 'Debian' | ternary('/etc/default', '/etc/sysconfig')) }}"
 
 # DNSサーバに登録しないIF名の正規表現
 common_iface_deny_regex: "^(docker|br-|veth|virbr|vboxnet|vmnet|vnet|tun|tap|wg|tailscale|zt|lo)"
@@ -121,8 +121,8 @@ ipv6_name_server2: ""
 
 # DHCP 由来の DNS を無視するかどうかを, フォールバック DNS の有無から自動判定する。
 # 少なくとも一つの DNS が与えられていれば true とする。
-_mgmt_ignore_auto_ipv4_dns: "{{ ( (ipv4_name_server1 | default('', true) | length) > 0 or (ipv4_name_server2 | default('', true) | length) > 0 ) | bool }}"
-_mgmt_ignore_auto_ipv6_dns: "{{ ( (ipv6_name_server1 | default('', true) | length) > 0 or (ipv6_name_server2 | default('', true) | length) > 0 ) | bool }}"
+_mgmt_ignore_auto_ipv4_dns: "{{ ((ipv4_name_server1 | default('', true) | length) > 0 or (ipv4_name_server2 | default('', true) | length) > 0) | bool }}"
+_mgmt_ignore_auto_ipv6_dns: "{{ ((ipv6_name_server1 | default('', true) | length) > 0 or (ipv6_name_server2 | default('', true) | length) > 0) | bool }}"
 
 # 各種スクリプトで参照するデフォルトNIC
 _common_network_iface: "{{ mgmt_nic | default(common_default_nic, true) }}"
@@ -138,7 +138,7 @@ _common_network_iface: "{{ mgmt_nic | default(common_default_nic, true) }}"
 # ddns-client-update の名前
 ddns_client_update_base: "ddns-client-update"
 # ddns-client-update.shのベース名
-ddns_client_update_sh_basename: "{{ddns_client_update_base}}.sh"
+ddns_client_update_sh_basename: "{{ ddns_client_update_base }}.sh"
 # ddns-client-update.shの配置先ディレクトリ
 ddns_client_update_sh_dest_dir: "/usr/local/sbin"
 # ddns-client-update.sh のパス

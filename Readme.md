@@ -31,6 +31,7 @@
         - [Cilium CNI](#cilium-cni)
         - [Cilium BGP Control Planeの設定](#cilium-bgp-control-planeの設定)
         - [`k8s_bgp`変数の`address_families`の要素を辞書として指定する場合の指定方法](#k8s_bgp変数のaddress_familiesの要素を辞書として指定する場合の指定方法)
+        - [Kubernetes ワーカーノード上でFRRによるルート交換を行う場合の設定](#kubernetes-ワーカーノード上でfrrによるルート交換を行う場合の設定)
         - [Multus メタCNI](#multus-メタcni)
         - [Whereabouts CNI](#whereabouts-cni)
         - [Hubble UI](#hubble-ui)
@@ -297,7 +298,7 @@ ntp_servers_list:
 |---|---|---|
 |dns_server|DNSサーバのドメイン名|"devserver.example.org"|
 |dns_server_ipv4_address|DNSサーバのIPv4アドレス|"{{devserver_ipv4_address}}"|
-|dns_server_ipv6_address|DNSサーバのIPv6アドレス|"{{devserver_ipv6_address}}"|
+|dns_server_ipv6_address|DNSサーバのIPv6アドレス(将来対応)|"{{devserver_ipv6_address}}"|
 |dns_domain|DNSドメイン名(末尾のドットを除いて指定)|"example.org"|
 |dns_network_ipv4_prefix|IPv4ネットワークプレフィクス(末尾のドットを除いて指定)|"{{ network_ipv4_prefix }}"|
 |dns_network|DNSサーバにアクセス可能なホストのIPv4ネットワークアドレス|"{{ network_ipv4_network_address }}"|
@@ -734,38 +735,89 @@ Cluster Mesh 用 Secret (`k8s_cilium_clustermesh_secret_enabled: true`) は共�
 
 ##### Cilium BGP Control Planeの設定
 
-Cilium に組み込まれた BGP デーモン ( Cilium-BGP Control Plane Custom Resource Definition (CRD) )を使い, Kubernetes ノードが外部ルータ (FRRouting など)と BGP セッションを張り, Cilium が管理するルーティング情報を外部に直接広告する機能であるCilium BGP Control Plane機能の設定を行います。
+本節では, Cilium に組み込まれた BGP デーモン ( Cilium-BGP Control Plane Custom Resource Definition (CRD) )を使い, Kubernetes ノードが外部ルータ (FRRouting など)と BGP セッションを張り, Cilium が管理するルーティング情報を外部に直接広告する機能であるCilium BGP Control Plane機能の設定について述べる。
 
-Cilium BGP Control Planeの設定は, `host_vars`配下のK8sクラスタを構成するコントロールプレイン, ワーカーノードの各設定ファイルに`k8s_bgp`変数を定義することで行います。
-`k8s_bgp`変数は, Cilium BGP Control Plane の動作を制御するマッピング(辞書)です。`k8s_bgp`変数のキーと設定値の型,設定値の説明, 設定値の例は, 以下の通りです:
+Cilium BGP Control Planeの設定は, `host_vars`配下のK8sクラスタを構成するコントロールプレイン, ワーカーノードの各設定ファイルに`k8s_bgp`変数を定義することで行う。
+`k8s_bgp`変数は, Cilium BGP Control Plane の動作を制御するマッピング(辞書)を定義する。`k8s_bgp`変数のキーと設定値の型,設定値の説明, 設定値の例は, 以下の通り:
 
 | キー | 型 | 説明 | 設定例 |
 | --- | --- | --- | --- |
-| `enabled` | bool | BGP Control Plane を有効化します。 | `true` |
-| `node_name` | string | CiliumNode Custom Resource (各ノードにおける Cilium の動作設定) に登録するノード名。実機の `k8s_node_name` (kubectl get nodes で確認できる NAME 列の文字列) を指定します。 | `"k8sctrlplane01"` |
-| `local_asn` | int | 当該ノードが用いるローカル自律システム番号 (`Autonomous System Number` 以下, `ASN`)。 | `65011` |
-| `kubeconfig` | string (ファイルパス文字列) | Cilium が Kubernetes API に接続するための `kubeconfig` ファイルのパス名を指定します。 | `"/etc/kubernetes/admin.conf"` |
-| `export_pod_cidr` | bool | Pod CIDR (当該ノードが所属する K8s クラスタ内の Pod 仮想ネットワークのアドレス帯) を BGP で広告します。 | `true` |
-| `advertise_services` | bool | Service CIDR (当該ノードが所属する K8s クラスタ内のサービスネットワーク上の仮想 IP アドレス帯) を BGP で広告します。 | `false` |
-| `address_families` | list[string / dict] | 各 BGP ピアに共通で適用するアドレスファミリ設定のリストです。リストの要素が文字列の場合は `ipv4` / `ipv6` などの BGPが扱うアドレス体系識別子(`Address Family Identifier` (`AFI`) )を指定します。リストの要素を文字列として指定した場合は, 後続アドレスファミリ識別子(`Subsequent Address Family Identifier` (`SAFI`))に`unicast`を指定したものとして扱い, 既定の広告ラベルを紐づけます。リストの要素を辞書として指定する場合の指定方法は, 「`k8s_bgp`変数の`address_families`の要素を辞書として指定する場合の指定方法」を参照してください。 | `["ipv4", {"afi": "ipv6", "safi": "unicast"}]` |
-| `neighbors` | list[dict] | 接続先 BGP ピアのリスト。各要素は下記のサブキーを持つ辞書です。 | `[...]` |
-| `neighbors[].peer_address` | string (CIDR文字列) | BGP ピアのアドレス (CIDR 形式)。 `/32` や `/128` で単一ホストを指定します。 | `"192.168.30.49/32"` |
-| `neighbors[].peer_asn` | int | 対向 BGP ピアの ASN。 | `65011` |
-| `neighbors[].peer_port` | int | BGP ピアと接続するポート番号。通常は `179` を指定します。 | `179` |
-| `neighbors[].hold_time_seconds` | int | BGP Hold Timer。ピアからの Keepalive (ピア間で TCP セッションの有効性確認を行う処理) を待つ最大秒数です。 | `90` |
-| `neighbors[].connect_retry_seconds` | int | ピアへの接続失敗時の再接続までの待ち時間を秒単位で指定します。 | `15` |
+| `enabled` | bool | BGP Control Plane を有効化する | `true` |
+| `node_name` | string | CiliumNode Custom Resource (各ノードにおける Cilium の動作設定) に登録するノード名。実機の `k8s_node_name` (kubectl get nodes で確認できる NAME 列の文字列) を指定する | `"k8sctrlplane01"` |
+| `local_asn` | int | 当該ノードが用いるローカル自律システム番号 (`Autonomous System Number` 以下, `ASN`) | `65011` |
+| `kubeconfig` | string (ファイルパス文字列) | Cilium が Kubernetes API に接続するための `kubeconfig` ファイルのパス名を指定する | `"/etc/kubernetes/admin.conf"` |
+| `export_pod_cidr` | bool | Pod CIDR (当該ノードが所属する K8s クラスタ内の Pod 仮想ネットワークのアドレス帯) を BGP で広告する | `true` |
+| `advertise_services` | bool | Service CIDR (当該ノードが所属する K8s クラスタ内のサービスネットワーク上の仮想 IP アドレス帯) を BGP で広告する | `false` |
+| `address_families` | list[string / dict] | 各 BGP ピアに共通で適用するアドレスファミリ設定のリスト。リストの要素が文字列の場合は `ipv4` / `ipv6` などの BGPが扱うアドレス体系識別子(`Address Family Identifier` (`AFI`) )を指定する。リストの要素を文字列として指定した場合は, 後続アドレスファミリ識別子(`Subsequent Address Family Identifier` (`SAFI`))に`unicast`を指定したものとして扱い, 既定の広告ラベルを紐づける。リストの要素を辞書として指定する場合の指定方法は, 「`k8s_bgp`変数の`address_families`の要素を辞書として指定する場合の指定方法」を参照のこと | `["ipv4", {"afi": "ipv6", "safi": "unicast"}]` |
+| `neighbors` | list[dict] | 接続先 BGP ピアのリスト。各要素は下記のサブキーを持つ辞書である | `[...]` |
+| `neighbors[].peer_address` | string (CIDR文字列) | BGP ピアのアドレス (CIDR 形式)。 `/32` や `/128` で単一ホストを指定する | `"192.168.30.49/32"` |
+| `neighbors[].peer_asn` | int | 対向 BGP ピアの ASN | `65011` |
+| `neighbors[].peer_port` | int | BGP ピアと接続するポート番号。通常は `179` を指定する | `179` |
+| `neighbors[].hold_time_seconds` | int | BGP Hold Timer。ピアからの Keepalive (ピア間で TCP セッションの有効性確認を行う処理) を待つ最大秒数である | `90` |
+| `neighbors[].connect_retry_seconds` | int | ピアへの接続失敗時の再接続までの待ち時間を秒単位で指定する | `15` |
 
 ##### `k8s_bgp`変数の`address_families`の要素を辞書として指定する場合の指定方法
 
-`k8s_bgp`変数の`address_families`の要素を辞書として指定する場合, 以下のキーと設定値からなる辞書として設定値を記述してください。
+`k8s_bgp`変数の`address_families`の要素を辞書として指定する場合, 以下
+キーと設定値からなる辞書として設定値を記述する:
 
 | キー | 型 | 説明 |
 | --- | --- | --- |
-| `afi` | string | アドレス体系識別子を指定します。省略時は `ipv4` を使用します。 |
-| `safi` | string | 後続アドレスファミリ識別子を指定します。省略時は `unicast` を使用します。 |
-| `attributes` | dict | BGP 属性を指定します。辞書の内容は `attributes` セクションとしてそのまま出力されます。 |
-| `advertisements` | dict | 当該 AFI/SAFI に適用する広告設定を指定します。CiliumBGPPeerConfig の `families[].advertisements` にそのまま展開されるため, `matchLabels` や `matchExpressions` などのラベルセレクタを含む辞書を記述します (例: `{ "matchLabels": { "bgp.cilium.io/advertisement-group": "custom" } }`)。 |
-| `disable_default_advertisements` | bool | 既定の広告ラベルを無効化します。`true` を指定すると既定ラベルを付与しません。 |
+| `afi` | string | アドレス体系識別子を指定する。省略時は `ipv4` を使用する |
+| `safi` | string | 後続アドレスファミリ識別子を指定する。省略時は `unicast` を使用する |
+| `attributes` | dict | BGP 属性を指定する。辞書の内容は `attributes` セクションとしてそのまま出力される |
+| `advertisements` | dict | 当該 AFI/SAFI に適用する広告設定を指定する。CiliumBGPPeerConfig の `families[].advertisements` にそのまま展開されるため, `matchLabels` や `matchExpressions` などのラベルセレクタを含む辞書を記述する (例: `{ "matchLabels": { "bgp.cilium.io/advertisement-group": "custom" } }`) |
+| `disable_default_advertisements` | bool | 既定の広告ラベルを無効化する。`true` を指定すると既定ラベルを付与しない |
+
+##### Kubernetes ワーカーノード上でFRRによるルート交換を行う場合の設定
+
+本節では, Kubernetes ワーカーノード上に FRR (Free Range Routing) を導入し, データセンター (以下DCと略す) 代表 FRR への iBGP (Internal Border Gateway Protocol) 広告により Pod/Service ネットワークをデータセンター間で共有するロール (`k8s-worker-frr`) の設定について述べる。
+
+本機能は Cilium native routing モードを前提とし, Cilium BGP Control Plane を使用しない場合の代替ルーティング機能を実現する。
+
+本ロールは, `k8s_bgp.enabled` (Cilium BGP Control Plane の有効化フラグ) が `false` で, かつ, `k8s_worker_frr.enabled` が `true` の場合のみ動作する。
+
+`k8s_worker_frr` 変数は辞書形式で定義し, 以下のキーで動作を制御する:
+
+|変数名|意味|設定値の例|
+|---|---|---|
+|k8s_worker_frr.enabled|FRR 有効化フラグ。`true` かつ `k8s_bgp.enabled` が `false` の場合のみロールが実行される。既定値は `false`|`true`|
+|k8s_worker_frr.local_asn|BGP AS (Autonomous System) 番号。iBGP 構成のため DC 代表 FRR と同一 AS を使用する|`65011`|
+|k8s_worker_frr.router_id|BGP Router ID (IPv4 形式)。ワーカーノードの管理ネットワーク側 IPv4 アドレスを指定する|`"192.168.40.42"`|
+|k8s_worker_frr.dc_frr_addresses|DC 代表 FRR ノードの IPv4 リスニングアドレス。キーは FRR ノードのホスト名, 値は iBGP リスニングアドレス (IPv4)|`{"frr01.local": "192.168.40.49"}`|
+|k8s_worker_frr.dc_frr_addresses_v6|DC 代表 FRR ノードの IPv6 リスニングアドレス。キーは FRR ノードのホスト名, 値は iBGP リスニングアドレス (IPv6)|`{"frr01.local": "fd69:6684:61a:2::49"}`|
+|k8s_worker_frr.cluster_name|クラスタ名。`k8s_cilium_cm_cluster_name` と一致させ, `clusters` 辞書からクラスタ固有の Pod/Service CIDR を取得する|`"cluster1"`|
+|k8s_worker_frr.advertise_host_route_ipv4|ワーカーノード自身への到達性確保用 IPv4 ホストルート|`"192.168.40.42/32"`|
+|k8s_worker_frr.advertise_host_route_ipv6|ワーカーノード自身への到達性確保用 IPv6 ホストルート|`"fd69:6684:61a:2::42/128"`|
+|k8s_worker_frr.rfc5549_enabled|RFC 5549 サポート (IPv6 トランスポートで IPv4 Network Layer Reachability Information (NLRI) を運ぶ)。`true` の場合, `dc_frr_addresses_v6` で定義された IPv6 ネイバーも IPv4 address-family で activate し, `capability extended-nexthop` を有効化する。既定値は `false`|`true`|
+|k8s_worker_frr.ipv4_transport_ipv6_nlri_enabled|IPv4 トランスポートで IPv6 NLRI を運ぶ設定。`true` の場合, `dc_frr_addresses` で定義された IPv4 ネイバーも IPv6 address-family で activate し, `capability extended-nexthop` を有効化する。`rfc5549_enabled` との同時有効化は想定していない ( 排他的 ) 。既定値は `false`|`true`|
+|k8s_worker_frr.route_advertisement_method|経路広告方法の選択。`"static"`: 静的経路定義 + `redistribute static` で BGP に再配送 (カーネルに経路が存在しなくても広告可能)。`"network"`: `network` コマンドで直接広告 (Cilium がカーネルに経路を作成することを前提)。既定値は `"static"`|`"static"`|
+|k8s_worker_frr.static_route_interface|静的経路の出力インターフェース。`route_advertisement_method="static"` の場合のみ使用。未設定の場合は `mgmt_nic` 変数を使用 (VMware 環境: `ens160`, Xen環境: `enX0`, その他: `eth0`)|`"ens160"`|
+|k8s_worker_frr.prefix_filter.ipv4.pod_min_length|IPv4 Pod ネットワークの最小プレフィックス長。既定値は `24`|`24`|
+|k8s_worker_frr.prefix_filter.ipv4.pod_max_length|IPv4 Pod ネットワークの最大プレフィックス長。既定値は `28`|`28`|
+|k8s_worker_frr.prefix_filter.ipv4.service_min_length|IPv4 Service ネットワークの最小プレフィックス長。既定値は `16`|`16`|
+|k8s_worker_frr.prefix_filter.ipv4.service_max_length|IPv4 Service ネットワークの最大プレフィックス長。既定値は `24`|`24`|
+|k8s_worker_frr.prefix_filter.ipv6.pod_min_length|IPv6 Pod ネットワークの最小プレフィックス長。既定値は `56`|`56`|
+|k8s_worker_frr.prefix_filter.ipv6.pod_max_length|IPv6 Pod ネットワークの最大プレフィックス長。既定値は `64`|`64`|
+|k8s_worker_frr.prefix_filter.ipv6.service_min_length|IPv6 Service ネットワークの最小プレフィックス長。既定値は `112`|`112`|
+|k8s_worker_frr.prefix_filter.ipv6.service_max_length|IPv6 Service ネットワークの最大プレフィックス長。既定値は `120`|`120`|
+|k8s_worker_frr.kernel_route_filter.ipv4|カーネルへインポートする IPv4 prefix-list 名のリスト。未定義の場合は全 BGP ルートをインポートする|`["PL-V4-KERNEL"]`|
+|k8s_worker_frr.kernel_route_filter.ipv6|カーネルへインポートする IPv6 prefix-list 名のリスト。未定義の場合は全 BGP ルートをインポートする|`["PL-V6-KERNEL"]`|
+|k8s_worker_frr.clusters.`<cluster_name>`.pod_cidrs_v4|当該のワーカーノードが所属するK8sクラスタの Pod ネットワーク CIDR (IPv4) のリスト|`["10.244.0.0/16"]`|
+|k8s_worker_frr.clusters.`<cluster_name>`.service_cidrs_v4|当該のワーカーノードが所属するK8sクラスタの Service ネットワーク CIDR (IPv4) のリスト|`["10.254.0.0/16"]`|
+|k8s_worker_frr.clusters.`<cluster_name>`.pod_cidrs_v6|当該のワーカーノードが所属するK8sクラスタの Pod ネットワーク CIDR (IPv6) のリスト|`["fdb6:6e92:3cfb:0200::/56"]`|
+|k8s_worker_frr.clusters.`<cluster_name>`.service_cidrs_v6|当該のワーカーノードが所属するK8sクラスタの Service ネットワーク CIDR (IPv6) のリスト|`["fdb6:6e92:3cfb:feed::/112"]`|
+|frr_vtysh_users|vtysh を sudo なしで実行可能とするユーザのリスト|`["kube"]`|
+
+本機能を用いた場合, ワーカーノードから DC 代表 FRR への iBGP セッションを確立し, 以下の経路を広告する:
+
+- ワーカーノード自身への到達性確保用 `/32` (IPv4) または `/128` (IPv6) ホストルート
+- 当該のワーカーノードが所属するK8sクラスタの Pod ネットワーク CIDR (IPv4/IPv6)
+- 当該のワーカーノードが所属するK8sクラスタの Service ネットワーク CIDR (IPv4/IPv6)
+
+送信する経路は, address-family 別の prefix-list と route-map でフィルタリングされる。また, DC 代表 FRR から学習した BGP ルートをカーネルのルーティングテーブルに反映し, データセンター間の Pod 間通信を実現する。カーネルへのインポートも route-map で制御可能で, デフォルトでは全 BGP ルートを反映する。
+
+設定の詳細や検証方法については, `roles/k8s-worker-frr/Readme.md` を参照。
 
 ##### Multus メタCNI
 

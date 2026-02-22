@@ -13,7 +13,10 @@
 # 設定を更新したらリブート
 #
 
-- block:
+- name: Disable GUI and reboot
+  when:
+    - reboot_required.stat.exists
+  block:
     # GUIを無効化する
     - name: Disable_gui
       ansible.builtin.shell: |
@@ -28,6 +31,3 @@
         reboot_timeout: "{{ reboot_timeout_sec }}"
         msg: "Reboot triggered by role: common"
         pre_reboot_delay: 2
-
-  when:
-    - reboot_required.stat.exists

@@ -47,7 +47,7 @@
   ansible.builtin.set_fact:
     _nm_active_names: "{{ (nm_active.stdout_lines | default([])) | map('regex_replace', '^([^:]+):.*$', '\\1') | list }}"
     _nm_active_devices: "{{ (nm_active.stdout_lines | default([])) | map('regex_replace', '^[^:]*:(.*)$', '\\1') | list }}"
-    _nm_known_devices: "{{ (nm_devices.stdout_lines | default([])) | reject('equalto','') | list }}"
+    _nm_known_devices: "{{ (nm_devices.stdout_lines | default([])) | reject('equalto', '') | list }}"
   changed_when: false
 
 # 各 item.netif がカーネルに存在するかを /sys/class/net で確認
@@ -73,7 +73,7 @@
     - ansible_facts.os_family == "RedHat"
     - sysfs_dev is defined
   ansible.builtin.set_fact:
-    _dev_exists_map: "{{ (_dev_exists_map | default({}, true)) | combine({ item.item.netif: (item.stat.exists | default(false)) }, recursive=true) }}"
+    _dev_exists_map: "{{ (_dev_exists_map | default({}, true)) | combine({item.item.netif: (item.stat.exists | default(false))}, recursive=true) }}"
   loop: "{{ sysfs_dev.results | default([]) }}"
   changed_when: false
 
@@ -124,8 +124,8 @@
     - ansible_facts.os_family == "RedHat"
     - v4_present is defined
   ansible.builtin.set_fact:
-    v4_present_map: "{{ (v4_present_map | default({}, true)) | combine({ (item.item.netif | default('')): ((item.rc | int) == 0) }, recursive=True) }}"
-  loop: "{{ (v4_present.results | default([])) | selectattr('rc','defined') | list }}"
+    v4_present_map: "{{ (v4_present_map | default({}, true)) | combine({(item.item.netif | default('')): ((item.rc | int) == 0)}, recursive=True) }}"
+  loop: "{{ (v4_present.results | default([])) | selectattr('rc', 'defined') | list }}"
   changed_when: false
 
 # 残留がある場合のみフラッシュします。
@@ -176,8 +176,8 @@
     - ansible_facts.os_family == "RedHat"
     - v6_present is defined
   ansible.builtin.set_fact:
-    v6_present_map: "{{ (v6_present_map | default({}, true)) | combine({ (item.item.netif | default('')): ((item.rc | int) == 0) }, recursive=True) }}"
-  loop: "{{ (v6_present.results | default([])) | selectattr('rc','defined') | list }}"
+    v6_present_map: "{{ (v6_present_map | default({}, true)) | combine({(item.item.netif | default('')): ((item.rc | int) == 0)}, recursive=True) }}"
+  loop: "{{ (v6_present.results | default([])) | selectattr('rc', 'defined') | list }}"
   changed_when: false
 
 # 残留がある場合のみフラッシュします。

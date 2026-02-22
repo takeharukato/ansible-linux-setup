@@ -6,7 +6,7 @@
 #
 
 # mgmt_nic 変数の正規化
-- name: "Normalize mgmt_nic from {{common_default_nic}}"
+- name: "Normalize mgmt_nic from {{ common_default_nic }}"
   ansible.builtin.set_fact:
     mgmt_nic: "{{ common_default_nic | default('', true) }}"
   when: mgmt_nic is not defined or (mgmt_nic | default('', true) | length) == 0

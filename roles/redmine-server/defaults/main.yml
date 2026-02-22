@@ -8,11 +8,11 @@
 # Redmineサーバ関連ディレクトリ
 redmine_dir_prefix: "/data/redmine"
 # docker-compose.yml格納先ディレクトリ
-redmine_docker_dir: "{{redmine_dir_prefix}}/docker"
+redmine_docker_dir: "{{ redmine_dir_prefix }}/docker"
 # Redmineサーバ保守用スクリプト格納先ディレクトリ
-redmine_scripts_dir: "{{redmine_dir_prefix}}/scripts"
+redmine_scripts_dir: "{{ redmine_dir_prefix }}/scripts"
 # Redmineサーバデータバックアップ格納先ディレクトリ
-redmine_backup_dir: "{{redmine_dir_prefix}}/backup"
+redmine_backup_dir: "{{ redmine_dir_prefix }}/backup"
 # コンテナ内でのRedmineサーバデータファイル(添付ファイルなど)格納先ディレクトリ
 redmine_files_volume: "redmine_vol_files"
 # コンテナ内でのPostgreSQLデータ格納先ディレクトリ
@@ -20,11 +20,11 @@ redmine_database_volume: "redmine_vol_pgdata"
 # コンテナ内でのRedmineサーバログファイル格納先ディレクトリ
 redmine_files_base_name: "redmine_files"
 # Redmineサーバデータバックアップファイル名
-redmine_files_backup_name: "{{redmine_files_base_name}}.tgz"
+redmine_files_backup_name: "{{ redmine_files_base_name }}.tgz"
 # PostgreSQLデータバックアップファイル名
 redmine_dbdata_backup_name: "redmine.dump"
 # PostgreSQLデータバックアップ圧縮ファイル名
-redmine_dbdata_backup_gzip: "{{redmine_dbdata_backup_name}}.gz"
+redmine_dbdata_backup_gzip: "{{ redmine_dbdata_backup_name }}.gz"
 # Redmineサーバ用Dockerイメージ
 redmine_image: "redmine:5.0.4-bullseye"
 # Redmineサーバサービス名
@@ -69,6 +69,6 @@ redmine_backup_mount_point: "/mnt"
 # デイリーバックアップ時のNFSマウントポイント配下のバックアップ配置先ディレクトリ
 redmine_backup_dir_on_nfs: "/redmine-backup"
 # デイリーバックアップ時のNFSマウントポイント配下のバックアップ配置先ディレクトリ
-redmine_backup_output_dir: "{{redmine_backup_mount_point}}{{ redmine_backup_dir_on_nfs }}"
+redmine_backup_output_dir: "{{ redmine_backup_mount_point }}{{ redmine_backup_dir_on_nfs }}"
 # デイリーバックアップ用NFSサーバホスト名
 redmine_backup_nfs_server: "localhost"

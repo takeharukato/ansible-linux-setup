@@ -42,9 +42,9 @@
     - repo_enable_base or repo_enable_appstream or repo_enable_crb
   ansible.builtin.command: >
     dnf config-manager
-    {{ repo_enable_base      | ternary('--set-enabled baseos',    '') }}
+    {{ repo_enable_base | ternary('--set-enabled baseos', '') }}
     {{ repo_enable_appstream | ternary('--set-enabled appstream', '') }}
-    {{ repo_enable_crb       | ternary('--set-enabled crb',       '') }}
+    {{ repo_enable_crb | ternary('--set-enabled crb', '') }}
   register: _enable_std_repos
   changed_when: "'enabled' in (_enable_std_repos.stdout | default('',true)) or (_enable_std_repos.stderr | default('',true))"
 

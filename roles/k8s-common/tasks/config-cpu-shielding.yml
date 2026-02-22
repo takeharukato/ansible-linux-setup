@@ -17,7 +17,7 @@
     executable: /bin/bash
   register: k8s_worker_first_cpu_id
   ignore_errors: true
-  changed_when: False
+  changed_when: false
 
 - name: Calculate last app cpu
   ansible.builtin.shell: |
@@ -27,18 +27,19 @@
     executable: /bin/bash
   register: k8s_worker_last_cpu_id
   ignore_errors: true
-  changed_when: False
+  changed_when: false
 
 - name: Create app cpu range
   ansible.builtin.shell: |
     echo "{{ k8s_worker_first_cpu_id.stdout }}-{{ k8s_worker_last_cpu_id.stdout }}"
   register: k8s_worker_app_cpu_range
-  changed_when: False
+  changed_when: false
   when:
     - k8s_worker_first_cpu_id.rc == 0
     - k8s_worker_last_cpu_id.rc == 0
 
-- block:
+- name: Configure CPU shielding and kubepods slice
+  block:
     #
     # KubePods 用の Slice 設定
     #

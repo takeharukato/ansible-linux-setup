@@ -6,34 +6,31 @@
 #
 # cronメールを無効にする
 #
-- block:
-    - name: Check if MAILTO= is configured in /etc/crontab
-      ansible.builtin.lineinfile:
-        backup: true
-        path: /etc/crontab
-        regexp: '^[[:space:]]*MAILTO='
-        state: absent
-      check_mode: true
-      register: crontab_check_mailto_line
+- name: Check if MAILTO= is configured in /etc/crontab
+  ansible.builtin.lineinfile:
+    backup: true
+    path: /etc/crontab
+    regexp: '^[[:space:]]*MAILTO='
+    state: absent
+  check_mode: true
+  register: crontab_check_mailto_line
 
-    - name: Replace MAILTO line if present
-      ansible.builtin.lineinfile:
-        path: /etc/crontab
-        backrefs: true
-        regexp: '^[[:space:]]*MAILTO=.*'
-        line: 'MAILTO=""'
-        backup: true
-      when:
-        - crontab_check_mailto_line.found | int > 0
-
-    - name: Insert MAILTO="" if missing
-      ansible.builtin.lineinfile:
-        backrefs: true
-        path: /etc/crontab
-        regexp: "^[[:space:]]*MAILTO=.*"
-        line: 'MAILTO=""'
-        backup: true
-      when:
-        - crontab_check_mailto_line.found | int == 0
+- name: Replace MAILTO line if present
+  ansible.builtin.lineinfile:
+    path: /etc/crontab
+    backrefs: true
+    regexp: '^[[:space:]]*MAILTO=.*'
+    line: 'MAILTO=""'
+    backup: true
   when:
-    - common_disable_cron_mails | default(false)
+    - crontab_check_mailto_line.found | int > 0
+
+- name: Insert MAILTO="" if missing
+  ansible.builtin.lineinfile:
+    backrefs: true
+    path: /etc/crontab
+    regexp: "^[[:space:]]*MAILTO=.*"
+    line: 'MAILTO=""'
+    backup: true
+  when:
+    - crontab_check_mailto_line.found | int == 0
