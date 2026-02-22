@@ -392,7 +392,7 @@ docker_ce_users:
 
 ##### コンテナイメージのバックアップ設定
 
-コンテナイメージをバックアップするスクリプトが`/usr/local/bin/backup-containers`に作成される。
+`build_docker_ce_backup_container_image`変数を`true`に設定することで, コンテナイメージをバックアップするスクリプトが`/usr/local/bin/backup-containers`に作成される(`build_docker_ce_backup_container_image`変数の規定値は, `false`)。
 
 NFSマウントは以下のように行われる。
 
