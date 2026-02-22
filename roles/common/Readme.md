@@ -96,7 +96,7 @@
 | --- | --- | --- |
 | `apt_lock_wait_timeout` | `1800` | apt ロック待機の最大時間 (秒)。 |
 | `apt_lock_check_interval` | `5` | apt ロックファイル確認間隔 (秒)。 |
-| `apt_lock_files` | (リスト) | 監視対象の apt ロックファイルパス。 |
+| `apt_lock_files` | `["/var/lib/dpkg/lock-frontend", "/var/lib/dpkg/lock", "/var/cache/apt/archives/lock", "/var/lib/apt/lists/lock"]` | 監視対象の apt ロックファイルパス。 |
 
 ### ネットワーク設定
 
