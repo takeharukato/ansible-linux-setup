@@ -46,14 +46,14 @@
     apiVersion: rbac.authorization.k8s.io/v1
     kind: ClusterRoleBinding
     metadata:
-      name: Kubernetes-admin
+      name: kubernetes-admin
     roleRef:
       apiGroup: rbac.authorization.k8s.io
       kind: ClusterRole
-      name: Cluster-admin
+      name: cluster-admin
     subjects:
       - kind: User
-        name: Kubernetes-admin
+        name: kubernetes-admin
         apiGroup: rbac.authorization.k8s.io
     EOF
   args:
@@ -92,7 +92,7 @@
 # Cilium用の共通CAシークレットを必要に応じて生成/更新
 - name: Ensure Cilium shared CA secret is up to date
   ansible.builtin.include_role:
-    name: K8s-cilium-shared-ca
+    name: k8s-cilium-shared-ca
   when: k8s_cilium_shared_ca_enabled | default(false)
   tags: k8s-cilium-shared-ca
 

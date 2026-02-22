@@ -23,12 +23,14 @@
   ansible.builtin.include_tasks: config-k8s-shell-completion.yml
 - name: "Config Firewall Common"
   ansible.builtin.include_tasks: config-firewall-common.yml
+  when: enable_firewall | default(false,true)
 - name: "Config Disable Swap"
   ansible.builtin.include_tasks: config-disable-swap.yml
 - name: "Config Kubelet"
   ansible.builtin.include_tasks: config-kubelet.yml
 - name: "Config Cpu Shielding"
   ansible.builtin.include_tasks: config-cpu-shielding.yml
+  when: k8s_reserved_system_cpus_default is defined
 - name: "Config Common Kubeconfig Tools"
   ansible.builtin.include_tasks: config-common-kubeconfig-tools.yml
 - name: "Config"
