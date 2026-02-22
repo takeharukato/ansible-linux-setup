@@ -3,7 +3,7 @@
 #  Copyright 2020 Takeharu KATO All Rights Reserved.
 #  ファイル・ディレクトリ作成関連タスク
 # /usr/local/sbin を作成する
-- name: "create {{ ddns_client_update_sh_dest_dir }}"
+- name: "Create {{ ddns_client_update_sh_dest_dir }}"
   ansible.builtin.file:
     path: "{{ ddns_client_update_sh_dest_dir }}"
     state: directory
@@ -18,5 +18,5 @@
     dest: "/usr/local/sbin/mount-nas.sh"
     owner: root
     group: root
-    mode: 0755
+    mode: '0755'
     backup: true

@@ -5,7 +5,7 @@
 #  sysctl 再読み込みハンドラ
 #
 
-- name: reload sysctl
+- name: Reload sysctl
   listen: "reload_sysctl"
   ansible.builtin.command: sysctl --system
   changed_when: false

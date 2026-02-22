@@ -7,7 +7,7 @@
 
 
 # kubeadm設定ファイル格納ディレクトリを作成
-- name: make kubeadm config file dir
+- name: Make kubeadm config file dir
   ansible.builtin.file:
     path: "{{ k8s_kubeadm_config_store }}"
     state: directory

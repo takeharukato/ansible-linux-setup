@@ -230,7 +230,7 @@
 #  item.0はuser1の情報を含む辞書,
 #  item.1はそれぞれの公開鍵文字列となる。
 - name: Ensure authorized keys are present
-  ansible.builtin.authorized_key:
+  ansible.posix.authorized_key:
     user: "{{ item.0.key }}"
     key: "{{ item.1 }}"
     state: present

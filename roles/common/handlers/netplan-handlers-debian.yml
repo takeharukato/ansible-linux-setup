@@ -4,7 +4,7 @@
 #
 # Debian 系で netplan generate が成功した場合にのみ apply を行います。
 
-- name: netplan generate
+- name: Netplan generate
   listen: "netplan_apply"
   when:
     - ansible_facts.os_family == "Debian"
@@ -13,7 +13,7 @@
   changed_when: false
   failed_when: netplan_generate.rc != 0
 
-- name: netplan apply (only after valid generate)
+- name: Netplan apply (only after valid generate)
   listen: "netplan_apply"
   when:
     - ansible_facts.os_family == "Debian"
@@ -37,7 +37,10 @@
   when:
     - ansible_facts.os_family == "Debian"
   ansible.builtin.shell: |
+    set -o pipefail
     echo "[IPv4 Routes]" && ip -4 route show | grep -E 'metric|default' || true
     echo "[IPv6 Routes]" && ip -6 route show | grep -E 'metric|default' || true
+  args:
+    executable: /bin/bash
   register: route_check
   changed_when: false

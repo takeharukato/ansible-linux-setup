@@ -36,7 +36,7 @@
     dest: "{{ outer_user_home }}/.emacs.d/user_settings/aspell-settings.el"
     owner: "{{ outer_user_name }}"
     group: "{{ outer_user_name }}"
-    mode: 0644
+    mode: '0644'
   when:
     - ( outer_user_name | length ) > 0
 
@@ -50,7 +50,7 @@
     dest: "{{ outer_user_home }}/.emacs.d/user_settings/auctex-mode-settings.el"
     owner: "{{ outer_user_name }}"
     group: "{{ outer_user_name }}"
-    mode: 0644
+    mode: '0644'
   when:
     - ( outer_user_name | length ) > 0
 
@@ -64,7 +64,7 @@
     dest: "{{ outer_user_home }}/.emacs.d/user_settings/bsdc-mode-settings.el"
     owner: "{{ outer_user_name }}"
     group: "{{ outer_user_name }}"
-    mode: 0644
+    mode: '0644'
   when:
     - ( outer_user_name | length ) > 0
 
@@ -78,7 +78,7 @@
     dest: "{{ outer_user_home }}/.emacs.d/user_settings/c-mode-settings.el"
     owner: "{{ outer_user_name }}"
     group: "{{ outer_user_name }}"
-    mode: 0644
+    mode: '0644'
   when:
     - ( outer_user_name | length ) > 0
 
@@ -92,7 +92,7 @@
     dest: "{{ outer_user_home }}/.emacs.d/user_settings/c-sharp-mode-settings.el"
     owner: "{{ outer_user_name }}"
     group: "{{ outer_user_name }}"
-    mode: 0644
+    mode: '0644'
   when:
     - ( outer_user_name | length ) > 0
 
@@ -106,7 +106,7 @@
     dest: "{{ outer_user_home }}/.emacs.d/user_settings/cmake-settings.el"
     owner: "{{ outer_user_name }}"
     group: "{{ outer_user_name }}"
-    mode: 0644
+    mode: '0644'
   when:
     - ( outer_user_name | length ) > 0
 
@@ -120,7 +120,7 @@
     dest: "{{ outer_user_home }}/.emacs.d/user_settings/docker-compose-mode-settings.el"
     owner: "{{ outer_user_name }}"
     group: "{{ outer_user_name }}"
-    mode: 0644
+    mode: '0644'
   when:
     - ( outer_user_name | length ) > 0
 
@@ -134,7 +134,7 @@
     dest: "{{ outer_user_home }}/.emacs.d/user_settings/docker-tramp-mode-settings.el"
     owner: "{{ outer_user_name }}"
     group: "{{ outer_user_name }}"
-    mode: 0644
+    mode: '0644'
   when:
     - ( outer_user_name | length ) > 0
 
@@ -148,7 +148,7 @@
     dest: "{{ outer_user_home }}/.emacs.d/user_settings/dockerfile-mode-settings.el"
     owner: "{{ outer_user_name }}"
     group: "{{ outer_user_name }}"
-    mode: 0644
+    mode: '0644'
   when:
     - ( outer_user_name | length ) > 0
 
@@ -162,7 +162,7 @@
     dest: "{{ outer_user_home }}/.emacs.d/user_settings/gnu-global-settings.el"
     owner: "{{ outer_user_name }}"
     group: "{{ outer_user_name }}"
-    mode: 0644
+    mode: '0644'
   when:
     - ( outer_user_name | length ) > 0
 
@@ -176,7 +176,7 @@
     dest: "{{ outer_user_home }}/.emacs.d/user_settings/gud-settings.el"
     owner: "{{ outer_user_name }}"
     group: "{{ outer_user_name }}"
-    mode: 0644
+    mode: '0644'
   when:
     - ( outer_user_name | length ) > 0
 
@@ -190,7 +190,7 @@
     dest: "{{ outer_user_home }}/.emacs.d/user_settings/hos-c-mode-settings.el"
     owner: "{{ outer_user_name }}"
     group: "{{ outer_user_name }}"
-    mode: 0644
+    mode: '0644'
   when:
     - ( outer_user_name | length ) > 0
 
@@ -204,7 +204,7 @@
     dest: "{{ outer_user_home }}/.emacs.d/user_settings/linux-c-mode-settings.el"
     owner: "{{ outer_user_name }}"
     group: "{{ outer_user_name }}"
-    mode: 0644
+    mode: '0644'
   when:
     - ( outer_user_name | length ) > 0
 
@@ -218,7 +218,7 @@
     dest: "{{ outer_user_home }}/.emacs.d/user_settings/markdown-mode-settings.el"
     owner: "{{ outer_user_name }}"
     group: "{{ outer_user_name }}"
-    mode: 0644
+    mode: '0644'
   when:
     - ( outer_user_name | length ) > 0
 
@@ -232,7 +232,7 @@
     dest: "{{ outer_user_home }}/.emacs.d/user_settings/package-settings.el"
     owner: "{{ outer_user_name }}"
     group: "{{ outer_user_name }}"
-    mode: 0644
+    mode: '0644'
   when:
     - ( outer_user_name | length ) > 0
 
@@ -246,7 +246,7 @@
     dest: "{{ outer_user_home }}/.emacs.d/user_settings/python3-settings.el"
     owner: "{{ outer_user_name }}"
     group: "{{ outer_user_name }}"
-    mode: 0644
+    mode: '0644'
   when:
     - ( outer_user_name | length ) > 0
 
@@ -260,7 +260,7 @@
     dest: "{{ outer_user_home }}/.emacs.d/user_settings/rust-settings.el"
     owner: "{{ outer_user_name }}"
     group: "{{ outer_user_name }}"
-    mode: 0644
+    mode: '0644'
   when:
     - ( outer_user_name | length ) > 0
 
@@ -274,7 +274,7 @@
     dest: "{{ outer_user_home }}/.emacs.d/user_settings/screen-settings.el"
     owner: "{{ outer_user_name }}"
     group: "{{ outer_user_name }}"
-    mode: 0644
+    mode: '0644'
   when:
     - ( outer_user_name | length ) > 0
 
@@ -288,7 +288,7 @@
     dest: "{{ outer_user_home }}/.emacs.d/user_settings/yaml-mode-settings.el"
     owner: "{{ outer_user_name }}"
     group: "{{ outer_user_name }}"
-    mode: 0644
+    mode: '0644'
   when:
     - ( outer_user_name | length ) > 0
 
@@ -302,6 +302,6 @@
     dest: "{{ outer_user_home }}/.emacs.d/user_settings/yatex-mode-setting.el"
     owner: "{{ outer_user_name }}"
     group: "{{ outer_user_name }}"
-    mode: 0644
+    mode: '0644'
   when:
     - ( outer_user_name | length ) > 0

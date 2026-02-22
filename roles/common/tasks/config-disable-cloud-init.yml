@@ -35,26 +35,25 @@
 # /etc/cloud/cloud.cfg.d/99-disable-network-config.cfg を作成して
 # cloud-init のネットワーク設定を無効化
 - block:
+    # /etc/cloud/cloud.cfg.d ディレクトリの存在保証
+    - name: Ensure /etc/cloud/cloud.cfg.d exists
+      ansible.builtin.file:
+        path: /etc/cloud/cloud.cfg.d
+        state: directory
+        owner: root
+        group: root
+        mode: "0755"
 
-  # /etc/cloud/cloud.cfg.d ディレクトリの存在保証
-  - name: Ensure /etc/cloud/cloud.cfg.d exists
-    ansible.builtin.file:
-      path: /etc/cloud/cloud.cfg.d
-      state: directory
-      owner: root
-      group: root
-      mode: "0755"
-
-  # cloud-init のネットワーク設定無効化
-  - name: Disable cloud-init network configuration
-    ansible.builtin.copy:
-      dest: /etc/cloud/cloud.cfg.d/99-disable-network-config.cfg
-      content: |
-        network:
-          config: disabled
-      owner: root
-      group: root
-      mode: "0644"
+    # cloud-init のネットワーク設定無効化
+    - name: Disable cloud-init network configuration
+      ansible.builtin.copy:
+        dest: /etc/cloud/cloud.cfg.d/99-disable-network-config.cfg
+        content: |
+          network:
+            config: disabled
+        owner: root
+        group: root
+        mode: "0644"
   when: cloud_cfg.stat.exists
 
 # cloud-init のネットワークインターフェース名変更設定を無効化

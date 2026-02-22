@@ -3,16 +3,20 @@
 #  Copyright 2020 Takeharu KATO All Rights Reserved.
 # autoremove
 
-- name: apt autoremove (Debian)
+- name: Apt autoremove (Debian)
   listen: "pkg-autoremove"
   ansible.builtin.shell: |
     apt autoremove -y
   become: true
   when: ansible_facts.os_family == 'Debian'
+  register: _result
+  changed_when: _result.rc == 0
 
-- name: dnf autoremove (RHEL)
+- name: dnf-plugins-core autoremove (RHEL)
   listen: "pkg-autoremove"
   ansible.builtin.shell: |
     dnf autoremove -y
   become: true
   when: ansible_facts.os_family == 'RedHat'
+  register: _result
+  changed_when: _result.rc == 0

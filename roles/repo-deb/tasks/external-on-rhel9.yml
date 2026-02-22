@@ -6,11 +6,16 @@
 #
 
 # Docker Community Editionのキーリングを配置する
-- name: Docker keyring
+- name: docker keyring
   when: repo_enable_docker
   ansible.builtin.shell: |
+    set -o pipefail
     curl -fsSL "{{ docker_apt_keyring_url }}" | gpg --dearmor > "{{ docker_apt_keyring }}"
     chmod 0644 "{{ docker_apt_keyring }}"
+  args:
+    executable: /bin/bash
+  register: _result
+  changed_when: _result.rc == 0
 
 # 古いDocker repo形式を削除
 - name: Remove legacy docker repo
@@ -21,7 +26,7 @@
   notify: "apt_update_repo_deb"
 
 # Docker repo (APT)を有効にする
-- name: Docker repo (APT)
+- name: docker repo (APT)
   when: repo_enable_docker
   ansible.builtin.apt_repository:
     repo: "deb [signed-by={{ docker_apt_keyring }} arch={{ docker_arch_apt }}] {{ docker_apt_uri }} {{ docker_apt_suite }} {{ docker_apt_components }}"
@@ -33,8 +38,13 @@
 - name: Kubernetes keyring
   when: repo_enable_kubernetes
   ansible.builtin.shell: |
+    set -o pipefail
     curl -fsSL "{{ k8s_apt_keyring_url }}" | gpg --dearmor > "{{ k8s_apt_keyring }}"
     chmod 0644 "{{ k8s_apt_keyring }}"
+  args:
+    executable: /bin/bash
+  register: _result
+  changed_when: _result.rc == 0
 
 # 古いKubernetes repo形式を削除
 - name: Remove legacy kubernetes repo
@@ -57,8 +67,13 @@
 - name: Chrome keyring
   when: repo_enable_chrome
   ansible.builtin.shell: |
+    set -o pipefail
     curl -fsSL "{{ chrome_keyring_url }}" | gpg --dearmor > "{{ chrome_keyring_path }}"
     chmod 0644 "{{ chrome_keyring_path }}"
+  args:
+    executable: /bin/bash
+  register: _result
+  changed_when: _result.rc == 0
 
 # 古いChrome repo形式を削除
 - name: Remove legacy google-chrome repo

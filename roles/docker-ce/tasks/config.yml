@@ -9,18 +9,16 @@
 # Docker daemon.json を作成し、iptables管理を無効化
 # 留意事項: router-config ロールが独自にiptablesルールを管理するため
 # Dockerのiptables管理を無効化する
-# ただし、userland-proxyは有効化してポートフォワーディングを機能させる
 - name: "Configure Docker daemon.json with iptables disabled"
   ansible.builtin.copy:
     dest: /etc/docker/daemon.json
     content: |
       {
-        "ipv6": true,
         "iptables": false,
         "ip6tables": false,
         "ip-forward": false,
         "ip-masq": false,
-        "userland-proxy": true,
+        "userland-proxy": false,
         "log-driver": "{{ docker_ce_log_driver }}",
         "log-opts": {
           "max-size": "{{ docker_ce_log_opts['max-size'] }}",

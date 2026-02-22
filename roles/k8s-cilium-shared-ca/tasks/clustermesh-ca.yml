@@ -117,11 +117,15 @@
         - name: Generate Cluster Mesh TLS certificate signing request
           ansible.builtin.command:
             cmd: openssl req -new -key {{ _clustermesh_tls_key_path }} -out {{ _clustermesh_tmp.path }}/cilium-clustermesh.csr -config {{ _clustermesh_tmp.path }}/openssl.cnf
+          register: _result
+          changed_when: _result.rc == 0
 
         # 共通CAで CSR を署名し TLS 証明書を発行する
         - name: Sign Cluster Mesh TLS certificate
           ansible.builtin.command:
             cmd: openssl x509 -req -in {{ _clustermesh_tmp.path }}/cilium-clustermesh.csr -CA {{ _clustermesh_ca_cert_path }} -CAkey {{ _clustermesh_ca_key_path }} -CAserial {{ _clustermesh_tls_serial_path }} -out {{ _clustermesh_tls_cert_path }} -days {{ k8s_cilium_clustermesh_tls_valid_days }} -sha256 -extensions v3_req -extfile {{ _clustermesh_tmp.path }}/openssl.cnf
+          register: _result
+          changed_when: _result.rc == 0
 
         # 一時作業ディレクトリを削除して後片付けする
         - name: Remove temporary workspace for Cluster Mesh certificate

@@ -32,7 +32,7 @@ common_packages:
   - emacs
   - vim-enhanced
   - tree
-  - ansible-core
+  - ansible
   - ansible-lint
   - nfs-utils
   - bind-utils

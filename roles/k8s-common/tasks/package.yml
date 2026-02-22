@@ -4,7 +4,7 @@
 #
 #  パッケージ関連処理
 #
-- name: remove containerd
+- name: Remove containerd
   ansible.builtin.package:
     pkg:
       '{{ k8s_containerd_packages }}'
@@ -16,13 +16,13 @@
       "{{ k8s_common_prerequisite_packages }}"
     state: latest
 
-- name: install containerd
+- name: Install containerd
   ansible.builtin.package:
     pkg:
       '{{ k8s_containerd_packages }}'
     state: latest
 
-- name: install kubectl/kubeadm/kubelet
+- name: Install kubectl/kubeadm/kubelet
   ansible.builtin.package:
     pkg:
       '{{ k8s_common_packages  }}'

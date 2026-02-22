@@ -12,8 +12,8 @@
     dest: "{{ user_settings_backup_bin_dir }}/backup-home"
     owner: root
     group: root
-    mode: 0755
-    backup: no
+    mode: '0755'
+    backup: false
 
 - name: "Create {{ user_settings_backup_share_dir }} directory"
   ansible.builtin.file:
@@ -21,7 +21,7 @@
     state: directory
     owner: root
     group: root
-    mode: 0755
+    mode: '0755'
 
 - name: "Deploy backup-home crontab example to {{ user_settings_backup_share_dir }}"
   ansible.builtin.template:
@@ -29,5 +29,5 @@
     dest: "{{ user_settings_backup_share_dir }}/backup-home.cron.example"
     owner: root
     group: root
-    mode: 0644
-    backup: no
+    mode: '0644'
+    backup: false

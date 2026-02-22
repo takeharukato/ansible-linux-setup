@@ -36,7 +36,7 @@
     - repo_enable_chrome | default(true)
 
 # apt file update
-- name: apt-file update
+- name: Apt-file update
   ansible.builtin.shell: |
     apt-file update
   become: true
@@ -44,3 +44,5 @@
   notify:
     - disable_gui
     - "{{ pkg_autoremove_handler }}"
+  register: _result
+  changed_when: _result.rc == 0

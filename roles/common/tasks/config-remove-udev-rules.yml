@@ -49,11 +49,16 @@
 # 更新したルールの反映
 - name: "Reload udev rules"
   ansible.builtin.shell: |
+    set -o pipefail
     udevadm control --reload-rules && udevadm trigger
+  args:
+    executable: /bin/bash
   become: true
   when:
     - udev_net_generator_paths is defined
     - (udev_net_generator_paths | default([], true) | length ) > 0
+  register: _result
+  changed_when: _result.rc == 0
 
 
 # 70-persistent-net.rules のバックアップと空ファイル作成
@@ -96,11 +101,16 @@
 # 更新したルールの反映
 - name: "Reload udev rules"
   ansible.builtin.shell: |
+    set -o pipefail
     udevadm control --reload-rules && udevadm trigger
+  args:
+    executable: /bin/bash
   become: true
   when:
     - udev_net_generator_paths is defined
     - (udev_net_generator_paths | default([], true) | length ) > 0
+  register: _result
+  changed_when: _result.rc == 0
 
 # ifcfg-* ファイルの検出
 - name: Find ifcfg-* files

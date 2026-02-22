@@ -9,7 +9,7 @@
   ansible.builtin.systemd:
     daemon_reload: true
 
-- name: restart named
+- name: Restart named
   listen: "Reload systemd & restart named"
   become: true
   ansible.builtin.systemd:

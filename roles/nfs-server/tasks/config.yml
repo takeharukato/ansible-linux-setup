@@ -4,21 +4,21 @@
 #  設定関連タスク
 
 # ドメイン名を設定
-- name: setup domain name in /etc/idmapd.conf
+- name: Setup domain name in /etc/idmapd.conf
   ansible.builtin.lineinfile:
     path: /etc/idmapd.conf
     regexp: '^\s*Domain\s*=.*'
     line: 'Domain = {{dns_domain}}'
 
 # 共有ディレクトリを設定
-- name: "export {{ nfs_export_directory }}"
+- name: "Export {{ nfs_export_directory }}"
   ansible.builtin.lineinfile:
     path: /etc/exports
     regexp: '{{ nfs_export_directory }} .*'
     line: '{{ nfs_export_directory }} {{ nfs_network }}({{ nfs_options }})'
 
 # NFSを起動する
-- name: restart_nfs
+- name: Restart_nfs
   ansible.builtin.systemd:
     name: nfs-server
     state: restarted

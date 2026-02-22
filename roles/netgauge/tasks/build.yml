@@ -5,10 +5,11 @@
 #  バイナリ構築関連タスク
 #
 
-- name: make build directory name
+- name: Make build directory name
   ansible.builtin.shell: |
     echo "{{netgauge_build_dest}}/build-{{ ansible_hostname }}"
   register: netgauge_build_dir
+  changed_when: netgauge_build_dir.rc == 0
 
 - name: Create "{{ netgauge_build_dir.stdout }}"
   ansible.builtin.file:
@@ -31,11 +32,15 @@
     executable: /bin/bash
   delegate_to: localhost
   timeout: 1800 # タイムアウト 30分
+  register: _result
+  changed_when: _result.rc == 0
 
 - name: Configure netgauge
   ansible.builtin.shell: |
     if [ -d "{{ netgauge_build_dir.stdout }}" ]; then
       cwd=`pwd`
+  register: _result
+  changed_when: _result.rc == 0
 
       if [ -d "{{ netgauge_build_dir.stdout }}/{{ netgauge_basename }}" ]; then
         cd "{{ netgauge_build_dir.stdout }}/{{ netgauge_basename }}"
@@ -53,6 +58,8 @@
   ansible.builtin.shell: |
     if [ -d "{{ netgauge_build_dir.stdout }}" ]; then
       cwd=`pwd`
+  register: _result
+  changed_when: _result.rc == 0
 
       if [ -d "{{ netgauge_build_dir.stdout }}/{{ netgauge_basename }}" ]; then
         cd "{{ netgauge_build_dir.stdout }}/{{ netgauge_basename }}"
@@ -70,6 +77,8 @@
   ansible.builtin.shell: |
     if [ -d "{{ netgauge_build_dir.stdout }}" ]; then
       cwd=`pwd`
+  register: _result
+  changed_when: _result.rc == 0
 
       if [ -d "{{ netgauge_build_dir.stdout }}/{{netgauge_basename}}" ]; then
         cd "{{ netgauge_build_dir.stdout }}/{{netgauge_basename}}"
@@ -98,7 +107,7 @@
     mode: "0755"
   become: true
 
-- name: "copy {{netgauge_dir}}/bin"
+- name: "Copy {{netgauge_dir}}/bin"
   ansible.builtin.copy:
     src: "{{netgauge_build_dest}}/bin"
     dest: "{{netgauge_dir}}"
@@ -107,7 +116,7 @@
     mode: "0755"
   become: true
 
-- name: "remove build dir:{{ netgauge_build_dir.stdout }}"
+- name: "Remove build dir:{{ netgauge_build_dir.stdout }}"
   ansible.builtin.file:
     path: "{{ netgauge_build_dir.stdout }}"
     state: absent

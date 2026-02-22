@@ -13,8 +13,7 @@
 # cloud-init の無効化からNetworkManager設定までの間に
 # 再起動が入らないようにすること
 - ansible.builtin.include_tasks: config-disable-cloud-init.yml
-  when: ansible_facts.os_family == "RedHat"
-
+  name: "Config Disable Cloud Init"
 # 自動設定ファイルの存在確認と除去
 - name: "Remove setup auto network config files"
   ansible.builtin.include_tasks: move-default-netplans.yml
@@ -230,7 +229,7 @@
             mode: "0600"
 
         # 文法チェックのためのnetplan generate実行
-        - name: netplan generate (syntax check)
+        - name: Netplan generate (syntax check)
           ansible.builtin.command: netplan generate
           register: netplan_generate
           changed_when: netplan_generate.rc == 0
@@ -255,6 +254,7 @@
 # nmcli 出力をシェルで YAML 配列に整形 ( Jinja フィルタ依存を避けるため )
 - name: Convert nmcli output to YAML rows
   ansible.builtin.shell: |
+    set -o pipefail
     set -eu
     nmcli -t -f NAME,UUID,TYPE,DEVICE,AUTOCONNECT,FILENAME connection show |
     awk -F':' 'BEGIN{ print "---"; print "_rows:" }
@@ -333,6 +333,8 @@
   when:
     - (_obsolete_conn_uuids | default([]) | length) > 0
     - item is not match('^$')
+  register: _result
+  changed_when: _result.rc == 0
 
 # 実在する keyfile のみ削除 ( /etc 配下のみ )
 - name: Stat obsolete keyfiles (existence check)
@@ -360,8 +362,7 @@
 # 再起動前に, 不要な udev ルールを削除 ( RHEL 系のみ )
 # ネットワークインターフェース名の固定化を確実にするため
 - ansible.builtin.include_tasks: config-remove-udev-rules.yml
-  when: ansible_facts.os_family == "RedHat"
-
+  name: "Config Remove Udev Rules"
 #
 # NetworkManagerの設定を更新したらリブート
 #

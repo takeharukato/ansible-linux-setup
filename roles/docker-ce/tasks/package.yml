@@ -4,7 +4,7 @@
 #
 
 # 古いDocker関連パッケージをアンインストールする
-- name: remove old packages
+- name: Remove old packages
   ansible.builtin.package:
     pkg:
       '{{ docker_ce_remove_packages }}'

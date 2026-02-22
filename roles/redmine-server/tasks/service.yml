@@ -9,24 +9,35 @@
     cd "{{ redmine_docker_dir }}"
     docker compose down
   ignore_errors: true
+  register: _result
+  changed_when: _result.rc == 0
 
 # コンテナの停止を待ち合わせる
 - name: Wait for stop redmine container
-  ansible.builtin.wait_for: host={{ inventory_hostname }} port={{ redmine_service_port }} state=stopped
+  ansible.builtin.wait_for:
+    host: "{{ inventory_hostname }}"
+    port: "{{ redmine_service_port }}"
+    state: stopped
 
 - name: Start redmine container
   ansible.builtin.shell: |
     cd "{{ redmine_docker_dir }}"
     docker compose up -d
   ignore_errors: true
+  register: _result
+  changed_when: _result.rc == 0
 
 # コンテナの開始を待ち合わせる
 - name: Wait for start redmine container
-  ansible.builtin.wait_for: host={{ inventory_hostname }} port={{ redmine_service_port }} state=started
+  ansible.builtin.wait_for:
+    host: "{{ inventory_hostname }}"
+    port: "{{ redmine_service_port }}"
+    state: started
 
 # redmine管理者パスワード設定
 - name: Ensure Redmine admin password
   ansible.builtin.shell: |
+    set -o pipefail
     cd "{{ redmine_docker_dir }}"
     admin_user="{{ redmine_admin_user | default('admin', true) }}"
     admin_password="{{ redmine_admin_password | default('admin', true) }}"
@@ -35,4 +46,8 @@
       -e ADMIN_PASSWORD="$admin_password" \
       "{{ redmine_service }}" \
       bash -lc "bundle exec rails runner \"u=User.find_by(login: ENV['ADMIN_USER']); if u; pw=ENV['ADMIN_PASSWORD'].to_s; u.password=pw; u.password_confirmation=pw; u.admin=true; if pw.length < 8; u.save!(validate: false); else u.save!; end; end\""
+  args:
+    executable: /bin/bash
   ignore_errors: true
+  register: _result
+  changed_when: _result.rc == 0

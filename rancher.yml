@@ -2,8 +2,9 @@
 #  Ansible playbook
 #  Copyright 2020 Takeharu KATO All Rights Reserved.
 #
-- hosts: rancher
-  remote_user:  '{{ ansible_user }}'
+- name: Configure Rancher hosts
+  hosts: rancher
+  remote_user: '{{ ansible_user }}'
   become: true
   roles:
     - role: selinux

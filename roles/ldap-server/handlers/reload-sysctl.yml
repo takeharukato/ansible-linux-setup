@@ -7,3 +7,5 @@
 - name: Reload sysctl
   listen: "ldap_server_reload_sysctl"
   ansible.builtin.command: sysctl --system
+  register: _result
+  changed_when: _result.rc == 0

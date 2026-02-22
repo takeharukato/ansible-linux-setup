@@ -6,8 +6,11 @@
 #
 
 # kube-apiが使えるようになるのを待ち合わせる
-- name: wait for kube-api-server
-  ansible.builtin.wait_for: host={{ k8s_ctrlplane_endpoint }} port=6443 state=started
+- name: Wait for kube-api-server
+  ansible.builtin.wait_for:
+    host: "{{ k8s_ctrlplane_endpoint }}"
+    port: 6443
+    state: started
 
 # Multus Helm Chart をリモートホストにコピー
 - name: Copy Multus Helm Chart to remote host
@@ -26,8 +29,8 @@
     dest: "{{ k8s_multus_config_dir }}/multus-values.yml"
     owner: root
     group: root
-    mode: 0644
-    backup: no
+    mode: '0644'
+    backup: false
 
 # Multus CNIのインストール（Helm経由）
 # https://github.com/k8snetworkplumbingwg/multus-cni/blob/master/docs/quickstart.md

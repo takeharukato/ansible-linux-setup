@@ -5,7 +5,7 @@
 #  common/tasks/directory-dns-clients.yml
 
 # /etc/nsupdate を作成する
-- name: create /etc/nsupdate
+- name: Create /etc/nsupdate
   ansible.builtin.file:
     path: "/etc/nsupdate"
     state: directory
@@ -31,11 +31,11 @@
     dest: "{{ dns_ddns_key_file }}"
     owner: root
     group: root
-    mode: 0600
+    mode: '0600'
     backup: true
 
 # /usr/local/sbin を作成する
-- name: "create {{ ddns_client_update_sh_dest_dir }}"
+- name: "Create {{ ddns_client_update_sh_dest_dir }}"
   ansible.builtin.file:
     path: "{{ ddns_client_update_sh_dest_dir }}"
     state: directory
@@ -50,31 +50,31 @@
     dest: "{{ ddns_client_update_sh_path }}"
     owner: root
     group: root
-    mode: 0755
+    mode: '0755'
     backup: true
 
 # ddns-update-clientの環境ファイルを作成する
-- name: "create {{ ddns_client_update_sh_sysconfig_path }}"
+- name: "Create {{ ddns_client_update_sh_sysconfig_path }}"
   ansible.builtin.template:
     src: sysconfig-ddns-update-client.j2
     dest: "{{ ddns_client_update_sh_sysconfig_path }}"
     owner: root
     group: root
-    mode: 0644
+    mode: '0644'
     backup: true
 
 # /etc/systemd/system/nm-ra-addr-watch.service を作成する
-- name: create /etc/systemd/system/nm-ra-addr-watch.service
+- name: Create /etc/systemd/system/nm-ra-addr-watch.service
   ansible.builtin.template:
     src: nm-ra-addr-watch.service.j2
     dest: "/etc/systemd/system/nm-ra-addr-watch.service"
     owner: root
     group: root
-    mode: 0644
+    mode: '0644'
     backup: true
 
 # /usr/local/libexec を作成する
-- name: "create {{ nm_ra_addr_watch_dest_dir }}"
+- name: "Create {{ nm_ra_addr_watch_dest_dir }}"
   ansible.builtin.file:
     path: "{{ nm_ra_addr_watch_dest_dir }}"
     state: directory
@@ -83,17 +83,17 @@
     mode: "0755"
 
 # /usr/local/libexec/nm-ra-addr-watch を作成する
-- name: "create {{ nm_ra_addr_watch_path }}"
+- name: "Create {{ nm_ra_addr_watch_path }}"
   ansible.builtin.template:
     src: nm-ra-addr-watch.j2
     dest: "{{ nm_ra_addr_watch_path }}"
     owner: root
     group: root
-    mode: 0755
+    mode: '0755'
     backup: false
 
 # /etc/sysconfig/nm-ra-addr-watch を作成する
-- name: "create {{ nm_ra_addr_watch_sysconfig_path }}"
+- name: "Create {{ nm_ra_addr_watch_sysconfig_path }}"
   ansible.builtin.template:
     src: sysconfig-nm-ra-addr-watch.j2
     dest: "{{ nm_ra_addr_watch_sysconfig_path }}"
@@ -104,7 +104,7 @@
 
 
 # /etc/NetworkManager/dispatcher.dを作成する
-- name: "create {{ nm_dispatcher_path }}"
+- name: "Create {{ nm_dispatcher_path }}"
   ansible.builtin.file:
     path: "{{ nm_dispatcher_path }}"
     state: directory
@@ -113,7 +113,7 @@
     mode: "0755"
 
 ## 90-nm-ns-update の本体を配置 ( 実行属性 )
-- name: "create {{ nm_ns_update_path }}"
+- name: "Create {{ nm_ns_update_path }}"
   ansible.builtin.template:
     src: 90-nm-ns-update.j2
     dest: "{{ nm_ns_update_path }}"
@@ -123,7 +123,7 @@
     backup: true
 
 ## 90-nm-ns-update の環境ファイルを配置
-- name: "create {{ nm_ns_update_sysconfig_path }}"
+- name: "Create {{ nm_ns_update_sysconfig_path }}"
   ansible.builtin.template:
     src: sysconfig-nm-ns-update.j2
     dest: "{{ nm_ns_update_sysconfig_path }}"

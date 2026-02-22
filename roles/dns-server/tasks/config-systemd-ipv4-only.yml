@@ -36,6 +36,7 @@
     # ここが肝：argv[]= の“中身だけ”を抜く。無ければ置換されず素の行が返る
     - name: Extract argv (structured -> payload, non-structured -> original)
       ansible.builtin.shell: |
+        set -o pipefail
         set -euo pipefail
         systemctl show -p ExecStart --value {{ dns_bind_service }} \
           | tr '\n' ' ' \

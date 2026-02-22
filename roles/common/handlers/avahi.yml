@@ -6,7 +6,7 @@
 #
 
 # notify の avahi_restarted_and_enabled に対応するハンドラ
-- name: avahi_restarted_and_enabled
+- name: Avahi_restarted_and_enabled
   listen: avahi_restarted_and_enabled
   ansible.builtin.systemd:
     name: avahi-daemon

@@ -5,33 +5,19 @@
 #  include_tasksで他のタスクを読み込む
 
 # 最初に変数設定を読み直す ( role単独で実行可能とするため )
-- ansible.builtin.include_tasks: load-params.yml
-- ansible.builtin.include_tasks: package.yml
-  when:
-    - dns_server is defined
-    - ( dns_server|default('', true) | length ) > 0
-- ansible.builtin.include_tasks: directory.yml
-  when:
-    - dns_server is defined
-    - ( dns_server|default('', true) | length ) > 0
-- ansible.builtin.include_tasks: user_group.yml
-  when:
-    - dns_server is defined
-    - ( dns_server|default('', true) | length ) > 0
-- ansible.builtin.include_tasks: service.yml
-  when:
-    - dns_server is defined
-    - ( dns_server|default('', true) | length ) > 0
-- ansible.builtin.include_tasks: config.yml
-  when:
-    - dns_server is defined
-    - ( dns_server|default('', true) | length ) > 0
-- ansible.builtin.include_tasks: config-systemd-ipv4-only.yml
-  when:
-    - dns_server is defined
-    - ( dns_server|default('', true) | length ) > 0
-- ansible.builtin.include_tasks: config-firewall.yml
-  when:
-    - dns_server is defined
-    - ( dns_server|default('', true) | length ) > 0
-    - enable_firewall | default(false,true)
+- name: "Load Params"
+  ansible.builtin.include_tasks: load-params.yml
+- name: "Package"
+  ansible.builtin.include_tasks: package.yml
+- name: "Directory"
+  ansible.builtin.include_tasks: directory.yml
+- name: "User Group"
+  ansible.builtin.include_tasks: user_group.yml
+- name: "Service"
+  ansible.builtin.include_tasks: service.yml
+- name: "Config"
+  ansible.builtin.include_tasks: config.yml
+- name: "Config Systemd Ipv4 Only"
+  ansible.builtin.include_tasks: config-systemd-ipv4-only.yml
+- name: "Config Firewall"
+  ansible.builtin.include_tasks: config-firewall.yml

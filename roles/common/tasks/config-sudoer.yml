@@ -25,7 +25,7 @@
 # - sudo_nopasswd_groups_extra に存在しないグループ名が指定された場合は無視する
 
 
-## 事前準備
+# 事前準備
 - name: Ensure sudo is installed
   ansible.builtin.package:
     name: sudo
@@ -85,9 +85,9 @@
         + (sudo_nopasswd_groups_extra | default([],true))
       | unique }}
 
-#=========================
+# =========================
 # 1) ユーザ単位の設定
-#=========================
+# =========================
 - name: Check existing users via getent
   ansible.builtin.getent:
     database: passwd
@@ -127,9 +127,9 @@
   loop: "{{ sudo_nopasswd_users_existing | default([],true) }}"
   when: sudo_nopasswd_absent | default(false) | bool
 
-#=========================
+# =========================
 # 2) グループ単位の設定
-#=========================
+# =========================
 - name: Create group drop-ins with visudo validation
   ansible.builtin.template:
     src: nopasswd-group.sudoers.j2
@@ -148,9 +148,9 @@
   loop: "{{ sudo_nopasswd_groups_final | default([],true) }}"
   when: sudo_nopasswd_absent | default(false) | bool
 
-#=========================
+# =========================
 # 最終検証
-#=========================
+# =========================
 - name: Validate sudoers syntax AFTER changes
   ansible.builtin.command: visudo -cf /etc/sudoers
   changed_when: false

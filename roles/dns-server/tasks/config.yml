@@ -10,7 +10,7 @@
     state: directory
     owner: root
     group: root
-    mode: 0755
+    mode: '0755'
 
 # ゾーンファイル格納ディレクトリの配置
 - name: "Deploy {{dns_bind_zone_dir}}"
@@ -19,7 +19,7 @@
     state: directory
     owner: "{{ dns_bind_user }}"
     group: "{{ dns_bind_group }}"
-    mode: 0775
+    mode: '0775'
 
 - name: "Ensure managed-keys directory exists"
   ansible.builtin.file:
@@ -27,7 +27,7 @@
     state: directory
     owner: "{{ dns_bind_user }}"
     group: "{{ dns_bind_group }}"
-    mode: 0750
+    mode: '0750'
   when:
     - dns_bind_cache_dir | default('', true) | length > 0
 
@@ -68,7 +68,7 @@
     dest: "{{ dns_bind_options_conf_path }}"
     owner: root
     group: "{{ dns_bind_group }}"
-    mode: 0640
+    mode: '0640'
     backup: true
   when:
     - ansible_facts.os_family == "Debian"
@@ -80,7 +80,7 @@
     dest: "{{ dns_bind_options_conf_path }}"
     owner: root
     group: "{{ dns_bind_group }}"
-    mode: 0640
+    mode: '0640'
     backup: true
   when:
     - ansible_facts.os_family == "RedHat"
@@ -92,7 +92,7 @@
     dest: "{{dns_bind_conf_dir}}/named.conf.zones"
     owner: root
     group: "{{ dns_bind_group }}"
-    mode: 0640
+    mode: '0640'
     backup: true
 
 # シリアル番号が設定されていなければ日付と時刻から生成
@@ -108,7 +108,7 @@
     dest: "{{dns_bind_zone_dir}}/db.{{dns_domain}}"
     owner: "{{ dns_bind_user }}"
     group: "{{ dns_bind_group }}"
-    mode: 0644
+    mode: '0644'
     backup: true
 
 # 逆引きゾーンファイルを作成する
@@ -118,7 +118,7 @@
     dest: "{{dns_bind_zone_dir}}/db.{{dns_ipv4_reverse}}"
     owner: "{{ dns_bind_user }}"
     group: "{{ dns_bind_group }}"
-    mode: 0644
+    mode: '0644'
     backup: true
 
 # 逆引きIPv6ゾーンファイルを作成する
@@ -128,7 +128,7 @@
     dest: "{{dns_bind_zone_dir}}/db.{{dns_network_ipv6_prefix_filename}}"
     owner: "{{ dns_bind_user }}"
     group: "{{ dns_bind_group }}"
-    mode: 0644
+    mode: '0644'
     backup: true
 
 # === 複数ネットワーク逆引きゾーンファイル生成 ===
@@ -139,7 +139,7 @@
     dest: "{{dns_bind_zone_dir}}/db.{{ item.ipv4 | ipv4_reverse_zone }}"
     owner: "{{ dns_bind_user }}"
     group: "{{ dns_bind_group }}"
-    mode: 0644
+    mode: '0644'
     backup: true
   when:
     - has_additional_networks
@@ -157,7 +157,7 @@
     dest: "{{dns_bind_zone_dir}}/db.{{ item.ipv6 | ipv6_reverse_zone((item.ipv6.split('/')[1] if '/' in item.ipv6 else 128) | int) }}"
     owner: "{{ dns_bind_user }}"
     group: "{{ dns_bind_group }}"
-    mode: 0644
+    mode: '0644'
     backup: true
   when:
     - has_additional_networks
@@ -177,7 +177,7 @@
     line: 'include "{{ dns_bind_options_conf_path }}";'
     insertafter: EOF
     state: present
-    backup: yes
+    backup: true
   notify:
     - "named_check_conf"
     - "Reload systemd & restart named"
@@ -259,11 +259,12 @@
     - ansible_selinux is defined and ansible_selinux.status != "disabled"
 
 # named.conf の構文とゾーンをチェック
-- name: named-checkconf (syntax & zones)
+- name: Named-checkconf (syntax & zones)
   become: true
   ansible.builtin.command: named-checkconf -z
   when:
     - ansible_facts.os_family == "RedHat"
+  changed_when: false
 
 # named サービスが起動中であることを確認する
 - name: "Check if {{ dns_bind_service }} is running"
@@ -287,7 +288,7 @@
     - name: systemd daemon-reload
       ansible.builtin.systemd:
         daemon_reload: true
-    - name: restart named
+    - name: Restart named
       ansible.builtin.systemd:
         name: "{{ dns_bind_service }}"
         state: restarted
@@ -299,3 +300,5 @@
   ansible.builtin.shell: |
     rndc reload
   become: true
+  register: _result
+  changed_when: _result.rc == 0

@@ -2,8 +2,9 @@
 #  Ansible playbook
 #  Copyright 2020 Takeharu KATO All Rights Reserved.
 #
-- hosts: server
-  remote_user:  '{{ ansible_user }}'
+- name: Configure management server hosts
+  hosts: server
+  remote_user: '{{ ansible_user }}'
   become: true
   roles:
     - role: selinux

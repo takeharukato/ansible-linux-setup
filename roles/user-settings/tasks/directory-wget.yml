@@ -12,5 +12,5 @@
     dest: /etc/skel/.wgetrc
     owner: root
     group: root
-    mode: 0644
-    backup: no
+    mode: '0644'
+    backup: false

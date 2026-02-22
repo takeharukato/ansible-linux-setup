@@ -40,6 +40,7 @@
   ansible.builtin.command: "nmcli connection modify '{{ _add_route_conn }}' ipv4.routes '{{ _add_v4_routes | join(',') }}'"
   when: _add_v4_routes | length > 0
   register: _nm_v4_apply
+  changed_when: _nm_v4_apply.rc == 0
 
 - name: Clear IPv4 routes when none
   ansible.builtin.command: "nmcli connection modify '{{ _add_route_conn }}' ipv4.routes ''"
@@ -51,6 +52,7 @@
   ansible.builtin.command: "nmcli connection modify '{{ _add_route_conn }}' ipv6.routes '{{ _add_v6_routes | join(',') }}'"
   when: _add_v6_routes | length > 0
   register: _nm_v6_apply
+  changed_when: _nm_v6_apply.rc == 0
 
 - name: Clear IPv6 routes when none
   ansible.builtin.command: "nmcli connection modify '{{ _add_route_conn }}' ipv6.routes ''"

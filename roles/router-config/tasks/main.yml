@@ -9,77 +9,32 @@
 ---
 
 # 最初に変数設定を読み直す ( role単独で実行可能とするため )
-- ansible.builtin.include_tasks: load-params.yml
-- ansible.builtin.include_tasks: package.yml
-  when:
-    - gpm_mgmt_nic is defined
-    - mgmt_nic is defined
-    - gpm_mgmt_nic in ansible_facts.interfaces
-    - mgmt_nic in ansible_facts.interfaces
-- ansible.builtin.include_tasks: directory.yml
-  when:
-    - gpm_mgmt_nic is defined
-    - mgmt_nic is defined
-    - gpm_mgmt_nic in ansible_facts.interfaces
-    - mgmt_nic in ansible_facts.interfaces
-- ansible.builtin.include_tasks: user_group.yml
-  when:
-    - gpm_mgmt_nic is defined
-    - mgmt_nic is defined
-    - gpm_mgmt_nic in ansible_facts.interfaces
-    - mgmt_nic in ansible_facts.interfaces
-- ansible.builtin.include_tasks: service.yml
-  when:
-    - gpm_mgmt_nic is defined
-    - mgmt_nic is defined
-    - gpm_mgmt_nic in ansible_facts.interfaces
-    - mgmt_nic in ansible_facts.interfaces
-- ansible.builtin.include_tasks: config-sysctl.yml
-  when:
-    - gpm_mgmt_nic is defined
-    - mgmt_nic is defined
-    - gpm_mgmt_nic in ansible_facts.interfaces
-    - mgmt_nic in ansible_facts.interfaces
+- name: "Load Params"
+  ansible.builtin.include_tasks: load-params.yml
+- name: "Package"
+  ansible.builtin.include_tasks: package.yml
+- name: "Directory"
+  ansible.builtin.include_tasks: directory.yml
+- name: "User Group"
+  ansible.builtin.include_tasks: user_group.yml
+- name: "Service"
+  ansible.builtin.include_tasks: service.yml
+- name: "Config Sysctl"
+  ansible.builtin.include_tasks: config-sysctl.yml
 # 設定切り替えに備えて既存のiptablesルールをクリア
 # router_forwarding_enabled または router_nat_enabled が有効な場合に実行
-- ansible.builtin.include_tasks: config-clear-rules.yml
-  when:
-    - gpm_mgmt_nic is defined
-    - mgmt_nic is defined
-    - gpm_mgmt_nic in ansible_facts.interfaces
-    - mgmt_nic in ansible_facts.interfaces
-    - ((router_forwarding_enabled | default(false) | bool) or (additional_network_routes is defined and additional_network_routes | length > 0) or (router_nat_enabled | default(false) | bool))
+- name: "Config Clear Rules"
+  ansible.builtin.include_tasks: config-clear-rules.yml
 # router_forwarding_enabledがtrueの場合は純粋な転送（NAT無し）
 # additional_network_routes定義時も転送のみ（NAT無し）
-- ansible.builtin.include_tasks: config-forward.yml
-  when:
-    - gpm_mgmt_nic is defined
-    - mgmt_nic is defined
-    - gpm_mgmt_nic in ansible_facts.interfaces
-    - mgmt_nic in ansible_facts.interfaces
-    - (router_forwarding_enabled | default(false) | bool) or (additional_network_routes is defined and additional_network_routes | length > 0)
-    - not (router_nat_enabled | default(false) | bool)
+- name: "Config Forward"
+  ansible.builtin.include_tasks: config-forward.yml
 # router_nat_enabledがtrueの場合はNAT設定
 # Ansible管理外のノードでルート設定済みの場合などに使用
 # router_forwarding_enabledまたはadditional_network_routes定義時は転送ルール優先でNATは実行しない
-- ansible.builtin.include_tasks: config-nat.yml
-  when:
-    - gpm_mgmt_nic is defined
-    - mgmt_nic is defined
-    - gpm_mgmt_nic in ansible_facts.interfaces
-    - mgmt_nic in ansible_facts.interfaces
-    - router_nat_enabled | default(false) | bool
-    - not (router_forwarding_enabled | default(false) | bool)
-    - additional_network_routes is not defined or additional_network_routes | length == 0
-- ansible.builtin.include_tasks: config.yml
-  when:
-    - gpm_mgmt_nic is defined
-    - mgmt_nic is defined
-    - gpm_mgmt_nic in ansible_facts.interfaces
-    - mgmt_nic in ansible_facts.interfaces
-- ansible.builtin.include_tasks: reboot.yml
-  when:
-    - gpm_mgmt_nic is defined
-    - mgmt_nic is defined
-    - gpm_mgmt_nic in ansible_facts.interfaces
-    - mgmt_nic in ansible_facts.interfaces
+- name: "Config Nat"
+  ansible.builtin.include_tasks: config-nat.yml
+- name: "Config"
+  ansible.builtin.include_tasks: config.yml
+- name: "Reboot"
+  ansible.builtin.include_tasks: reboot.yml

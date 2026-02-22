@@ -5,7 +5,7 @@
 #  ファイル・ディレクトリ作成関連タスク
 #
 
-- name: "make {{ k8s_whereabouts_config_dir }}"
+- name: "Make {{ k8s_whereabouts_config_dir }}"
   ansible.builtin.file:
     path: "{{ k8s_whereabouts_config_dir }}"
     state: directory

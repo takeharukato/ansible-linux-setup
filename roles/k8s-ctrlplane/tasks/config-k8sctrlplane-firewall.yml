@@ -20,6 +20,7 @@
 # UFW を有効化 (非対話モード)
 - name: Ensure UFW enabled (non-interactive)
   ansible.builtin.shell: |
+    set -o pipefail
     set -e
     if ufw status | grep -iq '^Status: inactive'; then
       ufw --force enable
@@ -35,6 +36,7 @@
 # 6443/tcp, 10250/tcp, 10257/tcp, 10259/tcp, 2379-2380/tcp を許可
 - name: Allow control-plane ports via UFW
   ansible.builtin.shell: |
+    set -o pipefail
     set -e
     p_raw="{{ item }}"
     p_ufw="${p_raw/-/:}"
@@ -48,6 +50,8 @@
   when:
     - ansible_facts.os_family == "Debian"
     - "'ufw' in firewall_backend"
+  register: _result
+  changed_when: _result.rc == 0
 
 # ---- firewall (RHEL: firewalld) --------------------------------------------
 
@@ -89,6 +93,8 @@
     - "'firewalld' in firewall_backend"
   notify:
     - "reload firewalld"
+  register: _result
+  changed_when: _result.rc == 0
 
 # firewalldをリロード
 - name: Always reload firewalld after port updates
@@ -97,6 +103,8 @@
   when:
     - ansible_facts.os_family == "RedHat"
     - "'firewalld' in firewall_backend"
+  register: _result
+  changed_when: _result.rc == 0
 
 # UFWの状態を表示
 - name: Show UFW status
@@ -111,6 +119,7 @@
 # firewalldの状態を表示
 - name: Show firewalld port list and direct rules
   ansible.builtin.shell: |
+    set -o pipefail
     echo '--- ports ---'
     firewall-cmd --list-ports || true
     echo '--- direct rules ---'

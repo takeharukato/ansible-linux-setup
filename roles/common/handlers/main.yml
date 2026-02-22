@@ -2,10 +2,17 @@
 #  Ansible playbook
 #  Copyright 2020 Takeharu KATO All Rights Reserved.
 #
-- ansible.builtin.import_tasks: avahi.yml
-- ansible.builtin.import_tasks: disable-gui.yml
-- ansible.builtin.import_tasks: auto-remove.yml
-- ansible.builtin.import_tasks: nm-handlers-rhel.yml
-- ansible.builtin.import_tasks: netplan-handlers-debian.yml
-- ansible.builtin.import_tasks: netplan.yml
-- ansible.builtin.import_tasks: reload-sysctl.yml
+- name: "Avahi"
+  ansible.builtin.import_tasks: avahi.yml
+- name: "Disable Gui"
+  ansible.builtin.import_tasks: disable-gui.yml
+- name: "Auto Remove"
+  ansible.builtin.import_tasks: auto-remove.yml
+- name: "Nm Handlers Rhel"
+  ansible.builtin.import_tasks: nm-handlers-rhel.yml
+- name: "Netplan Handlers Debian"
+  ansible.builtin.import_tasks: netplan-handlers-debian.yml
+- name: "Netplan"
+  ansible.builtin.import_tasks: netplan.yml
+- name: "Reload Sysctl"
+  ansible.builtin.import_tasks: reload-sysctl.yml

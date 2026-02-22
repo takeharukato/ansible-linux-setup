@@ -22,6 +22,6 @@
     dest: "/etc/systemd/system/{{ item }}/40-cpuset.conf"
     owner: root
     group: root
-    mode: 0644
+    mode: '0644'
     backup: true
   loop: "{{ k8s_systemd_slices }}"

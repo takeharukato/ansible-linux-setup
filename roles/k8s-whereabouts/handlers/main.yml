@@ -2,4 +2,5 @@
 #  Ansible playbook
 #  Copyright 2020 Takeharu KATO All Rights Reserved.
 #
-- ansible.builtin.import_tasks: reboot-node.yml
+- name: "Reboot Node"
+  ansible.builtin.import_tasks: reboot-node.yml

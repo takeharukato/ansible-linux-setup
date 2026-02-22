@@ -42,6 +42,7 @@
 # UFW を有効化 (非対話モード)
 - name: Ensure UFW enabled (non-interactive)
   ansible.builtin.shell: |
+    set -o pipefail
     set -e
     if ufw status | grep -iq '^Status: inactive'; then
       ufw --force enable
@@ -56,6 +57,7 @@
 # kubelet 用ポートを UFW で許可
 - name: "Allow worker node ports ( {{ k8s_worker_node_ports_from_ctrlplane }} ) from control plane via UFW"
   ansible.builtin.shell: |
+    set -o pipefail
     set -e
     p_raw="{{ item }}"
     p_ufw="${p_raw/-/:}"
@@ -68,6 +70,8 @@
   when:
     - ansible_facts.os_family == "Debian"
     - "'ufw' in firewall_backend"
+  register: _result
+  changed_when: _result.rc == 0
 
 # NodePort 範囲 ( UFW は 30000:32767 の “コロン” 表記 )
 - name: Allow worker inbound ports (UFW)
@@ -80,13 +84,17 @@
   when:
     - ansible_facts.os_family == "Debian"
     - "'ufw' in firewall_backend"
+  register: _result
+  changed_when: _result.rc == 0
 
 # UFWをリロード
-- name: "reload ufw"
+- name: "Reload ufw"
   ansible.builtin.command: ufw reload
   when:
     - ansible_facts.os_family == "Debian"
     - "'ufw' in firewall_backend"
+  register: _result
+  changed_when: _result.rc == 0
 # ---- firewall (RHEL: firewalld) --------------------------------------------
 
 # firewalld の有無をservice の存在で確認
@@ -135,6 +143,8 @@
     - "'firewalld' in firewall_backend"
     - k8s_ctrlplane_is_ipv4
     - "'/' in item"
+  register: _result
+  changed_when: _result.rc == 0
 
 # コントロールプレインのみに許可するポートを開放 (10250/tcp ( kubelet )など)
 # IPv6版
@@ -153,6 +163,8 @@
     - "'firewalld' in firewall_backend"
     - k8s_ctrlplane_is_ipv6
     - "'/' in item"
+  register: _result
+  changed_when: _result.rc == 0
 # NodePort 解放 ( 範囲, プロトコルをそのまま add-portに渡す )
 - name: "Allow worker inbound ports ( {{ k8s_worker_node_ports }} ) permanently via firewalld"
   become: true
@@ -163,6 +175,8 @@
   when:
     - ansible_facts.os_family == "RedHat"
     - "'firewalld' in firewall_backend"
+  register: _result
+  changed_when: _result.rc == 0
 
 # firewalldをリロード
 - name: Always reload firewalld after port updates
@@ -171,6 +185,8 @@
   when:
     - ansible_facts.os_family == "RedHat"
     - "'firewalld' in firewall_backend"
+  register: _result
+  changed_when: _result.rc == 0
 
 # UFWの状態を表示
 - name: Show UFW status
@@ -185,6 +201,7 @@
 # firewalldの状態を表示
 - name: Show firewalld port list and direct rules
   ansible.builtin.shell: |
+    set -o pipefail
     echo '--- ports ---'
     firewall-cmd --list-ports || true
     echo '--- direct rules ---'

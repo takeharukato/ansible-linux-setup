@@ -11,14 +11,14 @@
 #
 # systemd-timesyncd の設定
 #
-- name: "setup ntp servers in {{ ntp_client_systemd_timesyncd_conf_path }}"
+- name: "Setup ntp servers in {{ ntp_client_systemd_timesyncd_conf_path }}"
   ansible.builtin.template:
     src: 99-timesyncd.conf.j2
     dest: "{{ ntp_client_systemd_timesyncd_conf_path }}"
     owner: root
     group: root
-    mode: 0644
-    backup: no
+    mode: '0644'
+    backup: false
   become: true
   notify:
     - "restart_timesyncd"
@@ -77,14 +77,14 @@
   when:
     - ntp_client_is_chrony
 
-- name: "setup ntp server file in {{ ntp_client_chrony_conf_drop_in_path }}"
+- name: "Setup ntp server file in {{ ntp_client_chrony_conf_drop_in_path }}"
   ansible.builtin.template:
     src: 99-chrony.conf.j2
     dest: "{{ ntp_client_chrony_conf_drop_in_path }}"
     owner: root
     group: root
-    mode: 0644
-    backup: no
+    mode: '0644'
+    backup: false
   notify:
     - "restart_chrony"
   become: true

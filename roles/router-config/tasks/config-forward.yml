@@ -12,6 +12,7 @@
 - name: "Configure IPv4 bidirectional FORWARD rules (no NAT)"
   ansible.builtin.shell: |
     # 外部向け物理NIC接続ネットワーク => 内部プライベートネットワーク
+    set -o pipefail
     iptables -C FORWARD -s "{{ network_ipv4_network_address }}/{{ network_ipv4_prefix_len }}" \
       -d "{{ gpm_mgmt_ipv4_network_cidr }}" -i "{{ mgmt_nic }}" -o "{{ gpm_mgmt_nic }}" -j ACCEPT 2>/dev/null || \
     iptables -A FORWARD -s "{{ network_ipv4_network_address }}/{{ network_ipv4_prefix_len }}" \
@@ -29,11 +30,14 @@
     - gpm_mgmt_ipv4_network_cidr is defined and gpm_mgmt_ipv4_network_cidr != ''
     - network_ipv4_network_address is defined and network_ipv4_network_address != ''
     - network_ipv4_prefix_len is defined and network_ipv4_prefix_len|int > 0
+  register: _result
+  changed_when: _result.rc == 0
 
 # IPv6双方向転送ルール設定（NAT無し）
 - name: "Configure IPv6 bidirectional FORWARD rules (no NAT)"
   ansible.builtin.shell: |
     # 外部向け物理NIC接続ネットワーク => 内部プライベートネットワーク
+    set -o pipefail
     ip6tables -C FORWARD -s "{{ network_ipv6_network_address }}/{{ network_ipv6_prefix_len }}" \
       -d "{{ gpm_mgmt_ipv6_network_cidr }}" -i "{{ mgmt_nic }}" -o "{{ gpm_mgmt_nic }}" -j ACCEPT 2>/dev/null || \
     ip6tables -A FORWARD -s "{{ network_ipv6_network_address }}/{{ network_ipv6_prefix_len }}" \
@@ -51,6 +55,8 @@
     - gpm_mgmt_ipv6_network_cidr is defined and gpm_mgmt_ipv6_network_cidr != ''
     - network_ipv6_network_address is defined and network_ipv6_network_address != ''
     - network_ipv6_prefix_len is defined and network_ipv6_prefix_len|int > 0
+  register: _result
+  changed_when: _result.rc == 0
 
 # iptables設定を永続化(Ubuntu/Debian)
 - name: "Save iptables rules to iptables-persistent (Debian/Ubuntu)"
@@ -61,6 +67,8 @@
   when:
     - ansible_facts.os_family == "Debian"
   become: true
+  register: _result
+  changed_when: _result.rc == 0
 
 # iptables設定を永続化 (RedHat/CentOS)
 - name: "Save iptables rules to iptables-persistent (RedHat/CentOS)"
@@ -71,6 +79,8 @@
   when:
     - ansible_facts.os_family == "RedHat"
   become: true
+  register: _result
+  changed_when: _result.rc == 0
 
 # ip6tables設定を永続化 (RedHat/CentOS)
 - name: "Save ip6tables rules to iptables-persistent (RedHat/CentOS)"
@@ -81,6 +91,8 @@
   when:
     - ansible_facts.os_family == "RedHat"
   become: true
+  register: _result
+  changed_when: _result.rc == 0
 
 - name: "Apply iptables rules immediately (RedHat/CentOS)"
   ansible.builtin.service:

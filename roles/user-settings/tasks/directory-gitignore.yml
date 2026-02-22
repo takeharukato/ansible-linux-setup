@@ -12,7 +12,7 @@
     dest: /etc/skel/.gitignore
     owner: root
     group: root
-    mode: 0644
-    backup: no
+    mode: '0644'
+    backup: false
   when:
     - user_settings_create_gitignore_on_homedir_skel|default(false, true)

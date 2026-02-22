@@ -2,5 +2,7 @@
 #  Ansible playbook
 #  Copyright 2020 Takeharu KATO All Rights Reserved.
 #
-- ansible.builtin.import_tasks: docker.yml
-- ansible.builtin.import_tasks: sysctl.yml
+- name: "Docker"
+  ansible.builtin.import_tasks: docker.yml
+- name: "Sysctl"
+  ansible.builtin.import_tasks: sysctl.yml

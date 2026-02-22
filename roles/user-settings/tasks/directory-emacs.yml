@@ -34,8 +34,8 @@
     dest: /etc/skel/.emacs.d/init.el
     owner: root
     group: root
-    mode: 0644
-    backup: no
+    mode: '0644'
+    backup: false
 
 #
 # proxy-settings.elのスケルトン
@@ -46,8 +46,8 @@
     dest: /etc/skel/.emacs.d/user_settings/proxy-settings.el
     owner: root
     group: root
-    mode: 0644
-    backup: no
+    mode: '0644'
+    backup: false
 
 #
 # basic-settings.elのスケルトン
@@ -58,8 +58,8 @@
     dest: /etc/skel/.emacs.d/user_settings/basic-settings.el
     owner: root
     group: root
-    mode: 0644
-    backup: no
+    mode: '0644'
+    backup: false
 
 #
 # japanese-environment.elのスケルトン
@@ -70,5 +70,5 @@
     dest: /etc/skel/.emacs.d/user_settings/japanese-environment.el
     owner: root
     group: root
-    mode: 0644
-    backup: no
+    mode: '0644'
+    backup: false

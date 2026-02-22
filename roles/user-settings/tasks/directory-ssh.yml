@@ -23,8 +23,8 @@
     dest: /etc/skel/.ssh/authorized_keys
     owner: root
     group: root
-    mode: 0600
-    backup: no
+    mode: '0600'
+    backup: false
 
 #
 # sshのconfig
@@ -35,5 +35,5 @@
     dest: /etc/skel/.ssh/config
     owner: root
     group: root
-    mode: 0600
-    backup: no
+    mode: '0600'
+    backup: false

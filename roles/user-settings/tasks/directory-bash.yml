@@ -12,8 +12,8 @@
     dest: /etc/skel/.bashrc.proxy
     owner: root
     group: root
-    mode: 0644
-    backup: no
+    mode: '0644'
+    backup: false
 
 #
 # bash用のLmod設定ファイルの生成
@@ -24,8 +24,8 @@
     dest: /etc/skel/.bashrc.lmod
     owner: root
     group: root
-    mode: 0644
-    backup: no
+    mode: '0644'
+    backup: false
 
 #
 # .bashrcのスケルトンに補完設定処理を追加する
@@ -37,7 +37,7 @@
     regexp: '^\[ \-f /usr/share/bash-completion/bash_completion \] && source /usr/share/bash-completion/bash_completion'
     insertafter: EOF
     line: '[ -f /usr/share/bash-completion/bash_completion ] && source /usr/share/bash-completion/bash_completion # load bash completion'
-    backup: no
+    backup: false
 
 #
 # .bashrcのスケルトンにプロキシ設定読込行を追加する
@@ -49,7 +49,7 @@
     regexp: '^\[ \-f ${HOME}/.bashrc.proxy \] && source ${HOME}/.bashrc.proxy'
     insertafter: EOF
     line: '[ -f ${HOME}/.bashrc.proxy ] && source ${HOME}/.bashrc.proxy # load proxy settings'
-    backup: no
+    backup: false
 
 #
 # .bashrcのスケルトンに個人設定ファイル読込行を追加する
@@ -61,7 +61,7 @@
     regexp: '^\[ \-f ${HOME}/.bashrc.mine \] && source ${HOME}/.bashrc.mine'
     insertafter: EOF
     line: '[ -f ${HOME}/.bashrc.mine ] && source ${HOME}/.bashrc.mine # load personal settings'
-    backup: no
+    backup: false
 
 #
 # .bashrcのスケルトンにLmod設定ファイル読込行を追加する
@@ -73,4 +73,4 @@
     regexp: '^\[ \-f ${HOME}/.bashrc.lmod \] && source ${HOME}/.bashrc.lmod'
     insertafter: EOF
     line: '[ -f ${HOME}/.bashrc.lmod ] && source ${HOME}/.bashrc.lmod # load Lmod settings'
-    backup: no
+    backup: false

@@ -19,8 +19,8 @@
     dest: "{{netgauge_dir}}/bin/00_detect_cpus.sh"
     owner: root
     group: root
-    mode: 0755
-    backup: no
+    mode: '0755'
+    backup: false
 
 - name: "Create {{netgauge_dir}}/bin/10_prepare_cgroup.sh"
   ansible.builtin.template:
@@ -28,8 +28,8 @@
     dest: "{{netgauge_dir}}/bin/10_prepare_cgroup.sh"
     owner: root
     group: root
-    mode: 0755
-    backup: no
+    mode: '0755'
+    backup: false
 
 - name: "Create {{netgauge_dir}}/bin/20_launch_netgauge.sh"
   ansible.builtin.template:
@@ -37,8 +37,8 @@
     dest: "{{netgauge_dir}}/bin/20_launch_netgauge.sh"
     owner: root
     group: root
-    mode: 0755
-    backup: no
+    mode: '0755'
+    backup: false
 
 - name: "Create {{netgauge_dir}}/bin/25_flatten_values.sh"
   ansible.builtin.template:
@@ -46,8 +46,8 @@
     dest: "{{netgauge_dir}}/bin/25_flatten_values.sh"
     owner: root
     group: root
-    mode: 0755
-    backup: no
+    mode: '0755'
+    backup: false
 
 - name: "Create {{netgauge_dir}}/bin/30_plot_all.sh"
   ansible.builtin.template:
@@ -55,8 +55,8 @@
     dest: "{{netgauge_dir}}/bin/30_plot_all.sh"
     owner: root
     group: root
-    mode: 0755
-    backup: no
+    mode: '0755'
+    backup: false
 
 - name: "Create {{netgauge_dir}}/bin/50_cpu_list.py"
   ansible.builtin.template:
@@ -64,8 +64,8 @@
     dest: "{{netgauge_dir}}/bin/50_cpu_list.py"
     owner: root
     group: root
-    mode: 0755
-    backup: no
+    mode: '0755'
+    backup: false
 
 - name: "Create {{netgauge_dir}}/bin/60_fft_plot.py"
   ansible.builtin.template:
@@ -73,8 +73,8 @@
     dest: "{{netgauge_dir}}/bin/60_fft_plot.py"
     owner: root
     group: root
-    mode: 0755
-    backup: no
+    mode: '0755'
+    backup: false
 
 - name: "Create {{netgauge_dir}}/bin/90_get_app_cpu_noise.sh"
   ansible.builtin.template:
@@ -82,8 +82,8 @@
     dest: "{{netgauge_dir}}/bin/90_get_app_cpu_noise.sh"
     owner: root
     group: root
-    mode: 0755
-    backup: no
+    mode: '0755'
+    backup: false
 
 - name: "Create {{netgauge_dir}}/bin/plot_hist.gp"
   ansible.builtin.template:
@@ -91,5 +91,5 @@
     dest: "{{netgauge_dir}}/bin/plot_hist.gp"
     owner: root
     group: root
-    mode: 0644
-    backup: no
+    mode: '0644'
+    backup: false

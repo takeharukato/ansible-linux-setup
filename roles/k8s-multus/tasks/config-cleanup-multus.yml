@@ -6,17 +6,23 @@
 #
 
 # kube-apiが使えるようになるのを待ち合わせる
-- name: wait for kube-api-server
-  ansible.builtin.wait_for: host={{ k8s_ctrlplane_endpoint }} port=6443 state=started
+- name: Wait for kube-api-server
+  ansible.builtin.wait_for:
+    host: "{{ k8s_ctrlplane_endpoint }}"
+    port: 6443
+    state: started
 
 # 既存のMultusリソースをクリーンアップ（Helm管理への移行時）
 - name: Cleanup existing Multus resources (if cleanup enabled)
   ansible.builtin.shell: |
+    set -o pipefail
     kubectl delete daemonset -n kube-system kube-multus-ds --ignore-not-found=true
     kubectl delete clusterrole multus --ignore-not-found=true
     kubectl delete clusterrolebinding multus --ignore-not-found=true
     kubectl delete serviceaccount -n kube-system multus --ignore-not-found=true
     kubectl delete configmap -n kube-system multus-cni-config --ignore-not-found=true
+  args:
+    executable: /bin/bash
   environment:
     KUBECONFIG: /etc/kubernetes/admin.conf
   become: true

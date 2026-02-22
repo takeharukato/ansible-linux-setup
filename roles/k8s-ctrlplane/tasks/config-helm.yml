@@ -11,9 +11,14 @@
 
 - name: Install Helm latest version
   ansible.builtin.shell: |
+    set -o pipefail
     curl -fsSL {{ k8s_helm_install_script_url }} | bash
+  args:
+    executable: /bin/bash
   become: true
   when: k8s_helm_version is not defined or k8s_helm_version == 'latest'
+  register: _result
+  changed_when: _result.rc == 0
 
 - name: "Install Helm {{ k8s_helm_version }}"
   ansible.builtin.shell: |
@@ -27,6 +32,7 @@
   when:
     - k8s_helm_version is defined
     - k8s_helm_version != 'latest'
+  changed_when: false
 
 - name: Install CiliumCLI
   ansible.builtin.shell: |
@@ -37,22 +43,32 @@
     rm {{ k8s_cilium_cli_archive_name }} {{ k8s_cilium_cli_archive_name }}.sha256sum
     cilium version
   become: true
+  changed_when: false
 
 #
 # リポジトリの追加
 #
 - name: Clear all repositories
   ansible.builtin.shell: |
+    set -o pipefail
     helm repo list -o yaml | yq '.[].name' | xargs -n1 helm repo remove
+  args:
+    executable: /bin/bash
   ignore_errors: true
+  register: _result
+  changed_when: _result.rc == 0
 
 - name: Add Cilium Repository
   ansible.builtin.shell: |
     helm repo add cilium {{ k8s_cilium_helm_repo_url }}
     helm repo update cilium
+  register: _result
+  changed_when: _result.rc == 0
 
 - name: Add Cilium Repository for "{{k8s_operator_user}}"
   ansible.builtin.shell: |
     sudo -u "{{k8s_operator_user}}" helm repo add cilium {{ k8s_cilium_helm_repo_url }}
     sudo -u "{{k8s_operator_user}}" helm repo update cilium
   become: true
+  register: _result
+  changed_when: _result.rc == 0

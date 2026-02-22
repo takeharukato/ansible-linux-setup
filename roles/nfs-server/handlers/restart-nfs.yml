@@ -3,7 +3,7 @@
 #  Copyright 2020 Takeharu KATO All Rights Reserved.
 
 # NFSを再起動する
-- name: restart_nfs
+- name: Restart_nfs
   listen: "restart_nfs"
   ansible.builtin.systemd:
     name: nfs-server

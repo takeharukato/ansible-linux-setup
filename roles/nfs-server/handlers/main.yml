@@ -6,5 +6,7 @@
 # 処理を直接書かずにincludeする
 # 例:
 # - import_tasks: docker.yml
-- ansible.builtin.import_tasks: disable-gui.yml
-- ansible.builtin.import_tasks: restart-nfs.yml
+- name: "Disable Gui"
+  ansible.builtin.import_tasks: disable-gui.yml
+- name: "Restart Nfs"
+  ansible.builtin.import_tasks: restart-nfs.yml

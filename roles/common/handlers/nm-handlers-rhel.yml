@@ -108,6 +108,8 @@
   ansible.builtin.shell: |
     set -o pipefail
     ip -4 addr show dev {{ item.netif }} scope global | grep -q 'inet '
+  args:
+    executable: /bin/bash
   register: v4_present
   changed_when: false
   failed_when: false
@@ -158,6 +160,8 @@
   ansible.builtin.shell: |
     set -o pipefail
     ip -6 addr show dev {{ item.netif }} scope global | grep -q 'inet6 '
+  args:
+    executable: /bin/bash
   register: v6_present
   changed_when: false
   failed_when: false

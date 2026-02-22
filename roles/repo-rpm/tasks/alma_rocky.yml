@@ -20,19 +20,19 @@
 - name: Remove custom BaseOS repo definition if exists
   when: ansible_facts.distribution | lower in ['almalinux','rocky']
   ansible.builtin.yum_repository:
-    name: baseos
+    name: Baseos
     state: absent
 
 - name: Remove custom AppStream repo definition if exists
   when: ansible_facts.distribution | lower in ['almalinux','rocky']
   ansible.builtin.yum_repository:
-    name: appstream
+    name: Appstream
     state: absent
 
 - name: Remove custom CRB repo definition if exists
   when: ansible_facts.distribution | lower in ['almalinux','rocky']
   ansible.builtin.yum_repository:
-    name: crb
+    name: Crb
     state: absent
 
 # 標準の BaseOS/AppStream/CRB を有効化する

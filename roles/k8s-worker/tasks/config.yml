@@ -6,19 +6,25 @@
 #
 
 # kube-apiが使えるようになるのを待ち合わせる
-- name: wait for kube-api-server
-  ansible.builtin.wait_for: host={{ k8s_ctrlplane_endpoint }} port=6443 state=started
+- name: Wait for kube-api-server
+  ansible.builtin.wait_for:
+    host: "{{ k8s_ctrlplane_endpoint }}"
+    port: 6443
+    state: started
 
 # ジョイントークンを変数に格納
-#ssh 192.168.20.41 "sudo kubeadm token list|grep -v TOKEN"|awk -F' ' '{print $1}'
-- name: get join token in token list
+# ssh 192.168.20.41 "sudo kubeadm token list|grep -v TOKEN"|awk -F' ' '{print $1}'
+- name: Get join token in token list
   ansible.builtin.shell: |
+    set -o pipefail
     sudo kubeadm token list|grep -v TOKEN|awk -F' ' '{print $1}'|head -1
+  args:
+    executable: /bin/bash
   delegate_to: "{{ k8s_ctrlplane_host }}"
   register: k8s_join_token_list
   changed_when: false
 
-- name: create new join token
+- name: Create new join token
   ansible.builtin.shell: |
     sudo kubeadm token create
   delegate_to: "{{ k8s_ctrlplane_host }}"
@@ -26,24 +32,33 @@
   when:
     - k8s_join_token_list.stdout is defined and k8s_join_token_list.stdout == ''
 
-- name: get join token in token list
+- name: Get join token in token list
   ansible.builtin.shell: |
+    set -o pipefail
     sudo kubeadm token list|grep -v TOKEN|awk -F' ' '{print $1}'|head -1
+  args:
+    executable: /bin/bash
   delegate_to: "{{ k8s_ctrlplane_host }}"
   register: k8s_join_token_from_ctrlplane
   changed_when: false
 
 # cert hashを変数に格納
-- name: get join discovery hash
+- name: Get join discovery hash
   ansible.builtin.shell: |
+    set -o pipefail
     sudo openssl x509 -pubkey -in /etc/kubernetes/pki/ca.crt | openssl rsa -pubin -outform der 2>/dev/null | openssl dgst -sha256 -hex | sed 's/^.* //'
+  args:
+    executable: /bin/bash
   delegate_to: "{{ k8s_ctrlplane_host }}"
   register: k8s_join_discovery_hash_from_ctrlplane
   changed_when: false
 
 # kube-apiが使えるようになるのを待ち合わせる
-- name: wait for kube-api-server
-  ansible.builtin.wait_for: host={{ k8s_ctrlplane_endpoint }} port=6443 state=started
+- name: Wait for kube-api-server
+  ansible.builtin.wait_for:
+    host: "{{ k8s_ctrlplane_endpoint }}"
+    port: 6443
+    state: started
 
 # 既にjoin済みだった場合は, 対象コントロールプレインに対して以下を実行して, ノード登録を抹消すること
 # 参考) http://stackoverflow.com/questions/35757620/how-to-gracefully-remove-a-node-from-kubernetes
@@ -59,7 +74,7 @@
 # kubectl delete node "k8sworker01"
 
 # ホスト名を得る
-- name: get hostname
+- name: Get hostname
   ansible.builtin.shell: |
     hostname
   register: k8s_worker_hostname
@@ -81,11 +96,11 @@
     dest: "{{ k8s_kubeadm_config_store }}/kubeadm.config.yml"
     owner: root
     group: root
-    mode: 0644
-    backup: no
+    mode: '0644'
+    backup: false
 
 # 既に登録済みのワーカーをスケジュール対象から外す
-- name: make "{{ k8s_worker_hostname.stdout }}" cordon
+- name: Make "{{ k8s_worker_hostname.stdout }}" cordon
   ansible.builtin.shell: |
     kubectl cordon "{{ k8s_worker_hostname.stdout }}"
   delegate_to: "{{ k8s_ctrlplane_host }}"
@@ -93,15 +108,18 @@
   ignore_errors: true
 
 # 既に登録済みのワーカーをシャットダウンする
-- name: drain "{{ k8s_worker_hostname.stdout }}"
+- name: Drain "{{ k8s_worker_hostname.stdout }}"
   ansible.builtin.shell: |
+    set -o pipefail
     kubectl drain "{{ k8s_worker_hostname.stdout }}" --ignore-daemonsets  --delete-emptydir-data -v=6 --timeout={{ k8s_drain_timeout_minutes|default(5,true)|int }}m
+  args:
+    executable: /bin/bash
   delegate_to: "{{ k8s_ctrlplane_host }}"
   changed_when: False
   ignore_errors: true
 
 # 既に登録済みのワーカーを削除する
-- name: delete "{{ k8s_worker_hostname.stdout }}"
+- name: Delete "{{ k8s_worker_hostname.stdout }}"
   ansible.builtin.shell: |
     kubectl delete node "{{ k8s_worker_hostname.stdout }}"
   delegate_to: "{{ k8s_ctrlplane_host }}"
@@ -112,65 +130,71 @@
   ansible.builtin.shell: "sleep {{ k8s_worker_delete_wait_sec|default(5,true)|int }}"
   async: 1
   poll: 0
+  register: _result
+  changed_when: _result.rc == 0
 
 - block:
+    - name: Reset configuration
+      ansible.builtin.shell: |
+        kubeadm reset -f
+      become: true
+      register: _result
+      changed_when: _result.rc == 0
 
-  - name: reset configuration
-    ansible.builtin.shell: |
-      kubeadm reset -f
-    become: true
+    - name: Stop kubelet
+      ansible.builtin.systemd:
+        name: kubelet
+        state: stopped
+      become: true
 
-  - name: stop kubelet
-    ansible.builtin.systemd:
-      name: kubelet
-      state: stopped
-    become: true
+    - name: Stop containerd
+      ansible.builtin.systemd:
+        name: containerd
+        state: stopped
+      become: true
 
-  - name: stop containerd
-    ansible.builtin.systemd:
-      name: containerd
-      state: stopped
-    become: true
+    - name: Remove /etc/kubernetes/manifests
+      ansible.builtin.file:
+        path: /etc/kubernetes/manifests
+        state: absent
+      become: true
 
-  - name: remove /etc/kubernetes/manifests
-    ansible.builtin.file:
-      path: /etc/kubernetes/manifests
-      state: absent
-    become: true
+    - name: Remove /etc/cni/net.d
+      ansible.builtin.file:
+        path: /etc/cni/net.d
+        state: absent
+      become: true
 
-  - name: remove /etc/cni/net.d
-    ansible.builtin.file:
-      path: /etc/cni/net.d
-      state: absent
-    become: true
+    - name: Kubeadm configuration file
+      ansible.builtin.shell: |
+        cat "{{ k8s_kubeadm_config_store }}/kubeadm.config.yml"
+      changed_when: false
 
-  - name: kubeadm configuration file
-    ansible.builtin.shell: |
-      cat "{{ k8s_kubeadm_config_store }}/kubeadm.config.yml"
+    - name: Remove /var/lib/kubelet/cpu_manager_state
+      ansible.builtin.file:
+        path: /var/lib/kubelet/cpu_manager_state
+        state: absent
+      become: true
 
-  - name: remove /var/lib/kubelet/cpu_manager_state
-    ansible.builtin.file:
-      path: /var/lib/kubelet/cpu_manager_state
-      state: absent
-    become: true
+    - name: Start containerd before kubeadm join
+      ansible.builtin.service:
+        name: containerd
+        state: started
+        enabled: true
+      become: true
 
-  - name: start containerd before kubeadm join
-    ansible.builtin.service:
-      name: containerd
-      state: started
-      enabled: true
-    become: true
+    - name: Wait for containerd socket
+      ansible.builtin.wait_for:
+        path: /var/run/containerd/containerd.sock
+        timeout: 60
+      become: true
 
-  - name: wait for containerd socket
-    ansible.builtin.wait_for:
-      path: /var/run/containerd/containerd.sock
-      timeout: 60
-    become: true
-
-  - name: setup worker node
-    ansible.builtin.shell: |
-      kubeadm join --config "{{ k8s_kubeadm_config_store }}/kubeadm.config.yml" "{{ k8s_kubeadm_ignore_preflight_errors_arg }}"
-    become: true
+    - name: Setup worker node
+      ansible.builtin.shell: |
+        kubeadm join --config "{{ k8s_kubeadm_config_store }}/kubeadm.config.yml" "{{ k8s_kubeadm_ignore_preflight_errors_arg }}"
+      become: true
+      register: _result
+      changed_when: _result.rc == 0
 
 # containerd と kubelet を有効化
 # 念のため, 片方未導入でも他方は進めるようにfailed_when: false を指定

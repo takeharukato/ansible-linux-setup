@@ -2,8 +2,9 @@
 #  Ansible playbook
 #  Copyright 2020 Takeharu KATO All Rights Reserved.
 #
-- hosts: internal_devel
-  remote_user:  '{{ ansible_user }}'
+- name: Configure development hosts on privite networks
+  hosts: internal_devel
+  remote_user: '{{ ansible_user }}'
   become: true
   roles:
     - role: selinux

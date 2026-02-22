@@ -4,6 +4,9 @@
 #
 #  ハンドラ定義
 #
-- ansible.builtin.import_tasks: disable-gui.yml
-- ansible.builtin.import_tasks: sysctl.yml
-- ansible.builtin.import_tasks: reboot-node.yml
+- name: "Disable Gui"
+  ansible.builtin.import_tasks: disable-gui.yml
+- name: "Sysctl"
+  ansible.builtin.import_tasks: sysctl.yml
+- name: "Reboot Node"
+  ansible.builtin.import_tasks: reboot-node.yml

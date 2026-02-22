@@ -18,6 +18,7 @@
 # UFW を有効化 (非対話モード)
 - name: Ensure UFW enabled (non-interactive)
   ansible.builtin.shell: |
+    set -o pipefail
     set -e
     if ufw status | grep -iq '^Status: inactive'; then
       ufw --force enable
@@ -32,6 +33,7 @@
 # UFW でポート開放
 - name: Allow common ports via UFW
   ansible.builtin.shell: |
+    set -o pipefail
     set -e
     p_raw="{{ item }}"
     p_ufw="${p_raw/-/:}"
@@ -46,10 +48,13 @@
     - ansible_facts.os_family == "Debian"
     - "'ufw' in firewall_backend"
     - k8s_common_ports | default([], true) | length > 0
+  register: _result
+  changed_when: _result.rc == 0
 
 # Pod CIDR を in/out で許可 ( ネットワーク到達用 )
 - name: Allow Pod CIDR (IN/OUT) via UFW
   ansible.builtin.shell: |
+    set -o pipefail
     set -e
     cidr="{{ item.cidr }}"
     ufw allow in from "${cidr}"
@@ -64,6 +69,8 @@
   become: true
   notify:
     - "reload ufw"
+  register: _result
+  changed_when: _result.rc == 0
 
 # ---- firewall (RHEL: firewalld) --------------------------------------------
 
@@ -128,7 +135,7 @@
     - ansible_facts.os_family == "RedHat"
     - "'firewalld' in firewall_backend"
 
-- name: daemon-reload for rpfilter-bypass unit
+- name: Daemon-reload for rpfilter-bypass unit
   become: true
   ansible.builtin.systemd:
     daemon_reload: true
@@ -164,6 +171,7 @@
 - name: Show nftables firewalld filter_PREROUTING after rpfilter purge
   become: true
   ansible.builtin.shell: |
+    set -o pipefail
     for fam in inet ip ip6; do
       echo "=== ${fam} firewalld filter_PREROUTING ==="
       nft list chain "${fam}" firewalld filter_PREROUTING 2>/dev/null || true
@@ -188,12 +196,15 @@
     - k8s_common_ports | default([], true) | length > 0
   notify:
     - "reload firewalld"
+  register: _result
+  changed_when: _result.rc == 0
 
 # Pod CIDR を direct ルールで許可 ( INPUT/OUTPUT )
 #    - IPv4: family=ipv4, IPv6: family=ipv6
 - name: Allow Pod CIDR ingress/egress via firewalld direct rules
   become: true
   ansible.builtin.shell: |
+    set -o pipefail
     set -e
     fam="{{ item.family | lower }}"
     cidr="{{ item.cidr }}"
@@ -208,6 +219,8 @@
     - (k8s_pod_cidrs | default([], true) | length) > 0
   notify:
     - "reload firewalld"
+  register: _result
+  changed_when: _result.rc == 0
 
 # firewalldをリロード
 - name: Always reload firewalld after port updates
@@ -216,6 +229,8 @@
   when:
     - ansible_facts.os_family == "RedHat"
     - "'firewalld' in firewall_backend"
+  register: _result
+  changed_when: _result.rc == 0
 
 # UFWの状態を表示
 - name: Show UFW status
@@ -230,6 +245,7 @@
 # firewalldの状態を表示
 - name: Show firewalld port list and direct rules
   ansible.builtin.shell: |
+    set -o pipefail
     echo '--- ports ---'
     firewall-cmd --list-ports || true
     echo '--- direct rules ---'

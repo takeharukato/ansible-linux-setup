@@ -5,89 +5,62 @@
 #  include_tasksで他のタスクを読み込む
 
 # 最初に変数設定を読み直す ( role単独で実行可能とするため )
-- ansible.builtin.include_tasks: load-params.yml
-- ansible.builtin.include_tasks: package.yml
-- ansible.builtin.include_tasks: directory.yml
-
+- name: "Load Params"
+  ansible.builtin.include_tasks: load-params.yml
+- name: "Package"
+  ansible.builtin.include_tasks: package.yml
+- name: "Directory"
+  ansible.builtin.include_tasks: directory.yml
 # bash関連ファイル, ディレクトリ作成関連タスク
-- ansible.builtin.include_tasks: directory-bash.yml
-  when:
-    - user_settings_create_bash_skel|default(false)
-
+- name: "Directory Bash"
+  ansible.builtin.include_tasks: directory-bash.yml
 # zsh関連ファイル, ディレクトリ作成関連タスク
-- ansible.builtin.include_tasks: directory-zsh.yml
-  when:
-    - user_settings_create_zsh_skel|default(false)
-
+- name: "Directory Zsh"
+  ansible.builtin.include_tasks: directory-zsh.yml
 # ssh関連ファイル, ディレクトリ作成関連タスク
-- ansible.builtin.include_tasks: directory-ssh.yml
-  when:
-    - user_settings_create_ssh_skel|default(false)
-
+- name: "Directory Ssh"
+  ansible.builtin.include_tasks: directory-ssh.yml
 # curl関連ファイル, ディレクトリ作成関連タスク
-- ansible.builtin.include_tasks: directory-curl.yml
-  when:
-    - user_settings_create_curl_skel|default(false)
-
+- name: "Directory Curl"
+  ansible.builtin.include_tasks: directory-curl.yml
 # wget関連ファイル, ディレクトリ作成関連タスク
-- ansible.builtin.include_tasks: directory-wget.yml
-  when:
-    - user_settings_create_wget_skel|default(false)
-
+- name: "Directory Wget"
+  ansible.builtin.include_tasks: directory-wget.yml
 # GNU screen関連ファイル, ディレクトリ作成関連タスク
-- ansible.builtin.include_tasks: directory-screen.yml
-  when:
-    - user_settings_create_screen_skel|default(false)
-
+- name: "Directory Screen"
+  ansible.builtin.include_tasks: directory-screen.yml
 # tmux関連ファイル, ディレクトリ作成関連タスク
-- ansible.builtin.include_tasks: directory-tmux.yml
-  when:
-    - user_settings_create_tmux_skel|default(false)
-
+- name: "Directory Tmux"
+  ansible.builtin.include_tasks: directory-tmux.yml
 # aspell関連ファイル, ディレクトリ作成関連タスク
-- ansible.builtin.include_tasks: directory-aspell.yml
-  when:
-    - user_settings_create_aspell_skel|default(false)
-
+- name: "Directory Aspell"
+  ansible.builtin.include_tasks: directory-aspell.yml
 # git関連ファイル作成タスク
 # /etc/skelに.gitignoreを配置
-- ansible.builtin.include_tasks: directory-gitignore.yml
-  when:
-    - user_settings_create_git_skel|default(false)
-
+- name: "Directory Gitignore"
+  ansible.builtin.include_tasks: directory-gitignore.yml
 # gdb関連ファイル, ディレクトリ作成関連タスク
-- ansible.builtin.include_tasks: directory-gdb.yml
-  when:
-    - user_settings_create_gdb_skel|default(false)
-
+- name: "Directory Gdb"
+  ansible.builtin.include_tasks: directory-gdb.yml
 # ホームディレクトリのバックアップ関連タスク
 # バックアップスクリプトで必要な変数が全て定義されている場合にのみ,
 # バックアップスクリプト関連タスクを実行する
-- ansible.builtin.include_tasks: directory-home-backup-script.yml
-  when:
-    - user_settings_backup_home_script_enabled|default(false)
-    - (user_settings_backup_home_nfs_server|default("", true)) | length > 0
-    - (user_settings_backup_home_nfs_dir|default("", true)) | length > 0
-    - (user_settings_backup_home_mount_point|default("", true)) | length > 0
-    - (user_settings_backup_dir_on_nfs|default("", true)) | length > 0
-    - (user_settings_backup_output_dir|default("", true)) | length > 0
-    - (user_settings_backup_users_list | default([], true)) | length > 0
-    - (user_settings_backup_home_rotation|default(0, true)) > 0
-
+- name: "Directory Home Backup Script"
+  ansible.builtin.include_tasks: directory-home-backup-script.yml
 # Emacs関連ファイル, ディレクトリ作成関連タスク
-- ansible.builtin.include_tasks: directory-emacs.yml
-  when:
-    - user_settings_create_emacs_skel|default(false)
-
-- ansible.builtin.include_tasks: service.yml
-- ansible.builtin.include_tasks: config.yml
-- ansible.builtin.include_tasks: user_group.yml
-
+- name: "Directory Emacs"
+  ansible.builtin.include_tasks: directory-emacs.yml
+- name: "Service"
+  ansible.builtin.include_tasks: service.yml
+- name: "Config"
+  ansible.builtin.include_tasks: config.yml
+- name: "User Group"
+  ansible.builtin.include_tasks: user_group.yml
 # ホームディレクトリのコマンドファイル作成関連タスク
 # 留意事項: install-emacs-packages.shの生成処理を含むため,
 # emacs-package-el-setting.ymlやemacs-package.ymlよりも前に呼び出す必要がある
-- ansible.builtin.include_tasks: home-command.yml
-
+- name: "Home Command"
+  ansible.builtin.include_tasks: home-command.yml
 # emacsパッケージ用設定ファイル（オプション）の配布は post-user-create ロールで実行される
 
 # Emacs パッケージ導入は post-user-create ロールで実行される

@@ -4,8 +4,9 @@
 #  リブートタスク
 
 # 再起動要求があることを確認する
-- name: stat /var/run/reboot-required
-  ansible.builtin.stat: path=/var/run/reboot-required
+- name: Stat /var/run/reboot-required
+  ansible.builtin.stat:
+    path: /var/run/reboot-required
   register: reboot_required
 
 #
@@ -13,24 +14,25 @@
 #
 
 - block:
+    # GUIを無効化する
+    - name: Disable_gui
+      ansible.builtin.shell: |
+        systemctl set-default multi-user.target
+      become: true
+      register: _result
+      changed_when: _result.rc == 0
 
-  # GUIを無効化する
-  - name: disable_gui
-    ansible.builtin.shell: |
-      systemctl set-default multi-user.target
-    become: true
+    # マシンをリブートする
+    - name: Reboot host gracefully
+      ansible.builtin.reboot:
+        reboot_timeout: 600
+        msg: "Reboot triggered by role: common"
+        pre_reboot_delay: 2
 
-  # マシンをリブートする
-  - name: Reboot host gracefully
-    ansible.builtin.reboot:
-      reboot_timeout: 600
-      msg: "Reboot triggered by role: common"
-      pre_reboot_delay: 2
-
-  # ssh が使えるようになるのを待つ
-  - name: Wait for connection after reboot
-    ansible.builtin.wait_for_connection:
-      timeout: 300
+    # ssh が使えるようになるのを待つ
+    - name: Wait for connection after reboot
+      ansible.builtin.wait_for_connection:
+        timeout: 300
 
   when:
     - reboot_required.stat.exists

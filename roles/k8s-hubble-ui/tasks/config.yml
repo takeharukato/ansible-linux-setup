@@ -7,11 +7,14 @@
 ---
 
 # kube-apiが使えるようになるのを待ち合わせる
-- name: wait for kube-api-server
-  ansible.builtin.wait_for: host={{ k8s_ctrlplane_endpoint }} port=6443 state=started
+- name: Wait for kube-api-server
+  ansible.builtin.wait_for:
+    host: "{{ k8s_ctrlplane_endpoint }}"
+    port: 6443
+    state: started
 
 # Cilium CRD の存在確認
-- name: wait for Cilium CRD availability
+- name: Wait for Cilium CRD availability
   ansible.builtin.command: kubectl --kubeconfig /etc/kubernetes/admin.conf get crd ciliumidentities.cilium.io
   register: cilium_crd_check
   until: cilium_crd_check.rc == 0
@@ -41,7 +44,7 @@
     state: directory
     owner: root
     group: root
-    mode: 0755
+    mode: '0755'
   become: true
 
 # Hubble UI 用 values ファイルを生成
@@ -51,14 +54,17 @@
     dest: "{{ k8s_hubble_ui_config_dir }}/hubble-ui-values.yml"
     owner: root
     group: root
-    mode: 0644
-    backup: no
+    mode: '0644'
+    backup: false
   become: true
 
 # 既存の Helm values を取得 (マージモード時)
 - name: Get existing Cilium Helm values
   ansible.builtin.shell: |
+    set -o pipefail
     helm get values cilium -n kube-system -o yaml
+  args:
+    executable: /bin/bash
   register: helm_get_values_result
   failed_when: false
   changed_when: false
@@ -72,7 +78,7 @@
     dest: "{{ k8s_hubble_ui_config_dir }}/cilium-existing-values.yml"
     owner: root
     group: root
-    mode: 0644
+    mode: '0644'
   become: true
   when:
     - hubble_ui_merge_existing_values | default(false)
@@ -83,6 +89,7 @@
 # 新規値（Hubble UI設定）を優先するため、右側（fileIndex==1）を後にマージ
 - name: Merge existing values with Hubble UI values
   ansible.builtin.shell: |
+    set -o pipefail
     set -ex
     {{ yq_command }} eval-all '. as $item ireduce ({}; . * $item)' \
       "{{ k8s_hubble_ui_config_dir }}/cilium-existing-values.yml" \
@@ -91,6 +98,7 @@
   args:
     executable: /bin/bash
   register: yq_merge_result
+  changed_when: yq_merge_result.rc == 0
   become: true
   when:
     - hubble_ui_merge_existing_values | default(false)
@@ -155,6 +163,8 @@
       --wait \
       --timeout 10m
   become: true
+  register: _result
+  changed_when: _result.rc == 0
 
 # Hubble UI Deployment の起動を待機
 - name: Wait for Hubble UI Deployment to be available

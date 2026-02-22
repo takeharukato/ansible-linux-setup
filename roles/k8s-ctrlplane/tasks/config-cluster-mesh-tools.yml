@@ -5,7 +5,7 @@
 #  クラスタメッシュ関連ツール作成タスク
 #
 # 環境構築用コマンド配置先ディレクトリを作成
-- name: "make {{ k8s_node_setup_tools_dir }}"
+- name: "Make {{ k8s_node_setup_tools_dir }}"
   ansible.builtin.file:
     path: "{{ k8s_node_setup_tools_dir }}"
     state: directory
@@ -43,6 +43,7 @@
 # 等号付き (--file-postfix="...") で引き渡すようにしている。
 - name: "Create embedded kubeconfig file for {{ k8s_cilium_cm_cluster_name }} ({{ k8s_cilium_cm_cluster_name }}{{ k8s_embed_kubeconfig_file_postfix }})"
   ansible.builtin.shell: |
+    set -o pipefail
     {{ k8s_embed_kubeconfig_script_path }} \
       --admin-conf "{{ k8s_embed_kubeconfig_admin_conf }}" \
       --output-dir "{{ k8s_embed_kubeconfig_output_dir }}" \
@@ -56,6 +57,8 @@
   when:
     - k8s_cilium_cm_cluster_name | default('',true) | length > 0
     - k8s_cilium_cm_cluster_id | default('',true) | int > 0
+  register: _result
+  changed_when: _result.rc == 0
 
 
 # パーミッションを修正

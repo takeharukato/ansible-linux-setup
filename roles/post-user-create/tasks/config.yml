@@ -18,7 +18,7 @@
     dest: /etc/skel/bin/install-emacs-packages.sh
     owner: root
     group: root
-    mode: 0755
-    backup: no
+    mode: '0755'
+    backup: false
   when:
     - create_emacs_package_install_script|default(false)

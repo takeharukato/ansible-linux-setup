@@ -23,8 +23,8 @@
     dest: /etc/skel/bin/clean-all-docker-images.sh
     owner: root
     group: root
-    mode: 0755
-    backup: no
+    mode: '0755'
+    backup: false
   when:
     - create_docker_image_operation_script|default(false)
 
@@ -37,7 +37,7 @@
     dest: /etc/skel/bin/run-docker.sh
     owner: root
     group: root
-    mode: 0755
-    backup: no
+    mode: '0755'
+    backup: false
   when:
     - create_docker_image_operation_script|default(false)

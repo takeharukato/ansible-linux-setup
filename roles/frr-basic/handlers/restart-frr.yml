@@ -5,7 +5,7 @@
 #  FRR 再起動ハンドラ
 #
 
-- name: restart frr
+- name: Restart frr
   listen: "restart_frr"
   ansible.builtin.service:
     name: "{{ frr_svc_name }}"

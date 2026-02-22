@@ -6,16 +6,17 @@
 #
 #  apt関連起動ハンドラ
 #
-- name: apt_update_repo_deb
+- name: Apt_update_repo_deb
   listen: "apt_update_repo_deb"
-  ansible.builtin.command: apt-get update
-  changed_when: true
+  ansible.builtin.apt:
+    update_cache: true
   notify: "apt_validate_repo_deb"
 
-- name: apt_validate_repo_deb
+- name: Apt_validate_repo_deb
   listen: "apt_validate_repo_deb"
 
   ansible.builtin.shell: |
+    set -o pipefail
     set -euo pipefail
     pkgs=({{ common_packages | map('quote') | join(' ') }})
     for p in "${pkgs[@]}"; do

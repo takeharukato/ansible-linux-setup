@@ -27,16 +27,16 @@
 # CSV -> list ( 空白除去 )
 - name: Normalize network CIDR inputs
   ansible.builtin.set_fact:
-    _pods_list:    "{{ (k8s_pod_network_cidr | default('',true) | regex_replace('\\s','')).split(',') | reject('equalto','') | list }}"
+    _pods_list: "{{ (k8s_pod_network_cidr | default('',true) | regex_replace('\\s','')).split(',') | reject('equalto','') | list }}"
     _services_list: "{{ (k8s_service_subnet  | default('',true) | regex_replace('\\s','')).split(',') | reject('equalto','') | list }}"
 
 # v6 と v4 に分割
 - name: Split v6/v4 for pods and services
   ansible.builtin.set_fact:
-    _pods_v6:     "{{ _pods_list     | select('search', ':')         | list }}"
-    _pods_v4:     "{{ _pods_list     | reject('search', ':')         | list }}"
-    _svc_v6:      "{{ _services_list | select('search', ':')         | list }}"
-    _svc_v4:      "{{ _services_list | reject('search', ':')         | list }}"
+    _pods_v6: "{{ _pods_list     | select('search', ':')         | list }}"
+    _pods_v4: "{{ _pods_list     | reject('search', ':')         | list }}"
+    _svc_v6: "{{ _services_list | select('search', ':')         | list }}"
+    _svc_v4: "{{ _services_list | reject('search', ':')         | list }}"
 
 # API のファミリに合わせて IPv6, IPv4 か IPv4 から IPv6 に並べ替え
 # 本項目を実施しないと, kubeadm init 時にAPIサーバが起動しない
@@ -48,8 +48,8 @@
 # service IP family "10.245.0.0/16" must match public address family "fd69:6684:61a:1::41"
 - name: Order subnets to match API family
   ansible.builtin.set_fact:
-    podSubnet_ordered:     "{{ (k8s_ctrlplane_is_ipv6 | default(false) | bool) | ternary(_pods_v6 + _pods_v4, _pods_v4 + _pods_v6) | join(',') }}"
-    serviceSubnet_ordered: "{{ (k8s_ctrlplane_is_ipv6 | default(false) | bool) | ternary(_svc_v6  + _svc_v4,  _svc_v4  + _svc_v6)  | join(',') }}"
+    podSubnet_ordered: "{{ (k8s_ctrlplane_is_ipv6 | default(false) | bool) | ternary(_pods_v6 + _pods_v4, _pods_v4 + _pods_v6) | join(',') }}"
+    serviceSubnet_ordered: "{{ (k8s_ctrlplane_is_ipv6 | default(false) | bool) | ternary(_svc_v6  + _svc_v4, _svc_v4  + _svc_v6)  | join(',') }}"
 
 # bind-address も条件で作る (v6 のときは ::, v4 のときは 0.0.0.0)
 - name: Decide bind-address by API family
@@ -68,97 +68,102 @@
     dest: "{{ k8s_kubeadm_config_store }}/ctrlplane-kubeadm.config.yml"
     owner: root
     group: root
-    mode: 0644
-    backup: no
+    mode: '0644'
+    backup: false
 
 - block:
-  - name: reset configuration
-    ansible.builtin.shell: |
-      kubeadm reset -f
-    become: true
+    - name: Reset configuration
+      ansible.builtin.shell: |
+        kubeadm reset -f
+      become: true
+      register: _result
+      changed_when: _result.rc == 0
 
-  - name: stop kubelet
-    ansible.builtin.systemd:
-      name: kubelet
-      state: stopped
-    become: true
+    - name: Stop kubelet
+      ansible.builtin.systemd:
+        name: kubelet
+        state: stopped
+      become: true
 
-  - name: remove /etc/kubernetes/manifests
-    ansible.builtin.file:
-      path: /etc/kubernetes/manifests
-      state: absent
-    become: true
+    - name: Remove /etc/kubernetes/manifests
+      ansible.builtin.file:
+        path: /etc/kubernetes/manifests
+        state: absent
+      become: true
 
-  - name: kubeadm configuration file
-    ansible.builtin.shell: |
-      cat "{{ k8s_kubeadm_config_store }}/ctrlplane-kubeadm.config.yml"
+    - name: Kubeadm configuration file
+      ansible.builtin.shell: |
+        cat "{{ k8s_kubeadm_config_store }}/ctrlplane-kubeadm.config.yml"
+      changed_when: false
 
-  - name: remove /var/lib/kubelet/cpu_manager_state
-    ansible.builtin.file:
-      path: /var/lib/kubelet/cpu_manager_state
-      state: absent
-    become: true
+    - name: Remove /var/lib/kubelet/cpu_manager_state
+      ansible.builtin.file:
+        path: /var/lib/kubelet/cpu_manager_state
+        state: absent
+      become: true
 
-  - name: Restore shared CA assets after kubeadm reset
-    block:
-      - name: Ensure shared CA directory exists after kubeadm reset
-        ansible.builtin.file:
-          path: "{{ k8s_shared_ca_output_dir }}"
-          state: directory
-          owner: root
-          group: root
-          mode: "0700"
-        become: true
+    - name: Restore shared CA assets after kubeadm reset
+      block:
+        - name: Ensure shared CA directory exists after kubeadm reset
+          ansible.builtin.file:
+            path: "{{ k8s_shared_ca_output_dir }}"
+            state: directory
+            owner: root
+            group: root
+            mode: "0700"
+          become: true
 
-      - name: Redeploy shared CA files after kubeadm reset
-        ansible.builtin.copy:
-          src: "{{ item.src }}"
-          dest: "{{ item.dest }}"
-          owner: root
-          group: root
-          mode: "0600"
-          backup: false
-        loop:
-          - { src: "{{ k8s_shared_ca_source_cert }}", dest: "{{ k8s_shared_ca_cert_path }}" }
-          - { src: "{{ k8s_shared_ca_source_key }}",  dest: "{{ k8s_shared_ca_key_path }}" }
-        become: true
+        - name: Redeploy shared CA files after kubeadm reset
+          ansible.builtin.copy:
+            src: "{{ item.src }}"
+            dest: "{{ item.dest }}"
+            owner: root
+            group: root
+            mode: "0600"
+            backup: false
+          loop:
+            - { src: "{{ k8s_shared_ca_source_cert }}", dest: "{{ k8s_shared_ca_cert_path }}" }
+            - { src: "{{ k8s_shared_ca_source_key }}", dest: "{{ k8s_shared_ca_key_path }}" }
+          become: true
 
-      - name: Ensure /etc/kubernetes/pki exists for shared CA replacement
-        ansible.builtin.file:
-          path: "/etc/kubernetes/pki"
-          state: directory
-          owner: root
-          group: root
-          mode: "0700"
-        become: true
-        when: k8s_shared_ca_replace_kube_ca | default(false, true) | bool
+        - name: Ensure /etc/kubernetes/pki exists for shared CA replacement
+          ansible.builtin.file:
+            path: "/etc/kubernetes/pki"
+            state: directory
+            owner: root
+            group: root
+            mode: "0700"
+          become: true
+          when: k8s_shared_ca_replace_kube_ca | default(false, true) | bool
 
-      - name: Install shared CA as Kubernetes root CA
-        ansible.builtin.copy:
-          src: "{{ item.src }}"
-          dest: "{{ item.dest }}"
-          owner: root
-          group: root
-          mode: "0600"
-          remote_src: true
-          backup: false
-        loop:
-          - { src: "{{ k8s_shared_ca_cert_path }}", dest: "/etc/kubernetes/pki/ca.crt" }
-          - { src: "{{ k8s_shared_ca_key_path }}",  dest: "/etc/kubernetes/pki/ca.key" }
-        become: true
-        when: k8s_shared_ca_replace_kube_ca | default(false, true) | bool
+        - name: Install shared CA as Kubernetes root CA
+          ansible.builtin.copy:
+            src: "{{ item.src }}"
+            dest: "{{ item.dest }}"
+            owner: root
+            group: root
+            mode: "0600"
+            remote_src: true
+            backup: false
+          loop:
+            - { src: "{{ k8s_shared_ca_cert_path }}", dest: "/etc/kubernetes/pki/ca.crt" }
+            - { src: "{{ k8s_shared_ca_key_path }}", dest: "/etc/kubernetes/pki/ca.key" }
+          become: true
+          when: k8s_shared_ca_replace_kube_ca | default(false, true) | bool
 
-    when:
-      - k8s_shared_ca_source_cert | default('', true) | length > 0
-      - k8s_shared_ca_source_key | default('', true) | length > 0
-      - k8s_shared_ca_cert_path | default('', true) | length > 0
-      - k8s_shared_ca_key_path | default('', true) | length > 0
+      when:
+        - k8s_shared_ca_source_cert | default('', true) | length > 0
+        - k8s_shared_ca_source_key | default('', true) | length > 0
+        - k8s_shared_ca_cert_path | default('', true) | length > 0
+        - k8s_shared_ca_key_path | default('', true) | length > 0
 
-  # setup control plane with kubeadm
-  - name: setup control plane
-    ansible.builtin.shell: |
-      kubeadm init --config="{{ k8s_kubeadm_config_store }}/ctrlplane-kubeadm.config.yml" "{{ k8s_kubeadm_ignore_preflight_errors_arg }}"
-    become: true
+    # setup control plane with kubeadm
+    - name: Setup control plane
+      ansible.builtin.shell: |
+        kubeadm init --config="{{ k8s_kubeadm_config_store }}/ctrlplane-kubeadm.config.yml" "{{ k8s_kubeadm_ignore_preflight_errors_arg }}"
+      become: true
+      register: _result
+      changed_when: _result.rc == 0
 
 # containerd と kubelet を有効化
 # 念のため, 片方未導入でも他方は進めるようにfailed_when: false を指定
@@ -177,62 +182,67 @@
 
 
 - block:
+    - name: Make .kube dir for root
+      ansible.builtin.file:
+        path: "/root/.kube"
+        state: directory
+        owner: "root"
+        group: "root"
+        mode: "0755"
 
-  - name: make .kube dir for root
-    ansible.builtin.file:
-      path: "/root/.kube"
-      state: directory
-      owner: "root"
-      group: "root"
-      mode: "0755"
+    - name: Make .kube dir for ansible
+      ansible.builtin.file:
+        path: "{{ ansible_home_dir }}/.kube"
+        state: directory
+        owner: "ansible"
+        group: "ansible"
+        mode: "0755"
 
-  - name: make .kube dir for ansible
-    ansible.builtin.file:
-      path: "{{ ansible_home_dir }}/.kube"
-      state: directory
-      owner: "ansible"
-      group: "ansible"
-      mode: "0755"
+    - name: "Make .kube dir for {{ k8s_operator_user }}"
+      ansible.builtin.file:
+        path: "/home/{{ k8s_operator_user }}/.kube"
+        state: directory
+        owner: "{{ k8s_operator_user }}"
+        group: "{{ k8s_operator_user }}"
+        mode: "0755"
 
-  - name: "make .kube dir for {{ k8s_operator_user }}"
-    ansible.builtin.file:
-      path: "/home/{{ k8s_operator_user }}/.kube"
-      state: directory
-      owner: "{{ k8s_operator_user }}"
-      group: "{{ k8s_operator_user }}"
-      mode: "0755"
+    - name: Copy admin config
+      ansible.builtin.shell: |
+        cp /etc/kubernetes/admin.conf /root/.kube/config
+      become: true
+      register: _result
+      changed_when: _result.rc == 0
 
-  - name: copy admin config
-    ansible.builtin.shell: |
-      cp /etc/kubernetes/admin.conf /root/.kube/config
-    become: true
+    - name: Copy admin config to ansible
+      ansible.builtin.shell: |
+        cp "/etc/kubernetes/admin.conf" "{{ ansible_home_dir }}/.kube/config"
+      become: true
+      register: _result
+      changed_when: _result.rc == 0
 
-  - name: copy admin config to ansible
-    ansible.builtin.shell: |
-      cp "/etc/kubernetes/admin.conf" "{{ ansible_home_dir }}/.kube/config"
-    become: true
+    - name: Change owner for ansible
+      ansible.builtin.file:
+        path: "{{ ansible_home_dir }}/.kube/config"
+        owner: ansible
+        group: ansible
+        mode: "0644"
+        state: file
 
-  - name: change owner for ansible
-    ansible.builtin.file:
-      path: "{{ ansible_home_dir }}/.kube/config"
-      owner: ansible
-      group: ansible
-      mode: "0644"
-      state: file
+    - name: Copy admin config to /home/{{ k8s_operator_user }}/.kube directory
+      ansible.builtin.shell: |
+        cp /etc/kubernetes/admin.conf "/home/{{ k8s_operator_user }}/.kube/config"
+      become: true
+      register: _result
+      changed_when: _result.rc == 0
 
-  - name: copy admin config to /home/{{ k8s_operator_user }}/.kube directory
-    ansible.builtin.shell: |
-      cp /etc/kubernetes/admin.conf "/home/{{ k8s_operator_user }}/.kube/config"
-    become: true
-
-  - name: change owner of "/home/{{ k8s_operator_user }}/.kube/config"
-    ansible.builtin.file:
-      path: "/home/{{ k8s_operator_user }}/.kube/config"
-      mode: "0644"
-      owner: "{{ k8s_operator_user }}"
-      group: "{{ k8s_operator_user }}"
-      state: file
-    become: true
+    - name: Change owner of "/home/{{ k8s_operator_user }}/.kube/config"
+      ansible.builtin.file:
+        path: "/home/{{ k8s_operator_user }}/.kube/config"
+        mode: "0644"
+        owner: "{{ k8s_operator_user }}"
+        group: "{{ k8s_operator_user }}"
+        state: file
+      become: true
 
 # マシンをリブートする
 - name: Reboot host gracefully

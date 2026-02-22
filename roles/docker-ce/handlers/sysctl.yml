@@ -5,6 +5,8 @@
 #  sysctl設定適用ハンドラ
 #
 
-- name: apply_sysctl
+- name: Apply_sysctl
   ansible.builtin.command: sysctl --system
   listen: "apply_sysctl"
+  register: _result
+  changed_when: _result.rc == 0

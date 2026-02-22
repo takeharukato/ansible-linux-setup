@@ -12,6 +12,8 @@
 
 - name: Apply bridge relevant sysctl config
   ansible.builtin.command: sysctl --system
+  register: _result
+  changed_when: _result.rc == 0
 
 # Dockerサービスを有効化
 - name: Enable docker service

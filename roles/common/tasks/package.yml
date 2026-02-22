@@ -38,6 +38,7 @@
 # xcp-ng client packages
 - name: Install xcp-ng packages
   ansible.builtin.shell: |
+    set -o pipefail
     set -e
     if [ "{{ ansible_facts.os_family }}" = "Debian" ]; then
       curl -fsSL -o /tmp/xe-guest-utilities.deb "{{ xcpng_xe_guest_utilities_deb_url }}"
@@ -47,7 +48,11 @@
       curl -fsSL -o /tmp/xe-guest-utilities-xenstore.rpm "{{ xcpng_xen_store_rpm_url }}"
       dnf install -y /tmp/xe-guest-utilities.rpm /tmp/xe-guest-utilities-xenstore.rpm
     fi
+  args:
+    executable: /bin/bash
   when: use_xcpng | default(false) | bool
   notify:
     - disable_gui
     - pkg-autoremove
+  register: _result
+  changed_when: _result.rc == 0

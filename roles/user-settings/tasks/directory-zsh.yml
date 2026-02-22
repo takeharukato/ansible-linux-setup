@@ -13,8 +13,8 @@
     dest: /etc/skel/.zshrc.proxy
     owner: root
     group: root
-    mode: 0644
-    backup: no
+    mode: '0644'
+    backup: false
 
 #
 # zprofileのスケルトンファイル
@@ -25,8 +25,8 @@
     dest: /etc/skel/.zprofile
     owner: root
     group: root
-    mode: 0644
-    backup: no
+    mode: '0644'
+    backup: false
 
 #
 # zshrcのスケルトンファイル
@@ -37,8 +37,8 @@
     dest: /etc/skel/.zshrc
     owner: root
     group: root
-    mode: 0644
-    backup: no
+    mode: '0644'
+    backup: false
 
 #
 # zshrc.commonのスケルトンファイル
@@ -49,8 +49,8 @@
     dest: /etc/skel/.zshrc.common
     owner: root
     group: root
-    mode: 0644
-    backup: no
+    mode: '0644'
+    backup: false
 
 #
 # zshrc.mine.sample のスケルトンファイル
@@ -61,5 +61,5 @@
     dest: /etc/skel/.zshrc.mine.sample
     owner: root
     group: root
-    mode: 0644
-    backup: no
+    mode: '0644'
+    backup: false

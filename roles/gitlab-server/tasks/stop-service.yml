@@ -29,3 +29,4 @@
     - gitlab_home_dir_stat.stat.exists
     - gitlab_docker_compose_file_stat.stat.exists
   become: true
+  changed_when: false

@@ -29,7 +29,10 @@
 # zram ベースの swap (.swap ユニット)があれば停止, 無効化
 - name: List systemd swap units (e.g., dev-zram0.swap)
   ansible.builtin.shell: |
+    set -o pipefail
     systemctl list-units --type=swap --all --no-legend | awk '{print $1}'
+  args:
+    executable: /bin/bash
   register: swap_units
   changed_when: false
   failed_when: false

@@ -11,8 +11,8 @@
     dest: /usr/local/bin/backup-containers
     owner: root
     group: root
-    mode: 0755
-    backup: no
+    mode: '0755'
+    backup: false
 
 #
 # コンテナリストア用のスクリプトを導入
@@ -23,8 +23,8 @@
     dest: /usr/local/bin/restore-container
     owner: root
     group: root
-    mode: 0755
-    backup: no
+    mode: '0755'
+    backup: false
 
 
 # /usr/local/share/docker-backupを作成
@@ -43,8 +43,8 @@
     dest: "{{ docker_ce_backup_dockerfile_dir }}/Dockerfile"
     owner: root
     group: root
-    mode: 0644
-    backup: no
+    mode: '0644'
+    backup: false
 
 # Dockerfileから使うスクリプトを導入
 - name: "Deploy backup.sh for docker-backup container image"
@@ -53,8 +53,8 @@
     dest: "{{ docker_ce_backup_dockerfile_dir }}/backup.sh"
     owner: root
     group: root
-    mode: 0644
-    backup: no
+    mode: '0644'
+    backup: false
 
 # docker-backupコンテナイメージをビルド
 - name: "Build docker-backup container image"
@@ -62,3 +62,5 @@
     cd {{ docker_ce_backup_dockerfile_dir }}
     docker build -t "{{docker_ce_backup_container_image_name}}" .
   become: true
+  register: _result
+  changed_when: _result.rc == 0

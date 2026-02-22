@@ -44,6 +44,6 @@
   when: ansible_version.major < 2 or (ansible_version.major == 2 and ansible_version.minor < 15)
 
 # パッケージの更新情報を取得する
-- name: apt update forcefully
+- name: Apt update forcefully
   ansible.builtin.command: apt-get update -o Acquire::https::Verify-Peer={{ 'true' if apt_sslverify else 'false' }}
   changed_when: true

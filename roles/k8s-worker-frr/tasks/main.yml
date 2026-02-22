@@ -9,11 +9,18 @@
 ---
 
 # 最初に変数設定を読み直す ( role単独で実行可能とするため )
-- ansible.builtin.include_tasks: load-params.yml
+- name: "Load Params"
+  ansible.builtin.include_tasks: load-params.yml
 # パラメータ検証 (排他的な設定のチェック)
-- ansible.builtin.include_tasks: config-check-params.yml
-- ansible.builtin.include_tasks: package.yml
-- ansible.builtin.include_tasks: directory.yml
-- ansible.builtin.include_tasks: user_group.yml
-- ansible.builtin.include_tasks: service.yml
-- ansible.builtin.include_tasks: config.yml
+- name: "Config Check Params"
+  ansible.builtin.include_tasks: config-check-params.yml
+- name: "Package"
+  ansible.builtin.include_tasks: package.yml
+- name: "Directory"
+  ansible.builtin.include_tasks: directory.yml
+- name: "User Group"
+  ansible.builtin.include_tasks: user_group.yml
+- name: "Service"
+  ansible.builtin.include_tasks: service.yml
+- name: "Config"
+  ansible.builtin.include_tasks: config.yml

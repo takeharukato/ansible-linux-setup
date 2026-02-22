@@ -5,7 +5,7 @@
 #  kubelet サービス起動処理実体
 #
 # notify の kubelet_restarted_and_enabled に対応
-- name: "kubelet_restarted_and_enabled"
+- name: "Kubelet_restarted_and_enabled"
   listen: "kubelet_restarted_and_enabled"
   ansible.builtin.systemd:
     name: kubelet

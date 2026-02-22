@@ -6,103 +6,107 @@
 #
 
 # kube-apiが使えるようになるのを待ち合わせる
-- name: wait for kube-api-server
-  ansible.builtin.wait_for: host={{ k8s_ctrlplane_endpoint }} port=6443 state=started
+- name: Wait for kube-api-server
+  ansible.builtin.wait_for:
+    host: "{{ k8s_ctrlplane_endpoint }}"
+    port: 6443
+    state: started
 
 - block:
-  - name: compute Cilium BGP node identity
-    ansible.builtin.set_fact:
-      cilium_bgp_node_name: "{{ k8s_bgp.node_name | default(ansible_hostname, true) }}"
-      cilium_bgp_resource_suffix: "{{ (k8s_bgp.node_name | default(ansible_hostname, true)) | lower | regex_replace('[^a-z0-9-]', '-') }}"
+    - name: Compute Cilium BGP node identity
+      ansible.builtin.set_fact:
+        cilium_bgp_node_name: "{{ k8s_bgp.node_name | default(ansible_hostname, true) }}"
+        cilium_bgp_resource_suffix: "{{ (k8s_bgp.node_name | default(ansible_hostname, true)) | lower | regex_replace('[^a-z0-9-]', '-') }}"
 
-  - name: compute Cilium BGP manifest directory
-    ansible.builtin.set_fact:
-      cilium_bgp_manifest_dir: "{{ k8s_bgp.manifest_dir | default(k8s_cilium_config_dir + '/bgp', true) }}"
+    - name: Compute Cilium BGP manifest directory
+      ansible.builtin.set_fact:
+        cilium_bgp_manifest_dir: "{{ k8s_bgp.manifest_dir | default(k8s_cilium_config_dir + '/bgp', true) }}"
 
-  - name: compute Cilium BGP helper variables
-    ansible.builtin.set_fact:
-      cilium_bgp_manifest_path: "{{ k8s_bgp.manifest_path | default(cilium_bgp_manifest_dir + '/cilium-bgp-resources-' + cilium_bgp_resource_suffix + '.yml', true) }}"
-      cilium_bgp_delegate_host: "{{ k8s_bgp.apply_delegate | default(k8s_ctrlplane_host | default(inventory_hostname, true), true) }}"
-      cilium_bgp_cluster_config_name: "{{ k8s_bgp.cluster_config_name | default(k8s_bgp.policy_name | default('cilium-bgp-cluster-' + cilium_bgp_resource_suffix, true), true) }}"
-      cilium_bgp_peer_config_base_name: "{{ k8s_bgp.peer_config_base_name | default('cilium-bgp-peer-' + cilium_bgp_resource_suffix, true) }}"
-      cilium_bgp_advertisement_name: "{{ k8s_bgp.advertisement_name | default('cilium-bgp-advert-' + cilium_bgp_resource_suffix, true) }}"
-      cilium_bgp_advertisement_label: "{{ k8s_bgp.advertisement_label | default(k8s_bgp.advertisement_name | default('cilium-bgp-advert-' + cilium_bgp_resource_suffix, true), true) }}"
-      cilium_bgp_secret_namespace: "{{ k8s_bgp.secret_namespace | default('kube-system', true) }}"
-      cilium_bgp_instance_name: "{{ k8s_bgp.instance_name | default('instance-' + cilium_bgp_resource_suffix, true) }}"
-  - name: validate k8s_bgp neighbors are defined
-    ansible.builtin.assert:
-      that:
-        - (k8s_bgp.neighbors | default([], true)) | length > 0
-      fail_msg: "k8s_bgp.neighbors must not be empty when k8s_bgp.enabled is true."
+    - name: Compute Cilium BGP helper variables
+      ansible.builtin.set_fact:
+        cilium_bgp_manifest_path: "{{ k8s_bgp.manifest_path | default(cilium_bgp_manifest_dir + '/cilium-bgp-resources-' + cilium_bgp_resource_suffix + '.yml', true) }}"
+        cilium_bgp_delegate_host: "{{ k8s_bgp.apply_delegate | default(k8s_ctrlplane_host | default(inventory_hostname, true), true) }}"
+        cilium_bgp_cluster_config_name: "{{ k8s_bgp.cluster_config_name | default(k8s_bgp.policy_name | default('cilium-bgp-cluster-' + cilium_bgp_resource_suffix, true), true) }}"
+        cilium_bgp_peer_config_base_name: "{{ k8s_bgp.peer_config_base_name | default('cilium-bgp-peer-' + cilium_bgp_resource_suffix, true) }}"
+        cilium_bgp_advertisement_name: "{{ k8s_bgp.advertisement_name | default('cilium-bgp-advert-' + cilium_bgp_resource_suffix, true) }}"
+        cilium_bgp_advertisement_label: "{{ k8s_bgp.advertisement_label | default(k8s_bgp.advertisement_name | default('cilium-bgp-advert-' + cilium_bgp_resource_suffix, true), true) }}"
+        cilium_bgp_secret_namespace: "{{ k8s_bgp.secret_namespace | default('kube-system', true) }}"
+        cilium_bgp_instance_name: "{{ k8s_bgp.instance_name | default('instance-' + cilium_bgp_resource_suffix, true) }}"
+    - name: Validate k8s_bgp neighbors are defined
+      ansible.builtin.assert:
+        that:
+          - (k8s_bgp.neighbors | default([], true)) | length > 0
+        fail_msg: "k8s_bgp.neighbors must not be empty when k8s_bgp.enabled is true."
 
-  - name: ensure Cilium BGP manifest directory exists
-    ansible.builtin.file:
-      path: "{{ cilium_bgp_manifest_dir }}"
-      state: directory
-      owner: root
-      group: root
-      mode: "0755"
-    become: true
-    delegate_to: "{{ cilium_bgp_delegate_host }}"
+    - name: Ensure Cilium BGP manifest directory exists
+      ansible.builtin.file:
+        path: "{{ cilium_bgp_manifest_dir }}"
+        state: directory
+        owner: root
+        group: root
+        mode: "0755"
+      become: true
+      delegate_to: "{{ cilium_bgp_delegate_host }}"
 
-  - name: render Cilium BGP control plane resources manifest
-    ansible.builtin.template:
-      src: "{{ role_path | dirname }}/k8s-common/templates/cilium-bgp-resources.yml.j2"
-      dest: "{{ cilium_bgp_manifest_path }}"
-      owner: root
-      group: root
-      mode: "0644"
-    vars:
-      cilium_bgp_config: "{{ k8s_bgp | to_json | from_json }}"
-      cilium_bgp_node_name: "{{ cilium_bgp_node_name }}"
-      cilium_bgp_cluster_config_name: "{{ cilium_bgp_cluster_config_name }}"
-      cilium_bgp_peer_config_base_name: "{{ cilium_bgp_peer_config_base_name }}"
-      cilium_bgp_advertisement_name: "{{ cilium_bgp_advertisement_name }}"
-      cilium_bgp_advertisement_label: "{{ cilium_bgp_advertisement_label }}"
-      cilium_bgp_secret_namespace: "{{ cilium_bgp_secret_namespace }}"
-      cilium_bgp_instance_name: "{{ cilium_bgp_instance_name }}"
-    become: true
-    delegate_to: "{{ cilium_bgp_delegate_host }}"
+    - name: Render Cilium BGP control plane resources manifest
+      ansible.builtin.template:
+        src: "{{ role_path | dirname }}/k8s-common/templates/cilium-bgp-resources.yml.j2"
+        dest: "{{ cilium_bgp_manifest_path }}"
+        owner: root
+        group: root
+        mode: "0644"
+      vars:
+        cilium_bgp_config: "{{ k8s_bgp | to_json | from_json }}"
+        cilium_bgp_node_name: "{{ cilium_bgp_node_name }}"
+        cilium_bgp_cluster_config_name: "{{ cilium_bgp_cluster_config_name }}"
+        cilium_bgp_peer_config_base_name: "{{ cilium_bgp_peer_config_base_name }}"
+        cilium_bgp_advertisement_name: "{{ cilium_bgp_advertisement_name }}"
+        cilium_bgp_advertisement_label: "{{ cilium_bgp_advertisement_label }}"
+        cilium_bgp_secret_namespace: "{{ cilium_bgp_secret_namespace }}"
+        cilium_bgp_instance_name: "{{ cilium_bgp_instance_name }}"
+      become: true
+      delegate_to: "{{ cilium_bgp_delegate_host }}"
 
-  - name: wait for CiliumBGPAdvertisement CRD availability
-    ansible.builtin.command: kubectl --kubeconfig {{ k8s_bgp.kubeconfig | default('/etc/kubernetes/admin.conf', true) }} get crd ciliumbgpadvertisements.cilium.io
-    register: cilium_bgp_advertisement_crd_check
-    until: cilium_bgp_advertisement_crd_check.rc == 0
-    retries: 30
-    delay: 10
-    changed_when: false
-    become: true
-    delegate_to: "{{ cilium_bgp_delegate_host }}"
+    - name: Wait for CiliumBGPAdvertisement CRD availability
+      ansible.builtin.command: kubectl --kubeconfig {{ k8s_bgp.kubeconfig | default('/etc/kubernetes/admin.conf', true) }} get crd ciliumbgpadvertisements.cilium.io
+      register: cilium_bgp_advertisement_crd_check
+      until: cilium_bgp_advertisement_crd_check.rc == 0
+      retries: 30
+      delay: 10
+      changed_when: false
+      become: true
+      delegate_to: "{{ cilium_bgp_delegate_host }}"
 
-  - name: wait for CiliumBGPPeerConfig CRD availability
-    ansible.builtin.command: kubectl --kubeconfig {{ k8s_bgp.kubeconfig | default('/etc/kubernetes/admin.conf', true) }} get crd ciliumbgppeerconfigs.cilium.io
-    register: cilium_bgp_peer_crd_check
-    until: cilium_bgp_peer_crd_check.rc == 0
-    retries: 30
-    delay: 10
-    changed_when: false
-    become: true
-    delegate_to: "{{ cilium_bgp_delegate_host }}"
+    - name: Wait for CiliumBGPPeerConfig CRD availability
+      ansible.builtin.command: kubectl --kubeconfig {{ k8s_bgp.kubeconfig | default('/etc/kubernetes/admin.conf', true) }} get crd ciliumbgppeerconfigs.cilium.io
+      register: cilium_bgp_peer_crd_check
+      until: cilium_bgp_peer_crd_check.rc == 0
+      retries: 30
+      delay: 10
+      changed_when: false
+      become: true
+      delegate_to: "{{ cilium_bgp_delegate_host }}"
 
-  - name: wait for CiliumBGPClusterConfig CRD availability
-    ansible.builtin.command: kubectl --kubeconfig {{ k8s_bgp.kubeconfig | default('/etc/kubernetes/admin.conf', true) }} get crd ciliumbgpclusterconfigs.cilium.io
-    register: cilium_bgp_cluster_crd_check
-    until: cilium_bgp_cluster_crd_check.rc == 0
-    retries: 30
-    delay: 10
-    changed_when: false
-    become: true
-    delegate_to: "{{ cilium_bgp_delegate_host }}"
+    - name: Wait for CiliumBGPClusterConfig CRD availability
+      ansible.builtin.command: kubectl --kubeconfig {{ k8s_bgp.kubeconfig | default('/etc/kubernetes/admin.conf', true) }} get crd ciliumbgpclusterconfigs.cilium.io
+      register: cilium_bgp_cluster_crd_check
+      until: cilium_bgp_cluster_crd_check.rc == 0
+      retries: 30
+      delay: 10
+      changed_when: false
+      become: true
+      delegate_to: "{{ cilium_bgp_delegate_host }}"
 
-  - name: apply Cilium BGP resources manifest
-    ansible.builtin.shell: |
-      kubectl --kubeconfig {{ k8s_bgp.kubeconfig | default('/etc/kubernetes/admin.conf', true) }} apply -f "{{ cilium_bgp_manifest_path }}"
-    args:
-      executable: /bin/bash
-    become: true
-    delegate_to: "{{ cilium_bgp_delegate_host }}"
-    register: cilium_bgp_apply_result
-    changed_when: "'configured' in cilium_bgp_apply_result.stdout or 'created' in cilium_bgp_apply_result.stdout"
+    - name: Apply Cilium BGP resources manifest
+      ansible.builtin.shell: |
+        set -o pipefail
+        kubectl --kubeconfig {{ k8s_bgp.kubeconfig | default('/etc/kubernetes/admin.conf', true) }} apply -f "{{ cilium_bgp_manifest_path }}"
+      args:
+        executable: /bin/bash
+      become: true
+      delegate_to: "{{ cilium_bgp_delegate_host }}"
+      register: cilium_bgp_apply_result
+      changed_when: "'configured' in cilium_bgp_apply_result.stdout or 'created' in cilium_bgp_apply_result.stdout"
   when:
     - k8s_bgp is defined
     - k8s_bgp.enabled | default(false, true)

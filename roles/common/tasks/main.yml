@@ -5,23 +5,39 @@
 #  include_tasksで他のタスクを読み込む
 
 # 最初に変数設定を読み直す ( role単独で実行可能とするため )
-- ansible.builtin.include_tasks: load-params.yml
-- ansible.builtin.include_tasks: config-pre-check.yml
-- ansible.builtin.include_tasks: config-timezone.yml
-- ansible.builtin.include_tasks: config-disable-firewall.yml
-  when: not enable_firewall | default(false,true)
-- ansible.builtin.include_tasks: config-prepare-nm.yml
-- ansible.builtin.include_tasks: config-network-multi.yml
-- ansible.builtin.include_tasks: config-sudoer.yml
-- ansible.builtin.include_tasks: sysctl.yml
-- ansible.builtin.include_tasks: cron-setting.yml
-- ansible.builtin.include_tasks: package.yml
-- ansible.builtin.include_tasks: kubectl-repositories.yml
-- ansible.builtin.include_tasks: common-packages.yml
-- ansible.builtin.include_tasks: yq-package.yml
-- ansible.builtin.include_tasks: directory.yml
-- ansible.builtin.include_tasks: directory-dns-client.yml
-  when: use_nm_ddns_update_scripts | default(false)
-- ansible.builtin.include_tasks: service.yml
-- ansible.builtin.include_tasks: user_group.yml
-- ansible.builtin.include_tasks: reboot.yml
+- name: "Load Params"
+  ansible.builtin.include_tasks: load-params.yml
+- name: "Config Pre Check"
+  ansible.builtin.include_tasks: config-pre-check.yml
+- name: "Config Timezone"
+  ansible.builtin.include_tasks: config-timezone.yml
+- name: "Config Disable Firewall"
+  ansible.builtin.include_tasks: config-disable-firewall.yml
+- name: "Config Prepare Nm"
+  ansible.builtin.include_tasks: config-prepare-nm.yml
+- name: "Config Network Multi"
+  ansible.builtin.include_tasks: config-network-multi.yml
+- name: "Config Sudoer"
+  ansible.builtin.include_tasks: config-sudoer.yml
+- name: "Sysctl"
+  ansible.builtin.include_tasks: sysctl.yml
+- name: "Cron Setting"
+  ansible.builtin.include_tasks: cron-setting.yml
+- name: "Package"
+  ansible.builtin.include_tasks: package.yml
+- name: "Kubectl Repositories"
+  ansible.builtin.include_tasks: kubectl-repositories.yml
+- name: "Common Packages"
+  ansible.builtin.include_tasks: common-packages.yml
+- name: "Yq Package"
+  ansible.builtin.include_tasks: yq-package.yml
+- name: "Directory"
+  ansible.builtin.include_tasks: directory.yml
+- name: "Directory Dns Client"
+  ansible.builtin.include_tasks: directory-dns-client.yml
+- name: "Service"
+  ansible.builtin.include_tasks: service.yml
+- name: "User Group"
+  ansible.builtin.include_tasks: user_group.yml
+- name: "Reboot"
+  ansible.builtin.include_tasks: reboot.yml

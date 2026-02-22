@@ -3,8 +3,10 @@
 #  Copyright 2020 Takeharu KATO All Rights Reserved.
 
 # GUIを無効化する
-- name: disable_gui
+- name: Disable_gui
   listen: disable_gui
   ansible.builtin.shell: |
     systemctl set-default multi-user.target
   become: true
+  register: _result
+  changed_when: _result.rc == 0

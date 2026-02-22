@@ -44,7 +44,7 @@
     owner: "{{ outer_user_name }}"
     group: "{{ outer_user_group }}"
     mode: "0755"
-    remote_src: yes
+    remote_src: true
   when:
     - install_emacs_script is defined
     - install_emacs_script.stat is defined
@@ -53,15 +53,20 @@
 
 # Emacs パッケージをインストール
 # (create_user_emacs_package_list が定義済みで要素数が 1 以上の場合)
-- name: install one emacs package
+- name: Install one emacs package
   vars:
     outer_user_name: "{{ outer_item.name | default('', true) }}"
     outer_user_group: "{{ outer_item.group | default(outer_item.name | default('', true), true) }}"
     outer_user_home: "{{ outer_item.home | default('/home/' ~ (outer_item.name | default('', true)), true) }}"
     outer_user_shell: "{{ outer_item.shell | default('/bin/bash', true) }}"
   ansible.builtin.shell: |
+    set -o pipefail
     sudo -i -u "{{ outer_user_name }}" "{{ outer_user_shell }}" "{{ outer_user_home }}/bin/install-emacs-packages.sh" "{{ item }}"
+  args:
+    executable: /bin/bash
   loop: "{{ create_user_emacs_package_list | default([]) }}"
   when:
     - (create_user_emacs_package_list | default([], true) | length) > 0
     - ( outer_user_name | length ) > 0
+  register: _result
+  changed_when: _result.rc == 0
