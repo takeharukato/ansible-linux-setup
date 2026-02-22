@@ -166,7 +166,7 @@ Kubernetes ワーカーノード上に FRR (Free Range Routing) を導入し, �
 本ロールは以下の要件を満たすように設計されています:
 
 - IPv4/IPv6 デュアルスタック対応: Pod 間通信は主に IPv6 を使用しますが, IPv4 での通信も可能です。
-- DC 代表 FRR への iBGP 広告: 各ワーカーノードは DC 代表 FRR (frr01.local, frr02.local) に対して iBGP セッションを確立し, クラスタ全体の Pod ネットワークおよび Service ネットワーク CIDR を広告します。ワーカーノード自身への到達性確保用ホストルート (`/32` または `/128`) も併せて広告します。
+- DC 代表 FRR への iBGP 広告: 各ワーカーノードは DC 代表 FRR (frr01.local, frr02.local) に対して iBGP セッションを確立し, 当該のワーカーノードが所属するK8sクラスタの Pod ネットワークおよび Service ネットワーク CIDR を広告します。ワーカーノード自身への到達性確保用ホストルート (`/32` または `/128`) も併せて広告します。
 - プレフィックス長フィルタ: BGP 送信時に prefix-list と route-map を使用して, 広告するネットワークプレフィックスの下限/上限を制御します。IPv4/IPv6, Pod/Service 別に範囲指定 ( 例: /24-/28 ) が可能です。
 - カーネルルーティングテーブルへの反映: DC 代表 FRR から学習した BGP ルートをカーネルのルーティングテーブルに反映し, データセンター間の Pod 間通信を実現します。変数によるフィルタ設定が可能で, デフォルトでは全 BGP ルートを反映します。
 - 複数クラスタ対応: クラスタ名/ID による変数階層化により, 同一 DC 内の複数 K8s クラスタで異なる Pod/Service CIDR を広告できます。
@@ -209,8 +209,8 @@ Kubernetes ワーカーノード上に FRR (Free Range Routing) を導入し, �
 - iBGP ネイバー: `k8s_worker_frr.dc_frr_addresses` で定義された DC 代表 FRR ノードに対して iBGP セッションを確立します。
 - ネットワーク広告:
   - ワーカーノード自身への到達性確保用 `/32` (IPv4) または `/128` (IPv6) ホストルート (`advertise_host_route_ipv4/ipv6`)
-  - クラスタ全体の Pod ネットワーク CIDR (`clusters.<cluster_name>.pod_cidrs_v4/v6`)
-  - クラスタ全体の Service ネットワーク CIDR (`clusters.<cluster_name>.service_cidrs_v4/v6`)
+  - 当該のワーカーノードが所属するK8sクラスタの Pod ネットワーク CIDR (`clusters.<cluster_name>.pod_cidrs_v4/v6`)
+  - 当該のワーカーノードが所属するK8sクラスタの Service ネットワーク CIDR (`clusters.<cluster_name>.service_cidrs_v4/v6`)
 - プレフィックス長フィルタ (送信): address-family 別に以下の prefix-list を定義します:
   - `PL-V4-POD-OUT`: IPv4 Pod ネットワーク用 (min/max 長は `prefix_filter.ipv4.pod_min_length/pod_max_length`)
   - `PL-V4-SVC-OUT`: IPv4 Service ネットワーク用 (min/max 長は `prefix_filter.ipv4.service_min_length/service_max_length`)
@@ -247,10 +247,10 @@ Kubernetes ワーカーノード上に FRR (Free Range Routing) を導入し, �
 | `k8s_worker_frr.prefix_filter.ipv6.service_max_length` | `120` | IPv6 Service ネットワークの最大プレフィックス長。|
 | `k8s_worker_frr.kernel_route_filter.ipv4` | 未定義 | カーネルへインポートする IPv4 prefix-list 名のリスト (例: `["PL-V4-KERNEL"]`)。未定義の場合は全 BGP ルートをインポートします。|
 | `k8s_worker_frr.kernel_route_filter.ipv6` | 未定義 | カーネルへインポートする IPv6 prefix-list 名のリスト (例: `["PL-V6-KERNEL"]`)。未定義の場合は全 BGP ルートをインポートします。|
-| `k8s_worker_frr.clusters.<cluster_name>.pod_cidrs_v4` | `[]` | クラスタ全体の Pod ネットワーク CIDR (IPv4) のリスト (例: `["10.244.0.0/16"]`)。|
-| `k8s_worker_frr.clusters.<cluster_name>.service_cidrs_v4` | `[]` | クラスタ全体の Service ネットワーク CIDR (IPv4) のリスト (例: `["10.254.0.0/16"]`)。|
-| `k8s_worker_frr.clusters.<cluster_name>.pod_cidrs_v6` | `[]` | クラスタ全体の Pod ネットワーク CIDR (IPv6) のリスト (例: `["fdb6:6e92:3cfb:0200::/56"]`)。|
-| `k8s_worker_frr.clusters.<cluster_name>.service_cidrs_v6` | `[]` | クラスタ全体の Service ネットワーク CIDR (IPv6) のリスト (例: `["fdb6:6e92:3cfb:feed::/112"]`)。|
+| `k8s_worker_frr.clusters.<cluster_name>.pod_cidrs_v4` | `[]` | 当該のワーカーノードが所属するK8sクラスタの Pod ネットワーク CIDR (IPv4) のリスト (例: `["10.244.0.0/16"]`)。|
+| `k8s_worker_frr.clusters.<cluster_name>.service_cidrs_v4` | `[]` | 当該のワーカーノードが所属するK8sクラスタの Service ネットワーク CIDR (IPv4) のリスト (例: `["10.254.0.0/16"]`)。|
+| `k8s_worker_frr.clusters.<cluster_name>.pod_cidrs_v6` | `[]` | 当該のワーカーノードが所属するK8sクラスタの Pod ネットワーク CIDR (IPv6) のリスト (例: `["fdb6:6e92:3cfb:0200::/56"]`)。|
+| `k8s_worker_frr.clusters.<cluster_name>.service_cidrs_v6` | `[]` | 当該のワーカーノードが所属するK8sクラスタの Service ネットワーク CIDR (IPv6) のリスト (例: `["fdb6:6e92:3cfb:feed::/112"]`)。|
 | `frr_vtysh_users` | `[]` | vtysh を sudo なしで実行可能とするユーザのリスト。|
 | `frr_vtysh_group` | `frrvty` | vtysh アクセス許可グループ名 (`frr_vtysh_group_name` から取得, 既定値は `frrvty`)。|
 | `frr_group` | `frr` | FRR グループ名 (`frr_group_name` から取得, 既定値は `frr`)。|
