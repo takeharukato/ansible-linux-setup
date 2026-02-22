@@ -110,7 +110,7 @@
   ansible.builtin.shell: |
     kubectl cordon "{{ k8s_worker_hostname.stdout }}"
   delegate_to: "{{ k8s_ctrlplane_host }}"
-  changed_when: False
+  changed_when: false
   failed_when: false
 
 # 既に登録済みのワーカーをシャットダウンする
@@ -121,7 +121,7 @@
   args:
     executable: /bin/bash
   delegate_to: "{{ k8s_ctrlplane_host }}"
-  changed_when: False
+  changed_when: false
   failed_when: false
 
 # 既に登録済みのワーカーを削除する
@@ -129,7 +129,7 @@
   ansible.builtin.shell: |
     kubectl delete node "{{ k8s_worker_hostname.stdout }}"
   delegate_to: "{{ k8s_ctrlplane_host }}"
-  changed_when: False
+  changed_when: false
   failed_when: false
 
 - name: "Wait {{ k8s_worker_delete_wait_sec }} seconds for the worker node deletion to complete."

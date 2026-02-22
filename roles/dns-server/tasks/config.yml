@@ -288,10 +288,13 @@
 - name: Restart DNS service
   become: true
   block:
-    - name: systemd daemon-reload
+
+    # systemd のデーモンリロードを実施
+    - name: "Execute systemd daemon-reload"
       ansible.builtin.systemd:
         daemon_reload: true
-    - name: Restart named
+    # named の再起動
+    - name: "Restart named"
       ansible.builtin.systemd:
         name: "{{ dns_bind_service }}"
         state: restarted

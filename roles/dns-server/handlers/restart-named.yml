@@ -3,13 +3,16 @@
 #  Copyright 2020 Takeharu KATO All Rights Reserved.
 #
 # notify の Reload systemd & restart named に対応
-- name: systemd daemon-reload
+
+# systemd のデーモンリロードを実施
+- name: "Execute systemd daemon-reload"
   listen: "Reload systemd & restart named"
   become: true
   ansible.builtin.systemd:
     daemon_reload: true
 
-- name: Restart named
+# named の再起動
+- name: "Restart named"
   listen: "Reload systemd & restart named"
   become: true
   ansible.builtin.systemd:
