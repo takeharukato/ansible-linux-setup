@@ -9,15 +9,37 @@
   ansible.builtin.include_tasks: load-params.yml
 - name: "Package"
   ansible.builtin.include_tasks: package.yml
+  when:
+    - dns_server is defined
+    - ( dns_server|default('', true) | length ) > 0
 - name: "Directory"
   ansible.builtin.include_tasks: directory.yml
+  when:
+    - dns_server is defined
+    - ( dns_server|default('', true) | length ) > 0
 - name: "User Group"
   ansible.builtin.include_tasks: user_group.yml
+  when:
+    - dns_server is defined
+    - ( dns_server|default('', true) | length ) > 0
 - name: "Service"
   ansible.builtin.include_tasks: service.yml
+  when:
+    - dns_server is defined
+    - ( dns_server|default('', true) | length ) > 0
 - name: "Config"
   ansible.builtin.include_tasks: config.yml
+  when:
+    - dns_server is defined
+    - ( dns_server|default('', true) | length ) > 0
 - name: "Config Systemd Ipv4 Only"
   ansible.builtin.include_tasks: config-systemd-ipv4-only.yml
+  when:
+    - dns_server is defined
+    - ( dns_server|default('', true) | length ) > 0
 - name: "Config Firewall"
   ansible.builtin.include_tasks: config-firewall.yml
+  when:
+    - dns_server is defined
+    - ( dns_server|default('', true) | length ) > 0
+    - enable_firewall | default(false,true)

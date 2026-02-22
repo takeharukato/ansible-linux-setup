@@ -16,6 +16,8 @@
   ansible.builtin.include_tasks: directory.yml
 - name: "Docker Backup Image"
   ansible.builtin.include_tasks: docker-backup-image.yml
+  when:
+    - build_docker_ce_backup_container_image|default(false)|bool
 - name: "User Group"
   ansible.builtin.include_tasks: user_group.yml
 - name: "Config"
