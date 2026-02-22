@@ -12,5 +12,6 @@
 - include_tasks: package.yml
 - include_tasks: directory.yml
 - include_tasks: user_group.yml
+- include_tasks: sysctl.yml
 - include_tasks: service.yml
 - include_tasks: config.yml
