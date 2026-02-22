@@ -6,7 +6,7 @@
 #
 #
 - name: "Install NTP client packages: {{ ntp_client_packages }}"
-  package:
+  ansible.builtin.package:
     name: "{{ ntp_client_packages }}"
     state: present
   become: true

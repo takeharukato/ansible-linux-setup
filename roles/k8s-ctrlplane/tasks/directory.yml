@@ -5,19 +5,19 @@
 #  ファイル・ディレクトリ作成関連タスク
 #
 - name: "make {{ k8s_cilium_config_dir }}"
-  file:
+  ansible.builtin.file:
     path: "{{ k8s_cilium_config_dir }}"
     state: directory
     mode: "755"
 
 - name: "make {{ k8s_multus_config_dir }}"
-  file:
+  ansible.builtin.file:
     path: "{{ k8s_multus_config_dir }}"
     state: directory
     mode: "755"
 
 - name: "make {{ k8s_whereabouts_config_dir }}"
-  file:
+  ansible.builtin.file:
     path: "{{ k8s_whereabouts_config_dir }}"
     state: directory
     mode: "755"

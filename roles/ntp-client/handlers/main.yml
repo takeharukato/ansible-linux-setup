@@ -4,5 +4,5 @@
 #
 #  サービス起動ハンドラ
 #
-- import_tasks: restart-timesyncd.yml
-- import_tasks: restart-chrony.yml
+- ansible.builtin.import_tasks: restart-timesyncd.yml
+- ansible.builtin.import_tasks: restart-chrony.yml

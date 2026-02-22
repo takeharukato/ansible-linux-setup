@@ -7,7 +7,7 @@
 # aspell.confのスケルトン
 #
 - name: Deploy a aspell.conf
-  template:
+  ansible.builtin.template:
     src: _aspell.conf.j2
     dest: /etc/skel/.aspell.conf
     owner: root

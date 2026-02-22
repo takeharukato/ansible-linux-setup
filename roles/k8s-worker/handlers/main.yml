@@ -5,6 +5,6 @@
 #  サービス起動ハンドラ
 #
 
-- import_tasks: kubelet.yml
-- import_tasks: reload-firewall.yml
-- import_tasks: reboot-node.yml
+- ansible.builtin.import_tasks: kubelet.yml
+- ansible.builtin.import_tasks: reload-firewall.yml
+- ansible.builtin.import_tasks: reboot-node.yml

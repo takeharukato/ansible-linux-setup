@@ -7,7 +7,7 @@
 # screenrcのスケルトン
 #
 - name: Deploy a screenrc
-  template:
+  ansible.builtin.template:
     src: _screenrc.j2
     dest: /etc/skel/.screenrc
     owner: root

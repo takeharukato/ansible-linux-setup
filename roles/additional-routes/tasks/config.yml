@@ -8,7 +8,7 @@
 
 # Ubuntu用の追加ルート設定
 - name: Configure additional routes (Ubuntu)
-  include_tasks: config-ubuntu-add-routes.yml
+  ansible.builtin.include_tasks: config-ubuntu-add-routes.yml
   when:
     - ansible_facts.os_family == "Ubuntu"
     - additional_network_routes is defined
@@ -16,7 +16,7 @@
 
 # RHEL用の追加ルート設定
 - name: Configure additional routes (RHEL)
-  include_tasks: config-rhel-add-routes.yml
+  ansible.builtin.include_tasks: config-rhel-add-routes.yml
   when:
     - ansible_facts.os_family == "RedHat"
     - additional_network_routes is defined

@@ -6,7 +6,7 @@
 #
 # ldap utilsのパッケージをインストール
 - name: Install ldap utils packages
-  package:
+  ansible.builtin.package:
     pkg:
       '{{ ldap_utils_packages }}'
     state: latest

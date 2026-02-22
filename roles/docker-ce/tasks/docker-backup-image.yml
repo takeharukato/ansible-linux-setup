@@ -6,7 +6,7 @@
 # コンテナバックアップ用のスクリプトを導入
 #
 - name: "Deploy container backup script"
-  template:
+  ansible.builtin.template:
     src: backup-containers.j2
     dest: /usr/local/bin/backup-containers
     owner: root
@@ -18,7 +18,7 @@
 # コンテナリストア用のスクリプトを導入
 #
 - name: "Deploy container restore script"
-  template:
+  ansible.builtin.template:
     src: restore-container.j2
     dest: /usr/local/bin/restore-container
     owner: root
@@ -29,7 +29,7 @@
 
 # /usr/local/share/docker-backupを作成
 - name: "Create {{ docker_ce_backup_dockerfile_dir }}"
-  file:
+  ansible.builtin.file:
     path: "{{ docker_ce_backup_dockerfile_dir }}"
     state: directory
     owner: "root"
@@ -38,7 +38,7 @@
 
 # Dockerfileを導入
 - name: "Deploy Dockerfile for docker-backup image"
-  template:
+  ansible.builtin.template:
     src: Dockerfile.j2
     dest: "{{ docker_ce_backup_dockerfile_dir }}/Dockerfile"
     owner: root
@@ -48,7 +48,7 @@
 
 # Dockerfileから使うスクリプトを導入
 - name: "Deploy backup.sh for docker-backup container image"
-  template:
+  ansible.builtin.template:
     src: backup.sh.j2
     dest: "{{ docker_ce_backup_dockerfile_dir }}/backup.sh"
     owner: root
@@ -58,7 +58,7 @@
 
 # docker-backupコンテナイメージをビルド
 - name: "Build docker-backup container image"
-  shell: |
+  ansible.builtin.shell: |
     cd {{ docker_ce_backup_dockerfile_dir }}
     docker build -t "{{docker_ce_backup_container_image_name}}" .
   become: true

@@ -5,6 +5,6 @@
 # GUIを無効化する
 - name: disable_gui
   listen: disable_gui
-  shell: |
+  ansible.builtin.shell: |
     systemctl set-default multi-user.target
   become: true

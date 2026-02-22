@@ -7,7 +7,7 @@
 # ホームディレクトリバックアップスクリプト
 #
 - name: "Deploy home directory backup script to {{ user_settings_backup_bin_dir }}"
-  template:
+  ansible.builtin.template:
     src: backup-home.j2
     dest: "{{ user_settings_backup_bin_dir }}/backup-home"
     owner: root
@@ -16,7 +16,7 @@
     backup: no
 
 - name: "Create {{ user_settings_backup_share_dir }} directory"
-  file:
+  ansible.builtin.file:
     path: "{{ user_settings_backup_share_dir }}"
     state: directory
     owner: root
@@ -24,7 +24,7 @@
     mode: 0755
 
 - name: "Deploy backup-home crontab example to {{ user_settings_backup_share_dir }}"
-  template:
+  ansible.builtin.template:
     src: backup-home.cron.example.j2
     dest: "{{ user_settings_backup_share_dir }}/backup-home.cron.example"
     owner: root

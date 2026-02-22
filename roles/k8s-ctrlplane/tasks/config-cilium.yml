@@ -7,7 +7,7 @@
 
 # kube-apiが使えるようになるのを待ち合わせる
 - name: wait for kube-api-server
-  local_action: wait_for host={{ k8s_ctrlplane_endpoint }} port=6443 state=started
+  ansible.builtin.wait_for: host={{ k8s_ctrlplane_endpoint }} port=6443 state=started
 
 #
 # kube-proxyの削除時に以下のRole Based Access Control (RBAC) エラーが
@@ -21,7 +21,7 @@
 # kube-proxy削除前に kubernetes-admin へ cluster-admin 権限を付与 (初回作成)
 - name: Create clusterrolebinding for kubernetes-admin
   become: true
-  command:
+  ansible.builtin.command:
     cmd: >
       kubectl --kubeconfig /etc/kubernetes/admin.conf
       create clusterrolebinding kubernetes-admin
@@ -37,7 +37,7 @@
 # 既存の clusterrolebinding がある場合は apply で状態を整合化する
 - name: Reconcile clusterrolebinding for kubernetes-admin
   become: true
-  shell: |
+  ansible.builtin.shell: |
     cat <<'EOF' | kubectl --kubeconfig /etc/kubernetes/admin.conf apply -f -
     apiVersion: rbac.authorization.k8s.io/v1
     kind: ClusterRoleBinding
@@ -60,32 +60,32 @@
 
 # kube-proxyのDaemonSetを削除
 - name: remove kube-proxy
-  shell: |
+  ansible.builtin.shell: |
     kubectl delete daemonsets.apps -n kube-system kube-proxy
   become: true
 
 # kube-proxyのConfigMapを削除
 - name: remove kube-proxy configmap
-  shell: |
+  ansible.builtin.shell: |
     kubectl delete configmaps -n kube-system kube-proxy
   become: true
 
 # Remove kube-proxy related iptables rules
 - name: delete kube-proxy iptables
-  shell: |
+  ansible.builtin.shell: |
     iptables-save | grep -v KUBE | iptables-restore
   become: true
 
 # Cilium用の共通CAシークレットを必要に応じて生成/更新
 - name: Ensure Cilium shared CA secret is up to date
-  include_role:
+  ansible.builtin.include_role:
     name: k8s-cilium-shared-ca
   when: k8s_cilium_shared_ca_enabled | default(false)
   tags: k8s-cilium-shared-ca
 
 # Ciliumインストール用のHelmのvaluesファイルを作成
 - name: Setup values file
-  template:
+  ansible.builtin.template:
     src: cilium-install.yml.j2
     dest: "{{ k8s_cilium_config_dir }}/cilium-install.yml"
     owner: root
@@ -194,7 +194,7 @@
 #   Cilium中で実施する他のCNIの設定値の削除処理を抑止する
 #
 - name: Install Cilium
-  shell: |
+  ansible.builtin.shell: |
     helm install cilium cilium/cilium \
     --namespace kube-system \
     --version {{ k8s_cilium_helm_chart_version }} \
@@ -202,6 +202,6 @@
 
 # マシンをリブートする
 - name: Reboot host gracefully
-  reboot:
+  ansible.builtin.reboot:
     reboot_timeout: 600
     pre_reboot_delay: 2

@@ -7,7 +7,7 @@
 # .gdbinitのスケルトン
 #
 - name: Deploy a .gdbinit
-  template:
+  ansible.builtin.template:
     src: _gdbinit.j2
     dest: /etc/skel/.gdbinit
     owner: root

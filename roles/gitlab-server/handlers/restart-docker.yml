@@ -7,7 +7,7 @@
 
 - name: "Restart docker by GitLab"
   listen: "restart_docker_for_gitlab"
-  service:
+  ansible.builtin.service:
     name: docker
     state: restarted
   become: true

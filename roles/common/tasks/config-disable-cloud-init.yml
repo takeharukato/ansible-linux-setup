@@ -28,7 +28,7 @@
 
 # cloud-init の設定ファイルの存在確認
 - name: Check if cloud-init config exists
-  stat:
+  ansible.builtin.stat:
     path: /etc/cloud/cloud.cfg
   register: cloud_cfg
 
@@ -38,7 +38,7 @@
 
   # /etc/cloud/cloud.cfg.d ディレクトリの存在保証
   - name: Ensure /etc/cloud/cloud.cfg.d exists
-    file:
+    ansible.builtin.file:
       path: /etc/cloud/cloud.cfg.d
       state: directory
       owner: root
@@ -47,7 +47,7 @@
 
   # cloud-init のネットワーク設定無効化
   - name: Disable cloud-init network configuration
-    copy:
+    ansible.builtin.copy:
       dest: /etc/cloud/cloud.cfg.d/99-disable-network-config.cfg
       content: |
         network:
@@ -59,7 +59,7 @@
 
 # cloud-init のネットワークインターフェース名変更設定を無効化
 - name: Disable cloud-init network renaming configuration
-  copy:
+  ansible.builtin.copy:
     dest: /etc/cloud/cloud.cfg.d/99-disable-network-rename.cfg
     content: |
       network:

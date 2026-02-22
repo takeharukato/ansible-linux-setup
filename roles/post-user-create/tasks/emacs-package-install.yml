@@ -8,7 +8,7 @@
     outer_user_group: "{{ outer_item.group | default(outer_item.name | default('', true), true) }}"
     outer_user_home: "{{ outer_item.home | default('/home/' ~ (outer_item.name | default('', true)), true) }}"
     outer_user_shell: "{{ outer_item.shell | default('/bin/bash', true) }}"
-  stat:
+  ansible.builtin.stat:
     path: "{{ outer_user_home }}/bin/install-emacs-packages.sh"
   register: install_emacs_script
   when:
@@ -20,7 +20,7 @@
     outer_user_name: "{{ outer_item.name | default('', true) }}"
     outer_user_group: "{{ outer_item.group | default(outer_item.name | default('', true), true) }}"
     outer_user_home: "{{ outer_item.home | default('/home/' ~ (outer_item.name | default('', true)), true) }}"
-  file:
+  ansible.builtin.file:
     path: "{{ outer_user_home }}/bin"
     state: directory
     owner: "{{ outer_user_name }}"
@@ -38,7 +38,7 @@
     outer_user_name: "{{ outer_item.name | default('', true) }}"
     outer_user_group: "{{ outer_item.group | default(outer_item.name | default('', true), true) }}"
     outer_user_home: "{{ outer_item.home | default('/home/' ~ (outer_item.name | default('', true)), true) }}"
-  copy:
+  ansible.builtin.copy:
     src: /etc/skel/bin/install-emacs-packages.sh
     dest: "{{ outer_user_home }}/bin/install-emacs-packages.sh"
     owner: "{{ outer_user_name }}"
@@ -59,7 +59,7 @@
     outer_user_group: "{{ outer_item.group | default(outer_item.name | default('', true), true) }}"
     outer_user_home: "{{ outer_item.home | default('/home/' ~ (outer_item.name | default('', true)), true) }}"
     outer_user_shell: "{{ outer_item.shell | default('/bin/bash', true) }}"
-  shell: |
+  ansible.builtin.shell: |
     sudo -i -u "{{ outer_user_name }}" "{{ outer_user_shell }}" "{{ outer_user_home }}/bin/install-emacs-packages.sh" "{{ item }}"
   loop: "{{ create_user_emacs_package_list | default([]) }}"
   when:

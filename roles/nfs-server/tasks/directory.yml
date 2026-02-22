@@ -5,7 +5,7 @@
 
 # 公開ディレクトリを作成
 - name: create nfs export directory
-  file:
+  ansible.builtin.file:
     path: "{{ nfs_export_directory }}"
     state: directory
     owner: "root"

@@ -9,7 +9,7 @@
 # ネットワーク設定変更後に graceful reboot を実行し、
 # iptables-persistent が保存された設定を復元させる
 - name: Reboot host gracefully after network configuration changes
-  reboot:
+  ansible.builtin.reboot:
     reboot_timeout: 600
     msg: "Reboot triggered by router-config role to apply iptables-persistent rules"
     pre_reboot_delay: 2
@@ -17,5 +17,5 @@
 
 # SSH が利用可能になるのを待つ
 - name: Wait for connection after reboot
-  wait_for_connection:
+  ansible.builtin.wait_for_connection:
     timeout: 300

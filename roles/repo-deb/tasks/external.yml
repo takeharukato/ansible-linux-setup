@@ -8,7 +8,7 @@
 # Docker Community Editionのキーリングを配置する
 - name: Docker keyring
   when: repo_enable_docker
-  shell: |
+  ansible.builtin.shell: |
     curl -fsSL "{{ docker_apt_keyring_url }}" | gpg --dearmor > "{{ docker_apt_keyring }}"
     chmod 0644 "{{ docker_apt_keyring }}"
 
@@ -38,7 +38,7 @@
 # Kubernetesのキーリングを配置する
 - name: Kubernetes keyring
   when: repo_enable_kubernetes
-  shell: |
+  ansible.builtin.shell: |
     curl -fsSL "{{ k8s_apt_keyring_url }}" | gpg --dearmor > "{{ k8s_apt_keyring }}"
     chmod 0644 "{{ k8s_apt_keyring }}"
 
@@ -66,7 +66,7 @@
 # Google Chrome
 - name: Chrome keyring
   when: repo_enable_chrome
-  shell: |
+  ansible.builtin.shell: |
     curl -fsSL "{{ chrome_keyring_url }}" | gpg --dearmor > "{{ chrome_keyring_path }}"
     chmod 0644 "{{ chrome_keyring_path }}"
 

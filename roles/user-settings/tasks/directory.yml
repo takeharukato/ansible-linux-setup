@@ -7,7 +7,7 @@
 # /usr/local/binが存在することを保証
 #
 - name: Create /usr/local/bin
-  file:
+  ansible.builtin.file:
     path: "/usr/local/bin"
     state: directory
     owner: "root"

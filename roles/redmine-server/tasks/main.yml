@@ -8,10 +8,10 @@
 #
 
 # 最初に変数設定を読み直す ( role単独で実行可能とするため )
-- include_tasks: load-params.yml
-- include_tasks: package.yml
-- include_tasks: directory.yml
-- include_tasks: user_group.yml
-- include_tasks: sysctl.yml
-- include_tasks: service.yml
-- include_tasks: config.yml
+- ansible.builtin.include_tasks: load-params.yml
+- ansible.builtin.include_tasks: package.yml
+- ansible.builtin.include_tasks: directory.yml
+- ansible.builtin.include_tasks: user_group.yml
+- ansible.builtin.include_tasks: sysctl.yml
+- ansible.builtin.include_tasks: service.yml
+- ansible.builtin.include_tasks: config.yml

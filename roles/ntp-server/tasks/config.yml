@@ -7,7 +7,7 @@
 
 # NTPサーバを指定
 - name: "setup ntp server configuration in {{ ntp_server_chrony_conf_drop_in_dir }}/99-ntp-servers.conf"
-  template:
+  ansible.builtin.template:
     src: 99-ntp-servers.conf.j2
     dest: "{{ ntp_server_chrony_conf_drop_in_dir }}/99-ntp-servers.conf"
     owner: root

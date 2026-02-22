@@ -6,7 +6,7 @@
 #
 # 環境構築用コマンド配置先ディレクトリを作成
 - name: "make {{ k8s_node_setup_tools_dir }}"
-  file:
+  ansible.builtin.file:
     path: "{{ k8s_node_setup_tools_dir }}"
     state: directory
     owner: "root"
@@ -15,7 +15,7 @@
 
 # 証明書埋め込み版kubeconfigファイル作成用スクリプトを配置
 - name: "Deploy script to create embedded certification kubeconfig to {{ k8s_embed_kubeconfig_script_path }}"
-  template:
+  ansible.builtin.template:
     src: "create-embedded-kubeconfig.py.j2"
     dest: "{{ k8s_embed_kubeconfig_script_path }}"
     owner: "root"
@@ -23,7 +23,7 @@
     mode: "0755"
 
 - name: "Validate shared CA certificate for embedded kubeconfig"
-  stat:
+  ansible.builtin.stat:
     path: "{{ k8s_embed_kubeconfig_shared_ca_path }}"
   register: k8s_shared_ca_for_kubeconfig
   when:
@@ -31,7 +31,7 @@
     - k8s_cilium_cm_cluster_id | default('',true) | int > 0
 
 - name: "Abort when shared CA certificate is missing"
-  fail:
+  ansible.builtin.fail:
     msg: "Shared CA certificate {{ k8s_embed_kubeconfig_shared_ca_path }} is missing. Check the k8s-shared-ca role result."
   when:
     - k8s_cilium_cm_cluster_name | default('',true) | length > 0
@@ -42,7 +42,7 @@
 # Note: --file-postfix の値がハイフン始まりでも正しく渡せるよう,
 # 等号付き (--file-postfix="...") で引き渡すようにしている。
 - name: "Create embedded kubeconfig file for {{ k8s_cilium_cm_cluster_name }} ({{ k8s_cilium_cm_cluster_name }}{{ k8s_embed_kubeconfig_file_postfix }})"
-  shell: |
+  ansible.builtin.shell: |
     {{ k8s_embed_kubeconfig_script_path }} \
       --admin-conf "{{ k8s_embed_kubeconfig_admin_conf }}" \
       --output-dir "{{ k8s_embed_kubeconfig_output_dir }}" \
@@ -68,7 +68,7 @@
 
 # Readme-create-embedded-kubeconfig-JP.md を配置
 - name: "Deploy Readme-create-embedded-kubeconfig-JP.md to {{ k8s_node_setup_tools_docs_dir }}/Readme-create-embedded-kubeconfig-JP.md"
-  copy:
+  ansible.builtin.copy:
     src: "Readme-create-embedded-kubeconfig-JP.md"
     dest: "{{ k8s_node_setup_tools_docs_dir }}/Readme-create-embedded-kubeconfig-JP.md"
     owner: "root"

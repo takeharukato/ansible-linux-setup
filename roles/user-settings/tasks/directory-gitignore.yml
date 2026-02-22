@@ -7,7 +7,7 @@
 # /etc/skel/.gitignoreのスケルトン
 #
 - name: Deploy a .gitignore
-  template:
+  ansible.builtin.template:
     src: _gitignore.j2
     dest: /etc/skel/.gitignore
     owner: root

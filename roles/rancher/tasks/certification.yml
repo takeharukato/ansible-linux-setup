@@ -6,7 +6,7 @@
 
 # 証明書が既にあるか確認する
 - name: "stat {{ rancher_cert_dir }}/cert.pem"
-  stat: path="{{ rancher_cert_dir }}/cert.pem"
+  ansible.builtin.stat: path="{{ rancher_cert_dir }}/cert.pem"
   register: cert_check
 
 # 秘密鍵を生成する
@@ -26,7 +26,7 @@
 # shellを使用
 #   openssl genrsa -aes128 -out "{{ rancher_cert_dir }}/encrypted.key.pem" 2048 -pass pass:ansible
 - name: Generate OpenSSL self certificate file
-  shell: |
+  ansible.builtin.shell: |
     openssl rsa -in "{{ rancher_cert_dir }}/encrypted.key.pem" -out "{{ rancher_cert_dir }}/key.pem" -passin pass:ansible
     openssl req -new -key "{{ rancher_cert_dir }}/key.pem" -out "{{ rancher_cert_dir }}/csr.pem" -subj "/C={{rancher_cert_subject_country}}/ST={{rancher_cert_subject_state}}/L={{rancher_cert_subject_locality}}/O={{rancher_cert_subject_org}}/CN=*.{{ rancher_cert_domain_name }}"
     echo "subjectAltName = DNS:{{rancher_host}}.{{ rancher_cert_domain_name }}, DNS:*.{{ rancher_cert_domain_name }}" > "{{ rancher_cert_dir }}/san.txt"

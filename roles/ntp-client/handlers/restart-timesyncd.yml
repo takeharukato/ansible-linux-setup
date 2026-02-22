@@ -5,7 +5,7 @@
 # systemd-timesyncdを再起動する
 - name: restart_timesyncd
   listen: "restart_timesyncd"
-  systemd:
+  ansible.builtin.systemd:
     name: systemd-timesyncd
     state: restarted
     enabled: true

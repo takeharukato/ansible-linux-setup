@@ -7,7 +7,7 @@
 # emacs.dのディレクトリスケルトン
 #
 - name: Create /etc/skel/.emacs.d
-  file:
+  ansible.builtin.file:
     path: "/etc/skel/.emacs.d"
     state: directory
     owner: "root"
@@ -18,7 +18,7 @@
 # emacs.d/user_settings/のディレクトリスケルトン
 #
 - name: Create /etc/skel/.emacs.d/user_settings
-  file:
+  ansible.builtin.file:
     path: "/etc/skel/.emacs.d/user_settings"
     state: directory
     owner: "root"
@@ -29,7 +29,7 @@
 #  init.elのスケルトン
 #
 - name: Deploy a .emacs.d/init.el
-  template:
+  ansible.builtin.template:
     src: _emacs_d__init.el.j2
     dest: /etc/skel/.emacs.d/init.el
     owner: root
@@ -41,7 +41,7 @@
 # proxy-settings.elのスケルトン
 #
 - name: Deploy a .emacs.d/user_settings/proxy-settings.el
-  template:
+  ansible.builtin.template:
     src: _emacs_d__proxy-settings.el.j2
     dest: /etc/skel/.emacs.d/user_settings/proxy-settings.el
     owner: root
@@ -53,7 +53,7 @@
 # basic-settings.elのスケルトン
 #
 - name: Deploy a .emacs.d/user_settings/basic-settings.el
-  template:
+  ansible.builtin.template:
     src: _emacs_d__basic-settings.el.j2
     dest: /etc/skel/.emacs.d/user_settings/basic-settings.el
     owner: root
@@ -65,7 +65,7 @@
 # japanese-environment.elのスケルトン
 #
 - name: Deploy a .emacs.d/user_settings/japanese-environment.el
-  template:
+  ansible.builtin.template:
     src: _emacs_d__japanese-environment.el.j2
     dest: /etc/skel/.emacs.d/user_settings/japanese-environment.el
     owner: root

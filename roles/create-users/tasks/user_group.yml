@@ -83,7 +83,7 @@
   vars:
     user_group: "{{ item.group | default(item.name, true) }}"
     user_home: "{{ item.home | default('/home/' ~ item.name, true) }}"
-  shell: |
+  ansible.builtin.shell: |
     curl -fsSL https://github.com/"{{ item.github }}".keys|sudo -u "{{ item.name }}" tee -a "{{ user_home }}"/.ssh/authorized_keys
     cat "{{ user_home }}"/.ssh/authorized_keys|sort|uniq|sudo -u "{{ item.name }}" tee "{{ user_home }}"/.ssh/authorized_keys.tmp
     sudo -u "{{ item.name }}" mv "{{ user_home }}"/.ssh/authorized_keys.tmp "{{ user_home }}"/.ssh/authorized_keys

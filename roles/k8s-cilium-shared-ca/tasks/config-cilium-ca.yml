@@ -9,20 +9,20 @@
   block:
     # Cilium共通CAのソースパスを初期化する
     - name: Initialize Cilium shared CA source paths
-      set_fact:
+      ansible.builtin.set_fact:
         _cilium_ca_cert_path: "{{ (k8s_cilium_shared_ca_cert_path | default('', true) | string | trim) }}"
         _cilium_ca_key_path: "{{ (k8s_cilium_shared_ca_key_path | default('', true) | string | trim) }}"
 
     # reuseフラグが有効な場合は共通CAのpathを流用する
     - name: Reuse Kubernetes shared CA paths when requested
-      set_fact:
+      ansible.builtin.set_fact:
         _cilium_ca_cert_path: "{{ hostvars[inventory_hostname].k8s_shared_ca_cert_path | default('', true) }}"
         _cilium_ca_key_path: "{{ hostvars[inventory_hostname].k8s_shared_ca_key_path | default('', true) }}"
       when: k8s_cilium_shared_ca_reuse_k8s_ca | default(false) | bool
 
     # reuse指定時に共通CAのfactsが無ければ失敗させる
     - name: Fail when Kubernetes shared CA facts are missing
-      fail:
+      ansible.builtin.fail:
         msg: |
           k8s_cilium_shared_ca_reuse_k8s_ca=true の場合は, 先に k8s-shared-ca ロールを実行し
           k8s_shared_ca_cert_path と k8s_shared_ca_key_path を提供してください。
@@ -33,7 +33,7 @@
 
     # reuse指定ではない場合は出力ディレクトリとファイル名からパスを組み立てる
     - name: Populate Cilium shared CA paths from output directory
-      set_fact:
+      ansible.builtin.set_fact:
         _cilium_ca_cert_path: "{{ k8s_cilium_shared_ca_output_dir }}/{{ k8s_cilium_shared_ca_cert_filename }}"
         _cilium_ca_key_path: "{{ k8s_cilium_shared_ca_output_dir }}/{{ k8s_cilium_shared_ca_key_filename }}"
       when:
@@ -50,7 +50,7 @@
       become: true
       block:
         - name: Ensure Cilium shared CA output directory exists
-          file:
+          ansible.builtin.file:
             path: "{{ k8s_cilium_shared_ca_output_dir }}"
             state: directory
             owner: root
@@ -58,19 +58,19 @@
             mode: "0700"
 
         - name: Generate Cilium shared CA private key if absent
-          command: >-
+          ansible.builtin.command: >-
             openssl genrsa -out {{ _cilium_ca_key_path }} {{ k8s_cilium_shared_ca_key_size }}
           args:
             creates: "{{ _cilium_ca_key_path }}"
 
         - name: Generate Cilium shared CA certificate if absent
-          command: >-
+          ansible.builtin.command: >-
             openssl req -x509 -new -key {{ _cilium_ca_key_path }} -out {{ _cilium_ca_cert_path }} -days {{ k8s_cilium_shared_ca_valid_days }} -{{ k8s_cilium_shared_ca_digest }} -subj '{{ k8s_cilium_shared_ca_subject }}'
           args:
             creates: "{{ _cilium_ca_cert_path }}"
 
         - name: Set permissions on generated Cilium shared CA files
-          file:
+          ansible.builtin.file:
             path: "{{ item }}"
             owner: root
             group: root
@@ -81,21 +81,21 @@
 
     # CAファイルの存在を検証する
     - name: Stat Cilium shared CA certificate
-      stat:
+      ansible.builtin.stat:
         path: "{{ _cilium_ca_cert_path }}"
         follow: true
       register: _cilium_ca_cert_stat
 
     # Cilium CA鍵ファイルの存在を検証する
     - name: Stat Cilium shared CA private key
-      stat:
+      ansible.builtin.stat:
         path: "{{ _cilium_ca_key_path }}"
         follow: true
       register: _cilium_ca_key_stat
 
     # 必要なCAファイルが見つからない場合はエラーにする
     - name: Ensure Cilium shared CA files exist
-      fail:
+      ansible.builtin.fail:
         msg: |
           指定されたCilium共通CAファイルが存在しません。certificate={{ _cilium_ca_cert_path }},
           key={{ _cilium_ca_key_path }}
@@ -105,24 +105,24 @@
 
     # 証明書/鍵の内容を読み込む
     - name: Load Cilium shared CA certificate
-      slurp:
+      ansible.builtin.slurp:
         src: "{{ _cilium_ca_cert_path }}"
       register: _cilium_ca_cert_data
 
     - name: Load Cilium shared CA private key
-      slurp:
+      ansible.builtin.slurp:
         src: "{{ _cilium_ca_key_path }}"
       register: _cilium_ca_key_data
 
     # シークレットマニフェストを一時ファイルへ出力する
     - name: Create temporary manifest for Cilium shared CA secret
-      tempfile:
+      ansible.builtin.tempfile:
         state: file
         suffix: "-cilium-ca-secret.yaml"
       register: _cilium_ca_manifest
 
     - name: Render Cilium shared CA secret manifest
-      template:
+      ansible.builtin.template:
         src: "cilium-ca-secret.yaml.j2"
         dest: "{{ _cilium_ca_manifest.path }}"
         mode: "0600"
@@ -133,13 +133,13 @@
     # kubectl apply で Secret を作成/更新する
     - name: Apply Cilium shared CA secret
       become: true
-      shell: |
+      ansible.builtin.shell: |
         kubectl --kubeconfig {{ cilium_shared_ca_kubeconfig }} apply -f {{ _cilium_ca_manifest.path }}
       register: _cilium_ca_apply
       changed_when: "'created' in _cilium_ca_apply.stdout or 'configured' in _cilium_ca_apply.stdout or 'created' in _cilium_ca_apply.stderr or 'configured' in _cilium_ca_apply.stderr"
 
     # 一時ファイルを削除する
     - name: Remove temporary manifest for Cilium shared CA secret
-      file:
+      ansible.builtin.file:
         path: "{{ _cilium_ca_manifest.path }}"
         state: absent

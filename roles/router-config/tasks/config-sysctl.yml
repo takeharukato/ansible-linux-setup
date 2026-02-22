@@ -7,7 +7,7 @@
 ---
 # sysctl設定ファイルを配置
 - name: Deploy sysctl configuration file
-  template:
+  ansible.builtin.template:
     src: 95-ipfoward.j2
     dest: /etc/sysctl.d/95-ipfoward.conf
     owner: root

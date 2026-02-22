@@ -20,7 +20,7 @@
 # Kubernetes GPG keyを配置・登録する
 - name: Fetch Kubernetes GPG key
   when: repo_enable_kubernetes
-  shell: |
+  ansible.builtin.shell: |
     curl -fsSL "{{ k8s_gpgkey_url }}" > "{{ k8s_gpgkey_file }}"
     chmod 0644 "{{ k8s_gpgkey_file }}"
 

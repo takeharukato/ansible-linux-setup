@@ -8,7 +8,7 @@
 # kea-dhcp4サーバーの再起動
 - name: restart_kea_dhcp4_server
   listen: "restart_kea_dhcp4_server"
-  service:
+  ansible.builtin.service:
     name: "{{ kea_dhcp4_server_service }}"
     state: restarted
   become: true

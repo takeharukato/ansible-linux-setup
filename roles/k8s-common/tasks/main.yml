@@ -8,21 +8,21 @@
 #
 
 # 最初に変数設定を読み直す ( role単独で実行可能とするため )
-- include_tasks: load-params.yml
+- ansible.builtin.include_tasks: load-params.yml
 # config-common-kubeconfig-tools.yml より先に実行する必要がある
-- include_tasks: directory.yml
-- include_tasks: config-sudoer-path.yml
-- include_tasks: package.yml
-- include_tasks: packages-k8s-python.yml
-- include_tasks: config-k8s-shell-completion.yml
-- include_tasks: config-firewall-common.yml
+- ansible.builtin.include_tasks: directory.yml
+- ansible.builtin.include_tasks: config-sudoer-path.yml
+- ansible.builtin.include_tasks: package.yml
+- ansible.builtin.include_tasks: packages-k8s-python.yml
+- ansible.builtin.include_tasks: config-k8s-shell-completion.yml
+- ansible.builtin.include_tasks: config-firewall-common.yml
   when: enable_firewall | default(false,true)
-- include_tasks: config-disable-swap.yml
-- include_tasks: config-kubelet.yml
-- include_tasks: config-cpu-shielding.yml
+- ansible.builtin.include_tasks: config-disable-swap.yml
+- ansible.builtin.include_tasks: config-kubelet.yml
+- ansible.builtin.include_tasks: config-cpu-shielding.yml
   when: k8s_reserved_system_cpus_default is defined
-- include_tasks: config-common-kubeconfig-tools.yml
-- include_tasks: config.yml
-- include_tasks: user_group.yml
-- include_tasks: config-k8s-operator-authorized_keys.yml
-- include_tasks: service.yml
+- ansible.builtin.include_tasks: config-common-kubeconfig-tools.yml
+- ansible.builtin.include_tasks: config.yml
+- ansible.builtin.include_tasks: user_group.yml
+- ansible.builtin.include_tasks: config-k8s-operator-authorized_keys.yml
+- ansible.builtin.include_tasks: service.yml

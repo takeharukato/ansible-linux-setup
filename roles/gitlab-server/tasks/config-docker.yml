@@ -7,7 +7,7 @@
 ---
 # Docker Registry 用証明書ディレクトリを用意する
 - name: Ensure docker registry cert directory exists
-  file:
+  ansible.builtin.file:
     path: "/etc/docker/certs.d/{{ gitlab_hostname }}:{{ gitlab_registry_port }}"
     state: directory
     owner: root
@@ -16,7 +16,7 @@
 
 # GitLab が自己署名証明書を生成するまで待つ
 - name: Wait for gitlab self-signed certificate
-  stat:
+  ansible.builtin.stat:
     path: "{{ gitlab_ssl_cert_path }}"
   register: gitlab_cert_stat
   until: gitlab_cert_stat.stat.exists | default(false)
@@ -26,7 +26,7 @@
 
 # DockerにGitlab自己証明書の自己証明書を登録する
 - name: Copy gitlab self-signed certificate to docker certs directory
-  copy:
+  ansible.builtin.copy:
     src: "{{ gitlab_ssl_cert_path }}"
     dest: "/etc/docker/certs.d/{{ gitlab_hostname }}:{{ gitlab_registry_port }}/{{ gitlab_hostname }}.crt"
     remote_src: true

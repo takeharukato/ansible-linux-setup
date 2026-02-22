@@ -7,7 +7,7 @@
 ---
 # kea-dhcpサーバー設定ファイルの配置
 - name: deploy kea-dhcp server config files
-  template:
+  ansible.builtin.template:
     src: kea-dhcp4.conf.j2
     dest: /etc/kea/kea-dhcp4.conf
     owner: root
@@ -18,14 +18,14 @@
 
 # kea-dhcpサービスの有効化
 - name: enable kea-dhcp4 server service
-  service:
+  ansible.builtin.service:
     name: "{{ kea_dhcp4_server_service }}"
     enabled: true
   become: true
 
 # kea-dhcpサービスの起動
 - name: start kea-dhcp4 server service
-  service:
+  ansible.builtin.service:
     name: "{{ kea_dhcp4_server_service }}"
     state: started
   become: true

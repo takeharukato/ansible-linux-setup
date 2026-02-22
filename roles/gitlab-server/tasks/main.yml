@@ -9,29 +9,29 @@
 ---
 
 # 最初に変数設定を読み直す ( role単独で実行可能とするため )
-- include_tasks: load-params.yml
-- include_tasks: package.yml
+- ansible.builtin.include_tasks: load-params.yml
+- ansible.builtin.include_tasks: package.yml
   when: gitlab_hostname is defined and gitlab_hostname != ""
 # サービス停止タスクを最初に実行する
-- include_tasks: stop-service.yml
+- ansible.builtin.include_tasks: stop-service.yml
   when: gitlab_hostname is defined and gitlab_hostname != ""
 # クリーンインストール指示がある場合の処理をディレクトリ
 # 作成処理の前に実行する
-- include_tasks: config-clean-install.yml
+- ansible.builtin.include_tasks: config-clean-install.yml
   when: gitlab_hostname is defined and gitlab_hostname != ""
-- include_tasks: directory.yml
+- ansible.builtin.include_tasks: directory.yml
   when: gitlab_hostname is defined and gitlab_hostname != ""
-- include_tasks: directory-gitlab.yml
+- ansible.builtin.include_tasks: directory-gitlab.yml
   when: gitlab_hostname is defined and gitlab_hostname != ""
-- include_tasks: user_group.yml
+- ansible.builtin.include_tasks: user_group.yml
   when: gitlab_hostname is defined and gitlab_hostname != ""
 # sysctl設定をサービス起動前に適用
-- include_tasks: sysctl.yml
+- ansible.builtin.include_tasks: sysctl.yml
   when: gitlab_hostname is defined and gitlab_hostname != ""
 # サービス起動タスクを実行する
-- include_tasks: service.yml
+- ansible.builtin.include_tasks: service.yml
   when: gitlab_hostname is defined and gitlab_hostname != ""
-- include_tasks: config.yml
+- ansible.builtin.include_tasks: config.yml
   when: gitlab_hostname is defined and gitlab_hostname != ""
-- include_tasks: config-docker.yml
+- ansible.builtin.include_tasks: config-docker.yml
   when: gitlab_hostname is defined and gitlab_hostname != ""

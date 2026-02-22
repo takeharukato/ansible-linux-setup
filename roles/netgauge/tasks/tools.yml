@@ -5,7 +5,7 @@
 #  データ収集スクリプトタスク
 #
 - name: "Create {{netgauge_dir}}/bin"
-  file:
+  ansible.builtin.file:
     path: "{{netgauge_dir}}/bin"
     state: directory
     owner: "root"
@@ -14,7 +14,7 @@
   become: true
 
 - name: "Create {{netgauge_dir}}/bin/00_detect_cpus.sh"
-  template:
+  ansible.builtin.template:
     src: 00_detect_cpus.sh.j2
     dest: "{{netgauge_dir}}/bin/00_detect_cpus.sh"
     owner: root
@@ -23,7 +23,7 @@
     backup: no
 
 - name: "Create {{netgauge_dir}}/bin/10_prepare_cgroup.sh"
-  template:
+  ansible.builtin.template:
     src: 10_prepare_cgroup.sh.j2
     dest: "{{netgauge_dir}}/bin/10_prepare_cgroup.sh"
     owner: root
@@ -32,7 +32,7 @@
     backup: no
 
 - name: "Create {{netgauge_dir}}/bin/20_launch_netgauge.sh"
-  template:
+  ansible.builtin.template:
     src: 20_launch_netgauge.sh.j2
     dest: "{{netgauge_dir}}/bin/20_launch_netgauge.sh"
     owner: root
@@ -41,7 +41,7 @@
     backup: no
 
 - name: "Create {{netgauge_dir}}/bin/25_flatten_values.sh"
-  template:
+  ansible.builtin.template:
     src: 25_flatten_values.sh.j2
     dest: "{{netgauge_dir}}/bin/25_flatten_values.sh"
     owner: root
@@ -50,7 +50,7 @@
     backup: no
 
 - name: "Create {{netgauge_dir}}/bin/30_plot_all.sh"
-  template:
+  ansible.builtin.template:
     src: 30_plot_all.sh.j2
     dest: "{{netgauge_dir}}/bin/30_plot_all.sh"
     owner: root
@@ -59,7 +59,7 @@
     backup: no
 
 - name: "Create {{netgauge_dir}}/bin/50_cpu_list.py"
-  template:
+  ansible.builtin.template:
     src: 50_cpu_list.py.j2
     dest: "{{netgauge_dir}}/bin/50_cpu_list.py"
     owner: root
@@ -68,7 +68,7 @@
     backup: no
 
 - name: "Create {{netgauge_dir}}/bin/60_fft_plot.py"
-  template:
+  ansible.builtin.template:
     src: 60_fft_plot.py.j2
     dest: "{{netgauge_dir}}/bin/60_fft_plot.py"
     owner: root
@@ -77,7 +77,7 @@
     backup: no
 
 - name: "Create {{netgauge_dir}}/bin/90_get_app_cpu_noise.sh"
-  template:
+  ansible.builtin.template:
     src: 90_get_app_cpu_noise.sh.j2
     dest: "{{netgauge_dir}}/bin/90_get_app_cpu_noise.sh"
     owner: root
@@ -86,7 +86,7 @@
     backup: no
 
 - name: "Create {{netgauge_dir}}/bin/plot_hist.gp"
-  template:
+  ansible.builtin.template:
     src: plot_hist.gp
     dest: "{{netgauge_dir}}/bin/plot_hist.gp"
     owner: root

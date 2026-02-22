@@ -18,28 +18,28 @@
   failed_when: vol_results.rc != 0
 
 - name: "Create {{redmine_docker_dir}}"
-  file:
+  ansible.builtin.file:
     path: "{{redmine_docker_dir}}"
     state: directory
     mode: "755"
   become: true
 
 - name: "Create {{redmine_scripts_dir}}"
-  file:
+  ansible.builtin.file:
     path: "{{redmine_scripts_dir}}"
     state: directory
     mode: "755"
   become: true
 
 - name: "Create {{redmine_backup_dir}}"
-  file:
+  ansible.builtin.file:
     path: "{{redmine_backup_dir}}"
     state: directory
     mode: "755"
   become: true
 
 - name: "Create {{redmine_docker_dir}}/docker-compose.yml"
-  template:
+  ansible.builtin.template:
     src: docker-compose.yml.j2
     dest: "{{redmine_docker_dir}}/docker-compose.yml"
     owner: root
@@ -49,7 +49,7 @@
 
 # バックアップ作業用スクリプトを作成
 - name: "Create {{redmine_scripts_dir}}/backup-redmine-data.sh"
-  template:
+  ansible.builtin.template:
     src: backup-redmine-data.sh.j2
     dest: "{{redmine_scripts_dir}}/backup-redmine-data.sh"
     owner: root
@@ -59,7 +59,7 @@
 
 # リストア作業用スクリプトを作成
 - name: "Create {{redmine_scripts_dir}}/restore-redmine-data.sh"
-  template:
+  ansible.builtin.template:
     src: restore-redmine-data.sh.j2
     dest: "{{redmine_scripts_dir}}/restore-redmine-data.sh"
     owner: root
@@ -69,7 +69,7 @@
 
 # デイリーバックアップスクリプトを作成
 - name: "Create {{redmine_scripts_dir}}/daily-backup-redmine.sh"
-  template:
+  ansible.builtin.template:
     src: daily-backup-redmine.sh.j2
     dest: "{{redmine_scripts_dir}}/daily-backup-redmine.sh"
     owner: root

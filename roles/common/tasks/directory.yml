@@ -4,7 +4,7 @@
 #  ファイル・ディレクトリ作成関連タスク
 # /usr/local/sbin を作成する
 - name: "create {{ ddns_client_update_sh_dest_dir }}"
-  file:
+  ansible.builtin.file:
     path: "{{ ddns_client_update_sh_dest_dir }}"
     state: directory
     owner: "root"
@@ -13,7 +13,7 @@
 
 # /usr/local/sbin/mount-nfs.sh を作成する
 - name: "Create mount-nas.sh"
-  template:
+  ansible.builtin.template:
     src: mount-nas.sh.j2
     dest: "/usr/local/sbin/mount-nas.sh"
     owner: root

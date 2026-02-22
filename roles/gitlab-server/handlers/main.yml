@@ -5,6 +5,6 @@
 #  サービス起動ハンドラ
 #
 
-- import_tasks: restart-docker.yml
+- ansible.builtin.import_tasks: restart-docker.yml
 
-- import_tasks: reload-sysctl.yml
+- ansible.builtin.import_tasks: reload-sysctl.yml

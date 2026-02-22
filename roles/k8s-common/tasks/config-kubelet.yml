@@ -77,7 +77,7 @@
 
 # kubelet config
 - name: "setup {{etc_default_dir}}/kubelet"
-  template:
+  ansible.builtin.template:
     src: default-kubelet-config.j2
     dest: "{{etc_default_dir}}/kubelet"
     owner: root

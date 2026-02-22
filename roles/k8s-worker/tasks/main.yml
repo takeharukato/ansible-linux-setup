@@ -8,24 +8,24 @@
 #
 
 # 最初に変数設定を読み直す ( role単独で実行可能とするため )
-- include_tasks: load-params.yml
-- include_tasks: package.yml
-- include_tasks: directory.yml
-- include_tasks: user_group.yml
-- include_tasks: service.yml
-- include_tasks: config-k8sworker-firewall.yml
+- ansible.builtin.include_tasks: load-params.yml
+- ansible.builtin.include_tasks: package.yml
+- ansible.builtin.include_tasks: directory.yml
+- ansible.builtin.include_tasks: user_group.yml
+- ansible.builtin.include_tasks: service.yml
+- ansible.builtin.include_tasks: config-k8sworker-firewall.yml
   when: enable_firewall | default(false)
-- include_tasks: config-irq-balance.yml
+- ansible.builtin.include_tasks: config-irq-balance.yml
   when:
     - (k8s_reserved_system_cpus_default | default('',true)) | length > 0
-- include_tasks: config-shielding.yml
+- ansible.builtin.include_tasks: config-shielding.yml
   when:
     - (k8s_reserved_system_cpus_default | default('',true)) | length > 0
-- include_tasks: config-worker-node.yml
+- ansible.builtin.include_tasks: config-worker-node.yml
   when:
     - (k8s_reserved_system_cpus_default | default('',true)) | length > 0
-- include_tasks: config.yml
-- include_tasks: config-cilium-bgp-cplane.yml
+- ansible.builtin.include_tasks: config.yml
+- ansible.builtin.include_tasks: config-cilium-bgp-cplane.yml
   when:
     - k8s_bgp is defined
     - k8s_bgp.enabled | default(false)

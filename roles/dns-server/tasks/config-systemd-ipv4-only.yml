@@ -9,7 +9,7 @@
 ---
 - name: Remove IPv4-only drop-in when disabled
   become: true
-  file:
+  ansible.builtin.file:
     path: "{{ dns_bind_systemd_dropin_dir }}/{{ dns_bind_systemd_dropin_file }}"
     state: absent
   when:
@@ -24,18 +24,18 @@
 
 - block:
     - name: Get current ExecStart from systemd (resolved value)
-      command: systemctl show -p ExecStart --value {{ dns_bind_service }}
+      ansible.builtin.command: systemctl show -p ExecStart --value {{ dns_bind_service }}
       register: dns_exec_show
       changed_when: false
 
     - name: Ensure ExecStart is non-empty
-      fail:
+      ansible.builtin.fail:
         msg: "ExecStart of {{ dns_bind_service }} is empty; cannot create an override."
       when: (dns_exec_show.stdout | trim) == ""
 
     # ここが肝：argv[]= の“中身だけ”を抜く。無ければ置換されず素の行が返る
     - name: Extract argv (structured -> payload, non-structured -> original)
-      shell: |
+      ansible.builtin.shell: |
         set -euo pipefail
         systemctl show -p ExecStart --value {{ dns_bind_service }} \
           | tr '\n' ' ' \
@@ -46,12 +46,12 @@
       changed_when: false
 
     - name: Normalize argv
-      set_fact:
+      ansible.builtin.set_fact:
         dns_exec_argv: "{{ dns_exec_argv_cmd.stdout | trim }}"
 
     # 変な内容 ( 構造化ブロブ丸ごと等 )なら中断して drop-in を書かない
     - name: Fail if argv extraction looks invalid
-      fail:
+      ansible.builtin.fail:
         msg: >-
           Failed to extract argv for {{ dns_bind_service }}.
           Raw: {{ dns_exec_show.stdout }}
@@ -62,23 +62,23 @@
 
     # すでに -4 があるなら何もしない ( 冪等 )
     - name: Check if -4 already present (token-aware)
-      set_fact:
+      ansible.builtin.set_fact:
         dns_has_v4only: "{{ dns_exec_argv is search('(^|\\s)-4(\\s|$)') }}"
 
     - name: Build final ExecStart with -4 appended (only when missing)
-      set_fact:
+      ansible.builtin.set_fact:
         dns_execstart_final: "{{ dns_exec_argv ~ ' -4' }}"
       when: not dns_has_v4only
 
     - name: Ensure systemd drop-in directory exists (only when -4 missing)
-      file:
+      ansible.builtin.file:
         path: "{{ dns_bind_systemd_dropin_dir }}"
         state: directory
         mode: "0755"
       when: not dns_has_v4only
 
     - name: Install systemd drop-in via template (only when -4 missing)
-      template:
+      ansible.builtin.template:
         src: "90-override.conf.j2"
         dest: "{{ dns_bind_systemd_dropin_dir }}/{{ dns_bind_systemd_dropin_file }}"
         mode: "0644"
@@ -86,7 +86,7 @@
       notify: "Reload systemd & restart named"
 
     - name: Skip info (already has -4)
-      debug:
+      ansible.builtin.debug:
         msg: "named ExecStart already contains -4. No override created/updated."
       when: dns_has_v4only
   when:

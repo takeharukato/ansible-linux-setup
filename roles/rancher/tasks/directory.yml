@@ -7,7 +7,7 @@
 
 # 自己証明書格納先ディレクトリの作成
 - name: "Create {{ rancher_cert_dir }} for self signed certification"
-  file:
+  ansible.builtin.file:
     path: "{{ rancher_cert_dir }}"
     state: directory
     owner: "root"
@@ -16,7 +16,7 @@
 
 # データの永続化用ディレクトリの作成
 - name: "Create {{ rancher_data_dir }} for persistent data"
-  file:
+  ansible.builtin.file:
     path: "{{ rancher_data_dir }}"
     state: directory
     owner: "root"

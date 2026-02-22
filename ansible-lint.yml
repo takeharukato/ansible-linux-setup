@@ -5,3 +5,6 @@
 
 skip_list:
   - role-name
+
+rulesdir:
+  - tools/ansible-lint-rules

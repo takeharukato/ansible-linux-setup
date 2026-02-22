@@ -8,4 +8,4 @@
 # 例:
 # - import_tasks: docker.yml
 
-- import_tasks: reload-sysctl.yml
+- ansible.builtin.import_tasks: reload-sysctl.yml

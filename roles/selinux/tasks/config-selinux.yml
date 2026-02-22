@@ -119,7 +119,7 @@
 # 「リラベルが必要」or「disabled へ変更が入った」場合
 # マシンをリブートする
 - name: Reboot host gracefully to disable SELinux
-  reboot:
+  ansible.builtin.reboot:
     reboot_timeout: 600
     msg: "Reboot triggered by role: selinux"
     pre_reboot_delay: 2
@@ -138,7 +138,7 @@
 
 # Reboot 後の接続待ち
 - name: Wait for connection after reboot
-  wait_for_connection:
+  ansible.builtin.wait_for_connection:
     timeout: 300
   when:
     - common_selinux_state == 'disabled'

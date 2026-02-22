@@ -9,7 +9,7 @@
 # Gitlabのクリーンインストールが指定されている場合,
 # 既存の設定を削除する
 - name: "Remove existing GitLab configuration for clean install"
-  file:
+  ansible.builtin.file:
     path: "{{ item }}"
     state: absent
   loop:
@@ -23,7 +23,7 @@
 # Gitlabのクリーンインストールが指定されている場合,
 # 既存のgitlabホームディレクトリを削除する
 - name: "Remove existing GitLab home directory for clean install"
-  file:
+  ansible.builtin.file:
     path: "{{ gitlab_home_dir }}"
     state: absent
   when:

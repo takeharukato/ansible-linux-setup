@@ -10,19 +10,19 @@
 ---
 
 # 最初に変数設定を読み直す ( role単独で実行可能とするため )
-- include_tasks: load-params.yml
-- include_tasks: package.yml
-- include_tasks: directory.yml
-- include_tasks: user_group.yml
-- include_tasks: service.yml
-- include_tasks: config.yml
+- ansible.builtin.include_tasks: load-params.yml
+- ansible.builtin.include_tasks: package.yml
+- ansible.builtin.include_tasks: directory.yml
+- ansible.builtin.include_tasks: user_group.yml
+- ansible.builtin.include_tasks: service.yml
+- ansible.builtin.include_tasks: config.yml
 
 # Emacs パッケージ導入タスク
 # 本ロールでは, .emacs.d/user_settings/ 配下へのemacs初期化ファイルの例を
 # user-settings ロールで提供し, 本ロールではパッケージ導入を行う
 # create_emacs_package_install_script が true で,
 # create_user_emacs_package_list が1要素以上の場合にのみ実行する
-- include_tasks: emacs-package.yml
+- ansible.builtin.include_tasks: emacs-package.yml
   when:
     - create_emacs_package_install_script|default(false)
     - ( create_user_emacs_package_list | default([], true) | length ) > 0
@@ -30,6 +30,6 @@
 # Git 設定ファイル作成タスク
 # post_user_create_gitconfig_enabled が true の場合,
 # 各ユーザのホームディレクトリに .gitconfig を作成する
-- include_tasks: gitconfig.yml
+- ansible.builtin.include_tasks: gitconfig.yml
   when:
     - post_user_create_gitconfig_enabled|default(false)

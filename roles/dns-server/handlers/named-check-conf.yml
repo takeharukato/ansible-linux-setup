@@ -5,6 +5,6 @@
 
 - name: named_check_conf  # notify の named_check_conf に対応
   listen: "named_check_conf"
-  shell: |
+  ansible.builtin.shell: |
       named-checkconf -z
   become: true

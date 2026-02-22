@@ -7,7 +7,7 @@
 
 # multicast DNS
 - name: Install multicast DNS packages
-  package:
+  ansible.builtin.package:
     pkg:
       '{{ common_mdns_packages }}'
     state: latest
@@ -18,7 +18,7 @@
 
 # 言語パッケージのインストール
 - name: Install language packages
-  package:
+  ansible.builtin.package:
     pkg:
       '{{ common_langpack_packages }}'
     state: latest
@@ -26,7 +26,7 @@
 
 # VMware packages
 - name: Install VMware packages
-  package:
+  ansible.builtin.package:
     pkg:
       '{{ common_vmware_packages }}'
     state: latest
@@ -37,7 +37,7 @@
 
 # xcp-ng client packages
 - name: Install xcp-ng packages
-  shell: |
+  ansible.builtin.shell: |
     set -e
     if [ "{{ ansible_facts.os_family }}" = "Debian" ]; then
       curl -fsSL -o /tmp/xe-guest-utilities.deb "{{ xcpng_xe_guest_utilities_deb_url }}"

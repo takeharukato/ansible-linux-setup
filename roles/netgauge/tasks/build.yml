@@ -6,18 +6,18 @@
 #
 
 - name: make build directory name
-  shell: |
+  ansible.builtin.shell: |
     echo "{{netgauge_build_dest}}/build-{{ ansible_hostname }}"
   register: netgauge_build_dir
 
 - name: Create "{{ netgauge_build_dir.stdout }}"
-  file:
+  ansible.builtin.file:
     path: "{{ netgauge_build_dir.stdout }}"
     state: directory
   delegate_to: localhost
 
 - name: Extract netgauge archive
-  shell: |
+  ansible.builtin.shell: |
     if [ -d "{{ netgauge_build_dir.stdout }}" ]; then
       cwd=`pwd`
       cd "{{ netgauge_build_dir.stdout }}"
@@ -33,7 +33,7 @@
   timeout: 1800 # タイムアウト 30分
 
 - name: Configure netgauge
-  shell: |
+  ansible.builtin.shell: |
     if [ -d "{{ netgauge_build_dir.stdout }}" ]; then
       cwd=`pwd`
 
@@ -50,7 +50,7 @@
   timeout: 1800 # タイムアウト 30分
 
 - name: Build netgauge
-  shell: |
+  ansible.builtin.shell: |
     if [ -d "{{ netgauge_build_dir.stdout }}" ]; then
       cwd=`pwd`
 
@@ -67,7 +67,7 @@
   timeout: 1800 # タイムアウト 30分
 
 - name: Install netgauge
-  shell: |
+  ansible.builtin.shell: |
     if [ -d "{{ netgauge_build_dir.stdout }}" ]; then
       cwd=`pwd`
 
@@ -84,13 +84,13 @@
   timeout: 1800 # タイムアウト 30分
 
 - name: "Remove {{netgauge_dir}}"
-  file:
+  ansible.builtin.file:
     path: "{{netgauge_dir}}"
     state: absent
   become: true
 
 - name: "Create {{netgauge_dir}}"
-  file:
+  ansible.builtin.file:
     path: "{{netgauge_dir}}"
     state: directory
     owner: "root"
@@ -99,7 +99,7 @@
   become: true
 
 - name: "copy {{netgauge_dir}}/bin"
-  copy:
+  ansible.builtin.copy:
     src: "{{netgauge_build_dest}}/bin"
     dest: "{{netgauge_dir}}"
     owner: "root"
@@ -108,7 +108,7 @@
   become: true
 
 - name: "remove build dir:{{ netgauge_build_dir.stdout }}"
-  file:
+  ansible.builtin.file:
     path: "{{ netgauge_build_dir.stdout }}"
     state: absent
   delegate_to: localhost

@@ -7,7 +7,7 @@
 # bash用のプロキシ設定ファイルの生成
 #
 - name: Deploy a proxy setting file for Bash
-  template:
+  ansible.builtin.template:
     src: _bshrc.proxy.j2
     dest: /etc/skel/.bashrc.proxy
     owner: root
@@ -19,7 +19,7 @@
 # bash用のLmod設定ファイルの生成
 #
 - name: Deploy a Lmod setting file for Bash
-  template:
+  ansible.builtin.template:
     src: _bshrc.lmod.j2
     dest: /etc/skel/.bashrc.lmod
     owner: root
@@ -32,7 +32,7 @@
 # [ -f ~/.bashrc.proxy ] && source ~/.bashrc.proxy
 #
 - name: Add sourcing completion setting line into /etc/skel/.bashrc
-  lineinfile:
+  ansible.builtin.lineinfile:
     path: /etc/skel/.bashrc
     regexp: '^\[ \-f /usr/share/bash-completion/bash_completion \] && source /usr/share/bash-completion/bash_completion'
     insertafter: EOF
@@ -44,7 +44,7 @@
 # [ -f ~/.bashrc.proxy ] && source ~/.bashrc.proxy
 #
 - name: Add sourcing proxy setting line into /etc/skel/.bashrc
-  lineinfile:
+  ansible.builtin.lineinfile:
     path: /etc/skel/.bashrc
     regexp: '^\[ \-f ${HOME}/.bashrc.proxy \] && source ${HOME}/.bashrc.proxy'
     insertafter: EOF
@@ -56,7 +56,7 @@
 # [ -f ~/.bashrc.mine ] && source ~/.bashrc.mine
 #
 - name: Add sourcing personal setting line into /etc/skel/.bashrc
-  lineinfile:
+  ansible.builtin.lineinfile:
     path: /etc/skel/.bashrc
     regexp: '^\[ \-f ${HOME}/.bashrc.mine \] && source ${HOME}/.bashrc.mine'
     insertafter: EOF
@@ -68,7 +68,7 @@
 # [ -f ~/.bashrc.lmod ] && source ~/.bashrc.lmod
 #
 - name: Add sourcing Lmod setting line into /etc/skel/.bashrc
-  lineinfile:
+  ansible.builtin.lineinfile:
     path: /etc/skel/.bashrc
     regexp: '^\[ \-f ${HOME}/.bashrc.lmod \] && source ${HOME}/.bashrc.lmod'
     insertafter: EOF

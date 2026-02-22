@@ -7,20 +7,20 @@
 
 # kube-apiが使えるようになるのを待ち合わせる
 - name: wait for kube-api-server
-  local_action: wait_for host={{ k8s_ctrlplane_endpoint }} port=6443 state=started
+  ansible.builtin.wait_for: host={{ k8s_ctrlplane_endpoint }} port=6443 state=started
 
 - block:
   - name: compute Cilium BGP node identity
-    set_fact:
+    ansible.builtin.set_fact:
       cilium_bgp_node_name: "{{ k8s_bgp.node_name | default(ansible_hostname, true) }}"
       cilium_bgp_resource_suffix: "{{ (k8s_bgp.node_name | default(ansible_hostname, true)) | lower | regex_replace('[^a-z0-9-]', '-') }}"
 
   - name: compute Cilium BGP manifest directory
-    set_fact:
+    ansible.builtin.set_fact:
       cilium_bgp_manifest_dir: "{{ k8s_bgp.manifest_dir | default(k8s_cilium_config_dir + '/bgp', true) }}"
 
   - name: compute Cilium BGP helper variables
-    set_fact:
+    ansible.builtin.set_fact:
       cilium_bgp_manifest_path: "{{ k8s_bgp.manifest_path | default(cilium_bgp_manifest_dir + '/cilium-bgp-resources-' + cilium_bgp_resource_suffix + '.yml', true) }}"
       cilium_bgp_delegate_host: "{{ k8s_bgp.apply_delegate | default(k8s_ctrlplane_host | default(inventory_hostname, true), true) }}"
       cilium_bgp_cluster_config_name: "{{ k8s_bgp.cluster_config_name | default(k8s_bgp.policy_name | default('cilium-bgp-cluster-' + cilium_bgp_resource_suffix, true), true) }}"
@@ -30,13 +30,13 @@
       cilium_bgp_secret_namespace: "{{ k8s_bgp.secret_namespace | default('kube-system', true) }}"
       cilium_bgp_instance_name: "{{ k8s_bgp.instance_name | default('instance-' + cilium_bgp_resource_suffix, true) }}"
   - name: validate k8s_bgp neighbors are defined
-    assert:
+    ansible.builtin.assert:
       that:
         - (k8s_bgp.neighbors | default([], true)) | length > 0
       fail_msg: "k8s_bgp.neighbors must not be empty when k8s_bgp.enabled is true."
 
   - name: ensure Cilium BGP manifest directory exists
-    file:
+    ansible.builtin.file:
       path: "{{ cilium_bgp_manifest_dir }}"
       state: directory
       owner: root
@@ -46,7 +46,7 @@
     delegate_to: "{{ cilium_bgp_delegate_host }}"
 
   - name: render Cilium BGP control plane resources manifest
-    template:
+    ansible.builtin.template:
       src: "{{ role_path | dirname }}/k8s-common/templates/cilium-bgp-resources.yml.j2"
       dest: "{{ cilium_bgp_manifest_path }}"
       owner: root
@@ -65,7 +65,7 @@
     delegate_to: "{{ cilium_bgp_delegate_host }}"
 
   - name: wait for CiliumBGPAdvertisement CRD availability
-    command: kubectl --kubeconfig {{ k8s_bgp.kubeconfig | default('/etc/kubernetes/admin.conf', true) }} get crd ciliumbgpadvertisements.cilium.io
+    ansible.builtin.command: kubectl --kubeconfig {{ k8s_bgp.kubeconfig | default('/etc/kubernetes/admin.conf', true) }} get crd ciliumbgpadvertisements.cilium.io
     register: cilium_bgp_advertisement_crd_check
     until: cilium_bgp_advertisement_crd_check.rc == 0
     retries: 30
@@ -75,7 +75,7 @@
     delegate_to: "{{ cilium_bgp_delegate_host }}"
 
   - name: wait for CiliumBGPPeerConfig CRD availability
-    command: kubectl --kubeconfig {{ k8s_bgp.kubeconfig | default('/etc/kubernetes/admin.conf', true) }} get crd ciliumbgppeerconfigs.cilium.io
+    ansible.builtin.command: kubectl --kubeconfig {{ k8s_bgp.kubeconfig | default('/etc/kubernetes/admin.conf', true) }} get crd ciliumbgppeerconfigs.cilium.io
     register: cilium_bgp_peer_crd_check
     until: cilium_bgp_peer_crd_check.rc == 0
     retries: 30
@@ -85,7 +85,7 @@
     delegate_to: "{{ cilium_bgp_delegate_host }}"
 
   - name: wait for CiliumBGPClusterConfig CRD availability
-    command: kubectl --kubeconfig {{ k8s_bgp.kubeconfig | default('/etc/kubernetes/admin.conf', true) }} get crd ciliumbgpclusterconfigs.cilium.io
+    ansible.builtin.command: kubectl --kubeconfig {{ k8s_bgp.kubeconfig | default('/etc/kubernetes/admin.conf', true) }} get crd ciliumbgpclusterconfigs.cilium.io
     register: cilium_bgp_cluster_crd_check
     until: cilium_bgp_cluster_crd_check.rc == 0
     retries: 30
@@ -95,7 +95,7 @@
     delegate_to: "{{ cilium_bgp_delegate_host }}"
 
   - name: apply Cilium BGP resources manifest
-    shell: |
+    ansible.builtin.shell: |
       kubectl --kubeconfig {{ k8s_bgp.kubeconfig | default('/etc/kubernetes/admin.conf', true) }} apply -f "{{ cilium_bgp_manifest_path }}"
     args:
       executable: /bin/bash

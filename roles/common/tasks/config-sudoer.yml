@@ -27,12 +27,12 @@
 
 ## 事前準備
 - name: Ensure sudo is installed
-  package:
+  ansible.builtin.package:
     name: sudo
     state: present
 
 - name: Ensure /etc/sudoers.d exists with safe perms
-  file:
+  ansible.builtin.file:
     path: /etc/sudoers.d
     state: directory
     owner: root
@@ -41,37 +41,37 @@
 
 #  ( 参考 ) /etc/sudoers が /etc/sudoers.d を取り込んでいるかを確認 ( 変更はしない )
 - name: Check that /etc/sudoers includes /etc/sudoers.d (warn-only)
-  shell: "grep -E '^[#]*\\s*includedir\\s+/etc/sudoers\\.d' /etc/sudoers || true"
+  ansible.builtin.shell: "grep -E '^[#]*\\s*includedir\\s+/etc/sudoers\\.d' /etc/sudoers || true"
   register: _includedir_chk
   changed_when: false
 
 - name: Warn if /etc/sudoers.d is not included
-  debug:
+  ansible.builtin.debug:
     msg: "WARNING: /etc/sudoers does not include /etc/sudoers.d; drop-ins may not take effect."
   when: _includedir_chk.stdout | default('',true)|length == 0
 
 # 変更前バリデーション
 - name: Validate sudoers syntax BEFORE changes
-  command: visudo -cf /etc/sudoers
+  ansible.builtin.command: visudo -cf /etc/sudoers
   changed_when: false
 
 # --- グループの自動検出 ( sudo / wheel が存在するものだけ採用 )  ---
 - name: Detect presence of 'sudo' group
-  getent:
+  ansible.builtin.getent:
     database: group
     key: sudo
   register: getent_sudo
   failed_when: false
 
 - name: Detect presence of 'wheel' group
-  getent:
+  ansible.builtin.getent:
     database: group
     key: wheel
   register: getent_wheel
   failed_when: false
 
 - name: Build final target groups (autodetect + extra)
-  set_fact:
+  ansible.builtin.set_fact:
     sudo_nopasswd_groups_final: >-
       {{
         (
@@ -89,7 +89,7 @@
 # 1) ユーザ単位の設定
 #=========================
 - name: Check existing users via getent
-  getent:
+  ansible.builtin.getent:
     database: passwd
     key: "{{ item }}"
   loop: "{{ sudo_nopasswd_users | default([],true) }}"
@@ -98,7 +98,7 @@
   when: (sudo_nopasswd_users | default([],true)) | length > 0
 
 - name: Filter only users that actually exist
-  set_fact:
+  ansible.builtin.set_fact:
     sudo_nopasswd_users_existing: >-
       {{
         _getent_users.results
@@ -110,7 +110,7 @@
   when: (sudo_nopasswd_users | default([],true)) | length > 0
 
 - name: Create user drop-ins with visudo validation
-  template:
+  ansible.builtin.template:
     src: nopasswd-user.sudoers.j2
     dest: "/etc/sudoers.d/{{ sudo_dropin_prefix }}-user-{{ item }}"
     owner: root
@@ -121,7 +121,7 @@
   when: not (sudo_nopasswd_absent | default(false) | bool)
 
 - name: Remove user drop-ins when rollback requested
-  file:
+  ansible.builtin.file:
     path: "/etc/sudoers.d/{{ sudo_dropin_prefix }}-user-{{ item }}"
     state: absent
   loop: "{{ sudo_nopasswd_users_existing | default([],true) }}"
@@ -131,7 +131,7 @@
 # 2) グループ単位の設定
 #=========================
 - name: Create group drop-ins with visudo validation
-  template:
+  ansible.builtin.template:
     src: nopasswd-group.sudoers.j2
     dest: "/etc/sudoers.d/{{ sudo_dropin_prefix }}-group-{{ item }}"
     owner: root
@@ -142,7 +142,7 @@
   when: not (sudo_nopasswd_absent | default(false) | bool)
 
 - name: Remove group drop-ins when rollback requested
-  file:
+  ansible.builtin.file:
     path: "/etc/sudoers.d/{{ sudo_dropin_prefix }}-group-{{ item }}"
     state: absent
   loop: "{{ sudo_nopasswd_groups_final | default([],true) }}"
@@ -152,5 +152,5 @@
 # 最終検証
 #=========================
 - name: Validate sudoers syntax AFTER changes
-  command: visudo -cf /etc/sudoers
+  ansible.builtin.command: visudo -cf /etc/sudoers
   changed_when: false

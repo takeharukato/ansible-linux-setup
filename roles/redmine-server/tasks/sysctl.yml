@@ -6,7 +6,7 @@
 #
 ---
 - name: Deploy Redmine IPv4 and IPv6 forwarding sysctl drop-in
-  template:
+  ansible.builtin.template:
     src: 90-redmine-forwarding.conf.j2
     dest: /etc/sysctl.d/90-redmine-forwarding.conf
     owner: root

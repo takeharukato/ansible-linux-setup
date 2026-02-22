@@ -6,7 +6,7 @@
 #
 
 - name: "make {{ k8s_multus_config_dir }}"
-  file:
+  ansible.builtin.file:
     path: "{{ k8s_multus_config_dir }}"
     state: directory
     mode: "755"

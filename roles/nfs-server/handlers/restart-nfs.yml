@@ -5,7 +5,7 @@
 # NFSを再起動する
 - name: restart_nfs
   listen: "restart_nfs"
-  systemd:
+  ansible.builtin.systemd:
     name: nfs-server
     state: restarted
     enabled: true

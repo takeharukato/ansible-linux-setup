@@ -8,14 +8,14 @@
 
 # NetworkManagerのインストール
 - name: Ensure NetworkManager installed (Debian/Ubuntu)
-  package:
+  ansible.builtin.package:
     name: network-manager
     state: present
   when: ansible_facts.os_family == "Debian"
 
 # NetworkManagerの有効化と起動
 - name: Enable & start NetworkManager (Ubuntu)
-  systemd:
+  ansible.builtin.systemd:
     name: NetworkManager
     state: started
     enabled: true
@@ -24,11 +24,11 @@
 
 # facts 取得
 - name: Gather service facts
-  service_facts:
+  ansible.builtin.service_facts:
 
 # systemd-networkd の wait-online だけを止める
 - name: "Disable/mask systemd-networkd-wait-online service"
-  systemd:
+  ansible.builtin.systemd:
     name: systemd-networkd-wait-online.service
     enabled: false
     masked: true
@@ -39,14 +39,14 @@
 
 # network-online.target の wants からsystemd-networkd-wait-online.service へのリンクを除去
 - name: Ensure network-online target does not want networkd wait-online
-  file:
+  ansible.builtin.file:
     path: /etc/systemd/system/network-online.target.wants/systemd-networkd-wait-online.service
     state: absent
   when: ansible_facts.os_family == "Debian"
 
 # networkd は “起動中のまま” で enable を落とす
 - name: Disable systemd-networkd
-  systemd:
+  ansible.builtin.systemd:
     name: systemd-networkd.service
     enabled: false
   when:
@@ -59,7 +59,7 @@
 
 # NetworkManagerのインストール
 - name: Ensure NetworkManager installed (RedHat)
-  package:
+  ansible.builtin.package:
     name: NetworkManager
     state: present
   when:
@@ -67,7 +67,7 @@
 
 # NetworkManagerの有効化と起動
 - name: Stop/disable legacy network-scripts (RHEL legacy)
-  systemd:
+  ansible.builtin.systemd:
     name: network
     state: stopped
     enabled: false

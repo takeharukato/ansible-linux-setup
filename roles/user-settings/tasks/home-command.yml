@@ -7,7 +7,7 @@
 # binのディレクトリスケルトン
 #
 - name: Create /etc/skel/bin
-  file:
+  ansible.builtin.file:
     path: "/etc/skel/bin"
     state: directory
     owner: "root"
@@ -18,7 +18,7 @@
 # clean-all-docker-images.sh
 #
 - name: Create bin/clean-all-docker-images.sh
-  template:
+  ansible.builtin.template:
     src: clean-all-docker-images.sh.j2
     dest: /etc/skel/bin/clean-all-docker-images.sh
     owner: root
@@ -32,7 +32,7 @@
 # run-docker.sh
 #
 - name: Create bin/run-docker.sh
-  template:
+  ansible.builtin.template:
     src: run-docker.sh.j2
     dest: /etc/skel/bin/run-docker.sh
     owner: root

@@ -2,6 +2,6 @@
 #  Ansible playbook
 #  Copyright 2020 Takeharu KATO All Rights Reserved.
 #
-- import_tasks: kubelet.yml
-- import_tasks: reboot-node.yml
-- import_tasks: reload-firewall.yml
+- ansible.builtin.import_tasks: kubelet.yml
+- ansible.builtin.import_tasks: reboot-node.yml
+- ansible.builtin.import_tasks: reload-firewall.yml

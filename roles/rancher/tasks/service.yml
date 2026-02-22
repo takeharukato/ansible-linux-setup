@@ -7,7 +7,7 @@
 
 # 動作しているサービスを停止
 - name: stop rancher
-  shell: |
+  ansible.builtin.shell: |
     docker stop `docker ps|grep rancher|awk -F' ' '{print $1;}'`
   ignore_errors: true
   become: true
@@ -15,11 +15,11 @@
 
 # コンテナの停止を待ち合わせる
 - name: Wait for stop container
-  local_action: wait_for host={{ inventory_hostname }} port=443 state=stopped
+  ansible.builtin.wait_for: host={{ inventory_hostname }} port=443 state=stopped
 
 # コンテナをリムーブ
 - name: remove containers
-  shell: |
+  ansible.builtin.shell: |
     docker ps -a|grep rancher|while read line
     do
     docker rm -f `echo $line|awk -F' ' '{print $1;}'`
@@ -29,18 +29,18 @@
 
 # コンテナイメージをリムーブ
 - name: remove containers
-  shell: |
+  ansible.builtin.shell: |
     docker rmi `docker images|grep rancher|awk -F' ' '{print $3;}'`
   ignore_errors: true
   become: true
 
 # サービス起動
 - name: Invoke rancher service
-  shell: |
+  ansible.builtin.shell: |
     docker run -d --restart=unless-stopped --name rancher -p 80:80 -p 443:443 --privileged -e CATTLE_BOOTSTRAP_PASSWORD=admin -v {{ rancher_cert_dir }}/cert.pem:/etc/rancher/ssl/cert.pem -v {{ rancher_cert_dir }}/key.pem:/etc/rancher/ssl/key.pem -v {{ rancher_cert_dir }}/cert.pem:/etc/rancher/ssl/cacerts.pem {{ rancher_image }}
   become: true
 
 # コンテナの開始を待ち合わせる
 - name: Wait for start container
-  local_action: wait_for host="{{ inventory_hostname }}" port=443 state=started
+  ansible.builtin.wait_for: host="{{ inventory_hostname }}" port=443 state=started
   timeout: "{{ rancher_start_timeout }}"

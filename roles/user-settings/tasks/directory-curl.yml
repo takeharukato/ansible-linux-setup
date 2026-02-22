@@ -7,7 +7,7 @@
 # .curlrc
 #
 - name: Create /etc/skel/.curlrc
-  template:
+  ansible.builtin.template:
     src: _curlrc.j2
     dest: /etc/skel/.curlrc
     owner: root

@@ -28,7 +28,7 @@
 # common_sysctl_inotify_max_user_watches変数で, 設定値が指定されていない場合は
 # デフォルト値8192を設定 (defaults/main.ymlで指定されるためはずだが念のため)
 - name: "Enlarge file observation limit"
-  lineinfile:
+  ansible.builtin.lineinfile:
     path: "{{ sysctl_inotify_conf_path }}"
     regexp: '^\s*fs.inotify.max_user_watches\s*=.*'
     line: 'fs.inotify.max_user_watches={{ common_sysctl_inotify_max_user_watches|int|default(8192, true) }}'

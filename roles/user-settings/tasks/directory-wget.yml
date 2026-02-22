@@ -7,7 +7,7 @@
 # wgetrc
 #
 - name: Create /etc/skel/.wgetrc
-  template:
+  ansible.builtin.template:
     src: _wgetrc.j2
     dest: /etc/skel/.wgetrc
     owner: root

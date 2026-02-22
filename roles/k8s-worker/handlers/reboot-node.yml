@@ -3,7 +3,7 @@
   # マシンをリブートする
   - name: "Reboot node gracefully"
     listen: "reboot_node_handler"
-    reboot:
+    ansible.builtin.reboot:
       reboot_timeout: 600
       msg: "Reboot triggered by role: common"
       pre_reboot_delay: 2

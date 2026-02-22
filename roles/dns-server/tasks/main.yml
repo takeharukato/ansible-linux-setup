@@ -5,32 +5,32 @@
 #  include_tasksで他のタスクを読み込む
 
 # 最初に変数設定を読み直す ( role単独で実行可能とするため )
-- include_tasks: load-params.yml
-- include_tasks: package.yml
+- ansible.builtin.include_tasks: load-params.yml
+- ansible.builtin.include_tasks: package.yml
   when:
     - dns_server is defined
     - ( dns_server|default('', true) | length ) > 0
-- include_tasks: directory.yml
+- ansible.builtin.include_tasks: directory.yml
   when:
     - dns_server is defined
     - ( dns_server|default('', true) | length ) > 0
-- include_tasks: user_group.yml
+- ansible.builtin.include_tasks: user_group.yml
   when:
     - dns_server is defined
     - ( dns_server|default('', true) | length ) > 0
-- include_tasks: service.yml
+- ansible.builtin.include_tasks: service.yml
   when:
     - dns_server is defined
     - ( dns_server|default('', true) | length ) > 0
-- include_tasks: config.yml
+- ansible.builtin.include_tasks: config.yml
   when:
     - dns_server is defined
     - ( dns_server|default('', true) | length ) > 0
-- include_tasks: config-systemd-ipv4-only.yml
+- ansible.builtin.include_tasks: config-systemd-ipv4-only.yml
   when:
     - dns_server is defined
     - ( dns_server|default('', true) | length ) > 0
-- include_tasks: config-firewall.yml
+- ansible.builtin.include_tasks: config-firewall.yml
   when:
     - dns_server is defined
     - ( dns_server|default('', true) | length ) > 0

@@ -5,14 +5,14 @@
 
 - name: apt autoremove (Debian)
   listen: "pkg-autoremove"
-  shell: |
+  ansible.builtin.shell: |
     apt autoremove -y
   become: true
   when: ansible_facts.os_family == 'Debian'
 
 - name: dnf autoremove (RHEL)
   listen: "pkg-autoremove"
-  shell: |
+  ansible.builtin.shell: |
     dnf autoremove -y
   become: true
   when: ansible_facts.os_family == 'RedHat'

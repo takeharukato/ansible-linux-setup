@@ -7,7 +7,7 @@
 # tmux.confのスケルトン
 #
 - name: Deploy a tmux.conf
-  template:
+  ansible.builtin.template:
     src: _tmux.conf.j2
     dest: /etc/skel/.tmux.conf
     owner: root

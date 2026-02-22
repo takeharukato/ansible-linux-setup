@@ -10,7 +10,7 @@
 #
 
 - name: Install K8s prerequisite packages like ca-certificates curl
-  package:
+  ansible.builtin.package:
     pkg:
       "{{ k8s_common_prerequisite_packages }}"
     state: latest

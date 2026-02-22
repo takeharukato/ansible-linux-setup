@@ -8,11 +8,11 @@
 
 # kube-apiが使えるようになるのを待ち合わせる
 - name: wait for kube-api-server
-  local_action: wait_for host={{ k8s_ctrlplane_endpoint }} port=6443 state=started
+  ansible.builtin.wait_for: host={{ k8s_ctrlplane_endpoint }} port=6443 state=started
 
 # Cilium CRD の存在確認
 - name: wait for Cilium CRD availability
-  command: kubectl --kubeconfig /etc/kubernetes/admin.conf get crd ciliumidentities.cilium.io
+  ansible.builtin.command: kubectl --kubeconfig /etc/kubernetes/admin.conf get crd ciliumidentities.cilium.io
   register: cilium_crd_check
   until: cilium_crd_check.rc == 0
   retries: 30
@@ -22,7 +22,7 @@
 
 # Hubble Relay の存在確認
 - name: Check if Hubble Relay is deployed
-  command: kubectl --kubeconfig /etc/kubernetes/admin.conf get deployment -n kube-system hubble-relay
+  ansible.builtin.command: kubectl --kubeconfig /etc/kubernetes/admin.conf get deployment -n kube-system hubble-relay
   register: hubble_relay_check
   failed_when: false
   changed_when: false
@@ -30,13 +30,13 @@
 
 # Hubble Relay が存在しない場合は警告を表示
 - name: Warn if Hubble Relay is not enabled
-  debug:
+  ansible.builtin.debug:
     msg: "WARNING: Hubble Relay is not enabled. Hubble UI requires Hubble Relay to function properly."
   when: hubble_relay_check.rc != 0
 
 # Hubble UI 設定ファイル格納ディレクトリを作成
 - name: Create Hubble UI config directory
-  file:
+  ansible.builtin.file:
     path: "{{ k8s_hubble_ui_config_dir }}"
     state: directory
     owner: root
@@ -46,7 +46,7 @@
 
 # Hubble UI 用 values ファイルを生成
 - name: Setup Hubble UI values file
-  template:
+  ansible.builtin.template:
     src: hubble-ui-values.yml.j2
     dest: "{{ k8s_hubble_ui_config_dir }}/hubble-ui-values.yml"
     owner: root
@@ -57,7 +57,7 @@
 
 # 既存の Helm values を取得 (マージモード時)
 - name: Get existing Cilium Helm values
-  shell: |
+  ansible.builtin.shell: |
     helm get values cilium -n kube-system -o yaml
   register: helm_get_values_result
   failed_when: false
@@ -67,7 +67,7 @@
 
 # 既存 values を一時ファイルに保存 (取得成功かつ空でない場合)
 - name: Save existing values to file
-  copy:
+  ansible.builtin.copy:
     content: "{{ helm_get_values_result.stdout }}"
     dest: "{{ k8s_hubble_ui_config_dir }}/cilium-existing-values.yml"
     owner: root
@@ -82,7 +82,7 @@
 # 既存値と新規値をマージ (yq使用)
 # 新規値（Hubble UI設定）を優先するため、右側（fileIndex==1）を後にマージ
 - name: Merge existing values with Hubble UI values
-  shell: |
+  ansible.builtin.shell: |
     set -ex
     {{ yq_command }} eval-all '. as $item ireduce ({}; . * $item)' \
       "{{ k8s_hubble_ui_config_dir }}/cilium-existing-values.yml" \
@@ -99,7 +99,7 @@
 
 # マージ結果をデバッグ表示
 - name: Display yq merge result
-  debug:
+  ansible.builtin.debug:
     var: yq_merge_result
   when:
     - hubble_ui_merge_existing_values | default(false)
@@ -108,7 +108,7 @@
 
 # マージ結果を確認
 - name: Check merged values file
-  stat:
+  ansible.builtin.stat:
     path: "{{ k8s_hubble_ui_config_dir }}/hubble-ui-values-merged.yml"
   register: merged_file_stat
   become: true
@@ -119,7 +119,7 @@
 
 # マージファイルが空の場合は警告を表示
 - name: Warn if merged file is empty
-  debug:
+  ansible.builtin.debug:
     msg: "WARNING: Merged values file is empty. Will use hubble-ui-values.yml instead."
   when:
     - hubble_ui_merge_existing_values | default(false)
@@ -130,7 +130,7 @@
 
 # 使用する values ファイルを決定
 - name: Set Helm values file path
-  set_fact:
+  ansible.builtin.set_fact:
     hubble_ui_helm_values_file: >-
       {{
         (hubble_ui_merge_existing_values | default(false) and
@@ -147,7 +147,7 @@
 
 # Helm upgrade で Hubble UI を有効化
 - name: Enable Hubble UI via Helm upgrade
-  shell: |
+  ansible.builtin.shell: |
     helm upgrade --install cilium cilium/cilium \
       --namespace kube-system \
       --version {{ hubble_ui_version }} \
@@ -158,6 +158,6 @@
 
 # Hubble UI Deployment の起動を待機
 - name: Wait for Hubble UI Deployment to be available
-  command: kubectl --kubeconfig /etc/kubernetes/admin.conf wait deployment/hubble-ui -n kube-system --for=condition=Available --timeout=5m
+  ansible.builtin.command: kubectl --kubeconfig /etc/kubernetes/admin.conf wait deployment/hubble-ui -n kube-system --for=condition=Available --timeout=5m
   become: true
   changed_when: false

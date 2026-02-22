@@ -7,19 +7,19 @@
 
 # kube-apiが使えるようになるのを待ち合わせる
 - name: wait for kube-api-server
-  local_action: wait_for host={{ k8s_ctrlplane_endpoint }} port=6443 state=started
+  ansible.builtin.wait_for: host={{ k8s_ctrlplane_endpoint }} port=6443 state=started
 
 # ジョイントークンを変数に格納
 #ssh 192.168.20.41 "sudo kubeadm token list|grep -v TOKEN"|awk -F' ' '{print $1}'
 - name: get join token in token list
-  shell: |
+  ansible.builtin.shell: |
     sudo kubeadm token list|grep -v TOKEN|awk -F' ' '{print $1}'|head -1
   delegate_to: "{{ k8s_ctrlplane_host }}"
   register: k8s_join_token_list
   changed_when: false
 
 - name: create new join token
-  shell: |
+  ansible.builtin.shell: |
     sudo kubeadm token create
   delegate_to: "{{ k8s_ctrlplane_host }}"
   changed_when: false
@@ -27,7 +27,7 @@
     - k8s_join_token_list.stdout is defined and k8s_join_token_list.stdout == ''
 
 - name: get join token in token list
-  shell: |
+  ansible.builtin.shell: |
     sudo kubeadm token list|grep -v TOKEN|awk -F' ' '{print $1}'|head -1
   delegate_to: "{{ k8s_ctrlplane_host }}"
   register: k8s_join_token_from_ctrlplane
@@ -35,7 +35,7 @@
 
 # cert hashを変数に格納
 - name: get join discovery hash
-  shell: |
+  ansible.builtin.shell: |
     sudo openssl x509 -pubkey -in /etc/kubernetes/pki/ca.crt | openssl rsa -pubin -outform der 2>/dev/null | openssl dgst -sha256 -hex | sed 's/^.* //'
   delegate_to: "{{ k8s_ctrlplane_host }}"
   register: k8s_join_discovery_hash_from_ctrlplane
@@ -43,7 +43,7 @@
 
 # kube-apiが使えるようになるのを待ち合わせる
 - name: wait for kube-api-server
-  local_action: wait_for host={{ k8s_ctrlplane_endpoint }} port=6443 state=started
+  ansible.builtin.wait_for: host={{ k8s_ctrlplane_endpoint }} port=6443 state=started
 
 # 既にjoin済みだった場合は, 対象コントロールプレインに対して以下を実行して, ノード登録を抹消すること
 # 参考) http://stackoverflow.com/questions/35757620/how-to-gracefully-remove-a-node-from-kubernetes
@@ -60,7 +60,7 @@
 
 # ホスト名を得る
 - name: get hostname
-  shell: |
+  ansible.builtin.shell: |
     hostname
   register: k8s_worker_hostname
   changed_when: false
@@ -76,7 +76,7 @@
 
 # ワーカーセットアップファイルの生成
 - name: Generate setup file
-  template:
+  ansible.builtin.template:
     src: worker-kubeadm.config.j2
     dest: "{{ k8s_kubeadm_config_store }}/kubeadm.config.yml"
     owner: root
@@ -86,7 +86,7 @@
 
 # 既に登録済みのワーカーをスケジュール対象から外す
 - name: make "{{ k8s_worker_hostname.stdout }}" cordon
-  shell: |
+  ansible.builtin.shell: |
     kubectl cordon "{{ k8s_worker_hostname.stdout }}"
   delegate_to: "{{ k8s_ctrlplane_host }}"
   changed_when: False
@@ -94,7 +94,7 @@
 
 # 既に登録済みのワーカーをシャットダウンする
 - name: drain "{{ k8s_worker_hostname.stdout }}"
-  shell: |
+  ansible.builtin.shell: |
     kubectl drain "{{ k8s_worker_hostname.stdout }}" --ignore-daemonsets  --delete-emptydir-data -v=6 --timeout={{ k8s_drain_timeout_minutes|default(5,true)|int }}m
   delegate_to: "{{ k8s_ctrlplane_host }}"
   changed_when: False
@@ -102,54 +102,54 @@
 
 # 既に登録済みのワーカーを削除する
 - name: delete "{{ k8s_worker_hostname.stdout }}"
-  shell: |
+  ansible.builtin.shell: |
     kubectl delete node "{{ k8s_worker_hostname.stdout }}"
   delegate_to: "{{ k8s_ctrlplane_host }}"
   changed_when: False
   ignore_errors: true
 
 - name: "Wait {{ k8s_worker_delete_wait_sec }} seconds for the worker node deletion to complete."
-  shell: "sleep {{ k8s_worker_delete_wait_sec|default(5,true)|int }}"
+  ansible.builtin.shell: "sleep {{ k8s_worker_delete_wait_sec|default(5,true)|int }}"
   async: 1
   poll: 0
 
 - block:
 
   - name: reset configuration
-    shell: |
+    ansible.builtin.shell: |
       kubeadm reset -f
     become: true
 
   - name: stop kubelet
-    systemd:
+    ansible.builtin.systemd:
       name: kubelet
       state: stopped
     become: true
 
   - name: stop containerd
-    systemd:
+    ansible.builtin.systemd:
       name: containerd
       state: stopped
     become: true
 
   - name: remove /etc/kubernetes/manifests
-    file:
+    ansible.builtin.file:
       path: /etc/kubernetes/manifests
       state: absent
     become: true
 
   - name: remove /etc/cni/net.d
-    file:
+    ansible.builtin.file:
       path: /etc/cni/net.d
       state: absent
     become: true
 
   - name: kubeadm configuration file
-    shell: |
+    ansible.builtin.shell: |
       cat "{{ k8s_kubeadm_config_store }}/kubeadm.config.yml"
 
   - name: remove /var/lib/kubelet/cpu_manager_state
-    file:
+    ansible.builtin.file:
       path: /var/lib/kubelet/cpu_manager_state
       state: absent
     become: true
@@ -168,7 +168,7 @@
     become: true
 
   - name: setup worker node
-    shell: |
+    ansible.builtin.shell: |
       kubeadm join --config "{{ k8s_kubeadm_config_store }}/kubeadm.config.yml" "{{ k8s_kubeadm_ignore_preflight_errors_arg }}"
     become: true
 
@@ -189,11 +189,11 @@
 
 # マシンをリブートする
 - name: Reboot host gracefully
-  reboot:
+  ansible.builtin.reboot:
     reboot_timeout: 600
     msg: "Reboot triggered by role: common"
     pre_reboot_delay: 2
 
 - name: Wait for connection after reboot
-  wait_for_connection:
+  ansible.builtin.wait_for_connection:
     timeout: 300

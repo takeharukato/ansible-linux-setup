@@ -8,7 +8,7 @@
 
 # Terraform導入に必要なパッケージをインストール
 - name: "Install required packages for terraform"
-  package:
+  ansible.builtin.package:
     name:
       - gnupg
       - software-properties-common
@@ -18,14 +18,14 @@
 
 # HashiCorpリポジトリを追加 (Debian系)
 - name: "Update apt cache before adding HashiCorp repository"
-  apt:
+  ansible.builtin.apt:
     update_cache: yes
   when:
     - ansible_facts.os_family == "Debian"
 
 # HashiCorp GPGキーを追加 (Debian系)
 - name: "Add HashiCorp GPG key"
-  shell: |
+  ansible.builtin.shell: |
     curl -fsSL {{ terraform_repository_url_debian }}/gpg | gpg --dearmor -o "{{ terraform_apt_keyring_debian }}"
     chmod 0644 "{{ terraform_apt_keyring_debian }}"
   when:
@@ -49,7 +49,7 @@
 
 # リポジトリ追加後にaptキャッシュを更新 (Debian系)
 - name: "Update apt cache"
-  apt:
+  ansible.builtin.apt:
     update_cache: yes
   when:
     - ansible_facts.os_family == "Debian"
@@ -68,6 +68,6 @@
 
 # terraformをインストール
 - name: "Install terraform package"
-  package:
+  ansible.builtin.package:
     name: terraform
     state: present

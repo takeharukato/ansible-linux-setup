@@ -17,7 +17,7 @@
 
 # 基本コマンドのインストール
 - name: Install common packages
-  package:
+  ansible.builtin.package:
     pkg:
       '{{ common_packages }}'
     state: latest
@@ -37,7 +37,7 @@
 
 # apt file update
 - name: apt-file update
-  shell: |
+  ansible.builtin.shell: |
     apt-file update
   become: true
   when: ansible_facts.os_family == 'Debian'

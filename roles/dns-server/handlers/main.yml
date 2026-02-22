@@ -7,7 +7,7 @@
 # 例:
 # - import_tasks: docker.yml
 
-- import_tasks: restart-named.yml
-- import_tasks: named-check-conf.yml
-- import_tasks: reload-zone.yml
-- import_tasks: disable-gui.yml
+- ansible.builtin.import_tasks: restart-named.yml
+- ansible.builtin.import_tasks: named-check-conf.yml
+- ansible.builtin.import_tasks: reload-zone.yml
+- ansible.builtin.import_tasks: disable-gui.yml

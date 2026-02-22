@@ -9,6 +9,6 @@
 - name: docker_restarted  # notify の docker_restarted に対応
   listen: docker_restarted
   become: true
-  service:
+  ansible.builtin.service:
     name: docker
     state: restarted

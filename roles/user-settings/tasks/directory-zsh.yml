@@ -8,7 +8,7 @@
 # zsh用のプロキシ設定ファイルの生成
 #
 - name: Deploy a proxy setting file for zsh
-  template:
+  ansible.builtin.template:
     src: _bshrc.proxy.j2
     dest: /etc/skel/.zshrc.proxy
     owner: root
@@ -20,7 +20,7 @@
 # zprofileのスケルトンファイル
 #
 - name: Deploy a zprofile skeleton
-  template:
+  ansible.builtin.template:
     src: _zprofile.j2
     dest: /etc/skel/.zprofile
     owner: root
@@ -32,7 +32,7 @@
 # zshrcのスケルトンファイル
 #
 - name: Deploy a zshrc skeleton
-  template:
+  ansible.builtin.template:
     src: _zshrc.j2
     dest: /etc/skel/.zshrc
     owner: root
@@ -44,7 +44,7 @@
 # zshrc.commonのスケルトンファイル
 #
 - name: Deploy a zshrc.common skeleton
-  template:
+  ansible.builtin.template:
     src: _zshrc_common.j2
     dest: /etc/skel/.zshrc.common
     owner: root
@@ -56,7 +56,7 @@
 # zshrc.mine.sample のスケルトンファイル
 #
 - name: Deploy a zshrc.mine.sample skeleton
-  template:
+  ansible.builtin.template:
     src: _zshrc.mine.sample.j2
     dest: /etc/skel/.zshrc.mine.sample
     owner: root

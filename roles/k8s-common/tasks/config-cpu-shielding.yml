@@ -10,21 +10,21 @@
 #
 
 - name: Calculate first app cpu
-  shell: |
+  ansible.builtin.shell: |
     expr  $(echo {{ k8s_reserved_system_cpus_default }}|awk -F '-' '{print $2}') + 1
   register: k8s_worker_first_cpu_id
   ignore_errors: true
   changed_when: False
 
 - name: Calculate last app cpu
-  shell: |
+  ansible.builtin.shell: |
     expr `lscpu -p=CPU | grep -v '^#' 2>/dev/null|wc -l || nproc --all` - 1
   register: k8s_worker_last_cpu_id
   ignore_errors: true
   changed_when: False
 
 - name: Create app cpu range
-  shell: |
+  ansible.builtin.shell: |
     echo "{{ k8s_worker_first_cpu_id.stdout }}-{{ k8s_worker_last_cpu_id.stdout }}"
   register: k8s_worker_app_cpu_range
   changed_when: False
@@ -37,7 +37,7 @@
   # KubePods 用の Slice 設定
   #
   - name: "Create /etc/systemd/system/kubepods.slice.d"
-    file:
+    ansible.builtin.file:
       path: "/etc/systemd/system/kubepods.slice.d"
       state: directory
       owner: "root"
@@ -45,7 +45,7 @@
       mode: "0775"
 
   - name: "Create /etc/systemd/system/kubepods.slice.d/40-cpuset.conf"
-    template:
+    ansible.builtin.template:
       src: systemd-kubepod-cpuset.conf.j2
       dest: "/etc/systemd/system/kubepods.slice.d/40-cpuset.conf"
       owner: root
@@ -57,7 +57,7 @@
       - k8s_use_kubepods_cpuset
 
   - name: "remove /etc/systemd/system/kubepods.slice.d/40-cpuset.conf"
-    file:
+    ansible.builtin.file:
       path: "/etc/systemd/system/kubepods.slice.d/40-cpuset.conf"
       state: absent
     when:

@@ -9,7 +9,7 @@
 - block:
 
   - name: check if MAILTO= is configured in /etc/crontab
-    lineinfile:
+    ansible.builtin.lineinfile:
       backup: true
       path: /etc/crontab
       regexp: '^[[:space:]]*MAILTO='
@@ -18,7 +18,7 @@
     register: crontab_check_mailto_line
 
   - name: replace MAILTO line if present
-    lineinfile:
+    ansible.builtin.lineinfile:
       path: /etc/crontab
       backrefs: true
       regexp: '^[[:space:]]*MAILTO=.*'
@@ -28,7 +28,7 @@
       - crontab_check_mailto_line.found | int > 0
 
   - name: insert MAILTO="" if missing
-    lineinfile:
+    ansible.builtin.lineinfile:
       backrefs: true
       path: /etc/crontab
       regexp: "^[[:space:]]*MAILTO=.*"
