@@ -104,7 +104,7 @@
 | --- | --- | --- |
 | `common_default_nic` | `"ens160"` | 管理用 NIC のデフォルト名。 |
 | `mgmt_nic` | `""` | 管理用 NIC 名。未指定時は `common_default_nic` で補完されます。 |
-| `netif_list` | (未定義) | ネットワークインターフェース定義のリスト (後述の設定例を参照)。 |
+| `netif_list` | DHCP/SLACCにより管理系 NIC のみを構成するよう設定(`vars/cross-distro.yml`で定義) | ネットワークインターフェース定義のリスト (後述の設定例を参照)。 |
 | `gateway4` | `""` | IPv4 デフォルトゲートウェイのフォールバック値。 |
 | `gateway6` | `""` | IPv6 デフォルトゲートウェイのフォールバック値。 |
 | `ipv4_name_server1` | `""` | IPv4 DNS サーバ 1 のフォールバック値。 |
@@ -172,7 +172,7 @@
 | `templates/99-netcfg-multi.yaml.j2` | `/etc/netplan/99-netcfg.yaml` | netplan 設定ファイル (Debian 系)。IP アドレス, ゲートウェイ, DNS サーバを設定します。 |
 | `templates/nopasswd-group.sudoers.j2` | `/etc/sudoers.d/{{ sudo_dropin_prefix }}-group-{{ item }}` (既定: `/etc/sudoers.d/99-nopasswd-group-<グループ名>`) | グループ単位のパスワード無し sudo 設定。 |
 | `templates/nopasswd-user.sudoers.j2` | `/etc/sudoers.d/{{ sudo_dropin_prefix }}-user-{{ item }}` (既定: `/etc/sudoers.d/99-nopasswd-user-<ユーザ名>`) | ユーザ単位のパスワード無し sudo 設定。 |
-| `templates/mount-nas.sh.j2` | (配置先は未定義) | NAS マウント用スクリプト。 |
+| `templates/mount-nas.sh.j2` | `/usr/local/sbin/mount-nas.sh` | NAS マウント用スクリプト。 |
 | `templates/ddns-client-update.sh.j2` | `{{ ddns_client_update_sh_path }}` (既定: `/usr/local/sbin/ddns-client-update.sh`) | Dynamic DNS update スクリプト (`use_nm_ddns_update_scripts` が `true` の場合)。 |
 | `templates/ddns-clients-key-file.j2` | `{{ dns_ddns_key_file }}` (既定: `/etc/nsupdate/ddns-clients.key`) | Dynamic DNS update key ファイル (`use_nm_ddns_update_scripts` が `true` の場合)。 |
 | `templates/nm-ra-addr-watch.j2` | `{{ nm_ra_addr_watch_path }}` (既定: `/usr/local/libexec/nm-ra-addr-watch`) | Router Advertisement アドレス監視スクリプト (`use_nm_ddns_update_scripts` が `true` の場合)。 |
@@ -1477,6 +1477,10 @@ NetworkManager dispatcher スクリプトです。ネットワークインター
 - `netif_list` が未定義または空リストの場合, `mgmt_nic` を含む単一エントリのリストが自動生成されます。
 - 最初のエントリが管理系 NIC (`mgmt_nic`) として扱われます。
 - ゲートウェイは管理系 NIC のみに設定することを推奨します (複数ゲートウェイによるルーティング競合を防止)。
+
+**デフォルト設定での具体的な動作**:
+- `netif_list` が未定義かつ `gateway4`, `gateway6` も未定義（空文字列）の場合, 管理系 NIC は **DHCP（IPv4）と SLAAC（IPv6）による自動構成** で機能します。NIC に対してゲートウェイやルート設定は出力されません (DHCP/SLAAC で取得したルートを使用)。
+- `netif_list` が未定義の場合, `gateway4` や `gateway6`で指定されたゲートウエイアドレスは使用されず, DHCP（IPv4） や SLAAC（IPv6）による自動構成に従って, ゲートウエイアドレスを設定します。固定ゲートウェイアドレスを指定する場合は, 必ず `netif_list` で固定IP アドレスを設定してください(固定IPアドレス設定がない場合, テンプレート処理時に ゲートウェイ設定を無視する仕様です)。
 
 ### SELinux に関する注意事項 (RHEL 系)
 
