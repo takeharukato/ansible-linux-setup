@@ -2,7 +2,7 @@
 #  Ansible playbook
 #  Copyright 2020 Takeharu KATO All Rights Reserved.
 #
-- hosts: internal-devel
+- hosts: internal_devel
   remote_user:  '{{ ansible_user }}'
   become: true
   roles:
