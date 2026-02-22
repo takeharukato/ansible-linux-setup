@@ -1,0 +1,16 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  sysctl 設定関連タスク
+#
+---
+- name: Deploy LDAP IPv4 and IPv6 forwarding sysctl drop-in
+  template:
+    src: 90-ldap-forwarding.conf.j2
+    dest: /etc/sysctl.d/90-ldap-forwarding.conf
+    owner: root
+    group: root
+    mode: '0644'
+  notify: "ldap_server_reload_sysctl"
+  become: true

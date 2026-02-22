@@ -7,3 +7,5 @@
 # 処理を直接書かずにincludeすること
 # 例:
 # - import_tasks: docker.yml
+
+- import_tasks: reload-sysctl.yml
