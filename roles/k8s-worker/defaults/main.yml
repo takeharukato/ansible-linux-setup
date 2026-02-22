@@ -76,7 +76,7 @@ k8s_worker_node_ports_nodeport:
 # (10250/tcp は個別処理なので含めない)
 k8s_worker_node_ports: >-
   {{
-    (k8s_worker_enable_nodeport | bool)
+    (k8s_worker_enable_nodeport | default(false) | bool)
       | ternary(k8s_worker_node_ports_nodeport, [])
   }}
 

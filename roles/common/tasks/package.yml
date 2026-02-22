@@ -14,7 +14,7 @@
   notify:
     - avahi_restarted_and_enabled
   when:
-    - mdns_enabled|bool
+    - mdns_enabled | default(false) | bool
 
 # 言語パッケージのインストール
 - name: Install language packages
@@ -30,7 +30,7 @@
     pkg:
       '{{ common_vmware_packages }}'
     state: latest
-  when: use_vmware|bool
+  when: use_vmware | default(false) | bool
   notify:
     - disable_gui
     - pkg-autoremove
@@ -47,7 +47,7 @@
       curl -fsSL -o /tmp/xe-guest-utilities-xenstore.rpm "{{ xcpng_xen_store_rpm_url }}"
       dnf install -y /tmp/xe-guest-utilities.rpm /tmp/xe-guest-utilities-xenstore.rpm
     fi
-  when: use_xcpng|bool
+  when: use_xcpng | default(false) | bool
   notify:
     - disable_gui
     - pkg-autoremove

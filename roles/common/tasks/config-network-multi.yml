@@ -62,7 +62,8 @@
 # 現在アクティブな NM 接続が割り当てられているデバイス一覧を配列化
 - name: Build active device set
   ansible.builtin.set_fact:
-    _nm_active_devices: "{{ (_nm_active_devs_cmd.stdout | default('') ).split('\n')
+    _nm_active_devices: "{{ (_nm_active_devs_cmd.stdout | default('', true) | string)
+                            | split('\n')
                             | map('trim') | reject('equalto','') | unique | list }}"
 
 # .link の出力ディレクトリを必ず作成します。
@@ -199,8 +200,8 @@
                 static_ipv6_addr: ""
                 network_ipv6_prefix_len: 0
                 gateway6: "{{ gateway6 | default('', true) }}"
-                ignore_auto_ipv4_dns: "{{ _mgmt_ignore_auto_ipv4_dns | bool }}"
-                ignore_auto_ipv6_dns: "{{ _mgmt_ignore_auto_ipv6_dns | bool }}"
+                ignore_auto_ipv4_dns: "{{ _mgmt_ignore_auto_ipv4_dns | default(false) | bool }}"
+                ignore_auto_ipv6_dns: "{{ _mgmt_ignore_auto_ipv6_dns | default(false) | bool }}"
                 name_server_ipv4_1: "{{ ipv4_name_server1 | default('', true) }}"
                 name_server_ipv4_2: "{{ ipv4_name_server2 | default('', true) }}"
                 name_server_ipv6_1: "{{ ipv6_name_server1 | default('', true) }}"

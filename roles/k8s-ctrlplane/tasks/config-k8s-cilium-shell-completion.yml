@@ -15,7 +15,7 @@
     owner: root
     group: root
     mode: "0755"
-  when: k8s_cilium_cli_completion_enabled | bool
+  when: k8s_cilium_cli_completion_enabled | default(false) | bool
 
 # Cilium bash 用のシェル補完スクリプトを生成
 - name: Generate Cilium bash completion script
@@ -23,7 +23,7 @@
   ansible.builtin.command: cilium completion bash
   register: cilium_bash_completion_command
   changed_when: false
-  when: k8s_cilium_cli_completion_enabled | bool
+  when: k8s_cilium_cli_completion_enabled | default(false) | bool
 
 # Cilium bash 用のシェル補完スクリプトを配置
 - name: Install Cilium bash completion script
@@ -35,7 +35,7 @@
     group: root
     mode: "0644"
   when:
-    - k8s_cilium_cli_completion_enabled | bool
+    - k8s_cilium_cli_completion_enabled | default(false) | bool
     - cilium_bash_completion_command is defined
 
 # Cilium zsh 用のシェル補完スクリプト用ディレクトリを作成
@@ -47,7 +47,7 @@
     owner: root
     group: root
     mode: "0755"
-  when: k8s_cilium_cli_completion_enabled | bool
+  when: k8s_cilium_cli_completion_enabled | default(false) | bool
 
 # Cilium zsh 用のシェル補完スクリプトを生成
 - name: Generate Cilium zsh completion script
@@ -55,7 +55,7 @@
   ansible.builtin.command: cilium completion zsh
   register: cilium_zsh_completion_command
   changed_when: false
-  when: k8s_cilium_cli_completion_enabled | bool
+  when: k8s_cilium_cli_completion_enabled | default(false) | bool
 
 # Cilium zsh 用のシェル補完スクリプトを配置
 - name: Install Cilium zsh completion script
@@ -67,5 +67,5 @@
     group: root
     mode: "0644"
   when:
-    - k8s_cilium_cli_completion_enabled | bool
+    - k8s_cilium_cli_completion_enabled | default(false) | bool
     - cilium_zsh_completion_command is defined

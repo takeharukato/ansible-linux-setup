@@ -5,7 +5,7 @@
 
 - name: Manage Cilium shared CA secret
   # Cilium共通CA(k8s_cilium_shared_ca_enabled)が有効な場合にのみ実行する
-  when: k8s_cilium_shared_ca_enabled | bool
+  when: k8s_cilium_shared_ca_enabled | default(false) | bool
   block:
     # Cilium共通CAのソースパスを初期化する
     - name: Initialize Cilium shared CA source paths
@@ -18,7 +18,7 @@
       set_fact:
         _cilium_ca_cert_path: "{{ hostvars[inventory_hostname].k8s_shared_ca_cert_path | default('', true) }}"
         _cilium_ca_key_path: "{{ hostvars[inventory_hostname].k8s_shared_ca_key_path | default('', true) }}"
-      when: k8s_cilium_shared_ca_reuse_k8s_ca | bool
+      when: k8s_cilium_shared_ca_reuse_k8s_ca | default(false) | bool
 
     # reuse指定時に共通CAのfactsが無ければ失敗させる
     - name: Fail when Kubernetes shared CA facts are missing
@@ -27,7 +27,7 @@
           k8s_cilium_shared_ca_reuse_k8s_ca=true の場合は, 先に k8s-shared-ca ロールを実行し
           k8s_shared_ca_cert_path と k8s_shared_ca_key_path を提供してください。
       when:
-        - k8s_cilium_shared_ca_reuse_k8s_ca | bool
+        - k8s_cilium_shared_ca_reuse_k8s_ca | default(false) | bool
         - (hostvars[inventory_hostname].k8s_shared_ca_cert_path | default('', true) | length) == 0
           or (hostvars[inventory_hostname].k8s_shared_ca_key_path | default('', true) | length) == 0
 
@@ -37,14 +37,14 @@
         _cilium_ca_cert_path: "{{ k8s_cilium_shared_ca_output_dir }}/{{ k8s_cilium_shared_ca_cert_filename }}"
         _cilium_ca_key_path: "{{ k8s_cilium_shared_ca_output_dir }}/{{ k8s_cilium_shared_ca_key_filename }}"
       when:
-        - not (k8s_cilium_shared_ca_reuse_k8s_ca | bool)
+        - not (k8s_cilium_shared_ca_reuse_k8s_ca | default(false) | bool)
         - (_cilium_ca_cert_path | length == 0) or (_cilium_ca_key_path | length == 0)
 
     # 共通CAファイルが存在しない場合は必要に応じて生成する
     - name: Generate Cilium shared CA when missing
       when:
-        - not (k8s_cilium_shared_ca_reuse_k8s_ca | bool)
-        - k8s_cilium_shared_ca_auto_create | bool
+        - not (k8s_cilium_shared_ca_reuse_k8s_ca | default(false) | bool)
+        - k8s_cilium_shared_ca_auto_create | default(false) | bool
         - (_cilium_ca_cert_path | length) > 0
         - (_cilium_ca_key_path | length) > 0
       become: true

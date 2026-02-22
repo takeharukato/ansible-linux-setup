@@ -106,7 +106,7 @@ network:
 # DNS設定
 {% set v4dns = [] %}
 {% set v6dns = [] %}
-{% if item.ignore_auto_ipv4_dns | default(false) %}
+{% if item.ignore_auto_ipv4_dns | default(false) | bool %}
 {% if item.name_server_ipv4_1 | default('', true) | length %}{% set _ = v4dns.append(item.name_server_ipv4_1) %}{% endif %}
 {% if item.name_server_ipv4_2 | default('', true) | length %}{% set _ = v4dns.append(item.name_server_ipv4_2) %}{% endif %}
 
@@ -117,7 +117,7 @@ network:
 {% else %}
 # IPv4で自動 DNS を採用するため, IPv4 DNS項目は出力しない
 {% endif %}
-{% if item.ignore_auto_ipv6_dns | default(false) %}
+{% if item.ignore_auto_ipv6_dns | default(false) | bool %}
 {% if item.name_server_ipv6_1 | default('', true) | length %}{% set _ = v6dns.append(item.name_server_ipv6_1) %}{% endif %}
 {% if item.name_server_ipv6_2 | default('', true) | length %}{% set _ = v6dns.append(item.name_server_ipv6_2) %}{% endif %}
 
@@ -154,7 +154,8 @@ network:
   {% set _dns_search_list = (_dns_search_raw | select('string') | map('trim') | reject('equalto','') | list) %}
 {% else %}
   {% set _dns_search_list = (
-       (_dns_search_raw | string | replace(';', ',')).split(',')
+       (_dns_search_raw | default('', true) | string | replace(';', ','))
+       | split(',')
        | map('trim') | reject('equalto','') | list
      ) %}
 {% endif %}
@@ -175,8 +176,8 @@ network:
 {% endif %}
 
 # NetworkManager の auto-dns 抑止設定
-{% set need_ipv4_ignore = (not has_v4_addr) and (item.ignore_auto_ipv4_dns | default(false)) and (v4dns | length > 0) %}
-{% set need_ipv6_ignore = (not has_v6_addr) and (item.ignore_auto_ipv6_dns | default(false)) and (v6dns | length > 0) %}
+{% set need_ipv4_ignore = (not has_v4_addr) and (item.ignore_auto_ipv4_dns | default(false) | bool) and (v4dns | length > 0) %}
+{% set need_ipv6_ignore = (not has_v6_addr) and (item.ignore_auto_ipv6_dns | default(false) | bool) and (v6dns | length > 0) %}
 {% if need_ipv4_ignore or need_ipv6_ignore %}
       networkmanager:
         passthrough:

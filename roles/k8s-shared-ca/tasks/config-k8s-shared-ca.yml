@@ -69,7 +69,7 @@
       debug:
         msg: "Shared CA not found at k8s_common_ca='{{ _shared_ca_user_dir }}'. Using role bundled CA or generating new files."
       when:
-        - enable_create_k8s_ca | bool
+        - enable_create_k8s_ca | default(false) | bool
         - _shared_ca_user_dir != ""
         - not _shared_ca_user_valid
 
@@ -87,7 +87,7 @@
       fail:
         msg: "When enable_create_k8s_ca is false, set k8s_common_ca to a directory containing {{ k8s_shared_ca_cert_filename }} and {{ k8s_shared_ca_key_filename }}."
       when:
-        - not (enable_create_k8s_ca | bool)
+        - not (enable_create_k8s_ca | default(false) | bool)
         - not _shared_ca_user_valid
 
     # 生成無効時に指定されたCAをソースとして採用する
@@ -96,7 +96,7 @@
         _shared_ca_source_cert: "{{ _shared_ca_user_dir }}/{{ k8s_shared_ca_cert_filename }}"
         _shared_ca_source_key: "{{ _shared_ca_user_dir }}/{{ k8s_shared_ca_key_filename }}"
         _shared_ca_source_origin: "user"
-      when: not (enable_create_k8s_ca | bool)
+      when: not (enable_create_k8s_ca | default(false) | bool)
 
     # 生成有効時は指定されたCAを優先する
     - name: Prefer user-provided CA when creation enabled
@@ -105,7 +105,7 @@
         _shared_ca_source_key: "{{ _shared_ca_user_dir }}/{{ k8s_shared_ca_key_filename }}"
         _shared_ca_source_origin: "user"
       when:
-        - enable_create_k8s_ca | bool
+        - enable_create_k8s_ca | default(false) | bool
         - _shared_ca_source_cert == ""
         - _shared_ca_user_valid
 
@@ -116,7 +116,7 @@
         _shared_ca_source_key: "{{ _shared_ca_role_dir }}/{{ k8s_shared_ca_key_filename }}"
         _shared_ca_source_origin: "role-files"
       when:
-        - enable_create_k8s_ca | bool
+        - enable_create_k8s_ca | default(false) | bool
         - _shared_ca_source_cert == ""
         - _shared_ca_role_valid
 
@@ -129,7 +129,7 @@
         owner: "{{ lookup('env', 'USER') }}"
         group: "{{ lookup('env', 'USER') }}"
       when:
-        - enable_create_k8s_ca | bool
+        - enable_create_k8s_ca | default(false) | bool
         - _shared_ca_source_cert == ""
 
     # 共通CAの秘密鍵を生成する
@@ -139,7 +139,7 @@
       args:
         creates: "{{ _shared_ca_role_dir }}/{{ k8s_shared_ca_key_filename }}"
       when:
-        - enable_create_k8s_ca | bool
+        - enable_create_k8s_ca | default(false) | bool
         - _shared_ca_source_cert == ""
 
     # 共通CAの証明書を生成する
@@ -149,7 +149,7 @@
       args:
         creates: "{{ _shared_ca_role_dir }}/{{ k8s_shared_ca_cert_filename }}"
       when:
-        - enable_create_k8s_ca | bool
+        - enable_create_k8s_ca | default(false) | bool
         - _shared_ca_source_cert == ""
 
     # 生成したCAファイルのパーミッションを整える
@@ -163,7 +163,7 @@
         - "{{ _shared_ca_role_dir }}/{{ k8s_shared_ca_key_filename }}"
         - "{{ _shared_ca_role_dir }}/{{ k8s_shared_ca_cert_filename }}"
       when:
-        - enable_create_k8s_ca | bool
+        - enable_create_k8s_ca | default(false) | bool
         - _shared_ca_source_cert == ""
 
     # 生成したCAをソースとして登録する
@@ -173,7 +173,7 @@
         _shared_ca_source_key: "{{ _shared_ca_role_dir }}/{{ k8s_shared_ca_key_filename }}"
         _shared_ca_source_origin: "generated"
       when:
-        - enable_create_k8s_ca | bool
+        - enable_create_k8s_ca | default(false) | bool
         - _shared_ca_source_cert == ""
 
     # ロール内ディレクトリの所有権を整える
@@ -185,7 +185,7 @@
         owner: "{{ lookup('env', 'USER') }}"
         group: "{{ lookup('env', 'USER') }}"
       when:
-        - enable_create_k8s_ca | bool
+        - enable_create_k8s_ca | default(false) | bool
         - _shared_ca_source_origin in ["generated", "role-files"]
 
     # ロール内CAファイルの所有権を整える
@@ -199,7 +199,7 @@
         - "{{ _shared_ca_role_dir }}/{{ k8s_shared_ca_key_filename }}"
         - "{{ _shared_ca_role_dir }}/{{ k8s_shared_ca_cert_filename }}"
       when:
-        - enable_create_k8s_ca | bool
+        - enable_create_k8s_ca | default(false) | bool
         - _shared_ca_source_origin in ["generated", "role-files"]
 
     # 共通CAの取得に失敗した場合は中断する

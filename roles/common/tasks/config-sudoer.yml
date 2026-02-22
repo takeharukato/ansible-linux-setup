@@ -76,9 +76,9 @@
       {{
         (
           (
-            ([ 'sudo' ] if (sudo_nopasswd_groups_autodetect | bool and (getent_sudo.ansible_facts.getent_group.sudo is defined)) else [])
+            ([ 'sudo' ] if (sudo_nopasswd_groups_autodetect | default(false) | bool and (getent_sudo.ansible_facts.getent_group.sudo is defined)) else [])
             +
-            ([ 'wheel' ] if (sudo_nopasswd_groups_autodetect | bool and (getent_wheel.ansible_facts.getent_group.wheel is defined)) else [])
+            ([ 'wheel' ] if (sudo_nopasswd_groups_autodetect | default(false) | bool and (getent_wheel.ansible_facts.getent_group.wheel is defined)) else [])
           )
           | unique
         )
@@ -118,14 +118,14 @@
     mode: '0440'
     validate: 'visudo -cf %s'
   loop: "{{ sudo_nopasswd_users_existing | default([],true) }}"
-  when: not sudo_nopasswd_absent | bool
+  when: not (sudo_nopasswd_absent | default(false) | bool)
 
 - name: Remove user drop-ins when rollback requested
   file:
     path: "/etc/sudoers.d/{{ sudo_dropin_prefix }}-user-{{ item }}"
     state: absent
   loop: "{{ sudo_nopasswd_users_existing | default([],true) }}"
-  when: sudo_nopasswd_absent | bool
+  when: sudo_nopasswd_absent | default(false) | bool
 
 #=========================
 # 2) グループ単位の設定
@@ -139,14 +139,14 @@
     mode: '0440'
     validate: 'visudo -cf %s'
   loop: "{{ sudo_nopasswd_groups_final | default([],true) }}"
-  when: not sudo_nopasswd_absent | bool
+  when: not (sudo_nopasswd_absent | default(false) | bool)
 
 - name: Remove group drop-ins when rollback requested
   file:
     path: "/etc/sudoers.d/{{ sudo_dropin_prefix }}-group-{{ item }}"
     state: absent
   loop: "{{ sudo_nopasswd_groups_final | default([],true) }}"
-  when: sudo_nopasswd_absent | bool
+  when: sudo_nopasswd_absent | default(false) | bool
 
 #=========================
 # 最終検証

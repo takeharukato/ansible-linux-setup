@@ -18,7 +18,7 @@
     - "{{ gitlab_data_dir }}"
   become: true
   when:
-    - gitlab_clean_install | bool
+    - gitlab_clean_install | default(false) | bool
 
 # Gitlabのクリーンインストールが指定されている場合,
 # 既存のgitlabホームディレクトリを削除する
@@ -27,7 +27,7 @@
     path: "{{ gitlab_home_dir }}"
     state: absent
   when:
-    - gitlab_clean_install | bool
+    - gitlab_clean_install | default(false) | bool
   become: true
 
 # gitlabのコンテナ/イメージ削除が指定されている場合,
@@ -37,5 +37,5 @@
     docker image rm -f $(docker image ls -aq --filter=reference='{{ gitlab_docker_image }}') || true
     docker image rm -f $(docker image ls -aq --filter=reference='{{ gitlab_runner_docker_image }}') || true
   when:
-    - gitlab_remove_container_images | bool
+    - gitlab_remove_container_images | default(false) | bool
   become: true

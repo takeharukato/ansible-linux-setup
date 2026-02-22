@@ -13,7 +13,7 @@
     state: latest
   notify: disable_gui
   when:
-    - k8s_python_packages_enabled | bool
+    - k8s_python_packages_enabled | default(false) | bool
 
 # Kubernetes開発関連Pythonパッケージのインストール
 - name: Install python header packages for Kubernetes development
@@ -23,4 +23,4 @@
     state: latest
   notify: disable_gui
   when:
-    - k8s_python_devel_packages_enabled | bool
+    - k8s_python_devel_packages_enabled | default(false) | bool

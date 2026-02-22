@@ -30,12 +30,12 @@
       - "{{ sbom_namespace_uri_base }}"
       - -mi
       - "{{ sbom_manifest_info }}"
-  environment: "{{ {'DeleteManifestDirIfPresent': 'true'} if (sbom_force_regenerate | bool) else {} }}"
+  environment: "{{ {'DeleteManifestDirIfPresent': 'true'} if (sbom_force_regenerate | default(false) | bool) else {} }}"
   args:
-    creates: "{{ (omit if (sbom_force_regenerate | bool) else sbom_manifest_path) }}"
+    creates: "{{ (omit if (sbom_force_regenerate | default(false) | bool) else sbom_manifest_path) }}"
   register: sbom_generate
-  changed_when: sbom_force_regenerate | bool or (sbom_generate.rc == 0)
+  changed_when: sbom_force_regenerate | default(false) | bool or (sbom_generate.rc == 0)
   when:
-    - sbom_enabled | bool
+    - sbom_enabled | default(false) | bool
     - sbom_tool_stat.stat.exists
 # EOF

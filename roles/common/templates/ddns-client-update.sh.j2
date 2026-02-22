@@ -662,7 +662,7 @@ ZONE_REV6="${ZONE_REV6%%+(.)}."
 {% if network_ipv4_network_address|default('', true) and network_ipv4_prefix_len is not none and dns_ipv4_reverse|default('', true) %}
     {% set _ = rev4_entries.append({'cidr': network_ipv4_network_address ~ '/' ~ network_ipv4_prefix_len, 'zone': dns_ipv4_reverse ~ '.in-addr.arpa.'}) %}
 {% endif %}
-{% for net in internal_network_list|default([]) %}
+{% for net in internal_network_list|default([], true) %}
     {% if net.ipv4 is defined and net.ipv4|length %}
         {% set _ = rev4_entries.append({'cidr': net.ipv4, 'zone': (net.ipv4 | ipv4_reverse_zone) ~ '.in-addr.arpa.'}) %}
     {% endif %}
@@ -674,7 +674,7 @@ REV4_MAP_JSON='{{ rev4_entries | tojson }}'
 {% if network_ipv6_network_address|default('', true) and network_ipv6_prefix_len is not none and dns_ipv6_reverse|default('', true) %}
     {% set _ = rev6_entries.append({'prefix': network_ipv6_network_address, 'prefix_len': network_ipv6_prefix_len, 'zone': dns_ipv6_reverse ~ '.ip6.arpa.'}) %}
 {% endif %}
-{% for net in internal_network_list|default([]) %}
+{% for net in internal_network_list|default([], true) %}
     {% if net.ipv6 is defined and net.ipv6|length %}
         {% set ipv6_parts = net.ipv6.split('/') %}
         {% if ipv6_parts|length == 2 %}

@@ -7,7 +7,7 @@
 - name: Enable ptrace from user processes
   ansible.builtin.sysctl:
     name: kernel.yama.ptrace_scope
-    value: "{{ common_sysctl_user_ptrace_enable | bool | ternary('0', '1') }}"
+    value: "{{ common_sysctl_user_ptrace_enable | default(false) | bool | ternary('0', '1') }}"
     state: present
     sysctl_file: "{{ sysctl_ptrace_conf_path }}"
     reload: yes
@@ -18,7 +18,7 @@
 - name: Enable dmesg from user processes
   ansible.builtin.sysctl:
     name: kernel.dmesg_restrict
-    value: "{{ common_sysctl_user_dmesg_enable | bool | ternary('0', '1') }}"
+    value: "{{ common_sysctl_user_dmesg_enable | default(false) | bool | ternary('0', '1') }}"
     state: present
     sysctl_file: "{{ sysctl_dmesg_conf_path }}"
     reload: yes

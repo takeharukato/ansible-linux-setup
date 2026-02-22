@@ -112,7 +112,7 @@ mac-address={{ item.mac }}
                              | list
                              | join(';')) %}
 {% else %}
-  {% set _dns_search_val = (_dns_search_raw | string | replace(',', ';') | trim) %}
+  {% set _dns_search_val = (_dns_search_raw | default('', true) | string | replace(',', ';') | trim) %}
 {% endif %}
 
 {# ここまで計算ブロック #}

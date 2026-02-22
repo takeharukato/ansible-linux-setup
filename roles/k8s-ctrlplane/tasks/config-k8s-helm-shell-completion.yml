@@ -15,7 +15,7 @@
     owner: root
     group: root
     mode: "0755"
-  when: k8s_helm_cli_completion_enabled | bool
+  when: k8s_helm_cli_completion_enabled | default(false) | bool
 
 # Helm bash 用のシェル補完スクリプトを生成
 - name: Generate Helm bash completion script
@@ -23,7 +23,7 @@
   ansible.builtin.command: helm completion bash
   register: helm_bash_completion_command
   changed_when: false
-  when: k8s_helm_cli_completion_enabled | bool
+  when: k8s_helm_cli_completion_enabled | default(false) | bool
 
 # Helm bash 用のシェル補完スクリプトを配置
 - name: Install Helm bash completion script
@@ -35,7 +35,7 @@
     group: root
     mode: "0644"
   when:
-    - k8s_helm_cli_completion_enabled | bool
+    - k8s_helm_cli_completion_enabled | default(false) | bool
     - helm_bash_completion_command is defined
 
 # Helm zsh 用のシェル補完スクリプト用ディレクトリを作成
@@ -47,7 +47,7 @@
     owner: root
     group: root
     mode: "0755"
-  when: k8s_helm_cli_completion_enabled | bool
+  when: k8s_helm_cli_completion_enabled | default(false) | bool
 
 # Helm zsh 用のシェル補完スクリプトを生成
 - name: Generate Helm zsh completion script
@@ -55,7 +55,7 @@
   ansible.builtin.command: helm completion zsh
   register: helm_zsh_completion_command
   changed_when: false
-  when: k8s_helm_cli_completion_enabled | bool
+  when: k8s_helm_cli_completion_enabled | default(false) | bool
 
 # Helm zsh 用のシェル補完スクリプトを配置
 - name: Install Helm zsh completion script
@@ -67,5 +67,5 @@
     group: root
     mode: "0644"
   when:
-    - k8s_helm_cli_completion_enabled | bool
+    - k8s_helm_cli_completion_enabled | default(false) | bool
     - helm_zsh_completion_command is defined

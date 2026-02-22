@@ -15,7 +15,7 @@
   run_once: false
   become: false
   when:
-    - sbom_collect_artifacts_enabled | bool
+    - sbom_collect_artifacts_enabled | default(false) | bool
 
 - name: Collect SBOM artifact candidates (files under _manifest)
   ansible.builtin.find:
@@ -30,8 +30,8 @@
   failed_when: false
   changed_when: false
   when:
-    - sbom_collect_artifacts_enabled | bool
-    - sbom_enabled | bool
+    - sbom_collect_artifacts_enabled | default(false) | bool
+    - sbom_enabled | default(false) | bool
 
 - name: Fetch SBOM artifacts to controller (flat)
   ansible.builtin.fetch:
@@ -39,12 +39,12 @@
     dest: "{{ sbom_artifact_dir }}/{{ inventory_hostname }}/"
     flat: true
     fail_on_missing: false
-  loop: "{{ (sbom_artifact_find.files | default([])) }}"
+  loop: "{{ (sbom_artifact_find.files | default([], true)) }}"
   loop_control:
     label: "{{ item.path | default('') }}"
   become: true
   when:
-    - sbom_collect_artifacts_enabled | bool
-    - sbom_enabled | bool
+    - sbom_collect_artifacts_enabled | default(false) | bool
+    - sbom_enabled | default(false) | bool
 
 # EOF

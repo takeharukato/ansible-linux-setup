@@ -6,8 +6,8 @@
 # Cluster Mesh 用 TLS シークレットの生成と適用を全体で制御する
 - name: Manage Cilium Cluster Mesh TLS secret
   when:
-    - k8s_cilium_shared_ca_enabled | bool
-    - k8s_cilium_clustermesh_secret_enabled | bool
+    - k8s_cilium_shared_ca_enabled | default(false) | bool
+    - k8s_cilium_clustermesh_secret_enabled | default(false) | bool
   block:
     # 共通CAのパスと生成済み TLS 証明書/鍵のパスを決定する
     - name: Resolve shared CA paths for Cluster Mesh

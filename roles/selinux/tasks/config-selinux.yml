@@ -113,7 +113,7 @@
     mode: '0000'
   when:
     - se_config_file.stat.exists
-    - need_full_relabel | bool
+    - need_full_relabel | default(false) | bool
 
 # マシンをリブートする
 # 「リラベルが必要」or「disabled へ変更が入った」場合
@@ -126,7 +126,7 @@
   when:
     - se_config_file.stat.exists
     - (
-        need_full_relabel | bool
+        need_full_relabel | default(false) | bool
         or
         (
           common_selinux_state == 'disabled'

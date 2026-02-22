@@ -23,11 +23,11 @@
     path: "{{ hubble_cli_bash_completion_path | dirname }}"
     state: directory
     mode: "0755"
-  when: hubble_cli_completion_enabled | bool
+  when: hubble_cli_completion_enabled | default(false) | bool
 
 - name: Ensure zsh completion directory exists
   ansible.builtin.file:
     path: "{{ hubble_cli_zsh_completion_path | dirname }}"
     state: directory
     mode: "0755"
-  when: hubble_cli_completion_enabled | bool
+  when: hubble_cli_completion_enabled | default(false) | bool

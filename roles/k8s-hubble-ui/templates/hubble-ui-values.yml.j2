@@ -19,7 +19,7 @@ hubble:
 {% endif %}
       ipFamilyPolicy: {{ hubble_ui_service_ipFamilyPolicy }}
       ipFamilies: {{ hubble_ui_service_ipFamilies | to_json }}
-{% if hubble_ui_ingress.enabled | default(false) %}
+{% if hubble_ui_ingress.enabled | default(false) | bool %}
     # 将来対応予定 (Future implementation)
     # ingress:
     #   enabled: {{ hubble_ui_ingress.enabled | to_json }}

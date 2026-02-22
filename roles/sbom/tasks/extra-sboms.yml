@@ -12,15 +12,15 @@
     state: directory
     mode: '0755'
   become: true
-  when: sbom_extra_sboms_enabled | bool
+  when: sbom_extra_sboms_enabled | default(false) | bool
 
 - name: Gather installed OS packages (dpkg/rpm)
   ansible.builtin.package_facts:
     manager: auto
   become: true
   when:
-    - sbom_extra_sboms_enabled | bool
-    - sbom_os_packages_sbom_enabled | bool or sbom_k8s_components_sbom_enabled | bool
+    - sbom_extra_sboms_enabled | default(false) | bool
+    - sbom_os_packages_sbom_enabled | default(false) | bool or sbom_k8s_components_sbom_enabled | default(false) | bool
 
 - name: Collect OS package licenses (Debian)
   ansible.builtin.command:
@@ -129,8 +129,8 @@
   failed_when: false
   become: true
   when:
-    - sbom_extra_sboms_enabled | bool
-    - sbom_os_packages_sbom_enabled | bool
+    - sbom_extra_sboms_enabled | default(false) | bool
+    - sbom_os_packages_sbom_enabled | default(false) | bool
     - ansible_facts.os_family == 'Debian'
 
 - name: Collect OS package licenses (RedHat)
@@ -144,15 +144,15 @@
   changed_when: false
   failed_when: false
   when:
-    - sbom_extra_sboms_enabled | bool
-    - sbom_os_packages_sbom_enabled | bool
+    - sbom_extra_sboms_enabled | default(false) | bool
+    - sbom_os_packages_sbom_enabled | default(false) | bool
     - ansible_facts.os_family == 'RedHat'
 
 - name: Build OS package license map
   ansible.builtin.set_fact:
     sbom_os_license_map: >-
       {%- set out = {} -%}
-      {%- set lines = (sbom_os_pkg_licenses_deb.stdout_lines | default([])) + (sbom_os_pkg_licenses_rpm.stdout_lines | default([])) -%}
+      {%- set lines = (sbom_os_pkg_licenses_deb.stdout_lines | default([], true)) + (sbom_os_pkg_licenses_rpm.stdout_lines | default([], true)) -%}
       {%- for line in lines -%}
       {%- set parts = line.split('|', 1) -%}
       {%- if parts | length == 2 -%}
@@ -161,8 +161,8 @@
       {%- endfor -%}
       {{ out }}
   when:
-    - sbom_extra_sboms_enabled | bool
-    - sbom_os_packages_sbom_enabled | bool
+    - sbom_extra_sboms_enabled | default(false) | bool
+    - sbom_os_packages_sbom_enabled | default(false) | bool
 
 - name: Collect OS package copyright texts (Debian/Ubuntu)
   ansible.builtin.command:
@@ -176,7 +176,7 @@
       import os
 
 
-      names = {{ (ansible_facts.packages | default({}) | dict2items | map(attribute='key') | list) | to_json }}
+      names = {{ (ansible_facts.packages | default({}, true) | dict2items | map(attribute='key') | list) | to_json }}
 
 
       def read_text_file(path: str) -> str:
@@ -240,8 +240,8 @@
   failed_when: false
   become: true
   when:
-    - sbom_extra_sboms_enabled | bool
-    - sbom_os_packages_sbom_enabled | bool
+    - sbom_extra_sboms_enabled | default(false) | bool
+    - sbom_os_packages_sbom_enabled | default(false) | bool
     - ansible_facts.os_family == 'Debian'
 
 - name: Collect OS package copyright texts (RedHat)
@@ -258,7 +258,7 @@
       import subprocess
 
 
-      names = {{ (ansible_facts.packages | default({}) | dict2items | map(attribute='key') | list) | to_json }}
+      names = {{ (ansible_facts.packages | default({}, true) | dict2items | map(attribute='key') | list) | to_json }}
 
 
       def run_cmd_lines(argv):
@@ -596,8 +596,8 @@
   failed_when: sbom_os_pkg_copyrights_rpm.rc != 0
   become: true
   when:
-    - sbom_extra_sboms_enabled | bool
-    - sbom_os_packages_sbom_enabled | bool
+    - sbom_extra_sboms_enabled | default(false) | bool
+    - sbom_os_packages_sbom_enabled | default(false) | bool
     - ansible_facts.os_family == 'RedHat'
 
 - name: Build OS package copyright map
@@ -614,21 +614,21 @@
       {%- endfor -%}
       {{ out }}
   when:
-    - sbom_extra_sboms_enabled | bool
-    - sbom_os_packages_sbom_enabled | bool
+    - sbom_extra_sboms_enabled | default(false) | bool
+    - sbom_os_packages_sbom_enabled | default(false) | bool
 
 - name: Build OS package SPDX package list
   ansible.builtin.set_fact:
     sbom_os_spdx_packages: >-
       {%- set pkgs = [] -%}
-      {%- set lic_map = sbom_os_license_map | default({}) -%}
-      {%- set cr_map = sbom_os_copyright_map | default({}) -%}
+      {%- set lic_map = sbom_os_license_map | default({}, true) -%}
+      {%- set cr_map = sbom_os_copyright_map | default({}, true) -%}
       {%- set is_deb = ((ansible_facts.os_family | default('')) == 'Debian') or ((ansible_facts.distribution | default('')) in ['Debian', 'Ubuntu']) -%}
       {%- set default_lic = ('LicenseRef-UNKNOWN' if is_deb else 'NOASSERTION') -%}
-      {%- for it in (ansible_facts.packages | default({}) | dict2items) -%}
+      {%- for it in (ansible_facts.packages | default({}, true) | dict2items) -%}
       {%- set pkg_key = it.key -%}
       {%- set pkg_base = (it.key.split(':', 1)[0] if ':' in it.key else it.key) -%}
-      {%- set entries = it.value | default([]) -%}
+      {%- set entries = it.value | default([], true) -%}
       {%- if entries | length > 0 -%}
       {%- set e = entries[0] -%}
       {%- set ver = e.version | default('') -%}
@@ -642,8 +642,8 @@
       {%- endfor -%}
       {{ pkgs | sort(attribute='name') }}
   when:
-    - sbom_extra_sboms_enabled | bool
-    - sbom_os_packages_sbom_enabled | bool
+    - sbom_extra_sboms_enabled | default(false) | bool
+    - sbom_os_packages_sbom_enabled | default(false) | bool
 
 - name: Write OS packages SBOM (SPDX JSON)
   ansible.builtin.template:
@@ -658,11 +658,11 @@
     spdx_created: "{{ ansible_date_time.iso8601 }}"
     spdx_document_namespace: >-
       {{ sbom_namespace_uri_base }}/{{ inventory_hostname }}/os-packages/{{ ansible_date_time.epoch }}
-    spdx_packages: "{{ sbom_os_spdx_packages | default([]) }}"
+    spdx_packages: "{{ sbom_os_spdx_packages | default([], true) }}"
   become: true
   when:
-    - sbom_extra_sboms_enabled | bool
-    - sbom_os_packages_sbom_enabled | bool
+    - sbom_extra_sboms_enabled | default(false) | bool
+    - sbom_os_packages_sbom_enabled | default(false) | bool
 
 - name: Collect K8s component versions from binaries
   ansible.builtin.command:
@@ -742,17 +742,17 @@
   failed_when: false
   become: true
   when:
-    - sbom_extra_sboms_enabled | bool
-    - sbom_k8s_components_sbom_enabled | bool
+    - sbom_extra_sboms_enabled | default(false) | bool
+    - sbom_k8s_components_sbom_enabled | default(false) | bool
 
 - name: Build K8s component SPDX package list from OS packages
   ansible.builtin.set_fact:
     sbom_k8s_component_spdx_packages: >-
-      {%- set patterns = sbom_k8s_component_name_patterns | default([]) -%}
+      {%- set patterns = sbom_k8s_component_name_patterns | default([], true) -%}
       {%- set out = [] -%}
       {%- set seen = [] -%}
       {%- set bins = ((sbom_k8s_component_bins.stdout | default('')) | trim | default('{}', true)) | from_json -%}
-      {%- for it in (ansible_facts.packages | default({}) | dict2items) -%}
+      {%- for it in (ansible_facts.packages | default({}, true) | dict2items) -%}
       {%- set pkg_key = it.key | default('') -%}
       {%- set pkg_base = (pkg_key.split(':', 1)[0] if ':' in pkg_key else pkg_key) -%}
       {%- set pkg_norm = pkg_base -%}
@@ -811,8 +811,8 @@
       {%- endfor -%}
       {{ out }}
   when:
-    - sbom_extra_sboms_enabled | bool
-    - sbom_k8s_components_sbom_enabled | bool
+    - sbom_extra_sboms_enabled | default(false) | bool
+    - sbom_k8s_components_sbom_enabled | default(false) | bool
 
 - name: Write K8s components SBOM (SPDX JSON)
   ansible.builtin.template:
@@ -827,11 +827,11 @@
     spdx_created: "{{ ansible_date_time.iso8601 }}"
     spdx_document_namespace: >-
       {{ sbom_namespace_uri_base }}/{{ inventory_hostname }}/k8s-components/{{ ansible_date_time.epoch }}
-    spdx_packages: "{{ sbom_k8s_component_spdx_packages | default([]) }}"
+    spdx_packages: "{{ sbom_k8s_component_spdx_packages | default([], true) }}"
   become: true
   when:
-    - sbom_extra_sboms_enabled | bool
-    - sbom_k8s_components_sbom_enabled | bool
+    - sbom_extra_sboms_enabled | default(false) | bool
+    - sbom_k8s_components_sbom_enabled | default(false) | bool
 
 - name: Collect Helm releases
   ansible.builtin.command:
@@ -845,8 +845,8 @@
   changed_when: false
   failed_when: false
   when:
-    - sbom_extra_sboms_enabled | bool
-    - sbom_helm_sbom_enabled | bool
+    - sbom_extra_sboms_enabled | default(false) | bool
+    - sbom_helm_sbom_enabled | default(false) | bool
 
 - name: Build Helm SPDX package list
   ansible.builtin.set_fact:
@@ -859,8 +859,8 @@
       {%- endif -%}
       {{ out }}
   when:
-    - sbom_extra_sboms_enabled | bool
-    - sbom_helm_sbom_enabled | bool
+    - sbom_extra_sboms_enabled | default(false) | bool
+    - sbom_helm_sbom_enabled | default(false) | bool
 
 - name: Write Helm releases SBOM (SPDX JSON)
   ansible.builtin.template:
@@ -878,8 +878,8 @@
     spdx_packages: "{{ sbom_helm_spdx_packages | default([]) }}"
   become: true
   when:
-    - sbom_extra_sboms_enabled | bool
-    - sbom_helm_sbom_enabled | bool
+    - sbom_extra_sboms_enabled | default(false) | bool
+    - sbom_helm_sbom_enabled | default(false) | bool
 
 - name: Collect Kubernetes pod images (kubectl)
   ansible.builtin.command:
@@ -894,8 +894,8 @@
   changed_when: false
   failed_when: false
   when:
-    - sbom_extra_sboms_enabled | bool
-    - sbom_k8s_images_sbom_enabled | bool
+    - sbom_extra_sboms_enabled | default(false) | bool
+    - sbom_k8s_images_sbom_enabled | default(false) | bool
 
 - name: Build Kubernetes image SPDX package list
   ansible.builtin.set_fact:
@@ -920,8 +920,8 @@
       {%- endfor -%}
       {{ out }}
   when:
-    - sbom_extra_sboms_enabled | bool
-    - sbom_k8s_images_sbom_enabled | bool
+    - sbom_extra_sboms_enabled | default(false) | bool
+    - sbom_k8s_images_sbom_enabled | default(false) | bool
 
 - name: Write Kubernetes images SBOM (SPDX JSON)
   ansible.builtin.template:
@@ -939,29 +939,29 @@
     spdx_packages: "{{ sbom_k8s_image_spdx_packages | default([]) }}"
   become: true
   when:
-    - sbom_extra_sboms_enabled | bool
-    - sbom_k8s_images_sbom_enabled | bool
+    - sbom_extra_sboms_enabled | default(false) | bool
+    - sbom_k8s_images_sbom_enabled | default(false) | bool
 
 - name: Slurp docker-compose files
   ansible.builtin.slurp:
     src: "{{ item }}"
-  loop: "{{ sbom_compose_files }}"
+  loop: "{{ sbom_compose_files | default([], true) }}"
   register: sbom_compose_slurp
   failed_when: false
   when:
-    - sbom_extra_sboms_enabled | bool
-    - sbom_compose_sbom_enabled | bool
-    - sbom_compose_files | length > 0
+    - sbom_extra_sboms_enabled | default(false) | bool
+    - sbom_compose_sbom_enabled | default(false) | bool
+    - sbom_compose_files | default([], true) | length > 0
 
 - name: Build docker-compose image SPDX package list
   ansible.builtin.set_fact:
     sbom_compose_image_spdx_packages: >-
       {%- set imgs = [] -%}
       {%- set out = [] -%}
-      {%- for r in sbom_compose_slurp.results | default([]) -%}
+      {%- for r in sbom_compose_slurp.results | default([], true) -%}
       {%- if r is mapping and (r.content is defined) -%}
       {%- set doc = r.content | b64decode | from_yaml -%}
-      {%- for svc in ((doc.services | default({})) | dict2items) -%}
+      {%- for svc in ((doc.services | default({}, true)) | dict2items) -%}
       {%- if svc.value.image is defined and (svc.value.image | string) | length > 0 -%}
       {%- if svc.value.image not in imgs -%}
       {%- set _ = imgs.append(svc.value.image) -%}
@@ -975,9 +975,9 @@
       {%- endfor -%}
       {{ out }}
   when:
-    - sbom_extra_sboms_enabled | bool
-    - sbom_compose_sbom_enabled | bool
-    - sbom_compose_files | length > 0
+    - sbom_extra_sboms_enabled | default(false) | bool
+    - sbom_compose_sbom_enabled | default(false) | bool
+    - sbom_compose_files | default([], true) | length > 0
 
 - name: Write docker-compose images SBOM (SPDX JSON)
   ansible.builtin.template:
@@ -992,9 +992,9 @@
     spdx_created: "{{ ansible_date_time.iso8601 }}"
     spdx_document_namespace: >-
       {{ sbom_namespace_uri_base }}/{{ inventory_hostname }}/compose-images/{{ ansible_date_time.epoch }}
-    spdx_packages: "{{ sbom_compose_image_spdx_packages | default([]) }}"
+    spdx_packages: "{{ sbom_compose_image_spdx_packages | default([], true) }}"
   become: true
   when:
-    - sbom_extra_sboms_enabled | bool
-    - sbom_compose_sbom_enabled | bool
-    - sbom_compose_files | length > 0
+    - sbom_extra_sboms_enabled | default(false) | bool
+    - sbom_compose_sbom_enabled | default(false) | bool
+    - sbom_compose_files | default([], true) | length > 0

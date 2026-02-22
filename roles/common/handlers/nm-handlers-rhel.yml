@@ -73,7 +73,7 @@
     - ansible_facts.os_family == "RedHat"
     - sysfs_dev is defined
   ansible.builtin.set_fact:
-    _dev_exists_map: "{{ (_dev_exists_map | default({})) | combine({ item.item.netif: (item.stat.exists | default(false)) }, recursive=true) }}"
+    _dev_exists_map: "{{ (_dev_exists_map | default({}, true)) | combine({ item.item.netif: (item.stat.exists | default(false)) }, recursive=true) }}"
   loop: "{{ sysfs_dev.results | default([]) }}"
   changed_when: false
 
@@ -84,7 +84,7 @@
     - ansible_facts.os_family == "RedHat"
     - (_netif_items | default([], true) | length) > 0
     - item.netif | default('', true) | length > 0
-    - (_dev_exists_map | default({})).get(item.netif, false)
+    - (_dev_exists_map | default({}, true)).get(item.netif, false)
     - item.netif in (_nm_known_devices | default([]))
     - item.netif not in (_nm_active_names | default([]))
     - item.netif not in (_nm_active_devices | default([]))
@@ -122,7 +122,7 @@
     - ansible_facts.os_family == "RedHat"
     - v4_present is defined
   ansible.builtin.set_fact:
-    v4_present_map: "{{ (v4_present_map | default({})) | combine({ (item.item.netif | default('')): ((item.rc | int) == 0) }, recursive=True) }}"
+    v4_present_map: "{{ (v4_present_map | default({}, true)) | combine({ (item.item.netif | default('')): ((item.rc | int) == 0) }, recursive=True) }}"
   loop: "{{ (v4_present.results | default([])) | selectattr('rc','defined') | list }}"
   changed_when: false
 
@@ -133,7 +133,7 @@
     - ansible_facts.os_family == "RedHat"
     - (_netif_items | default([], true) | length) > 0
     - item.netif | default('', true) | length > 0
-    - (_dev_exists_map | default({})).get(item.netif, false)
+    - (_dev_exists_map | default({}, true)).get(item.netif, false)
     - item.netif in (_nm_known_devices | default([]))
     - item.netif not in (_nm_active_names | default([]))
     - item.netif not in (_nm_active_devices | default([]))
@@ -172,7 +172,7 @@
     - ansible_facts.os_family == "RedHat"
     - v6_present is defined
   ansible.builtin.set_fact:
-    v6_present_map: "{{ (v6_present_map | default({})) | combine({ (item.item.netif | default('')): ((item.rc | int) == 0) }, recursive=True) }}"
+    v6_present_map: "{{ (v6_present_map | default({}, true)) | combine({ (item.item.netif | default('')): ((item.rc | int) == 0) }, recursive=True) }}"
   loop: "{{ (v6_present.results | default([])) | selectattr('rc','defined') | list }}"
   changed_when: false
 
@@ -183,7 +183,7 @@
     - ansible_facts.os_family == "RedHat"
     - (_netif_items | default([], true) | length) > 0
     - item.netif | default('', true) | length > 0
-    - (_dev_exists_map | default({})).get(item.netif, false)
+    - (_dev_exists_map | default({}, true)).get(item.netif, false)
     - item.netif in (_nm_known_devices | default([]))
     - item.netif not in (_nm_active_names | default([]))
     - item.netif not in (_nm_active_devices | default([]))

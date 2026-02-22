@@ -27,11 +27,11 @@ service integrated-vtysh-config
 {% set local_asn = worker_frr.local_asn | default(0) %}
 {% set router_id = worker_frr.router_id | default('') %}
 {% set cluster_name = worker_frr.cluster_name | default(k8s_cilium_cm_cluster_name | default('')) %}
-{% set dc_frr_addresses = worker_frr.dc_frr_addresses | default({}) %}
-{% set dc_frr_addresses_v6 = worker_frr.dc_frr_addresses_v6 | default({}) %}
-{% set prefix_filter = worker_frr.prefix_filter | default({}) %}
+{% set dc_frr_addresses = worker_frr.dc_frr_addresses | default({}, true) %}
+{% set dc_frr_addresses_v6 = worker_frr.dc_frr_addresses_v6 | default({}, true) %}
+{% set prefix_filter = worker_frr.prefix_filter | default({}, true) %}
 {% set kernel_route_filter = worker_frr.kernel_route_filter | default(None) %}
-{% set clusters = worker_frr.clusters | default({}) %}
+{% set clusters = worker_frr.clusters | default({}, true) %}
 {% set cluster_config = clusters.get(cluster_name, {}) %}
 {% set advertise_host_route_ipv4 = worker_frr.advertise_host_route_ipv4 | default('') %}
 {% set advertise_host_route_ipv6 = worker_frr.advertise_host_route_ipv6 | default('') %}
