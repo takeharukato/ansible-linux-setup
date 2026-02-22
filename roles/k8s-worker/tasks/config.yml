@@ -133,7 +133,7 @@
   failed_when: false
 
 - name: "Wait {{ k8s_worker_delete_wait_sec }} seconds for the worker node deletion to complete."
-  ansible.builtin.shell: "sleep {{ k8s_worker_delete_wait_sec | default(5, true) | int }}"
+  ansible.builtin.command: "sleep {{ k8s_worker_delete_wait_sec | default(5, true) | int }}"
   async: 1
   poll: 0
   register: _result

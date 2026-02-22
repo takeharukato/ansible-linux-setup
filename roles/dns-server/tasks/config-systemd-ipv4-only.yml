@@ -26,7 +26,7 @@
   when:
     - dns_bind_ipv4_only | default(false)
   block:
-    - name: Get current ExecStart from systemd (resolved value)
+    - name: Get current ExecStart from systemd (resolved value)  # noqa command-instead-of-module
       ansible.builtin.command: systemctl show -p ExecStart --value {{ dns_bind_service }}
       register: dns_exec_show
       changed_when: false

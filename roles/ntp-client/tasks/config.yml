@@ -32,7 +32,7 @@
     name: "{{ ntp_client_chrony_service }}"
     enabled: false
   become: true
-  when:
+  when:  # noqa no-jinja-when
     - ntp_client_is_systemd_timesyncd
     - ansible_facts.os_family == 'Debian'
     - "'{{ ntp_client_chrony_service_debian }}' in ansible_facts.services"
@@ -45,7 +45,7 @@
   become: true
   notify:
     - "restart_timesyncd"
-  when:
+  when:  # noqa no-jinja-when
     - ntp_client_is_systemd_timesyncd
     - ansible_facts.os_family == 'Debian'
     - "'{{ ntp_client_systemd_timesyncd_service }}' in ansible_facts.services"
@@ -96,7 +96,7 @@
     name: "{{ ntp_client_systemd_timesyncd_service }}"
     enabled: false
   become: true
-  when:
+  when:  # noqa no-jinja-when
     - ntp_client_is_chrony
     - ansible_facts.os_family == 'Debian'
     - "'{{ ntp_client_systemd_timesyncd_service }}' in ansible_facts.services"

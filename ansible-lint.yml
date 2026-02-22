@@ -15,6 +15,10 @@
 #   エラーとするルール(name[template]ルール)を適用しない
 #   後でまとめて対応する予定のため, 現時点ではエラーとしない方針。
 #
+# - YAMLファイルの行長が指定された文字数を超える場合にエラーとするルール
+#   (yaml[line-length]ルール)を適用しない。URLやコマンドなどの長い文字列が
+#   頻繁に出現するため, 現時点ではエラーとしない方針。
+#
 # - packageモジュールで最新バージョンをインストールするタスクのnameに
 #   latestという文字列が含まれていてもエラーとしない(package-latestルール)
 #   セキュリティ修正などを取り込むため, 最新版数を使用するというルール
@@ -31,6 +35,7 @@ skip_list:
   - role-name
   - var-naming[pattern]
   - name[template]
+  - yaml[line-length]
   - package-latest
   - no-handler
 exclude_paths:

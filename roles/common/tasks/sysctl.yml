@@ -5,7 +5,7 @@
 
 # ユーザ資格での ptrace を有効化する
 - name: Enable ptrace from user processes
-  ansible.builtin.sysctl:
+  ansible.posix.sysctl:
     name: Kernel.yama.ptrace_scope
     value: "{{ common_sysctl_user_ptrace_enable | default(false) | bool | ternary('0', '1') }}"
     state: present
@@ -16,7 +16,7 @@
 
 # ユーザ資格での dmesg を有効化する
 - name: Enable dmesg from user processes
-  ansible.builtin.sysctl:
+  ansible.posix.sysctl:
     name: Kernel.dmesg_restrict
     value: "{{ common_sysctl_user_dmesg_enable | default(false) | bool | ternary('0', '1') }}"
     state: present

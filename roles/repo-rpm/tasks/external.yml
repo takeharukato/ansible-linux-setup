@@ -18,7 +18,7 @@
 # --- Kubernetes (pkgs.k8s.io) ---
 
 # Kubernetes GPG keyを配置・登録する
-- name: Fetch Kubernetes GPG key
+- name: Fetch Kubernetes GPG key  # noqa command-instead-of-module
   when: repo_enable_kubernetes
   ansible.builtin.shell: |
     curl -fsSL "{{ k8s_gpgkey_url }}" > "{{ k8s_gpgkey_file }}"

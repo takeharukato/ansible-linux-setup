@@ -268,7 +268,7 @@
   changed_when: false
 
 # named サービスが起動中であることを確認する
-- name: "Check if {{ dns_bind_service }} is running"
+- name: "Check if {{ dns_bind_service }} is running"  # noqa command-instead-of-module
   become: true
   ansible.builtin.command: systemctl is-active {{ dns_bind_service }}
   register: named_service_state

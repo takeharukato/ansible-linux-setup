@@ -20,7 +20,7 @@
   register: _result
   changed_when: _result.rc == 0
 
-- name: "Install Helm {{ k8s_helm_version }}"
+- name: "Install Helm {{ k8s_helm_version }}"  # noqa command-instead-of-module
   ansible.builtin.shell: |
     curl -fsSL -o /tmp/helm.tar.gz "{{ k8s_helm_download_url }}"
     curl -fsSL -o /tmp/helm.tar.gz.sha256sum "{{ k8s_helm_checksum_download_url }}"
@@ -34,7 +34,7 @@
     - k8s_helm_version != 'latest'
   changed_when: false
 
-- name: Install CiliumCLI
+- name: Install CiliumCLI  # noqa command-instead-of-module
   ansible.builtin.shell: |
     curl -fsSL --remote-name {{ k8s_cilium_cli_download_url }}
     curl -fsSL --remote-name {{ k8s_cilium_cli_checksum_url }}

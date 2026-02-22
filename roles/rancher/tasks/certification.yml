@@ -12,7 +12,7 @@
 
 # 秘密鍵を生成する
 - name: "Generate OpenSSL private key: {{ rancher_cert_dir }}/encrypted.key.pem"
-  openssl_privatekey:
+  community.crypto.openssl_privatekey:
     path: "{{ rancher_cert_dir }}/encrypted.key.pem"
     type: "RSA"
     size: "2048"
