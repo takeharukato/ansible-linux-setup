@@ -8,9 +8,12 @@
 # kube-apiが使えるようになるのを待ち合わせる
 - name: Wait for kube-api-server
   ansible.builtin.wait_for:
-    host: "{{ k8s_ctrlplane_endpoint }}"
-    port: 6443
+    host: "{{ k8s_api_wait_host }}"
+    port: "{{ k8s_api_wait_port }}"
     state: started
+    timeout: "{{ k8s_api_wait_timeout }}"
+    delay: "{{ k8s_api_wait_delay }}"
+    sleep: "{{ k8s_api_wait_sleep }}"
 
 - block:
     - name: Compute Cilium BGP node identity
@@ -58,13 +61,6 @@
         mode: "0644"
       vars:
         cilium_bgp_config: "{{ k8s_bgp | to_json | from_json }}"
-        cilium_bgp_node_name: "{{ cilium_bgp_node_name }}"
-        cilium_bgp_cluster_config_name: "{{ cilium_bgp_cluster_config_name }}"
-        cilium_bgp_peer_config_base_name: "{{ cilium_bgp_peer_config_base_name }}"
-        cilium_bgp_advertisement_name: "{{ cilium_bgp_advertisement_name }}"
-        cilium_bgp_advertisement_label: "{{ cilium_bgp_advertisement_label }}"
-        cilium_bgp_secret_namespace: "{{ cilium_bgp_secret_namespace }}"
-        cilium_bgp_instance_name: "{{ cilium_bgp_instance_name }}"
       become: true
       delegate_to: "{{ cilium_bgp_delegate_host }}"
 
