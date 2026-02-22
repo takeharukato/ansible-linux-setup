@@ -4,6 +4,12 @@
 #  タスクメイン部
 #  include_tasksで他のタスクを読み込む
 
+# Ubuntu/Debian系でのフロントエンドロック獲得可能になるのを
+# 待ち合わせ, 後続のapt updateの失敗を防止する
+- name: "Wait frontend lockfile on Debian family"
+  ansible.builtin.include_tasks: config-wait-frontend-lock.yml
+  when: ansible_facts.os_family == 'Debian'
+
 # 最初に変数設定を読み直す ( role単独で実行可能とするため )
 - name: "Load Params"
   ansible.builtin.include_tasks: load-params.yml

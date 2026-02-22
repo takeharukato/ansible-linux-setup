@@ -8,9 +8,9 @@
   ansible.builtin.import_tasks: disable-gui.yml
 - name: "Auto Remove"
   ansible.builtin.import_tasks: auto-remove.yml
-- name: "Nm Handlers Rhel"
+- name: "Network Manager Handlers for RHEL"
   ansible.builtin.import_tasks: nm-handlers-rhel.yml
-- name: "Netplan Handlers Debian"
+- name: "Netplan Handlers for Debian"
   ansible.builtin.import_tasks: netplan-handlers-debian.yml
 - name: "Netplan"
   ansible.builtin.import_tasks: netplan.yml
