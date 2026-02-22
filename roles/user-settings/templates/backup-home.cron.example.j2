@@ -11,10 +11,10 @@
 #
 # /homeディレクトリをNFSサーバにバックアップするスクリプトを実行するためのcrontab
 #
-# 実行タイミング: cron.dailyにより, 一日1回実行される
+# 実行タイミング: cron.dailyにより, 一日1回実行されることを想定している
 #
 
 # ホームディレクトリをバックアップサーバにバックアップ
 # NFSサーバへの接続確認、マウント、アンマウントを行い、
 # ホームディレクトリをアーカイブする
-/usr/local/bin/backup-home
+{{ user_settings_backup_bin_dir|default('/usr/local/bin', true) }}/backup-home

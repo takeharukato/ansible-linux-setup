@@ -53,7 +53,7 @@ copy_backup() {
     day=`date +'%j'`
 
     #バックアップローテーション数
-    rotation={{redmine_backup_rotation|default('7')}}
+    rotation={{redmine_backup_rotation|default('7', true)}}
 
     #バックアップ世代番号を算出
     gen=`expr ${day} % ${rotation}`
