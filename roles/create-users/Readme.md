@@ -1,87 +1,216 @@
 # create-users ロール
 
-このロールは `vars/all-config.yml` などで定義した `users_list` を基に, Linux ユーザおよび関連設定を一括で整備します。具体的には以下を自動化します。
+## 概要
 
-- プライマリグループの作成とユーザ作成, ホーム・シェル・パスワードの設定
-- GitHub からの公開鍵取得と `users_authorized_keys` による追加鍵登録
-- `.gitconfig` テンプレートの配布と管理系グループへの所属付与
+このロールは, ユーザとグループを作成し, SSH 公開鍵を authorized_keys に登録します。GitHub 公開鍵の取り込みと, users_authorized_keys による個別鍵の追加に対応します。
 
-Ansible の再実行に耐えるよう idempotent に構成されており, 既存ファイルや鍵がある場合はソート・重複排除後に権限を再調整します。
+## 用語
 
-## タスク構成
+| 正式名称 | 略称 | 意味 |
+| --- | --- | --- |
+| Operating System | OS | 基本ソフトウエア。 |
+| Secure Shell | SSH | 暗号化されたリモート接続の仕組み。 |
+| GitHub | - | ソースコードの共有や課題管理を行える開発者向けの公開サービス。本ロールでは公開鍵取得機能を利用します。 |
+| authorized_keys | - | SSH の公開鍵を登録するファイル。 |
 
-1. **load-params.yml**: OS ごとの追加変数 ( `vars/cross-distro.yml` )と共通設定 (`vars/all-config.yml`), kube API アドレス ( 他ロールと共用 )などを読み込みます。Debian 系では `adm`/`sudo` を, RHEL 系では `wheel` を `adm_groups` として扱う等, 後続の汎用ロジックに必要な値がここで定義されます。
-1. **package.yml / directory.yml / service.yml / config.yml**: 現状はプレースホルダです。将来的に依存パッケージや補助ディレクトリが必要になった場合に備え, include の位置づけだけを確保しています。
-1. **user_group.yml**: ロールの中心となる処理です。
+## 前提条件
 
-    - `users_list` に含まれる各要素を利用してプライマリグループとユーザを作成し, 必要な初期ファイルを整えます。主なパラメータは以下の通りです。
-        - `name`: ログイン名。`getent passwd` で確認できるユーザ名に相当します。
-        - `group`: プライマリグループ名。存在しない場合は本ロールが作成します。
-        - `password`: `/etc/shadow` 互換のハッシュ化済みパスワード文字列。`"{{ 'passwd'|password_hash('sha512') }}"` などを想定しています。
-        - `update_password`: パスワード更新タイミング。通常は `on_create` を指定して初回作成時のみ更新します。
-        - `home`: ホームディレクトリの絶対パス。既存ディレクトリがある場合も尊重します。
-        - `shell`: ログインシェル。`/bin/bash` や `/bin/zsh` など。
-        - `comment`: GECOS フィールドに設定するフルネームや備考。
-        - `email`: Git 設定や通知に利用するメールアドレス。
-        - `github`: 公開鍵を取得する GitHub アカウント名。`https://github.com/<github>.keys` から鍵を取得します。
+- 対象 OS: Debian/Ubuntu 系 (Ubuntu24.04を想定), RHEL 系 (AlmaLinux9.6を想定)
+- Ansible 2.15 以降が制御ノード(ansibleコマンドを実行するノード)にインストールされていること
+  - `ansible.posix` コレクションがインストールされていること
+- リモートホストへの SSH 接続が確立されていること
+- `sudo`コマンドによる管理者権限によるコマンド実行が可能であること
 
-    - GitHub から `https://github.com/<github>.keys` を取得し, `authorized_keys` に追記, ソート / 重複除去 / 権限整備を行います。
-    - `_gitconfig.j2` テンプレートを展開し, `user.name` と `user.email` を `users_list` の `comment` / `email` で設定します。
-    - `adm_groups` の各グループを `state=present` で用意し, 対象ユーザ全員を `append: yes` で所属させます。これにより sudoers 側で許可した管理グループへの紐づけが行われます。
+## 実行フロー
 
-1. **authorized_keys.yml**: `users_authorized_keys` に明示した追加公開鍵を, 対象ユーザの `authorized_keys` に追記します。`users_list` への登録有無に依らず動作し, `getent` モジュールでユーザ存在を確認した上で, `authorized_key` モジュールを使用して鍵を追加します。最後に `slurp` と `copy` モジュールでソート / 重複排除と権限調整を行います。
+1. `load-params.yml` でリポジトリ直下の vars を読み込みます。
+2. `users_list` に従ってグループとユーザを作成します。
+3. `.ssh` と `authorized_keys` を作成し, GitHub 公開鍵を取り込みます。
+4. `users_authorized_keys` に従って公開鍵を追加し, ソートと重複排除を行います。
 
 ## 主要変数
 
 | 変数名 | 既定値 | 説明 |
 | --- | --- | --- |
-| `users_list` | `[]` | 作成するユーザの定義リスト。`name`, `group`, `password`, `update_password`, `home`, `shell`, `comment`, `email`, `github` をキーとして持つ辞書のリストとして定義する。|
-| `users_authorized_keys` | `{}` | ユーザ毎に追記したい公開鍵のマッピング。`users_list` への登録有無に依らず動作します。未設定なら追加処理はスキップされます。|
-| `auto_user_add_for_users_authorized_keys` | `false` | `users_authorized_keys` に記載されたユーザがホスト上に存在しない場合の動作制御。`true` の場合はデフォルトパラメータ (shell=/bin/bash, home=/home/<username>) でユーザを自動作成し, `false` の場合は公開鍵追加をスキップします。|
-| `adm_groups` | Debian 系は `['adm','sudo']`, RHEL 系は `['wheel']` | 管理系グループ一覧。|
+| `users_list` | `[]` | 作成するユーザの定義リスト。空の場合は作成しません。 |
+| `users_authorized_keys` | `{}` | ユーザ別の公開鍵追加定義。空の場合は処理しません。 |
+| `auto_user_add_for_users_authorized_keys` | `false` | `users_authorized_keys` に記載された未作成ユーザを自動作成するか。 |
 
-## `users_authorized_keys`によって自動追加されるユーザの設定と想定する使用法
+## ユーザ定義の詳細
 
-`auto_user_add_for_users_authorized_keys`が`true`の場合で, かつ, `users_authorized_keys`のキーに含まれるユーザが対象ホストにない場合, 対象のユーザを新規作成し, `.ssh/authorized_keys`ファイルを作成の上, `users_authorized_keys`で指定された公開鍵を追加します。
+`users_list` の各要素は以下のキーを持ちます。
 
-新規作成されるユーザは, セキュリティ上の観点から, 以下の条件で使用することを前提に, パスワードなしで作成される。
-
-- パスワード認証でのログイン不可
-- suコマンドでのユーザ切り替え不可
-- SSH公開鍵認証のみでログイン可能
-
-## テンプレート/出力ファイル
-
-| テンプレート名 | 出力先ディレクトリ | 説明 |
+| キー | 必須 | 説明 |
 | --- | --- | --- |
-| `_gitconfig.j2` | `~<user>/.gitconfig` | `git` の push/pull 設定と `user.name`/`user.email` をユーザ情報に合わせて生成します。 |
-| `dummy.j2` | - | 予備テンプレート。現状未使用ですが, テンプレートディレクトリ構成維持のために配置されています。 |
+| `name` | 必須 | ユーザ名。 |
+| `group` | 任意 | 所属グループ名。省略時はユーザ名と同一。 |
+| `password` | 任意 | ハッシュ化済みパスワード。省略時はユーザ名のハッシュを使用。 |
+| `update_password` | 任意 | `on_create` または `always`。省略時は `on_create`。 |
+| `shell` | 任意 | ログインシェル。省略時は `/bin/bash`。 |
+| `home` | 任意 | ホームディレクトリ。省略時は `/home/<ユーザ名>`。 |
+| `comment` | 任意 | コメント。省略時はユーザ名。 |
+| `email` | 任意 | 連絡先メールアドレス。 |
+| `github` | 任意 | GitHub アカウント名。指定時に公開鍵を取得。 |
 
-## 実行時の留意事項
+## 公開鍵追加の詳細
 
-- GitHub から鍵を取得する処理では `curl` コマンドを使用します。HTTP プロキシ環境では事前に `proxy_*` 変数や環境設定を整えてください。
-- `users_list` で指定する `password` はハッシュ化済みの値を前提としています。`vars/all-config.yml` の例では `password_hash('sha512')` を使用し, `update_password: 'on_create'` を組み合わせる想定です。
-- ロールの再実行時には `authorized_keys` をソートし重複排除するため, 手動追記が必要な鍵は `users_authorized_keys` に登録して管理してください。
+`users_authorized_keys` は以下の形式で定義します。
+
+```yaml
+users_authorized_keys:
+  "ユーザ名":
+    - "ssh-ed25519 AAAA... コメント"
+    - "ssh-rsa AAAA... コメント"
+```
+
+## デフォルト動作
+
+- `users_list` が空の場合, ユーザ作成は行われません。
+- `users_authorized_keys` が空の場合, 公開鍵追加は行われません。
+- `auto_user_add_for_users_authorized_keys` が `false` の場合, 存在しないユーザへの公開鍵追加はスキップします。
+
+## 注意事項
+
+- `users_list.password` を省略した場合, ユーザ名を SHA-512 でハッシュ化した値が設定されます。意図したパスワードにする場合は明示的に指定してください。
+- `auto_user_add_for_users_authorized_keys: true` はパスワード無しのユーザを作成します。SSH 公開鍵認証のみでログイン可能であり, パスワード認証や su での切り替えはできません。
+- GitHub 公開鍵の取得には `github.com` への外部通信が必要です。
+
+## パスワードハッシュの作成方法
+
+`users_list.password` に設定する SHA-512 ハッシュは, 制御ノードで以下の方法で作成できます。
+
+### OpenSSL を使う方法
+
+```bash
+openssl passwd -6
+```
+
+表示されたハッシュ文字列を `users_list.password` に指定します。
+
+### mkpasswd を使う方法
+
+```bash
+mkpasswd --method=sha-512
+```
+
+出力されたハッシュ文字列を `users_list.password` に指定します。
+
+### Ansible の password_hash('sha512') を使う方法
+
+Ansible のフィルタで平文パスワードをハッシュ化し, `users_list.password` に指定できます。
+
+```yaml
+users_list:
+  - name: "alice"
+    password: "{{ 'PlainTextPassword' | password_hash('sha512') }}"
+```
+
+## テンプレート/ファイル
+
+現時点でテンプレートから出力されるファイルはありません。
+一方で, 本ロールはテンプレートを用いずに以下のファイルを作成/更新します。
+
+| ファイル | 作成条件 | 説明 |
+| --- | --- | --- |
+| `/home/<ユーザ名>/.ssh` | `users_list` または `users_authorized_keys` に該当ユーザがある場合 | SSH 公開鍵配置用ディレクトリ。 |
+| `/home/<ユーザ名>/.ssh/authorized_keys` | `users_list` または `users_authorized_keys` に該当ユーザがある場合 | 公開鍵を追記するファイル。 |
+
+## 設定例
+
+ユーザ作成と GitHub 公開鍵の取り込みを行う例です。記載先は, 変数ファイルです。
+
+**記載先**:
+- host_vars/ホスト名.yml または group_vars/all/all.yml
+
+**記載例**:
+
+```yaml
+users_list:
+  - name: "alice"
+    group: "developers"
+    password: "sha512$rounds=656000$EXAMPLE$HASH"
+    update_password: "on_create"
+    shell: "/bin/bash"
+    home: "/home/alice"
+    comment: "Alice Example"
+    email: "alice@example.com"
+    github: "alice-gh"
+```
+
+**各項目の意味**:
+
+| 項目 | 説明 | 記載例での値 | 動作 |
+| --- | --- | --- | --- |
+| `users_list` | 作成するユーザ定義のリストです。 | `[{...}]` | 指定したユーザが作成されます。 |
+| `name` | ユーザ名です。 | `alice` | ユーザと同名グループが作成されます。 |
+| `group` | 所属グループです。 | `developers` | 指定グループを主グループとして設定します。 |
+| `password` | ハッシュ化済みパスワードです。 | `sha512$...` | 指定値がパスワードとして設定されます。 |
+| `update_password` | パスワード更新条件です。 | `on_create` | 新規作成時のみパスワードを設定します。 |
+| `shell` | ログインシェルです。 | `/bin/bash` | 指定シェルが設定されます。 |
+| `home` | ホームディレクトリです。 | `/home/alice` | 指定パスでホームが作成されます。 |
+| `comment` | コメントです。 | `Alice Example` | コメント欄に反映されます。 |
+| `email` | 連絡先メールです。 | `alice@example.com` | `.gitconfig` 用の情報として保持します。 |
+| `github` | GitHub アカウント名です。 | `alice-gh` | `https://github.com/<ユーザ名>.keys` から公開鍵が追加されます。 |
 
 ## 検証ポイント
 
-- 対象ホストで `getent passwd <user>` / `id <user>` を確認し, ユーザ・グループが意図通り作成されていること。
-- `ls -la ~<user>/.ssh/authorized_keys` で権限が `600`, 所有者が `<user>:<group>` であること。
-- `sudo -U <user> -l` で `adm_groups` 経由の sudo 権限が付与されているかを確認します ( sudoers 設定による )。
-- `groups <user>` に `adm_groups` の項目が含まれていること。
+本節では, `create-users` ロール実行後にユーザと公開鍵が反映されているかを確認します。
 
-## 留意事項
+### 前提条件
 
-1. `users_list` や `users_authorized_keys` を更新したら, `make run_create_users`, または, `ansible-playbook -i inventory/hosts site.yml --tags create-users` でロールを再実行します。
-1. 新規ユーザ追加時は, ホームディレクトリの既存内容と衝突しないよう事前に確認してください。`force` オプションは使用していないため, 既存ユーザのパラメータ変更は Ansible 側が上書き可能な項目に限定されます。
-1. 公開鍵の追加は `users_authorized_keys` の置き換え後に, ロールを再実行することで対応できます。GitHub 側の鍵が更新された場合も同様にロールを再実行してください。
-1. オペレーションミスにより, 対象アカウントへのログイン不可に陥らないようにするため, 既存の登録済み公開鍵の削除は行わない仕様としています。 鍵削除については手動にて対応が必要です。
+- `create-users` ロールが正常に完了していること(`changed` または `ok` の状態)。
+- リモートホストへ SSH で接続可能であること。
+- sudo 権限が利用可能であること。
 
-## 変更履歴
+### 1. ユーザ作成の確認
 
-### 2026-02-16: `.gitconfig` 作成責任の移譲
+作成したユーザが存在するかを確認します。
 
-- `.gitconfig` の作成責任を `post-user-create` ロールに移譲しました。
-- `user_group.yml` から `.gitconfig` 作成タスク (旧 lines 101-118) を完全削除しました。
-- 今後は `post-user-create` ロールの `post_user_create_gitconfig_enabled: true` で `.gitconfig` 作成を制御します。
-- 理由: ユーザ作成 (`create-users`) と既存ユーザホームへの設定ファイル配置 (`post-user-create`) の責任分離を明確化するため。
+```bash
+getent passwd alice
+id alice
+```
+
+**期待される出力例**:
+
+```
+alice:x:1001:1001:Alice Example:/home/alice:/bin/bash
+uid=1001(alice) gid=1001(alice) groups=1001(alice)
+```
+
+**確認ポイント**:
+- `users_list` で指定したユーザが存在すること。
+
+### 2. authorized_keys の確認
+
+公開鍵が登録されているかを確認します。
+
+```bash
+sudo ls -l /home/alice/.ssh/authorized_keys
+sudo cat /home/alice/.ssh/authorized_keys
+```
+
+**期待される出力例**:
+
+```
+-rw------- 1 alice alice  1234 Feb 23 10:00 /home/alice/.ssh/authorized_keys
+ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIExampleKey alice@example
+ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQExampleKey alice@example
+```
+
+**確認ポイント**:
+- `authorized_keys` が存在し, 公開鍵が登録されていること。
+
+### 3. GitHub 公開鍵の確認
+
+GitHub から取得した公開鍵が登録されているかを確認します。
+
+```bash
+sudo grep -E "alice-gh" /home/alice/.ssh/authorized_keys
+```
+
+**期待される出力例**:
+
+```
+ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIExampleKey alice-gh@users.noreply.github.com
+```

@@ -62,6 +62,8 @@ redmine_db_password: "redmine_password"
 #
 # デイリーバックアップ関連設定
 #
+# バックアップスクリプト生成有効化フラグ
+redmine_enable_backup_script: false
 # バックアップ世代数
 redmine_backup_rotation: 7
 # デイリーバックアップ時のNFSマウントポイント(NFSのマウント/アンマウント時に使用)
@@ -71,4 +73,6 @@ redmine_backup_dir_on_nfs: "/redmine-backup"
 # デイリーバックアップ時のNFSマウントポイント配下のバックアップ配置先ディレクトリ
 redmine_backup_output_dir: "{{ redmine_backup_mount_point }}{{ redmine_backup_dir_on_nfs }}"
 # デイリーバックアップ用NFSサーバホスト名
-redmine_backup_nfs_server: "localhost"
+redmine_backup_nfs_server: ""
+# デイリーバックアップ用NFS共有ディレクトリ
+redmine_backup_nfs_dir: "/share"

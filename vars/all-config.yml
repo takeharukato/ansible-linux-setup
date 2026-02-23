@@ -335,7 +335,8 @@ docker_ce_users:
 #   docker_ce_backup_dir_on_nfs: "/Linux/containers"
 #  上記の場合は, /mnt/Linux/containers 配下にバックアップされる
 #
-
+# ディリーバックアップスクリプトを作成する場合は, trueを指定する
+docker_ce_enable_backup_script: false
 # デイリーバックアップの世代数
 docker_ce_backup_rotation: "5"
 # コンテナイメージのデイリーバックアップ時にマウントするNFSサーバ
@@ -346,6 +347,41 @@ docker_ce_backup_nfs_dir: "/share"
 docker_ce_backup_mount_point: "/mnt"
 # デイリーバックアップ時のNFSマウントポイント配下のバックアップ配置先ディレクトリ
 docker_ce_backup_dir_on_nfs: "/Linux/containers"
+
+#
+# /etc/skel配下にユーザの設定ファイルを配置するフラグ
+#
+# Bash用の設定ファイルを作成する場合は, trueを指定する
+user_settings_create_bash_skel: false
+# zsh用の設定ファイルを作成する場合は, trueを指定する
+user_settings_create_zsh_skel: false
+# ssh用の設定ファイルを作成する場合は, trueを指定する
+user_settings_create_ssh_skel: false
+# curl用の設定ファイルを作成する場合は, trueを指定する
+user_settings_create_curl_skel: false
+# wget用の設定ファイルを作成する場合は, trueを指定する
+user_settings_create_wget_skel: false
+# screen用の設定ファイルを作成する場合は, trueを指定する
+user_settings_create_screen_skel: false
+# tmux用の設定ファイルを作成する場合は, trueを指定する
+user_settings_create_tmux_skel: false
+# aspell用の設定ファイルを作成する場合は, trueを指定する
+user_settings_create_aspell_skel: false
+# git用の設定ファイルを作成する場合は, trueを指定する
+user_settings_create_git_skel: false
+# デフォルトの.gitignoreをホームディレクトリ直下に作成する場合は, trueを指定する
+user_settings_create_gitignore_on_homedir_skel: false
+# gdb用の設定ファイルを作成する場合は, trueを指定する
+user_settings_create_gdb_skel: false
+
+#
+# Git関連設定
+#
+# 各ユーザのホームディレクトリに .gitconfig を作成する場合は, trueを指定する
+post_user_create_gitconfig_enabled: true
+# .gitconfig の user.name にログイン名を使用する場合は, trueを指定する
+# false の場合は, システムのユーザエントリから GECOS フィールドを取得して使用する
+post_user_create_gitconfig_use_login_name: true
 
 #
 # ホームディレクトリのバックアップ
@@ -369,6 +405,8 @@ docker_ce_backup_dir_on_nfs: "/Linux/containers"
 #  例:
 #     ユーザ user1, ホスト名 mgmt-server, 世代数 0の場合: home-user1-mgmt-server-0.tar.xz
 #
+# ホームディレクトリのバックアップスクリプトを作成する場合は, trueを指定する
+user_settings_backup_home_script_enabled: false
 # バックアップ世代数
 user_settings_backup_home_rotation: 2
 # マウントするNFSサーバ
@@ -423,6 +461,9 @@ ldap_admin_port: 10443
 #      Redmineの添付ファイルバックアップ: redmine_files-0.tgz
 #      Redmineのデータベースバックアップ: redmine.dump-0.gz
 #
+# Redmineのバックアップ, リストアスクリプトを作成する場合は, trueを指定する
+# Redmineのデイリーバックアップを使用する場合は, 本変数もtrueに設定する必要がある
+redmine_enable_backup_script: false
 # バックアップ世代数
 redmine_backup_rotation: 7
 # マウントするNFSサーバ
@@ -457,6 +498,9 @@ redmine_backup_dir_on_nfs: "/Linux/Redmine"
 #  例:
 #    世代数 0の場合: gitlab-backup-0.tgz
 #
+# Gitlabのバックアップ, リストアスクリプトを作成する場合は, trueを指定する
+# Gitlabのデイリーバックアップを使用する場合は, 本変数もtrueに設定する必要がある
+gitlab_enable_backup_script: false
 # バックアップ世代数
 gitlab_backup_rotation: 7
 # マウントするNFSサーバ

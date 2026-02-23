@@ -78,13 +78,15 @@ http://ホスト名:8080/
 | `redmine_backup_mount_point` | `/mnt` | NFS マウントポイント。 |
 | `redmine_backup_dir_on_nfs` | `/redmine-backup` | NFS 配下のバックアップ配置先ディレクトリ。 |
 | `redmine_backup_output_dir` | `{{redmine_backup_mount_point}}{{ redmine_backup_dir_on_nfs }}` | NFS 上のバックアップ出力先フルパス。 |
-| `redmine_backup_nfs_server` | `localhost` | デイリーバックアップ先の NFS サーバ。 |
+| `redmine_backup_nfs_server` | `""` | デイリーバックアップ先の NFS サーバ。 |
+| `redmine_backup_nfs_dir` | `/share` | デイリーバックアップ用 NFS 共有ディレクトリ。 |
+| `redmine_enable_backup_script` | `false` | バックアップスクリプト生成有効化フラグ。`true` に設定すると, backup-redmine-data.sh と restore-redmine-data.sh が配置されます。daily-backup-redmine.sh を配置するには, さらに `redmine_backup_nfs_server` と `redmine_backup_nfs_dir` が非空である必要があります。不要な環境では `false` に設定するとスクリプト生成をスキップできます。 |
 | `mgmt_nic` | (環境依存) | 管理用ネットワークインターフェース名。sysctl 設定で RA (Router Advertisement, ルータ広告) 受信を有効化する際に使用します。|
 
 ## ロール内の動作
 
 1. [tasks/load-params.yml](tasks/load-params.yml) で OS 別パッケージ名や共通変数を読み込み。
-2. [tasks/directory.yml](tasks/directory.yml) で Docker ボリューム作成, 主要ディレクトリ作成, テンプレート ([templates/docker-compose.yml.j2](templates/docker-compose.yml.j2), [templates/backup-redmine-data.sh.j2](templates/backup-redmine-data.sh.j2), [templates/restore-redmine-data.sh.j2](templates/restore-redmine-data.sh.j2), [templates/daily-backup-redmine.sh.j2](templates/daily-backup-redmine.sh.j2)) を配置。
+2. [tasks/directory.yml](tasks/directory.yml) で Docker ボリューム作成, 主要ディレクトリ作成, [templates/docker-compose.yml.j2](templates/docker-compose.yml.j2) を配置します。`redmine_enable_backup_script` が有効な場合, backup-redmine-data.sh ([templates/backup-redmine-data.sh.j2](templates/backup-redmine-data.sh.j2)) と restore-redmine-data.sh ([templates/restore-redmine-data.sh.j2](templates/restore-redmine-data.sh.j2)) を配置します。さらに `redmine_backup_nfs_server` と `redmine_backup_nfs_dir` が非空の場合のみ, daily-backup-redmine.sh ([templates/daily-backup-redmine.sh.j2](templates/daily-backup-redmine.sh.j2)) を配置します。
 3. [tasks/sysctl.yml](tasks/sysctl.yml) が `templates/90-redmine-forwarding.conf.j2` を `/etc/sysctl.d/90-redmine-forwarding.conf` に配置し, IPv4/IPv6 フォワーディング (`net.ipv4.ip_forward`, `net.ipv6.conf.all.forwarding`, `net.ipv6.conf.default.forwarding`), 管理 IF (Interface, インターフェース) の RA (Router Advertisement, ルータ広告) 受信 (`net.ipv6.conf.<mgmt_nic>.accept_ra`) を有効化します。配置時は `redmine_reload_sysctl` ハンドラを通知し, `sysctl --system` で設定を反映します。
 4. [tasks/service.yml](tasks/service.yml) で `docker compose down` / `docker compose up -d` を実行し, `{{ redmine_service_port }}` の起動待ち合わせを実施。
 5. [tasks/service.yml](tasks/service.yml) で Redmine 管理者のパスワードを `redmine_admin_password`変数の設定値に従って設定する。`redmine_admin_password`変数が未定義の場合, または, 設定値が空文字列の場合は, `admin`を管理者パスワード(RedmineのDockerHubコンテナのデフォルト設定値)として設定する。

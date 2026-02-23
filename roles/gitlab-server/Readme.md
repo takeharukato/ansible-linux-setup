@@ -67,17 +67,18 @@ GitLab の初期ルートパスワードファイルや公開 URL, 通信ポー�
 | `gitlab_remove_container_images` | `false` | `true` の場合は, 既存の GitLab / Runner イメージを削除してからインストールを開始します。|
 | `gitlab_daily_backup_script_file` | `daily-backup-gitlab.sh` | Cronに登録するデイリーバックアップスクリプトファイル名 |
 | `gitlab_backup_rotation` | `7` | デイリーバックアップのローテーション世代数 |
-| `gitlab_backup_nfs_server` | `nfs.example.org` | Gitlabのバックアップバンドルファイルを保存するNFSサーバ|
+| `gitlab_backup_nfs_server` | `""` | Gitlabのバックアップバンドルファイルを保存するNFSサーバ|
 | `gitlab_backup_nfs_dir` | `share` | Gitlabのバックアップバンドルファイルを保存するNFSサーバのマウント時に指定する共有ディレクトリ名|
 | `gitlab_backup_mount_point` | `/mnt` | デイリーバックアップ時のNFSマウントポイント(NFSのマウント/アンマウント時に使用) |
 | `gitlab_backup_dir_on_nfs` | `/gitlab-backups` | デイリーバックアップ時のNFSマウントポイント配下のバックアップ配置先ディレクトリ |
+| `gitlab_enable_backup_script` | `false` | バックアップスクリプト生成有効化フラグ。`true` に設定するとバックアップ・リストアスクリプト(gitlab-backup.py, gitlab-restore.py)が配置されます。デイリーバックアップスクリプト(daily-backup-gitlab.sh)の配置には, 加えて`gitlab_backup_nfs_server`, `gitlab_backup_mount_point`, `gitlab_backup_output_dir`が非空で, かつ`gitlab_backup_rotation`が正の整数である必要があります。不要な環境では `false` に設定するとスクリプト生成をスキップできます。 |
 
 ## ロール内の動作
 
 1. [tasks/load-params.yml](tasks/load-params.yml) で OS ごとのパッケージ定義や共通パラメータを取り込みます。
 2. `gitlab_clean_install` や `gitlab_remove_container_images` が有効な場合, [tasks/config-clean-install.yml](tasks/config-clean-install.yml) が既存ディレクトリと Docker イメージを削除します。
 3. [tasks/directory-gitlab.yml](tasks/directory-gitlab.yml) が GitLab 用ユーザ / グループを確認し, ホーム, 設定, データ, バックアップ各ディレクトリを所有権付きで作成します。
-4. 同タスク内で `docker-compose.yml`, `gitlab-backup.py`, `gitlab-restore.py` を配置します。
+4. 同タスク内で `docker-compose.yml` を配置します。`gitlab_enable_backup_script` が有効な場合, バックアップ・リストアスクリプト (`gitlab-backup.py`, `gitlab-restore.py`) を配置します。加えて`gitlab_backup_nfs_server`, `gitlab_backup_mount_point`, `gitlab_backup_output_dir`が非空で, かつ`gitlab_backup_rotation`が正の整数の場合のみ, デイリーバックアップスクリプト(`daily-backup-gitlab.sh`)を配置します。
 5. [tasks/sysctl.yml](tasks/sysctl.yml) が `templates/90-gitlab-forwarding.conf.j2` を `/etc/sysctl.d/90-gitlab-forwarding.conf` に配置し, IPv4/IPv6 フォワーディング (`net.ipv4.ip_forward`, `net.ipv6.conf.all.forwarding`, `net.ipv6.conf.default.forwarding`), 管理 IF (Interface, インターフェース) の RA (Router Advertisement, ルータ広告) 受信 (`net.ipv6.conf.<mgmt_nic>.accept_ra`) を有効化します。配置時は `gitlab_reload_sysctl` ハンドラを通知し, `sysctl --system` で設定を反映します。
 6. [tasks/service.yml](tasks/service.yml) が `docker compose up -d` で GitLab / Runner コンテナを起動し, HTTPS (Hypertext Transfer Protocol Secure) / SSH (Secure Shell) / Registry ポートが開くまで待機します。その後, アクセス URL や初期パスワードファイルパスを表示します。
 7. ロール再実行時には既存の compose ファイルや永続化ディレクトリを再利用し, 冪等に整備を行います。停止したい場合は [tasks/stop-service.yml](tasks/stop-service.yml) を参照してください。

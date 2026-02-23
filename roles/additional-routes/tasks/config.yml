@@ -6,11 +6,11 @@
 #
 ---
 
-# Ubuntu用の追加ルート設定
-- name: Configure additional routes (Ubuntu)
+# Debian/Ubuntu用の追加ルート設定
+- name: Configure additional routes (Debian/Ubuntu)
   ansible.builtin.include_tasks: config-ubuntu-add-routes.yml
   when:
-    - ansible_facts.os_family == "Ubuntu"
+    - ansible_facts.os_family == "Debian"
     - additional_network_routes is defined
     - additional_network_routes | default([]) | length > 0
 

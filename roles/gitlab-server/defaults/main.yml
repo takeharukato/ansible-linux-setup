@@ -115,12 +115,14 @@ gitlab_logrotate_compress: "compress"
 # -----------------------------------------------------------
 # GitLabデイリーバックアップ関連設定
 # -----------------------------------------------------------
+# バックアップスクリプト生成有効化フラグ
+gitlab_enable_backup_script: false
 # デイリーバックアップ退避ディレクトリ
 gitlab_daily_backup_dir: "{{ gitlab_home_dir }}/daily-backup"
 # デイリーバックアップスクリプトファイル名
 gitlab_daily_backup_script_file: "daily-backup-gitlab.sh"
 # gitlabのバックアップバンドルファイルを保存するNFSサーバ
-gitlab_backup_nfs_server: "nfs.example.org"
+gitlab_backup_nfs_server: ""
 # NFSマウント時に指定する共有ディレクトリ名
 gitlab_backup_nfs_dir: "/share"
 # デイリーバックアップのローテーション世代数
