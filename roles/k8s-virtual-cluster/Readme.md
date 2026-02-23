@@ -12,6 +12,9 @@ Kubernetes Virtual Cluster の基盤コンポーネントをデプロイする�
 | Role Based Access Control | RBAC | 権限を役割単位で制御する仕組み。 |
 | Transport Layer Security | TLS | 通信を暗号化する仕組み。 |
 | Domain Name System | DNS | 名前と IP アドレスを対応付ける仕組み。 |
+| etcd | etcd | Kubernetes の設定情報と状態を保存する分散キーバリューストア。 |
+| kube-apiserver | kube-apiserver | Kubernetes API サーバー, API リクエストを受け付けて処理するコンポーネント。 |
+| kube-controller-manager | kube-controller-manager | Kubernetes コントローラーマネージャー, リソースの状態を監視して制御するコンポーネント。 |
 | Virtual Cluster | - | Kubernetes APIを仮想化して提供する論理的なKubernetesクラスタ。 |
 | Super Cluster | - | Virtual Clusterを動作させるホスト側の物理Kubernetesクラスタ。 |
 | vc-manager (Virtual Cluster Manager) | vc-manager | Virtual Clusterの制御コンポーネント。Super Cluster上でVirtual Clusterの管理を行う。 |
@@ -31,6 +34,7 @@ Kubernetes Virtual Cluster の基盤コンポーネントをデプロイする�
   - Docker
 - コントロールプレーンからワーカーノードへSSH接続可能であること。
 - ワーカーノードが containerd を使用していること。
+- `virtualcluster_auto_detect_supercluster_images: true` (既定値)の場合, Ansible制御ノードから `kubectl` でスーパークラスタに疎通可能であること。
 
 ## 概要
 
@@ -39,15 +43,16 @@ Virtual Cluster により, ホスト Kubernetes クラスタ(以下, Super Clust
 ## 実行フロー
 
 1. `validate.yml` で前提条件と API 疎通を検証します。
-2. `namespace.yml` で `vc-manager` の namespace を作成します。
-3. `crd.yml` で ClusterVersion と VirtualCluster の CRD を登録します。
-4. `virtualcluster_build_from_source: true` の場合:
+2. `detect-supercluster-images.yml` でスーパークラスタから稼働中のetcd, kube-apiserver, kube-controller-managerのイメージを自動検出します（デフォルト, `virtualcluster_auto_detect_supercluster_images: true` の場合）。
+3. `namespace.yml` で `vc-manager` の namespace を作成します。
+4. `crd.yml` で ClusterVersion と VirtualCluster の CRD を登録します。
+5. `virtualcluster_build_from_source: true` の場合:
    - `download-source.yml` でソースリポジトリをクローン/更新します。
    - `build-binaries.yml` で `make build-images` を実行してバイナリをビルドします。
    - `build-docker-images.yml` でDockerイメージをビルドしてtarファイルに保存します。
    - `fetch-images.yml` でビルドノードからAnsibleの制御ノード(localhost)へtarファイルを取得します。
-5. `upload-to-ctrlplane.yml` でコントロールプレーンへイメージをアップロードします。
-6. `distribute-to-workers.yml` でコントロールプレーンからワーカーノードへイメージを配布します:
+6. `upload-to-ctrlplane.yml` でコントロールプレーンへイメージをアップロードします。
+7. `distribute-to-workers.yml` でコントロールプレーンからワーカーノードへイメージを配布します:
    - `kubectl get nodes` で実際のワーカーノードリストを取得します。
    - SSH経由で各ワーカーノードにイメージを転送します。
    - 各ワーカーで `ctr -n k8s.io images import` を実行します。
@@ -84,6 +89,7 @@ Virtual Cluster により, ホスト Kubernetes クラスタ(以下, Super Clust
 | --- | --- | --- |
 | `virtualcluster_enabled` | `false` | ロールを実行するかどうかを指定します。 |
 | `virtualcluster_build_from_source` | `true` | ソースからビルドするか(true), 既存バイナリ/イメージを使用するか(false)を指定します。 |
+| `virtualcluster_auto_detect_supercluster_images` | `true` | スーパークラスタから稼働中のetcd, kube-apiserver, kube-controller-managerイメージを動的に検出するかどうか。既定: true。falseの場合は`registry.k8s.io/etcd:<すーぱクラスタのETCDメジャーバージョン.マイナーバージョン>.0`等のフォールバック値を使用します。運用環境では自動検出により, バージョンズレを防止できます。 |
 | `virtualcluster_build_host` | `"localhost"` | ビルドを実行するホストを指定します (既定: Ansibleの制御ノード)。Docker/Go/Makeがインストール済みである必要があります。 |
 | `virtualcluster_source_repo` | `"https://github.com/kubernetes-retired/cluster-api-provider-nested"` | Virtual Cluster のソースリポジトリURLです。 |
 | `virtualcluster_source_version` | `"main"` | クローンするバージョン/ブランチ/タグです。 |
@@ -161,6 +167,8 @@ ansible-playbook k8s-management.yml -t k8s-virtual-cluster
 - vn-agent はコントロールプレインノードを除外します。
 
 ## テンプレートと生成ファイル
+
+以下の表中の~(チルダ記号)は, ansibleアカウントでログイン時のホームディレクトリ(規定: `/home/ansible`)を意味します。
 
 | テンプレート | 出力先 | 説明 |
 | --- | --- | --- |

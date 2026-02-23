@@ -60,8 +60,15 @@ docker_apt_suite: "{{ repo_codename_debian }}"
 docker_apt_components: "stable"
 docker_arch_apt: "amd64"
 
+#
 # Kubernetes ( APT )
+#
+# Kubernetesのメジャーバージョン, マイナーバージョン
+# virtualclusterのetcdイメージ検出/フォールバックでも使用する
 k8s_major_minor: "1.31"
+# etcd Key Value Storeのメジャーバージョン, マイナーバージョン
+# virtualclusterのetcdイメージ検出/フォールバックで使用
+k8s_etcd_major_minor: "3.5"
 k8s_apt_keyring_url: "https://pkgs.k8s.io/core:/stable:/v{{ k8s_major_minor }}/deb/Release.key"
 k8s_apt_keyring: "/usr/share/keyrings/kubernetes-apt-keyring.gpg"
 k8s_apt_uri: "https://pkgs.k8s.io/core:/stable:/v{{ k8s_major_minor }}/deb/"

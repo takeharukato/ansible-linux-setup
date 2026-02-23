@@ -49,7 +49,12 @@ epel_gpgkey_file: "/etc/pki/rpm-gpg/RPM-GPG-KEY-EPEL-{{ ansible_distribution_maj
 epel_mirrorlist: "https://mirrors.fedoraproject.org/metalink?repo=epel-{{ ansible_distribution_major_version }}&arch=$basearch"
 
 # Kubernetes (pkgs.k8s.io)
+# Kubernetesのメジャーバージョン, マイナーバージョン
+# virtualclusterのetcdイメージ検出/フォールバックでも使用する
 k8s_major_minor: "1.31"
+# etcd Key Value Storeのメジャーバージョン, マイナーバージョン
+# virtualclusterのetcdイメージ検出/フォールバックで使用
+k8s_etcd_major_minor: "3.5"
 k8s_repo_name: "kubernetes"
 k8s_baseurl: "https://pkgs.k8s.io/core:/stable:/v{{ k8s_major_minor }}/rpm/"
 k8s_gpgkey_url: "https://pkgs.k8s.io/core:/stable:/v{{ k8s_major_minor }}/rpm/repodata/repomd.xml.key"
