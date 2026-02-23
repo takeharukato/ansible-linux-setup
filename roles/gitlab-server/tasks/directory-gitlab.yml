@@ -122,6 +122,8 @@
     group: root
     mode: '0755'
   become: true
+  when:
+    - gitlab_enable_backup_script|default(false)|bool
 
 # GitLabリストアスクリプト配置
 - name: "Deploy GitLab restore script"
@@ -132,6 +134,8 @@
     group: root
     mode: '0755'
   become: true
+  when:
+    - gitlab_enable_backup_script|default(false)|bool
 
 # Cron登録用GitLab デイリーバックアップスクリプト配置
 - name: "Deploy GitLab daily backup script for cron"
@@ -142,6 +146,12 @@
     group: root
     mode: '0755'
   become: true
+  when:
+    - gitlab_enable_backup_script|default(false)|bool
+    - (gitlab_backup_nfs_server|default("", true))|length > 0
+    - (gitlab_backup_mount_point|default("", true))|length > 0
+    - (gitlab_backup_output_dir|default("", true))|length > 0
+    - (gitlab_backup_rotation|default(0, true))|int > 0
 
 # GitLab Runner用設定ファイル格納ディレクトリ作成
 - name: "Create Gitlab runner configuration directory ({{ gitlab_runner_config_dir }})"

@@ -56,6 +56,8 @@
     group: root
     mode: '0755'
     backup: false
+  when:
+    - redmine_enable_backup_script|default(false)|bool
 
 # リストア作業用スクリプトを作成
 - name: "Create {{ redmine_scripts_dir }}/restore-redmine-data.sh"
@@ -66,6 +68,8 @@
     group: root
     mode: '0755'
     backup: false
+  when:
+    - redmine_enable_backup_script|default(false)|bool
 
 # デイリーバックアップスクリプトを作成
 - name: "Create {{ redmine_scripts_dir }}/daily-backup-redmine.sh"
@@ -76,3 +80,11 @@
     group: root
     mode: '0755'
     backup: false
+  when:
+    - redmine_enable_backup_script|default(false)|bool
+    - (redmine_backup_nfs_server|default("", true))|length > 0
+    - (redmine_backup_nfs_dir|default("", true))|length > 0
+    - (redmine_backup_mount_point|default("", true))|length > 0
+    - (redmine_backup_output_dir|default("", true))|length > 0
+    - (redmine_backup_dir|default("", true))|length > 0
+    - (redmine_backup_rotation|default(0, true))|int > 0

@@ -8,12 +8,16 @@
     name: docker
     state: present
 
-# ansible ユーザをdockerグループに追加
-- name: Add ansible user into docker group
+# ansible_user をdockerグループに追加
+- name: Add ansible_user into docker group
   ansible.builtin.user:
-    name: Ansible
+    name: "{{ ansible_user }}"
     groups: docker
     append: true
+  when:
+    - ansible_user is defined
+    - ( ansible_user | default('', true) | length ) > 0
+  become: true
 
 # docker_ce_users変数に指定されたユーザをdockerグループに追加
 - name: Add users into docker group

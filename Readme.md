@@ -398,7 +398,7 @@ docker_ce_users:
 
 ##### コンテナイメージのバックアップ設定
 
-`build_docker_ce_backup_container_image`変数を`true`に設定することで, コンテナイメージをバックアップするスクリプトが`/usr/local/bin/backup-containers`に作成される(`build_docker_ce_backup_container_image`変数の規定値は, `false`)。
+`build_docker_ce_backup_container_image`変数を`true`に設定し, かつ`docker_ce_enable_backup_script`変数を`true`に設定した場合, 手動リストア用のスクリプト(/usr/local/bin/restore-container)とDocker backupイメージ生成用のテンプレートが配置されます。さらに`docker_ce_backup_nfs_server`と`docker_ce_backup_nfs_dir`が定義されている場合に, 定期バックアップ用のスクリプト(/usr/local/bin/backup-containers)が配置されます。
 
 NFSマウントは以下のように行われる。
 
@@ -427,6 +427,7 @@ NFSマウントは以下のように行われる。
 
 |変数名|意味|設定値の例|
 |---|---|---|
+|docker_ce_enable_backup_script|バックアップスクリプト生成有効化フラグ。`true`に設定すると, 手動リストアスクリプトとイメージビルド用テンプレートが配置される。さらに`docker_ce_backup_nfs_server`と`docker_ce_backup_nfs_dir`が非空の場合にのみ, 定期バックアップスクリプトが配置される。規定値は`false`。|"true" みたは "false"|
 |docker_ce_backup_rotation|デイリーバックアップの世代数|"5"|
 |docker_ce_backup_nfs_server|コンテナイメージのデイリーバックアップ時にマウントするNFSサーバ|"nas.example.org"|
 |docker_ce_backup_nfs_dir|マウントする共有ディレクトリ|"/share"|
@@ -553,6 +554,7 @@ Redmineのデイリーバックアップについては, `roles/redmine-server/R
 
 |変数名|意味|設定値の例|
 |---|---|---|
+|redmine_enable_backup_script|バックアップスクリプト生成有効化フラグ。`true`に設定すると, backup-redmine-data.sh と restore-redmine-data.sh が配置される。daily-backup-redmine.sh を配置するには, さらに `redmine_backup_nfs_server` と `redmine_backup_nfs_dir` が非空である必要がある。規定値は`false`。|"true" みたは "false"|
 |redmine_backup_rotation|バックアップ世代数|7|
 |redmine_backup_nfs_server|マウントするNFSサーバ|"nas.example.org"|
 |redmine_backup_nfs_dir|マウントする共有ディレクトリ|"/share"|
@@ -577,6 +579,7 @@ Gitlabの公開URL, イメージファイル関連の設定を記載する。
 | gitlab_registry_port | コンテナレジストリ公開ポート。 | 5050 |
 | gitlab_docker_image | GitLab Omnibus Docker イメージ。公式の推奨に従って, バージョン名を明示してイメージを指定。 | "gitlab/gitlab-ce:18.6.2-ce.0" |
 | gitlab_runner_docker_image | GitLab Runner Docker イメージ。GitLab 本体とメジャーバージョン, マイナーバージョンを合わせること。 | "gitlab/gitlab-runner:ubuntu-v18.6.6" |
+| gitlab_enable_backup_script | バックアップスクリプト生成有効化フラグ。`true`に設定した場合にバックアップ・リストアスクリプト(gitlab-backup.py, gitlab-restore.py)が配置される。デイリーバックアップスクリプト(daily-backup-gitlab.sh)の配置には, 加えて`gitlab_backup_nfs_server`, `gitlab_backup_mount_point`, `gitlab_backup_output_dir`が非空で, かつ`gitlab_backup_rotation`が正の整数である必要がある。規定値は`false`。 | "true" または "false" |
 | gitlab_backup_rotation | デイリーバックアップのローテーション世代数 | 7 |
 | gitlab_backup_nfs_server | Gitlabのバックアップバンドルファイルを保存するNFSサーバ | "nfs.example.org" |
 | gitlab_backup_nfs_dir | Gitlabのバックアップバンドルファイルを保存するNFSサーバのマウント時に指定する共有ディレクトリ名| "share" |

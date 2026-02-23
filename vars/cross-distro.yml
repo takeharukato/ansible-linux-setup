@@ -685,8 +685,8 @@ firewall_service_name: "{{ (ansible_facts.os_family == 'Debian') | ternary(ufw_s
 
 # netcat コマンド名
 nc_command_debian: "nc"
-# RHEL 系では nmap-ncat パッケージに含まれる nc (netcatへのシンボリックリンク) を使用
-nc_command_rhel: "nc"
+# RHEL 系では nmap-ncat パッケージに含まれる ncat を使用
+nc_command_rhel: "ncat"
 nc_command: "{{ (ansible_facts.os_family == 'Debian') | ternary(nc_command_debian, nc_command_rhel) }}"
 
 # pssh コマンド名

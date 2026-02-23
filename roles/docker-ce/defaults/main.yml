@@ -11,8 +11,12 @@ docker_ce_log_driver: "json-file"
 docker_ce_log_opts:
   max-size: "10m"
   max-file: "3"
+# docker利用ユーザリスト
+docker_ce_users: []
 # デイリーバックアップの世代数
 docker_ce_backup_rotation: "5"
+# コンテナイメージのデイリーバックアップ時にマウントするNFSサーバ
+docker_ce_backup_nfs_server: ""
 # デイリーバックアップ時のNFSマウントポイント(NFSのマウント/アンマウント時に使用)
 docker_ce_backup_mount_point: "/mnt"
 # マウントする共有ディレクトリ
@@ -27,5 +31,9 @@ docker_ce_backup_container_image_name: "local-boombatower-docker-backup"
 docker_ce_backup_container_image: "{{ docker_ce_backup_container_image_name }}:latest"
 # docker fileの場所
 docker_ce_backup_dockerfile_dir: "/usr/local/share/docker-backup"
+# dockerグループ追加対象ユーザ定義
+users_list: []
 # コンテナイメージバックアップを作成する場合はtrueに設定する
 build_docker_ce_backup_container_image: false
+# バックアップスクリプト生成有効化フラグ
+docker_ce_enable_backup_script: false
