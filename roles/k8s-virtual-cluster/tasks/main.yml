@@ -13,58 +13,77 @@
 #
 ---
 
+# 共通パラメータを読み込むタスク
 - name: "Load Params"
   ansible.builtin.include_tasks: load-params.yml
   when: virtualcluster_enabled | bool
 
+# Virtual Cluster を有効にするための前提条件を検証するタスク
 - name: "Validate"
   ansible.builtin.include_tasks: validate.yml
   when: virtualcluster_enabled | bool
 
+# Virtual Cluster のイメージ版数などをスーパークラスタから動的に検出するタスク
+- name: "Detect Super Cluster Images"
+  ansible.builtin.include_tasks: detect-supercluster-images.yml
+  when:
+    - virtualcluster_enabled | bool
+    - virtualcluster_auto_detect_supercluster_images | bool
+
+# vc-manager の名前空間を作成するタスク
 - name: "Namespace"
   ansible.builtin.include_tasks: namespace.yml
   when: virtualcluster_enabled | bool
 
-- name: "CRD"
+# Virtual Cluster CRDs (Custom Resource Definitions) をスーパークラスタに登録するタスク
+- name: "Register Custom Resource Definitions (CRDs)"
   ansible.builtin.include_tasks: crd.yml
   when: virtualcluster_enabled | bool
 
+# Virtual Cluster のソースをダウンロードするタスク
 - name: "Download Source"
   ansible.builtin.include_tasks: download-source.yml
   when:
     - virtualcluster_enabled | bool
     - virtualcluster_build_from_source | bool
 
+# Virtual Cluster のソースをビルドするタスク
 - name: "Build Binaries"
   ansible.builtin.include_tasks: build-binaries.yml
   when:
     - virtualcluster_enabled | bool
     - virtualcluster_build_from_source | bool
 
+# Virtual Cluster のコンテナイメージをビルドするタスク
 - name: "Build Docker Images"
   ansible.builtin.include_tasks: build-docker-images.yml
   when:
     - virtualcluster_enabled | bool
     - virtualcluster_build_from_source | bool
 
+# Virtual Cluster のコンテナイメージをansibleの制御ノードにダウンロードするタスク
 - name: "Fetch Images"
   ansible.builtin.include_tasks: fetch-images.yml
   when:
     - virtualcluster_enabled | bool
     - virtualcluster_build_from_source | bool
 
+# Virtual Cluster のコンテナイメージをコントロールプレーンノードにアップロードするタスク
 - name: "Upload to Control Plane"
   ansible.builtin.include_tasks: upload-to-ctrlplane.yml
   when: virtualcluster_enabled | bool
 
+# Virtual Cluster のコンテナイメージをワーカーノードに配布するタスク
 - name: "Distribute to Workers"
   ansible.builtin.include_tasks: distribute-to-workers.yml
   when: virtualcluster_enabled | bool
 
+# Virtual Cluster の管理コンポーネント (Pod群) をスーパークラスタにデプロイするタスク
 - name: "Deploy Manager"
   ansible.builtin.include_tasks: deploy-manager.yml
   when: virtualcluster_enabled | bool
 
+# Virtual Cluster のセットアップ完了後の検証タスク
 - name: "Verify"
   ansible.builtin.include_tasks: verify.yml
   when: virtualcluster_enabled | bool

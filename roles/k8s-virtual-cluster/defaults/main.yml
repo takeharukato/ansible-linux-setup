@@ -70,15 +70,16 @@ virtualcluster_namespace: "vc-manager"
 # Virtual Cluster 設定ファイル格納ディレクトリパス
 virtualcluster_config_dir: "{{ k8s_kubeadm_config_store }}/virtual-cluster"
 
-# Virtual Cluster container images
-# etcd image
-virtualcluster_etcd_image: "registry.k8s.io/etcd:v3.5.13"
-# apiserver image
-virtualcluster_apiserver_image: "registry.k8s.io/kube-apiserver:v1.31.0"
-# controller-manager image
-virtualcluster_controller_manager_image: "registry.k8s.io/kube-controller-manager:v1.31.0"
+# スーパークラスタから現在稼働中のetcd, kube-apiserver, kube-controller-managerイメージ版数を実行時に検出するかどうか
+# true: スーパークラスタの実行中Podから検出（推奨）, false: 下記のフォールバック値を使用
+virtualcluster_auto_detect_supercluster_images: true
 
 # Virtual Cluster manager related images
+# Virtual Clusterの管理コンポーネントである vc-manager, syncer, vn-agent のイメージ
+# Docker Hubの公式レジストリからイメージが提供されている場合は, Docker Hubのイメージを
+# 使用することが推奨されることからプレースホルダとして記載。
+# 実際上は, Docker Hubの公式レジストリにはvirtual clusterの最新のイメージが
+# 提供されていないため, ソースからビルドして構築する。
 # vc-manager image (from Docker Hub official registry)
 virtualcluster_manager_image: "virtualcluster/manager-amd64:latest"
 # syncer image (from Docker Hub official registry)
