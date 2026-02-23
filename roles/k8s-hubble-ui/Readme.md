@@ -30,7 +30,7 @@ Cilium Hubble UI を Kubernetes クラスタに導入するロールです。Hub
 | 変数名 | 既定値 | 説明 |
 | --- | --- | --- |
 | `k8s_api_wait_host` | `"{{ k8s_ctrlplane_endpoint }}"` | Kubernetes APIサーバの待ち合わせ先(接続先)ホスト名/IPアドレス。|
-| `k8s_api_wait_port` | `"{{ k8s_ctrlplane_port }}"` | Kubernetes APIサーバの待ち合わせ先ポート番号。|
+| `k8s_api_wait_port` | `"{{ k8s_ctrlplane_port }}"` | Kubernetes APIサーバの待ち合わせ先ポート番号。 (規定: `6443`)|
 | `k8s_api_wait_timeout` | `600` | Kubernetes APIサーバ待ち合わせ時間(単位: 秒)。|
 | `k8s_api_wait_delay` | `2` | Kubernetes APIサーバ待ち合わせる際の開始遅延時間(単位: 秒)。|
 | `k8s_api_wait_sleep` | `1` | Kubernetes APIサーバ待ち合わせる際の待機間隔(単位: 秒)。|

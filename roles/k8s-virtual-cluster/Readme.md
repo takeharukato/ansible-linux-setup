@@ -56,7 +56,7 @@ Virtual Cluster により, ホスト Kubernetes クラスタ(以下, Super Clust
 
 ## コンテナイメージ作成と配布の流れ
 
-以下の<component>には`virtualcluster_build_components`の各要素を指し, 既定では`manager`, `syncer`, `vn-agent`が入ります。
+以下の`<component>`には`virtualcluster_build_components`の各要素を指し, 既定では`manager`, `syncer`, `vn-agent`が入ります。
 
 - `virtualcluster_source_repo`を`virtualcluster_build_host`上の`virtualcluster_source_dir`へクローンまたは更新します。
 - `make build-images`でバイナリを生成します。
@@ -93,7 +93,7 @@ Virtual Cluster により, ホスト Kubernetes クラスタ(以下, Super Clust
 | `virtualcluster_local_cache_dir` | `"{{ lookup('env', 'HOME') }}/.ansible/vc-images-cache"` | Ansibleの制御ノード(localhost)上のイメージキャッシュディレクトリです (既定: `~/.ansible/vc-images-cache`)。 |
 | `virtualcluster_ctrlplane_cache_dir` | `"/tmp/vc-images"` | コントロールプレーン上のイメージキャッシュディレクトリです (既定: `/tmp/vc-images`)。 |
 | `virtualcluster_ssh_keyscan_enabled` | `true` | SSH接続時にknown_hostsへ事前登録するか(true), StrictHostKeyChecking=noで回避するか(false)を指定します。 |
-| `virtualcluster_ssh_user` | `"{{ ansible_user }}"` (規定: `"ansible"`)| コントロールプレーンからワーカーへのSSH接続ユーザーです。 |
+| `virtualcluster_ssh_user` | `"{{ ansible_user }}"` | コントロールプレーンからワーカーへのSSH接続ユーザーです。 (規定: `"ansible"`)|
 | `virtualcluster_namespace` | `"vc-manager"` | Virtual Cluster 管理コンポーネントを展開する namespace です。 |
 | `virtualcluster_config_dir` | `"{{ k8s_kubeadm_config_store }}/virtual-cluster"` | マニフェストの出力先です (既定: `~/kubeadm/virtual-cluster`)。 |
 | `virtualcluster_supercluster_kubeconfig_path` | `"/etc/kubernetes/admin.conf"` | K8sクラスタ(スーパークラスタ)操作に使用するkubeconfigのパスです。 |
@@ -105,7 +105,7 @@ Virtual Cluster により, ホスト Kubernetes クラスタ(以下, Super Clust
 | `virtualcluster_pod_resource_limits.cpu` | `"1000m"` | vc-manager の CPU リミットです。 |
 | `virtualcluster_pod_resource_limits.memory` | `"1Gi"` | vc-manager のメモリリミットです。 |
 | `k8s_api_wait_host` | `"{{ k8s_ctrlplane_endpoint }}"` | API サーバの待ち受け先です。 |
-| `k8s_api_wait_port` | `"{{ k8s_ctrlplane_port }}"` | API サーバの待ち受けポートです。 |
+| `k8s_api_wait_port` | `"{{ k8s_ctrlplane_port }}"` | API サーバの待ち受けポートです。  (規定: `6443`)|
 
 ## 設定例
 
@@ -151,7 +151,7 @@ ansible-playbook k8s-management.yml -t k8s-virtual-cluster
 
 - ソースリポジトリからのクローンとビルド(オプション, `virtualcluster_build_from_source: true` の場合)。
 - ビルドノードでDockerイメージをビルドしてtarファイルに保存。
-- ビルドノード → Ansibleの制御ノード(localhost) → コントロールプレーンへの転送。
+- ビルドノード  =>  Ansibleの制御ノード(localhost)  =>  コントロールプレーンへの転送。
 - コントロールプレーンで `kubectl get nodes` から実際のワーカーノードリストを取得。
 - SSH経由で各ワーカーノードへイメージを配布し, `ctr -n k8s.io` で取り込み。
 - CRD の生成と登録を行います。
@@ -248,15 +248,126 @@ kubectl logs -n kube-system -l component=kube-apiserver --tail=50
 
 ### イメージ配布に失敗する場合
 
+#### SSH接続の確認
+
+本ロールでは, コントロールプレインからワーカーノードへsshによるパスワードレスログインが可能であることを前提としています。
+以下のように, ansibleユーザで, コントロールプレインからワーカーノードへパスワードレスログインが可能であることを確認してください:
+
 ```bash
 # コントロールプレーンからワーカーへのSSH接続を確認
-ssh -o ConnectTimeout=5 {{ ansible_user }}@<worker-node-name> hostname
+ssh -o ConnectTimeout=5 <ansibleユーザ名>@<worker-node-name> hostname
+```
 
+#### コンテナイメージの確認
+
+本ロールでは, virtual clusterを構成するために必要なコンテナイメージをワーカーノード上に配布し, containerdにコンテナイメージを登録します。
+
+各ワーカーノード上で, コンテナイメージが登録されていることを以下のコマンドにより確認してください。
+
+```bash
 # ワーカーノードでイメージを確認
 sudo ctr -n k8s.io images ls | grep virtualcluster
+```
 
-# 配布スクリプトのログを確認
-# Ansibleのタスク実行ログから distribute-to-workers.yml のstdoutを確認
+実行例を以下に示します:
+
+```bash
+$ sudo ctr -n k8s.io images ls | grep virtualcluster
+docker.io/virtualcluster/manager-amd64:latest                                                                    application/vnd.oci.image.index.v1+json                   sha256:2e8dc650dc067fcc7f2d6444511b4473c58357d1f4e6c57630839a89274b0d51 37.1 MiB  linux/amd64                                                                  io.cri-containerd.image=managed
+docker.io/virtualcluster/manager-amd64@sha256:3dd6190a87b41592d897862f47b3c0318c338e15978f25bd4f2af065334a9168   application/vnd.docker.distribution.manifest.v2+json      sha256:3dd6190a87b41592d897862f47b3c0318c338e15978f25bd4f2af065334a9168 26.3 MiB  linux/amd64                                                                  io.cri-containerd.image=managed
+docker.io/virtualcluster/syncer-amd64:latest                                                                     application/vnd.oci.image.index.v1+json                   sha256:79ffe0c8a1adce6abcff9f44eea474b2a28bc14d477ee835f46ab831ae87e840 39.4 MiB  linux/amd64                                                                  io.cri-containerd.image=managed
+docker.io/virtualcluster/vn-agent-amd64:latest                                                                   application/vnd.oci.image.index.v1+json                   sha256:dd6af8306a682f2052cbea4403290c79614b7f45b00eed2bdc0ec0edc9e8b75c 37.3 MiB  linux/amd64                                                                  io.cri-containerd.image=managed
+docker.io/virtualcluster/vn-agent-amd64@sha256:6e0415c7690e034a1cd9a45243508ff180fa3053364442579e166708cf641511  application/vnd.docker.distribution.manifest.v2+json      sha256:6e0415c7690e034a1cd9a45243508ff180fa3053364442579e166708cf641511 27.0 MiB  linux/amd64                                                                  io.cri-containerd.image=managed
+$
+```
+
+#### 配布スクリプトのログ確認
+
+本ロールでは, virtual clusterを構成するために必要なコンテナイメージをワーカーノード上に配布する処理を本ロールで作成されるコンテナイメージ配布スクリプトによって実施します。
+
+`roles/k8s-virtual-cluster/tasks/distribute-to-workers.yml`の動作状況を, ansibleの実行ログから確認し, 適切にコンテナイメージの配布が行えていることを確認してください。
+
+正常に成功した場合のログの例を以下に示します:
+
+```plaintext
+ok: [k8sctrlplane01.local] => {
+    "changed": false,
+    "cmd": [
+        "/tmp/vc-images/distribute-images.sh"
+    ],
+    "delta": "0:00:11.490155",
+    "end": "2026-02-24 01:23:22.475830",
+    "invocation": {
+        "module_args": {
+            "_raw_params": "/tmp/vc-images/distribute-images.sh",
+            "_uses_shell": false,
+            "argv": null,
+            "chdir": null,
+            "creates": null,
+            "executable": null,
+            "expand_argument_vars": true,
+            "removes": null,
+            "stdin": null,
+            "stdin_add_newline": true,
+            "strip_empty_ends": true
+        }
+    },
+    "msg": "",
+    "rc": 0,
+    "start": "2026-02-24 01:23:10.985675",
+    "stderr": "",
+    "stderr_lines": [],
+    "stdout": "=== Virtual Cluster Image Distribution Script ===\nStarted at: 2026年  2月 24日 火曜日 01:23:10 JST\nUser: ansible\nImage directory: /tmp/vc-images\nComponents: manager syncer vn-agent\n=== Fetching worker node list from Kubernetes cluster ===\nWorker nodes found: k8sworker0101 k8sworker0102\n=== Registering SSH host keys ===\nRegistering k8sworker0101...\nRegistering k8sworker0102...\n=== Distributing images to worker nodes ===\n--- Processing worker: k8sworker0101 ---\n  Transferring manager-amd64.tar to k8sworker0101...\n  Importing manager-amd64.tar on k8sworker0101...\ndocker.io/virtualcluster/manager-amd64:latest\nunpacking docker.io/virtualcluster/manager-amd64:latest (sha256:2e8dc650dc067fcc7f2d6444511b4473c58357d1f4e6c57630839a89274b0d51)...done\n  Completed: manager on k8sworker0101\n  Transferring syncer-amd64.tar to k8sworker0101...\n  Importing syncer-amd64.tar on k8sworker0101...\ndocker.io/virtualcluster/syncer-amd64:latest\nunpacking docker.io/virtualcluster/syncer-amd64:latest (sha256:79ffe0c8a1adce6abcff9f44eea474b2a28bc14d477ee835f46ab831ae87e840)...done\n  Completed: syncer on k8sworker0101\n  Transferring vn-agent-amd64.tar to k8sworker0101...\n  Importing vn-agent-amd64.tar on k8sworker0101...\ndocker.io/virtualcluster/vn-agent-amd64:latest\nunpacking docker.io/virtualcluster/vn-agent-amd64:latest (sha256:dd6af8306a682f2052cbea4403290c79614b7f45b00eed2bdc0ec0edc9e8b75c)...done\n  Completed: vn-agent on k8sworker0101\n--- Worker k8sworker0101 completed ---\n--- Processing worker: k8sworker0102 ---\n  Transferring manager-amd64.tar to k8sworker0102...\n  Importing manager-amd64.tar on k8sworker0102...\ndocker.io/virtualcluster/manager-amd64:latest\nunpacking docker.io/virtualcluster/manager-amd64:latest (sha256:2e8dc650dc067fcc7f2d6444511b4473c58357d1f4e6c57630839a89274b0d51)...done\n  Completed: manager on k8sworker0102\n  Transferring syncer-amd64.tar to k8sworker0102...\n  Importing syncer-amd64.tar on k8sworker0102...\ndocker.io/virtualcluster/syncer-amd64:latest\nunpacking docker.io/virtualcluster/syncer-amd64:latest (sha256:79ffe0c8a1adce6abcff9f44eea474b2a28bc14d477ee835f46ab831ae87e840)...done\n  Completed: syncer on k8sworker0102\n  Transferring vn-agent-amd64.tar to k8sworker0102...\n  Importing vn-agent-amd64.tar on k8sworker0102...\ndocker.io/virtualcluster/vn-agent-amd64:latest\nunpacking docker.io/virtualcluster/vn-agent-amd64:latest (sha256:dd6af8306a682f2052cbea4403290c79614b7f45b00eed2bdc0ec0edc9e8b75c)...done\n  Completed: vn-agent on k8sworker0102\n--- Worker k8sworker0102 completed ---\n=== All images distributed successfully ===\nCompleted at: 2026年  2月 24日 火曜日 01:23:22 JST",
+    "stdout_lines": [
+        "=== Virtual Cluster Image Distribution Script ===",
+        "Started at: 2026年  2月 24日 火曜日 01:23:10 JST",
+        "User: ansible",
+        "Image directory: /tmp/vc-images",
+        "Components: manager syncer vn-agent",
+        "=== Fetching worker node list from Kubernetes cluster ===",
+        "Worker nodes found: k8sworker0101 k8sworker0102",
+        "=== Registering SSH host keys ===",
+        "Registering k8sworker0101...",
+        "Registering k8sworker0102...",
+        "=== Distributing images to worker nodes ===",
+        "--- Processing worker: k8sworker0101 ---",
+        "  Transferring manager-amd64.tar to k8sworker0101...",
+        "  Importing manager-amd64.tar on k8sworker0101...",
+        "docker.io/virtualcluster/manager-amd64:latest",
+        "unpacking docker.io/virtualcluster/manager-amd64:latest (sha256:2e8dc650dc067fcc7f2d6444511b4473c58357d1f4e6c57630839a89274b0d51)...done",
+        "  Completed: manager on k8sworker0101",
+        "  Transferring syncer-amd64.tar to k8sworker0101...",
+        "  Importing syncer-amd64.tar on k8sworker0101...",
+        "docker.io/virtualcluster/syncer-amd64:latest",
+        "unpacking docker.io/virtualcluster/syncer-amd64:latest (sha256:79ffe0c8a1adce6abcff9f44eea474b2a28bc14d477ee835f46ab831ae87e840)...done",
+        "  Completed: syncer on k8sworker0101",
+        "  Transferring vn-agent-amd64.tar to k8sworker0101...",
+        "  Importing vn-agent-amd64.tar on k8sworker0101...",
+        "docker.io/virtualcluster/vn-agent-amd64:latest",
+        "unpacking docker.io/virtualcluster/vn-agent-amd64:latest (sha256:dd6af8306a682f2052cbea4403290c79614b7f45b00eed2bdc0ec0edc9e8b75c)...done",
+        "  Completed: vn-agent on k8sworker0101",
+        "--- Worker k8sworker0101 completed ---",
+        "--- Processing worker: k8sworker0102 ---",
+        "  Transferring manager-amd64.tar to k8sworker0102...",
+        "  Importing manager-amd64.tar on k8sworker0102...",
+        "docker.io/virtualcluster/manager-amd64:latest",
+        "unpacking docker.io/virtualcluster/manager-amd64:latest (sha256:2e8dc650dc067fcc7f2d6444511b4473c58357d1f4e6c57630839a89274b0d51)...done",
+        "  Completed: manager on k8sworker0102",
+        "  Transferring syncer-amd64.tar to k8sworker0102...",
+        "  Importing syncer-amd64.tar on k8sworker0102...",
+        "docker.io/virtualcluster/syncer-amd64:latest",
+        "unpacking docker.io/virtualcluster/syncer-amd64:latest (sha256:79ffe0c8a1adce6abcff9f44eea474b2a28bc14d477ee835f46ab831ae87e840)...done",
+        "  Completed: syncer on k8sworker0102",
+        "  Transferring vn-agent-amd64.tar to k8sworker0102...",
+        "  Importing vn-agent-amd64.tar on k8sworker0102...",
+        "docker.io/virtualcluster/vn-agent-amd64:latest",
+        "unpacking docker.io/virtualcluster/vn-agent-amd64:latest (sha256:dd6af8306a682f2052cbea4403290c79614b7f45b00eed2bdc0ec0edc9e8b75c)...done",
+        "  Completed: vn-agent on k8sworker0102",
+        "--- Worker k8sworker0102 completed ---",
+        "=== All images distributed successfully ===",
+        "Completed at: 2026年  2月 24日 火曜日 01:23:22 JST"
+    ]
+}
 ```
 
 ## 留意事項
@@ -265,4 +376,4 @@ sudo ctr -n k8s.io images ls | grep virtualcluster
 - `virtualcluster_build_from_source: false` を設定すると, ビルド処理をスキップして既存のイメージからの配布のみを実行できます。
 - ワーカーノードリストは `kubectl get nodes` から動的に取得されるため, inventory/hosts の設定は不要です。
 - ビルドノードとしてリモートサーバーを指定する場合, `virtualcluster_build_host` を適切に設定してください。
-- 本ロールは実験環境向けの設計です。
+- 本ロールは実験環境向けに作成されており, 実運用環境での設計の妥当性については考慮していません。

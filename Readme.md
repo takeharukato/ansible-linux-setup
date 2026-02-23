@@ -50,6 +50,7 @@
     - [Netgauge](#netgauge)
     - [host\_vars/ ディレクトリ配下のホスト設定ファイル](#host_vars-ディレクトリ配下のホスト設定ファイル)
       - [ホスト設定ファイル中でのネットワークインターフェース設定](#ホスト設定ファイル中でのネットワークインターフェース設定)
+  - [ansible-lint設定ファイル (ansible-lint.yml)の使用法](#ansible-lint設定ファイル-ansible-lintymlの使用法)
   - [用語](#用語)
   - [参考サイト](#参考サイト)
 
@@ -625,7 +626,7 @@ Kubernetes (以下K8sと記す)関連の設定を以下に記載する。
 |k8s_worker_enable_nodeport|NodePortによるサービスネットワーク公開を行う場合は, trueに設定(将来対応)|false|
 |k8s_worker_nodeport_range|NodePortの範囲|"30000-32767"|
 |k8s_api_wait_host|Kubernetes APIサーバの待ち合わせ先(接続先)ホスト名/IPアドレス|"{{ k8s_ctrlplane_endpoint }}"|
-|k8s_api_wait_port|Kubernetes APIサーバの待ち合わせ先ポート番号|"{{ k8s_ctrlplane_port }}"|
+|k8s_api_wait_port|Kubernetes APIサーバの待ち合わせ先ポート番号|"{{ k8s_ctrlplane_port }}"  (規定: 6443)|
 |k8s_api_wait_timeout|Kubernetes APIサーバ待ち合わせ時間(単位: 秒)|600|
 |k8s_api_wait_delay|Kubernetes APIサーバ待ち合わせる際の開始遅延時間(単位: 秒)|2|
 |k8s_api_wait_sleep|Kubernetes APIサーバ待ち合わせる際の待機間隔(単位: 秒)|1|
@@ -1120,6 +1121,20 @@ netif_list変数は, 以下の要素からなる辞書のリストである。
 
 ルートメトリックについては, ネットワークの設計方針に応じて適切に設定する。
 例えば, 運用系ネットワークを通して外部ネットワークにつなぐ場合は, 運用系NIC以外のNICのメトリックを高めに設定する。
+
+## ansible-lint設定ファイル (ansible-lint.yml)の使用法
+
+playbookの保守のため, 本プロジェクトでのansible playbook記述方針に合わせて, ansible-lintの設定を行うためのファイルを`ansible-lint.yml`という名前で作成している。
+
+本ファイルを用いて, ansible-lintを実行するためには, 以下のコマンドを実行する:
+
+```bash
+ansible-lint -c ansible-lint.yml
+```
+
+ansible-lintコマンドを, `-c`オプションを指定せずに実行した場合は, デフォルトの設定でplaybookの検証が行われる。
+
+原則としては, デフォルトの設定でansible-lintの警告, エラーが出ないことが望ましいが, タスク名の命名規則や行の長さに関する警告など, 警告, エラーを解消することで, 可読性と保守性が損なわれる場合は, 当該の警告, エラーを無視することも許容する方針で本playbookは作成されている。
 
 ## 用語
 
