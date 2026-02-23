@@ -1,0 +1,175 @@
+# -*- mode: yaml; coding: utf-8; line-endings: unix -*-
+#
+# ClusterVersion CRD from kubernetes-retired/cluster-api-provider-nested
+# Implemented in K8s v1.31 compatible format
+---
+# CRDのAPIバージョン。
+apiVersion: {{ virtualcluster_crd_apiversion }}
+# CRDリソース種別。
+kind: CustomResourceDefinition
+# メタデータ定義。
+metadata:
+  # CRD名。
+  name: clusterversions.{{ virtualcluster_api_group }}
+# CRDの仕様。
+spec:
+  # APIグループ。
+  group: {{ virtualcluster_api_group }}
+  # リソーススコープ。
+  scope: Cluster
+  # リソース名定義。
+  names:
+    # リソース種別名。
+    kind: ClusterVersion
+    # 複数形。
+    plural: clusterversions
+    # 短縮名。
+    shortNames:
+      # 短縮名の値。
+      - cv
+  # バージョン定義。
+  versions:
+    # APIバージョン。
+    - name: {{ virtualcluster_api_version }}
+      # 提供対象。
+      served: true
+      # 保存対象。
+      storage: true
+      # スキーマ定義。
+      schema:
+        # OpenAPI v3スキーマ。
+        openAPIV3Schema:
+          # ルート型。
+          type: object
+          # ClusterVersionの定義。テナントのコントロールプレインのイメージ仕様を記述する。
+          description: "ClusterVersion definition. Describes tenant control-plane image specifications."
+          # 必須フィールド。
+          required:
+            # specは必須。
+            - spec
+          # プロパティ定義。
+          properties:
+            # メタデータ定義。
+            metadata:
+              # メタデータ型。
+              type: object
+            # spec定義。
+            spec:
+              # spec型。
+              type: object
+              # ClusterVersionの仕様。
+              description: "ClusterVersion specification."
+              # specプロパティ。
+              properties:
+                # etcd定義。
+                etcd:
+                  # etcd型。
+                  type: object
+                  # etcdコンポーネントの仕様。
+                  description: "etcd component specification."
+                  # etcdプロパティ。
+                  properties:
+                    # image定義。
+                    image:
+                      # image型。
+                      type: string
+                      # etcdコンテナイメージ。
+                      description: "etcd container image."
+                    # imageTag定義。
+                    imageTag:
+                      # imageTag型。
+                      type: string
+                      # etcdイメージタグ。
+                      description: "etcd image tag."
+                # apiServer定義。
+                apiServer:
+                  # apiServer型。
+                  type: object
+                  # API Serverコンポーネントの仕様。
+                  description: "API Server component specification."
+                  # apiServerプロパティ。
+                  properties:
+                    # image定義。
+                    image:
+                      # image型。
+                      type: string
+                      # API Serverコンテナイメージ。
+                      description: "API Server container image."
+                    # imageTag定義。
+                    imageTag:
+                      # imageTag型。
+                      type: string
+                      # API Serverイメージタグ。
+                      description: "API Server image tag."
+                # controllerManager定義。
+                controllerManager:
+                  # controllerManager型。
+                  type: object
+                  # Controller Managerコンポーネントの仕様。
+                  description: "Controller Manager component specification."
+                  # controllerManagerプロパティ。
+                  properties:
+                    # image定義。
+                    image:
+                      # image型。
+                      type: string
+                      # Controller Managerコンテナイメージ。
+                      description: "Controller Manager container image."
+                    # imageTag定義。
+                    imageTag:
+                      # imageTag型。
+                      type: string
+                      # Controller Managerイメージタグ。
+                      description: "Controller Manager image tag."
+            # status定義。
+            status:
+              # status型。
+              type: object
+              # ClusterVersionのステータス。
+              description: "ClusterVersion status."
+              # statusプロパティ。
+              properties:
+                # conditions定義。
+                conditions:
+                  # conditions型。
+                  type: array
+                  # 配列要素定義。
+                  items:
+                    # 要素型。
+                    type: object
+                    # 要素プロパティ。
+                    properties:
+                      # 条件種別。
+                      type:
+                        # 条件種別型。
+                        type: string
+                      # 条件状態。
+                      status:
+                        # 条件状態型。
+                        type: string
+                      # 状態遷移時刻。
+                      lastTransitionTime:
+                        # 時刻型。
+                        type: string
+                        # 時刻フォーマット。
+                        format: date-time
+                      # 理由。
+                      reason:
+                        # 理由型。
+                        type: string
+                      # メッセージ。
+                      message:
+                        # メッセージ型。
+                        type: string
+      # 追加表示列定義。
+      additionalPrinterColumns:
+        # Age列。
+        - name: Age
+          # Age列の型。
+          type: date
+          # JSONPath。
+          jsonPath: .metadata.creationTimestamp
+      # subresources定義。
+      subresources:
+        # statusサブリソース。
+        status: {}

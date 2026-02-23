@@ -14,3 +14,6 @@
     - role: k8s-hubble-ui
       tags: k8s-hubble-ui
       when: hubble_ui_enabled | default(false)
+    - role: k8s-virtual-cluster
+      tags: k8s-virtual-cluster
+      when: virtualcluster_enabled | default(false)

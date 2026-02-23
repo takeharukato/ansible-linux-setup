@@ -1,0 +1,165 @@
+#  -*- mode: yaml; coding: utf-8; line-endings: unix -*-
+#  SPDX-License-Identifier: BSD-2-Clause
+#
+#  Copyright (c) 2025 TAKEHARU KATO
+#  This file is distributed under the two-clause BSD license.
+#  For the full text of the license, see the LICENSE file in the project root directory.
+#  このファイルは2条項BSDライセンスの下で配布されています。
+#  ライセンス全文はプロジェクト直下の LICENSE を参照してください。
+
+#
+#  Deploy vc-manager, syncer, vn-agent components
+#
+---
+
+# vc-manager, syncer, vn-agent コンポーネントをデプロイするタスク
+# 1. all-in-one.yaml マニフェストをテンプレートから生成
+# 2. kubectl apply でマニフェストを適用してコンポーネントをデプロイ
+# 3. vc-manager Deployment の作成を確認
+# 4. vc-manager Deployment のロールアウトステータスを確認して, 正常に稼働していることを検証
+# 5. vn-agent DaemonSet を待ち合わせる
+# 6. デプロイメントの完了を表示
+
+# all-in-one.yaml マニフェストをテンプレートから生成
+- name: "Generate all-in-one.yaml from template"
+  ansible.builtin.template:
+    src: "all-in-one.yaml.j2"
+    dest: "{{ virtualcluster_config_dir }}/all-in-one.yaml"
+    mode: "0644"
+
+# kubectl apply でマニフェストを適用してコンポーネントをデプロイ
+- name: "Apply all-in-one.yaml manifest"
+  ansible.builtin.command:
+    cmd: "kubectl --kubeconfig {{ virtualcluster_supercluster_kubeconfig_path }} apply -f {{ virtualcluster_config_dir }}/all-in-one.yaml"
+  register: result_apply_manifest
+  become: true
+  changed_when: >-
+    'created' in result_apply_manifest.stdout
+    or 'configured' in result_apply_manifest.stdout
+
+# vc-manager Deployment の作成を確認
+- name: "Verify vc-manager Deployment was created"
+  ansible.builtin.command:
+    cmd: "kubectl --kubeconfig {{ virtualcluster_supercluster_kubeconfig_path }} get deployment vc-manager -n {{ virtualcluster_namespace }}"
+  register: result_verify_deployment
+  until: result_verify_deployment.rc == 0
+  retries: 30
+  delay: 2
+  become: true
+  changed_when: false
+
+# vc-managerが正常に稼働していることを確認
+- name: "Wait for vc-manager Deployment to be ready"
+  ansible.builtin.command:
+    cmd: >
+      kubectl --kubeconfig {{ virtualcluster_supercluster_kubeconfig_path }}
+      rollout status deployment/vc-manager -n {{ virtualcluster_namespace }}
+      --timeout=2m
+  register: result_rollout_status
+  become: true
+  failed_when: false
+  changed_when: false
+
+# vc-manager Pod のステータスを確認して, 正常に稼働していることを検証
+- name: "Get vc-manager Pod status"
+  ansible.builtin.command:
+    cmd: "kubectl --kubeconfig {{ virtualcluster_supercluster_kubeconfig_path }} get pods -n {{ virtualcluster_namespace }} -l app=vc-manager -o wide"
+  register: result_pod_status
+  become: true
+  changed_when: false
+
+# vc-manager Deployment のロールアウトステータスが正常でない場合, イベントやログを表示して診断を支援
+- name: "Display vc-manager Pod status"
+  ansible.builtin.debug:
+    var: result_pod_status.stdout_lines
+
+# vc-manager Deployment のロールアウトステータスが正常でない場合, イベントを表示して診断を支援
+- name: "Get vc-manager Pod events if not ready"
+  ansible.builtin.shell:
+    cmd: |
+      set -o pipefail
+      kubectl --kubeconfig {{ virtualcluster_supercluster_kubeconfig_path }} get events -n {{ virtualcluster_namespace }} --sort-by='.lastTimestamp' | tail -20
+    executable: /bin/bash
+  register: result_events
+  become: true
+  changed_when: false
+  failed_when: false
+
+# vc-manager Deployment のロールアウトステータスが正常でない場合, イベントを表示して診断を支援
+- name: "Display events if vc-manager is not ready"
+  ansible.builtin.debug:
+    var: result_events.stdout_lines
+  when: result_rollout_status.rc != 0
+
+# pod describe コマンドで詳細情報を取得して, 診断を支援
+- name: "Get detailed Pod describe if not ready"
+  ansible.builtin.command:
+    cmd: "kubectl --kubeconfig {{ virtualcluster_supercluster_kubeconfig_path }} describe pods -n {{ virtualcluster_namespace }} -l app=vc-manager"
+  register: result_pod_describe
+  when: result_rollout_status.rc != 0
+  changed_when: false
+  failed_when: false
+
+# pod describe の結果を表示して, 診断を支援
+- name: "Display detailed Pod information if not ready"
+  ansible.builtin.debug:
+    var: result_pod_describe.stdout_lines
+  when: result_rollout_status.rc != 0
+
+# vc-managerのPod logs コマンドでログを取得して, 診断を支援
+- name: "Get vc-manager Pod logs for diagnosis"
+  ansible.builtin.shell:
+    cmd: >
+      kubectl --kubeconfig {{ virtualcluster_supercluster_kubeconfig_path }}
+      logs -n {{ virtualcluster_namespace }} -l app=vc-manager
+      --tail=200 2>&1 || echo 'No current logs available'
+  register: result_pod_logs
+  when: result_rollout_status.rc != 0
+  changed_when: false
+  failed_when: false
+  become: true
+
+# pod logs の結果を表示して, 診断を支援
+- name: "Display vc-manager Pod logs"
+  ansible.builtin.debug:
+    msg: "{{ result_pod_logs.stdout }}"
+  when: result_rollout_status.rc != 0
+
+# vc-managerの前回のPod logs コマンドでログを取得して, 診断を支援
+- name: "Get previous vc-manager Pod logs if container crashed"
+  ansible.builtin.shell:
+    cmd: >
+      kubectl --kubeconfig {{ virtualcluster_supercluster_kubeconfig_path }}
+      logs -n {{ virtualcluster_namespace }} -l app=vc-manager
+      --previous --tail=200 2>&1 || echo 'No previous logs available'
+  register: result_pod_logs_prev
+  when: result_rollout_status.rc != 0
+  changed_when: false
+  failed_when: false
+  become: true
+
+# vc-managerの前回のPod logs コマンドでログを表示して, 診断を支援
+- name: "Display previous vc-manager Pod logs"
+  ansible.builtin.debug:
+    msg: "{{ result_pod_logs_prev.stdout }}"
+  when: result_rollout_status.rc != 0
+
+# vc-manager Deployment のロールアウトステータスが正常でない場合, タスクを失敗させて, 診断を促す
+- name: "Fail if vc-manager Deployment is not ready"
+  ansible.builtin.fail:
+    msg: "vc-manager Deployment rollout failed. Check Pod and event details above for diagnosis."
+  when: result_rollout_status.rc != 0
+
+# vn-agent DaemonSet を待ち合わせる
+- name: "Wait for vn-agent DaemonSet to be ready"
+  ansible.builtin.command:
+    cmd: >
+      kubectl --kubeconfig {{ virtualcluster_supercluster_kubeconfig_path }}
+      rollout status daemonset/vn-agent -n {{ virtualcluster_namespace }}
+      --timeout=5m
+  changed_when: false
+
+# デプロイメントの完了を表示
+- name: "Virtual Cluster components deployment completed"
+  ansible.builtin.debug:
+    msg: "vc-manager, syncer, vn-agent have been successfully deployed"

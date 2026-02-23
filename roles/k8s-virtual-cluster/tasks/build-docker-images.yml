@@ -1,0 +1,79 @@
+#  -*- mode: yaml; coding: utf-8; line-endings: unix -*-
+#  SPDX-License-Identifier: BSD-2-Clause
+#
+#  Copyright (c) 2025 TAKEHARU KATO
+#  This file is distributed under the two-clause BSD license.
+#  For the full text of the license, see the LICENSE file in the project root directory.
+#  このファイルは2条項BSDライセンスの下で配布されています。
+#  ライセンス全文はプロジェクト直下の LICENSE を参照してください。
+
+#
+#  Docker イメージのビルドとtarファイル生成
+#
+---
+
+# Dockerイメージをビルド
+- name: "Build Docker images from binaries"
+  ansible.builtin.shell:
+    cmd: |
+      set -e
+      BINARY_DIR="{{ virtualcluster_source_dir }}/virtualcluster/_output/release"
+      BUILD_DIR="/tmp/vc_docker_build"
+
+      mkdir -p "${BUILD_DIR}"
+
+      for component in {{ virtualcluster_build_components | join(' ') }}; do
+        echo "Building Docker image for ${component}..."
+        docker rmi -f "virtualcluster/${component}-amd64:latest" >/dev/null 2>&1 || true
+        COMP_DIR="${BUILD_DIR}/${component}"
+        mkdir -p "${COMP_DIR}"
+
+        cp "${BINARY_DIR}/${component}" "${COMP_DIR}/app"
+
+        cat > "${COMP_DIR}/Dockerfile" << 'DOCKERFILE_END'
+      FROM debian:bookworm-slim
+      COPY app /app
+      ENTRYPOINT ["/app"]
+      DOCKERFILE_END
+
+        docker build --no-cache -t "virtualcluster/${component}-amd64:latest" "${COMP_DIR}"
+      done
+
+      rm -rf "${BUILD_DIR}"
+      echo "Docker images built successfully"
+  delegate_to: "{{ virtualcluster_build_host }}"
+  become: false
+  register: result_docker_build
+  changed_when: true
+  timeout: "{{ virtualcluster_build_timeout }}"
+  run_once: true
+
+# ビルドされたイメージを確認
+- name: "Verify Docker images created"
+  ansible.builtin.shell:
+    cmd: |
+      set -o pipefail
+      docker images | grep virtualcluster
+    executable: /bin/bash
+  delegate_to: "{{ virtualcluster_build_host }}"
+  become: false
+  register: result_images
+  changed_when: false
+  failed_when: result_images.rc != 0
+  run_once: true
+
+# イメージをtarファイルに保存
+- name: "Save Docker images to tar files"
+  ansible.builtin.command:
+    cmd: "docker save -o /tmp/vc_{{ item }}-amd64.tar virtualcluster/{{ item }}-amd64:latest"
+  loop: "{{ virtualcluster_build_components }}"
+  delegate_to: "{{ virtualcluster_build_host }}"
+  become: false
+  changed_when: true
+  run_once: true
+
+# 結果を表示
+- name: "Display Docker build result"
+  ansible.builtin.debug:
+    msg: "Docker images built and saved: {{ result_images.stdout_lines | default(['None']) }}"
+  run_once: true

@@ -1,0 +1,45 @@
+#  -*- mode: yaml; coding: utf-8; line-endings: unix -*-
+#  SPDX-License-Identifier: BSD-2-Clause
+#
+#  Copyright (c) 2025 TAKEHARU KATO
+#  This file is distributed under the two-clause BSD license.
+#  For the full text of the license, see the LICENSE file in the project root directory.
+#  このファイルは2条項BSDライセンスの下で配布されています。
+#  ライセンス全文はプロジェクト直下の LICENSE を参照してください。
+
+#
+#  Create vc-manager namespace
+#
+---
+
+#  vc-manager namespace を作成するタスク
+# 1. namespace manifest をテンプレートから生成
+# 2. kubectl apply で namespace を作成
+
+# 1. namespace manifest をテンプレートから生成
+- name: "Generate namespace manifest"
+  ansible.builtin.template:
+    src: "namespace.yaml.j2"
+    dest: "{{ virtualcluster_config_dir }}/namespace.yaml"
+    mode: "0644"
+
+# 2. kubectl apply で namespace を作成
+- name: "Create vc-manager namespace"
+  ansible.builtin.command:
+    cmd: "kubectl --kubeconfig {{ virtualcluster_supercluster_kubeconfig_path }} apply -f {{ virtualcluster_config_dir }}/namespace.yaml"
+  register: result_apply_namespace
+  become: true
+  changed_when: >-
+    'created' in result_apply_namespace.stdout
+    or 'configured' in result_apply_namespace.stdout
+
+# 3. 名前空間が作成されるまで待機
+- name: "Wait for vc-manager namespace to be created"
+  ansible.builtin.command:
+    cmd: "kubectl --kubeconfig {{ virtualcluster_supercluster_kubeconfig_path }} get namespace {{ virtualcluster_namespace }}"
+  register: result_namespace
+  until: result_namespace.rc == 0
+  retries: 30
+  delay: 2
+  become: true
+  changed_when: false

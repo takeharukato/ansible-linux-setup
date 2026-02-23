@@ -1,0 +1,70 @@
+#  -*- mode: yaml; coding: utf-8; line-endings: unix -*-
+#  SPDX-License-Identifier: BSD-2-Clause
+#
+#  Copyright (c) 2025 TAKEHARU KATO
+#  This file is distributed under the two-clause BSD license.
+#  For the full text of the license, see the LICENSE file in the project root directory.
+#  このファイルは2条項BSDライセンスの下で配布されています。
+#  ライセンス全文はプロジェクト直下の LICENSE を参照してください。
+
+#
+#  Main task orchestration
+#  Includes Virtual Cluster setup tasks conditionally
+#
+---
+
+- name: "Load Params"
+  ansible.builtin.include_tasks: load-params.yml
+  when: virtualcluster_enabled | bool
+
+- name: "Validate"
+  ansible.builtin.include_tasks: validate.yml
+  when: virtualcluster_enabled | bool
+
+- name: "Namespace"
+  ansible.builtin.include_tasks: namespace.yml
+  when: virtualcluster_enabled | bool
+
+- name: "CRD"
+  ansible.builtin.include_tasks: crd.yml
+  when: virtualcluster_enabled | bool
+
+- name: "Download Source"
+  ansible.builtin.include_tasks: download-source.yml
+  when:
+    - virtualcluster_enabled | bool
+    - virtualcluster_build_from_source | bool
+
+- name: "Build Binaries"
+  ansible.builtin.include_tasks: build-binaries.yml
+  when:
+    - virtualcluster_enabled | bool
+    - virtualcluster_build_from_source | bool
+
+- name: "Build Docker Images"
+  ansible.builtin.include_tasks: build-docker-images.yml
+  when:
+    - virtualcluster_enabled | bool
+    - virtualcluster_build_from_source | bool
+
+- name: "Fetch Images"
+  ansible.builtin.include_tasks: fetch-images.yml
+  when:
+    - virtualcluster_enabled | bool
+    - virtualcluster_build_from_source | bool
+
+- name: "Upload to Control Plane"
+  ansible.builtin.include_tasks: upload-to-ctrlplane.yml
+  when: virtualcluster_enabled | bool
+
+- name: "Distribute to Workers"
+  ansible.builtin.include_tasks: distribute-to-workers.yml
+  when: virtualcluster_enabled | bool
+
+- name: "Deploy Manager"
+  ansible.builtin.include_tasks: deploy-manager.yml
+  when: virtualcluster_enabled | bool
+
+- name: "Verify"
+  ansible.builtin.include_tasks: verify.yml
+  when: virtualcluster_enabled | bool

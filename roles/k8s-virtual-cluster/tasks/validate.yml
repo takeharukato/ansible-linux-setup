@@ -1,0 +1,49 @@
+#  -*- mode: yaml; coding: utf-8; line-endings: unix -*-
+#  SPDX-License-Identifier: BSD-2-Clause
+#
+#  Copyright (c) 2025 TAKEHARU KATO
+#  This file is distributed under the two-clause BSD license.
+#  For the full text of the license, see the LICENSE file in the project root directory.
+#  このファイルは2条項BSDライセンスの下で配布されています。
+#  ライセンス全文はプロジェクト直下の LICENSE を参照してください。
+
+#
+#  Virtual Cluster role-specific prerequisite validation
+#
+---
+
+# Virtual Cluster を有効にするための前提条件を検証
+# 1. virtualcluster_enabled が boolean であることを確認
+# 2. Kubernetes API サーバーが利用可能であることを確認
+
+# 1. virtualcluster_enabled が boolean であることを確認
+- name: "Assert virtualcluster_enabled is boolean"
+  ansible.builtin.assert:
+    that:
+      - virtualcluster_enabled is boolean
+    fail_msg: 'virtualcluster_enabled must be a boolean value (true or false).'
+  tags: always
+
+# 2. Kubernetes API サーバーが利用可能であることを確認
+- name: "Wait for Kubernetes API server"
+  ansible.builtin.wait_for:
+    host: "{{ k8s_api_wait_host }}"
+    port: "{{ k8s_api_wait_port }}"
+    timeout: "{{ k8s_api_wait_timeout }}"
+    delay: "{{ k8s_api_wait_delay }}"
+    sleep: "{{ k8s_api_wait_sleep }}"
+  delegate_to: "{{ k8s_api_wait_delegate_to }}"
+
+# Virtual Cluster の設定ディレクトリを作成
+- name: "Create Virtual Cluster config directory"
+  ansible.builtin.file:
+    path: "{{ virtualcluster_config_dir }}"
+    state: directory
+    mode: "0755"
+
+# kubectl コマンドが利用可能であることを確認
+- name: "Verify kubectl command is available"
+  ansible.builtin.command:
+    cmd: "kubectl --kubeconfig {{ virtualcluster_supercluster_kubeconfig_path }} cluster-info"
+  become: true
+  changed_when: false

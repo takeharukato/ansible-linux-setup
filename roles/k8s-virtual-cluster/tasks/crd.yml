@@ -1,0 +1,75 @@
+#  -*- mode: yaml; coding: utf-8; line-endings: unix -*-
+#  SPDX-License-Identifier: BSD-2-Clause
+#
+#  Copyright (c) 2025 TAKEHARU KATO
+#  This file is distributed under the two-clause BSD license.
+#  For the full text of the license, see the LICENSE file in the project root directory.
+#  このファイルは2条項BSDライセンスの下で配布されています。
+#  ライセンス全文はプロジェクト直下の LICENSE を参照してください。
+
+#
+#  Register Virtual Cluster CRDs (Custom Resource Definitions)
+#
+---
+
+#
+# Virtual Cluster の CRD を Kubernetes クラスターに登録するタスク
+#
+
+# 1. ClusterVersion CRD と VirtualCluster CRD のマニフェストをテンプレートから生成
+# 2. kubectl apply で CRD マニフェストを適用して CRD を登録
+# 3. CRD が Kubernetes クラスターに登録されるまで待機
+
+# ClusterVersion CRD のマニフェストをテンプレートから生成
+- name: "Generate ClusterVersion CRD manifest"
+  ansible.builtin.template:
+    src: "clusterversion-crd.yaml.j2"
+    dest: "{{ virtualcluster_config_dir }}/clusterversion-crd.yaml"
+    mode: "0644"
+
+# VirtualCluster CRD のマニフェストをテンプレートから生成
+- name: "Generate VirtualCluster CRD manifest"
+  ansible.builtin.template:
+    src: "virtualcluster-crd.yaml.j2"
+    dest: "{{ virtualcluster_config_dir }}/virtualcluster-crd.yaml"
+    mode: "0644"
+
+# ClusterVersion CRD を kubectl apply で適用して登録
+- name: "Apply ClusterVersion CRD"
+  ansible.builtin.command:
+    cmd: "kubectl --kubeconfig {{ virtualcluster_supercluster_kubeconfig_path }} apply -f {{ virtualcluster_config_dir }}/clusterversion-crd.yaml"
+  register: result_apply_clusterversion_crd
+  changed_when: >-
+    'created' in result_apply_clusterversion_crd.stdout
+    or 'configured' in result_apply_clusterversion_crd.stdout
+
+# VirtualCluster CRD を kubectl apply で適用して登録
+- name: "Apply VirtualCluster CRD"
+  ansible.builtin.command:
+    cmd: "kubectl --kubeconfig {{ virtualcluster_supercluster_kubeconfig_path }} apply -f {{ virtualcluster_config_dir }}/virtualcluster-crd.yaml"
+  register: result_apply_virtualcluster_crd
+  changed_when: >-
+    'created' in result_apply_virtualcluster_crd.stdout
+    or 'configured' in result_apply_virtualcluster_crd.stdout
+
+# ClusterVersion CRD が Kubernetes クラスターに登録されるまで待機
+- name: "Wait for ClusterVersion CRD to be registered"
+  ansible.builtin.command:
+    cmd: "kubectl --kubeconfig {{ virtualcluster_supercluster_kubeconfig_path }} get crd clusterversions.{{ virtualcluster_api_group }}"
+  register: result_clusterversion_crd
+  until: result_clusterversion_crd.rc == 0
+  retries: 30
+  delay: 2
+  become: true
+  changed_when: false
+
+# VirtualCluster CRD が Kubernetes クラスターに登録されるまで待機
+- name: "Wait for VirtualCluster CRD to be registered"
+  ansible.builtin.command:
+    cmd: "kubectl --kubeconfig {{ virtualcluster_supercluster_kubeconfig_path }} get crd virtualclusters.{{ virtualcluster_api_group }}"
+  register: result_virtualcluster_crd
+  until: result_virtualcluster_crd.rc == 0
+  retries: 30
+  delay: 2
+  become: true
+  changed_when: false

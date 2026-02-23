@@ -1,0 +1,68 @@
+#  -*- mode: yaml; coding: utf-8; line-endings: unix -*-
+#  SPDX-License-Identifier: BSD-2-Clause
+#
+#  Copyright (c) 2025 TAKEHARU KATO
+#  This file is distributed under the two-clause BSD license.
+#  For the full text of the license, see the LICENSE file in the project root directory.
+#  このファイルは2条項BSDライセンスの下で配布されています。
+#  ライセンス全文はプロジェクト直下の LICENSE を参照してください。
+
+#
+#  コントロールプレーンからワーカーノードへイメージを配布
+#
+---
+
+# 配布スクリプトを生成
+- name: "Generate image distribution script"
+  ansible.builtin.template:
+    src: "distribute-images.sh.j2"
+    dest: "{{ virtualcluster_ctrlplane_cache_dir }}/distribute-images.sh"
+    mode: "0755"
+  become: true
+  run_once: true
+
+# 配布スクリプトを実行
+- name: "Execute image distribution script"
+  ansible.builtin.command:
+    cmd: "{{ virtualcluster_ctrlplane_cache_dir }}/distribute-images.sh"
+  register: result_distribute
+  changed_when: false
+  become: false
+  run_once: true
+
+# 配布結果を表示
+- name: "Display distribution result"
+  ansible.builtin.debug:
+    var: result_distribute.stdout_lines
+  run_once: true
+
+# 配布スクリプトを削除
+- name: "Cleanup distribution script"
+  ansible.builtin.file:
+    path: "{{ virtualcluster_ctrlplane_cache_dir }}/distribute-images.sh"
+    state: absent
+  become: true
+  run_once: true
+
+# コントロールプレーン上のイメージキャッシュを削除
+- name: "Cleanup image cache on control plane"
+  ansible.builtin.file:
+    path: "{{ virtualcluster_ctrlplane_cache_dir }}"
+    state: absent
+  become: true
+  run_once: true
+
+# localhost上のイメージキャッシュを削除
+- name: "Cleanup image cache on localhost"
+  ansible.builtin.file:
+    path: "{{ virtualcluster_local_cache_dir }}"
+    state: absent
+  delegate_to: localhost
+  become: false
+  run_once: true
+
+# 配布完了メッセージ
+- name: "Image distribution completed"
+  ansible.builtin.debug:
+    msg: "Virtual Cluster images have been successfully distributed to all worker nodes"
+  run_once: true

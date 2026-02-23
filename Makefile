@@ -9,7 +9,7 @@ top=.
 	run_ldap_server run_redmine_server \
 	run_k8s_common run_k8s_ctrl_plane run_k8s_multus run_k8s_whereabouts \
 	run_k8s_worker run_netgauge \
-	run_k8s_worker_frr run_k8s_hubble_ui \
+	run_k8s_worker_frr run_k8s_hubble_ui run_k8s_virtual_cluster \
 	run_dns_server run_selinux update-ctrlplane-kubeconfig update-worker-kubeconfig \
 	run_terraform run_kea_dhcp run_radvd run_router_config run_router_clear_rules \
 	run_aide run_frr_basic run_gitlab_server \
@@ -194,6 +194,9 @@ run_k8s_worker_frr:
 
 run_k8s_hubble_ui:
 	ansible-playbook --tags "k8s-hubble-ui" ${OPT_COMMON} 2>&1 |tee build-k8s-hubble-ui.log
+
+run_k8s_virtual_cluster:
+	ansible-playbook --tags "k8s-virtual-cluster" ${OPT_COMMON} 2>&1 |tee build-k8s-virtual-cluster.log
 
 run_netgauge:
 	ansible-playbook --tags "netgauge" ${OPT_COMMON} 2>&1 |tee build-netgauge.log

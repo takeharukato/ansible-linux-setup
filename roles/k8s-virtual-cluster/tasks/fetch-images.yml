@@ -1,0 +1,49 @@
+#  -*- mode: yaml; coding: utf-8; line-endings: unix -*-
+#  SPDX-License-Identifier: BSD-2-Clause
+#
+#  Copyright (c) 2025 TAKEHARU KATO
+#  This file is distributed under the two-clause BSD license.
+#  For the full text of the license, see the LICENSE file in the project root directory.
+#  このファイルは2条項BSDライセンスの下で配布されています。
+#  ライセンス全文はプロジェクト直下の LICENSE を参照してください。
+
+#
+#  ビルドノードからlocalhostへイメージをfetch
+#
+---
+
+# localhostキャッシュディレクトリを作成
+- name: "Create localhost cache directory"
+  ansible.builtin.file:
+    path: "{{ virtualcluster_local_cache_dir }}"
+    state: directory
+    mode: "0755"
+  delegate_to: localhost
+  become: false
+  run_once: true
+
+# ビルドノードからlocalhostへtarファイルを取得
+- name: "Fetch image tar files from build host to ansible control node (localhost)"
+  ansible.builtin.fetch:
+    src: "/tmp/vc_{{ item }}-amd64.tar"
+    dest: "{{ virtualcluster_local_cache_dir }}/{{ item }}-amd64.tar"
+    flat: true
+  loop: "{{ virtualcluster_build_components }}"
+  delegate_to: "{{ virtualcluster_build_host }}"
+  run_once: true
+
+# ビルドノード上のtarファイルを削除
+- name: "Cleanup tar files on build host"
+  ansible.builtin.file:
+    path: "/tmp/vc_{{ item }}-amd64.tar"
+    state: absent
+  loop: "{{ virtualcluster_build_components }}"
+  delegate_to: "{{ virtualcluster_build_host }}"
+  become: false
+  run_once: true
+
+# 取得結果を表示
+- name: "Display fetch result"
+  ansible.builtin.debug:
+    msg: "Image tar files fetched to {{ virtualcluster_local_cache_dir }}"
+  run_once: true
