@@ -1,0 +1,407 @@
+# -*- mode: yaml; coding: utf-8; line-endings: unix -*-
+#
+# All-in-one manifest from kubernetes-retired/cluster-api-provider-nested
+# Contains vc-manager, syncer, vn-agent component manifests
+---
+# APIバージョン。
+apiVersion: v1
+# リソース種別。
+kind: ServiceAccount
+# メタデータ定義。
+metadata:
+  # ServiceAccount名。
+  name: vc-manager
+  # Namespace名。
+  namespace: {{ virtualcluster_namespace }}
+---
+# APIバージョン。
+apiVersion: rbac.authorization.k8s.io/v1
+# リソース種別。
+kind: ClusterRole
+# メタデータ定義。
+metadata:
+  # ClusterRole名。
+  name: vc-manager
+# 権限ルール。
+rules:
+  # Core APIの権限。
+  - apiGroups: [""]
+    # 対象リソース。
+    resources: ["namespaces", "pods", "services", "configmaps", "secrets"]
+    # 許可動作。
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  # apps APIの権限。
+  - apiGroups: ["apps"]
+    # 対象リソース。
+    resources: ["deployments", "statefulsets", "daemonsets"]
+    # 許可動作。
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  # Virtual Cluster APIの権限。
+  - apiGroups: ["{{ virtualcluster_api_group }}"]
+    # 対象リソース。
+    resources: ["virtualclusters", "clusterversions"]
+    # 許可動作。
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  # Webhook APIの権限。
+  - apiGroups: ["admissionregistration.k8s.io"]
+    # 対象リソース。
+    resources: ["validatingwebhookconfigurations", "mutatingwebhookconfigurations"]
+    # 許可動作。
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  # Leader Election APIの権限。
+  - apiGroups: ["coordination.k8s.io"]
+    # 対象リソース。
+    resources: ["leases"]
+    # 許可動作。
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  # イベント記録の権限。
+  - apiGroups: [""]
+    # 対象リソース。
+    resources: ["events"]
+    # 許可動作。
+    verbs: ["create", "patch"]
+---
+# APIバージョン。
+apiVersion: rbac.authorization.k8s.io/v1
+# リソース種別。
+kind: ClusterRoleBinding
+# メタデータ定義。
+metadata:
+  # ClusterRoleBinding名。
+  name: vc-manager
+# 参照するRole。
+roleRef:
+  # APIグループ。
+  apiGroup: rbac.authorization.k8s.io
+  # 参照種別。
+  kind: ClusterRole
+  # 参照名。
+  name: vc-manager
+# 対象ServiceAccount。
+subjects:
+  # ServiceAccountの指定。
+  - kind: ServiceAccount
+    # ServiceAccount名。
+    name: vc-manager
+    # Namespace名。
+    namespace: {{ virtualcluster_namespace }}
+---
+# APIバージョン。
+apiVersion: apps/v1
+# リソース種別。
+kind: Deployment
+# メタデータ定義。
+metadata:
+  # Deployment名。
+  name: vc-manager
+  # Namespace名。
+  namespace: {{ virtualcluster_namespace }}
+  # ラベル定義。
+  labels:
+    # appラベル。
+    app: vc-manager
+# Deployment仕様。
+spec:
+  # レプリカ数。
+  replicas: 1
+  # セレクタ定義。
+  selector:
+    # マッチ条件。
+    matchLabels:
+      # appラベル。
+      app: vc-manager
+  # Podテンプレート。
+  template:
+    # メタデータ定義。
+    metadata:
+      # ラベル定義。
+      labels:
+        # appラベル。
+        app: vc-manager
+    # Pod仕様。
+    spec:
+      # ServiceAccount名。
+      serviceAccountName: vc-manager
+      # コンテナ定義。
+      containers:
+        # コンテナの指定。
+        - name: vc-manager
+          # コンテナイメージ。
+          image: {{ virtualcluster_manager_image }}
+          # 取得ポリシー。
+          imagePullPolicy: IfNotPresent
+          # コマンド指定。
+          command:
+            # 実行バイナリ。
+            - "/app"
+          # 引数指定。
+          args:
+            # Webhook有効化。
+            - "-enable-webhook=true"
+            # ヘルスエンドポイント。
+            - "-health-addr=:8080"
+            # メトリクスエンドポイント。
+            - "-metrics-addr=:8000"
+            # Leader Election有効化。
+            - "-leader-election=true"
+            # プロビジョナ指定。
+            - "-provisioner=native"
+          # ポート定義。
+          ports:
+            # Webhookポート。
+            - containerPort: 8443
+              # ポート名。
+              name: webhook
+            # ヘルスポート。
+            - containerPort: 8080
+              # ポート名。
+              name: health
+            # メトリクスポート。
+            - containerPort: 8000
+              # ポート名。
+              name: metrics
+          # リソース設定。
+          resources:
+            # リクエスト設定。
+            requests:
+              # CPUリクエスト。
+              cpu: {{ virtualcluster_pod_resource_requests.cpu }}
+              # メモリリクエスト。
+              memory: {{ virtualcluster_pod_resource_requests.memory }}
+            # リミット設定。
+            limits:
+              # CPUリミット。
+              cpu: {{ virtualcluster_pod_resource_limits.cpu }}
+              # メモリリミット。
+              memory: {{ virtualcluster_pod_resource_limits.memory }}
+          # ボリュームマウント。
+          volumeMounts:
+            # Webhook証明書。
+            - name: webhook-certs
+              # マウントパス。
+              mountPath: /tmp/k8s-webhook-server
+              # 読み取り専用フラグ。
+              readOnly: false
+      # ボリューム定義。
+      volumes:
+        # Webhook証明書。
+        - name: webhook-certs
+          # emptyDir指定。
+          emptyDir: {}
+---
+# APIバージョン。
+apiVersion: v1
+# リソース種別。
+kind: ServiceAccount
+# メタデータ定義。
+metadata:
+  # ServiceAccount名。
+  name: syncer
+  # Namespace名。
+  namespace: {{ virtualcluster_namespace }}
+---
+# APIバージョン。
+apiVersion: rbac.authorization.k8s.io/v1
+# リソース種別。
+kind: ClusterRole
+# メタデータ定義。
+metadata:
+  # ClusterRole名。
+  name: syncer
+# 権限ルール。
+rules:
+  # Core APIの参照権限。
+  - apiGroups: [""]
+    # 対象リソース。
+    resources: ["pods", "services", "configmaps", "secrets", "serviceaccounts"]
+    # 許可動作。
+    verbs: ["get", "list", "watch"]
+  # apps APIの参照権限。
+  - apiGroups: ["apps"]
+    # 対象リソース。
+    resources: ["deployments", "statefulsets", "daemonsets"]
+    # 許可動作。
+    verbs: ["get", "list", "watch"]
+  # Virtual Cluster APIの参照権限。
+  - apiGroups: ["{{ virtualcluster_api_group }}"]
+    # 対象リソース。
+    resources: ["virtualclusters"]
+    # 許可動作。
+    verbs: ["get", "list", "watch"]
+---
+# APIバージョン。
+apiVersion: rbac.authorization.k8s.io/v1
+# リソース種別。
+kind: ClusterRoleBinding
+# メタデータ定義。
+metadata:
+  # ClusterRoleBinding名。
+  name: syncer
+# 参照するRole。
+roleRef:
+  # APIグループ。
+  apiGroup: rbac.authorization.k8s.io
+  # 参照種別。
+  kind: ClusterRole
+  # 参照名。
+  name: syncer
+# 対象ServiceAccount。
+subjects:
+  # ServiceAccountの指定。
+  - kind: ServiceAccount
+    # ServiceAccount名。
+    name: syncer
+    # Namespace名。
+    namespace: {{ virtualcluster_namespace }}
+---
+# APIバージョン。
+apiVersion: v1
+# リソース種別。
+kind: ServiceAccount
+# メタデータ定義。
+metadata:
+  # ServiceAccount名。
+  name: vn-agent
+  # Namespace名。
+  namespace: {{ virtualcluster_namespace }}
+---
+# APIバージョン。
+apiVersion: rbac.authorization.k8s.io/v1
+# リソース種別。
+kind: ClusterRole
+# メタデータ定義。
+metadata:
+  # ClusterRole名。
+  name: vn-agent
+# 権限ルール。
+rules:
+  # Core APIの参照権限。
+  - apiGroups: [""]
+    # 対象リソース。
+    resources: ["pods", "nodes"]
+    # 許可動作。
+    verbs: ["get", "list", "watch"]
+---
+# APIバージョン。
+apiVersion: rbac.authorization.k8s.io/v1
+# リソース種別。
+kind: ClusterRoleBinding
+# メタデータ定義。
+metadata:
+  # ClusterRoleBinding名。
+  name: vn-agent
+# 参照するRole。
+roleRef:
+  # APIグループ。
+  apiGroup: rbac.authorization.k8s.io
+  # 参照種別。
+  kind: ClusterRole
+  # 参照名。
+  name: vn-agent
+# 対象ServiceAccount。
+subjects:
+  # ServiceAccountの指定。
+  - kind: ServiceAccount
+    # ServiceAccount名。
+    name: vn-agent
+    # Namespace名。
+    namespace: {{ virtualcluster_namespace }}
+---
+# APIバージョン。
+apiVersion: apps/v1
+# リソース種別。
+kind: DaemonSet
+# メタデータ定義。
+metadata:
+  # DaemonSet名。
+  name: vn-agent
+  # Namespace名。
+  namespace: {{ virtualcluster_namespace }}
+  # ラベル定義。
+  labels:
+    # appラベル。
+    app: vn-agent
+# DaemonSet仕様。
+spec:
+  # セレクタ定義。
+  selector:
+    # マッチ条件。
+    matchLabels:
+      # appラベル。
+      app: vn-agent
+  # Podテンプレート。
+  template:
+    # メタデータ定義。
+    metadata:
+      # ラベル定義。
+      labels:
+        # appラベル。
+        app: vn-agent
+    # Pod仕様。
+    spec:
+      # ServiceAccount名。
+      serviceAccountName: vn-agent
+      # ホストネットワーク使用。
+      hostNetwork: true
+      # ノードアフィニティ。
+      affinity:
+        # ノードアフィニティ設定。
+        nodeAffinity:
+          # 必須条件。
+          requiredDuringSchedulingIgnoredDuringExecution:
+            # ノードセレクタ条件。
+            nodeSelectorTerms:
+              # セレクタ式。
+              - matchExpressions:
+                  # 条件の指定。
+                  - key: node-role.kubernetes.io/control-plane
+                    # 条件演算子。
+                    operator: DoesNotExist
+      # コンテナ定義。
+      containers:
+        # コンテナの指定。
+        - name: vn-agent
+          # コンテナイメージ。
+          image: {{ virtualcluster_vn_agent_image }}
+          # 取得ポリシー。
+          imagePullPolicy: IfNotPresent
+          # セキュリティ設定。
+          securityContext:
+            # 特権モード。
+            privileged: true
+          # リソース設定。
+          resources:
+            # リクエスト設定。
+            requests:
+              # CPUリクエスト。
+              cpu: "100m"
+              # メモリリクエスト。
+              memory: "128Mi"
+            # リミット設定。
+            limits:
+              # CPUリミット。
+              cpu: "500m"
+              # メモリリミット。
+              memory: "512Mi"
+          # ボリュームマウント。
+          volumeMounts:
+            # kubelet設定。
+            - name: kubelet-config
+              # マウントパス。
+              mountPath: /etc/kubernetes
+              # 読み取り専用フラグ。
+              readOnly: true
+      # ボリューム定義。
+      volumes:
+        # kubelet設定。
+        - name: kubelet-config
+          # hostPath指定。
+          hostPath:
+            # ホスト側パス。
+            path: /etc/kubernetes
+            # パスタイプ。
+            type: Directory
+      # 許容条件。
+      tolerations:
+        # 許容設定。
+        - operator: "Exists"

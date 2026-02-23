@@ -1,0 +1,179 @@
+# -*- mode: yaml; coding: utf-8; line-endings: unix -*-
+#
+# VirtualCluster CRD from kubernetes-retired/cluster-api-provider-nested
+# Implemented in K8s v1.31 compatible format
+---
+# CRDのAPIバージョン。
+apiVersion: {{ virtualcluster_crd_apiversion }}
+# CRDリソース種別。
+kind: CustomResourceDefinition
+# メタデータ定義。
+metadata:
+  # CRD名。
+  name: virtualclusters.{{ virtualcluster_api_group }}
+# CRDの仕様。
+spec:
+  # APIグループ。
+  group: {{ virtualcluster_api_group }}
+  # リソーススコープ。
+  scope: Namespaced
+  # リソース名定義。
+  names:
+    # リソース種別名。
+    kind: VirtualCluster
+    # 複数形。
+    plural: virtualclusters
+    # 短縮名。
+    shortNames:
+      # 短縮名の値。
+      - vc
+  # バージョン定義。
+  versions:
+    # APIバージョン。
+    - name: {{ virtualcluster_api_version }}
+      # 提供対象。
+      served: true
+      # 保存対象。
+      storage: true
+      # スキーマ定義。
+      schema:
+        # OpenAPI v3スキーマ。
+        openAPIV3Schema:
+          # ルート型。
+          type: object
+          # VirtualClusterの定義。Super Cluster上でテナント用のKubernetesクラスタを起動する。
+          description: "VirtualCluster definition. Runs tenant Kubernetes clusters on the Super Cluster."
+          # 必須フィールド。
+          required:
+            # specは必須。
+            - spec
+          # プロパティ定義。
+          properties:
+            # メタデータ定義。
+            metadata:
+              # メタデータ型。
+              type: object
+            # spec定義。
+            spec:
+              # spec型。
+              type: object
+              # VirtualClusterの仕様。
+              description: "VirtualCluster specification."
+              # spec必須フィールド。
+              required:
+                # ClusterVersion名は必須。
+                - clusterVersionName
+              # specプロパティ。
+              properties:
+                # ClusterVersion名。
+                clusterVersionName:
+                  # ClusterVersion名型。
+                  type: string
+                  # 使用するClusterVersionの名前。
+                  description: "ClusterVersion name to use."
+                # DNSドメイン。
+                clusterDomain:
+                  # DNSドメイン型。
+                  type: string
+                  # テナントclusterのDNSドメイン。例: tenant-a.vc.local
+                  description: "Tenant cluster DNS domain, for example tenant-a.vc.local."
+                # kubeconfigのSecret名。
+                kubeConfigSecretName:
+                  # Secret名型。
+                  type: string
+                  # kubeconfigを保存するSecretの名前。
+                  description: "Secret name that stores kubeconfig."
+            # status定義。
+            status:
+              # status型。
+              type: object
+              # VirtualClusterのステータス。
+              description: "VirtualCluster status."
+              # statusプロパティ。
+              properties:
+                # phase定義。
+                phase:
+                  # phase型。
+                  type: string
+                  # 列挙値。
+                  enum:
+                    # 保留。
+                    - Pending
+                    # 実行中。
+                    - Running
+                    # 更新中。
+                    - Updating
+                    # 削除中。
+                    - Deleting
+                    # 失敗。
+                    - Failed
+                  # VirtualClusterの状態。
+                  description: "VirtualCluster phase."
+                # conditions定義。
+                conditions:
+                  # conditions型。
+                  type: array
+                  # 配列要素定義。
+                  items:
+                    # 要素型。
+                    type: object
+                    # 要素プロパティ。
+                    properties:
+                      # 条件種別。
+                      type:
+                        # 条件種別型。
+                        type: string
+                      # 条件状態。
+                      status:
+                        # 条件状態型。
+                        type: string
+                      # 状態遷移時刻。
+                      lastTransitionTime:
+                        # 時刻型。
+                        type: string
+                        # 時刻フォーマット。
+                        format: date-time
+                      # 理由。
+                      reason:
+                        # 理由型。
+                        type: string
+                      # メッセージ。
+                      message:
+                        # メッセージ型。
+                        type: string
+                # clusterNamespace定義。
+                clusterNamespace:
+                  # clusterNamespace型。
+                  type: string
+                  # Super Cluster内でテナントコントロールプレインが配置されるnamespace。
+                  description: "Namespace in the Super Cluster where the tenant control plane is placed."
+                # clientCrtSecret定義。
+                clientCrtSecret:
+                  # clientCrtSecret型。
+                  type: string
+                  # クライアント証明書を含むSecretの名前。
+                  description: "Secret name that contains client certificates."
+      # 追加表示列定義。
+      additionalPrinterColumns:
+        # Status列。
+        - name: Status
+          # Status列の型。
+          type: string
+          # JSONPath。
+          jsonPath: .status.phase
+        # Age列。
+        - name: Age
+          # Age列の型。
+          type: date
+          # JSONPath。
+          jsonPath: .metadata.creationTimestamp
+        # ClusterVersion列。
+        - name: ClusterVersion
+          # ClusterVersion列の型。
+          type: string
+          # JSONPath。
+          jsonPath: .spec.clusterVersionName
+      # subresources定義。
+      subresources:
+        # statusサブリソース。
+        status: {}

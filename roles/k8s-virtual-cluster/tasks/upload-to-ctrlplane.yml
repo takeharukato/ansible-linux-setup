@@ -1,0 +1,38 @@
+#  -*- mode: yaml; coding: utf-8; line-endings: unix -*-
+#  SPDX-License-Identifier: BSD-2-Clause
+#
+#  Copyright (c) 2025 TAKEHARU KATO
+#  This file is distributed under the two-clause BSD license.
+#  For the full text of the license, see the LICENSE file in the project root directory.
+#  このファイルは2条項BSDライセンスの下で配布されています。
+#  ライセンス全文はプロジェクト直下の LICENSE を参照してください。
+
+#
+#  localhostからコントロールプレーンへイメージをアップロード
+#
+---
+
+# コントロールプレーン上にキャッシュディレクトリを作成
+- name: "Create cache directory on control plane"
+  ansible.builtin.file:
+    path: "{{ virtualcluster_ctrlplane_cache_dir }}"
+    state: directory
+    mode: "0755"
+  become: true
+  run_once: true
+
+# localhostからコントロールプレーンへtarファイルをコピー
+- name: "Copy image tar files to control plane"
+  ansible.builtin.copy:
+    src: "{{ virtualcluster_local_cache_dir }}/{{ item }}-amd64.tar"
+    dest: "{{ virtualcluster_ctrlplane_cache_dir }}/{{ item }}-amd64.tar"
+    mode: "0644"
+  loop: "{{ virtualcluster_build_components }}"
+  become: true
+  run_once: true
+
+# アップロード結果を表示
+- name: "Display upload result"
+  ansible.builtin.debug:
+    msg: "Image tar files uploaded to control plane at {{ virtualcluster_ctrlplane_cache_dir }}"
+  run_once: true

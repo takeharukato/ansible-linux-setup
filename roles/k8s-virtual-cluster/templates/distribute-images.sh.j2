@@ -1,0 +1,79 @@
+#!/bin/bash
+#  -*- mode: bash; coding: utf-8; line-endings: unix -*-
+#  SPDX-License-Identifier: BSD-2-Clause
+#
+#  Copyright (c) 2025 TAKEHARU KATO
+#  This file is distributed under the two-clause BSD license.
+#  For the full text of the license, see the LICENSE file in the project root directory.
+#  このファイルは2条項BSDライセンスの下で配布されています。
+#  ライセンス全文はプロジェクト直下の LICENSE を参照してください。
+
+#
+#  Virtual Cluster イメージ配布スクリプト
+#  コントロールプレーン上で実行され, ワーカーノードへイメージを配布
+#
+
+set -e
+
+ANSIBLE_USER="{{ virtualcluster_ssh_user }}"
+IMAGE_DIR="{{ virtualcluster_ctrlplane_cache_dir }}"
+COMPONENTS="{{ virtualcluster_build_components | join(' ') }}"
+
+echo "=== Virtual Cluster Image Distribution Script ==="
+echo "Started at: $(date)"
+echo "User: ${ANSIBLE_USER}"
+echo "Image directory: ${IMAGE_DIR}"
+echo "Components: ${COMPONENTS}"
+
+# ワーカーノードリストを kubectl から取得
+echo "=== Fetching worker node list from Kubernetes cluster ==="
+WORKERS=$(sudo kubectl --kubeconfig {{ virtualcluster_supercluster_kubeconfig_path }} get nodes \
+  --selector='!node-role.kubernetes.io/control-plane' \
+  -o jsonpath='{.items[*].metadata.name}')
+
+if [ -z "${WORKERS}" ]; then
+  echo "ERROR: No worker nodes found in the cluster"
+  exit 1
+fi
+
+echo "Worker nodes found: ${WORKERS}"
+
+{% if virtualcluster_ssh_keyscan_enabled %}
+# SSH known_hosts 事前登録
+echo "=== Registering SSH host keys ==="
+for worker in ${WORKERS}; do
+  echo "Registering ${worker}..."
+  ssh-keyscan -H ${worker} >> ~/.ssh/known_hosts 2>/dev/null || true
+done
+{% endif %}
+
+# イメージ配布ループ
+echo "=== Distributing images to worker nodes ==="
+for worker in ${WORKERS}; do
+  echo "--- Processing worker: ${worker} ---"
+
+  for component in ${COMPONENTS}; do
+    IMAGE_FILE="${IMAGE_DIR}/${component}-amd64.tar"
+
+    echo "  Transferring ${component}-amd64.tar to ${worker}..."
+    scp {% if not virtualcluster_ssh_keyscan_enabled %}-o StrictHostKeyChecking=no {% endif %}\
+      ${IMAGE_FILE} \
+      ${ANSIBLE_USER}@${worker}:/tmp/${component}-amd64.tar
+
+    echo "  Importing ${component}-amd64.tar on ${worker}..."
+    ssh {% if not virtualcluster_ssh_keyscan_enabled %}-o StrictHostKeyChecking=no {% endif %}\
+      ${ANSIBLE_USER}@${worker} \
+      "sudo ctr -n k8s.io images rm docker.io/virtualcluster/${component}-amd64:latest 2>/dev/null || true; \
+       sudo ctr -n k8s.io images rm virtualcluster/${component}-amd64:latest 2>/dev/null || true; \
+       sudo ctr -n k8s.io images import /tmp/${component}-amd64.tar && \
+       rm /tmp/${component}-amd64.tar"
+
+    echo "  Completed: ${component} on ${worker}"
+  done
+
+  echo "--- Worker ${worker} completed ---"
+done
+
+echo "=== All images distributed successfully ==="
+echo "Completed at: $(date)"
+exit 0
