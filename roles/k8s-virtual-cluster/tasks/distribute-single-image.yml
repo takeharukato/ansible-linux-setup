@@ -1,0 +1,50 @@
+#  -*- mode: yaml; coding: utf-8; line-endings: unix -*-
+#  SPDX-License-Identifier: BSD-2-Clause
+#
+#  Copyright (c) 2025 TAKEHARU KATO
+#  This file is distributed under the two-clause BSD license.
+#  For the full text of the license, see the LICENSE file in the project root directory.
+#  このファイルは2条項BSDライセンスの下で配布されています。
+#  ライセンス全文はプロジェクト直下の LICENSE を参照してください。
+
+#
+#  単一イメージの配布とインポート
+#  component_name: イメージコンポーネント名 (例: manager, syncer, vn-agent)
+#  worker_node: 配布先ワーカーノード名
+#
+---
+
+# イメージファイルをlocalhost（Ansibleコントローラー）からワーカーノードへ転送
+- name: "Transfer image to worker node"
+  ansible.builtin.copy:
+    src: "/tmp/ansible-vc-images/{{ component_name }}-amd64.tar"
+    dest: "/tmp/{{ component_name }}-amd64.tar"
+    mode: "0644"
+  delegate_to: "{{ worker_node }}"
+
+# 既存イメージを削除してからインポート
+- name: "Import image on worker node"
+  ansible.builtin.shell: |
+    set -e
+    # 既存イメージを削除 (エラーは無視)
+    sudo ctr -n k8s.io images rm docker.io/virtualcluster/{{ component_name }}-amd64:latest 2>/dev/null || true
+    sudo ctr -n k8s.io images rm virtualcluster/{{ component_name }}-amd64:latest 2>/dev/null || true
+    for digest in $(sudo ctr -n k8s.io images ls -q | grep -F virtualcluster/{{ component_name }}-amd64); do
+      sudo ctr -n k8s.io images rm "$digest" 2>/dev/null || true
+    done
+    # イメージをインポート
+    sudo ctr -n k8s.io images import /tmp/{{ component_name }}-amd64.tar
+  delegate_to: "{{ worker_node }}"
+  changed_when: true
+
+# 転送後の一時ファイルを削除
+- name: "Cleanup temporary image file on worker node"
+  ansible.builtin.file:
+    path: "/tmp/{{ component_name }}-amd64.tar"
+    state: absent
+  delegate_to: "{{ worker_node }}"
+
+# 処理完了メッセージ
+- name: "Image processing completed"
+  ansible.builtin.debug:
+    msg: "  Completed: {{ component_name }} on {{ worker_node }}"

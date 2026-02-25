@@ -63,14 +63,6 @@ virtualcluster_local_cache_dir: "{{ lookup('env', 'HOME') }}/.ansible/vc-images-
 # コントロールプレーン上のイメージキャッシュディレクトリ
 virtualcluster_ctrlplane_cache_dir: "/tmp/vc-images"
 
-# SSH接続時に ssh-keyscan で known_hosts に事前登録するかどうか
-# true: ssh-keyscan 使用(推奨), false: StrictHostKeyChecking=no で回避
-virtualcluster_ssh_keyscan_enabled: true
-
-# SSH接続ユーザー
-# コントロールプレーンからワーカーノードへの接続に使用
-virtualcluster_ssh_user: "{{ ansible_user }}"
-
 # Kubeadmで生成される設定保存ディレクトリパス
 k8s_kubeadm_config_store: "{{ ansible_home_dir }}/kubeadm"
 
