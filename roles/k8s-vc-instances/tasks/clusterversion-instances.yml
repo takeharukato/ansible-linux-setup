@@ -1,0 +1,52 @@
+---
+- name: "Warn missing ClusterVersion name"
+  ansible.builtin.debug:
+    msg: "Skip ClusterVersion instance because name is missing: {{ item }}"
+  loop: "{{ vcinstances_clusterversions | default([], true) }}"
+  loop_control:
+    label: "{{ item.name | default('undefined') }}"
+  when:
+    - item.name is not defined or (item.name | string | length) == 0
+
+- name: "Generate ClusterVersion instance manifests"
+  ansible.builtin.template:
+    src: "clusterversion-instance.yaml.j2"
+    dest: "{{ vcinstances_config_dir }}/clusterversion-{{ item.name }}.yaml"
+    mode: "0644"
+  loop: "{{ vcinstances_clusterversions | default([], true) }}"
+  loop_control:
+    label: "{{ item.name }}"
+  when:
+    - item.name is defined
+    - (item.name | string | length) > 0
+
+- name: "Apply ClusterVersion instances"
+  ansible.builtin.command:
+    cmd: "kubectl --kubeconfig {{ virtualcluster_supercluster_kubeconfig_path }} apply -f {{ vcinstances_config_dir }}/clusterversion-{{ item.name }}.yaml"
+  loop: "{{ vcinstances_clusterversions | default([], true) }}"
+  loop_control:
+    label: "{{ item.name }}"
+  register: result_apply_cv
+  become: true
+  changed_when: >-
+    'created' in result_apply_cv.stdout
+    or 'configured' in result_apply_cv.stdout
+  when:
+    - item.name is defined
+    - (item.name | string | length) > 0
+
+- name: "Wait for ClusterVersion instances to be created"
+  ansible.builtin.command:
+    cmd: "kubectl --kubeconfig {{ virtualcluster_supercluster_kubeconfig_path }} get clusterversion {{ item.name }}"
+  loop: "{{ vcinstances_clusterversions | default([], true) }}"
+  loop_control:
+    label: "{{ item.name }}"
+  register: result_cv_created
+  until: result_cv_created.rc == 0
+  retries: 30
+  delay: 2
+  become: true
+  changed_when: false
+  when:
+    - item.name is defined
+    - (item.name | string | length) > 0

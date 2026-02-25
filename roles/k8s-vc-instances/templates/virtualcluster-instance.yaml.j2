@@ -1,0 +1,17 @@
+# -*- mode: yaml; coding: utf-8; line-endings: unix -*-
+#
+# VirtualCluster instance: {{ item.name }}
+---
+apiVersion: {{ virtualcluster_api_group }}/{{ virtualcluster_api_version }}
+kind: VirtualCluster
+metadata:
+  name: {{ item.name }}
+  namespace: {{ item.namespace | default(virtualcluster_namespace, true) }}
+spec:
+  clusterVersionName: {{ item.clusterVersionName }}
+{% if item.clusterDomain is defined %}
+  clusterDomain: {{ item.clusterDomain }}
+{% endif %}
+{% if item.kubeConfigSecretName is defined %}
+  kubeConfigSecretName: {{ item.kubeConfigSecretName }}
+{% endif %}

@@ -1,0 +1,74 @@
+---
+# etcd イメージ検出
+- name: "Detect etcd image from Super Cluster"
+  ansible.builtin.shell: |
+    kubectl --kubeconfig {{ virtualcluster_supercluster_kubeconfig_path }} \
+      -n kube-system get pod \
+      -l component=etcd \
+      -o jsonpath='{.items[0].spec.containers[0].image}' \
+      2>/dev/null || echo ""
+  register: detected_etcd_image_result
+  changed_when: false
+  become: true
+
+- name: "Set detected etcd image as fact (successful detection)"
+  ansible.builtin.set_fact:
+    vcinstances_detected_etcd_image: "{{ detected_etcd_image_result.stdout | trim }}"
+  when: (detected_etcd_image_result.stdout | trim) != ''
+
+- name: "Set etcd image fallback (detection failed)"
+  ansible.builtin.set_fact:
+    vcinstances_detected_etcd_image: "registry.k8s.io/etcd:{{ k8s_etcd_major_minor | default('3.5', true) }}.0"
+  when: (detected_etcd_image_result.stdout | trim) == ''
+
+# kube-apiserver イメージ検出
+- name: "Detect kube-apiserver image from Super Cluster"
+  ansible.builtin.shell: |
+    kubectl --kubeconfig {{ virtualcluster_supercluster_kubeconfig_path }} \
+      -n kube-system get pod \
+      -l component=kube-apiserver \
+      -o jsonpath='{.items[0].spec.containers[0].image}' \
+      2>/dev/null || echo ""
+  register: detected_apiserver_image_result
+  changed_when: false
+  become: true
+
+- name: "Set detected kube-apiserver image as fact (successful detection)"
+  ansible.builtin.set_fact:
+    vcinstances_detected_apiserver_image: "{{ detected_apiserver_image_result.stdout | trim }}"
+  when: (detected_apiserver_image_result.stdout | trim) != ''
+
+- name: "Set kube-apiserver image fallback (detection failed)"
+  ansible.builtin.set_fact:
+    vcinstances_detected_apiserver_image: "registry.k8s.io/kube-apiserver:v{{ k8s_major_minor | default('1.31', true) }}.0"
+  when: (detected_apiserver_image_result.stdout | trim) == ''
+
+# kube-controller-manager イメージ検出
+- name: "Detect kube-controller-manager image from Super Cluster"
+  ansible.builtin.shell: |
+    kubectl --kubeconfig {{ virtualcluster_supercluster_kubeconfig_path }} \
+      -n kube-system get pod \
+      -l component=kube-controller-manager \
+      -o jsonpath='{.items[0].spec.containers[0].image}' \
+      2>/dev/null || echo ""
+  register: detected_controller_manager_image_result
+  changed_when: false
+  become: true
+
+- name: "Set detected kube-controller-manager image as fact (successful detection)"
+  ansible.builtin.set_fact:
+    vcinstances_detected_controller_manager_image: "{{ detected_controller_manager_image_result.stdout | trim }}"
+  when: (detected_controller_manager_image_result.stdout | trim) != ''
+
+- name: "Set kube-controller-manager image fallback (detection failed)"
+  ansible.builtin.set_fact:
+    vcinstances_detected_controller_manager_image: "registry.k8s.io/kube-controller-manager:v{{ k8s_major_minor | default('1.31', true) }}.0"
+  when: (detected_controller_manager_image_result.stdout | trim) == ''
+
+- name: "Display detected images"
+  ansible.builtin.debug:
+    msg: |
+      Detected Super Cluster images:
+      - etcd: {{ vcinstances_detected_etcd_image }}
+      - kube-apiserver: {{ vcinstances_detected_apiserver_image }}
+      - kube-controller-manager: {{ vcinstances_detected_controller_manager_image }}

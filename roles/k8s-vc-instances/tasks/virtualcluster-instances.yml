@@ -1,0 +1,59 @@
+---
+- name: "Warn missing VirtualCluster required fields"
+  ansible.builtin.debug:
+    msg: "Skip VirtualCluster instance because name or clusterVersionName is missing: {{ item }}"
+  loop: "{{ vcinstances_virtualclusters | default([], true) }}"
+  loop_control:
+    label: "{{ item.name | default('undefined') }}"
+  when:
+    - item.name is not defined or (item.name | string | length) == 0
+      or item.clusterVersionName is not defined or (item.clusterVersionName | string | length) == 0
+
+- name: "Generate VirtualCluster instance manifests"
+  ansible.builtin.template:
+    src: "virtualcluster-instance.yaml.j2"
+    dest: "{{ vcinstances_config_dir }}/virtualcluster-{{ item.name }}.yaml"
+    mode: "0644"
+  loop: "{{ vcinstances_virtualclusters | default([], true) }}"
+  loop_control:
+    label: "{{ item.name }}"
+  when:
+    - item.name is defined
+    - (item.name | string | length) > 0
+    - item.clusterVersionName is defined
+    - (item.clusterVersionName | string | length) > 0
+
+- name: "Apply VirtualCluster instances"
+  ansible.builtin.command:
+    cmd: "kubectl --kubeconfig {{ virtualcluster_supercluster_kubeconfig_path }} apply -f {{ vcinstances_config_dir }}/virtualcluster-{{ item.name }}.yaml"
+  loop: "{{ vcinstances_virtualclusters | default([], true) }}"
+  loop_control:
+    label: "{{ item.name }}"
+  register: result_apply_vc
+  become: true
+  changed_when: >-
+    'created' in result_apply_vc.stdout
+    or 'configured' in result_apply_vc.stdout
+  when:
+    - item.name is defined
+    - (item.name | string | length) > 0
+    - item.clusterVersionName is defined
+    - (item.clusterVersionName | string | length) > 0
+
+- name: "Wait for VirtualCluster instances to be created"
+  ansible.builtin.command:
+    cmd: "kubectl --kubeconfig {{ virtualcluster_supercluster_kubeconfig_path }} get virtualcluster {{ item.name }} -n {{ item.namespace | default(virtualcluster_namespace, true) }}"
+  loop: "{{ vcinstances_virtualclusters | default([], true) }}"
+  loop_control:
+    label: "{{ item.name }}"
+  register: result_vc_created
+  until: result_vc_created.rc == 0
+  retries: 30
+  delay: 2
+  become: true
+  changed_when: false
+  when:
+    - item.name is defined
+    - (item.name | string | length) > 0
+    - item.clusterVersionName is defined
+    - (item.clusterVersionName | string | length) > 0

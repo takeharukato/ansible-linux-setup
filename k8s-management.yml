@@ -17,3 +17,6 @@
     - role: k8s-virtual-cluster
       tags: k8s-virtual-cluster
       when: k8s_virtualcluster_enabled | default(false)
+    - role: k8s-vc-instances
+      tags: k8s-vc-instances
+      when: k8s_vcinstances_enabled | default(false) | bool

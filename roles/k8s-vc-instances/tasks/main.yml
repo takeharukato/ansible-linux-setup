@@ -1,0 +1,50 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  タスクメイン部
+#
+#  include_tasksで他のタスクを読み込む
+#
+---
+
+# 最初に変数設定を読み直す ( role単独で実行可能とするため )
+- name: "Load Params"
+  ansible.builtin.include_tasks: load-params.yml
+  when: k8s_vcinstances_enabled | default(false) | bool
+
+- name: "Load Additional Params"
+  ansible.builtin.include_tasks: load-additional-params.yml
+  when: k8s_vcinstances_enabled | default(false) | bool
+
+- name: "Validate Prerequisites"
+  ansible.builtin.include_tasks: validate.yml
+  when: k8s_vcinstances_enabled | default(false) | bool
+
+- name: "Create Configuration Directory"
+  ansible.builtin.include_tasks: directory.yml
+  when: k8s_vcinstances_enabled | default(false) | bool
+
+- name: "Detect Super Cluster Images"
+  ansible.builtin.include_tasks: detect-supercluster-images.yml
+  when:
+    - k8s_vcinstances_enabled | default(false) | bool
+    - vcinstances_auto_detect_supercluster_images | default(true) | bool
+
+- name: "Create ClusterVersion Instances"
+  ansible.builtin.include_tasks: clusterversion-instances.yml
+  when:
+    - k8s_vcinstances_enabled | default(false) | bool
+    - vcinstances_clusterversions is defined
+    - (vcinstances_clusterversions | default([], true) | length) > 0
+
+- name: "Create VirtualCluster Instances"
+  ansible.builtin.include_tasks: virtualcluster-instances.yml
+  when:
+    - k8s_vcinstances_enabled | default(false) | bool
+    - vcinstances_virtualclusters is defined
+    - (vcinstances_virtualclusters | default([], true) | length) > 0
+
+- name: "Verify Instances"
+  ansible.builtin.include_tasks: verify.yml
+  when: k8s_vcinstances_enabled | default(false) | bool

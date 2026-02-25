@@ -1,0 +1,15 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  ファイル・ディレクトリ作成関連タスク
+#
+---
+- name: "Create Virtual Cluster instances configuration directory"
+  ansible.builtin.file:
+    path: "{{ vcinstances_config_dir }}"
+    state: directory
+    mode: "0755"
+    owner: "{{ ansible_user }}"
+    group: "{{ ansible_user }}"
+  become: true
