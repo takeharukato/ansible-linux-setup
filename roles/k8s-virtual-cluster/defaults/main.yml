@@ -16,11 +16,24 @@
 
 # Virtual Cluster デプロイメント有効化フラグ
 # デフォルトは無効, host_vars で true に設定すると有効化
-virtualcluster_enabled: false
+k8s_virtualcluster_enabled: false
 
 # ソースからビルドするかどうか
 # true: ソースダウンロードからビルドまで実行, false: 既存バイナリ/イメージを使用
 virtualcluster_build_from_source: true
+
+# クリーンビルドを実行するかどうか
+# true: 既存テナント/ClusterVersion/CRD/vc-manager名前空間を削除してから構築
+# false: 既存リソースを残したまま構築(差分適用)
+# デフォルトは true (毎回クリーンな状態から構築することを推奨)
+virtualcluster_clean_build: true
+
+# テナント名前空間 (vc-manager-*) の消滅を待機する最大時間 (単位: 秒)
+# VirtualCluster 削除後, コントローラがテナント名前空間を後始末するまでの猶予時間
+virtualcluster_tenant_ns_wait_timeout: 60
+
+# テナント名前空間消滅待機時のポーリング間隔 (単位: 秒)
+virtualcluster_tenant_ns_wait_delay: 5
 
 # ビルド実行先ホスト
 # Docker, Go, Make がインストール済みのホストを指定
@@ -119,3 +132,12 @@ k8s_api_wait_delay: 2
 k8s_api_wait_sleep: 1
 # Kubernetes APIサーバ待ち合わせる際の接続元ホスト名/IPアドレス
 k8s_api_wait_delegate_to: "localhost"
+
+# kubectl-vc plugin settings
+# kubectl-vcプラグインのインストール先ディレクトリ
+virtualcluster_kubectl_vc_install_dir: "/usr/local/bin"
+# kubectl-vcプラグインのバイナリ名
+virtualcluster_kubectl_vc_binary: "kubectl-vc"
+# kubectl-vcプラグインをビルドするかどうか
+# true: ソースからビルド, false: ビルドをスキップ
+virtualcluster_build_kubectl_vc: true

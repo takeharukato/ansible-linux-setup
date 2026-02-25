@@ -1,0 +1,13 @@
+diff --git a/virtualcluster/pkg/apis/tenancy/v1alpha1/virtualcluster_types.go b/virtualcluster/pkg/apis/tenancy/v1alpha1/virtualcluster_types.go
+index b528617..94ed293 100644
+--- a/virtualcluster/pkg/apis/tenancy/v1alpha1/virtualcluster_types.go
++++ b/virtualcluster/pkg/apis/tenancy/v1alpha1/virtualcluster_types.go
+@@ -92,7 +92,7 @@ const (
+ 
+ 	// ClusterError happens when Cluster can not be initiated, or occur the error that Operator
+ 	// can not recover
+-	ClusterError ClusterPhase = "Error"
++	ClusterError ClusterPhase = "Failed"
+ )
+ 
+ type ClusterCondition struct {

@@ -65,6 +65,9 @@ for worker in ${WORKERS}; do
       ${ANSIBLE_USER}@${worker} \
       "sudo ctr -n k8s.io images rm docker.io/virtualcluster/${component}-amd64:latest 2>/dev/null || true; \
        sudo ctr -n k8s.io images rm virtualcluster/${component}-amd64:latest 2>/dev/null || true; \
+       for digest in \$(sudo ctr -n k8s.io images ls -q | grep -F virtualcluster/${component}-amd64); do \
+         sudo ctr -n k8s.io images rm \"\$digest\" 2>/dev/null || true; \
+       done; \
        sudo ctr -n k8s.io images import /tmp/${component}-amd64.tar && \
        rm /tmp/${component}-amd64.tar"
 

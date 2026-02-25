@@ -1,0 +1,16 @@
+# -*- mode: yaml; coding: utf-8; line-endings: unix -*-
+#
+# virtualcluster provisioner_native.go パッチ適用
+#
+---
+
+# etcdスキーム制御・kubeconfigバグ修正用パッチ適用
+- name: "Apply etcd scheme environment variable support to provisioner_native.go"
+  block:
+    - name: "Apply provisioner_native.go patch (os import, scheme support, service namespace fix)"
+      ansible.posix.patch:
+        src: "provisioner_native.patch"
+        basedir: "{{ virtualcluster_source_dir }}"
+        strip: 1
+      delegate_to: "{{ virtualcluster_build_host }}"
+      become: false

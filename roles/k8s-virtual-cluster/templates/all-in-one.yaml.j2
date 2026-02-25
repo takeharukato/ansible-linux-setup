@@ -118,6 +118,8 @@ spec:
       labels:
         # appラベル。
         app: vc-manager
+        # webhook serviceのselectorに一致させるラベル。
+        virtualcluster-webhook: "true"
     # Pod仕様。
     spec:
       # ServiceAccount名。
@@ -149,7 +151,7 @@ spec:
           # ポート定義。
           ports:
             # Webhookポート。
-            - containerPort: 8443
+            - containerPort: 9443
               # ポート名。
               name: webhook
             # ヘルスポート。
@@ -160,6 +162,12 @@ spec:
             - containerPort: 8000
               # ポート名。
               name: metrics
+          # 環境変数設定。
+          env:
+            # etcdスキーム制御。
+            - name: VIRTUALCLUSTER_ETCD_SCHEME
+              # 値指定。
+              value: "http"
           # リソース設定。
           resources:
             # リクエスト設定。
@@ -196,7 +204,7 @@ kind: ServiceAccount
 # メタデータ定義。
 metadata:
   # ServiceAccount名。
-  name: syncer
+  name: vc-syncer
   # Namespace名。
   namespace: {{ virtualcluster_namespace }}
 ---
@@ -207,27 +215,113 @@ kind: ClusterRole
 # メタデータ定義。
 metadata:
   # ClusterRole名。
-  name: syncer
+  name: vc-syncer
 # 権限ルール。
 rules:
-  # Core APIの参照権限。
+  # Core API リソースの管理権限。
   - apiGroups: [""]
     # 対象リソース。
-    resources: ["pods", "services", "configmaps", "secrets", "serviceaccounts"]
+    resources:
+      - configmaps
+      - endpoints
+      - namespaces
+      - pods
+      - secrets
+      - services
+      - serviceaccounts
+      - persistentvolumeclaims
     # 許可動作。
-    verbs: ["get", "list", "watch"]
-  # apps APIの参照権限。
-  - apiGroups: ["apps"]
+    verbs:
+      - get
+      - list
+      - watch
+      - create
+      - update
+      - patch
+      - delete
+      - deletecollection
+  # extensions APIの管理権限。
+  - apiGroups: ["extensions"]
     # 対象リソース。
-    resources: ["deployments", "statefulsets", "daemonsets"]
+    resources:
+      - ingresses
     # 許可動作。
-    verbs: ["get", "list", "watch"]
+    verbs:
+      - get
+      - list
+      - watch
+      - create
+      - update
+      - patch
+      - delete
+      - deletecollection
+  # scheduling APIの管理権限。
+  - apiGroups: ["scheduling.k8s.io"]
+    # 対象リソース。
+    resources:
+      - priorityclasses
+    # 許可動作。
+    verbs:
+      - get
+      - list
+      - watch
+      - create
+      - update
+      - patch
+      - delete
+  # クラスタスコープリソースの参照権限。
+  - apiGroups: ["", "storage.k8s.io"]
+    # 対象リソース。
+    resources:
+      - events
+      - nodes
+      - persistentvolumes
+      - storageclasses
+    # 許可動作。
+    verbs:
+      - get
+      - list
+      - watch
+  # イベント作成権限。
+  - apiGroups: ["", "storage.k8s.io"]
+    # 対象リソース。
+    resources:
+      - events
+    # 許可動作。
+    verbs:
+      - create
+      - patch
+  # ステータスサブリソースの参照権限。
+  - apiGroups: [""]
+    # 対象リソース。
+    resources:
+      - namespaces/status
+      - pods/status
+      - services/status
+      - nodes/status
+      - persistentvolumes/status
+      - persistentvolumeclaims/status
+    # 許可動作。
+    verbs:
+      - get
   # Virtual Cluster APIの参照権限。
   - apiGroups: ["{{ virtualcluster_api_group }}"]
     # 対象リソース。
-    resources: ["virtualclusters"]
+    resources:
+      - virtualclusters
     # 許可動作。
-    verbs: ["get", "list", "watch"]
+    verbs:
+      - get
+      - list
+      - watch
+  # Virtual Cluster ステータス参照権限。
+  - apiGroups: ["{{ virtualcluster_api_group }}"]
+    # 対象リソース。
+    resources:
+      - virtualclusters/status
+    # 許可動作。
+    verbs:
+      - get
 ---
 # APIバージョン。
 apiVersion: rbac.authorization.k8s.io/v1
@@ -236,7 +330,7 @@ kind: ClusterRoleBinding
 # メタデータ定義。
 metadata:
   # ClusterRoleBinding名。
-  name: syncer
+  name: vc-syncer
 # 参照するRole。
 roleRef:
   # APIグループ。
@@ -244,15 +338,79 @@ roleRef:
   # 参照種別。
   kind: ClusterRole
   # 参照名。
-  name: syncer
+  name: vc-syncer
 # 対象ServiceAccount。
 subjects:
   # ServiceAccountの指定。
   - kind: ServiceAccount
     # ServiceAccount名。
-    name: syncer
+    name: vc-syncer
     # Namespace名。
     namespace: {{ virtualcluster_namespace }}
+---
+# APIバージョン。
+apiVersion: apps/v1
+# リソース種別。
+kind: Deployment
+# メタデータ定義。
+metadata:
+  # Deployment名。
+  name: vc-syncer
+  # Namespace名。
+  namespace: {{ virtualcluster_namespace }}
+  # ラベル定義。
+  labels:
+    # アプリケーション識別ラベル。
+    app: vc-syncer
+# Deploymentの仕様定義。
+spec:
+  # レプリカ数。
+  replicas: 1
+  # Pod選択条件。
+  selector:
+    # マッチするラベル条件。
+    matchLabels:
+      # アプリケーション識別ラベル。
+      app: vc-syncer
+  # Podテンプレート定義。
+  template:
+    # メタデータ定義。
+    metadata:
+      # ラベル定義。
+      labels:
+        # アプリケーション識別ラベル。
+        app: vc-syncer
+    # Pod仕様定義。
+    spec:
+      # ServiceAccount名。
+      serviceAccountName: vc-syncer
+      # コンテナ定義。
+      containers:
+        # コンテナ名。
+        - name: vc-syncer
+          # コンテナイメージ。
+          image: {{ virtualcluster_syncer_image }}
+          # イメージプルポリシー。
+          imagePullPolicy: Always
+          # コンテナ起動コマンド。
+          command:
+            - syncer
+          # 活性確認プローブ定義。
+          livenessProbe:
+            # 失敗と判定するまでの連続失敗回数。
+            failureThreshold: 3
+            # 初回プローブまでの遅延時間 (単位: 秒)。
+            initialDelaySeconds: 30
+            # プローブ実行間隔 (単位: 秒)。
+            periodSeconds: 20
+            # 成功と判定するまでの連続成功回数。
+            successThreshold: 1
+            # TCPソケット接続プローブ設定。
+            tcpSocket:
+              # 接続先ポート番号。
+              port: 8080
+            # プローブタイムアウト時間 (単位: 秒)。
+            timeoutSeconds: 1
 ---
 # APIバージョン。
 apiVersion: v1

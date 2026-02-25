@@ -16,4 +16,4 @@
       when: hubble_ui_enabled | default(false)
     - role: k8s-virtual-cluster
       tags: k8s-virtual-cluster
-      when: virtualcluster_enabled | default(false)
+      when: k8s_virtualcluster_enabled | default(false)

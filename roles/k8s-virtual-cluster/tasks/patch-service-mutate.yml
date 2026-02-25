@@ -1,0 +1,21 @@
+# -*- mode: yaml; coding: utf-8; line-endings: unix -*-
+#
+# mutate.go Service同期処理パッチ適用
+# serviceMutator の Mutate メソッドで ClusterIP を空文字列に設定する際に
+# ClusterIPs を空配列 []string{} にしていたため、Kubernetes v1.20以降の
+# 検証ルール("clusterIP が空の場合 clusterIPs も空/nil でなければならない")
+# に違反していた問題を修正する。
+# ClusterIPs を nil に設定することで、テナントクラスタの default/kubernetes
+# Service の同期が正常に動作するようにする。
+#
+---
+
+- name: "Patch mutate.go to fix Service ClusterIPs sync issue"
+  block:
+    - name: "Apply Service ClusterIPs nil fix patch to mutate.go"
+      ansible.posix.patch:
+        src: "service_mutate.patch"
+        basedir: "{{ virtualcluster_source_dir }}"
+        strip: 1
+      delegate_to: "{{ virtualcluster_build_host }}"
+      become: false

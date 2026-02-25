@@ -13,15 +13,15 @@
 ---
 
 # Virtual Cluster を有効にするための前提条件を検証
-# 1. virtualcluster_enabled が boolean であることを確認
+# 1. k8s_virtualcluster_enabled が boolean であることを確認
 # 2. Kubernetes API サーバーが利用可能であることを確認
 
-# 1. virtualcluster_enabled が boolean であることを確認
-- name: "Assert virtualcluster_enabled is boolean"
+# 1. k8s_virtualcluster_enabled が boolean であることを確認
+- name: "Assert k8s_virtualcluster_enabled is boolean"
   ansible.builtin.assert:
     that:
-      - virtualcluster_enabled is boolean
-    fail_msg: 'virtualcluster_enabled must be a boolean value (true or false).'
+      - k8s_virtualcluster_enabled is boolean
+    fail_msg: 'k8s_virtualcluster_enabled must be a boolean value (true or false).'
   tags: always
 
 # 2. Kubernetes API サーバーが利用可能であることを確認
