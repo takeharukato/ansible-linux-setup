@@ -1,0 +1,31 @@
+#  -*- mode: yaml; coding: utf-8; line-endings: unix -*-
+#  SPDX-License-Identifier: BSD-2-Clause
+#
+#  Copyright (c) 2025 TAKEHARU KATO
+#  This file is distributed under the two-clause BSD license.
+#  For the full text of the license, see the LICENSE file in the project root directory.
+#  このファイルは2条項BSDライセンスの下で配布されています。
+#  ライセンス全文はプロジェクト直下の LICENSE を参照してください。
+
+#
+#  単一ワーカーノードへのイメージ配布タスク
+#  worker_node 変数に配布先ノード名が渡されることを想定
+#
+---
+
+# ワーカーノード処理開始メッセージ
+- name: "Processing worker node"
+  ansible.builtin.debug:
+    msg: "--- Processing worker: {{ worker_node }} ---"
+
+# 各コンポーネントのイメージを配布
+- name: "Transfer and import images to worker node"
+  ansible.builtin.include_tasks: distribute-single-image.yml
+  loop: "{{ virtualcluster_build_components }}"
+  loop_control:
+    loop_var: component_name
+
+# ワーカーノード処理完了メッセージ
+- name: "Worker node completed"
+  ansible.builtin.debug:
+    msg: "--- Worker {{ worker_node }} completed ---"

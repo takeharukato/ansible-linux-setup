@@ -12,37 +12,63 @@
 #
 ---
 
-# 配布スクリプトを生成
-- name: "Generate image distribution script"
-  ansible.builtin.template:
-    src: "distribute-images.sh.j2"
-    dest: "{{ virtualcluster_ctrlplane_cache_dir }}/distribute-images.sh"
-    mode: "0755"
-  become: true
-  run_once: true
-
-# 配布スクリプトを実行
-- name: "Execute image distribution script"
+# ワーカーノードリストを取得
+- name: "Get worker node list from Kubernetes cluster"
   ansible.builtin.command:
-    cmd: "{{ virtualcluster_ctrlplane_cache_dir }}/distribute-images.sh"
-  register: result_distribute
+    cmd: >-
+      kubectl --kubeconfig {{ virtualcluster_supercluster_kubeconfig_path }}
+      get nodes --selector='!node-role.kubernetes.io/control-plane'
+      -o jsonpath='{.items[*].metadata.name}'
+  register: worker_nodes_result
   changed_when: false
-  become: false
-  run_once: true
-
-# 配布結果を表示
-- name: "Display distribution result"
-  ansible.builtin.debug:
-    var: result_distribute.stdout_lines
-  run_once: true
-
-# 配布スクリプトを削除
-- name: "Cleanup distribution script"
-  ansible.builtin.file:
-    path: "{{ virtualcluster_ctrlplane_cache_dir }}/distribute-images.sh"
-    state: absent
   become: true
   run_once: true
+
+# ワーカーノードリストを変数に格納
+- name: "Set worker nodes list"
+  ansible.builtin.set_fact:
+    worker_nodes: "{{ worker_nodes_result.stdout.split() }}"
+  run_once: true
+
+# ワーカーノードが見つからない場合はエラー
+- name: "Verify that worker nodes exist"
+  ansible.builtin.fail:
+    msg: "ERROR: No worker nodes found in the cluster"
+  when: worker_nodes | length == 0
+  run_once: true
+
+# ワーカーノード情報の表示
+- name: "Display worker node list"
+  ansible.builtin.debug:
+    msg: "Worker nodes found: {{ worker_nodes | join(', ') }}"
+  run_once: true
+
+# ワーカーノードを動的インベントリに追加
+# inventory/hostsの[k8s_worker]がコメントアウトされている場合に必要
+- name: "Add worker nodes to dynamic inventory"
+  ansible.builtin.add_host:
+    name: "{{ item }}"
+    groups: k8s_worker_dynamic
+    ansible_user: "{{ ansible_user }}"
+    ansible_become: true
+  loop: "{{ worker_nodes }}"
+  run_once: true
+
+# イメージファイルをコントロールプレーンからlocalhostへ取得
+- name: "Fetch images from control plane to localhost"
+  ansible.builtin.fetch:
+    src: "{{ virtualcluster_ctrlplane_cache_dir }}/{{ item }}-amd64.tar"
+    dest: "/tmp/ansible-vc-images/"
+    flat: true
+  loop: "{{ virtualcluster_build_components }}"
+  run_once: true
+
+# 各ワーカーノードにイメージを配布
+- name: "Distribute images to worker nodes"
+  ansible.builtin.include_tasks: distribute-to-single-worker.yml
+  loop: "{{ worker_nodes }}"
+  loop_control:
+    loop_var: worker_node
 
 # コントロールプレーン上のイメージキャッシュを削除
 - name: "Cleanup image cache on control plane"
@@ -58,7 +84,14 @@
     path: "{{ virtualcluster_local_cache_dir }}"
     state: absent
   delegate_to: localhost
-  become: false
+  run_once: true
+
+# localhost上の一時配布ディレクトリを削除
+- name: "Cleanup temporary distribution directory on localhost"
+  ansible.builtin.file:
+    path: "/tmp/ansible-vc-images"
+    state: absent
+  delegate_to: localhost
   run_once: true
 
 # 配布完了メッセージ
