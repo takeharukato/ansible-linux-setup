@@ -26,6 +26,7 @@
 - name: "Import image on worker node"
   ansible.builtin.shell: |
     set -e
+    set -o pipefail
     # 既存イメージを削除 (エラーは無視)
     sudo ctr -n k8s.io images rm docker.io/virtualcluster/{{ component_name }}-amd64:latest 2>/dev/null || true
     sudo ctr -n k8s.io images rm virtualcluster/{{ component_name }}-amd64:latest 2>/dev/null || true
@@ -34,6 +35,8 @@
     done
     # イメージをインポート
     sudo ctr -n k8s.io images import /tmp/{{ component_name }}-amd64.tar
+  args:
+    executable: /bin/bash
   delegate_to: "{{ worker_node }}"
   changed_when: true
 

@@ -42,7 +42,10 @@
 
 - name: "Wait for VirtualCluster instances to be created"
   ansible.builtin.command:
-    cmd: "kubectl --kubeconfig {{ virtualcluster_supercluster_kubeconfig_path }} get virtualcluster {{ item.name }} -n {{ item.namespace | default(virtualcluster_namespace, true) }}"
+    cmd: >
+      kubectl --kubeconfig {{ virtualcluster_supercluster_kubeconfig_path }}
+      get virtualcluster {{ item.name }}
+      -n {{ item.namespace | default(virtualcluster_namespace, true) }}
   loop: "{{ vcinstances_virtualclusters | default([], true) }}"
   loop_control:
     label: "{{ item.name }}"
