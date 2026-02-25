@@ -1,0 +1,286 @@
+# -*- mode: yaml; coding: utf-8; line-endings: unix -*-
+#
+# ClusterVersion instance: {{ item.name }}
+---
+{% set detected_etcd = vcinstances_detected_etcd_image | default('registry.k8s.io/etcd:3.5.0', true) | string %}
+{% set detected_apiserver = vcinstances_detected_apiserver_image | default('registry.k8s.io/kube-apiserver:v1.31.0', true) | string %}
+{% set detected_controller = vcinstances_detected_controller_manager_image | default('registry.k8s.io/kube-controller-manager:v1.31.0', true) | string %}
+{% set etcd_parts = detected_etcd.split(':') %}
+{% set apiserver_parts = detected_apiserver.split(':') %}
+{% set controller_parts = detected_controller.split(':') %}
+apiVersion: {{ virtualcluster_api_group }}/{{ virtualcluster_api_version }}
+kind: ClusterVersion
+metadata:
+  name: {{ item.name }}
+spec:
+  etcd:
+    metadata:
+      name: etcd
+    statefulset:
+      apiVersion: apps/v1
+      kind: StatefulSet
+      metadata:
+        name: etcd
+      spec:
+        replicas: 1
+        revisionHistoryLimit: 10
+        serviceName: etcd
+        selector:
+          matchLabels:
+            component-name: etcd
+        updateStrategy:
+          type: OnDelete
+        template:
+          metadata:
+            labels:
+              component-name: etcd
+          spec:
+            subdomain: etcd
+            containers:
+            - name: etcd
+{% if item.etcd is defined and item.etcd.image is defined %}
+              image: "{{ item.etcd.image }}:{{ item.etcd.imageTag | default('latest') }}"
+{% else %}
+              image: "{{ detected_etcd }}"
+{% endif %}
+              imagePullPolicy: IfNotPresent
+              command:
+              - etcd
+              env:
+              - name: HOSTNAME
+                valueFrom:
+                  fieldRef:
+                    fieldPath: metadata.name
+              args:
+              - --name=$(HOSTNAME)
+              - --data-dir=/etcd-data
+              - --listen-client-urls=http://0.0.0.0:2379
+              - --advertise-client-urls=http://$(HOSTNAME).etcd:2379
+              - --listen-peer-urls=http://0.0.0.0:2380
+              - --initial-advertise-peer-urls=http://$(HOSTNAME).etcd:2380
+              ports:
+              - containerPort: 2379
+                name: client
+              - containerPort: 2380
+                name: peer
+              volumeMounts:
+              - name: data
+                mountPath: /etcd-data
+              env:
+              - name: HOSTNAME
+                valueFrom:
+                  fieldRef:
+                    fieldPath: metadata.name
+              - name: NAMESPACE
+                valueFrom:
+                  fieldRef:
+                    fieldPath: metadata.namespace
+              ports:
+              - containerPort: 2379
+                name: client
+              - containerPort: 2380
+                name: peer
+              volumeMounts:
+              - name: data
+                mountPath: /etcd-data
+            volumes:
+            - name: data
+              emptyDir:
+                sizeLimit: 10Gi
+    service:
+      apiVersion: v1
+      kind: Service
+      metadata:
+        name: etcd
+      spec:
+        publishNotReadyAddresses: true
+        type: ClusterIP
+        clusterIP: None
+        selector:
+          component-name: etcd
+        ports:
+        - port: 2379
+          protocol: TCP
+          targetPort: 2379
+  apiServer:
+    metadata:
+      name: apiserver
+    statefulset:
+      apiVersion: apps/v1
+      kind: StatefulSet
+      metadata:
+        name: apiserver
+      spec:
+        replicas: 1
+        revisionHistoryLimit: 10
+        serviceName: apiserver-svc
+        selector:
+          matchLabels:
+            component-name: apiserver
+        updateStrategy:
+          type: OnDelete
+        template:
+          metadata:
+            labels:
+              component-name: apiserver
+          spec:
+            hostname: apiserver
+            subdomain: apiserver-svc
+            containers:
+            - name: apiserver
+{% if item.apiServer is defined and item.apiServer.image is defined %}
+              image: "{{ item.apiServer.image }}:{{ item.apiServer.imageTag | default('latest') }}"
+{% else %}
+              image: "{{ detected_apiserver }}"
+{% endif %}
+              imagePullPolicy: IfNotPresent
+              command:
+              - kube-apiserver
+              args:
+              - --bind-address=0.0.0.0
+              - --allow-privileged=true
+              - --anonymous-auth=true
+              - --client-ca-file=/etc/kubernetes/pki/root/tls.crt
+              - --tls-cert-file=/etc/kubernetes/pki/apiserver/tls.crt
+              - --tls-private-key-file=/etc/kubernetes/pki/apiserver/tls.key
+              - --kubelet-client-certificate=/etc/kubernetes/pki/apiserver/tls.crt
+              - --kubelet-client-key=/etc/kubernetes/pki/apiserver/tls.key
+              - --enable-bootstrap-token-auth=true
+              - --etcd-servers=http://etcd-0.etcd:2379
+              - --service-account-key-file=/etc/kubernetes/pki/service-account/tls.key
+              - --service-account-issuer=https://kubernetes.default.svc
+              - --service-account-signing-key-file=/etc/kubernetes/pki/service-account/tls.key
+              - --service-cluster-ip-range=10.32.0.0/16
+              - --service-node-port-range=30000-32767
+              - --authorization-mode=Node,RBAC
+              - --runtime-config=api/all=true
+              - --enable-admission-plugins=NamespaceLifecycle,NodeRestriction,LimitRanger,ServiceAccount,DefaultStorageClass,ResourceQuota
+              - --apiserver-count=1
+              - --v=2
+              ports:
+              - containerPort: 6443
+                name: secure
+              volumeMounts:
+              - mountPath: /etc/kubernetes/pki/apiserver
+                name: apiserver-ca
+                readOnly: true
+              - mountPath: /etc/kubernetes/pki/root
+                name: root-ca
+                readOnly: true
+              - mountPath: /etc/kubernetes/pki/service-account
+                name: serviceaccount-rsa
+                readOnly: true
+            volumes:
+            - name: apiserver-ca
+              secret:
+                defaultMode: 420
+                secretName: apiserver-ca
+            - name: root-ca
+              secret:
+                defaultMode: 420
+                secretName: root-ca
+            - name: serviceaccount-rsa
+              secret:
+                defaultMode: 420
+                secretName: serviceaccount-rsa
+    service:
+      apiVersion: v1
+      kind: Service
+      metadata:
+        name: apiserver-svc
+      spec:
+        selector:
+          component-name: apiserver
+        type: NodePort
+        ports:
+        - port: 6443
+          protocol: TCP
+          targetPort: secure
+  controllerManager:
+    metadata:
+      name: controller-manager
+    statefulset:
+      apiVersion: apps/v1
+      kind: StatefulSet
+      metadata:
+        name: controller-manager
+      spec:
+        replicas: 1
+        revisionHistoryLimit: 10
+        serviceName: controller-manager-svc
+        selector:
+          matchLabels:
+            component-name: controller-manager
+        updateStrategy:
+          type: OnDelete
+        template:
+          metadata:
+            labels:
+              component-name: controller-manager
+          spec:
+            containers:
+            - name: controller-manager
+{% if item.controllerManager is defined and item.controllerManager.image is defined %}
+              image: "{{ item.controllerManager.image }}:{{ item.controllerManager.imageTag | default('latest') }}"
+{% else %}
+              image: "{{ detected_controller }}"
+{% endif %}
+              imagePullPolicy: IfNotPresent
+              command:
+              - kube-controller-manager
+              args:
+              - --bind-address=0.0.0.0
+              - --cluster-cidr=10.200.0.0/16
+              - --cluster-signing-cert-file=/etc/kubernetes/pki/root/tls.crt
+              - --cluster-signing-key-file=/etc/kubernetes/pki/root/tls.key
+              - --kubeconfig=/etc/kubernetes/kubeconfig/controller-manager-kubeconfig
+              - --authorization-kubeconfig=/etc/kubernetes/kubeconfig/controller-manager-kubeconfig
+              - --authentication-kubeconfig=/etc/kubernetes/kubeconfig/controller-manager-kubeconfig
+              - --leader-elect=false
+              - --root-ca-file=/etc/kubernetes/pki/root/tls.crt
+              - --service-account-private-key-file=/etc/kubernetes/pki/service-account/tls.key
+              - --service-cluster-ip-range=10.32.0.0/16
+              - --use-service-account-credentials=true
+              - --cluster-signing-duration=87600h
+              - --node-monitor-grace-period=200s
+              - --controllers=*,-nodelifecycle
+              - --v=2
+              ports:
+              - containerPort: 10257
+                name: metrics
+              volumeMounts:
+              - mountPath: /etc/kubernetes/pki/root
+                name: root-ca
+                readOnly: true
+              - mountPath: /etc/kubernetes/pki/service-account
+                name: serviceaccount-rsa
+                readOnly: true
+              - mountPath: /etc/kubernetes/kubeconfig
+                name: kubeconfig
+                readOnly: true
+            volumes:
+            - name: root-ca
+              secret:
+                defaultMode: 420
+                secretName: root-ca
+            - name: serviceaccount-rsa
+              secret:
+                defaultMode: 420
+                secretName: serviceaccount-rsa
+            - name: kubeconfig
+              secret:
+                defaultMode: 420
+                secretName: controller-manager-kubeconfig
+    service:
+      apiVersion: v1
+      kind: Service
+      metadata:
+        name: controller-manager-svc
+      spec:
+        selector:
+          component-name: controller-manager
+        type: ClusterIP
+        ports:
+        - port: 10257
+          protocol: TCP
+          targetPort: metrics

@@ -97,6 +97,8 @@ spec:
                   type: string
                   # 列挙値。
                   enum:
+                    # 未設定。
+                    - ""
                     # 保留。
                     - Pending
                     # 実行中。
@@ -109,6 +111,18 @@ spec:
                     - Failed
                   # VirtualClusterの状態。
                   description: "VirtualCluster phase."
+                # message定義。
+                message:
+                  # message型。
+                  type: string
+                  # 状態詳細メッセージ。
+                  description: "VirtualCluster status message."
+                # reason定義。
+                reason:
+                  # reason型。
+                  type: string
+                  # 状態理由。
+                  description: "VirtualCluster status reason."
                 # conditions定義。
                 conditions:
                   # conditions型。
@@ -173,7 +187,3 @@ spec:
           type: string
           # JSONPath。
           jsonPath: .spec.clusterVersionName
-      # subresources定義。
-      subresources:
-        # statusサブリソース。
-        status: {}

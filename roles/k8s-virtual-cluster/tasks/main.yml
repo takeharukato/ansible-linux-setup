@@ -16,74 +16,117 @@
 # 共通パラメータを読み込むタスク
 - name: "Load Params"
   ansible.builtin.include_tasks: load-params.yml
-  when: virtualcluster_enabled | bool
+  when: k8s_virtualcluster_enabled | bool
 
 # Virtual Cluster を有効にするための前提条件を検証するタスク
 - name: "Validate"
   ansible.builtin.include_tasks: validate.yml
-  when: virtualcluster_enabled | bool
+  when: k8s_virtualcluster_enabled | bool
 
 # Virtual Cluster のイメージ版数などをスーパークラスタから動的に検出するタスク
 - name: "Detect Super Cluster Images"
   ansible.builtin.include_tasks: detect-supercluster-images.yml
   when:
-    - virtualcluster_enabled | bool
+    - k8s_virtualcluster_enabled | bool
     - virtualcluster_auto_detect_supercluster_images | bool
+
+# クリーンビルド用: 既存テナント/CRD/vc-manager名前空間を削除するタスク
+- name: "Clean up existing VirtualCluster resources for clean build"
+  ansible.builtin.include_tasks: cleanup.yml
+  when:
+    - k8s_virtualcluster_enabled | bool
+    - virtualcluster_clean_build | bool
 
 # vc-manager の名前空間を作成するタスク
 - name: "Namespace"
   ansible.builtin.include_tasks: namespace.yml
-  when: virtualcluster_enabled | bool
+  when: k8s_virtualcluster_enabled | bool
 
 # Virtual Cluster CRDs (Custom Resource Definitions) をスーパークラスタに登録するタスク
 - name: "Register Custom Resource Definitions (CRDs)"
   ansible.builtin.include_tasks: crd.yml
-  when: virtualcluster_enabled | bool
+  when: k8s_virtualcluster_enabled | bool
 
 # Virtual Cluster のソースをダウンロードするタスク
 - name: "Download Source"
   ansible.builtin.include_tasks: download-source.yml
   when:
-    - virtualcluster_enabled | bool
+    - k8s_virtualcluster_enabled | bool
+    - virtualcluster_build_from_source | bool
+
+# etcdスキーム制御用のパッチを適用するタスク
+- name: "Patch Provisioner for etcd scheme control"
+  ansible.builtin.include_tasks: patch-provisioner.yml
+  when:
+    - k8s_virtualcluster_enabled | bool
+    - virtualcluster_build_from_source | bool
+
+# ClusterPhase "Error" → "Failed" の不一致修正パッチを適用するタスク
+- name: "Patch VirtualCluster types for ClusterError phase value"
+  ansible.builtin.include_tasks: patch-virtualcluster-types.yml
+  when:
+    - k8s_virtualcluster_enabled | bool
+    - virtualcluster_build_from_source | bool
+
+# kubeconfigのドメイン名URLバグ修正パッチを適用するタスク
+- name: "Patch kubeconfig generation to correctly handle hostname-based server URLs"
+  ansible.builtin.include_tasks: patch-kubeconfig.yml
+  when:
+    - k8s_virtualcluster_enabled | bool
+    - virtualcluster_build_from_source | bool
+
+# Service同期時のClusterIPs問題修正パッチを適用するタスク
+- name: "Patch Service mutate to fix ClusterIPs sync issue"
+  ansible.builtin.include_tasks: patch-service-mutate.yml
+  when:
+    - k8s_virtualcluster_enabled | bool
     - virtualcluster_build_from_source | bool
 
 # Virtual Cluster のソースをビルドするタスク
 - name: "Build Binaries"
   ansible.builtin.include_tasks: build-binaries.yml
   when:
-    - virtualcluster_enabled | bool
+    - k8s_virtualcluster_enabled | bool
     - virtualcluster_build_from_source | bool
+
+# kubectl-vc プラグインをビルドするタスク
+- name: "Build kubectl-vc Plugin"
+  ansible.builtin.include_tasks: build-kubectl-vc.yml
+  when:
+    - k8s_virtualcluster_enabled | bool
+    - virtualcluster_build_from_source | bool
+    - virtualcluster_build_kubectl_vc | bool
 
 # Virtual Cluster のコンテナイメージをビルドするタスク
 - name: "Build Docker Images"
   ansible.builtin.include_tasks: build-docker-images.yml
   when:
-    - virtualcluster_enabled | bool
+    - k8s_virtualcluster_enabled | bool
     - virtualcluster_build_from_source | bool
 
 # Virtual Cluster のコンテナイメージをansibleの制御ノードにダウンロードするタスク
 - name: "Fetch Images"
   ansible.builtin.include_tasks: fetch-images.yml
   when:
-    - virtualcluster_enabled | bool
+    - k8s_virtualcluster_enabled | bool
     - virtualcluster_build_from_source | bool
 
 # Virtual Cluster のコンテナイメージをコントロールプレーンノードにアップロードするタスク
 - name: "Upload to Control Plane"
   ansible.builtin.include_tasks: upload-to-ctrlplane.yml
-  when: virtualcluster_enabled | bool
+  when: k8s_virtualcluster_enabled | bool
 
 # Virtual Cluster のコンテナイメージをワーカーノードに配布するタスク
 - name: "Distribute to Workers"
   ansible.builtin.include_tasks: distribute-to-workers.yml
-  when: virtualcluster_enabled | bool
+  when: k8s_virtualcluster_enabled | bool
 
 # Virtual Cluster の管理コンポーネント (Pod群) をスーパークラスタにデプロイするタスク
 - name: "Deploy Manager"
   ansible.builtin.include_tasks: deploy-manager.yml
-  when: virtualcluster_enabled | bool
+  when: k8s_virtualcluster_enabled | bool
 
 # Virtual Cluster のセットアップ完了後の検証タスク
 - name: "Verify"
   ansible.builtin.include_tasks: verify.yml
-  when: virtualcluster_enabled | bool
+  when: k8s_virtualcluster_enabled | bool

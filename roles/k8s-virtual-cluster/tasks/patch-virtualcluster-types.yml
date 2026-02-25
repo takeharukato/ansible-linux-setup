@@ -1,0 +1,18 @@
+# -*- mode: yaml; coding: utf-8; line-endings: unix -*-
+#
+# virtualcluster_types.go パッチ適用
+# CRD定義と Go コード上の ClusterPhase 定数の不一致を修正する。
+# CRD では phase の許可値に "Failed" が含まれているが "Error" が含まれていないため,
+# Go コード側の ClusterError 定数の値を "Error" から "Failed" に変更する。
+#
+---
+
+- name: "Patch ClusterError phase value to match CRD definition"
+  block:
+    - name: "Apply ClusterError 'Error' -> 'Failed' patch to virtualcluster_types.go"
+      ansible.posix.patch:
+        src: "virtualcluster_types.patch"
+        basedir: "{{ virtualcluster_source_dir }}"
+        strip: 1
+      delegate_to: "{{ virtualcluster_build_host }}"
+      become: false

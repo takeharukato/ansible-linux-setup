@@ -1,0 +1,131 @@
+#  -*- mode: yaml; coding: utf-8; line-endings: unix -*-
+#  SPDX-License-Identifier: BSD-2-Clause
+#
+#  Copyright (c) 2025 TAKEHARU KATO
+#  This file is distributed under the two-clause BSD license.
+#  For the full text of the license, see the LICENSE file in the project root directory.
+#  このファイルは2条項BSDライセンスの下で配布されています。
+#  ライセンス全文はプロジェクト直下の LICENSE を参照してください。
+
+#
+#  クリーンビルド用の既存リソース削除タスク
+#  virtualcluster_clean_build が true の場合に実行される。
+#  削除順序:
+#    1. VirtualCluster インスタンス (テナント削除, コントローラが後処理を実行)
+#    2. テナント名前空間 (vc-manager-* パターン, 削除完了まで待機)
+#    3. ClusterVersion インスタンス
+#    4. vc-manager 名前空間 (vc-manager/syncer/vn-agent Pod群ごと削除)
+#    5. VirtualCluster / ClusterVersion CRD
+#
+---
+
+# VirtualCluster インスタンスをvc-manager名前空間全体から一括削除
+# コントローラがテナント名前空間の後始末を実行するため, --wait=true で完了を待つ
+- name: "Delete all VirtualCluster instances for clean build"
+  ansible.builtin.command:
+    cmd: >
+      kubectl --kubeconfig {{ virtualcluster_supercluster_kubeconfig_path }}
+      delete virtualclusters.{{ virtualcluster_api_group }}
+      --all -n {{ virtualcluster_namespace }}
+      --wait=true --timeout=120s --ignore-not-found
+  become: true
+  changed_when: false
+  register: result_delete_vc
+  failed_when: false
+
+# VirtualCluster 削除結果を表示
+- name: "Display VirtualCluster deletion result"
+  ansible.builtin.debug:
+    var: result_delete_vc.stdout_lines
+  when: (result_delete_vc.stdout_lines | default([])) | length > 0
+
+# テナント名前空間(vc-manager-*)が終了するまで待機
+# 待機上限: virtualcluster_tenant_ns_wait_timeout 秒 (デフォルト: 60秒)
+# ポーリング間隔: virtualcluster_tenant_ns_wait_delay 秒 (デフォルト: 5秒)
+- name: "Wait for tenant namespaces to terminate"
+  ansible.builtin.shell:
+    cmd: |
+      set -o pipefail
+      kubectl --kubeconfig {{ virtualcluster_supercluster_kubeconfig_path }} \
+        get ns -o name 2>/dev/null \
+        | grep "namespace/{{ virtualcluster_namespace }}-" | wc -l
+    executable: /bin/bash
+  register: result_tenant_ns_count
+  until: (result_tenant_ns_count.stdout | trim | int) == 0
+  retries: "{{ (virtualcluster_tenant_ns_wait_timeout / virtualcluster_tenant_ns_wait_delay) | int }}"
+  delay: "{{ virtualcluster_tenant_ns_wait_delay }}"
+  become: true
+  changed_when: false
+  failed_when: false
+
+# タイムアウト後も残存しているテナント名前空間を強制削除
+- name: "Force delete any remaining tenant namespaces"
+  ansible.builtin.shell:
+    cmd: |
+      set -o pipefail
+      for ns in $(kubectl --kubeconfig {{ virtualcluster_supercluster_kubeconfig_path }} \
+        get ns -o name 2>/dev/null \
+        | grep "namespace/{{ virtualcluster_namespace }}-" \
+        | sed 's|namespace/||'); do
+        echo "Force deleting namespace: $ns"
+        kubectl --kubeconfig {{ virtualcluster_supercluster_kubeconfig_path }} \
+          delete namespace "$ns" --ignore-not-found --timeout=30s 2>&1 || true
+      done
+    executable: /bin/bash
+  become: true
+  changed_when: false
+  failed_when: false
+  when: (result_tenant_ns_count.stdout | trim | int) > 0
+
+# ClusterVersion インスタンスを一括削除
+- name: "Delete all ClusterVersion instances for clean build"
+  ansible.builtin.command:
+    cmd: >
+      kubectl --kubeconfig {{ virtualcluster_supercluster_kubeconfig_path }}
+      delete clusterversions.{{ virtualcluster_api_group }}
+      --all --wait=true --timeout=60s --ignore-not-found
+  become: true
+  changed_when: false
+  register: result_delete_cv
+  failed_when: false
+
+# vc-manager 名前空間全体を削除 (vc-manager/syncer/vn-agent Pod群ごと削除される)
+- name: "Delete vc-manager namespace for clean build"
+  ansible.builtin.command:
+    cmd: >
+      kubectl --kubeconfig {{ virtualcluster_supercluster_kubeconfig_path }}
+      delete namespace {{ virtualcluster_namespace }}
+      --wait=true --timeout=120s --ignore-not-found
+  become: true
+  changed_when: false
+  register: result_delete_ns
+  failed_when: false
+
+# VirtualCluster CRD を削除 (次のビルドで再登録される)
+- name: "Delete VirtualCluster CRD for clean build"
+  ansible.builtin.command:
+    cmd: >
+      kubectl --kubeconfig {{ virtualcluster_supercluster_kubeconfig_path }}
+      delete crd virtualclusters.{{ virtualcluster_api_group }}
+      --wait=true --timeout=60s --ignore-not-found
+  become: true
+  changed_when: false
+  failed_when: false
+
+# ClusterVersion CRD を削除 (次のビルドで再登録される)
+- name: "Delete ClusterVersion CRD for clean build"
+  ansible.builtin.command:
+    cmd: >
+      kubectl --kubeconfig {{ virtualcluster_supercluster_kubeconfig_path }}
+      delete crd clusterversions.{{ virtualcluster_api_group }}
+      --wait=true --timeout=60s --ignore-not-found
+  become: true
+  changed_when: false
+  failed_when: false
+
+# クリーンアップ完了を表示
+- name: "Clean build cleanup completed"
+  ansible.builtin.debug:
+    msg: >-
+      クリーンビルド: VirtualClusterインスタンス, テナント名前空間,
+      ClusterVersionインスタンス, {{ virtualcluster_namespace }}名前空間, CRDを削除しました。

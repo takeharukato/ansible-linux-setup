@@ -125,4 +125,29 @@ hubble_ui_enabled: true
 # Virtual Clusterの導入（実験環境用）
 #
 # Virtual Cluster機能を導入する場合は, trueに設定する
-virtualcluster_enabled: false
+k8s_virtualcluster_enabled: false
+
+#
+# Virtual Cluster インスタンスの導入（実験環境用）
+#
+# Virtual Cluster インスタンス機能を導入する場合は, trueに設定する
+k8s_vcinstances_enabled: false
+
+# ClusterVersion インスタンス定義
+vcinstances_clusterversions:
+  - name: "cv-k8s-1-31"
+    # イメージ指定を省略 (スーパークラスタ検出値を使用)
+
+# VirtualCluster インスタンス定義
+vcinstances_virtualclusters:
+  - name: "tenant-alpha"
+    namespace: "vc-manager"
+    clusterVersionName: "cv-k8s-1-31"
+    clusterDomain: "tenant-alpha.vc.local"
+    kubeConfigSecretName: "tenant-alpha-kubeconfig"
+
+  - name: "tenant-beta"
+    namespace: "vc-manager"
+    clusterVersionName: "cv-k8s-1-31"
+    clusterDomain: "tenant-beta.vc.local"
+    kubeConfigSecretName: "tenant-beta-kubeconfig"

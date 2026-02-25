@@ -13,13 +13,15 @@
 ---
 
 # Virtual Cluster リポジトリをクローン/更新
+# virtualcluster_clean_build が true の場合は force: true でローカル変更を破棄して取得
+# (パッチ適用済みファイルが残っている場合でもクリーンな状態に戻してから更新する)
 - name: "Clone or update Virtual Cluster source repository"
   ansible.builtin.git:
     repo: "{{ virtualcluster_source_repo }}"
     dest: "{{ virtualcluster_source_dir }}"
     version: "{{ virtualcluster_source_version }}"
     update: true
-    force: false
+    force: "{{ virtualcluster_clean_build | bool }}"
   delegate_to: "{{ virtualcluster_build_host }}"
   become: false
   register: result_git_clone

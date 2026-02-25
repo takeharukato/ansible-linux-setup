@@ -1,0 +1,13 @@
+diff --git a/virtualcluster/pkg/syncer/conversion/mutate.go b/virtualcluster/pkg/syncer/conversion/mutate.go
+index f67e8ee..5603063 100644
+--- a/virtualcluster/pkg/syncer/conversion/mutate.go
++++ b/virtualcluster/pkg/syncer/conversion/mutate.go
+@@ -428,7 +428,7 @@ func (s *serviceMutator) Mutate(vService *v1.Service) {
+ 		anno[constants.LabelClusterIP] = vService.Spec.ClusterIP
+ 		s.pService.SetAnnotations(anno)
+ 		s.pService.Spec.ClusterIP = ""
+-		s.pService.Spec.ClusterIPs = []string{}
++		s.pService.Spec.ClusterIPs = nil
+ 	}
+ 	s.pService.Spec.HealthCheckNodePort = 0
+ 	for i := range s.pService.Spec.Ports {

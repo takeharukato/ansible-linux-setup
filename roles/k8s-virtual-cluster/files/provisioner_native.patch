@@ -1,0 +1,52 @@
+diff --git a/virtualcluster/pkg/controller/controllers/provisioner/provisioner_native.go b/virtualcluster/pkg/controller/controllers/provisioner/provisioner_native.go
+index fc3c27b..132a5f0 100644
+--- a/virtualcluster/pkg/controller/controllers/provisioner/provisioner_native.go
++++ b/virtualcluster/pkg/controller/controllers/provisioner/provisioner_native.go
+@@ -21,6 +21,7 @@ import (
+ 	"crypto/rsa"
+ 	"errors"
+ 	"fmt"
++	"os"
+ 	"time"
+ 
+ 	"github.com/go-logr/logr"
+@@ -167,11 +168,14 @@ func (mpn *Native) applyVirtualCluster(ctx context.Context, cv *tenancyv1alpha1.
+ 
+ // genInitialClusterArgs generates the values for `--initial-cluster` option of etcd based on the number of
+ // replicas specified in etcd StatefulSet
+-func genInitialClusterArgs(replicas int32, stsName, svcName string) (argsVal string) {
++func genInitialClusterArgs(replicas int32, stsName, svcName, scheme string) (argsVal string) {
++	if scheme == "" {
++		scheme = "https" // default to https for backward compatibility
++	}
+ 	for i := int32(0); i < replicas; i++ {
+ 		// use 2380 as the default port for etcd peer communication
+-		peerAddr := fmt.Sprintf("%s-%d=https://%s-%d.%s:%d",
+-			stsName, i, stsName, i, svcName, DefaultETCDPeerPort)
++		peerAddr := fmt.Sprintf("%s-%d=%s://%s-%d.%s:%d",
++			stsName, i, scheme, stsName, i, svcName, DefaultETCDPeerPort)
+ 		if i == replicas-1 {
+ 			argsVal += peerAddr
+ 			break
+@@ -188,8 +192,10 @@ func complementETCDTemplate(vcns string, etcdBdl *tenancyv1alpha1.StatefulSetSvc
+ 	etcdBdl.StatefulSet.ObjectMeta.Namespace = vcns
+ 	etcdBdl.Service.ObjectMeta.Namespace = vcns
+ 	args := etcdBdl.StatefulSet.Spec.Template.Spec.Containers[0].Args
++	// Read etcd scheme from environment variable (default: https for backward compatibility)
++	etcdScheme := os.Getenv("VIRTUALCLUSTER_ETCD_SCHEME")
+ 	icaVal := genInitialClusterArgs(*etcdBdl.StatefulSet.Spec.Replicas,
+-		etcdBdl.StatefulSet.Name, etcdBdl.Service.Name)
++		etcdBdl.StatefulSet.Name, etcdBdl.Service.Name, etcdScheme)
+ 	args = append(args, "--initial-cluster", icaVal)
+ 	etcdBdl.StatefulSet.Spec.Template.Spec.Containers[0].Args = args
+ 
+@@ -234,6 +240,9 @@ func complementAPIServerTemplate(vcns string, apiserverBdl *tenancyv1alpha1.Stat
+ // based on the virtual cluster setting
+ func complementCtrlMgrTemplate(vcns string, ctrlMgrBdl *tenancyv1alpha1.StatefulSetSvcBundle, clusterCAGroup *vcpki.ClusterCAGroup) {
+ 	ctrlMgrBdl.StatefulSet.ObjectMeta.Namespace = vcns
++	if ctrlMgrBdl.Service != nil {
++		ctrlMgrBdl.Service.ObjectMeta.Namespace = vcns
++	}
+ 	annotations := ctrlMgrBdl.StatefulSet.Spec.Template.GetAnnotations()
+ 	if annotations == nil {
+ 		annotations = map[string]string{}

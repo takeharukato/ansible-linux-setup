@@ -41,38 +41,115 @@
   failed_when: false
   become: true
 
-# 4. vc-manager Deployment (Pod) が正常に稼働していることを確認
+# 4. vc-manager Deployment の詳細確認
+- name: "Verify vc-manager Deployment status"
+  ansible.builtin.command:
+    cmd: >
+      kubectl --kubeconfig {{ virtualcluster_supercluster_kubeconfig_path }}
+      get deployment vc-manager -n {{ virtualcluster_namespace }}
+      -o jsonpath='{.spec.replicas},{.status.readyReplicas}'
+  register: result_vc_manager_deployment
+  changed_when: false
+  failed_when: false
+  become: true
+
+- name: "Parse vc-manager Deployment status"
+  ansible.builtin.set_fact:
+    vc_manager_replicas: "{{ result_vc_manager_deployment.stdout.split(',')[0] | default('0') }}"
+    vc_manager_ready: "{{ result_vc_manager_deployment.stdout.split(',')[1] | default('0') }}"
+  when: result_vc_manager_deployment.rc == 0
+
+# 5. vc-syncer Deployment の詳細確認
+- name: "Verify vc-syncer Deployment status"
+  ansible.builtin.command:
+    cmd: >
+      kubectl --kubeconfig {{ virtualcluster_supercluster_kubeconfig_path }}
+      get deployment vc-syncer -n {{ virtualcluster_namespace }}
+      -o jsonpath='{.spec.replicas},{.status.readyReplicas}'
+  register: result_vc_syncer_deployment
+  changed_when: false
+  failed_when: false
+  become: true
+
+- name: "Parse vc-syncer Deployment status"
+  ansible.builtin.set_fact:
+    vc_syncer_replicas: "{{ result_vc_syncer_deployment.stdout.split(',')[0] | default('0') }}"
+    vc_syncer_ready: "{{ result_vc_syncer_deployment.stdout.split(',')[1] | default('0') }}"
+  when: result_vc_syncer_deployment.rc == 0
+
+# 6. vn-agent DaemonSet の詳細確認
+- name: "Verify vn-agent DaemonSet status"
+  ansible.builtin.command:
+    cmd: >
+      kubectl --kubeconfig {{ virtualcluster_supercluster_kubeconfig_path }}
+      get daemonset vn-agent -n {{ virtualcluster_namespace }}
+      -o jsonpath='{.status.desiredNumberScheduled},{.status.numberReady}'
+  register: result_vn_agent_daemonset
+  changed_when: false
+  failed_when: false
+  become: true
+
+- name: "Parse vn-agent DaemonSet status"
+  ansible.builtin.set_fact:
+    vn_agent_desired: "{{ result_vn_agent_daemonset.stdout.split(',')[0] | default('0') }}"
+    vn_agent_ready: "{{ result_vn_agent_daemonset.stdout.split(',')[1] | default('0') }}"
+  when: result_vn_agent_daemonset.rc == 0
+
+# 7. vc-manager Pods のステータス確認
 - name: "Verify vc-manager Pods are running"
   ansible.builtin.command:
-    cmd: "kubectl --kubeconfig {{ virtualcluster_supercluster_kubeconfig_path }} get pods -n {{ virtualcluster_namespace }} -l app=vc-manager --no-headers"
+    cmd: >
+      kubectl --kubeconfig {{ virtualcluster_supercluster_kubeconfig_path }}
+      get pods -n {{ virtualcluster_namespace }} -l app=vc-manager
+      -o jsonpath='{range .items[*]}{.metadata.name},{.status.phase},{.status.conditions[?(@.type=="Ready")].status}{"\n"}{end}'
   register: result_vc_manager_pods
   changed_when: false
   failed_when: false
   become: true
 
-# 5. vn-agent Deployment (Pod) が正常に稼働していることを確認
+# 8. vc-syncer Pods のステータス確認
+- name: "Verify vc-syncer Pods are running"
+  ansible.builtin.command:
+    cmd: >
+      kubectl --kubeconfig {{ virtualcluster_supercluster_kubeconfig_path }}
+      get pods -n {{ virtualcluster_namespace }} -l app=vc-syncer
+      -o jsonpath='{range .items[*]}{.metadata.name},{.status.phase},{.status.conditions[?(@.type=="Ready")].status}{"\n"}{end}'
+  register: result_vc_syncer_pods
+  changed_when: false
+  failed_when: false
+  become: true
+
+# 9. vn-agent Pods のステータス確認
 - name: "Verify vn-agent Pods are running"
   ansible.builtin.command:
-    cmd: "kubectl --kubeconfig {{ virtualcluster_supercluster_kubeconfig_path }} get pods -n {{ virtualcluster_namespace }} -l app=vn-agent --no-headers"
+    cmd: >
+      kubectl --kubeconfig {{ virtualcluster_supercluster_kubeconfig_path }}
+      get pods -n {{ virtualcluster_namespace }} -l app=vn-agent
+      -o jsonpath='{range .items[*]}{.metadata.name},{.status.phase},{.status.conditions[?(@.type=="Ready")].status}{"\n"}{end}'
   register: result_vn_agent_pods
   changed_when: false
   failed_when: false
   become: true
 
-# 6. デプロイメントのイベントを確認して, 問題がないことを検証
-- name: "Display deployment completion summary"
+# 10. デプロイメントの検証結果を表示
+- name: "Display deployment verification summary"
   ansible.builtin.debug:
     msg: |
-      Virtual Cluster Deployment Complete
-      ====================================
+      Virtual Cluster Infrastructure Verification
+      ============================================
 
-      Namespace exists: {{ (result_namespace.rc == 0) | ternary('Yes', 'No') }}
-      ClusterVersion CRD exists: {{ (result_clusterversion_crd_final.rc == 0) | ternary('Yes', 'No') }}
-      VirtualCluster CRD exists: {{ (result_virtualcluster_crd_final.rc == 0) | ternary('Yes', 'No') }}
-      vc-manager Pods: {{ result_vc_manager_pods.stdout_lines | length }}
-      vn-agent Pods: {{ result_vn_agent_pods.stdout_lines | length }}
+      Namespace: {{ (result_namespace.rc == 0) | ternary('Exists', 'Missing') }}
 
-      You can verify resources with these commands:
-        kubectl get namespace {{ virtualcluster_namespace }}
-        kubectl get crd | grep virtualcluster
-        kubectl -n {{ virtualcluster_namespace }} get pods
+      CRDs:
+        ClusterVersion: {{ (result_clusterversion_crd_final.rc == 0) | ternary('Exists', 'Missing') }}
+        VirtualCluster: {{ (result_virtualcluster_crd_final.rc == 0) | ternary('Exists', 'Missing') }}
+
+      Components:
+        vc-manager:  {{ vc_manager_ready | default('N/A') }}/{{ vc_manager_replicas | default('N/A') }} ready
+        vc-syncer:   {{ vc_syncer_ready | default('N/A') }}/{{ vc_syncer_replicas | default('N/A') }} ready
+        vn-agent:    {{ vn_agent_ready | default('N/A') }}/{{ vn_agent_desired | default('N/A') }} ready
+
+      Verification commands:
+        kubectl --kubeconfig {{ virtualcluster_supercluster_kubeconfig_path }} get namespace {{ virtualcluster_namespace }}
+        kubectl --kubeconfig {{ virtualcluster_supercluster_kubeconfig_path }} get crd | grep virtualcluster
+        kubectl --kubeconfig {{ virtualcluster_supercluster_kubeconfig_path }} -n {{ virtualcluster_namespace }} get all

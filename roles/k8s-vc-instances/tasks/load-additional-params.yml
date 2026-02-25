@@ -1,0 +1,13 @@
+---
+# k8s-virtual-cluster ロールで定義された CRD 情報の存在確認
+# (イメージ情報は本ロール内で独立に取得するため, fact は参照しない)
+
+- name: "Check if required variables are defined"
+  ansible.builtin.assert:
+    that:
+      - virtualcluster_api_group is defined
+      - virtualcluster_api_version is defined
+      - virtualcluster_namespace is defined
+      - virtualcluster_supercluster_kubeconfig_path is defined
+    fail_msg: "Required variables from k8s-virtual-cluster role are missing. Ensure k8s-virtual-cluster runs before k8s-vc-instances."
+  when: k8s_vcinstances_enabled | default(false) | bool

@@ -59,6 +59,8 @@ spec:
               type: object
               # ClusterVersionの仕様。
               description: "ClusterVersion specification."
+              # 未知フィールドを許可。
+              x-kubernetes-preserve-unknown-fields: true
               # specプロパティ。
               properties:
                 # etcd定義。
@@ -67,8 +69,26 @@ spec:
                   type: object
                   # etcdコンポーネントの仕様。
                   description: "etcd component specification."
+                  # 未知フィールドを許可。
+                  x-kubernetes-preserve-unknown-fields: true
                   # etcdプロパティ。
                   properties:
+                    # statefulset定義。
+                    statefulset:
+                      # statefulset型。
+                      type: object
+                      # StatefulSet定義。
+                      description: "StatefulSet definition for etcd."
+                      # 未知フィールドを許可。
+                      x-kubernetes-preserve-unknown-fields: true
+                    # service定義。
+                    service:
+                      # service型。
+                      type: object
+                      # Service定義。
+                      description: "Service definition for etcd."
+                      # 未知フィールドを許可。
+                      x-kubernetes-preserve-unknown-fields: true
                     # image定義。
                     image:
                       # image型。
@@ -87,8 +107,18 @@ spec:
                   type: object
                   # API Serverコンポーネントの仕様。
                   description: "API Server component specification."
+                  # 未知フィールドを許可。
+                  x-kubernetes-preserve-unknown-fields: true
                   # apiServerプロパティ。
                   properties:
+                    # statefulset定義。
+                    statefulset:
+                      # statefulset型。
+                      type: object
+                      # StatefulSet定義。
+                      description: "StatefulSet definition for API Server."
+                      # 未知フィールドを許可。
+                      x-kubernetes-preserve-unknown-fields: true
                     # image定義。
                     image:
                       # image型。
@@ -101,14 +131,62 @@ spec:
                       type: string
                       # API Serverイメージタグ。
                       description: "API Server image tag."
+                    # service定義。
+                    service:
+                      # service型。
+                      type: object
+                      # API Server Serviceの仕様。
+                      description: "API Server Service specification."
+                      # 未知フィールドを許可。
+                      # 未知フィールドを許可。
+                      x-kubernetes-preserve-unknown-fields: true
+                      x-kubernetes-preserve-unknown-fields: true
+                      # serviceプロパティ。
+                      properties:
+                        # spec定義。
+                        spec:
+                          # spec型。
+                          type: object
+                          # Service specの仕様。
+                          # 未知フィールドを許可。
+                          x-kubernetes-preserve-unknown-fields: true
+                          description: "Service spec for API Server."
+                          # 未知フィールドを許可。
+                          x-kubernetes-preserve-unknown-fields: true
+                          # specプロパティ。
+                          properties:
+                            # type定義。
+                            type:
+                              # type型。
+                              type: string
+                              # Service type。
+                              description: "Service type for API Server."
                 # controllerManager定義。
                 controllerManager:
                   # controllerManager型。
                   type: object
                   # Controller Managerコンポーネントの仕様。
                   description: "Controller Manager component specification."
+                  # 未知フィールドを許可。
+                  x-kubernetes-preserve-unknown-fields: true
                   # controllerManagerプロパティ。
                   properties:
+                    # statefulset定義。
+                    statefulset:
+                      # statefulset型。
+                      type: object
+                      # StatefulSet定義。
+                      description: "StatefulSet definition for Controller Manager."
+                      # 未知フィールドを許可。
+                      x-kubernetes-preserve-unknown-fields: true
+                    # service定義。
+                    service:
+                      # service型。
+                      type: object
+                      # Service定義。
+                      description: "Service definition for Controller Manager."
+                      # 未知フィールドを許可。
+                      x-kubernetes-preserve-unknown-fields: true
                     # image定義。
                     image:
                       # image型。

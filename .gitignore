@@ -36,6 +36,8 @@ log/
 *.i
 *.lst
 *.patch
+# ロールのfiles/ディレクトリに配置するパッチファイルはgit管理対象とする
+!roles/*/files/*.patch
 *.gcno
 *.gcda
 *.gcov
