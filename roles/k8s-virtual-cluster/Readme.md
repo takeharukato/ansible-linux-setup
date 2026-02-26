@@ -816,33 +816,34 @@ $
 - [distribute-single-image.yml](tasks/distribute-single-image.yml): 単一イメージの転送とインポート
 
 正常に成功した場合, 各ワーカーノードへのイメージ転送とインポートが順次実行され, 処理完了メッセージ(`Completed: <component> on <worker>`)が表示されます。
-        ```plaintext
-        "  Transferring vn-agent-amd64.tar to k8sworker0101...",
-        "  Importing vn-agent-amd64.tar on k8sworker0101...",
-        "docker.io/virtualcluster/vn-agent-amd64:latest",
-        "unpacking docker.io/virtualcluster/vn-agent-amd64:latest (sha256:dd6af8306a682f2052cbea4403290c79614b7f45b00eed2bdc0ec0edc9e8b75c)...done",
-        "  Completed: vn-agent on k8sworker0101",
-        "--- Worker k8sworker0101 completed ---",
-        "--- Processing worker: k8sworker0102 ---",
-        "  Transferring manager-amd64.tar to k8sworker0102...",
-        "  Importing manager-amd64.tar on k8sworker0102...",
-        "docker.io/virtualcluster/manager-amd64:latest",
-        "unpacking docker.io/virtualcluster/manager-amd64:latest (sha256:2e8dc650dc067fcc7f2d6444511b4473c58357d1f4e6c57630839a89274b0d51)...done",
-        "  Completed: manager on k8sworker0102",
-        "  Transferring syncer-amd64.tar to k8sworker0102...",
-        "  Importing syncer-amd64.tar on k8sworker0102...",
-        "docker.io/virtualcluster/syncer-amd64:latest",
-        "unpacking docker.io/virtualcluster/syncer-amd64:latest (sha256:79ffe0c8a1adce6abcff9f44eea474b2a28bc14d477ee835f46ab831ae87e840)...done",
-        "  Completed: syncer on k8sworker0102",
-        "  Transferring vn-agent-amd64.tar to k8sworker0102...",
-        "  Importing vn-agent-amd64.tar on k8sworker0102...",
-        "docker.io/virtualcluster/vn-agent-amd64:latest",
-        "unpacking docker.io/virtualcluster/vn-agent-amd64:latest (sha256:dd6af8306a682f2052cbea4403290c79614b7f45b00eed2bdc0ec0edc9e8b75c)...done",
-        "  Completed: vn-agent on k8sworker0102",
-        "--- Worker k8sworker0102 completed ---",
-        "=== All images distributed successfully ===",
-        "Completed at: 2026年  2月 24日 火曜日 01:23:22 JST"
-        ```
+
+```plaintext
+  Transferring vn-agent-amd64.tar to k8sworker0101...,
+  Importing vn-agent-amd64.tar on k8sworker0101...,
+docker.io/virtualcluster/vn-agent-amd64:latest,
+unpacking docker.io/virtualcluster/vn-agent-amd64:latest (sha256:dd6af8306a682f2052cbea4403290c79614b7f45b00eed2bdc0ec0edc9e8b75c)...done,
+  Completed: vn-agent on k8sworker0101,
+--- Worker k8sworker0101 completed ---,
+--- Processing worker: k8sworker0102 ---,
+  Transferring manager-amd64.tar to k8sworker0102...,
+  Importing manager-amd64.tar on k8sworker0102...,
+docker.io/virtualcluster/manager-amd64:latest,
+unpacking docker.io/virtualcluster/manager-amd64:latest (sha256:2e8dc650dc067fcc7f2d6444511b4473c58357d1f4e6c57630839a89274b0d51)...done,
+  Completed: manager on k8sworker0102,
+  Transferring syncer-amd64.tar to k8sworker0102...,
+  Importing syncer-amd64.tar on k8sworker0102...,
+docker.io/virtualcluster/syncer-amd64:latest,
+unpacking docker.io/virtualcluster/syncer-amd64:latest (sha256:79ffe0c8a1adce6abcff9f44eea474b2a28bc14d477ee835f46ab831ae87e840)...done,
+  Completed: syncer on k8sworker0102,
+  Transferring vn-agent-amd64.tar to k8sworker0102...,
+  Importing vn-agent-amd64.tar on k8sworker0102...,
+docker.io/virtualcluster/vn-agent-amd64:latest,
+unpacking docker.io/virtualcluster/vn-agent-amd64:latest (sha256:dd6af8306a682f2052cbea4403290c79614b7f45b00eed2bdc0ec0edc9e8b75c)...done,
+  Completed: vn-agent on k8sworker0102,
+--- Worker k8sworker0102 completed ---,
+=== All images distributed successfully ===,
+Completed at: 2026年  2月 24日 火曜日 01:23:22 JST
+```
 
 ### パッチ適用に失敗する場合
 
