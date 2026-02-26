@@ -1,7 +1,7 @@
  # k8s-vc-instances ロール
 
 [VirtualCluster - Enabling Kubernetes Hard Multi-tenancy](https://github.com/kubernetes-retired/cluster-api-provider-nested/tree/main/virtualcluster) (
-Kubernetes Virtual Cluster ) のテナント環境を構築するロールです。k8s-virtual-cluster ロールが展開した基盤 (vc-manager, syncer, vn-agent, CRD) 上に, ClusterVersion および VirtualCluster CRD で定義されたカスタムリソース(CR)インスタンスを生成します。各テナントの論理的な Kubernetes クラスタ設定を一元管理し, スーパークラスタから自動検出されたコンポーネントバージョンを活用します。本ロールはイメージ情報を独立に取得するため, k8s-virtual-cluster ロールと同一 play 内での実行は必須ではありません。ただし, CRD が事前に登録されている必要があります。
+Kubernetes Virtual Cluster ) のテナント ( Tenant ) 環境を構築するロールです。k8s-virtual-cluster ロールが展開した基盤 (vc-manager, syncer, vn-agent, CRD) 上に, ClusterVersion および VirtualCluster CRD で定義されたカスタムリソース(CR)インスタンスを生成します。各テナント ( Tenant ) の論理的な Kubernetes クラスタ設定を一元管理し, スーパークラスタから自動検出されたコンポーネントバージョンを活用します。本ロールはイメージ情報を独立に取得するため, k8s-virtual-cluster ロールと同一 play 内での実行は必須ではありません。ただし, CRD が事前に登録されている必要があります。
 
 本文中の~(チルダ記号)は, ansibleアカウントでログイン時のホームディレクトリ(規定: `/home/ansible`)を意味します。
 
@@ -16,7 +16,7 @@ Kubernetes Virtual Cluster ) のテナント環境を構築するロールです
 | ワーカーノード ( Worker Node ) | ワーカーノード | Kubernetes クラスタで実際にアプリケーション(ポッド ( Pod ))が実行されるノード。kubelet と呼ばれるエージェントが動作し, コントロールプレーンからの指示に基づいてコンテナを実行管理する。 |
 | 仮想クラスタ ( Virtual Cluster ) | Virtual Cluster | Kubernetes API を仮想化して提供する論理的な Kubernetes クラスタ。各テナントに独立した専用クラスタとして見える環境を提供する。 |
 | スーパークラスタ ( Super Cluster ) | Super Cluster | 仮想クラスタ ( Virtual Cluster ) を動作させるホスト側の物理 Kubernetes クラスタ。実際のノードリソースを提供する。 |
-| Tenant | テナント | 互いに独立した Kubernetes コントロールプレーンを持つ論理的な利用者またはチーム。各テナントについて, 専用の仮想クラスタ ( Virtual Cluster ) が割り当てられ, テナントに割り当てられた仮想クラスタ ( Virtual Cluster ) 内のリソース (名前空間, CRD) を他のテナントに影響を与えずに作成できる。物理リソース (ノード) をスーパークラスタ (Super Cluster) を通じて他のテナントと共有し, かつ, 仮想リソース (Kubernetes のリソース) は, Kubernetes のコントロールプレーンレベルで分離される。 |
+| テナント ( Tenant ) | テナント | 互いに独立した Kubernetes コントロールプレーンを持つ論理的な利用者またはチーム。各テナントについて, 専用の仮想クラスタ ( Virtual Cluster ) が割り当てられ, テナントに割り当てられた仮想クラスタ ( Virtual Cluster ) 内のリソース (名前空間, CRD) を他のテナントに影響を与えずに作成できる。物理リソース (ノード) をスーパークラスタ (Super Cluster) を通じて他のテナントと共有し, かつ, 仮想リソース (Kubernetes のリソース) は, Kubernetes のコントロールプレーンレベルで分離される。 |
 | VirtualClusterCRD | VirtualCluster | テナント用仮想クラスタ ( Virtual Cluster ) の設定を定義するリソース型(CRD)。 |
 | ClusterVersionCRD | ClusterVersion | 仮想クラスタ ( Virtual Cluster ) 内で使用するコンポーネント(etcd, kube-apiserver, kube-controller-manager)のコンテナイメージ情報を定義するリソース型(CRD)。 |
 | ClusterVersionインスタンス | - | ClusterVersionCRD リソース型に基づいて作成された実際のリソースオブジェクト(例: `cv-k8s-1-31`)。 |
@@ -110,7 +110,7 @@ k8s-virtual-cluster ロール由来の列に`yes`と記載されている変数�
 | リソース種別 | リソース名(例) | 説明 |
 | --- | --- | --- |
 | ClusterVersionインスタンス | `cv-k8s-1-31` | ClusterVersionCRD リソース型に基づいて生成されるインスタンス。仮想クラスタ ( Virtual Cluster ) 内で使用するコントロールプレーン ( Control Plane ) コンポーネント(etcd, kube-apiserver, kube-controller-manager)のコンテナイメージ情報を定義します。 |
-| VirtualClusterインスタンス | `tenant-alpha`, `tenant-beta` | VirtualClusterCRD リソース型に基づいて生成されるインスタンス。テナントに割り当てられた仮想クラスタ ( Virtual Cluster ) の設定を定義します。 |
+| VirtualClusterインスタンス | `tenant-alpha`, `tenant-beta` | VirtualClusterCRD リソース型に基づいて生成されるインスタンス。テナント ( Tenant ) に割り当てられた仮想クラスタ ( Virtual Cluster ) の設定を定義します。 |
 
 ## 設定例
 

@@ -31,7 +31,7 @@ Kubernetes Virtual Cluster ) の基盤コンポーネントをデプロイする
 | 仮想クラスタ ( Virtual Cluster ) | Virtual Cluster | Kubernetes API を仮想化して提供する論理的な Kubernetes クラスタ。 |
 | スーパークラスタ ( Super Cluster ) | Super Cluster | 仮想クラスタ ( Virtual Cluster ) を動作させるホスト側の物理 Kubernetes クラスタ。 |
 | Kubernetesのデプロイメント | - | Kubernetes を用いて, アプリケーションプロセスやリソースを配置, 展開, 管理するための操作を意味する。Kubernetes の配置・管理における最小実行単位は, ポッド ( Pod ) となる。 |
-| Tenant ( テナント ) | テナント | 互いに独立した Kubernetes コントロールプレーンを持つ論理的な利用者またはチーム。各テナントについて, 専用の仮想クラスタ ( Virtual Cluster ) が割り当てられ, テナントに割り当てられた仮想クラスタ ( Virtual Cluster ) 内のリソース (名前空間, CRD) を他のテナントに影響を与えずに作成できる。物理リソース (ノード) をスーパークラスタ ( Super Cluster ) を通じて他のテナントと共有し, かつ, 仮想リソース (Kubernetes のリソース) は, Kubernetes のコントロールプレーンレベルで分離される。 |
+| テナント ( Tenant ) | テナント | 互いに独立した Kubernetes コントロールプレーンを持つ論理的な利用者またはチーム。各テナントについて, 専用の仮想クラスタ ( Virtual Cluster ) が割り当てられ, テナントに割り当てられた仮想クラスタ ( Virtual Cluster ) 内のリソース (名前空間, CRD) を他のテナントに影響を与えずに作成できる。物理リソース (ノード) をスーパークラスタ ( Super Cluster ) を通じて他のテナントと共有し, かつ, 仮想リソース (Kubernetes のリソース) は, Kubernetes のコントロールプレーンレベルで分離される。 |
 | vc-manager ( Virtual Cluster Manager ) | vc-manager | 仮想クラスタ ( Virtual Cluster ) の制御コンポーネント。スーパークラスタ ( Super Cluster ) 上で仮想クラスタ ( Virtual Cluster ) の管理を行う。 |
 | vc-syncer ( Virtual Cluster Syncer ) | vc-syncer | 仮想クラスタ ( Virtual Cluster ) とスーパークラスタ ( Super Cluster ) の状態を同期するコンポーネント。 |
 | vn-agent ( Virtual Node Agent ) | vn-agent | ワーカーノード上で仮想クラスタ ( Virtual Cluster ) の通信を中継するエージェント。 |
@@ -55,20 +55,20 @@ Kubernetes Virtual Cluster ) の基盤コンポーネントをデプロイする
 
 ## 概要
 
-仮想クラスタ ( Virtual Cluster ) により, ホスト Kubernetes クラスタ(以下, スーパークラスタ ( Super Cluster ))上で複数のテナント向けコントロールプレーン ( Control Plane ) を独立して運用できます。各テナントのコントロールプレーン ( Control Plane ) はスーパークラスタ ( Super Cluster ) のワーカーノード ( Worker Node ) を共有しながら, API レベルの分離を実現します。
+仮想クラスタ ( Virtual Cluster ) により, ホスト Kubernetes クラスタ(以下, スーパークラスタ ( Super Cluster ))上で複数のテナント ( Tenant ) 向けコントロールプレーン ( Control Plane ) を独立して運用できます。各テナント ( Tenant ) のコントロールプレーン ( Control Plane ) はスーパークラスタ ( Super Cluster ) のワーカーノード ( Worker Node ) を共有しながら, API レベルの分離を実現します。
 
 ### デプロイされるコンポーネント
 
 本ロールは以下の3つの主要コンポーネントをデプロイします:
 
 1. **vc-manager (Virtual Cluster Manager)**
-   - VirtualClusterリソースを監視し, テナントに割り当てられた仮想クラスタ ( Virtual Cluster ) のライフサイクルを管理します。
+   - VirtualClusterリソースを監視し, テナント ( Tenant ) に割り当てられた仮想クラスタ ( Virtual Cluster ) のライフサイクルを管理します。
    - Webhook検証によりVirtualClusterリソースの整合性を保証します。
    - Deployment形式でデプロイされ, `vc-manager` 名前空間内で動作します。
 
 2. **vc-syncer (Virtual Cluster Syncer)**
    - 仮想クラスタ ( Virtual Cluster ) とスーパークラスタ ( Super Cluster ) の状態を同期するコンポーネントです。
-   - テナントに割り当てられた仮想クラスタ ( Virtual Cluster ) のリソース(Pod, Service, ConfigMap等)をスーパークラスタ ( Super Cluster ) 上の実体と関連付けます。
+   - テナント ( Tenant ) に割り当てられた仮想クラスタ ( Virtual Cluster ) のリソース(Pod, Service, ConfigMap等)をスーパークラスタ ( Super Cluster ) 上の実体と関連付けます。
    - Deployment形式でデプロイされ, `vc-manager` 名前空間内で動作します。
    - 広範なRBAC権限(namespaces, nodes, persistentvolumes, storageclasses等への読み書き)を持ちます。
 
@@ -239,7 +239,7 @@ ansible-playbook k8s-management.yml -t k8s-virtual-cluster
 | `provisioner_native.patch` | `virtualcluster/pkg/controller/controllers/provisioner/provisioner_native.go` | 1. `os`パッケージのimport追加<br>2. `genInitialClusterArgs`関数にschemeパラメータ追加<br>3. 環境変数`VIRTUALCLUSTER_ETCD_SCHEME`からスキーム取得 (デフォルト: https)<br>4. etcd `--initial-cluster`のURL形式を`scheme://...`に変更<br>5. controller-managerのService名前空間nilチェック追加 |
 | `virtualcluster_types.patch` | `virtualcluster/pkg/apis/tenancy/v1alpha1/virtualcluster_types.go` | `ClusterError`定数の値を`"Error"`から`"Failed"`に変更<br>(CRD定義でphaseの許可値に"Failed"が含まれているが"Error"が含まれていない不一致を修正) |
 | `kubeconfig.patch` | `virtualcluster/pkg/controller/kubeconfig/kubeconfig.go` | `generateKubeconfigUseCertAndKey`関数で`net.ParseIP`が`nil`を返す場合 (=ドメイン名) の処理を追加<br>IPv6形式の`[domain]:6443`ではなく通常の`https://domain:6443`形式を使用するように修正 |
-| `service_mutate.patch` | `virtualcluster/pkg/syncer/conversion/mutate.go` | `serviceMutator.Mutate`メソッドで`ClusterIP`を空にする際に`ClusterIPs`を空配列`[]string{}`に設定していた問題を修正<br>Kubernetes v1.20以降の検証ルール("clusterIPが未設定の場合clusterIPsもnil"の要求)に準拠するため`ClusterIPs = nil`に変更<br>これによりテナントに割り当てられた仮想クラスタ ( Virtual Cluster ) の`default/kubernetes` Serviceの同期エラーを解消 |
+| `service_mutate.patch` | `virtualcluster/pkg/syncer/conversion/mutate.go` | `serviceMutator.Mutate`メソッドで`ClusterIP`を空にする際に`ClusterIPs`を空配列`[]string{}`に設定していた問題を修正<br>Kubernetes v1.20以降の検証ルール("clusterIPが未設定の場合clusterIPsもnil"の要求)に準拠するため`ClusterIPs = nil`に変更<br>これによりテナント ( Tenant ) に割り当てられた仮想クラスタ ( Virtual Cluster ) の`default/kubernetes` Serviceの同期エラーを解消 |
 
 **パッチ適用パラメータ**:
 - `strip: 1`: unified diffの`a/`, `b/`プレフィックスを除去
@@ -300,7 +300,6 @@ ansible-playbook k8s-management.yml -t k8s-virtual-cluster
      clusterversions.tenancy.x-k8s.io                         2026-02-24T19:35:07Z
      ```
 
-
 2. ClusterVersion の確認
    - 目的: ClusterVersion CRDが登録され, ClusterVersionインスタンスが作成されていることを確認します。
    - コマンド:
@@ -308,7 +307,7 @@ ansible-playbook k8s-management.yml -t k8s-virtual-cluster
      kubectl get clusterversions
      ```
    - 期待される出力:
-     ```
+     ```plaintext
      NAME          AGE
      cv-k8s-1-31   5m
      ```
@@ -320,7 +319,7 @@ ansible-playbook k8s-management.yml -t k8s-virtual-cluster
      kubectl -n vc-manager get pods -o wide
      ```
    - 期待される出力:
-     ```
+     ```plaintext
      NAME                          READY   STATUS    RESTARTS   AGE   IP              NODE            NOMINATED NODE   READINESS GATES
      vc-manager-7997456c85-5wcfb   1/1     Running   0          50m   10.244.2.120    k8sworker0101   <none>           <none>
      vc-syncer-7ff87db54-md4q2     1/1     Running   0          50m   10.244.1.104    k8sworker0102   <none>           <none>
@@ -344,7 +343,7 @@ ansible-playbook k8s-management.yml -t k8s-virtual-cluster
      E0224 21:10:35.677305       1 mccontroller.go:461] default/kube-root-ca.crt dws request reconcile failed: pConfigMap vc-manager-64b627-tenant-alpha-default/kube-root-ca.crt delegated UID is different from updated object.
      ```
     なお, 上記の`default/kube-root-ca.crt dws request reconcile failed: pConfigMap`は,
-    vc-managerの既知の問題( テナントに割り当てられた仮想クラスタ ( Virtual Cluster ) の`kube-system/kube-root-ca.crt` ConfigMapをスーパークラスタ ( Super Cluster ) に同期する際のUID不一致)であり, `kube-root-ca.crt` ConfigMapの同期が失敗しますが、仮想クラスタ ( Virtual Cluster ) の基本動作には影響しません。
+    vc-managerの既知の問題( テナント ( Tenant ) に割り当てられた仮想クラスタ ( Virtual Cluster ) の`kube-system/kube-root-ca.crt` ConfigMapをスーパークラスタ ( Super Cluster ) に同期する際のUID不一致)であり, `kube-root-ca.crt` ConfigMapの同期が失敗しますが、仮想クラスタ ( Virtual Cluster ) の基本動作には影響しません。
 
 5. DaemonSet の配置確認
    - 目的: vn-agent がワーカーノード ( Worker Node ) のみに配置されていることを確認します。
@@ -354,7 +353,7 @@ ansible-playbook k8s-management.yml -t k8s-virtual-cluster
      ```
    - 期待される結果: vn-agent Podがワーカーノード ( Worker Node ) 上にのみ存在し, コントロールプレーン ( Control Plane ) ノード上には存在しないこと。
    - 実行例:
-     ```
+     ```plaintext
      $ kubectl -n vc-manager get pods -l app=vn-agent -o wide
      NAME             READY   STATUS    RESTARTS   AGE    IP              NODE            NOMINATED NODE   READINESS GATES
      vn-agent-tlqgb   1/1     Running   0          8m8s   192.168.30.43   k8sworker0102   <none>           <none>
@@ -368,13 +367,13 @@ ansible-playbook k8s-management.yml -t k8s-virtual-cluster
      kubectl -n vc-manager get events --sort-by='.lastTimestamp' | tail -20
      ```
    - 実行例
-     ```
+     ```plaintext
      $ kubectl -n vc-manager get events --sort-by='.lastTimestamp' | tail -20|grep -i err
      $
      ```
 
 7. VirtualCluster作成テスト (オプション)
-   - 目的: テナント用仮想クラスタ ( Virtual Cluster ) を作成し, テナントに割り当てられた仮想クラスタ ( Virtual Cluster ) が正常に起動することを確認します。
+   - 目的: テナント用仮想クラスタ ( Virtual Cluster ) を作成し, テナント ( Tenant ) に割り当てられた仮想クラスタ ( Virtual Cluster ) が正常に起動することを確認します。
    - コマンド:
      ```bash
      # サンプルVirtualClusterマニフェストを作成
@@ -406,8 +405,8 @@ ansible-playbook k8s-management.yml -t k8s-virtual-cluster
      - テナント名前空間内にetcd-0, apiserver-0, controller-manager-0のPodが起動すること
      - 各PodがReady状態になること
 
-8. テナントに割り当てられた仮想クラスタ ( Virtual Cluster ) 接続テスト (オプション)
-   - 目的: 作成したテナントに割り当てられた仮想クラスタ ( Virtual Cluster ) に接続できることを確認します。
+8. テナント ( Tenant ) に割り当てられた仮想クラスタ ( Virtual Cluster ) 接続テスト (オプション)
+   - 目的: 作成したテナント ( Tenant ) に割り当てられた仮想クラスタ ( Virtual Cluster ) に接続できることを確認します。
    - コマンド:
      ```bash
      # テナント名前空間を取得
@@ -432,17 +431,17 @@ ansible-playbook k8s-management.yml -t k8s-virtual-cluster
      # ポートフォワーディングを停止
      # 上記で起動したport-forwardプロセスを停止してください
      ```
-   - 期待される結果: テナントに割り当てられた仮想クラスタ ( Virtual Cluster ) 内の仮想ノード一覧が表示されること。
+   - 期待される結果: テナント ( Tenant ) に割り当てられた仮想クラスタ ( Virtual Cluster ) 内の仮想ノード一覧が表示されること。
    - 注意:
      - テナント用APIサーバーは、スーパークラスタ ( Super Cluster ) 内のServiceとして動作しているため、外部から直接アクセスするにはポートフォワーディングが必要です。
-     - admin-kubeconfigに保存されているサーバーアドレスは、テナントに割り当てられた仮想クラスタ ( Virtual Cluster ) 内部用の設定のため、`localhost`に変更する必要があります。
+     - admin-kubeconfigに保存されているサーバーアドレスは、テナント ( Tenant ) に割り当てられた仮想クラスタ ( Virtual Cluster ) 内部用の設定のため、`localhost`に変更する必要があります。
      - 証明書検証をスキップするため、`--insecure-skip-tls-verify`オプションを使用しています。
 
 ## トラブルシューティング
 
 ### VirtualCluster作成後の診断
 
-VirtualClusterリソースを作成した後, テナントに割り当てられた仮想クラスタ ( Virtual Cluster ) の実体が作成されない場合は以下の手順で診断します。
+VirtualClusterリソースを作成した後, テナント ( Tenant ) に割り当てられた仮想クラスタ ( Virtual Cluster ) の実体が作成されない場合は以下の手順で診断します。
 
 #### 1. VirtualClusterリソースのStatus確認
 
@@ -529,30 +528,39 @@ kubectl get secrets -n <tenant-namespace>
 
 #### 診断フローチャート
 
-```
-VirtualClusterリソース作成
-  ↓
-Status.Phase = "" (空)?
-  Yes  =>  vc-managerが反応していない (vc-managerのログ確認)
-  No  ↓
-Status.Phase = "ClusterPending"?
-  Yes  =>  CreateVirtualCluster処理中またはエラー
-        - vc-managerのログで "fail to create" を検索
-        - テナント用名前空間の有無を確認
-        - PKI Secretの有無を確認
-  No  ↓
-Status.Phase = "ClusterRunning"?
-  Yes  =>  正常に作成完了
-        - StatefulSetがReadyになっているか確認
-  No   =>  Status.Phase = "ClusterError"
-        - Status.Message, Status.Reasonを確認
-        - vc-managerのログでエラー詳細を確認
+```mermaid
+flowchart TD
+    Start([VirtualClusterリソース作成]) --> CheckPhaseEmpty{Status.Phase = 空?}
+
+    CheckPhaseEmpty -->|Yes| ErrorNoResponse[vc-managerが反応していない<br/>vc-managerのログ確認]
+
+    CheckPhaseEmpty -->|No| CheckPending{Status.Phase =<br/>ClusterPending?}
+
+    CheckPending -->|Yes| PendingState[CreateVirtualCluster処理中<br/>またはエラー]
+    PendingState --> PendingCheck1[vc-managerのログで<br/>fail to create を検索]
+    PendingState --> PendingCheck2[テナント用名前空間の<br/>有無を確認]
+    PendingState --> PendingCheck3[PKI Secretの有無を確認]
+
+    CheckPending -->|No| CheckRunning{Status.Phase =<br/>ClusterRunning?}
+
+    CheckRunning -->|Yes| SuccessState[正常に作成完了]
+    SuccessState --> SuccessCheck[StatefulSetがReadyに<br/>なっているか確認]
+
+    CheckRunning -->|No| ErrorState[Status.Phase = ClusterError]
+    ErrorState --> ErrorCheck1[Status.Message,<br/>Status.Reasonを確認]
+    ErrorState --> ErrorCheck2[vc-managerのログで<br/>エラー詳細を確認]
+
+    style Start fill:#e1f5ff
+    style ErrorNoResponse fill:#ffebee
+    style ErrorState fill:#ffebee
+    style SuccessState fill:#e8f5e9
+    style PendingState fill:#fff9c4
 ```
 
 #### 6. ログサンプルと期待される出力
 
 **正常なログの例**:
-```
+```plaintext
 # vc-manager起動時
 {"level":"info","ts":"...","msg":"Starting Controller","controller":"virtualcluster"}
 
@@ -582,7 +590,7 @@ Status.Phase = "ClusterRunning"?
 ```
 
 **エラーがある場合のログの例**:
-```
+```plaintext
 # ClusterVersionが見つからない
 {"level":"error","logger":"Native","msg":"fail to create virtualcluster","vc":"vc-sample-1","error":"desired ClusterVersion cv-sample-np not found"}
 
@@ -596,7 +604,7 @@ Status.Phase = "ClusterRunning"?
 #### 7. よくあるエラーパターンと対処方法
 
 **パターン1**: ClusterVersion not found
-```
+```plaintext
 Error: desired ClusterVersion cv-sample-np not found
 ```
 **対処**: ClusterVersionリソースが存在することを確認してください。
@@ -606,7 +614,7 @@ kubectl get clusterversions cv-sample-np -o yaml
 ```
 
 **パターン2**: StatefulSet timeout
-```
+```plaintext
 Error: timeout waiting for StatefulSet etcd to be ready
 ```
 **対処**: Pod/StatefulSetの詳細を確認してください。
@@ -619,7 +627,7 @@ kubectl logs etcd-0 -n <tenant-namespace>
 ```
 
 **パターン3**: ImagePullBackOff
-```
+```plaintext
 Error: ...ImagePullBackOff...
 ```
 **対処**: イメージがワーカーノード ( Worker Node ) に配布されているか確認してください。
@@ -630,7 +638,7 @@ ssh <worker-node> "sudo ctr -n k8s.io images ls | grep virtualcluster"
 ```
 
 **パターン4**: Permissions error
-```
+```plaintext
 Error: ...forbidden...
 ```
 **対処**: vc-managerのServiceAccountとRBACを確認してください。
@@ -705,18 +713,18 @@ kubectl get clusterrole vc-syncer -o yaml
 
 vc-syncerのログに以下のような警告が出る場合:
 
-```
+```plaintext
 E0224 20:26:16.832348       1 dws.go:65] failed reconcile service default/kubernetes CREATE of cluster vc-manager-e74356-tenant-alpha Service "kubernetes" is invalid: spec.clusterIPs: Invalid value: []string{"10.32.0.1"}: must be empty when `clusterIP` is not specified
 ```
 
 **原因**:
-- テナントに割り当てられた仮想クラスタ ( Virtual Cluster ) の`default/kubernetes` Serviceをスーパークラスタ ( Super Cluster ) に同期する際のフィールド処理の問題です。
+- テナント ( Tenant ) に割り当てられた仮想クラスタ ( Virtual Cluster ) の`default/kubernetes` Serviceをスーパークラスタ ( Super Cluster ) に同期する際のフィールド処理の問題です。
 - vc-syncerは`clusterIP`を空文字列に設定しますが、Kubernetes v1.20以降では"`clusterIP`が未設定の場合`clusterIPs`もnil/空でなければならない"という検証ルールがあります。
 - `service_mutate.patch`により、`clusterIPs`をnilに設定することで解決されます。
 
 **影響**:
 - この警告がある場合、`default/kubernetes` Serviceの同期が失敗します。
-- テナントに割り当てられた仮想クラスタ ( Virtual Cluster ) 内のPodがKubernetes APIにアクセスできない可能性があります。
+- テナント ( Tenant ) に割り当てられた仮想クラスタ ( Virtual Cluster ) 内のPodがKubernetes APIにアクセスできない可能性があります。
 
 **確認方法**:
 ```bash
@@ -725,7 +733,6 @@ TENANT_NS=$(kubectl get virtualclusters -n vc-manager <vc-name> -o jsonpath='{.s
 kubectl get services -n $TENANT_NS kubernetes
 ```
 
-**修正済み**:
 本ロールでは`service_mutate.patch`を適用することでこの問題が解決されています。既存環境で警告が出る場合は、クリーンビルド(`virtualcluster_clean_build: true`)でvc-syncerを再デプロイしてください。
 
 ### CRD 登録が失敗する場合
@@ -809,6 +816,7 @@ $
 - [distribute-single-image.yml](tasks/distribute-single-image.yml): 単一イメージの転送とインポート
 
 正常に成功した場合, 各ワーカーノードへのイメージ転送とインポートが順次実行され, 処理完了メッセージ(`Completed: <component> on <worker>`)が表示されます。
+        ```plaintext
         "  Transferring vn-agent-amd64.tar to k8sworker0101...",
         "  Importing vn-agent-amd64.tar on k8sworker0101...",
         "docker.io/virtualcluster/vn-agent-amd64:latest",
@@ -834,9 +842,7 @@ $
         "--- Worker k8sworker0102 completed ---",
         "=== All images distributed successfully ===",
         "Completed at: 2026年  2月 24日 火曜日 01:23:22 JST"
-    ]
-}
-```
+        ```
 
 ### パッチ適用に失敗する場合
 
@@ -902,7 +908,7 @@ ansible-playbook k8s-management.yml -t k8s-virtual-cluster -e "virtualcluster_cl
 - `k8s_virtualcluster_enabled` が `true` の場合のみロールが実行されます。
 - `virtualcluster_build_from_source: false` を設定すると, ビルド処理をスキップして既存のイメージからの配布のみを実行できます。
 - `virtualcluster_clean_build` がデフォルトで `true` に設定されており, 既存のVirtualCluster/テナント名前空間/ClusterVersion/CRD等を削除してから再構築します。既存リソースを維持したい場合は `virtualcluster_clean_build: false` に設定してください。
-- クリーンビルド時, テナント名前空間の消滅を最大 `virtualcluster_tenant_ns_wait_timeout` 秒待機します。大量のテナントが存在する場合や削除に時間がかかる場合は, この値を増やしてください。
+- クリーンビルド時, テナント名前空間の消滅を最大 `virtualcluster_tenant_ns_wait_timeout` 秒待機します。大量のテナント ( Tenant ) が存在する場合や削除に時間がかかる場合は, この値を増やしてください。
 - ワーカーノードリストは `kubectl get nodes` から動的に取得されるため, inventory/hosts の設定は不要です。
 - ビルドノードとしてリモートサーバーを指定する場合, `virtualcluster_build_host` を適切に設定してください。
 - vc-manager Pod には `virtualcluster-webhook: "true"` ラベルが自動的に付与され, vc-manager自身が起動時に作成するwebhook serviceのselectorと一致するよう設定されています。
