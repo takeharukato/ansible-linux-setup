@@ -44,7 +44,7 @@ Kubernetes Virtual Cluster ) のテナント ( Tenant ) 環境を構築するロ
 | ClusterVersionCRD | - | 仮想クラスタ ( Virtual Cluster ) 内で使用するコンポーネント(etcd, kube-apiserver, kube-controller-manager)のコンテナイメージ情報を定義するリソース型(CRD)。 |
 | ClusterVersionインスタンス | - | ClusterVersionCRD リソース型に基づいて作成された実際のリソースオブジェクト(例: `cv-k8s-1-31`)。 |
 | VirtualClusterインスタンス | - | VirtualClusterCRD リソース型に基づいて作成された実際のリソースオブジェクト(例: `tenant-alpha`, `tenant-beta`)。 |
-| vc-manager | - | 仮想クラスタ ( Virtual Cluster ) の制御コンポーネント。 |
+| vc-manager ( Virtual Cluster Manager ) | vc-manager | 仮想クラスタ ( Virtual Cluster ) の制御コンポーネント。スーパークラスタ ( Super Cluster ) 上で仮想クラスタ ( Virtual Cluster ) の管理を行う。 |
 | vc-syncer ( Virtual Cluster Syncer ) | vc-syncer | 仮想クラスタ ( Virtual Cluster ) とスーパークラスタ ( Super Cluster ) の状態を同期するコンポーネント。 |
 | vn-agent ( Virtual Node Agent ) | vn-agent | ワーカーノード上で仮想クラスタ ( Virtual Cluster ) の通信を中継するエージェント。 |
 | 名前空間 ( namespace ) | - | Kubernetes におけるリソースのグループ化と分離の仕組み。 |
