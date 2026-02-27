@@ -20,8 +20,8 @@ Kubernetes Virtual Cluster ) のテナント ( Tenant ) 環境を構築するロ
 | kube-apiserver | kube-apiserver | Kubernetes API サーバー, API リクエストを受け付けて処理するコンポーネント。 |
 | kube-controller-manager | kube-controller-manager | Kubernetes コントローラーマネージャー, リソースの状態を監視して制御するコンポーネント。 |
 | kubectl | kubectl | Kubernetes クラスタを操作するコマンドラインツール。API サーバーへのリクエストを送信し, リソースの作成・更新・削除・確認を行う。 |
-| コントロールプレーンノード ( Control Plane Node ) | コントロールプレーンノード | Kubernetes コントロールプレーンコンポーネント(API サーバー, スケジューラー, コントローラーマネージャー, etcd など)が動作し, , クラスタ全体の制御と調整を行うノード。|
-| ワーカーノード ( Worker Node ) | ワーカーノード | Kubernetes クラスタで実際にアプリケーション(ポッド ( Pod ))が実行されるノード。kubelet と呼ばれるエージェントが動作し, コントロールプレーンからの指示に基づいてコンテナを実行管理する。 |
+| コントロールプレーンノード ( Control Plane Node ) | コントロールプレーンノード | Kubernetesクラスタを制御するためのコンポーネント(API サーバー, スケジューラー, コントローラーマネージャー, etcd など)が動作し, , クラスタ全体の制御と調整を行うノード。|
+| ワーカーノード ( Worker Node ) | ワーカーノード | Kubernetes クラスタで実際にアプリケーション(ポッド ( Pod ))が実行されるノード。kubelet と呼ばれるエージェントが動作し, コントロールプレインノードからの指示に基づいてコンテナを実行管理する。 |
 | コンテナ ( Container ) | コンテナ | アプリケーションと依存関係を一つのパッケージ化したもの。軽量で, どの環境でも一貫して実行可能。 |
 | ポッド ( Pod ) | Pod | Kubernetes の最小デプロイメント単位。1 個以上のコンテナ ( Container ) で構成される実行環境。ポッド ( Pod ) 内のすべてのコンテナ ( Container ) は共有ネットワーク(共用 IP・ポート), 共有ストレージによって密接に結合され, 同一ノード上で常に共存・同期スケジュール される。 |
 | デプロイメント ( Deployment ) | Deployment | Kubernetes リソース。ステートレスなアプリケーション向け。複数のレプリカ(ポッド ( Pod ) の複製)を管理し, 水平スケーリング に対応。 |
@@ -39,7 +39,7 @@ Kubernetes Virtual Cluster ) のテナント ( Tenant ) 環境を構築するロ
 | 仮想クラスタ ( Virtual Cluster ) | Virtual Cluster | Kubernetes API を仮想化して提供する論理的な Kubernetes クラスタ。各テナントに独立した専用クラスタとして見える環境を提供する。 |
 | スーパークラスタ ( Super Cluster ) | Super Cluster | 仮想クラスタ ( Virtual Cluster ) を動作させるホスト側の物理 Kubernetes クラスタ。実際のノードリソースを提供する。 |
 | Kubernetesのデプロイメント | - | Kubernetes を用いて, アプリケーションプロセスやリソースを配置, 展開, 管理するための操作を意味する。Kubernetes の配置・管理における最小実行単位は, ポッド ( Pod ) となる。 |
-| テナント ( Tenant ) | テナント | 互いに独立した Kubernetes コントロールプレーンを持つ論理的な利用者またはチーム。各テナントについて, 専用の仮想クラスタ ( Virtual Cluster ) が割り当てられ, テナントに割り当てられた仮想クラスタ ( Virtual Cluster ) 内のリソース (名前空間, CRD) を他のテナントに影響を与えずに作成できる。物理リソース (ノード) をスーパークラスタ (Super Cluster) を通じて他のテナントと共有し, かつ, 仮想リソース (Kubernetes のリソース) は, Kubernetes のコントロールプレーンレベルで分離される。 |
+| テナント ( Tenant ) | テナント | 互いに独立した Kubernetes コントロールプレインノードを持つ論理的な利用者またはチーム。各テナントについて, 専用の仮想クラスタ ( Virtual Cluster ) が割り当てられ, テナントに割り当てられた仮想クラスタ ( Virtual Cluster ) 内のリソース (名前空間, CRD) を他のテナントに影響を与えずに作成できる。物理リソース (ノード) をスーパークラスタ (Super Cluster) を通じて他のテナントと共有し, かつ, 仮想リソース (Kubernetes のリソース) は, Kubernetes のコントロールプレインノードレベルで分離される。 |
 | VirtualClusterCRD | VirtualCluster | テナント用仮想クラスタ ( Virtual Cluster ) の設定を定義するリソース型(CRD)。 |
 | ClusterVersionCRD | ClusterVersion | 仮想クラスタ ( Virtual Cluster ) 内で使用するコンポーネント(etcd, kube-apiserver, kube-controller-manager)のコンテナイメージ情報を定義するリソース型(CRD)。 |
 | ClusterVersionインスタンス | - | ClusterVersionCRD リソース型に基づいて作成された実際のリソースオブジェクト(例: `cv-k8s-1-31`)。 |
@@ -134,7 +134,7 @@ k8s-virtual-cluster ロール由来の列に`yes`と記載されている変数�
 - `k8s_vcinstances_enabled` の有効化を確認します。
 - CRD 関連の変数と `vc-manager` 名前空間の存在を検証します。
 - マニフェスト出力先ディレクトリを作成します。
-- kube-system からコントロールプレーン管理コンポーネント（etcd, kube-apiserver, kube-controller-manager）のイメージを検出します(自動検出有効時)。
+- kube-system からコントロールプレインノード管理コンポーネント（etcd, kube-apiserver, kube-controller-manager）のイメージを検出します(自動検出有効時)。
 - **StorageClass の準備** (`prepare-storage.yml`): `vcinstances_etcd_storage_enabled: true` の場合, スーパークラスタ側に StorageClass が存在しない場合は自動作成します。存在する場合はスキップします。
 - **Failed PV のクリーンアップ** (`cleanup-pvs.yml`): `vcinstances_cleanup_failed_pvs: true` の場合, テナント名に一致する Failed 状態の PV を自動削除します。VirtualCluster 再作成時に古い Claim を保持した PV が Failed 状態になる問題を自動的に解決します。
 - **PersistentVolume の準備** (`prepare-pvs.yml`): `vcinstances_etcd_storage_enabled: true` かつ `vcinstances_auto_create_pv: true` の場合, テナント数分の etcd 用 PV を自動作成します。ワーカーノード上にディレクトリを作成し, local-storage タイプの PV を生成します。
