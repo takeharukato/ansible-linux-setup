@@ -20,7 +20,14 @@
   register: _result
   changed_when: _result.rc == 0
 
-- name: "Install Helm {{ k8s_helm_version }}"  # noqa command-instead-of-module
+- name: Debug Helm version installation
+  ansible.builtin.debug:
+    msg: "Installing Helm version: {{ k8s_helm_version }}"
+  when:
+    - k8s_helm_version is defined
+    - k8s_helm_version != 'latest'
+
+- name: Install Helm  # noqa command-instead-of-module
   ansible.builtin.shell: |
     curl -fsSL -o /tmp/helm.tar.gz "{{ k8s_helm_download_url }}"
     curl -fsSL -o /tmp/helm.tar.gz.sha256sum "{{ k8s_helm_checksum_download_url }}"
