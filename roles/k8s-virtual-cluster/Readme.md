@@ -17,8 +17,8 @@ Kubernetes Virtual Cluster ) の基盤コンポーネントをデプロイする
 | kube-apiserver | kube-apiserver | Kubernetes API サーバー, API リクエストを受け付けて処理するコンポーネント。 |
 | kube-controller-manager | kube-controller-manager | Kubernetes コントローラーマネージャー, リソースの状態を監視して制御するコンポーネント。 |
 | kubectl | kubectl | Kubernetes クラスタを操作するコマンドラインツール。API サーバーへのリクエストを送信し, リソースの作成・更新・削除・確認を行う。 |
-| コントロールプレーンノード ( Control Plane Node ) | コントロールプレーンノード | Kubernetes コントロールプレーンコンポーネント(API サーバー, スケジューラー, コントローラーマネージャー, etcd など)が動作し, , クラスタ全体の制御と調整を行うノード。|
-| ワーカーノード ( Worker Node ) | ワーカーノード | Kubernetes クラスタで実際にアプリケーション(ポッド ( Pod ))が実行されるノード。kubelet と呼ばれるエージェントが動作し, コントロールプレーンからの指示に基づいてコンテナを実行管理する。 |
+| コントロールプレーンノード ( Control Plane Node ) | コントロールプレーンノード | Kubernetesクラスタを制御するためのコンポーネント(API サーバー, スケジューラー, コントローラーマネージャー, etcd など)が動作し, , クラスタ全体の制御と調整を行うノード。|
+| ワーカーノード ( Worker Node ) | ワーカーノード | Kubernetes クラスタで実際にアプリケーション(ポッド ( Pod ))が実行されるノード。kubelet と呼ばれるエージェントが動作し, コントロールプレインノードからの指示に基づいてコンテナを実行管理する。 |
 | コンテナ ( Container ) | コンテナ | アプリケーションと依存関係を一つのパッケージ化したもの。軽量で, どの環境でも一貫して実行可能。 |
 | ポッド ( Pod ) | Pod | Kubernetes の最小デプロイメント単位。1 個以上のコンテナ ( Container ) で構成される実行環境。ポッド ( Pod ) 内のすべてのコンテナ ( Container ) は共有ネットワーク(共用 IP・ポート), 共有ストレージによって密接に結合され, 同一ノード上で常に共存・同期スケジュール される。 |
 | デプロイメント ( Deployment ) | Deployment | Kubernetes リソース。ステートレスなアプリケーション向け。複数のレプリカ(ポッド ( Pod ) の複製)を管理し, 水平スケーリング に対応。 |
@@ -38,7 +38,7 @@ Kubernetes Virtual Cluster ) の基盤コンポーネントをデプロイする
 | 仮想クラスタ ( Virtual Cluster ) | Virtual Cluster | Kubernetes API を仮想化して提供する論理的な Kubernetes クラスタ。 |
 | スーパークラスタ ( Super Cluster ) | Super Cluster | 仮想クラスタ ( Virtual Cluster ) を動作させるホスト側の物理 Kubernetes クラスタ。 |
 | Kubernetesのデプロイメント | - | Kubernetes を用いて, アプリケーションプロセスやリソースを配置, 展開, 管理するための操作を意味する。Kubernetes の配置・管理における最小実行単位は, ポッド ( Pod ) となる。 |
-| テナント ( Tenant ) | テナント | 互いに独立した Kubernetes コントロールプレーンを持つ論理的な利用者またはチーム。各テナントについて, 専用の仮想クラスタ ( Virtual Cluster ) が割り当てられ, テナントに割り当てられた仮想クラスタ ( Virtual Cluster ) 内のリソース (名前空間, CRD) を他のテナントに影響を与えずに作成できる。物理リソース (ノード) をスーパークラスタ ( Super Cluster ) を通じて他のテナントと共有し, かつ, 仮想リソース (Kubernetes のリソース) は, Kubernetes のコントロールプレーンレベルで分離される。 |
+| テナント ( Tenant ) | テナント | 互いに独立した Kubernetes コントロールプレインノードを持つ論理的な利用者またはチーム。各テナントについて, 専用の仮想クラスタ ( Virtual Cluster ) が割り当てられ, テナントに割り当てられた仮想クラスタ ( Virtual Cluster ) 内のリソース (名前空間, CRD) を他のテナントに影響を与えずに作成できる。物理リソース (ノード) をスーパークラスタ ( Super Cluster ) を通じて他のテナントと共有し, かつ, 仮想リソース (Kubernetes のリソース) は, Kubernetes のコントロールプレインノードレベルで分離される。 |
 | vc-manager ( Virtual Cluster Manager ) | vc-manager | 仮想クラスタ ( Virtual Cluster ) の制御コンポーネント。スーパークラスタ ( Super Cluster ) 上で仮想クラスタ ( Virtual Cluster ) の管理を行う。 |
 | vc-syncer ( Virtual Cluster Syncer ) | vc-syncer | 仮想クラスタ ( Virtual Cluster ) とスーパークラスタ ( Super Cluster ) の状態を同期するコンポーネント。 |
 | vn-agent ( Virtual Node Agent ) | vn-agent | ワーカーノード上で仮想クラスタ ( Virtual Cluster ) の通信を中継するエージェント。 |
@@ -96,7 +96,7 @@ etcd の永続ストレージを有効にする場合 (`vcinstances_etcd_storage
 
 ## 概要
 
-仮想クラスタ ( Virtual Cluster ) により, ホスト Kubernetes クラスタ(以下, スーパークラスタ ( Super Cluster ))上で複数のテナント ( Tenant ) 向けコントロールプレーンノード ( Control Plane Node ) を独立して運用できます。各テナント ( Tenant ) のコントロールプレーン ( Control Plane Node ) はスーパークラスタ ( Super Cluster ) のワーカーノード ( Worker Node ) を共有しながら, API レベルの分離を実現します。
+仮想クラスタ ( Virtual Cluster ) により, ホスト Kubernetes クラスタ(以下, スーパークラスタ ( Super Cluster ))上で複数のテナント ( Tenant ) 向けコントロールプレーンノード ( Control Plane Node ) を独立して運用できます。各テナント ( Tenant ) のコントロールプレインノード ( Control Plane Node ) はスーパークラスタ ( Super Cluster ) のワーカーノード ( Worker Node ) を共有しながら, API レベルの分離を実現します。
 
 ### デプロイされるコンポーネント
 
@@ -132,7 +132,7 @@ etcd の永続ストレージを有効にする場合 (`vcinstances_etcd_storage
    - `build-kubectl-vc.yml` でkubectl-vcプラグインをビルドします（`virtualcluster_build_kubectl_vc: true` の場合）。
    - `build-docker-images.yml` でDockerイメージをビルドしてtarファイルに保存します。
    - `fetch-images.yml` でビルドノードからAnsibleの制御ノード(localhost)へtarファイルを取得します。
-7. `upload-to-ctrlplane.yml` でコントロールプレーンノードへイメージをアップロードします。
+7. `upload-to-ctrlplane.yml` でコントロールプレーンノード ( Control Plane Node ) へイメージをアップロードします。
 8. `distribute-to-workers.yml` でワーカーノード ( Worker Node ) へイメージを配布します:
    - `kubectl get nodes` で実際のワーカーノード ( Worker Node ) リストを取得します。
    - コントロールプレーンノード ( Control Plane Node ) からAnsibleの制御ノード(localhost)へイメージをfetchします。
@@ -163,7 +163,7 @@ etcd の永続ストレージを有効にする場合 (`vcinstances_etcd_storage
 - バイナリ作成: `build-binaries.yml`。
 - Dockerイメージ作成とtar出力: `build-docker-images.yml`。
 - Ansibleの制御ノード(localhost)への取得とクリーンアップ: `fetch-images.yml`。
-- コントロールプレーンへの転送: `upload-to-ctrlplane.yml`。
+- コントロールプレインノードへの転送: `upload-to-ctrlplane.yml`。
 - ワーカーノードへの配布とクリーンアップ: `distribute-to-workers.yml`。
 
 ## 主要変数
@@ -180,7 +180,7 @@ etcd の永続ストレージを有効にする場合 (`vcinstances_etcd_storage
 | `virtualcluster_build_components` | `['manager', 'syncer', 'vn-agent']` | ビルド対象コンポーネントのリストです。 |
 | `virtualcluster_build_timeout` | `1800` | ビルドタイムアウト(秒)です。 |
 | `virtualcluster_local_cache_dir` | `"{{ lookup('env', 'HOME') }}/.ansible/vc-images-cache"` | Ansibleの制御ノード(localhost)上のイメージキャッシュディレクトリです (既定: `~/.ansible/vc-images-cache`)。 |
-| `virtualcluster_ctrlplane_cache_dir` | `"/tmp/vc-images"` | コントロールプレーン上のイメージキャッシュディレクトリです (既定: `/tmp/vc-images`)。 |
+| `virtualcluster_ctrlplane_cache_dir` | `"/tmp/vc-images"` | コントロールプレインノード上のイメージキャッシュディレクトリです (既定: `/tmp/vc-images`)。 |
 | `virtualcluster_namespace` | `"vc-manager"` | 仮想クラスタ ( Virtual Cluster ) 管理コンポーネントを展開する名前空間です。 |
 | `virtualcluster_config_dir` | `"{{ k8s_kubeadm_config_store }}/virtual-cluster"` | マニフェストの出力先です (既定: `~/kubeadm/virtual-cluster`)。 |
 | `virtualcluster_supercluster_kubeconfig_path` | `"/etc/kubernetes/admin.conf"` | K8sクラスタ(スーパークラスタ)操作に使用するkubeconfigのパスです。 |
@@ -313,8 +313,8 @@ ansible-playbook k8s-management.yml -t k8s-virtual-cluster
   - `virtualcluster_clean_build: true` の場合, `git clone/pull` 時に `force: true` でローカル変更を破棄します。
 - **ソースコードパッチ適用**: `ansible.posix.patch` モジュールでunified diff形式のパッチを適用します(詳細は後述)。
 - ビルドノードでDockerイメージをビルドしてtarファイルに保存。
-- ビルドノード  =>  Ansibleの制御ノード(localhost)  =>  コントロールプレーンノードへの転送。
-- コントロールプレーンノードで `kubectl get nodes` から実際のワーカーノード ( Worker Node ) リストを取得。
+- ビルドノード  =>  Ansibleの制御ノード(localhost)  =>  コントロールプレーンノード ( Control Plane Node ) への転送。
+- コントロールプレーンノード ( Control Plane Node ) で `kubectl get nodes` から実際のワーカーノード ( Worker Node ) リストを取得。
 - SSH経由で各ワーカーノード ( Worker Node ) へイメージを配布し, `ctr -n k8s.io` で取り込み。
 - CRD の生成と登録を行います。
 - **PersistentVolume の準備** (オプション, `prepare-persistent-volumes.yml`): `virtualcluster_persistent_volumes` が host_vars で定義されている場合, 指定されたPVを作成します。ワーカーノード上にディレクトリを作成し, local-storage タイプの PV を生成します。この機能は汎用的で, etcd 以外にも任意の用途のPVを作成できます。
