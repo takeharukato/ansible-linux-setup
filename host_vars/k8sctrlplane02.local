@@ -128,6 +128,16 @@ hubble_ui_enabled: true
 k8s_virtualcluster_enabled: false
 
 #
+# etcd 永続ストレージ設定
+#
+# 永続ストレージ有効化
+vcinstances_etcd_storage_enabled: true
+# PVC サイズ
+vcinstances_etcd_storage_size: "10Gi"
+# StorageClass 名
+vcinstances_etcd_storage_class: "default-sc"
+
+#
 # Virtual Cluster インスタンスの導入（実験環境用）
 #
 # Virtual Cluster インスタンス機能を導入する場合は, trueに設定する
