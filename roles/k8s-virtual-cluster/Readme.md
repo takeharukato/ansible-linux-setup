@@ -17,8 +17,7 @@ Kubernetes Virtual Cluster ) の基盤コンポーネントをデプロイする
 | kube-apiserver | kube-apiserver | Kubernetes API サーバー, API リクエストを受け付けて処理するコンポーネント。 |
 | kube-controller-manager | kube-controller-manager | Kubernetes コントローラーマネージャー, リソースの状態を監視して制御するコンポーネント。 |
 | kubectl | kubectl | Kubernetes クラスタを操作するコマンドラインツール。API サーバーへのリクエストを送信し, リソースの作成・更新・削除・確認を行う。 |
-| コントロールプレーン ( Control Plane ) | コントロールプレーン | Kubernetes クラスタの管理機能を提供するコンポーネント群。API サーバー, スケジューラー, コントローラーマネージャー, etcd などを含み, クラスタ全体の制御と調整を行う。 |
-| コントロールプレーンノード ( Control Plane Node ) | コントロールプレーンノード | Kubernetes コントロールプレーンコンポーネント(API サーバー, スケジューラー, コントローラーマネージャー, etcd など)が動作するノード(物理マシンまたは仮想マシン)。 |
+| コントロールプレーンノード ( Control Plane Node ) | コントロールプレーンノード | Kubernetes コントロールプレーンコンポーネント(API サーバー, スケジューラー, コントローラーマネージャー, etcd など)が動作し, , クラスタ全体の制御と調整を行うノード。|
 | ワーカーノード ( Worker Node ) | ワーカーノード | Kubernetes クラスタで実際にアプリケーション(ポッド ( Pod ))が実行されるノード。kubelet と呼ばれるエージェントが動作し, コントロールプレーンからの指示に基づいてコンテナを実行管理する。 |
 | コンテナ ( Container ) | コンテナ | アプリケーションと依存関係を一つのパッケージ化したもの。軽量で, どの環境でも一貫して実行可能。 |
 | ポッド ( Pod ) | Pod | Kubernetes の最小デプロイメント単位。1 個以上のコンテナ ( Container ) で構成される実行環境。ポッド ( Pod ) 内のすべてのコンテナ ( Container ) は共有ネットワーク(共用 IP・ポート), 共有ストレージによって密接に結合され, 同一ノード上で常に共存・同期スケジュール される。 |
@@ -97,7 +96,7 @@ etcd の永続ストレージを有効にする場合 (`vcinstances_etcd_storage
 
 ## 概要
 
-仮想クラスタ ( Virtual Cluster ) により, ホスト Kubernetes クラスタ(以下, スーパークラスタ ( Super Cluster ))上で複数のテナント ( Tenant ) 向けコントロールプレーン ( Control Plane ) を独立して運用できます。各テナント ( Tenant ) のコントロールプレーン ( Control Plane ) はスーパークラスタ ( Super Cluster ) のワーカーノード ( Worker Node ) を共有しながら, API レベルの分離を実現します。
+仮想クラスタ ( Virtual Cluster ) により, ホスト Kubernetes クラスタ(以下, スーパークラスタ ( Super Cluster ))上で複数のテナント ( Tenant ) 向けコントロールプレーンノード ( Control Plane Node ) を独立して運用できます。各テナント ( Tenant ) のコントロールプレーン ( Control Plane Node ) はスーパークラスタ ( Super Cluster ) のワーカーノード ( Worker Node ) を共有しながら, API レベルの分離を実現します。
 
 ### デプロイされるコンポーネント
 
