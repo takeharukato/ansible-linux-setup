@@ -1,4 +1,12 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright (c) 2025 Takeharu KATO
+#
+#  Virtual Clusterインスタンスのバリデーション
+#
 ---
+
+# VirtualClusterの必須フィールドが存在しない場合は, 警告を出力して当該エントリをスキップする
 - name: "Warn missing VirtualCluster required fields"
   ansible.builtin.debug:
     msg: "Skip VirtualCluster instance because name or clusterVersionName is missing: {{ item }}"
@@ -9,6 +17,7 @@
     - item.name is not defined or (item.name | string | length) == 0
       or item.clusterVersionName is not defined or (item.clusterVersionName | string | length) == 0
 
+# VirtualClusterインスタンスを生成して適用するためのmanifestをテンプレートから生成
 - name: "Generate VirtualCluster instance manifests"
   ansible.builtin.template:
     src: "virtualcluster-instance.yaml.j2"
@@ -23,6 +32,7 @@
     - item.clusterVersionName is defined
     - (item.clusterVersionName | string | length) > 0
 
+# 生成したVirtualClusterManifestを適用
 - name: "Apply VirtualCluster instances"
   ansible.builtin.command:
     cmd: "kubectl --kubeconfig {{ virtualcluster_supercluster_kubeconfig_path }} apply -f {{ vcinstances_config_dir }}/virtualcluster-{{ item.name }}.yaml"
@@ -40,6 +50,7 @@
     - item.clusterVersionName is defined
     - (item.clusterVersionName | string | length) > 0
 
+# VirtualClusterインスタンスの生成が完了するまで待機
 - name: "Wait for VirtualCluster instances to be created"
   ansible.builtin.command:
     cmd: >

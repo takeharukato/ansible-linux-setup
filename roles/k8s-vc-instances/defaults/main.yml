@@ -1,6 +1,6 @@
 #  -*- coding:utf-8 mode:yaml -*-
 #  Ansible playbook
-#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#  Copyright (c) 2025 Takeharu KATO
 #
 #  ロール固有変数のデフォルト値
 #  group_vars/all/all.yml やhost_varsで上書き可能とするため,
@@ -21,8 +21,52 @@ vcinstances_clusterversions: []
 # VirtualCluster インスタンスリスト
 vcinstances_virtualclusters: []
 
+#
 # k8s-virtual-cluster ロール由来の変数 (既定値)
+#
+# API Group
 virtualcluster_api_group: "tenancy.x-k8s.io"
+# API Version
 virtualcluster_api_version: "v1alpha1"
+# vc-managerのnamespace
 virtualcluster_namespace: "vc-manager"
+# スーパークラスタの kubeconfig パス
 virtualcluster_supercluster_kubeconfig_path: "/etc/kubernetes/admin.conf"
+
+#
+# etcd 永続ストレージ設定
+#
+# etcd の永続ストレージ有効化 (デフォルト: false = emptyDir使用)
+vcinstances_etcd_storage_enabled: false
+# etcd PVC のサイズ (デフォルト: 10GiB)
+vcinstances_etcd_storage_size: "10Gi"
+# StorageClass 名 (デフォルト: "" = デフォルト SC)
+vcinstances_etcd_storage_class: ""
+
+#
+# StorageClass 自動作成設定
+#
+# 自動作成する StorageClass の名前 (デフォルト: local-storage)
+vcinstances_default_storage_class_name: "local-storage"
+# StorageClass が存在しない場合に自動作成するかどうか (デフォルト: true)
+vcinstances_auto_create_storage_class: true
+
+#
+# PersistentVolume 自動作成設定
+#
+# etcd用PVを自動作成するかどうか (デフォルト: true)
+vcinstances_auto_create_pv: true
+# ワーカーノード上のPVベースパス (デフォルト: /mnt/etcd-data)
+vcinstances_pv_base_path: "/mnt/etcd-data"
+# etcd レプリカ数 (デフォルト: 1, 通常変更不要)
+vcinstances_etcd_replicas: 1
+# Failed状態のPVを自動クリーンアップするかどうか (デフォルト: true)
+vcinstances_cleanup_failed_pvs: true
+
+#
+# スーパークラスタへの接続設定
+#
+# スーパークラスタの kubeconfig パス
+k8s_supercluster_kubeconfig_path: "/etc/kubernetes/admin.conf"
+# スーパークラスタのコンテキスト (空の場合は現在のコンテキストを使用)
+k8s_supercluster_context: ""

@@ -1,0 +1,171 @@
+#  -*- mode: yaml; coding: utf-8; line-endings: unix -*-
+#  SPDX-License-Identifier: BSD-2-Clause
+#
+#  Copyright (c) 2025 TAKEHARU KATO
+#  This file is distributed under the two-clause BSD license.
+#  For the full text of the license, see the LICENSE file in the project root directory.
+#  このファイルは2条項BSDライセンスの下で配布されています。
+#  ライセンス全文はプロジェクト直下の LICENSE を参照してください。
+
+#
+#  etcd用 PersistentVolume 準備タスク
+#
+#  vcinstances_etcd_storage_enabled: true の場合、テナント数分の etcd 用 PV を作成する。
+#
+---
+
+# worker ノードのリストを取得
+- name: "Get worker nodes list"
+  ansible.builtin.command:
+    cmd: >-
+      kubectl --kubeconfig {{ k8s_supercluster_kubeconfig_path }}
+      get nodes -l '!node-role.kubernetes.io/control-plane'
+      -o jsonpath='{.items[*].metadata.name}'
+  register: _worker_nodes_raw
+  become: true
+  changed_when: false
+  when:
+    - vcinstances_etcd_storage_enabled | default(false) | bool
+    - vcinstances_auto_create_pv | default(true) | bool
+
+# worker ノードのリストを解析して fact としてセット
+- name: "Parse worker nodes"
+  ansible.builtin.set_fact:
+    _worker_nodes: "{{ _worker_nodes_raw.stdout.split() }}"
+  when:
+    - vcinstances_etcd_storage_enabled | default(false) | bool
+    - vcinstances_auto_create_pv | default(true) | bool
+    - _worker_nodes_raw.stdout | length > 0
+
+# 必要なPersistentVolumeの数を計算
+- name: "Calculate required PV count"
+  ansible.builtin.set_fact:
+    _required_pv_count: "{{ (vcinstances_virtualclusters | default([], true) | length) * (vcinstances_etcd_replicas | default(1) | int) }}"
+  when:
+    - vcinstances_etcd_storage_enabled | default(false) | bool
+    - vcinstances_auto_create_pv | default(true) | bool
+
+# PersistentVolumeの自動作成が有効な場合、PV作成のための計画を立てる
+- name: "Generate PV distribution plan"
+  ansible.builtin.set_fact:
+    _pv_plan: >-
+      {{
+        _pv_plan | default([]) +
+        [{
+          'pv_name': 'pv-etcd-' + item.name + '-' + (loop_index | string),
+          'tenant_name': item.name,
+          'node_name': _worker_nodes[loop_index % (_worker_nodes | length)],
+          'host_path': (vcinstances_pv_base_path | default('/mnt/etcd-data', true)) + '/' + item.name + '-' + (loop_index | string)
+        }]
+      }}
+  loop: "{{ vcinstances_virtualclusters | default([], true) }}"
+  loop_control:
+    loop_var: item
+    index_var: loop_index
+  when:
+    - vcinstances_etcd_storage_enabled | default(false) | bool
+    - vcinstances_auto_create_pv | default(true) | bool
+    - _worker_nodes | default([]) | length > 0
+
+# 生成したPV計画の内容をデバッグ出力
+- name: "Debug PV distribution plan"
+  ansible.builtin.debug:
+    msg: |
+      Required PV count: {{ _required_pv_count | default(0) }}
+      Worker nodes: {{ _worker_nodes | default([]) }}
+      PV plan: {{ _pv_plan | default([]) | to_nice_json }}
+  when:
+    - vcinstances_etcd_storage_enabled | default(false) | bool
+    - vcinstances_auto_create_pv | default(true) | bool
+
+#
+# 以降のタスクでは、生成したPV計画に基づいて、必要なPVを作成していく。
+#
+
+# ディレクトリをワーカーノード上に作成
+- name: "Create directories on worker nodes"
+  ansible.builtin.file:
+    path: "{{ item.host_path }}"
+    state: directory
+    mode: "0755"
+    owner: root
+    group: root
+  delegate_to: "{{ item.node_name }}"
+  loop: "{{ _pv_plan | default([]) }}"
+  loop_control:
+    label: "{{ item.node_name }}:{{ item.host_path }}"
+  become: true
+  when:
+    - vcinstances_etcd_storage_enabled | default(false) | bool
+    - vcinstances_auto_create_pv | default(true) | bool
+    - _pv_plan | default([]) | length > 0
+
+# PersistentVolumeが既に存在することを確認
+- name: "Check existing PVs"
+  ansible.builtin.command:
+    cmd: "kubectl --kubeconfig {{ k8s_supercluster_kubeconfig_path }} get pv {{ item.pv_name }}"
+  loop: "{{ _pv_plan | default([]) }}"
+  loop_control:
+    label: "{{ item.pv_name }}"
+  register: _existing_pvs
+  become: true
+  changed_when: false
+  failed_when: false
+  when:
+    - vcinstances_etcd_storage_enabled | default(false) | bool
+    - vcinstances_auto_create_pv | default(true) | bool
+    - _pv_plan | default([]) | length > 0
+
+# PersistentVolumeが存在しない場合は、テンプレートからPVマニフェストを生成
+- name: "Generate PV manifests"
+  ansible.builtin.template:
+    src: "etcd-pv.yaml.j2"
+    dest: "{{ vcinstances_config_dir }}/pv-{{ pv_result.item.pv_name }}.yaml"
+    mode: "0644"
+  loop: "{{ _existing_pvs.results | default([]) }}"
+  loop_control:
+    loop_var: pv_result
+    label: "{{ pv_result.item.pv_name }}"
+  vars:
+    item: "{{ pv_result.item }}"
+  when:
+    - vcinstances_etcd_storage_enabled | default(false) | bool
+    - vcinstances_auto_create_pv | default(true) | bool
+    - pv_result.rc != 0
+
+# PersistentVolumeマニフェストを適用してPVを作成
+- name: "Apply PV manifests"
+  ansible.builtin.command:
+    cmd: "kubectl --kubeconfig {{ k8s_supercluster_kubeconfig_path }} apply -f {{ vcinstances_config_dir }}/pv-{{ pv_result.item.pv_name }}.yaml"
+  loop: "{{ _existing_pvs.results | default([]) }}"
+  loop_control:
+    loop_var: pv_result
+    label: "{{ pv_result.item.pv_name }}"
+  register: _apply_pv_result
+  become: true
+  changed_when: >-
+    'created' in _apply_pv_result.stdout
+    or 'configured' in _apply_pv_result.stdout
+  when:
+    - vcinstances_etcd_storage_enabled | default(false) | bool
+    - vcinstances_auto_create_pv | default(true) | bool
+    - pv_result.rc != 0
+
+# PersistentVolumeが正しく作成されたことを確認
+- name: "Verify PVs created"
+  ansible.builtin.command:
+    cmd: "kubectl --kubeconfig {{ k8s_supercluster_kubeconfig_path }} get pv -l type=local"
+  register: _final_pv_check
+  become: true
+  changed_when: false
+  when:
+    - vcinstances_etcd_storage_enabled | default(false) | bool
+    - vcinstances_auto_create_pv | default(true) | bool
+
+# 作成されたPersistentVolumeの一覧を表示
+- name: "Display created PVs"
+  ansible.builtin.debug:
+    msg: "{{ _final_pv_check.stdout_lines | default([]) }}"
+  when:
+    - vcinstances_etcd_storage_enabled | default(false) | bool
+    - vcinstances_auto_create_pv | default(true) | bool

@@ -7,6 +7,7 @@
 #
 ---
 
+# ClusterError 定数の値を CRD 定義に合わせて "Failed" に修正するパッチを適用
 - name: "Patch ClusterError phase value to match CRD definition"
   block:
     - name: "Apply ClusterError 'Error' -> 'Failed' patch to virtualcluster_types.go"

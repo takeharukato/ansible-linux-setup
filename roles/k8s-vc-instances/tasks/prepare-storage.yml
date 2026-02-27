@@ -1,0 +1,105 @@
+#  -*- mode: yaml; coding: utf-8; line-endings: unix -*-
+#  SPDX-License-Identifier: BSD-2-Clause
+#
+#  Copyright (c) 2025 TAKEHARU KATO
+#  This file is distributed under the two-clause BSD license.
+#  For the full text of the license, see the LICENSE file in the project root directory.
+#  このファイルは2条項BSDライセンスの下で配布されています。
+#  ライセンス全文はプロジェクト直下の LICENSE を参照してください。
+
+#
+#  StorageClass の準備タスク
+#
+#  永続ストレージが有効な場合、スーパークラスタに StorageClass を作成する。
+#
+---
+
+# StorageClassの自動作成が有効な場合、作成するStorageClassの名前を決定する
+- name: "Determine StorageClass name to create"
+  ansible.builtin.set_fact:
+    _sc_name_to_create: >-
+      {{
+        (vcinstances_etcd_storage_class | default('', true) | string | trim)
+        if ((vcinstances_etcd_storage_class | default('', true) | string | trim | length) > 0)
+        else (vcinstances_default_storage_class_name | default('local-storage', true) | string | trim)
+      }}
+  when: vcinstances_etcd_storage_enabled | default(false) | bool
+
+# StorageClassの自動作成が有効な場合、対象のStorageClassが既に存在するか確認する
+- name: "Check target StorageClass existence"
+  ansible.builtin.command:
+    cmd: "kubectl --kubeconfig {{ k8s_supercluster_kubeconfig_path }} get storageclass {{ _sc_name_to_create }}"
+  register: _target_sc_check
+  become: true
+  changed_when: false
+  failed_when: false
+  when: vcinstances_etcd_storage_enabled | default(false) | bool
+
+# StorageClassの存在確認結果をデバッグ出力
+- name: "Debug target StorageClass check result"
+  ansible.builtin.debug:
+    msg: |
+      Target StorageClass: {{ _sc_name_to_create }}
+      Return code: {{ _target_sc_check.rc }}
+  when: vcinstances_etcd_storage_enabled | default(false) | bool
+
+# StorageClassの自動作成が有効で、対象のStorageClassが存在しない場合はStorageClassを作成する
+- name: "Create target StorageClass if needed"
+  when:
+    - vcinstances_etcd_storage_enabled | default(false) | bool
+    - vcinstances_auto_create_storage_class | default(true) | bool
+    - _target_sc_check.rc != 0
+  block:
+
+    # StorageClassのマニフェストをテンプレートから生成
+    - name: "Generate StorageClass manifest"
+      ansible.builtin.template:
+        src: "storageclass.yaml.j2"
+        dest: "{{ vcinstances_config_dir }}/storageclass.yaml"
+        mode: "0644"
+
+    # StorageClassマニフェストを適用してStorageClassを作成
+    - name: "Apply StorageClass manifest"
+      ansible.builtin.command:
+        cmd: "kubectl --kubeconfig {{ k8s_supercluster_kubeconfig_path }} apply -f {{ vcinstances_config_dir }}/storageclass.yaml"
+      register: _create_sc_result
+      become: true
+      changed_when: >-
+        'created' in _create_sc_result.stdout
+        or 'configured' in _create_sc_result.stdout
+
+    # StorageClassの作成が完了するまで待機
+    - name: "Wait for StorageClass to be available"
+      ansible.builtin.command:
+        cmd: "kubectl --kubeconfig {{ k8s_supercluster_kubeconfig_path }} get storageclass {{ _sc_name_to_create }}"
+      register: _sc_check
+      until: _sc_check.rc == 0
+      retries: 5
+      delay: 2
+      become: true
+      changed_when: false
+
+    # StorageClassが作成されたことをデバッグ出力
+    - name: "Debug: StorageClass created"
+      ansible.builtin.debug:
+        msg: "StorageClass '{{ _sc_name_to_create }}' created successfully"
+
+# 作成したStorageClassが存在することを確認する
+- name: "Verify StorageClass availability"
+  ansible.builtin.command:
+    cmd: "kubectl --kubeconfig {{ k8s_supercluster_kubeconfig_path }} get storageclass {{ _sc_name_to_create }}"
+  register: _final_target_sc_check
+  become: true
+  changed_when: false
+  failed_when: false
+  when: vcinstances_etcd_storage_enabled | default(false) | bool
+
+# StorageClassが存在しない場合はエラーを出力して処理を停止する
+- name: "Verify StorageClass created or exists"
+  ansible.builtin.assert:
+    that:
+      - _final_target_sc_check.rc == 0
+    fail_msg: >-
+      StorageClass '{{ _sc_name_to_create }}' was not found in supercluster.
+      Set vcinstances_auto_create_storage_class=true or create the StorageClass manually before enabling etcd persistent storage.
+  when: vcinstances_etcd_storage_enabled | default(false) | bool

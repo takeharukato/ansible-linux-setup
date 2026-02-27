@@ -10,6 +10,7 @@
 #
 ---
 
+# Service同期処理における ClusterIP と ClusterIPs の設定を修正するパッチを適用
 - name: "Patch mutate.go to fix Service ClusterIPs sync issue"
   block:
     - name: "Apply Service ClusterIPs nil fix patch to mutate.go"
