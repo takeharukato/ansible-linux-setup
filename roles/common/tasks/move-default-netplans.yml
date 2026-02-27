@@ -2,14 +2,20 @@
 #  Ansible playbook
 #  Copyright 2020 Takeharu KATO All Rights Reserved.
 #  設定関連タスク
+
+# デバッグ: 処理するnetplanファイルの表示
+- name: "Debug netplan file path"
+  ansible.builtin.debug:
+    msg: "Processing netplan file: {{ common_autonetconfig_prefix }}/{{ item }}"
+
 # 自動設定ファイルの存在確認
-- name: "Stat {{ common_autonetconfig_prefix }}/{{ item }}"
+- name: "Stat auto netplan file"
   ansible.builtin.stat:
     path: "{{ common_autonetconfig_prefix }}/{{ item }}"
   register: netcfg_stat
 
 # 自動設定ファイルの除去
-- name: "Move {{ common_autonetconfig_prefix }}/{{ item }}"
+- name: "Move auto netplan file"
   ansible.builtin.command: mv "{{ common_autonetconfig_prefix }}/{{ item }}" "{{ common_autonetconfig_prefix }}/{{ item }}.old"
   when:
     - netcfg_stat.stat.exists
