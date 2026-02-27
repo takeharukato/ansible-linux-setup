@@ -133,6 +133,16 @@ k8s_virtualcluster_enabled: false
 # Virtual Cluster インスタンス機能を導入する場合は, trueに設定する
 k8s_vcinstances_enabled: false
 
+#
+# etcd 永続ストレージ設定
+#
+# 永続ストレージ有効化
+vcinstances_etcd_storage_enabled: true
+# PVC サイズ
+vcinstances_etcd_storage_size: "10Gi"
+# StorageClass 名
+vcinstances_etcd_storage_class: "default-sc"
+
 # ClusterVersion インスタンス定義
 vcinstances_clusterversions:
   - name: "cv-k8s-1-31"

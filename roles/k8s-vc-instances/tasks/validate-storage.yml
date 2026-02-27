@@ -1,0 +1,18 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright (c) 2025 Takeharu KATO
+#
+#  ストレージ設定のバリデーション
+#
+---
+
+# etcdストレージサイズのバリデーション
+- name: "Validate etcd storage size"
+  ansible.builtin.assert:
+    that:
+      - (vcinstances_etcd_storage_size | default('', true) | string | trim | length) > 0
+      - (vcinstances_etcd_storage_size | default('', true) | string | trim) is match('^[0-9]+(Ki|Mi|Gi|Ti|Pi|Ei)$')
+    fail_msg: >-
+      Invalid vcinstances_etcd_storage_size.
+      Set a Kubernetes quantity such as 10Gi or 512Mi.
+    success_msg: "Validated vcinstances_etcd_storage_size successfully."

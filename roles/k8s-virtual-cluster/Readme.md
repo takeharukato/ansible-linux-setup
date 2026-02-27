@@ -18,6 +18,7 @@ Kubernetes Virtual Cluster ) の基盤コンポーネントをデプロイする
 | kube-controller-manager | kube-controller-manager | Kubernetes コントローラーマネージャー, リソースの状態を監視して制御するコンポーネント。 |
 | kubectl | kubectl | Kubernetes クラスタを操作するコマンドラインツール。API サーバーへのリクエストを送信し, リソースの作成・更新・削除・確認を行う。 |
 | コントロールプレーン ( Control Plane ) | コントロールプレーン | Kubernetes クラスタの管理機能を提供するコンポーネント群。API サーバー, スケジューラー, コントローラーマネージャー, etcd などを含み, クラスタ全体の制御と調整を行う。 |
+| コントロールプレーンノード ( Control Plane Node ) | コントロールプレーンノード | Kubernetes コントロールプレーンコンポーネント(API サーバー, スケジューラー, コントローラーマネージャー, etcd など)が動作するノード(物理マシンまたは仮想マシン)。 |
 | ワーカーノード ( Worker Node ) | ワーカーノード | Kubernetes クラスタで実際にアプリケーション(ポッド ( Pod ))が実行されるノード。kubelet と呼ばれるエージェントが動作し, コントロールプレーンからの指示に基づいてコンテナを実行管理する。 |
 | コンテナ ( Container ) | コンテナ | アプリケーションと依存関係を一つのパッケージ化したもの。軽量で, どの環境でも一貫して実行可能。 |
 | ポッド ( Pod ) | Pod | Kubernetes の最小デプロイメント単位。1 個以上のコンテナ ( Container ) で構成される実行環境。ポッド ( Pod ) 内のすべてのコンテナ ( Container ) は共有ネットワーク(共用 IP・ポート), 共有ストレージによって密接に結合され, 同一ノード上で常に共存・同期スケジュール される。 |
@@ -26,6 +27,13 @@ Kubernetes Virtual Cluster ) の基盤コンポーネントをデプロイする
 | ステートレス ( Stateless ) | ステートレス | アプリケーションの性質を表す用語で，アプリケーションから使用される各種データの状態を永続記憶(ストレージ)に保持しなくとも，動作可能なアプリケーションであることを示す。 |
 | ステートフル ( Stateful ) | ステートフル | アプリケーションの性質を表す用語で，アプリケーションから使用される各種データの状態を永続記憶(ストレージ)に保持することを前提として動作するアプリケーションであることを示す。 |
 | サービス ( Service ) | Service | Kubernetes リソース。ポッド ( Pod ) へのネットワークアクセスを定義。仮想 IP を提供してトラフィックをルーティング。 |
+| PersistentVolume | PV | Kubernetes リソース。クラスタ内の永続ストレージを表すリソース。ボリュームのサイズ, アクセスモード, 回収ポリシー, バックエンド(ローカルストレージ, NFS, ブロック型ストレージなど)を定義。 |
+| PersistentVolumeClaim | PVC | Kubernetes リソース。ポッド ( Pod ) がストレージを利用する際の要求リソース。必要なストレージ容量, アクセスモードを指定し, Kubernetes のコントローラーが対応する PersistentVolume にバインドする。 |
+| StorageClass | - | Kubernetes リソース。永続ストレージのプロビジョニング方法を定義するリソース。プロビジョナー(ローカルストレージプロビジョナー, AWS EBS, NFS など)とパラメータを指定し, PersistentVolumeClaim の要求に基づいて動的に PersistentVolume を作成する。 |
+| バインド ( Bind ) | - | Kubernetes ストレージレイヤーにおける処理。PersistentVolumeClaim の要求条件(容量, アクセスモード)が PersistentVolume の仕様と合致した場合, Kubernetes のコントローラーが両者を紐付ける。バインド後, ポッドは PVC 経由で PV のストレージを利用できるようになる。 |
+| プロビジョニング ( Provisioning ) | - | Kubernetes ストレージレイヤーにおける処理。StorageClass で定義されたプロビジョナーが, PersistentVolumeClaim の要求に応じて新しい PersistentVolume を自動的に作成するプロセス。動的プロビジョニングにより, ユーザーが個別に PV を作成する手間を削減できる。静的プロビジョニング(管理者が事前に PV を作成)に対応する概念。 |
+| プロビジョナー ( Provisioner ) | - | Kubernetes ストレージスタックのコンポーネント。StorageClass で指定し, PersistentVolumeClaim の要求に基づいて PersistentVolume を自動作成する。実装にはローカルストレージプロビジョナー, AWS EBS CSI ドライバー, NFS などが存在。 |
+| emptyDir | - | Kubernetes ボリュームタイプ。ポッドがノードに割り当てられた時に作成される一時的なボリューム。ポッドが存在する限りデータが保持され, ポッド削除時にデータが失われる。開発環境での一時データ保存や Pod 内のコンテナ間でのファイル共有に使用。 |
 | コンフィグマップ ( ConfigMap ) | ConfigMap | Kubernetes リソース。設定データをキー・バリューペアで保存し, 非機密情報を管理。 |
 | シークレット ( Secret ) | Secret | Kubernetes リソース。パスワード, API キー, 証明書などの機密データを暗号化して安全に保存・管理。 |
 | 仮想クラスタ ( Virtual Cluster ) | Virtual Cluster | Kubernetes API を仮想化して提供する論理的な Kubernetes クラスタ。 |
@@ -53,6 +61,40 @@ Kubernetes Virtual Cluster ) の基盤コンポーネントをデプロイする
 - ワーカーノード ( Worker Node ) が containerd を使用していること。
 - `virtualcluster_auto_detect_supercluster_images: true` (既定値)の場合, Ansible制御ノードから `kubectl` でスーパークラスタに疎通可能であること。
 
+### 永続ストレージに関する前提条件
+
+etcd の永続ストレージを有効にする場合 (`vcinstances_etcd_storage_enabled: true`), スーパークラスタ側で以下の準備が必要です:
+
+1. **StorageClass の存在確認**:
+   ```bash
+   kubectl get storageclass
+   ```
+   出力例:
+   ```plaintext
+   NAME              PROVISIONER       RECLAIMPOLICY   VOLUMEBINDINGMODE   ALLOWVOLUMEEXPANSION   AGE
+   fast-ssd          ebs.csi.aws.com   Delete          WaitForFirstConsumer false                  30d
+   default (default) kubernetes.io/aws-ebs Delete       WaitForFirstConsumer false                  30d
+   ```
+
+2. **デフォルト StorageClass の設定**:
+   存在しない場合は, ローカルストレージやCSI プロバイダーなどから StorageClass を作成してください。
+   ```bash
+   kubectl apply -f - <<EOF
+   apiVersion: storage.k8s.io/v1
+   kind: StorageClass
+   metadata:
+     name: local-storage
+   provisioner: kubernetes.io/no-provisioner
+   volumeBindingMode: WaitForFirstConsumer
+   EOF
+   ```
+
+**注意**: 本番環境では, データベースの永続化やステートフルアプリケーション対応のため, 専用の StorageClass を準備することを強く推奨します。
+  - Docker
+- Ansibleの制御ノード(localhost)からワーカーノード ( Worker Node ) へAnsible経由で接続可能であること (inventory/hostsまたは動的に検出)。
+- ワーカーノード ( Worker Node ) が containerd を使用していること。
+- `virtualcluster_auto_detect_supercluster_images: true` (既定値)の場合, Ansible制御ノードから `kubectl` でスーパークラスタに疎通可能であること。
+
 ## 概要
 
 仮想クラスタ ( Virtual Cluster ) により, ホスト Kubernetes クラスタ(以下, スーパークラスタ ( Super Cluster ))上で複数のテナント ( Tenant ) 向けコントロールプレーン ( Control Plane ) を独立して運用できます。各テナント ( Tenant ) のコントロールプレーン ( Control Plane ) はスーパークラスタ ( Super Cluster ) のワーカーノード ( Worker Node ) を共有しながら, API レベルの分離を実現します。
@@ -74,7 +116,7 @@ Kubernetes Virtual Cluster ) の基盤コンポーネントをデプロイする
 
 3. **vn-agent (Virtual Node Agent)**
    - ワーカーノード ( Worker Node ) 上で仮想クラスタ ( Virtual Cluster ) の通信を中継するエージェントです。
-   - DaemonSet形式でデプロイされ, コントロールプレーン ( Control Plane ) ノードを除く全ワーカーノード ( Worker Node ) で動作します。
+   - DaemonSet形式でデプロイされ, コントロールプレーンノード ( Control Plane Node ) を除く全ワーカーノード ( Worker Node ) で動作します。
 
 ## 実行フロー
 
@@ -91,10 +133,10 @@ Kubernetes Virtual Cluster ) の基盤コンポーネントをデプロイする
    - `build-kubectl-vc.yml` でkubectl-vcプラグインをビルドします（`virtualcluster_build_kubectl_vc: true` の場合）。
    - `build-docker-images.yml` でDockerイメージをビルドしてtarファイルに保存します。
    - `fetch-images.yml` でビルドノードからAnsibleの制御ノード(localhost)へtarファイルを取得します。
-7. `upload-to-ctrlplane.yml` でコントロールプレーンへイメージをアップロードします。
+7. `upload-to-ctrlplane.yml` でコントロールプレーンノードへイメージをアップロードします。
 8. `distribute-to-workers.yml` でワーカーノード ( Worker Node ) へイメージを配布します:
    - `kubectl get nodes` で実際のワーカーノード ( Worker Node ) リストを取得します。
-   - コントロールプレーン ( Control Plane ) からAnsibleの制御ノード(localhost)へイメージをfetchします。
+   - コントロールプレーンノード ( Control Plane Node ) からAnsibleの制御ノード(localhost)へイメージをfetchします。
    - Ansibleの制御ノード(localhost)から各ワーカーノード ( Worker Node ) へイメージをcopyします。
    - 各ワーカーで `ctr -n k8s.io images import` を実行します。
 9. `deploy-manager.yml` で vc-manager, vc-syncer, vn-agent をデプロイします。
@@ -109,9 +151,9 @@ Kubernetes Virtual Cluster ) の基盤コンポーネントをデプロイする
 - 生成したバイナリから, `debian:bookworm-slim`をベースにDockerイメージを作成し, `virtualcluster/<component>-amd64:latest`でタグ付けします。
 - ビルドノード上で`docker save`により`/tmp/vc_<component>-amd64.tar`を作成します。
 - `fetch-images.yml`でビルドノードからAnsibleの制御ノード(localhost)へtarファイルを転送します。
-- `upload-to-ctrlplane.yml`でAnsibleの制御ノード(localhost)からコントロールプレーン ( Control Plane ) へtarファイルを転送します。
+- `upload-to-ctrlplane.yml`でAnsibleの制御ノード(localhost)からコントロールプレーンノード ( Control Plane Node ) へtarファイルを転送します。
 - `distribute-to-workers.yml`で`kubectl get nodes`により`virtualcluster_supercluster_kubeconfig_path`でK8sクラスタ(スーパークラスタ)のワーカーノード一覧を取得します。
-- コントロールプレーン ( Control Plane ) からAnsibleの制御ノード(localhost)へ`fetch`モジュールでtarファイルを転送します。
+- コントロールプレーンノード ( Control Plane Node ) からAnsibleの制御ノード(localhost)へ`fetch`モジュールでtarファイルを転送します。
 - Ansibleの制御ノード(localhost)から各ワーカーノード ( Worker Node ) へ`copy`モジュールでtarファイルを転送し, 各ワーカーで`ctr -n k8s.io images import`によりイメージを取り込みます。
 
 ### ソース取得からコンテナイメージ作成配布処理中での排他制御について
@@ -155,6 +197,7 @@ Kubernetes Virtual Cluster ) の基盤コンポーネントをデプロイする
 | `virtualcluster_tenant_ns_wait_delay` | `5` | クリーンビルド時にテナント名前空間の消滅を確認するポーリング間隔(秒)です。 |
 | `k8s_api_wait_host` | `"{{ k8s_ctrlplane_endpoint }}"` | API サーバの待ち受け先です。 |
 | `k8s_api_wait_port` | `"{{ k8s_ctrlplane_port }}"` | API サーバの待ち受けポートです。  (規定: `6443`)|
+| `virtualcluster_persistent_volumes` | `[]` | 作成するPVのリストです。定義されている場合, 指定されたPVを自動作成します(詳細は「PersistentVolume 設定例」を参照)。 |
 
 ## 設定例
 
@@ -181,6 +224,58 @@ virtualcluster_pod_resource_limits:
   cpu: "2000m"
   memory: "2Gi"
 ```
+
+### PersistentVolume 設定例
+
+host_vars で `virtualcluster_persistent_volumes` を定義することで, 任意のPVを作成できます。この機能は汎用的で, etcd 以外にも任意の用途のPVを作成できます。
+
+```yaml
+# host_vars/k8sctrlplane01.local
+
+# PersistentVolume を作成する場合 (オプション)
+virtualcluster_persistent_volumes:
+  - name: "pv-etcd-tenant-alpha"
+    capacity: "10Gi"
+    storage_class: "default-sc"
+    host_path: "/mnt/etcd-data/tenant-alpha"
+    node_name: "k8sworker0101"
+    access_modes: ["ReadWriteOnce"]
+    reclaim_policy: "Delete"
+    labels:
+      type: "local"
+      purpose: "etcd"
+      tenant: "tenant-alpha"
+
+  - name: "pv-etcd-tenant-beta"
+    capacity: "10Gi"
+    storage_class: "default-sc"
+    host_path: "/mnt/etcd-data/tenant-beta"
+    node_name: "k8sworker0102"
+    access_modes: ["ReadWriteOnce"]
+    reclaim_policy: "Delete"
+    labels:
+      type: "local"
+      purpose: "etcd"
+      tenant: "tenant-beta"
+```
+
+`virtualcluster_persistent_volumes` は「辞書のリスト」です。各要素(1つの `- ...` ブロック)が1つの PersistentVolume 定義を表します。
+
+| キー | 必須 | 設定する内容 | 設定例 | 既定値 |
+| --- | --- | --- | --- | --- |
+| `name` | 必須 | 作成する PersistentVolume 名。未設定の場合は当該エントリを無効としてスキップし, 他の有効エントリの処理を継続します。 | `pv-etcd-tenant-alpha` | なし |
+| `capacity` | 必須 | PV の容量。Kubernetes Quantity 形式で指定。未設定の場合は当該エントリを無効としてスキップし, 他の有効エントリの処理を継続します。 | `10Gi` | なし |
+| `storage_class` | 任意 | 紐付ける StorageClass 名。 | `default-sc` | `local-storage` |
+| `host_path` | 必須 | ワーカーノード上のローカルパス。未設定の場合は当該エントリを無効としてスキップし, 他の有効エントリの処理を継続します。 | `/mnt/etcd-data/tenant-alpha` | なし |
+| `node_name` | 必須 | PV をバインド（Bind）するノード名。未設定の場合は当該エントリを無効としてスキップし, 他の有効エントリの処理を継続します。 | `k8sworker0101` | なし |
+| `access_modes` | 任意 | アクセスモードの配列。 | `["ReadWriteOnce"]` | `["ReadWriteOnce"]` |
+| `reclaim_policy` | 任意 | 削除時の回収ポリシー。 | `Delete` | `Delete` |
+| `labels` | 任意 | PV に付与するラベル辞書。未設定の場合はテンプレートで `type: local` ラベルのみ付与されます。 | `{ type: "local", purpose: "etcd" }` | なし |
+| `mode` | 任意 | `host_path` 作成時のパーミッション。 | `0755` | `0755` |
+| `owner` | 任意 | `host_path` 作成時の所有ユーザー。 | `root` | `root` |
+| `group` | 任意 | `host_path` 作成時の所有グループ。 | `root` | `root` |
+
+**注意**: etcd用のPVは, `k8s-vc-instances` ロールが作成します。このため, etcd用のPV設定を`virtualcluster_persistent_volumes`に記載する必要はありません。本設定は `k8s-virtual-cluster` ロール単独で使用する場合や, etcd 以外の用途のPVを作成する場合に使用します。
 
 ## 実行方法
 
@@ -219,10 +314,11 @@ ansible-playbook k8s-management.yml -t k8s-virtual-cluster
   - `virtualcluster_clean_build: true` の場合, `git clone/pull` 時に `force: true` でローカル変更を破棄します。
 - **ソースコードパッチ適用**: `ansible.posix.patch` モジュールでunified diff形式のパッチを適用します(詳細は後述)。
 - ビルドノードでDockerイメージをビルドしてtarファイルに保存。
-- ビルドノード  =>  Ansibleの制御ノード(localhost)  =>  コントロールプレーンへの転送。
-- コントロールプレーン ( Control Plane ) で `kubectl get nodes` から実際のワーカーノード ( Worker Node ) リストを取得。
+- ビルドノード  =>  Ansibleの制御ノード(localhost)  =>  コントロールプレーンノードへの転送。
+- コントロールプレーンノードで `kubectl get nodes` から実際のワーカーノード ( Worker Node ) リストを取得。
 - SSH経由で各ワーカーノード ( Worker Node ) へイメージを配布し, `ctr -n k8s.io` で取り込み。
 - CRD の生成と登録を行います。
+- **PersistentVolume の準備** (オプション, `prepare-persistent-volumes.yml`): `virtualcluster_persistent_volumes` が host_vars で定義されている場合, 指定されたPVを作成します。ワーカーノード上にディレクトリを作成し, local-storage タイプの PV を生成します。この機能は汎用的で, etcd 以外にも任意の用途のPVを作成できます。
 - vc-manager, vc-syncer, vn-agent のマニフェストを生成して apply します。
 - vc-manager の webhook 用証明書をコンテナ内で生成できるように, `/tmp/k8s-webhook-server` を書き込み可能な `emptyDir` で提供します。
 - vc-manager の RBAC に `admissionregistration.k8s.io` と `coordination.k8s.io` の権限を付与します。
@@ -268,6 +364,196 @@ ansible-playbook k8s-management.yml -t k8s-virtual-cluster
 | `Deployment: vc-manager` | 仮想クラスタ ( Virtual Cluster ) の管理コンポーネントです。 |
 | `Deployment: vc-syncer` | 仮想クラスタ ( Virtual Cluster ) とスーパークラスタ ( Super Cluster ) の状態を同期するコンポーネントです。 |
 | `DaemonSet: vn-agent` | ワーカーノード ( Worker Node ) の kubelet API プロキシです。 |
+
+## 永続ストレージ対応
+
+### etcd の永続ストレージ
+
+本ロールでは, 仮想クラスタ ( Virtual Cluster ) の etcd をスーパークラスタ ( Super Cluster ) の PersistentVolume (PV) に永続化することが可能です。
+
+#### 設定方法
+
+`host_vars` で以下の変数を設定してください:
+
+```yaml
+# host_vars/k8sctrlplane01.local
+# etcd 永続ストレージ設定
+vcinstances_etcd_storage_enabled: true  # 永続ストレージ有効化 (デフォルト: true)
+vcinstances_etcd_storage_size: "10Gi"   # PVC サイズ (デフォルト: 10Gi)
+vcinstances_etcd_storage_class: "default-sc"  # StorageClass 名 (デフォルト: "" = デフォルト SC 使用)
+```
+
+**設定例** (デフォルト SC を使用する場合):
+```yaml
+vcinstances_etcd_storage_enabled: true
+# vcinstances_etcd_storage_size と vcinstances_etcd_storage_class は省略可能 (デフォルト値が適用)
+```
+
+#### 動作原理
+
+- `vcinstances_etcd_storage_enabled: true` の場合, etcd の StatefulSet に `volumeClaimTemplates` が自動追加されます
+- 各テナント用仮想クラスタ ( Virtual Cluster ) の etcd Pod は専用 PVC(`etcd-data-etcd-0`) を自動作成
+- 割り当てられた PV にバインド（Bind）され, etcd のデータが永続化されます
+- `emptyDir` と異なり, Pod の再起動後もデータが保持されます
+
+#### 注意点
+
+- **StorageClass 要件**: スーパークラスタ側に StorageClass が存在する必要があります
+  ```bash
+  kubectl get storageclass
+  ```
+- **容量計画**: etcd のデータサイズに応じて `vcinstances_etcd_storage_size` を調整してください
+- **クリーンビルド時**: `virtualcluster_clean_build: true` の場合, VirtualCluster インスタンスが削除されると対応する PVC も削除されます
+
+### テナント内での PVC/PV/StorageClass 利用
+
+テナント ( Tenant ) に割り当てられた仮想クラスタ ( Virtual Cluster ) では, テナント側で PersistentVolumeClaim (PVC) を作成し, スーパークラスタ ( Super Cluster ) のストレージを使用することが可能です。
+
+#### 前提条件
+
+1. **Syncer の feature gate 有効化** (本ロールで自動設定):
+   - `SyncTenantPVCStatusPhase=true`: テナント側 PVC の Phase (Pending/Bound) を同期
+
+2. **StorageClass のラベル設定** (スーパークラスタ側で手動設定):
+   - テナント側から参照可能にするため, `PublicObjectKey=true` ラベルを付与
+   ```bash
+   # スーパークラスタで実行
+   kubectl label storageclasses default PublicObjectKey=true
+   kubectl label storageclasses fast-ssd PublicObjectKey=true  # (あれば)
+   ```
+
+#### 利用パターン
+
+**パターン1: デフォルト StorageClass を使用**
+
+```yaml
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: app-data
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 5Gi
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: app-pod
+spec:
+  containers:
+  - name: app
+    image: busybox
+    volumeMounts:
+    - name: data
+      mountPath: /data
+  volumes:
+  - name: data
+    persistentVolumeClaim:
+      claimName: app-data
+```
+
+**パターン2: 特定の StorageClass を指定**
+
+```yaml
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: fast-app-data
+spec:
+  storageClassName: fast-ssd  # ラベル付き SC を指定
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 10Gi
+```
+
+#### 動作フロー
+
+```mermaid
+flowchart TD
+    A["テナント側で<br/>PVC を作成"] --> B["syncer が<br/>スーパークラスタ側に同期"]
+    B --> C["スーパークラスタの<br/>StorageClass が処理"]
+    C --> D["PV が自動作成/<br/>バインド（Bind）"]
+    D --> E["テナント Pod が<br/>ストレージにアクセス"]
+```
+
+#### 制限事項と注意点
+
+| 項目 | 制限 | 対処 |
+|------|------|------|
+| **PV の直接作成** | テナント側では不可 | StorageClass を通じて PVC から自動作成 |
+| **StorageClass の可視性** | `PublicObjectKey=true` ラベル付きのみ | スーパークラスタで SC にラベルを付与 |
+| **マルチテナント分離** | 完全なストレージクォータなし | 運用の RBAC で予めテナント namespace を制限 |
+| **クロステナント PVC** | 他テナントの PVC にはアクセス不可 | namespace 分離で自動的に実現 |
+| **PVC status 同期** | Phase sync が必須 | feature gate により自動有効化 |
+
+#### 検証手順
+
+```bash
+# 1. syncer の feature gate を確認
+kubectl -n vc-manager describe deployment vc-syncer | grep feature-gates
+
+# 2. スーパークラスタで StorageClass にラベルを付与
+kubectl label storageclasses default PublicObjectKey=true --overwrite
+
+# 3. テナント側で PVC を作成
+TENANT_NS=$(kubectl get virtualclusters -n vc-manager <vc-name> -o jsonpath='{.status.clusterNamespace}')
+cat <<EOF | kubectl -n $TENANT_NS apply -f -
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: test-pvc
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 5Gi
+EOF
+
+# 4. PVC が Bound 状態になったか確認 (同期に数秒かかる)
+kubectl -n $TENANT_NS get pvc test-pvc
+sleep 5
+kubectl -n $TENANT_NS get pvc test-pvc
+
+# 5. スーパークラスタ側でも PVC が同期されているか確認
+kubectl -n $TENANT_NS get pvc test-pvc
+
+# 6. PV が自動作成されているか確認
+kubectl get pv
+```
+
+#### トラブルシューティング
+
+**症状: PVC が Pending のままになっている**
+
+```bash
+# 1. StorageClass にラベルが付いているか確認
+kubectl get storageclass -L PublicObjectKey
+
+# 2. テナント側で参照可能な SC があるか確認
+TENANT_NS=$(kubectl get virtualclusters -n vc-manager <vc-name> -o jsonpath='{.status.clusterNamespace}')
+kubectl -n $TENANT_NS get storageclass
+
+# 3. syncer のログで同期エラーを確認
+kubectl -n vc-manager logs -l app=vc-syncer --tail=100 | grep -i pvc
+```
+
+**症状: syncer が PVC Status Phase を同期していない**
+
+```bash
+# feature gate が有効になっているか確認
+kubectl -n vc-manager get deployment vc-syncer -o jsonpath='{.spec.template.spec.containers[0].args}' | grep -o 'feature-gates=[^ ]*'
+
+# 期待する状態: feature-gates=SyncTenantPVCStatusPhase=true
+# そうでない場合は, Deployment 再起動で反映されます
+```
+
+---
 
 ## 検証ポイント
 
@@ -351,7 +637,7 @@ ansible-playbook k8s-management.yml -t k8s-virtual-cluster
      ```bash
      kubectl -n vc-manager get pods -l app=vn-agent -o wide
      ```
-   - 期待される結果: vn-agent Podがワーカーノード ( Worker Node ) 上にのみ存在し, コントロールプレーン ( Control Plane ) ノード上には存在しないこと。
+   - 期待される結果: vn-agent Podがワーカーノード ( Worker Node ) 上にのみ存在し, コントロールプレーンノード ( Control Plane Node ) 上には存在しないこと。
    - 実行例:
      ```plaintext
      $ kubectl -n vc-manager get pods -l app=vn-agent -o wide
@@ -436,6 +722,27 @@ ansible-playbook k8s-management.yml -t k8s-virtual-cluster
      - テナント用APIサーバーは、スーパークラスタ ( Super Cluster ) 内のServiceとして動作しているため、外部から直接アクセスするにはポートフォワーディングが必要です。
      - admin-kubeconfigに保存されているサーバーアドレスは、テナント ( Tenant ) に割り当てられた仮想クラスタ ( Virtual Cluster ) 内部用の設定のため、`localhost`に変更する必要があります。
      - 証明書検証をスキップするため、`--insecure-skip-tls-verify`オプションを使用しています。
+
+9. etcd 永続ストレージ動作確認 (オプション, `vcinstances_etcd_storage_enabled: true` の場合)
+   - 目的: テナント ( Tenant ) に割り当てられた仮想クラスタ ( Virtual Cluster ) の etcd が PV/PVC に正しく接続され, Pod が起動していることを確認します。
+   - コマンド:
+     ```bash
+     # StorageClass の確認
+     kubectl get storageclass
+
+     # etcd PVC が Bound になっていることを確認
+     kubectl get pvc -A | grep etcd
+
+     # テナントPod (etcd, apiserver, controller-manager) が Running であることを確認
+     kubectl get pods -A | grep tenant
+
+     # PV と Claim の対応を確認
+     kubectl get pv
+     ```
+   - 期待される結果:
+     - `vcinstances_etcd_storage_class` で指定した StorageClass で PVC が作成されること。
+     - `data-etcd-0` が `Bound` になり, 対応する PV が `Bound` になること。
+     - `etcd-0` が `Running` になり, 併せて `apiserver-0`, `controller-manager-0` も `Running` になること。
 
 ## トラブルシューティング
 

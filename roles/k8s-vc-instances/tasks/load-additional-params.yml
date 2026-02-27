@@ -1,7 +1,13 @@
----
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright (c) 2025 Takeharu KATO
+#
 # k8s-virtual-cluster ロールで定義された CRD 情報の存在確認
 # (イメージ情報は本ロール内で独立に取得するため, fact は参照しない)
+#
+---
 
+# 必須変数が定義されていることを確認
 - name: "Check if required variables are defined"
   ansible.builtin.assert:
     that:

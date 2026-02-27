@@ -1,0 +1,164 @@
+#  -*- mode: yaml; coding: utf-8; line-endings: unix -*-
+#  SPDX-License-Identifier: BSD-2-Clause
+#
+#  Copyright (c) 2025 TAKEHARU KATO
+#  This file is distributed under the two-clause BSD license.
+#  For the full text of the license, see the LICENSE file in the project root directory.
+#  このファイルは2条項BSDライセンスの下で配布されています。
+#  ライセンス全文はプロジェクト直下の LICENSE を参照してください。
+
+#
+#  PersistentVolume 準備タスク (汎用)
+#
+#  host_vars で virtualcluster_persistent_volumes を定義することで、
+#  任意のPVを作成できる。
+#
+#  設定例:
+#    virtualcluster_persistent_volumes:
+#      - name: "pv-etcd-alpha"
+#        capacity: "10Gi"
+#        storage_class: "default-sc"
+#        host_path: "/mnt/etcd-data/alpha"
+#        node_name: "k8sworker0101"
+#        access_modes: ["ReadWriteOnce"]
+#        reclaim_policy: "Delete"
+#        labels:
+#          type: "local"
+#          purpose: "etcd"
+#
+---
+
+# PersistentVolume エントリリストの初期化
+- name: "Initialize PV entry lists"
+  ansible.builtin.set_fact:
+    _virtualcluster_valid_pvs: []
+    _virtualcluster_skipped_pvs: []
+  when:
+    - (virtualcluster_persistent_volumes | default([], true) | length) > 0
+
+# virtualcluster_persistent_volumes のエントリを検査し、有効なものと無効なものを分類
+- name: "Collect valid PV entries"
+  ansible.builtin.set_fact:
+    _virtualcluster_valid_pvs: "{{ _virtualcluster_valid_pvs + [item] }}"
+  loop: "{{ virtualcluster_persistent_volumes | default([], true) }}"
+  when:
+    - item is mapping
+    - (item.name | default('', true) | string | trim | length) > 0
+    - (item.capacity | default('', true) | string | trim | length) > 0
+    - (item.host_path | default('', true) | string | trim | length) > 0
+    - (item.node_name | default('', true) | string | trim | length) > 0
+
+# 無効なエントリを収集
+- name: "Collect skipped PV entries"
+  ansible.builtin.set_fact:
+    _virtualcluster_skipped_pvs: "{{ _virtualcluster_skipped_pvs + [item] }}"
+  loop: "{{ virtualcluster_persistent_volumes | default([], true) }}"
+  when:
+    - not (
+        item is mapping
+        and (item.name | default('', true) | string | trim | length) > 0
+        and (item.capacity | default('', true) | string | trim | length) > 0
+        and (item.host_path | default('', true) | string | trim | length) > 0
+        and (item.node_name | default('', true) | string | trim | length) > 0
+      )
+
+# 無効なエントリがある場合は警告を表示
+- name: "Warn skipped invalid PV entries"
+  ansible.builtin.debug:
+    msg: >-
+      Skip invalid virtualcluster_persistent_volumes entry at index={{ idx }}.
+      Required keys: name, capacity, host_path, node_name.
+      entry={{ item | to_nice_json }}
+  loop: "{{ _virtualcluster_skipped_pvs | default([], true) }}"
+  loop_control:
+    index_var: idx
+  when:
+    - (_virtualcluster_skipped_pvs | default([], true) | length) > 0
+
+# 有効なPersistentVolumeエントリの内容をデバッグ出力
+- name: "Debug PV configuration"
+  ansible.builtin.debug:
+    msg: |
+      valid_virtualcluster_persistent_volumes: {{ _virtualcluster_valid_pvs | default([], true) | to_nice_json }}
+  when:
+    - (_virtualcluster_valid_pvs | default([], true) | length) > 0
+
+# 対象ノード上にPersistentVolume用のディレクトリを作成
+- name: "Create directories on target nodes"
+  ansible.builtin.file:
+    path: "{{ item.host_path }}"
+    state: directory
+    mode: "{{ item.mode | default('0755') }}"
+    owner: "{{ item.owner | default('root') }}"
+    group: "{{ item.group | default('root') }}"
+  delegate_to: "{{ item.node_name }}"
+  loop: "{{ _virtualcluster_valid_pvs | default([], true) }}"
+  loop_control:
+    label: "{{ item.node_name }}:{{ item.host_path }}"
+  become: true
+  when:
+    - (_virtualcluster_valid_pvs | default([], true) | length) > 0
+
+# 既存のPersistentVolumeを確認
+- name: "Check existing PVs"
+  ansible.builtin.command:
+    cmd: "kubectl --kubeconfig {{ virtualcluster_supercluster_kubeconfig_path }} get pv {{ item.name }}"
+  loop: "{{ _virtualcluster_valid_pvs | default([], true) }}"
+  loop_control:
+    label: "{{ item.name }}"
+  register: _existing_general_pvs
+  become: true
+  changed_when: false
+  failed_when: false
+  when:
+    - (_virtualcluster_valid_pvs | default([], true) | length) > 0
+
+# PersistentVolumeが存在しない場合は, PersistentVolumeを作成するためのマニフェストを生成
+- name: "Generate PV manifests"
+  ansible.builtin.template:
+    src: "persistent-volume.yaml.j2"
+    dest: "{{ virtualcluster_config_dir }}/pv-{{ pv_result.item.name }}.yaml"
+    mode: "0644"
+  loop: "{{ _existing_general_pvs.results | default([], true) }}"
+  loop_control:
+    loop_var: pv_result
+    label: "{{ pv_result.item.name }}"
+  vars:
+    item: "{{ pv_result.item }}"
+  when:
+    - (_virtualcluster_valid_pvs | default([], true) | length) > 0
+    - pv_result.rc != 0
+
+# PersistentVolumeマニフェストを適用してPersistentVolumeを作成
+- name: "Apply PV manifests"
+  ansible.builtin.command:
+    cmd: "kubectl --kubeconfig {{ virtualcluster_supercluster_kubeconfig_path }} apply -f {{ virtualcluster_config_dir }}/pv-{{ pv_result.item.name }}.yaml"
+  loop: "{{ _existing_general_pvs.results | default([], true) }}"
+  loop_control:
+    loop_var: pv_result
+    label: "{{ pv_result.item.name }}"
+  register: _apply_general_pv_result
+  become: true
+  changed_when: >-
+    'created' in _apply_general_pv_result.stdout
+    or 'configured' in _apply_general_pv_result.stdout
+  when:
+    - (_virtualcluster_valid_pvs | default([], true) | length) > 0
+    - pv_result.rc != 0
+
+# PersistentVolumeが作成されていることを確認
+- name: "Verify PVs created"
+  ansible.builtin.command:
+    cmd: "kubectl --kubeconfig {{ virtualcluster_supercluster_kubeconfig_path }} get pv"
+  register: _final_general_pv_check
+  become: true
+  changed_when: false
+  when:
+    - (_virtualcluster_valid_pvs | default([], true) | length) > 0
+
+# 作成したPersistentVolumeを表示
+- name: "Display created PVs"
+  ansible.builtin.debug:
+    msg: "{{ _final_general_pv_check.stdout_lines | default([]) }}"
+  when:
+    - (_virtualcluster_valid_pvs | default([], true) | length) > 0

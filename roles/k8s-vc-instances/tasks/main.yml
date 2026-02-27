@@ -1,6 +1,6 @@
 #  -*- coding:utf-8 mode:yaml -*-
 #  Ansible playbook
-#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#  Copyright (c) 2025 Takeharu KATO
 #
 #  タスクメイン部
 #
@@ -30,6 +30,27 @@
   when:
     - k8s_vcinstances_enabled | default(false) | bool
     - vcinstances_auto_detect_supercluster_images | default(true) | bool
+
+- name: "Validate Storage Inputs"
+  ansible.builtin.include_tasks: validate-storage.yml
+  when:
+    - k8s_vcinstances_enabled | default(false) | bool
+    - vcinstances_etcd_storage_enabled | default(false) | bool
+
+- name: "Prepare Storage (Create StorageClass if needed)"
+  ansible.builtin.include_tasks: prepare-storage.yml
+  when: k8s_vcinstances_enabled | default(false) | bool
+
+- name: "Cleanup Failed PersistentVolumes"
+  ansible.builtin.include_tasks: cleanup-pvs.yml
+  when:
+    - k8s_vcinstances_enabled | default(false) | bool
+    - vcinstances_etcd_storage_enabled | default(false) | bool
+    - vcinstances_cleanup_failed_pvs | default(true) | bool
+
+- name: "Prepare PersistentVolumes (Create etcd PVs if needed)"
+  ansible.builtin.include_tasks: prepare-pvs.yml
+  when: k8s_vcinstances_enabled | default(false) | bool
 
 - name: "Create ClusterVersion Instances"
   ansible.builtin.include_tasks: clusterversion-instances.yml

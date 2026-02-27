@@ -14,15 +14,22 @@
 #
 ---
 
+#
 # Virtual Cluster デプロイメント有効化フラグ
+#
 # デフォルトは無効, host_vars で true に設定すると有効化
 k8s_virtualcluster_enabled: false
 
-# ソースからビルドするかどうか
+#
+# ソースからVirtual Clusterのコンテナイメージをビルドするためのフラグ
+#
 # true: ソースダウンロードからビルドまで実行, false: 既存バイナリ/イメージを使用
+# 既存のバイナリ/イメージは存在しないので, 実質的には常に true を設定
 virtualcluster_build_from_source: true
 
-# クリーンビルドを実行するかどうか
+#
+# クリーンビルドの有効化フラグ
+#
 # true: 既存テナント/ClusterVersion/CRD/vc-manager名前空間を削除してから構築
 # false: 既存リソースを残したまま構築(差分適用)
 # デフォルトは true (毎回クリーンな状態から構築することを推奨)
@@ -79,12 +86,15 @@ virtualcluster_config_dir: "{{ k8s_kubeadm_config_store }}/virtual-cluster"
 # true: スーパークラスタの実行中Podから検出（推奨）, false: 下記のフォールバック値を使用
 virtualcluster_auto_detect_supercluster_images: true
 
+#
 # Virtual Cluster manager related images
+#
 # Virtual Clusterの管理コンポーネントである vc-manager, syncer, vn-agent のイメージ
 # Docker Hubの公式レジストリからイメージが提供されている場合は, Docker Hubのイメージを
 # 使用することが推奨されることからプレースホルダとして記載。
 # 実際上は, Docker Hubの公式レジストリにはvirtual clusterの最新のイメージが
 # 提供されていないため, ソースからビルドして構築する。
+#
 # vc-manager image (from Docker Hub official registry)
 virtualcluster_manager_image: "virtualcluster/manager-amd64:latest"
 # syncer image (from Docker Hub official registry)
@@ -111,7 +121,9 @@ virtualcluster_apiserver_replicas: 1
 # virtual cluster controller-manager StatefulSet のレプリカ数
 virtualcluster_controller_manager_replicas: 1
 
+#
 # kube-api待機設定
+#
 # Kubernetes APIサーバの待ち合わせ先(接続先)ホスト名/IPアドレス
 k8s_api_wait_host: "{{ k8s_ctrlplane_endpoint }}"
 # Kubernetes APIサーバの待ち合わせ先ポート番号
@@ -125,7 +137,9 @@ k8s_api_wait_sleep: 1
 # Kubernetes APIサーバ待ち合わせる際の接続元ホスト名/IPアドレス
 k8s_api_wait_delegate_to: "localhost"
 
+#
 # kubectl-vc plugin settings
+#
 # kubectl-vcプラグインのインストール先ディレクトリ
 virtualcluster_kubectl_vc_install_dir: "/usr/local/bin"
 # kubectl-vcプラグインのバイナリ名
@@ -133,3 +147,27 @@ virtualcluster_kubectl_vc_binary: "kubectl-vc"
 # kubectl-vcプラグインをビルドするかどうか
 # true: ソースからビルド, false: ビルドをスキップ
 virtualcluster_build_kubectl_vc: true
+
+#
+# PersistentVolume 設定 (オプション)
+#
+# host_vars で定義することで、任意のPVを作成できる
+#
+# 例:
+#
+# virtualcluster_persistent_volumes:
+#   - name: "pv-etcd-alpha"
+#     capacity: "10Gi"
+#     storage_class: "default-sc"
+#     host_path: "/mnt/etcd-data/alpha"
+#     node_name: "k8sworker0101"
+#     access_modes: ["ReadWriteOnce"]
+#     reclaim_policy: "Delete"
+#     labels:
+#       type: "local"
+#       purpose: "etcd"
+#   - name: "pv-etcd-beta"
+#     capacity: "10Gi"
+#     storage_class: "default-sc"
+#     host_path: "/mnt/etcd-data/beta"
+#     node_name: "k8sworker0102"

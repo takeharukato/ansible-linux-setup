@@ -1,4 +1,12 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright (c) 2025 Takeharu KATO
+#
+#  ClusterVersionおよびVirtual Clusterインスタンスの表示
+#
 ---
+
+# ClusterVersion インスタンスの一覧を取得
 - name: "List all ClusterVersion instances"
   ansible.builtin.command:
     cmd: "kubectl --kubeconfig {{ virtualcluster_supercluster_kubeconfig_path }} get clusterversions -o wide"
@@ -7,11 +15,13 @@
   become: true
   failed_when: false
 
+# ClusterVersion インスタンスの一覧を表示
 - name: "Display ClusterVersion instances"
   ansible.builtin.debug:
     var: result_list_cv.stdout_lines
   when: result_list_cv.rc == 0
 
+# VirtualCluster インスタンスの一覧を取得
 - name: "List all VirtualCluster instances"
   ansible.builtin.command:
     cmd: "kubectl --kubeconfig {{ virtualcluster_supercluster_kubeconfig_path }} get virtualclusters --all-namespaces -o wide"
@@ -20,6 +30,7 @@
   become: true
   failed_when: false
 
+# VirtualCluster インスタンスの一覧を表示
 - name: "Display VirtualCluster instances"
   ansible.builtin.debug:
     var: result_list_vc.stdout_lines

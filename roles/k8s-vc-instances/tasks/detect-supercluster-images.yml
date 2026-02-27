@@ -11,11 +11,13 @@
   changed_when: false
   become: true
 
+# 検出したetcdイメージ版数をfactとしてセット。
 - name: "Set detected etcd image as fact (successful detection)"
   ansible.builtin.set_fact:
     vcinstances_detected_etcd_image: "{{ detected_etcd_image_result.stdout | trim }}"
   when: (detected_etcd_image_result.stdout | trim) != ''
 
+# etcdイメージの検出に失敗した場合は、k8s_etcd_major_minor 変数を元にしたデフォルトイメージをセット。
 - name: "Set etcd image fallback (detection failed)"
   ansible.builtin.set_fact:
     vcinstances_detected_etcd_image: "registry.k8s.io/etcd:{{ k8s_etcd_major_minor | default('3.5', true) }}.0"
@@ -33,11 +35,13 @@
   changed_when: false
   become: true
 
+# 検出したkube-apiserverイメージ版数をfactとしてセット。
 - name: "Set detected kube-apiserver image as fact (successful detection)"
   ansible.builtin.set_fact:
     vcinstances_detected_apiserver_image: "{{ detected_apiserver_image_result.stdout | trim }}"
   when: (detected_apiserver_image_result.stdout | trim) != ''
 
+# kube-apiserverイメージの検出に失敗した場合は、k8s_major_minor 変数を元にしたデフォルトイメージをセット。
 - name: "Set kube-apiserver image fallback (detection failed)"
   ansible.builtin.set_fact:
     vcinstances_detected_apiserver_image: "registry.k8s.io/kube-apiserver:v{{ k8s_major_minor | default('1.31', true) }}.0"
@@ -55,16 +59,19 @@
   changed_when: false
   become: true
 
+# 検出したkube-controller-managerイメージ版数をfactとしてセット。
 - name: "Set detected kube-controller-manager image as fact (successful detection)"
   ansible.builtin.set_fact:
     vcinstances_detected_controller_manager_image: "{{ detected_controller_manager_image_result.stdout | trim }}"
   when: (detected_controller_manager_image_result.stdout | trim) != ''
 
+# kube-controller-managerイメージの検出に失敗した場合は、k8s_major_minor 変数を元にしたデフォルトイメージをセット。
 - name: "Set kube-controller-manager image fallback (detection failed)"
   ansible.builtin.set_fact:
     vcinstances_detected_controller_manager_image: "registry.k8s.io/kube-controller-manager:v{{ k8s_major_minor | default('1.31', true) }}.0"
   when: (detected_controller_manager_image_result.stdout | trim) == ''
 
+# 検出結果の表示
 - name: "Display detected images"
   ansible.builtin.debug:
     msg: |

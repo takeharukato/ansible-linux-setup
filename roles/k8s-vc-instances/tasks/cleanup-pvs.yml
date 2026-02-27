@@ -1,0 +1,115 @@
+#  -*- mode: yaml; coding: utf-8; line-endings: unix -*-
+#  SPDX-License-Identifier: BSD-2-Clause
+#
+#  Copyright (c) 2025 TAKEHARU KATO
+#  This file is distributed under the two-clause BSD license.
+#  For the full text of the license, see the LICENSE file in the project root directory.
+#  このファイルは2条項BSDライセンスの下で配布されています。
+#  ライセンス全文はプロジェクト直下の LICENSE を参照してください。
+#
+#  OpenAI's ChatGPT partially generated this code.
+#  Author has modified some parts.
+#  OpenAIのChatGPTがこのコードの一部を生成しました。
+#  著者が修正している部分があります。
+#
+#  Failed状態のPersistentVolumeクリーンアップタスク
+#
+#  VirtualClusterを再作成すると名前空間のサフィックス（ハッシュ値）が変わるため、
+#  既存のPVは古いClaim情報を保持し続け、Failed状態になる。
+#  このタスクは、テナント名に一致するFailed状態のPVを自動的に削除する。
+#
+---
+
+# 既存のPV情報を取得（JSON形式）
+- name: "Get existing PersistentVolumes"
+  ansible.builtin.command:
+    cmd: >-
+      kubectl --kubeconfig {{ k8s_supercluster_kubeconfig_path }}
+      get pv -o json
+  register: _existing_pvs_json
+  become: true
+  changed_when: false
+  when:
+    - vcinstances_etcd_storage_enabled | default(false) | bool
+    - vcinstances_cleanup_failed_pvs | default(true) | bool
+
+# JSON形式のPV情報をパースしてfactにセット
+- name: "Parse PV information"
+  ansible.builtin.set_fact:
+    _existing_pvs: "{{ _existing_pvs_json.stdout | from_json }}"
+  when:
+    - vcinstances_etcd_storage_enabled | default(false) | bool
+    - vcinstances_cleanup_failed_pvs | default(true) | bool
+    - _existing_pvs_json.stdout | default('') | length > 0
+
+# Failed状態のPVをフィルタリング
+- name: "Filter Failed PVs"
+  ansible.builtin.set_fact:
+    _failed_pvs: >-
+      {{
+        _existing_pvs['items'] | default([])
+        | selectattr('status.phase', 'defined')
+        | selectattr('status.phase', 'equalto', 'Failed')
+        | list
+      }}
+  when:
+    - vcinstances_etcd_storage_enabled | default(false) | bool
+    - vcinstances_cleanup_failed_pvs | default(true) | bool
+    - _existing_pvs is defined
+
+# テナント名に一致するFailed PVをさらにフィルタリング
+- name: "Filter tenant-related Failed PVs"
+  ansible.builtin.set_fact:
+    _tenant_failed_pvs: >-
+      {{
+        _failed_pvs | default([])
+        | selectattr('metadata.name', 'match', '^pv-etcd-(.*)-[0-9]+$')
+        | list
+      }}
+  when:
+    - vcinstances_etcd_storage_enabled | default(false) | bool
+    - vcinstances_cleanup_failed_pvs | default(true) | bool
+    - _failed_pvs is defined
+
+# クリーンアップ対象のPVをデバッグ出力
+- name: "Debug: PVs to be cleaned up"
+  ansible.builtin.debug:
+    msg: |
+      Failed PVs to be deleted:
+      {% for pv in _tenant_failed_pvs | default([]) %}
+        - {{ pv.metadata.name }} (Status: {{ pv.status.phase }},
+          Claim: {{ pv.spec.claimRef.namespace | default('N/A') }}/{{
+          pv.spec.claimRef.name | default('N/A') }})
+      {% endfor %}
+  when:
+    - vcinstances_etcd_storage_enabled | default(false) | bool
+    - vcinstances_cleanup_failed_pvs | default(true) | bool
+    - _tenant_failed_pvs is defined
+    - (_tenant_failed_pvs | length) > 0
+
+# Failed状態のPVを削除
+- name: "Delete Failed PersistentVolumes"
+  ansible.builtin.command:
+    cmd: >-
+      kubectl --kubeconfig {{ k8s_supercluster_kubeconfig_path }}
+      delete pv {{ item.metadata.name }}
+  loop: "{{ _tenant_failed_pvs | default([]) }}"
+  loop_control:
+    label: "{{ item.metadata.name }}"
+  register: _pv_delete_result
+  become: true
+  changed_when: "'deleted' in _pv_delete_result.stdout"
+  when:
+    - vcinstances_etcd_storage_enabled | default(false) | bool
+    - vcinstances_cleanup_failed_pvs | default(true) | bool
+    - _tenant_failed_pvs is defined
+    - (_tenant_failed_pvs | length) > 0
+
+# クリーンアップ結果を表示
+- name: "Report cleanup result"
+  ansible.builtin.debug:
+    msg: "Cleaned up {{ (_tenant_failed_pvs | default([])) | length }} Failed PV(s)"
+  when:
+    - vcinstances_etcd_storage_enabled | default(false) | bool
+    - vcinstances_cleanup_failed_pvs | default(true) | bool
+    - _tenant_failed_pvs is defined

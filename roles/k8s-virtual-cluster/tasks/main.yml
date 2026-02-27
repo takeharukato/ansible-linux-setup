@@ -47,6 +47,13 @@
   ansible.builtin.include_tasks: crd.yml
   when: k8s_virtualcluster_enabled | bool
 
+# PersistentVolume を host_vars の定義に基づいて作成するタスク (オプション)
+- name: "Prepare PersistentVolumes (if configured)"
+  ansible.builtin.include_tasks: prepare-persistent-volumes.yml
+  when:
+    - k8s_virtualcluster_enabled | default(false) | bool
+    - (virtualcluster_persistent_volumes | default([], true) | length) > 0
+
 # Virtual Cluster のソースをダウンロードするタスク
 - name: "Download Source"
   ansible.builtin.include_tasks: download-source.yml
