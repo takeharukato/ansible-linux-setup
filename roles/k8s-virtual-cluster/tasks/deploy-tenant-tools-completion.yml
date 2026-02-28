@@ -1,0 +1,73 @@
+#  -*- mode: yaml; coding: utf-8; line-endings: unix -*-
+#  SPDX-License-Identifier: BSD-2-Clause
+#
+#  Copyright (c) 2025 TAKEHARU KATO
+#  This file is distributed under the two-clause BSD license.
+#  For the full text of the license, see the LICENSE file in the project root directory.
+#  このファイルは2条項BSDライセンスの下で配布されています。
+#  ライセンス全文はプロジェクト直下の LICENSE を参照してください。
+#
+#  OpenAI's ChatGPT partially generated this code.
+#  Author has modified some parts.
+#  OpenAIのChatGPTがこのコードの一部を生成しました。
+#  著者が修正している部分があります。
+#
+#  テナント操作補助スクリプト用のシェル補完設定
+#
+---
+
+# bash補完スクリプト用ディレクトリを作成
+- name: Ensure directory for vc-tenant bash completion
+  become: true
+  ansible.builtin.file:
+    path: "{{ vc_tenant_bash_completion_path | dirname }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+  run_once: true
+  when:
+    - virtualcluster_tenant_tools_enabled | default(false) | bool
+    - virtualcluster_tenant_tools_bash_completion_enabled | default(false) | bool
+
+# bash補完スクリプトを配置
+- name: Install vc-tenant bash completion script
+  become: true
+  ansible.builtin.copy:
+    src: "vc-tenant-completion.bash"
+    dest: "{{ vc_tenant_bash_completion_path }}"
+    owner: root
+    group: root
+    mode: "0644"
+  run_once: true
+  when:
+    - virtualcluster_tenant_tools_enabled | default(false) | bool
+    - virtualcluster_tenant_tools_bash_completion_enabled | default(false) | bool
+
+# zsh補完スクリプト用ディレクトリを作成
+- name: Ensure directory for vc-tenant zsh completion
+  become: true
+  ansible.builtin.file:
+    path: "{{ vc_tenant_zsh_completion_path | dirname }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+  run_once: true
+  when:
+    - virtualcluster_tenant_tools_enabled | default(false) | bool
+    - virtualcluster_tenant_tools_zsh_completion_enabled | default(false) | bool
+
+# zsh補完スクリプトを配置
+- name: Install vc-tenant zsh completion script
+  become: true
+  ansible.builtin.copy:
+    src: "_vc-tenant-completion"
+    dest: "{{ vc_tenant_zsh_completion_path }}"
+    owner: root
+    group: root
+    mode: "0644"
+  run_once: true
+  when:
+    - virtualcluster_tenant_tools_enabled | default(false) | bool
+    - virtualcluster_tenant_tools_zsh_completion_enabled | default(false) | bool

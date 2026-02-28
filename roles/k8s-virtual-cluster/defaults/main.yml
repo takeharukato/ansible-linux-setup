@@ -149,6 +149,21 @@ virtualcluster_kubectl_vc_binary: "kubectl-vc"
 virtualcluster_build_kubectl_vc: true
 
 #
+# テナント操作補助スクリプト設定
+#
+# テナント操作補助スクリプトの配置を有効化するフラグ
+# true: スクリプト配置を実行, false: スキップ
+virtualcluster_tenant_tools_enabled: true
+# テナント操作補助スクリプトのインストール先ディレクトリ
+virtualcluster_tenant_tools_install_dir: "/usr/local/bin"
+# bash補完の有効化フラグ
+# true: bash補完を配置, false: スキップ
+virtualcluster_tenant_tools_bash_completion_enabled: true
+# zsh補完の有効化フラグ
+# true: zsh補完を配置, false: スキップ
+virtualcluster_tenant_tools_zsh_completion_enabled: true
+
+#
 # PersistentVolume 設定 (オプション)
 #
 # host_vars で定義することで、任意のPVを作成できる
