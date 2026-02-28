@@ -1,0 +1,290 @@
+#compdef vc-tenant-apply.sh vc-tenant-get.sh vc-tenant-delete.sh vc-tenant-exec.sh vc-tenant-logs.sh
+# -*- mode: shell-script; coding: utf-8; line-endings: unix -*-
+# SPDX-License-Identifier: BSD-2-Clause
+#
+# Copyright (c) 2025 TAKEHARU KATO
+# This file is distributed under the two-clause BSD license.
+# For the full text of the license, see the LICENSE file in the project root directory.
+# このファイルは2条項BSDライセンスの下で配布されています。
+# ライセンス全文はプロジェクト直下の LICENSE を参照してください。
+
+# VirtualCluster テナント操作スクリプト用の zsh 補完スクリプト
+# vc-tenant-*.sh スクリプト群に対してテナント名、リソース名、オプションの補完を提供します。
+
+# 共通ヘルパー関数: テナント名一覧を取得
+_vc_tenant_get_tenant_list() {
+    local tenants
+    tenants=(${(f)"$(kubectl get virtualclusters.tenancy.x-k8s.io -n vc-manager -o jsonpath='{.items[*].metadata.name}' 2>/dev/null)"})
+    _describe 'tenant' tenants
+}
+
+# 共通ヘルパー関数: テナント名から namespace を取得
+_vc_tenant_get_namespace() {
+    local tenant_name="$1"
+    kubectl get virtualclusters.tenancy.x-k8s.io -n vc-manager "$tenant_name" \
+        -o jsonpath='{.status.clusterNamespace}' 2>/dev/null
+}
+
+# 共通ヘルパー関数: 指定リソース型の名前一覧を取得
+_vc_tenant_get_resources() {
+    local tenant_ns="$1"
+    local resource_type="$2"
+    local resources
+    resources=(${(f)"$(kubectl -n "$tenant_ns" get "$resource_type" -o jsonpath='{.items[*].metadata.name}' 2>/dev/null)"})
+    _describe 'resource' resources
+}
+
+# 共通ヘルパー関数: Pod 名一覧を取得
+_vc_tenant_get_pods() {
+    local tenant_ns="$1"
+    local pods
+    pods=(${(f)"$(kubectl -n "$tenant_ns" get pods -o jsonpath='{.items[*].metadata.name}' 2>/dev/null)"})
+    _describe 'pod' pods
+}
+
+# 共通ヘルパー関数: Pod 内のコンテナ名一覧を取得
+_vc_tenant_get_containers() {
+    local tenant_ns="$1"
+    local pod_name="$2"
+    local containers
+    containers=(${(f)"$(kubectl -n "$tenant_ns" get pod "$pod_name" -o jsonpath='{.spec.containers[*].name}' 2>/dev/null)"})
+    _describe 'container' containers
+}
+
+# vc-tenant-apply.sh の補完関数
+_vc-tenant-apply() {
+    local context state line
+    typeset -A opt_args
+
+    _arguments -C \
+        '1: :_vc_tenant_get_tenant_list' \
+        '*-f[Manifest file]:file:_files -g "*.yaml *.yml *.json"' \
+        '*--filename[Manifest file]:file:_files -g "*.yaml *.yml *.json"' \
+        '--dry-run[Dry run mode]:mode:(client server none)' \
+        '--validate[Validation mode]:bool:(true false)' \
+        '--vc-manager-ns[VirtualCluster manager namespace]:namespace:(vc-manager)' \
+        '(-h --help)'{-h,--help}'[Show help]'
+}
+
+# vc-tenant-get.sh の補完関数
+_vc-tenant-get() {
+    local context state line
+    typeset -A opt_args
+
+    _arguments -C \
+        '1: :_vc_tenant_get_tenant_list' \
+        '2: :->resource_type' \
+        '3: :->resource_name' \
+        '(-o --output)'{-o,--output}'[Output format]:format:(json yaml wide name)' \
+        '(-w --watch)'{-w,--watch}'[Watch for changes]' \
+        '--vc-manager-ns[VirtualCluster manager namespace]:namespace:(vc-manager)' \
+        '(-h --help)'{-h,--help}'[Show help]'
+
+    case $state in
+        resource_type)
+            local resource_types=(
+                'pods:Pod resources'
+                'po:Pod resources (short)'
+                'services:Service resources'
+                'svc:Service resources (short)'
+                'deployments:Deployment resources'
+                'deploy:Deployment resources (short)'
+                'replicasets:ReplicaSet resources'
+                'rs:ReplicaSet resources (short)'
+                'statefulsets:StatefulSet resources'
+                'sts:StatefulSet resources (short)'
+                'daemonsets:DaemonSet resources'
+                'ds:DaemonSet resources (short)'
+                'jobs:Job resources'
+                'cronjobs:CronJob resources'
+                'cj:CronJob resources (short)'
+                'configmaps:ConfigMap resources'
+                'cm:ConfigMap resources (short)'
+                'secrets:Secret resources'
+                'persistentvolumeclaims:PersistentVolumeClaim resources'
+                'pvc:PersistentVolumeClaim resources (short)'
+                'persistentvolumes:PersistentVolume resources'
+                'pv:PersistentVolume resources (short)'
+                'storageclasses:StorageClass resources'
+                'sc:StorageClass resources (short)'
+                'ingresses:Ingress resources'
+                'ing:Ingress resources (short)'
+                'networkpolicies:NetworkPolicy resources'
+                'netpol:NetworkPolicy resources (short)'
+                'nodes:Node resources'
+                'no:Node resources (short)'
+                'namespaces:Namespace resources'
+                'ns:Namespace resources (short)'
+            )
+            _describe -t resource-types 'resource type' resource_types
+            ;;
+        resource_name)
+            local tenant_name="${line[1]}"
+            local resource_type="${line[2]}"
+            if [[ -n "$tenant_name" && -n "$resource_type" ]]; then
+                local tenant_ns
+                tenant_ns=$(_vc_tenant_get_namespace "$tenant_name")
+                if [[ -n "$tenant_ns" ]]; then
+                    _vc_tenant_get_resources "$tenant_ns" "$resource_type"
+                fi
+            fi
+            ;;
+    esac
+}
+
+# vc-tenant-delete.sh の補完関数
+_vc-tenant-delete() {
+    local context state line
+    typeset -A opt_args
+
+    _arguments -C \
+        '1: :_vc_tenant_get_tenant_list' \
+        '2: :->resource_type' \
+        '3: :->resource_name' \
+        '--all[Delete all resources]' \
+        '--grace-period[Grace period]:seconds:(0 30 60 120)' \
+        '--force[Force delete]' \
+        '--vc-manager-ns[VirtualCluster manager namespace]:namespace:(vc-manager)' \
+        '(-h --help)'{-h,--help}'[Show help]'
+
+    case $state in
+        resource_type)
+            local resource_types=(
+                'pods:Pod resources'
+                'po:Pod resources (short)'
+                'services:Service resources'
+                'svc:Service resources (short)'
+                'deployments:Deployment resources'
+                'deploy:Deployment resources (short)'
+                'replicasets:ReplicaSet resources'
+                'rs:ReplicaSet resources (short)'
+                'statefulsets:StatefulSet resources'
+                'sts:StatefulSet resources (short)'
+                'daemonsets:DaemonSet resources'
+                'ds:DaemonSet resources (short)'
+                'jobs:Job resources'
+                'cronjobs:CronJob resources'
+                'cj:CronJob resources (short)'
+                'configmaps:ConfigMap resources'
+                'cm:ConfigMap resources (short)'
+                'secrets:Secret resources'
+                'persistentvolumeclaims:PersistentVolumeClaim resources'
+                'pvc:PersistentVolumeClaim resources (short)'
+                'ingresses:Ingress resources'
+                'ing:Ingress resources (short)'
+            )
+            _describe -t resource-types 'resource type' resource_types
+            ;;
+        resource_name)
+            local tenant_name="${line[1]}"
+            local resource_type="${line[2]}"
+            if [[ -n "$tenant_name" && -n "$resource_type" ]]; then
+                local tenant_ns
+                tenant_ns=$(_vc_tenant_get_namespace "$tenant_name")
+                if [[ -n "$tenant_ns" ]]; then
+                    _vc_tenant_get_resources "$tenant_ns" "$resource_type"
+                fi
+            fi
+            ;;
+    esac
+}
+
+# vc-tenant-exec.sh の補完関数
+_vc-tenant-exec() {
+    local context state line
+    typeset -A opt_args
+
+    _arguments -C \
+        '1: :_vc_tenant_get_tenant_list' \
+        '2: :->pod_name' \
+        '(-i --stdin)'{-i,--stdin}'[Keep stdin open]' \
+        '(-t --tty)'{-t,--tty}'[Allocate a TTY]' \
+        '(-c --container)'{-c,--container}': :->container_name' \
+        '--vc-manager-ns[VirtualCluster manager namespace]:namespace:(vc-manager)' \
+        '(-h --help)'{-h,--help}'[Show help]' \
+        '*:: :_guard "^-*" command'
+
+    case $state in
+        pod_name)
+            local tenant_name="${line[1]}"
+            if [[ -n "$tenant_name" ]]; then
+                local tenant_ns
+                tenant_ns=$(_vc_tenant_get_namespace "$tenant_name")
+                if [[ -n "$tenant_ns" ]]; then
+                    _vc_tenant_get_pods "$tenant_ns"
+                fi
+            fi
+            ;;
+        container_name)
+            local tenant_name="${line[1]}"
+            local pod_name="${line[2]}"
+            if [[ -n "$tenant_name" && -n "$pod_name" ]]; then
+                local tenant_ns
+                tenant_ns=$(_vc_tenant_get_namespace "$tenant_name")
+                if [[ -n "$tenant_ns" ]]; then
+                    _vc_tenant_get_containers "$tenant_ns" "$pod_name"
+                fi
+            fi
+            ;;
+    esac
+}
+
+# vc-tenant-logs.sh の補完関数
+_vc-tenant-logs() {
+    local context state line
+    typeset -A opt_args
+
+    _arguments -C \
+        '1: :_vc_tenant_get_tenant_list' \
+        '2: :->pod_name' \
+        '(-f --follow)'{-f,--follow}'[Follow log output]' \
+        '(-c --container)'{-c,--container}': :->container_name' \
+        '--tail[Number of lines]:lines:(10 50 100 200)' \
+        '--since[Show logs since]:duration:(1m 5m 10m 30m 1h 2h 24h)' \
+        '--timestamps[Include timestamps]' \
+        '--vc-manager-ns[VirtualCluster manager namespace]:namespace:(vc-manager)' \
+        '(-h --help)'{-h,--help}'[Show help]'
+
+    case $state in
+        pod_name)
+            local tenant_name="${line[1]}"
+            if [[ -n "$tenant_name" ]]; then
+                local tenant_ns
+                tenant_ns=$(_vc_tenant_get_namespace "$tenant_name")
+                if [[ -n "$tenant_ns" ]]; then
+                    _vc_tenant_get_pods "$tenant_ns"
+                fi
+            fi
+            ;;
+        container_name)
+            local tenant_name="${line[1]}"
+            local pod_name="${line[2]}"
+            if [[ -n "$tenant_name" && -n "$pod_name" ]]; then
+                local tenant_ns
+                tenant_ns=$(_vc_tenant_get_namespace "$tenant_name")
+                if [[ -n "$tenant_ns" ]]; then
+                    _vc_tenant_get_containers "$tenant_ns" "$pod_name"
+                fi
+            fi
+            ;;
+    esac
+}
+
+# メイン処理: スクリプト名に応じて適切な補完関数を呼び出し
+case "$service" in
+    vc-tenant-apply.sh)
+        _vc-tenant-apply "$@"
+        ;;
+    vc-tenant-get.sh)
+        _vc-tenant-get "$@"
+        ;;
+    vc-tenant-delete.sh)
+        _vc-tenant-delete "$@"
+        ;;
+    vc-tenant-exec.sh)
+        _vc-tenant-exec "$@"
+        ;;
+    vc-tenant-logs.sh)
+        _vc-tenant-logs "$@"
+        ;;
+esac

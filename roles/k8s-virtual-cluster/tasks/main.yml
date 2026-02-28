@@ -133,6 +133,16 @@
   ansible.builtin.include_tasks: deploy-manager.yml
   when: k8s_virtualcluster_enabled | bool
 
+# テナント操作補助スクリプトを配置するタスク
+- name: "Deploy Tenant Management Tools"
+  ansible.builtin.include_tasks: deploy-tenant-tools.yml
+  when: k8s_virtualcluster_enabled | bool
+
+# テナント操作補助スクリプト用のシェル補完を配置するタスク
+- name: "Deploy Tenant Management Tools Shell Completion"
+  ansible.builtin.include_tasks: deploy-tenant-tools-completion.yml
+  when: k8s_virtualcluster_enabled | bool
+
 # Virtual Cluster のセットアップ完了後の検証タスク
 - name: "Verify"
   ansible.builtin.include_tasks: verify.yml

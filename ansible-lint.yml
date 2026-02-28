@@ -47,3 +47,5 @@ skip_list:
   - package-latest
 exclude_paths:
   - docs
+  - roles/*/files/_vc-tenant-completion
+  - roles/*/files/vc-tenant-completion.bash

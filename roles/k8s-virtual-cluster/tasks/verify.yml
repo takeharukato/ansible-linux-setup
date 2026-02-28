@@ -153,3 +153,92 @@
         kubectl --kubeconfig {{ virtualcluster_supercluster_kubeconfig_path }} get namespace {{ virtualcluster_namespace }}
         kubectl --kubeconfig {{ virtualcluster_supercluster_kubeconfig_path }} get crd | grep virtualcluster
         kubectl --kubeconfig {{ virtualcluster_supercluster_kubeconfig_path }} -n {{ virtualcluster_namespace }} get all
+# 11. テナント操作補助スクリプトの存在確認
+- name: "Verify tenant management scripts are deployed"
+  ansible.builtin.stat:
+    path: "{{ virtualcluster_tenant_tools_install_dir }}/{{ item }}"
+  register: result_tenant_script_check
+  loop:
+    - vc-tenant-apply.sh
+    - vc-tenant-get.sh
+    - vc-tenant-delete.sh
+    - vc-tenant-exec.sh
+    - vc-tenant-logs.sh
+  when: virtualcluster_tenant_tools_enabled | bool
+  become: true
+
+# 12. テナント操作補助スクリプトのヘルプ表示確認
+- name: "Verify tenant management script functionality"
+  ansible.builtin.command:
+    cmd: "{{ virtualcluster_tenant_tools_install_dir }}/vc-tenant-apply.sh --help"
+  register: result_tenant_script_help
+  changed_when: false
+  failed_when: false
+  when: virtualcluster_tenant_tools_enabled | bool
+  become: true
+
+# 13. テナント操作補助スクリプドのデプロイ結果表示
+- name: "Display tenant management tools verification"
+  ansible.builtin.debug:
+    msg: |
+      Tenant Management Tools Verification
+      ====================================
+
+      Installation directory: {{ virtualcluster_tenant_tools_install_dir }}
+
+      Scripts status:
+      {% for script_check in result_tenant_script_check.results %}
+        {{ script_check.item }}: {{ (script_check.stat.exists and script_check.stat.executable) | ternary('OK', 'MISSING or NOT EXECUTABLE') }}
+      {% endfor %}
+
+      Functionality test:
+        vc-tenant-apply.sh --help: {{ (result_tenant_script_help.rc == 0) | ternary('OK', 'FAILED') }}
+
+      Usage examples:
+        vc-tenant-apply.sh <tenant-name> -f <manifest-file>
+        vc-tenant-get.sh <tenant-name> pods
+        vc-tenant-delete.sh <tenant-name> pod <pod-name>
+        vc-tenant-exec.sh <tenant-name> <pod-name> -- <command>
+        vc-tenant-logs.sh <tenant-name> <pod-name>
+  when: virtualcluster_tenant_tools_enabled | bool
+
+# 14. bash補完ファイルの存在確認
+- name: "Verify bash completion file is deployed"
+  ansible.builtin.stat:
+    path: "{{ vc_tenant_bash_completion_path }}"
+  register: result_bash_completion_check
+  when:
+    - virtualcluster_tenant_tools_enabled | bool
+    - virtualcluster_tenant_tools_bash_completion_enabled | bool
+  become: true
+
+# 15. zsh補完ファイルの存在確認
+- name: "Verify zsh completion file is deployed"
+  ansible.builtin.stat:
+    path: "{{ vc_tenant_zsh_completion_path }}"
+  register: result_zsh_completion_check
+  when:
+    - virtualcluster_tenant_tools_enabled | bool
+    - virtualcluster_tenant_tools_zsh_completion_enabled | bool
+  become: true
+
+# 16. シェル補完のデプロイ結果表示
+- name: "Display shell completion verification"
+  ansible.builtin.debug:
+    msg: |
+      Shell Completion Verification
+      ==============================
+
+      bash completion:
+        Path: {{ vc_tenant_bash_completion_path }}
+        Status: {{ (result_bash_completion_check.stat.exists | default(false)) | ternary('OK', 'MISSING or DISABLED') }}
+
+      zsh completion:
+        Path: {{ vc_tenant_zsh_completion_path }}
+        Status: {{ (result_zsh_completion_check.stat.exists | default(false)) | ternary('OK', 'MISSING or DISABLED') }}
+
+      Notes:
+        - 新しいシェルセッションを開始すると補完が有効化されます
+        - bash: source {{ vc_tenant_bash_completion_path }}
+        - zsh: 新しいターミナルセッションを開始
+  when: virtualcluster_tenant_tools_enabled | bool

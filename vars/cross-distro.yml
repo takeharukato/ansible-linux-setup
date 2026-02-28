@@ -129,6 +129,17 @@ cilium_zsh_completion_path_rhel: "/usr/share/zsh/site-functions/_cilium"
 cilium_zsh_completion_path: "{{ (ansible_facts.os_family == 'Debian') | ternary(cilium_zsh_completion_path_debian, cilium_zsh_completion_path_rhel) }}"
 
 ##################################################################################
+# vc-tenant-* scripts シェル補完
+##################################################################################
+vc_tenant_bash_completion_path_debian: "/etc/bash_completion.d/vc-tenant-scripts"
+vc_tenant_bash_completion_path_rhel: "/etc/bash_completion.d/vc-tenant-scripts"
+vc_tenant_bash_completion_path: "{{ (ansible_facts.os_family == 'Debian') | ternary(vc_tenant_bash_completion_path_debian, vc_tenant_bash_completion_path_rhel) }}"
+
+vc_tenant_zsh_completion_path_debian: "/usr/share/zsh/vendor-completions/_vc-tenant-scripts"
+vc_tenant_zsh_completion_path_rhel: "/usr/share/zsh/site-functions/_vc-tenant-scripts"
+vc_tenant_zsh_completion_path: "{{ (ansible_facts.os_family == 'Debian') | ternary(vc_tenant_zsh_completion_path_debian, vc_tenant_zsh_completion_path_rhel) }}"
+
+##################################################################################
 # ネットワーク設定関連
 ##################################################################################
 

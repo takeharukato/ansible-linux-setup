@@ -1,0 +1,19 @@
+---
+# テナント操作補助スクリプトを配置するタスク
+# VirtualClusterテナント管理用のシェルスクリプト群を指定されたディレクトリに配置します。
+
+- name: "Deploy Tenant Management Scripts"
+  ansible.builtin.copy:
+    src: "{{ item }}"
+    dest: "{{ virtualcluster_tenant_tools_install_dir }}/{{ item | basename }}"
+    owner: root
+    group: root
+    mode: "0755"
+  loop:
+    - vc-tenant-apply.sh
+    - vc-tenant-get.sh
+    - vc-tenant-delete.sh
+    - vc-tenant-exec.sh
+    - vc-tenant-logs.sh
+  when: virtualcluster_tenant_tools_enabled | bool
+  run_once: true

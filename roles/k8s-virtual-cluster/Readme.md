@@ -554,7 +554,712 @@ kubectl -n vc-manager get deployment vc-syncer -o jsonpath='{.spec.template.spec
 
 ---
 
+## テナント操作補助スクリプト
+
+このロールによってデプロイされるテナント操作補助スクリプトは, VirtualCluster テナント環境へのリソース操作を簡略化します。
+
+### スクリプト配置
+
+Ansible ロール実行時に以下のスクリプトが自動配置されます。
+
+| 変数名 | デフォルト値 | 説明 |
+|-------|-----------|------|
+| `virtualcluster_tenant_tools_enabled` | `true` | スクリプト配置の有効/無効切り替え |
+| `virtualcluster_tenant_tools_install_dir` | `/usr/local/bin` | スクリプト配置先ディレクトリ |
+
+### スクリプト一覧
+
+| スクリプト名 | 説明 | 対応コマンド |
+|-----------|------|-----------|
+| `vc-tenant-apply.sh` | テナント内へマニフェストを適用 | `kubectl apply` |
+| `vc-tenant-get.sh` | テナント内のリソースを取得表示 | `kubectl get` |
+| `vc-tenant-delete.sh` | テナント内のリソースを削除 | `kubectl delete` |
+| `vc-tenant-exec.sh` | テナント Pod 内でコマンド実行 | `kubectl exec` |
+| `vc-tenant-logs.sh` | テナント Pod のログを取得表示 | `kubectl logs` |
+
+### コマンドライン仕様
+
+各スクリプトは以下の基本形式で使用します。
+
+```bash
+# テナント内へリソース適用
+vc-tenant-apply.sh <テナント名> -f <マニフェストファイル> [kubectlオプション...]
+
+# テナント内のリソース取得
+vc-tenant-get.sh <テナント名> <リソース型> [kubectlオプション...]
+
+# テナント内のリソース削除
+vc-tenant-delete.sh <テナント名> <リソース型> [リソース名] [kubectlオプション...]
+
+# テナント Pod でコマンド実行
+vc-tenant-exec.sh <テナント名> <Pod名> -- <コマンド> [コマンド引数...]
+
+# テナント Pod のログ取得
+vc-tenant-logs.sh <テナント名> <Pod名> [kubectlオプション...]
+```
+
+### 共通オプション
+
+すべてのスクリプトで以下のオプションが使用可能です。
+
+| オプション | 説明 |
+|----------|------|
+| `-h, --help` | ヘルプメッセージを表示して終了 |
+| `--vc-manager-ns NS` | VirtualCluster 管理 namespace(デフォルト: `vc-manager`) |
+
+### スクリプト固有オプション
+
+**vc-tenant-apply.sh**
+
+| オプション | 説明 |
+|----------|------|
+| `-f, --filename FILE` | マニフェストファイルパス(複数指定可) |
+
+**vc-tenant-get.sh**
+
+| オプション | 説明 |
+|----------|------|
+| `<リソース型>` | `pods`, `svc`, `deploy`, `pvc` など |
+
+**vc-tenant-delete.sh**
+
+| オプション | 説明 |
+|----------|------|
+| `--all` | 全リソース削除(確認なし) |
+| `--grace-period=N` | Graceful 削除の猶予時間(秒) |
+
+**vc-tenant-exec.sh**
+
+| オプション | 説明 |
+|----------|------|
+| `-i, --stdin` | stdin を保持(対話実行に必須) |
+| `-t, --tty` | tty を割り当て(対話実行に必須) |
+| `-c, --container NAME` | 対象コンテナを指定 |
+
+**vc-tenant-logs.sh**
+
+| オプション | 説明 |
+|----------|------|
+| `-c, --container NAME` | 対象コンテナを指定 |
+| `-f, --follow` | ログをリアルタイム表示 |
+| `--tail N` | 直近 N 行を表示 |
+| `--since TIME` | 指定時刻以降のログを表示 |
+
+### 実行時の情報表示
+
+すべてのスクリプトは実行時に以下の情報を表示します:
+
+- **コンテキスト**: 現在の kubectl コンテキスト
+- **ユーザ**: 現在の kubectl ユーザ
+- **テナント**: 指定したテナント名
+- **名前空間**: テナントに対応する実際の名前空間
+
+実行例:
+
+```bash
+$ vc-tenant-get.sh tenant-alpha pods
+コンテキスト: cluster2
+ユーザ: admin-cluster2
+テナント: tenant-alpha
+名前空間: vc-manager-ccb4a8-tenant-alpha
+NAME                   READY   STATUS    RESTARTS   AGE
+apiserver-0            1/1     Running   0          21m
+controller-manager-0   1/1     Running   0          21m
+etcd-0                 1/1     Running   0          21m
+```
+
+これにより, どのクラスタ(コンテキスト)に対して操作を行っているかが明確になります。
+
+### 実行例
+
+#### 例1: busybox Pod の配置と確認
+
+本節では,テナント(tenant-alpha)へ簡単なbusybox Podをデプロイし,状態確認やログ取得,削除までの一連の操作フローを示します。
+
+**ステップA: マニフェストファイルの作成**
+
+簡単なbusybox Podのマニフェストを作成します。このPodは5秒待機してから完了します。
+
+```bash
+cat > /tmp/busybox-demo.yaml <<'EOF'
+apiVersion: v1
+kind: Pod
+metadata:
+  name: busybox-demo
+spec:
+  restartPolicy: Never
+  containers:
+    - name: busybox
+      image: busybox:1.36
+      command: ["sh", "-c", "echo 'Hello from tenant!' && sleep 5"]
+      resources:
+        requests:
+          cpu: "100m"
+          memory: "64Mi"
+        limits:
+          cpu: "200m"
+          memory: "128Mi"
+EOF
+```
+
+**ステップB: Pod をテナントに適用**
+
+作成したマニフェストをテナント(tenant-alpha)に適用します。
+
+```bash
+vc-tenant-apply.sh tenant-alpha -f /tmp/busybox-demo.yaml
+```
+
+出力結果:
+
+```
+コンテキスト: cluster2
+ユーザ: admin-cluster2
+テナント: tenant-alpha
+名前空間: vc-manager-ccb4a8-tenant-alpha
+pod/busybox-demo created
+```
+
+出力結果のメッセージが「pod/busybox-demo created」であることを確認して、Pod が正常に作成されていることを確認してください。
+
+**ステップC: Pod の状態を確認（作成直後）**
+
+Pod の現在の状態を確認します。Podは作成直後のため, ContainerCreatingの状態です。
+
+```bash
+vc-tenant-get.sh tenant-alpha pods
+```
+
+出力結果:
+
+```
+コンテキスト: cluster2
+ユーザ: admin-cluster2
+テナント: tenant-alpha
+名前空間: vc-manager-ccb4a8-tenant-alpha
+NAME          READY   STATUS              RESTARTS   AGE
+apiserver-0              1/1     Running             0          23m
+busybox-demo             0/1     ContainerCreating   0          0s
+controller-manager-0     1/1     Running             0          23m
+etcd-0                   1/1     Running             0          23m
+```
+
+出力結果のSTATUSが「ContainerCreating」であることを確認して、Pod が起動中であることを確認してください。
+
+**ステップD: ログを取得（起動中エラー）**
+
+Podの起動が完了する前にログを取得しようとするとエラーが発生します。これは正常な動作です。
+
+```bash
+vc-tenant-logs.sh tenant-alpha busybox-demo
+```
+
+出力結果:
+
+```
+コンテキスト: cluster2
+ユーザ: admin-cluster2
+テナント: tenant-alpha
+名前空間: vc-manager-ccb4a8-tenant-alpha
+Error from server (BadRequest): container "busybox" in pod "busybox-demo" is waiting to start: ContainerCreating
+```
+
+出力結果のエラーメッセージ「BadRequest」から、Podがまだ起動中のためログアクセスができていないことを確認してください。次のステップで起動を待機します。
+
+**ステップE: Pod の起動完了を待機**
+
+Pod が Running 状態に遷移するまで数秒待機します。
+
+```bash
+sleep 10
+```
+
+**ステップF: ログを取得（起動完了後）**
+
+Pod が起動完了したので,ログを取得します。
+
+```bash
+vc-tenant-logs.sh tenant-alpha busybox-demo
+```
+
+出力結果(期待される出力):
+
+```
+コンテキスト: cluster2
+ユーザ: admin-cluster2
+テナント: tenant-alpha
+名前空間: vc-manager-ccb4a8-tenant-alpha
+Hello from tenant!
+```
+
+出力結果に「Hello from tenant!」というメッセージが表示されていることを確認して、Pod 内のコマンドが正常に実行されていることを確認してください。
+
+**ステップG: Pod の最終状態確認**
+
+Pod が完了状態に遷移したことを確認します。
+
+```bash
+vc-tenant-get.sh tenant-alpha pods
+```
+
+出力結果(期待される出力):
+
+```
+コンテキスト: cluster2
+ユーザ: admin-cluster2
+テナント: tenant-alpha
+名前空間: vc-manager-ccb4a8-tenant-alpha
+NAME          READY   STATUS      RESTARTS   AGE
+apiserver-0              1/1     Running     0          23m
+busybox-demo             0/1     Completed   0          12s
+controller-manager-0     1/1     Running     0          23m
+etcd-0                   1/1     Running     0          23m
+```
+
+出力結果のSTATUSが「Completed」に遷移していることを確認してください。
+
+**ステップH: Pod を削除**
+
+不要になった Pod を削除します。
+
+```bash
+vc-tenant-delete.sh tenant-alpha pod busybox-demo
+```
+
+出力結果:
+
+```
+コンテキスト: cluster2
+ユーザ: admin-cluster2
+テナント: tenant-alpha
+名前空間: vc-manager-ccb4a8-tenant-alpha
+pod "busybox-demo" deleted
+```
+
+出力結果のメッセージが「pod \"busybox-demo\" deleted」であることを確認して、Pod が正常に削除されていることを確認してください。
+
+#### 例2: Deployment のデプロイと確認
+
+本節では,テナント(tenant-alpha)へnginx Deploymentをデプロイし,スケールアウト状態の確認,削除までの操作フローを示します。
+
+**ステップA: マニフェストファイルの作成**
+
+2つのレプリカを持つnginx Deploymentのマニフェストを作成します。
+
+```bash
+cat > /tmp/nginx-deploy.yaml <<'EOF'
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: test-webserver
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: test-web
+  template:
+    metadata:
+      labels:
+        app: test-web
+    spec:
+      containers:
+        - name: web
+          image: nginx:latest
+          ports:
+            - containerPort: 80
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "128Mi"
+            limits:
+              cpu: "500m"
+              memory: "256Mi"
+EOF
+```
+
+**ステップB: Deployment をテナントに適用**
+
+作成したマニフェストをテナント(tenant-alpha)に適用します。
+
+```bash
+vc-tenant-apply.sh tenant-alpha -f /tmp/nginx-deploy.yaml
+```
+
+出力結果:
+
+```
+コンテキスト: cluster2
+ユーザ: admin-cluster2
+テナント: tenant-alpha
+名前空間: vc-manager-ccb4a8-tenant-alpha
+deployment.apps "test-webserver" created
+```
+
+出力結果のメッセージが「deployment.apps \"test-webserver\" created」であることを確認して、Deployment が正常に作成されていることを確認してください。
+
+**ステップC: Deployment の詳細情報を確認**
+
+作成直後のDeploymentの状態を詳細に確認します。レプリカはまだ起動中(ContainerCreating)です。
+
+```bash
+vc-tenant-get.sh tenant-alpha deployments -o wide
+```
+
+出力結果:
+
+```
+コンテキスト: cluster2
+ユーザ: admin-cluster2
+テナント: tenant-alpha
+名前空間: vc-manager-ccb4a8-tenant-alpha
+NAME             READY   UP-TO-DATE   AVAILABLE   AGE   CONTAINERS   IMAGES         SELECTOR
+test-webserver   0/2     2            0           0s    web          nginx:latest   app=test-web
+```
+
+出力結果のREADYが「0/2」であることを確認して、2つのレプリカがまだ起動中であることを確認してください。
+
+**ステップD: 生成された Pod の状態確認**
+
+Deployment によって生成された Pod の詳細を確認します。
+
+```bash
+vc-tenant-get.sh tenant-alpha pods
+```
+
+出力結果:
+
+```
+コンテキスト: cluster2
+ユーザ: admin-cluster2
+テナント: tenant-alpha
+名前空間: vc-manager-ccb4a8-tenant-alpha
+NAME                              READY   STATUS              RESTARTS   AGE
+apiserver-0                       1/1     Running             0          23m
+controller-manager-0              1/1     Running             0          23m
+etcd-0                            1/1     Running             0          23m
+test-webserver-6947c798c8-g7k2b   0/1     ContainerCreating   0          0s
+test-webserver-6947c798c8-rb8xh   0/1     ContainerCreating   0          0s
+```
+
+出力結果のSTATUSが「ContainerCreating」であることを確認して、2つのPod が起動中であることを確認してください。
+
+**ステップE: Deployment を削除**
+
+テスト完了後,Deployment を削除します。
+
+```bash
+vc-tenant-delete.sh tenant-alpha deployment test-webserver
+```
+
+出力結果:
+
+```
+コンテキスト: cluster2
+ユーザ: admin-cluster2
+テナント: tenant-alpha
+名前空間: vc-manager-ccb4a8-tenant-alpha
+deployment.apps "test-webserver" deleted
+```
+
+出力結果のメッセージが「deployment.apps \"test-webserver\" deleted」であることを確認して、Deployment と関連するすべてのPodが削除されていることを確認してください。
+
+#### 例3: 実行中の Pod でコマンド実行
+
+本節では,テナント内の実行中のPod に対してリモートコマンドを実行する方法を示します。
+
+**事前準備: 実行中の Pod を用意**
+
+まず,実行中のPod を用意する必要があります。以下のコマンドで簡単なnginx Podを起動します。
+
+```bash
+cat > /tmp/nginx-pod.yaml <<'EOF'
+apiVersion: v1
+kind: Pod
+metadata:
+  name: nginx-demo
+spec:
+  containers:
+    - name: nginx
+      image: nginx:latest
+      ports:
+        - containerPort: 80
+EOF
+
+vc-tenant-apply.sh tenant-alpha -f /tmp/nginx-pod.yaml
+```
+
+Pod が Running 状態に遷移するまで待機します。
+
+```bash
+sleep 5
+```
+
+**ステップA: 簡単なコマンド実行**
+
+実行中のPod 内で簡単なシェルコマンドを実行します。
+
+```bash
+vc-tenant-exec.sh tenant-alpha nginx-demo -- sh -c 'echo "Hello from container"'
+```
+
+出力結果:
+
+```
+コンテキスト: cluster2
+ユーザ: admin-cluster2
+テナント: tenant-alpha
+名前空間: vc-manager-ccb4a8-tenant-alpha
+Hello from container
+```
+
+出力結果に「Hello from container」というメッセージが表示されていることを確認して、コマンドが正常に実行されていることを確認してください。
+
+**ステップB: 複数コマンドの実行**
+
+複数のコマンドを実行する場合は, `sh -c` で複数コマンドをまとめます。
+
+```bash
+vc-tenant-exec.sh tenant-alpha nginx-demo -- sh -c 'ls /; echo "---"; pwd'
+```
+
+出力結果(期待される出力):
+
+```
+コンテキスト: cluster2
+ユーザ: admin-cluster2
+テナント: tenant-alpha
+名前空間: vc-manager-ccb4a8-tenant-alpha
+bin
+boot
+dev
+etc
+home
+lib
+---
+/
+```
+
+出力結果に「---」セパレータが表示されていることを確認して、複数のコマンドが順序通り実行されていることを確認してください。
+
+**ステップC: 対話型シェルセッション**
+
+Pod 内で対話的にシェルを使用する場合は, `-it` オプションを指定します。
+
+```bash
+vc-tenant-exec.sh tenant-alpha nginx-demo -it -- /bin/sh
+```
+
+実行後, Pod 内のシェルプロンプトが表示されます:
+
+```
+コンテキスト: cluster2
+ユーザ: admin-cluster2
+テナント: tenant-alpha
+名前空間: vc-manager-ccb4a8-tenant-alpha
+/ #
+```
+
+この状態でコマンドを入力できます。出力結果に「/ # 」プロンプトが表示されていることを確認して、対話型シェルが正常に起動していることを確認してください。終了する場合は `exit` と入力するか, `Ctrl+D` を使用します。
+
+```bash
+/ # exit
+```
+
+**クリーンアップ**
+
+テスト用のPod を削除します。
+
+```bash
+vc-tenant-delete.sh tenant-alpha pod nginx-demo
+```
+
+### シェル補完機能
+
+テナント操作補助スクリプトには, bash および zsh 用のシェル補完機能が提供されています。補完機能を使用することで, テナント名, リソース型, リソース名, Pod 名, コンテナ名などをタブキーで補完できます。
+
+#### 補完機能の有効化設定
+
+| 変数名 | デフォルト値 | 説明 |
+|-------|-----------|------|
+| `virtualcluster_tenant_tools_bash_completion_enabled` | `true` | bash補完の有効/無効切り替え |
+| `virtualcluster_tenant_tools_zsh_completion_enabled` | `true` | zsh補完の有効/無効切り替え |
+
+#### 補完ファイル配置先
+
+| シェル | ディストリビューション | 配置先パス |
+|-------|-------------------|-----------|
+| bash | Debian/Ubuntu | `/etc/bash_completion.d/vc-tenant-completion` |
+| bash | RHEL/CentOS | `/etc/bash_completion.d/vc-tenant-completion` |
+| zsh | Debian/Ubuntu | `/usr/share/zsh/vendor-completions/_vc-tenant-completion` |
+| zsh | RHEL/CentOS | `/usr/share/zsh/site-functions/_vc-tenant-completion` |
+
+#### 補完機能の使用方法
+
+新しいシェルセッションを開始すると自動的に補完機能が有効化されます。既存のセッションで有効化する場合は以下を実行します。
+
+**bash の場合:**
+
+```bash
+# 補完ファイルを現在のセッションで読み込み
+source /etc/bash_completion.d/vc-tenant-completion
+```
+
+**zsh の場合:**
+
+```bash
+# 新しいターミナルセッションを開始
+# (既存セッションでは自動補完が有効化されません)
+```
+
+#### 補完の動作
+
+シェル補完は以下の情報を動的に取得して補完候補を提示します。
+
+1. **テナント名の補完**: VirtualCluster CRD から取得したテナント名一覧
+   ```bash
+   vc-tenant-get.sh <Tab>    # テナント名が補完される
+   ```
+
+2. **リソース型の補完**: `kubectl api-resources` から取得したリソース型一覧
+   ```bash
+   vc-tenant-get.sh tenant-alpha <Tab>    # pods, services, deployments など
+   ```
+
+3. **リソース名の補完**: 指定テナント内の実際のリソース名
+   ```bash
+   vc-tenant-delete.sh tenant-alpha pod <Tab>    # Pod名が補完される
+   ```
+
+4. **コンテナ名の補完**: Pod 内のコンテナ名
+   ```bash
+   vc-tenant-exec.sh tenant-alpha busybox -c <Tab>    # コンテナ名が補完される
+   ```
+
+#### 補完機能のトラブルシューティング
+
+**補完が動作しない場合:**
+
+1. 補完ファイルが配置されているか確認
+   ```bash
+   # bash
+   ls -l /etc/bash_completion.d/vc-tenant-completion
+
+   # zsh
+   ls -l /usr/share/zsh/vendor-completions/_vc-tenant-completion  # Debian/Ubuntu
+   ls -l /usr/share/zsh/site-functions/_vc-tenant-completion     # RHEL/CentOS
+   ```
+
+2. kubectl が正常に動作するか確認
+   ```bash
+   # 補完機能は kubectl を使用してテナント情報を取得します
+   kubectl get virtualclusters.tenancy.x-k8s.io -n vc-manager
+   ```
+
+3. 新しいシェルセッションを開始
+   ```bash
+   # bash/zsh ともに新しいターミナルセッションで自動的に有効化されます
+   ```
+
+#### 例4: PersistentVolumeClaim の確認
+
+テナント内でストレージを使用している場合,PVC(PersistentVolumeClaim)の状態を確認する方法を示します。
+
+```bash
+vc-tenant-get.sh tenant-alpha pvc
+```
+
+出力結果:
+
+```
+コンテキスト: cluster2
+ユーザ: admin-cluster2
+テナント: tenant-alpha
+名前空間: vc-manager-ccb4a8-tenant-alpha
+NAME          STATUS   VOLUME                   CAPACITY   ACCESS MODES   STORAGECLASS   VOLUMEATTRIBUTESCLASS   AGE
+data-etcd-0   Bound    pv-etcd-tenant-alpha-0   10Gi       RWO            default-sc     <unset>                 117s
+```
+
+出力結果のSTATUSが「Bound」であることを確認して、PVC が正常に PersistentVolume にバインド(結合)されていることを確認してください。
+
+#### 例5: カスタム管理 namespace の指定
+
+デフォルトでは `vc-manager` namespace を使用してテナント情報を取得します。環境によって異なる namespace を使用する場合は, `--vc-manager-ns` オプションで明示的に指定します。
+
+```bash
+vc-tenant-get.sh tenant-alpha pods --vc-manager-ns custom-vc-manager
+```
+
+出力結果:
+
+```
+コンテキスト: cluster2
+ユーザ: admin-cluster2
+テナント: tenant-alpha
+名前空間: custom-vc-manager-xxxxxx-tenant-alpha
+NAME                   READY   STATUS    RESTARTS   AGE
+apiserver-0            1/1     Running   0          21m
+controller-manager-0   1/1     Running   0          21m
+etcd-0                 1/1     Running   0          21m
+```
+
+出力結果のPodリストが表示されていることを確認して、カスタムnamespace内のテナント情報が正常に取得されていることを確認してください。
+
+### トラブルシューティング
+
+**エラー: テナント 'tenant-name' が見つかりません**
+
+```bash
+# 利用可能なテナントを確認
+kubectl get virtualclusters.tenancy.x-k8s.io -n vc-manager
+
+# テナント名が正しいか確認
+vc-tenant-get.sh <正しいテナント名> pods
+```
+
+**異なるクラスタ(コンテキスト)で操作したい**
+
+スクリプトは現在の kubectl コンテキストを使用します。別のクラスタで操作する場合は, 事前にコンテキストを切り替えてください。
+
+```bash
+# 利用可能なコンテキストを確認
+kubectl config get-contexts
+
+# コンテキストを切り替え
+kubectl config use-context cluster2
+
+# 現在のコンテキストを確認
+kubectl config current-context
+
+# スクリプト実行時にコンテキストとユーザが表示される
+vc-tenant-get.sh tenant-alpha pods
+# 出力:
+# コンテキスト: cluster2
+# ユーザ: admin-cluster2
+# テナント: tenant-alpha
+# 名前空間: vc-manager-ccb4a8-tenant-alpha
+# (Pod 一覧が表示される)
+```
+
+**注意**: スクリプト内で `--context` オプションを明示的に指定することはできません。必ず `kubectl config use-context` でコンテキストを切り替えてから実行してください。
+
+**Pod ファイアウォール/ネットワークが応答しない**
+
+一部の環境では IPv6 接続が不安定な場合があります。その場合は以下の代替手段を使用してください。
+
+```bash
+# スーパークラスタから直接 namespace を指定してアクセス
+TENANT_NS=$(kubectl get virtualclusters.tenancy.x-k8s.io -n vc-manager <tenant-name> \
+  -o jsonpath='{.status.clusterNamespace}')
+
+# スーパークラスタで直接操作
+kubectl -n $TENANT_NS get pods
+kubectl -n $TENANT_NS apply -f manifest.yaml
+```
+
+---
+
 ## 検証ポイント
+
 
 以下の順で確認してください。
 
