@@ -1548,7 +1548,7 @@ flowchart TD
 
     CheckPending -->|Yes| PendingState[CreateVirtualCluster処理中<br/>またはエラー]
     PendingState --> PendingCheck1[vc-managerのログで<br/>fail to create を検索]
-    PendingState --> PendingCheck2[テナント用名前空間 ( namespace ) の<br/>有無を確認]
+    PendingState --> PendingCheck2[テナント用名前空間の<br/>有無を確認]
     PendingState --> PendingCheck3[PKI Secretの有無を確認]
 
     CheckPending -->|No| CheckRunning{Status.Phase =<br/>ClusterRunning?}
