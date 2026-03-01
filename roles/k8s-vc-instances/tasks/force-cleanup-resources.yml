@@ -37,6 +37,7 @@
     - item.name is defined
     - (item.name | string | length) > 0
 
+# 削除対象のVirtualClusterをデバッグ出力
 - name: "Debug: VirtualClusters to be deleted"
   ansible.builtin.debug:
     msg: |
@@ -50,6 +51,7 @@
     - _vc_exists_check is defined
     - _vc_exists_check.results is defined
 
+# 既存のVirtualClusterインスタンスを削除（存在するもののみ）
 - name: "Delete existing VirtualCluster instances"
   ansible.builtin.command:
     cmd: >-
@@ -91,6 +93,7 @@
     - _vc_exists_check.results is defined
     - item.rc == 0
 
+# VirtualClusterが完全に削除されるまで待機
 - name: "Wait for VirtualCluster instances to be deleted"
   ansible.builtin.command:
     cmd: >-
@@ -122,12 +125,14 @@
   become: true
   changed_when: false
 
+# 名前空間リストを解析し, VirtualClusterのテナント名前空間を抽出する
 - name: "Parse namespace list"
   ansible.builtin.set_fact:
     _all_namespaces: "{{ _all_namespaces_raw.stdout.split() }}"
   when:
     - _all_namespaces_raw.stdout | default('') | length > 0
 
+# VirtualClusterのテナント名前空間を抽出して削除対象リストに追加する
 - name: "Collect runtime tenant namespaces to delete"
   ansible.builtin.set_fact:
     _runtime_tenant_namespaces: >-
@@ -148,10 +153,12 @@
     - item.name is defined
     - (item.name | string | length) > 0
 
+# 実行時のテナント名前空間を一意化する
 - name: "Unique runtime tenant namespaces"
   ansible.builtin.set_fact:
     _runtime_tenant_namespaces: "{{ _runtime_tenant_namespaces | default([]) | unique }}"
 
+# デバッグ: 削除対象のテナント名前空間を表示する
 - name: "Debug: runtime tenant namespaces to be deleted"
   ansible.builtin.debug:
     msg: |
@@ -163,6 +170,7 @@
     - _runtime_tenant_namespaces is defined
     - (_runtime_tenant_namespaces | length) > 0
 
+# テナント名前空間を削除する
 - name: "Delete runtime tenant namespaces"
   ansible.builtin.command:
     cmd: >-
@@ -181,6 +189,7 @@
     - _runtime_tenant_namespaces is defined
     - (_runtime_tenant_namespaces | length) > 0
 
+# テナント名前空間が完全に削除されるまで待機する
 - name: "Wait for runtime tenant namespaces to be deleted"
   ansible.builtin.command:
     cmd: >-
@@ -251,6 +260,7 @@
     - item.spec.claimRef.namespace is defined
     - item.spec.claimRef.name is defined
 
+# デバッグ: 削除対象のPersistentVolumeと紐づくPersistentVolumeClaimを表示する
 - name: "Debug: stale PVC claims to be deleted"
   ansible.builtin.debug:
     msg: |
@@ -262,6 +272,7 @@
     - _stale_pv_claims is defined
     - (_stale_pv_claims | length) > 0
 
+# 紐づくPersistentVolumeClaimを削除してPersistentVolumeのクリーンアップを促進する
 - name: "Delete stale PVC claims"
   ansible.builtin.command:
     cmd: >-
@@ -281,10 +292,12 @@
     - _stale_pv_claims is defined
     - (_stale_pv_claims | length) > 0
 
+# Persistent Volume Claimから削除対象名前空間(古い名前空間)を抽出する
 - name: "Build stale namespaces from PV claims"
   ansible.builtin.set_fact:
     _stale_namespaces: "{{ (_stale_pv_claims | map(attribute='namespace') | list | unique) if (_stale_pv_claims is defined) else [] }}"
 
+# デバッグ: 削除対象の名前空間を表示する
 - name: "Debug: stale namespaces to be deleted"
   ansible.builtin.debug:
     msg: |
@@ -296,6 +309,7 @@
     - _stale_namespaces is defined
     - (_stale_namespaces | length) > 0
 
+# 削除対象の名前空間を削除する
 - name: "Delete stale namespaces"
   ansible.builtin.command:
     cmd: >-
@@ -314,6 +328,7 @@
     - _stale_namespaces is defined
     - (_stale_namespaces | length) > 0
 
+# 名前空間が完全に削除されるまで待機する
 - name: "Wait for stale namespaces to be deleted"
   ansible.builtin.command:
     cmd: >-

@@ -19,6 +19,7 @@
 #
 ---
 
+# 既存の名前空間を取得
 - name: "Get existing namespaces"
   ansible.builtin.command:
     cmd: >-
@@ -28,12 +29,17 @@
   become: true
   changed_when: false
 
+# 取得した名前空間をリスト化
 - name: "Parse namespace list"
   ansible.builtin.set_fact:
     _all_namespaces: "{{ _all_namespaces_raw.stdout.split() }}"
   when:
     - _all_namespaces_raw.stdout | default('') | length > 0
 
+# VirtualClusterごとに実行時名前空間を検出して,
+# テナント名から名前空間
+# (vc-manager-<ハッシュ値>-<テナント名>)へのマッピングを作成
+# マッチする名前空間がない場合は空文字列をマッピング
 - name: "Build tenant runtime namespace map"
   ansible.builtin.set_fact:
     _tenant_runtime_ns_map: >-
@@ -57,10 +63,13 @@
     - item.name is defined
     - (item.name | string | length) > 0
 
+# デバッグ: テナントと実行時名前空間のマッピングを表示
 - name: "Debug: tenant runtime namespace map"
   ansible.builtin.debug:
     msg: "{{ _tenant_runtime_ns_map | default({}) | to_nice_json }}"
 
+# VirtualClusterの数とetcdレプリカ数の組み合わせごとに、
+# PV-PVCバインドの計画を作成
 - name: "Build PV-PVC bind plan"
   ansible.builtin.set_fact:
     _pv_bind_plan: >-
@@ -79,10 +88,12 @@
     - item.0.name is defined
     - (item.0.name | string | length) > 0
 
+# デバッグ: PV-PVCバインド計画を表示
 - name: "Debug: PV-PVC bind plan"
   ansible.builtin.debug:
     msg: "{{ _pv_bind_plan | default([]) | to_nice_json }}"
 
+# PersistentVolumeをPersistentVolumeClaimに明示的にバインドする
 - name: "Bind PV to PVC using claimRef"
   ansible.builtin.command:
     cmd: >-
@@ -100,6 +111,7 @@
   when:
     - item.namespace | default('') | length > 0
 
+# PersistentVolumeClaimが作成されるのを待ち合わせる
 - name: "Wait for PVCs to be created"
   ansible.builtin.command:
     cmd: >-
@@ -118,6 +130,7 @@
   when:
     - item.namespace | default('') | length > 0
 
+# PersistentVolumeが期待したPVCにバインドされることを待ち合わせる
 - name: "Wait for PVs to be Bound to expected claims"
   ansible.builtin.command:
     cmd: >-
@@ -150,6 +163,7 @@
     - vcinstances_etcd_storage_enabled | default(false) | bool
     - vcinstances_auto_create_pv | default(true) | bool
 
+# PersistentVolumeを解析し, エラーを検出する
 - name: "Parse PV bindings and detect errors"
   ansible.builtin.shell:
     cmd: |
@@ -186,6 +200,7 @@
     - vcinstances_etcd_storage_enabled | default(false) | bool
     - vcinstances_auto_create_pv | default(true) | bool
 
+# 誤ったバインディングを検出して修正するための追加チェック
 - name: "Parse binding mismatches"
   ansible.builtin.set_fact:
     _mismatched_pvcs: "{{ _binding_check_result.stdout_lines | select('match', '^[a-z0-9-]+ (data-etcd)') | list }}"
@@ -193,6 +208,7 @@
     - vcinstances_etcd_storage_enabled | default(false) | bool
     - vcinstances_auto_create_pv | default(true) | bool
 
+# 誤ったバインディングがある場合は詳細を表示
 - name: "Report binding mismatches"
   ansible.builtin.debug:
     msg:
@@ -203,7 +219,7 @@
     - vcinstances_auto_create_pv | default(true) | bool
     - _mismatched_pvcs | length > 0
 
-# Unbind and delete mismatched PVCs
+# 誤ったバインディングを修正するために、該当するPVCを削除してStatefulSetに再作成させる
 - name: "Delete mismatched PVCs to trigger StatefulSet recreation"
   ansible.builtin.command:
     cmd: >-
@@ -223,7 +239,7 @@
     - vcinstances_auto_create_pv | default(true) | bool
     - _mismatched_pvcs | length > 0
 
-# Unbind the PVs that were bound to mismatched PVCs
+# PersistentVolumeを誤ったPersistentVolumeClaimから切り離す
 - name: "Unbind PVs from mismatched claims"
   ansible.builtin.shell:
     cmd: |
@@ -243,7 +259,7 @@
     - vcinstances_auto_create_pv | default(true) | bool
     - _mismatched_pvcs | length > 0
 
-# Wait for StatefulSet to recreate PVCs (should get correct ones this time with claimRef help)
+# StatefulSetがPVCを再作成することを待ち合わせる
 - name: "Wait for StatefulSet to recreate PVCs"
   ansible.builtin.command:
     cmd: >-
@@ -265,7 +281,7 @@
     - vcinstances_auto_create_pv | default(true) | bool
     - _mismatched_pvcs | length > 0
 
-# Re-apply claimRef to guide binding
+# claimRefを再適用してバインドを誘導する
 - name: "Re-apply claimRef to newly created PVCs"
   ansible.builtin.command:
     cmd: >-
@@ -285,7 +301,7 @@
     - vcinstances_auto_create_pv | default(true) | bool
     - _mismatched_pvcs | length > 0
 
-# Final verification
+# 最終的なバインディング状態を検証
 - name: "Final verification of PVC bindings"
   ansible.builtin.command:
     cmd: >-
@@ -298,6 +314,7 @@
     - vcinstances_etcd_storage_enabled | default(false) | bool
     - vcinstances_auto_create_pv | default(true) | bool
 
+# 最終的なバインディング状態を表示
 - name: "Display final PVC bindings"
   ansible.builtin.debug:
     msg: "{{ _final_binding_check.stdout_lines | default([]) }}"
