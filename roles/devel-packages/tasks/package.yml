@@ -6,9 +6,52 @@
 #
 
 # 開発パッケージのインストール
+- name: Build devel package list without go package
+  ansible.builtin.set_fact:
+    devel_packages_without_go: "{{ devel_packages | reject('equalto', devel_go_package_name) | list }}"
+
 - name: Install devel packages
   ansible.builtin.package:
     pkg:
-      '{{ devel_packages }}'
-    state: latest
+      '{{ devel_packages_without_go }}'
+    state: present
   notify: disable_gui
+
+# Go バージョン指定時: Go公式tarballから導入
+- name: Resolve and install go from official tarball
+  when:
+    - go_lang_version is defined
+    - go_lang_version | length > 0
+  block:
+    - name: Resolve go version from official API
+      ansible.builtin.include_tasks: resolve-go-version.yml
+
+    - name: Install go from official tarball
+      ansible.builtin.include_tasks: install-go-from-tarball.yml
+
+# Go バージョン未指定時: パッケージマネージャから導入 (Debian 系)
+- name: Install go package on Debian family
+  ansible.builtin.apt:
+    name: "{{ devel_go_package_name }}"
+    state: latest  # noqa package-latest
+    update_cache: true
+  when:
+    - ansible_facts.os_family == 'Debian'
+    - go_lang_version is not defined or go_lang_version | length == 0
+  notify: disable_gui
+
+# Go バージョン未指定時: パッケージマネージャから導入 (RHEL 系)
+- name: Install go package on RedHat family
+  ansible.builtin.dnf:
+    name: "{{ devel_go_package_name }}"
+    state: latest  # noqa package-latest
+  when:
+    - ansible_facts.os_family == 'RedHat'
+    - go_lang_version is not defined or go_lang_version | length == 0
+  notify: disable_gui
+# パッケージマネージャ導入時のGoコマンドパス設定
+- name: Set go command path for package installation
+  ansible.builtin.set_fact:
+    go_command: "{{ go_command_package }}"
+  when:
+    - go_lang_version is not defined or go_lang_version | length == 0

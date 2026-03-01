@@ -1,0 +1,108 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  Go 公式tarballからのインストール
+#
+---
+
+# スキップフラグが立っている場合は全タスクをスキップ
+- name: Check if go installation should be skipped
+  ansible.builtin.meta: noop
+  when: go_installation_skipped | default(false)
+
+# Go tarballダウンロードURL構築
+- name: Build go download URL
+  ansible.builtin.set_fact:
+    go_tarball_url: "{{ go_base_url }}/go{{ go_resolved_version }}.linux-{{ go_arch }}.tar.gz"
+    go_tarball_dest: "/tmp/go{{ go_resolved_version }}.linux-{{ go_arch }}.tar.gz"
+  when: not (go_installation_skipped | default(false))
+
+# Go tarballをダウンロード (ローカルに一時保存)
+- name: Download go tarball to localhost
+  ansible.builtin.get_url:
+    url: "{{ go_tarball_url }}"
+    dest: "{{ go_tarball_dest }}"
+    mode: '0644'
+  delegate_to: localhost
+  run_once: true
+  when: not (go_installation_skipped | default(false))
+
+# 既存のGoインストールディレクトリを削除
+- name: Remove existing go installation
+  ansible.builtin.file:
+    path: "{{ go_install_dir }}"
+    state: absent
+  become: true
+  when: not (go_installation_skipped | default(false))
+
+# Go tarballを展開
+- name: Extract go tarball
+  ansible.builtin.unarchive:
+    src: "{{ go_tarball_dest }}"
+    dest: "/usr/local"
+    owner: root
+    group: root
+    mode: '0755'
+  become: true
+  when: not (go_installation_skipped | default(false))
+
+# PATH設定スクリプトを配置
+- name: Create golang profile script
+  ansible.builtin.copy:
+    dest: "{{ go_profile_script }}"
+    content: |
+      # -*- mode: sh; coding: utf-8; line-endings: unix -*-
+      # SPDX-License-Identifier: BSD-2-Clause
+      #
+      # Copyright (c) 2025 TAKEHARU KATO
+      # This file is distributed under the two-clause BSD license.
+      # For the full text of the license, see the LICENSE file in the project root directory.
+      # このファイルは2条項BSDライセンスの下で配布されています。
+      # ライセンス全文はプロジェクト直下の LICENSE を参照してください。
+      #
+      # OpenAI's ChatGPT partially generated this code.
+      # Author has modified some parts.
+      # OpenAIのChatGPTがこのコードの一部を生成しました。
+      # 著者が修正している部分があります。
+      #
+      # Go language PATH configuration
+      export PATH="{{ go_install_dir }}/bin:$PATH"
+    owner: root
+    group: root
+    mode: '0644'
+  become: true
+  when: not (go_installation_skipped | default(false))
+
+# Goコマンドパスを設定
+- name: Set go command path to tarball installation
+  ansible.builtin.set_fact:
+    go_command: "{{ go_command_tarball }}"
+  when: not (go_installation_skipped | default(false))
+
+# Goバージョン確認
+- name: Verify go installation
+  ansible.builtin.command:
+    cmd: "{{ go_command }} version"
+  register: go_version_check
+  changed_when: false
+  failed_when: false
+  become: true
+  when: not (go_installation_skipped | default(false))
+
+# バージョン表示
+- name: Display installed go version
+  ansible.builtin.debug:
+    msg: "Installed Go version: {{ go_version_check.stdout }}"
+  when:
+    - not (go_installation_skipped | default(false))
+    - go_version_check.rc == 0
+
+# 一時ファイル削除
+- name: Clean up temporary tarball
+  ansible.builtin.file:
+    path: "{{ go_tarball_dest }}"
+    state: absent
+  delegate_to: localhost
+  run_once: true
+  when: not (go_installation_skipped | default(false))

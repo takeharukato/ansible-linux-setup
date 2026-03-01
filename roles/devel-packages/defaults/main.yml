@@ -12,3 +12,17 @@ kubectl_completion_enabled: true
 k8s_python_packages_enabled: true
 # Kubernetes開発関連Pythonパッケージインストール有無n
 k8s_python_devel_packages_enabled: true
+
+# Go 言語版数
+# 空文字列の場合は OS 提供パッケージを latest で導入する
+# x.y 形式 (例: 1.18) または x.y.z 形式 (例: 1.18.5) で指定すると Go 公式から tarball を取得する
+go_lang_version: ""
+
+# Go パッケージ名
+devel_go_package_name: "golang"
+
+# Go シンボリックリンク作成有無
+go_symlink_enabled: true
+
+# Go シンボリックリンク作成先ディレクトリ
+go_symlink_dir: "/usr/local/bin"

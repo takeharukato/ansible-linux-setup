@@ -118,6 +118,56 @@ yq_download_url_rhel: ""  # RHEL系はパッケージマネージャで管理
 yq_download_url: "{{ (ansible_facts.os_family == 'Debian') | ternary(yq_download_url_debian, yq_download_url_rhel) }}"
 
 ##################################################################################
+# Go 言語インストール設定
+##################################################################################
+# Go公式ダウンロードベースURL
+go_base_url: "https://go.dev/dl"
+
+# Go公式バージョンAPIエンドポイント
+# include=all を付与して過去のリリース系列 (例: 1.18.x) も取得する
+go_versions_api: "https://go.dev/dl/?mode=json&include=all"
+
+# Goインストール先ディレクトリ (tarball導入時)
+go_install_dir: "/usr/local/go"
+
+# Go PATHを設定するprofile.dスクリプト
+go_profile_script: "/etc/profile.d/golang.sh"
+
+# Goコマンドパス: パッケージマネージャ導入時
+go_command_package_debian: "/usr/bin/go"
+go_command_package_rhel: "/usr/bin/go"
+go_command_package: "{{ (ansible_facts.os_family == 'Debian') | ternary(go_command_package_debian, go_command_package_rhel) }}"
+
+# Goパッケージ削除候補名
+go_remove_packages_debian:
+  - "golang"
+  - "golang-go"
+go_remove_packages_rhel:
+  - "golang"
+go_remove_packages: "{{ (ansible_facts.os_family == 'Debian') | ternary(go_remove_packages_debian, go_remove_packages_rhel) }}"
+
+# Goコマンドパス: tarball導入時
+go_command_tarball: "{{ go_install_dir }}/bin/go"
+
+# Goコマンドパス: デフォルト (パッケージマネージャを想定)
+# 実際の値はインストール処理で上書きされる
+go_command: "{{ go_command_package }}"
+
+# アーキテクチャマッピング (Ansible facts → Go tarball名)
+go_arch_map:
+  x86_64: "amd64"
+  aarch64: "arm64"
+  armv6l: "armv6l"
+  i386: "386"
+
+go_arch: "{{ go_arch_map[ansible_facts.architecture] | default('amd64') }}"
+
+# EOL 系列向け Go 版数フォールバック
+# go.dev API が古い系列を返さない場合に利用する
+go_series_fallback_versions:
+  "1.18": "1.18.10"
+
+##################################################################################
 # Cilium シェル補完
 ##################################################################################
 cilium_bash_completion_path_debian: "/etc/bash_completion.d/cilium"

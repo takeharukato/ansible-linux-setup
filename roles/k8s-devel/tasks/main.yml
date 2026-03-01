@@ -1,0 +1,30 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  タスクメイン部
+#
+#  include_tasksで他のタスクを読み込む
+#
+---
+
+# 最初に変数設定を読み直す ( role単独で実行可能とするため )
+- name: "Load Params"
+  ansible.builtin.include_tasks: load-params.yml
+- name: "Post Load Params"
+  ansible.builtin.include_tasks: post-load-params.yml
+
+# Runtime libraries (Python kubernetes, Go client-go) の導入
+# クライアント有効化フラグでゲート
+- name: "Package"
+  ansible.builtin.include_tasks: package.yml
+  when: not (k8s_devel_skip_version_derivation | default(false) | bool)
+
+- name: "Directory"
+  ansible.builtin.include_tasks: directory.yml
+- name: "User Group"
+  ansible.builtin.include_tasks: user_group.yml
+- name: "Service"
+  ansible.builtin.include_tasks: service.yml
+- name: "Config"
+  ansible.builtin.include_tasks: config.yml
