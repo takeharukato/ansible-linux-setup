@@ -6,18 +6,18 @@
 #
 
 - name: Include ubuntu package names
-  ansible.builtin.include_vars: ../vars/packages-ubuntu.yml
+  ansible.builtin.include_vars: "{{ playbook_dir }}/vars/packages-ubuntu.yml"
   when: ansible_facts.os_family == 'Debian'
 
 - name: Include RHEL package names
-  ansible.builtin.include_vars: ../vars/packages-rhel.yml
+  ansible.builtin.include_vars: "{{ playbook_dir }}/vars/packages-rhel.yml"
   when: ansible_facts.os_family == 'RedHat'
 
 - name: Include cross-distro.yml
-  ansible.builtin.include_vars: ../vars/cross-distro.yml
+  ansible.builtin.include_vars: "{{ playbook_dir }}/vars/cross-distro.yml"
 
 - name: Include config vars
-  ansible.builtin.include_vars: ../vars/all-config.yml
+  ansible.builtin.include_vars: "{{ playbook_dir }}/vars/all-config.yml"
 
 - name: Include k8s api address vars
-  ansible.builtin.include_vars: ../vars/k8s-api-address.yml
+  ansible.builtin.include_vars: "{{ playbook_dir }}/vars/k8s-api-address.yml"

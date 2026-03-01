@@ -8,25 +8,25 @@
 
 # Ubuntu用パッケージ名読み込み
 - name: Include ubuntu package names
-  ansible.builtin.include_vars: ../vars/packages-ubuntu.yml
+  ansible.builtin.include_vars: "{{ playbook_dir }}/vars/packages-ubuntu.yml"
   when: ansible_facts.os_family == 'Debian'
 
 # RHEL用パッケージ名読み込み
 - name: Include RHEL package names
-  ansible.builtin.include_vars: ../vars/packages-rhel.yml
+  ansible.builtin.include_vars: "{{ playbook_dir }}/vars/packages-rhel.yml"
   when: ansible_facts.os_family == 'RedHat'
 
 # ディストリビューション差異吸収用パラメータ読み込み
 - name: Include cross-distro.yml
-  ansible.builtin.include_vars: ../vars/cross-distro.yml
+  ansible.builtin.include_vars: "{{ playbook_dir }}/vars/cross-distro.yml"
 
 # 共通設定読み込み
 - name: Include config vars
-  ansible.builtin.include_vars: ../vars/all-config.yml
+  ansible.builtin.include_vars: "{{ playbook_dir }}/vars/all-config.yml"
 
 # Kubernetes API広告アドレス設定読み込み
 - name: Include K8s API address vars
-  ansible.builtin.include_vars: ../vars/k8s-api-address.yml
+  ansible.builtin.include_vars: "{{ playbook_dir }}/vars/k8s-api-address.yml"
 
 - name: Normalize hubble_cli_version
   ansible.builtin.set_fact:
