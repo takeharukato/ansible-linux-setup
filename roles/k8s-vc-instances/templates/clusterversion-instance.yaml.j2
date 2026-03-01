@@ -90,6 +90,12 @@ spec:
           spec:
             accessModes:
               - ReadWriteOnce
+{% set _tenant_name = item.name.split('-')[-2:] | join('-') %}
+{% if _tenant_name | regex_search('^tenant-') %}
+            selector:
+              matchLabels:
+                tenant: "{{ _tenant_name }}"
+{% endif %}
 {% set _etcd_sc = vcinstances_etcd_storage_class | default('', true) | string | trim %}
 {% if _etcd_sc | length > 0 %}
             storageClassName: "{{ _etcd_sc }}"

@@ -1,0 +1,403 @@
+#  -*- mode: yaml; coding: utf-8; line-endings: unix -*-
+#  SPDX-License-Identifier: BSD-2-Clause
+#
+#  Copyright (c) 2025 TAKEHARU KATO
+#  This file is distributed under the two-clause BSD license.
+#  For the full text of the license, see the LICENSE file in the project root directory.
+#  このファイルは2条項BSDライセンスの下で配布されています。
+#  ライセンス全文はプロジェクト直下の LICENSE を参照してください。
+#
+#  OpenAI's ChatGPT partially generated this code.
+#  Author has modified some parts.
+#  OpenAIのChatGPTがこのコードの一部を生成しました。
+#  著者が修正している部分があります。
+#
+#  既存リソース強制クリーンアップタスク
+#
+#  vcinstances_force_recreate_resources: true の場合、既存のVirtualClusterと
+#  すべてのetcd PV（状態問わず）を削除して、クリーンな状態から再作成する。
+#
+---
+
+# 既存のVirtualClusterインスタンスを削除
+- name: "Check if VirtualCluster exists"
+  ansible.builtin.command:
+    cmd: >-
+      kubectl --kubeconfig {{ k8s_supercluster_kubeconfig_path }}
+      get virtualcluster {{ item.name }}
+      -n {{ item.namespace | default(virtualcluster_namespace, true) }}
+  loop: "{{ vcinstances_virtualclusters | default([], true) }}"
+  loop_control:
+    label: "{{ item.name }}"
+  register: _vc_exists_check
+  become: true
+  changed_when: false
+  failed_when: false
+  when:
+    - item.name is defined
+    - (item.name | string | length) > 0
+
+- name: "Debug: VirtualClusters to be deleted"
+  ansible.builtin.debug:
+    msg: |
+      VirtualClusters to be deleted:
+      {% for result in _vc_exists_check.results | default([]) %}
+      {% if result.rc == 0 %}
+        - {{ result.item.name }} (namespace: {{ result.item.namespace | default(virtualcluster_namespace, true) }})
+      {% endif %}
+      {% endfor %}
+  when:
+    - _vc_exists_check is defined
+    - _vc_exists_check.results is defined
+
+- name: "Delete existing VirtualCluster instances"
+  ansible.builtin.command:
+    cmd: >-
+      kubectl --kubeconfig {{ k8s_supercluster_kubeconfig_path }}
+      delete virtualcluster {{ item.item.name }}
+      -n {{ item.item.namespace | default(virtualcluster_namespace, true) }}
+      --wait=false
+  loop: "{{ _vc_exists_check.results | default([]) }}"
+  loop_control:
+    label: "{{ item.item.name }}"
+  register: _vc_delete_result
+  become: true
+  changed_when: "'deleted' in (stdout | default(''))"
+  when:
+    - _vc_exists_check is defined
+    - _vc_exists_check.results is defined
+    - item.rc == 0
+    - item.item.name is defined
+    - (item.item.name | string | length) > 0
+
+# 削除が進まないVirtualClusterに対してfinalizerを除去(ベストエフォート)
+- name: "Force remove VirtualCluster finalizers"
+  ansible.builtin.command:
+    cmd: >-
+      kubectl --kubeconfig {{ k8s_supercluster_kubeconfig_path }}
+      patch virtualcluster {{ item.item.name }}
+      -n {{ item.item.namespace | default(virtualcluster_namespace, true) }}
+      --type=merge
+      -p '{"metadata":{"finalizers":[]}}'
+  loop: "{{ _vc_exists_check.results | default([]) }}"
+  loop_control:
+    label: "{{ item.item.name }}"
+  register: _vc_patch_finalizer_result
+  become: true
+  changed_when: false
+  failed_when: false
+  when:
+    - _vc_exists_check is defined
+    - _vc_exists_check.results is defined
+    - item.rc == 0
+
+- name: "Wait for VirtualCluster instances to be deleted"
+  ansible.builtin.command:
+    cmd: >-
+      kubectl --kubeconfig {{ k8s_supercluster_kubeconfig_path }}
+      get virtualcluster {{ item.item.name }}
+      -n {{ item.item.namespace | default(virtualcluster_namespace, true) }}
+  loop: "{{ _vc_exists_check.results | default([]) }}"
+  loop_control:
+    label: "{{ item.item.name }}"
+  register: _vc_wait_result
+  until: _vc_wait_result.rc != 0
+  retries: 90
+  delay: 2
+  become: true
+  changed_when: false
+  failed_when: false
+  when:
+    - _vc_exists_check is defined
+    - _vc_exists_check.results is defined
+    - item.rc == 0
+
+# 実行時テナント名前空間(vc-manager-<hash>-<tenant>)を収集して削除する
+- name: "Get existing namespaces"
+  ansible.builtin.command:
+    cmd: >-
+      kubectl --kubeconfig {{ k8s_supercluster_kubeconfig_path }}
+      get namespace -o jsonpath='{.items[*].metadata.name}'
+  register: _all_namespaces_raw
+  become: true
+  changed_when: false
+
+- name: "Parse namespace list"
+  ansible.builtin.set_fact:
+    _all_namespaces: "{{ _all_namespaces_raw.stdout.split() }}"
+  when:
+    - _all_namespaces_raw.stdout | default('') | length > 0
+
+- name: "Collect runtime tenant namespaces to delete"
+  ansible.builtin.set_fact:
+    _runtime_tenant_namespaces: >-
+      {{
+        (_runtime_tenant_namespaces | default([]))
+        +
+        (
+          _all_namespaces
+          | default([])
+          | select('match', '^vc-manager-[a-z0-9]+-' + (item.name | regex_escape) + '$')
+          | list
+        )
+      }}
+  loop: "{{ vcinstances_virtualclusters | default([], true) }}"
+  loop_control:
+    label: "{{ item.name | default('undefined') }}"
+  when:
+    - item.name is defined
+    - (item.name | string | length) > 0
+
+- name: "Unique runtime tenant namespaces"
+  ansible.builtin.set_fact:
+    _runtime_tenant_namespaces: "{{ _runtime_tenant_namespaces | default([]) | unique }}"
+
+- name: "Debug: runtime tenant namespaces to be deleted"
+  ansible.builtin.debug:
+    msg: |
+      Runtime tenant namespaces to be deleted:
+      {% for ns in _runtime_tenant_namespaces | default([]) %}
+        - {{ ns }}
+      {% endfor %}
+  when:
+    - _runtime_tenant_namespaces is defined
+    - (_runtime_tenant_namespaces | length) > 0
+
+- name: "Delete runtime tenant namespaces"
+  ansible.builtin.command:
+    cmd: >-
+      kubectl --kubeconfig {{ k8s_supercluster_kubeconfig_path }}
+      delete namespace {{ item }}
+      --ignore-not-found=true
+      --wait=false
+  loop: "{{ _runtime_tenant_namespaces | default([]) }}"
+  loop_control:
+    label: "{{ item }}"
+  register: _delete_runtime_ns_result
+  become: true
+  changed_when: false
+  failed_when: false
+  when:
+    - _runtime_tenant_namespaces is defined
+    - (_runtime_tenant_namespaces | length) > 0
+
+- name: "Wait for runtime tenant namespaces to be deleted"
+  ansible.builtin.command:
+    cmd: >-
+      kubectl --kubeconfig {{ k8s_supercluster_kubeconfig_path }}
+      get namespace {{ item }}
+  loop: "{{ _runtime_tenant_namespaces | default([]) }}"
+  loop_control:
+    label: "{{ item }}"
+  register: _wait_runtime_ns_result
+  until: _wait_runtime_ns_result.rc != 0
+  retries: 90
+  delay: 2
+  become: true
+  changed_when: false
+  failed_when: false
+  when:
+    - _runtime_tenant_namespaces is defined
+    - (_runtime_tenant_namespaces | length) > 0
+
+# 既存のetcd PV情報を取得（JSON形式、状態問わず）
+- name: "Get existing etcd PersistentVolumes"
+  ansible.builtin.command:
+    cmd: >-
+      kubectl --kubeconfig {{ k8s_supercluster_kubeconfig_path }}
+      get pv -o json
+  register: _existing_all_pvs_json
+  become: true
+  changed_when: false
+
+# JSON形式のPV情報をパースしてfactにセット
+- name: "Parse PV information"
+  ansible.builtin.set_fact:
+    _existing_all_pvs: "{{ _existing_all_pvs_json.stdout | from_json }}"
+  when:
+    - _existing_all_pvs_json.stdout | default('') | length > 0
+
+# etcd PVパターンに一致するPVをフィルタリング（状態問わず）
+- name: "Filter etcd PVs"
+  ansible.builtin.set_fact:
+    _etcd_pvs_to_delete: >-
+      {{
+        _existing_all_pvs['items'] | default([])
+        | selectattr('metadata.name', 'match', '^pv-etcd-(.*)-[0-9]+$')
+        | list
+      }}
+  when:
+    - _existing_all_pvs is defined
+
+# PVのclaimRefに紐づく古いPVC(旧ハッシュ名前空間を含む)を抽出
+- name: "Build stale PVC claims from PVs"
+  ansible.builtin.set_fact:
+    _stale_pv_claims: >-
+      {{
+        (_stale_pv_claims | default([])) +
+        [{
+          'pv_name': item.metadata.name,
+          'namespace': item.spec.claimRef.namespace,
+          'name': item.spec.claimRef.name
+        }]
+      }}
+  loop: "{{ _etcd_pvs_to_delete | default([]) }}"
+  loop_control:
+    label: "{{ item.metadata.name }}"
+  when:
+    - _etcd_pvs_to_delete is defined
+    - item.spec is defined
+    - item.spec.claimRef is defined
+    - item.spec.claimRef.namespace is defined
+    - item.spec.claimRef.name is defined
+
+- name: "Debug: stale PVC claims to be deleted"
+  ansible.builtin.debug:
+    msg: |
+      PVC claims to be deleted before PV cleanup:
+      {% for claim in _stale_pv_claims | default([]) %}
+        - PV {{ claim.pv_name }} -> {{ claim.namespace }}/{{ claim.name }}
+      {% endfor %}
+  when:
+    - _stale_pv_claims is defined
+    - (_stale_pv_claims | length) > 0
+
+- name: "Delete stale PVC claims"
+  ansible.builtin.command:
+    cmd: >-
+      kubectl --kubeconfig {{ k8s_supercluster_kubeconfig_path }}
+      delete pvc {{ item.name }}
+      -n {{ item.namespace }}
+      --ignore-not-found=true
+      --wait=false
+  loop: "{{ _stale_pv_claims | default([]) }}"
+  loop_control:
+    label: "{{ item.namespace }}/{{ item.name }}"
+  register: _delete_stale_pvc_result
+  become: true
+  changed_when: false
+  failed_when: false
+  when:
+    - _stale_pv_claims is defined
+    - (_stale_pv_claims | length) > 0
+
+- name: "Build stale namespaces from PV claims"
+  ansible.builtin.set_fact:
+    _stale_namespaces: "{{ (_stale_pv_claims | map(attribute='namespace') | list | unique) if (_stale_pv_claims is defined) else [] }}"
+
+- name: "Debug: stale namespaces to be deleted"
+  ansible.builtin.debug:
+    msg: |
+      Stale namespaces to be deleted before PV cleanup:
+      {% for ns in _stale_namespaces | default([]) %}
+        - {{ ns }}
+      {% endfor %}
+  when:
+    - _stale_namespaces is defined
+    - (_stale_namespaces | length) > 0
+
+- name: "Delete stale namespaces"
+  ansible.builtin.command:
+    cmd: >-
+      kubectl --kubeconfig {{ k8s_supercluster_kubeconfig_path }}
+      delete namespace {{ item }}
+      --ignore-not-found=true
+      --wait=false
+  loop: "{{ _stale_namespaces | default([]) }}"
+  loop_control:
+    label: "{{ item }}"
+  register: _delete_stale_ns_result
+  become: true
+  changed_when: false
+  failed_when: false
+  when:
+    - _stale_namespaces is defined
+    - (_stale_namespaces | length) > 0
+
+- name: "Wait for stale namespaces to be deleted"
+  ansible.builtin.command:
+    cmd: >-
+      kubectl --kubeconfig {{ k8s_supercluster_kubeconfig_path }}
+      get namespace {{ item }}
+  loop: "{{ _stale_namespaces | default([]) }}"
+  loop_control:
+    label: "{{ item }}"
+  register: _wait_stale_ns_result
+  until: _wait_stale_ns_result.rc != 0
+  retries: 90
+  delay: 2
+  become: true
+  changed_when: false
+  failed_when: false
+  when:
+    - _stale_namespaces is defined
+    - (_stale_namespaces | length) > 0
+
+# クリーンアップ対象のPVをデバッグ出力
+- name: "Debug: PVs to be deleted"
+  ansible.builtin.debug:
+    msg: |
+      etcd PVs to be deleted (all states):
+      {% for pv in _etcd_pvs_to_delete | default([]) %}
+        - {{ pv.metadata.name }} (Status: {{ pv.status.phase }},
+          {% if pv.spec.claimRef is defined %}
+          Claim: {{ pv.spec.claimRef.namespace | default('N/A') }}/{{ pv.spec.claimRef.name | default('N/A') }}
+          {% else %}
+          Claim: N/A
+          {% endif %})
+      {% endfor %}
+  when:
+    - _etcd_pvs_to_delete is defined
+    - (_etcd_pvs_to_delete | length) > 0
+
+# すべてのetcd PVを削除
+- name: "Delete etcd PersistentVolumes"
+  ansible.builtin.command:
+    cmd: >-
+      kubectl --kubeconfig {{ k8s_supercluster_kubeconfig_path }}
+      delete pv {{ item.metadata.name }} --wait=false
+  loop: "{{ _etcd_pvs_to_delete | default([]) }}"
+  loop_control:
+    label: "{{ item.metadata.name }}"
+  register: _pv_force_delete_result
+  become: true
+  changed_when: "'deleted' in (stdout | default(''))"
+
+# Terminating状態で残留するPVの削除を促進するため、finalizerを除去(ベストエフォート)
+- name: "Force remove PV finalizers"
+  ansible.builtin.command:
+    cmd: >-
+      kubectl --kubeconfig {{ k8s_supercluster_kubeconfig_path }}
+      patch pv {{ item.metadata.name }}
+      --type=merge
+      -p '{"metadata":{"finalizers":[]}}'
+  loop: "{{ _etcd_pvs_to_delete | default([]) }}"
+  loop_control:
+    label: "{{ item.metadata.name }}"
+  register: _pv_patch_finalizer_result
+  become: true
+  changed_when: false
+  failed_when: false
+  when:
+    - _etcd_pvs_to_delete is defined
+    - (_etcd_pvs_to_delete | length) > 0
+
+# PVが完全に削除されるまで待機（finalizer処理完了を待つ）
+- name: "Wait for PVs to be completely deleted"
+  ansible.builtin.command:
+    cmd: >-
+      kubectl --kubeconfig {{ k8s_supercluster_kubeconfig_path }}
+      get pv {{ item.metadata.name }}
+  loop: "{{ _etcd_pvs_to_delete | default([]) }}"
+  loop_control:
+    label: "{{ item.metadata.name }}"
+  register: _pv_wait_result
+  until: _pv_wait_result.rc != 0
+  retries: 60
+  delay: 2
+  become: true
+  changed_when: false
+  failed_when: false
+  when:
+    - _etcd_pvs_to_delete is defined
+    - (_etcd_pvs_to_delete | length) > 0

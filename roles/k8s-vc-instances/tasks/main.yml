@@ -41,11 +41,19 @@
   ansible.builtin.include_tasks: prepare-storage.yml
   when: k8s_vcinstances_enabled | default(false) | bool
 
+- name: "Force Cleanup Resources (VirtualClusters and etcd PVs)"
+  ansible.builtin.include_tasks: force-cleanup-resources.yml
+  when:
+    - k8s_vcinstances_enabled | default(false) | bool
+    - vcinstances_etcd_storage_enabled | default(false) | bool
+    - vcinstances_force_recreate_resources | default(true) | bool
+
 - name: "Cleanup Failed PersistentVolumes"
   ansible.builtin.include_tasks: cleanup-pvs.yml
   when:
     - k8s_vcinstances_enabled | default(false) | bool
     - vcinstances_etcd_storage_enabled | default(false) | bool
+    - not (vcinstances_force_recreate_resources | default(true) | bool)
     - vcinstances_cleanup_failed_pvs | default(true) | bool
 
 - name: "Prepare PersistentVolumes (Create etcd PVs if needed)"
@@ -63,6 +71,15 @@
   ansible.builtin.include_tasks: virtualcluster-instances.yml
   when:
     - k8s_vcinstances_enabled | default(false) | bool
+    - vcinstances_virtualclusters is defined
+    - (vcinstances_virtualclusters | default([], true) | length) > 0
+
+- name: "Bind etcd PVs to tenant PVCs"
+  ansible.builtin.include_tasks: bind-pvs.yml
+  when:
+    - k8s_vcinstances_enabled | default(false) | bool
+    - vcinstances_etcd_storage_enabled | default(false) | bool
+    - vcinstances_auto_create_pv | default(true) | bool
     - vcinstances_virtualclusters is defined
     - (vcinstances_virtualclusters | default([], true) | length) > 0
 

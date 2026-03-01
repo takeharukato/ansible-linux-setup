@@ -46,21 +46,21 @@
     - vcinstances_auto_create_pv | default(true) | bool
 
 # PersistentVolumeの自動作成が有効な場合、PV作成のための計画を立てる
+# テナントとレプリカのネストループ: 各テナントごとにvcinstances_etcd_replicas個のPVを作成
 - name: "Generate PV distribution plan"
   ansible.builtin.set_fact:
     _pv_plan: >-
       {{
         _pv_plan | default([]) +
         [{
-          'pv_name': 'pv-etcd-' + item.name + '-' + (loop_index | string),
-          'tenant_name': item.name,
+          'pv_name': 'pv-etcd-' + item[0].name + '-' + (item[1] | string),
+          'tenant_name': item[0].name,
           'node_name': _worker_nodes[loop_index % (_worker_nodes | length)],
-          'host_path': (vcinstances_pv_base_path | default('/mnt/etcd-data', true)) + '/' + item.name + '-' + (loop_index | string)
+          'host_path': (vcinstances_pv_base_path | default('/mnt/etcd-data', true)) + '/' + item[0].name + '-' + (item[1] | string)
         }]
       }}
-  loop: "{{ vcinstances_virtualclusters | default([], true) }}"
+  loop: "{{ vcinstances_virtualclusters | default([], true) | product(range(vcinstances_etcd_replicas | default(1) | int)) | list }}"
   loop_control:
-    loop_var: item
     index_var: loop_index
   when:
     - vcinstances_etcd_storage_enabled | default(false) | bool

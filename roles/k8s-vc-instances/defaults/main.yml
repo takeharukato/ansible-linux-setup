@@ -62,6 +62,9 @@ vcinstances_pv_base_path: "/mnt/etcd-data"
 vcinstances_etcd_replicas: 1
 # Failed状態のPVを自動クリーンアップするかどうか (デフォルト: true)
 vcinstances_cleanup_failed_pvs: true
+# 既存のVirtualClusterとetcd PVを強制的に再作成するかどうか (デフォルト: true, 開発段階推奨)
+# trueの場合、vcinstances_cleanup_failed_pvsの設定に関わらず、すべてのetcd PV(状態問わず)を削除
+vcinstances_force_recreate_resources: true
 
 #
 # スーパークラスタへの接続設定

@@ -1,0 +1,306 @@
+#  -*- mode: yaml; coding: utf-8; line-endings: unix -*-
+#  SPDX-License-Identifier: BSD-2-Clause
+#
+#  Copyright (c) 2025 TAKEHARU KATO
+#  This file is distributed under the two-clause BSD license.
+#  For the full text of the license, see the LICENSE file in the project root directory.
+#  このファイルは2条項BSDライセンスの下で配布されています。
+#  ライセンス全文はプロジェクト直下の LICENSE を参照してください。
+#
+#  OpenAI's ChatGPT partially generated this code.
+#  Author has modified some parts.
+#  OpenAIのChatGPTがこのコードの一部を生成しました。
+#  著者が修正している部分があります。
+#
+#  etcd用PVの明示バインドタスク
+#
+#  VirtualCluster作成後に生成される実行時名前空間(vc-manager-<hash>-<tenant>)を検出し、
+#  各テナントのPVC(data-etcd-<index>)に対応するPVをclaimRefで明示バインドする。
+#
+---
+
+- name: "Get existing namespaces"
+  ansible.builtin.command:
+    cmd: >-
+      kubectl --kubeconfig {{ k8s_supercluster_kubeconfig_path }}
+      get namespace -o jsonpath='{.items[*].metadata.name}'
+  register: _all_namespaces_raw
+  become: true
+  changed_when: false
+
+- name: "Parse namespace list"
+  ansible.builtin.set_fact:
+    _all_namespaces: "{{ _all_namespaces_raw.stdout.split() }}"
+  when:
+    - _all_namespaces_raw.stdout | default('') | length > 0
+
+- name: "Build tenant runtime namespace map"
+  ansible.builtin.set_fact:
+    _tenant_runtime_ns_map: >-
+      {{
+        (_tenant_runtime_ns_map | default({}))
+        | combine({
+            item.name: (
+              _all_namespaces
+              | default([])
+              | select('match', '^vc-manager-[a-z0-9]+-' + (item.name | regex_escape) + '$')
+              | list
+              | first
+              | default('')
+            )
+          })
+      }}
+  loop: "{{ vcinstances_virtualclusters | default([], true) }}"
+  loop_control:
+    label: "{{ item.name | default('undefined') }}"
+  when:
+    - item.name is defined
+    - (item.name | string | length) > 0
+
+- name: "Debug: tenant runtime namespace map"
+  ansible.builtin.debug:
+    msg: "{{ _tenant_runtime_ns_map | default({}) | to_nice_json }}"
+
+- name: "Build PV-PVC bind plan"
+  ansible.builtin.set_fact:
+    _pv_bind_plan: >-
+      {{
+        (_pv_bind_plan | default([]))
+        +
+        [{
+          'tenant_name': item.0.name,
+          'namespace': _tenant_runtime_ns_map[item.0.name] | default(''),
+          'pv_name': 'pv-etcd-' + item.0.name + '-' + (item.1 | string),
+          'pvc_name': 'data-etcd-' + (item.1 | string)
+        }]
+      }}
+  loop: "{{ vcinstances_virtualclusters | default([], true) | product(range(vcinstances_etcd_replicas | default(1) | int)) | list }}"
+  when:
+    - item.0.name is defined
+    - (item.0.name | string | length) > 0
+
+- name: "Debug: PV-PVC bind plan"
+  ansible.builtin.debug:
+    msg: "{{ _pv_bind_plan | default([]) | to_nice_json }}"
+
+- name: "Bind PV to PVC using claimRef"
+  ansible.builtin.command:
+    cmd: >-
+      kubectl --kubeconfig {{ k8s_supercluster_kubeconfig_path }}
+      patch pv {{ item.pv_name }}
+      --type=merge
+      -p '{"spec":{"claimRef":{"namespace":"{{ item.namespace }}","name":"{{ item.pvc_name }}"}}}'
+  loop: "{{ _pv_bind_plan | default([]) }}"
+  loop_control:
+    label: "{{ item.pv_name }} -> {{ item.namespace }}/{{ item.pvc_name }}"
+  register: _bind_pv_result
+  become: true
+  changed_when: false
+  failed_when: false
+  when:
+    - item.namespace | default('') | length > 0
+
+- name: "Wait for PVCs to be created"
+  ansible.builtin.command:
+    cmd: >-
+      kubectl --kubeconfig {{ k8s_supercluster_kubeconfig_path }}
+      get pvc {{ item.pvc_name }} -n {{ item.namespace }}
+  loop: "{{ _pv_bind_plan | default([]) }}"
+  loop_control:
+    label: "{{ item.namespace }}/{{ item.pvc_name }}"
+  register: _wait_pvc_result
+  until: _wait_pvc_result.rc == 0
+  retries: 60
+  delay: 2
+  become: true
+  changed_when: false
+  failed_when: false
+  when:
+    - item.namespace | default('') | length > 0
+
+- name: "Wait for PVs to be Bound to expected claims"
+  ansible.builtin.command:
+    cmd: >-
+      kubectl --kubeconfig {{ k8s_supercluster_kubeconfig_path }}
+      get pv {{ item.pv_name }}
+      -o jsonpath='{.status.phase} {.spec.claimRef.namespace} {.spec.claimRef.name}'
+  loop: "{{ _pv_bind_plan | default([]) }}"
+  loop_control:
+    label: "{{ item.pv_name }}"
+  register: _wait_bound_result
+  until: _wait_bound_result.stdout == ('Bound ' + item.namespace + ' ' + item.pvc_name)
+  retries: 60
+  delay: 2
+  become: true
+  changed_when: false
+  failed_when: false
+  when:
+    - item.namespace | default('') | length > 0
+
+# 誤ったバインディングを検出して修正するための追加チェック
+- name: "Check current PV-PVC bindings"
+  ansible.builtin.command:
+    cmd: >-
+      kubectl --kubeconfig {{ k8s_supercluster_kubeconfig_path }}
+      get pv -o json
+  register: _current_pvs_json
+  become: true
+  changed_when: false
+  when:
+    - vcinstances_etcd_storage_enabled | default(false) | bool
+    - vcinstances_auto_create_pv | default(true) | bool
+
+- name: "Parse PV bindings and detect errors"
+  ansible.builtin.shell:
+    cmd: |
+      kubectl --kubeconfig {{ k8s_supercluster_kubeconfig_path }} get pv -o json | \
+      jq -r '.items[] | select(.metadata.name | startswith("pv-etcd-")) |
+              "\(.metadata.name) \(.metadata.labels.tenant // "none")"'
+  register: _pv_list_result
+  become: true
+  changed_when: false
+  when:
+    - vcinstances_etcd_storage_enabled | default(false) | bool
+    - vcinstances_auto_create_pv | default(true) | bool
+
+# シンプルな PVC バインディング状態チェック
+- name: "Verify PVC bindings are correct"
+  ansible.builtin.shell:
+    cmd: |
+      kubectl --kubeconfig {{ k8s_supercluster_kubeconfig_path }} get pvc -A -o json | \
+      jq -r '.items[] | select(.metadata.name | startswith("data-etcd")) |
+              "\(.metadata.namespace) \(.metadata.name) \(.spec.volumeName)"' | \
+      while read ns pvc pv; do
+        # Extract tenant from namespace (format: vc-manager-<hash>-<tenant>)
+        ns_tenant=$(echo "$ns" | sed 's/^vc-manager-[a-z0-9]*-//')
+        # Expected PV name format: pv-etcd-<tenant>-<index>
+        if [[ ! "$pv" =~ ^pv-etcd-${ns_tenant}- ]]; then
+          echo "MISMATCH: $ns/$pvc is bound to $pv but should be pv-etcd-${ns_tenant}-*"
+          echo "$ns $pvc $pv"  # Output for processing
+        fi
+      done 2>/dev/null || true
+  register: _binding_check_result
+  changed_when: false
+  become: true
+  when:
+    - vcinstances_etcd_storage_enabled | default(false) | bool
+    - vcinstances_auto_create_pv | default(true) | bool
+
+- name: "Parse binding mismatches"
+  ansible.builtin.set_fact:
+    _mismatched_pvcs: "{{ _binding_check_result.stdout_lines | select('match', '^[a-z0-9-]+ (data-etcd)') | list }}"
+  when:
+    - vcinstances_etcd_storage_enabled | default(false) | bool
+    - vcinstances_auto_create_pv | default(true) | bool
+
+- name: "Report binding mismatches"
+  ansible.builtin.debug:
+    msg:
+      - "Detected {{ _mismatched_pvcs | length }} PVC binding mismatches"
+      - "Details: {{ _binding_check_result.stdout }}"
+  when:
+    - vcinstances_etcd_storage_enabled | default(false) | bool
+    - vcinstances_auto_create_pv | default(true) | bool
+    - _mismatched_pvcs | length > 0
+
+# Unbind and delete mismatched PVCs
+- name: "Delete mismatched PVCs to trigger StatefulSet recreation"
+  ansible.builtin.command:
+    cmd: >-
+      kubectl --kubeconfig {{ k8s_supercluster_kubeconfig_path }}
+      delete pvc {{ (item.split())[1] }}
+      -n {{ (item.split())[0] }}
+      --ignore-not-found=true
+  loop: "{{ _mismatched_pvcs | default([]) }}"
+  loop_control:
+    label: "{{ item }}"
+  register: _delete_mismatch_result
+  become: true
+  changed_when: "'deleted' in _delete_mismatch_result.stdout"
+  failed_when: false
+  when:
+    - vcinstances_etcd_storage_enabled | default(false) | bool
+    - vcinstances_auto_create_pv | default(true) | bool
+    - _mismatched_pvcs | length > 0
+
+# Unbind the PVs that were bound to mismatched PVCs
+- name: "Unbind PVs from mismatched claims"
+  ansible.builtin.shell:
+    cmd: |
+      for line in {{ _mismatched_pvcs | map(attribute='') | list | join(' ') }}; do
+        pv=$(echo "$line" | awk '{print $3}')
+        if [ -n "$pv" ]; then
+          kubectl --kubeconfig {{ k8s_supercluster_kubeconfig_path }} patch pv "$pv" \
+            --type=merge -p '{"spec":{"claimRef":null}}' 2>/dev/null || true
+        fi
+      done
+  register: _unbind_result
+  become: true
+  changed_when: false
+  failed_when: false
+  when:
+    - vcinstances_etcd_storage_enabled | default(false) | bool
+    - vcinstances_auto_create_pv | default(true) | bool
+    - _mismatched_pvcs | length > 0
+
+# Wait for StatefulSet to recreate PVCs (should get correct ones this time with claimRef help)
+- name: "Wait for StatefulSet to recreate PVCs"
+  ansible.builtin.command:
+    cmd: >-
+      kubectl --kubeconfig {{ k8s_supercluster_kubeconfig_path }}
+      get pvc {{ item.pvc_name }} -n {{ item.namespace }}
+      -o jsonpath='{.metadata.name}'
+  loop: "{{ _pv_bind_plan | default([]) }}"
+  loop_control:
+    label: "{{ item.namespace }}/{{ item.pvc_name }}"
+  register: _wait_recreated_result
+  until: _wait_recreated_result.rc == 0
+  retries: 30
+  delay: 3
+  become: true
+  changed_when: false
+  failed_when: false
+  when:
+    - vcinstances_etcd_storage_enabled | default(false) | bool
+    - vcinstances_auto_create_pv | default(true) | bool
+    - _mismatched_pvcs | length > 0
+
+# Re-apply claimRef to guide binding
+- name: "Re-apply claimRef to newly created PVCs"
+  ansible.builtin.command:
+    cmd: >-
+      kubectl --kubeconfig {{ k8s_supercluster_kubeconfig_path }}
+      patch pv {{ item.pv_name }}
+      --type=merge
+      -p '{"spec":{"claimRef":{"namespace":"{{ item.namespace }}","name":"{{ item.pvc_name }}"}}}'
+  loop: "{{ _pv_bind_plan | default([]) }}"
+  loop_control:
+    label: "{{ item.pv_name }}"
+  register: _rebind_result_result
+  become: true
+  changed_when: false
+  failed_when: false
+  when:
+    - vcinstances_etcd_storage_enabled | default(false) | bool
+    - vcinstances_auto_create_pv | default(true) | bool
+    - _mismatched_pvcs | length > 0
+
+# Final verification
+- name: "Final verification of PVC bindings"
+  ansible.builtin.command:
+    cmd: >-
+      kubectl --kubeconfig {{ k8s_supercluster_kubeconfig_path }}
+      get pvc -A -o jsonpath='{range .items[*]}{.metadata.namespace}{"\t"}{.metadata.name}{"\t"}{.spec.volumeName}{"\n"}{end}'
+  register: _final_binding_check
+  become: true
+  changed_when: false
+  when:
+    - vcinstances_etcd_storage_enabled | default(false) | bool
+    - vcinstances_auto_create_pv | default(true) | bool
+
+- name: "Display final PVC bindings"
+  ansible.builtin.debug:
+    msg: "{{ _final_binding_check.stdout_lines | default([]) }}"
+  when:
+    - vcinstances_etcd_storage_enabled | default(false) | bool
+    - vcinstances_auto_create_pv | default(true) | bool

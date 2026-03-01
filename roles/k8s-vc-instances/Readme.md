@@ -70,11 +70,12 @@ Kubernetes Virtual Cluster ) のテナント ( Tenant ) 環境を構築するロ
 4. **設定ディレクトリ作成**(`directory.yml`): マニフェスト出力先ディレクトリ(`vcinstances_config_dir`, 既定: `~/kubeadm/vc-instances`)を作成します。
 5. **スーパークラスタイメージ検出**(`detect-supercluster-images.yml`): kube-system 名前空間 ( namespace ) から etcd, kube-apiserver, kube-controller-manager のイメージを自動検出します(`vcinstances_auto_detect_supercluster_images: true` の場合のみ)。
 6. **StorageClass の準備**(`prepare-storage.yml`): `vcinstances_etcd_storage_enabled: true` の場合, スーパークラスタ側に StorageClass が存在しない場合は自動作成します。存在する場合はスキップします。
-7. **Failed PV のクリーンアップ**(`cleanup-pvs.yml`): `vcinstances_cleanup_failed_pvs: true` の場合, テナント名に一致する Failed 状態の PV を自動削除します。VirtualCluster 再作成時に名前空間 ( namespace ) が変わることで PV が Failed 状態になる問題を自動的に解決します。
-8. **PersistentVolume の準備**(`prepare-pvs.yml`): `vcinstances_etcd_storage_enabled: true` かつ `vcinstances_auto_create_pv: true` の場合, テナント数分の etcd 用 PV を自動作成します。ワーカーノード上にディレクトリを作成し, local-storage タイプの PV を生成します。
-9. **ClusterVersionインスタンス生成**(`clusterversion-instances.yml`): `vcinstances_clusterversions` をループ処理し, 各 ClusterVersionインスタンスのマニフェストを生成, 適用します。`name` がない定義は警告を出してスキップします。
-10. **VirtualClusterインスタンス生成**(`virtualcluster-instances.yml`): `vcinstances_virtualclusters` をループ処理し, 各 VirtualClusterインスタンスのマニフェストを生成, 適用します。`name` または `clusterVersionName` がない定義は警告を出してスキップします。
-11. **検証**(`verify.yml`): 作成された ClusterVersionインスタンス, VirtualClusterインスタンスを `kubectl get` で一覧表示し, ログに出力します。VirtualClusterインスタンスの一覧は `--all-namespaces` で取得します。
+7. **既存リソースの強制クリーンアップ**(`force-cleanup-resources.yml`): `vcinstances_force_recreate_resources: true` の場合, 既存の VirtualCluster とすべての etcd PV(状態問わず)を削除します。クリーンな状態から再作成することで, PV 割当て不整合などの問題を防ぎます。
+8. **Failed PV のクリーンアップ**(`cleanup-pvs.yml`): `vcinstances_force_recreate_resources: false` かつ `vcinstances_cleanup_failed_pvs: true` の場合, テナント名に一致する Failed 状態の PV を自動削除します。VirtualCluster 再作成時に名前空間 ( namespace ) が変わることで PV が Failed 状態になる問題を自動的に解決します。
+9. **PersistentVolume の準備**(`prepare-pvs.yml`): `vcinstances_etcd_storage_enabled: true` かつ `vcinstances_auto_create_pv: true` の場合, 各テナントに `vcinstances_etcd_replicas` 個の etcd 用 PV を自動作成します。PV 名は `pv-etcd-<tenant-name>-{0..N-1}` の形式で生成され, ワーカーノード上にディレクトリを作成し, local-storage タイプの PV を生成します。
+10. **ClusterVersionインスタンス生成**(`clusterversion-instances.yml`): `vcinstances_clusterversions` をループ処理し, 各 ClusterVersionインスタンスのマニフェストを生成, 適用します。`name` がない定義は警告を出してスキップします。
+11. **VirtualClusterインスタンス生成**(`virtualcluster-instances.yml`): `vcinstances_virtualclusters` をループ処理し, 各 VirtualClusterインスタンスのマニフェストを生成, 適用します。`name` または `clusterVersionName` がない定義は警告を出してスキップします。
+12. **検証**(`verify.yml`): 作成された ClusterVersionインスタンス, VirtualClusterインスタンスを `kubectl get` で一覧表示し, ログに出力します。VirtualClusterインスタンスの一覧は `--all-namespaces` で取得します。
 
 ## 主要変数
 
@@ -98,6 +99,7 @@ Kubernetes Virtual Cluster ) のテナント ( Tenant ) 環境を構築するロ
 | `vcinstances_pv_base_path` | `"/mnt/etcd-data"` | - | ワーカーノード上のPVベースパスです。 |
 | `vcinstances_etcd_replicas` | `1` | - | etcd レプリカ数です(通常変更不要)。 |
 | `vcinstances_cleanup_failed_pvs` | `true` | - | Failed状態のPVを自動クリーンアップするかどうかを示します。VirtualCluster再作成時に名前空間 ( namespace ) が変わることで生じるFailed PVを自動的に削除します。 |
+| `vcinstances_force_recreate_resources` | `true` | - | 既存のVirtualClusterとetcd PVを強制的に再作成するかどうかを示します。`true`の場合, `vcinstances_cleanup_failed_pvs`の設定に関わらず, すべてのetcd PV(状態問わず)を削除します。開発段階では`true`を推奨します。 |
 | `k8s_supercluster_kubeconfig_path` | `"/etc/kubernetes/admin.conf"` | - | スーパークラスタの kubeconfig パスです。 |
 | `k8s_supercluster_context` | `""` | - | スーパークラスタの kubeconfig コンテキストです。空の場合は現在のコンテキストを使用します。 |
 
@@ -136,8 +138,9 @@ k8s-virtual-cluster ロール由来の列に`yes`と記載されている変数�
 - マニフェスト出力先ディレクトリを作成します。
 - kube-system からコントロールプレインノード管理コンポーネント ( etcd, kube-apiserver, kube-controller-manager ) のイメージを検出します(自動検出有効時)。
 - **StorageClass の準備** (`prepare-storage.yml`): `vcinstances_etcd_storage_enabled: true` の場合, スーパークラスタ側に StorageClass が存在しない場合は自動作成します。存在する場合はスキップします。
-- **Failed PV のクリーンアップ** (`cleanup-pvs.yml`): `vcinstances_cleanup_failed_pvs: true` の場合, テナント名に一致する Failed 状態の PV を自動削除します。VirtualCluster 再作成時に古い Claim を保持した PV が Failed 状態になる問題を自動的に解決します。
-- **PersistentVolume の準備** (`prepare-pvs.yml`): `vcinstances_etcd_storage_enabled: true` かつ `vcinstances_auto_create_pv: true` の場合, テナント数分の etcd 用 PV を自動作成します。ワーカーノード上にディレクトリを作成し, local-storage タイプの PV を生成します。
+- **既存リソースの強制クリーンアップ** (`force-cleanup-resources.yml`): `vcinstances_force_recreate_resources: true` の場合, 既存の VirtualCluster とすべての etcd PV(状態問わず)を削除します。
+- **Failed PV のクリーンアップ** (`cleanup-pvs.yml`): `vcinstances_force_recreate_resources: false` かつ `vcinstances_cleanup_failed_pvs: true` の場合, テナント名に一致する Failed 状態の PV を自動削除します。VirtualCluster 再作成時に古い Claim を保持した PV が Failed 状態になる問題を自動的に解決します。
+- **PersistentVolume の準備** (`prepare-pvs.yml`): `vcinstances_etcd_storage_enabled: true` かつ `vcinstances_auto_create_pv: true` の場合, 各テナントに `vcinstances_etcd_replicas` 個の etcd 用 PV を自動作成します。PV 名は `pv-etcd-<tenant-name>-<0..N-1>` の形式で生成されます ( 0..N-1は, 0 から始まるレプリカインデックス)。ワーカーノード上にディレクトリを作成し, local-storage タイプの PV を生成します。
 - ClusterVersionインスタンスと VirtualClusterインスタンスのマニフェストを生成, 適用し, 作成完了を待機します。
 - ClusterVersionインスタンス, VirtualClusterインスタンスの一覧を出力し, 作成結果を可視化します。
 
@@ -146,6 +149,52 @@ k8s-virtual-cluster ロール由来の列に`yes`と記載されている変数�
 ### 概要
 
 本ロールでは, `vcinstances_etcd_storage_enabled: true` に設定することで, 各テナント ( Tenant ) の仮想クラスタ ( Virtual Cluster ) etcd データを スーパークラスタ ( Super Cluster ) の PersistentVolume (PV) に永続化できます。
+
+#### PV 命名規則
+
+各テナントに対して, `vcinstances_etcd_replicas` 個の etcd 用 PV が自動作成されます。PV 名は以下の命名規則に従います:
+
+```
+pv-etcd-<tenant-name>-<replica-index>
+```
+
+- `<tenant-name>`: `vcinstances_virtualclusters` で定義したテナント名
+- `<replica-index>`: 0 から始まるレプリカインデックス (0, 1, 2, ...)
+
+**例**: テナント `tenant-alpha` と `tenant-beta` が存在し, `vcinstances_etcd_replicas: 1` (デフォルト) の場合:
+- `pv-etcd-tenant-alpha-0`
+- `pv-etcd-tenant-beta-0`
+
+**HA 構成への拡張**: 将来的に `vcinstances_etcd_replicas: 3` に設定することで, 各テナントに3つの etcd レプリカと対応する PV が作成され, etcd の高可用性構成が実現できます。ただし, 現在のバージョンでは `vcinstances_etcd_replicas: 1` を推奨します。
+
+#### PV と PVC のバインディングの仕組み
+
+**留意事項**: etcd 永続ストレージを使用する場合, **各テナント専用の ClusterVersion を作成する必要があります**。
+
+1. **PV 作成時**: 各 PV に `tenant: <tenant-name>` ラベルが自動付与されます
+   - 例: `pv-etcd-tenant-alpha-0`  =>  `labels.tenant: tenant-alpha`
+
+2. **ClusterVersion 作成時**: ClusterVersion 名から tenant 名を抽出し, volumeClaimTemplates の selector に自動設定されます
+   - ClusterVersion 名: `cv-k8s-1-31-tenant-alpha`  =>  selector: `tenant: tenant-alpha`
+   - **命名規則**: `<base-name>-tenant-<tenant-name>` 形式 ( 最後の2つのセグメント `tenant-<tenant-name>` を抽出）
+
+3. **PVC 作成時**: VirtualCluster が起動すると, etcd StatefulSet の volumeClaimTemplates から PVC が自動生成されます
+   - PVC は selector に一致する PV ( 同じ tenant ラベルを持つ PV）のみをバインド対象とします
+
+4. **バインディング確認**: bind-pvs.yml タスクが PV-PVC バインディングの正当性を検証します
+   - ミスマッチが検出された場合, 自動的に修正を試みます ( 通常は発生しません）
+
+**動作例**:
+
+```mermaid
+flowchart LR
+    PV["PV: pv-etcd-tenant-alpha-0<br/>labels.tenant: tenant-alpha"]
+    PVC["PVC: data-etcd-0<br/>vc-manager-xxx-tenant-alpha<br/>selector.matchLabels.tenant: tenant-alpha"]
+
+    PV -->|"selector一致<br/>正しくバインド"| PVC
+```
+
+**注意**: 複数テナントで同じ ClusterVersion を共有すると, selector が機能せず PV 割当てが逆転する可能性があります。必ず各テナント専用の ClusterVersion を使用してください。
 
 ### StorageClass の自動作成
 
@@ -182,39 +231,53 @@ volumeBindingMode: WaitForFirstConsumer
 
 ### 設定例
 
-#### 例1: etcd 永続ストレージ有効化 (デフォルト StorageClass 自動作成)
+#### 例1: etcd 永続ストレージ有効化 (tenant 専用 ClusterVersion 使用)
+
+**重要**: etcd 永続ストレージ有効時は, **各テナント専用の ClusterVersion を作成**してください。これにより PVC selector が正しく機能し, PV 割当て逆転を防ぎます。
 
 ```yaml
 # host_vars/k8sctrlplane01.local
 
 k8s_vcinstances_enabled: true
-
 vcinstances_etcd_storage_enabled: true  # 永続ストレージ有効化
-# vcinstances_etcd_storage_size と vcinstances_etcd_storage_class は省略可能
 
+# 各テナント専用の ClusterVersion を定義
 vcinstances_clusterversions:
-  - name: "cv-k8s-1-31"
+  - name: "cv-k8s-1-31-tenant-alpha"  # tenant-alpha専用
+  - name: "cv-k8s-1-31-tenant-beta"   # tenant-beta専用
 
+# 各VirtualClusterに専用ClusterVersionを割り当て
 vcinstances_virtualclusters:
   - name: "tenant-alpha"
-    clusterVersionName: "cv-k8s-1-31"
+    clusterVersionName: "cv-k8s-1-31-tenant-alpha"  # 専用ClusterVersion
+  - name: "tenant-beta"
+    clusterVersionName: "cv-k8s-1-31-tenant-beta"   # 専用ClusterVersion
 ```
+
+**ClusterVersion 命名規則**: `<base-name>-tenant-<tenant-name>` 形式で命名してください。ロールは最後の2つのセグメント ( `tenant-<tenant-name>` ) を抽出して volumeClaimTemplates の selector に自動設定します。
 
 実行すると, 以下の処理が自動実行されます:
 
 1. スーパークラスタの StorageClass をチェック
 2. StorageClass が存在しない場合, `local-storage` という名前の StorageClass を作成
-3. ClusterVersionインスタンスで `volumeClaimTemplates` が有効化され, etcd が PVC を使用するように設定される
+3. 各テナント専用の ClusterVersion を作成 ( volumeClaimTemplates に `selector.matchLabels.tenant: <tenant-name>` が自動追加される）
+4. PV の `tenant` ラベルと PVC の selector が一致し, 正しくバインド
 
 検証方法:
 
 ```bash
 # スーパークラスタで StorageClass を確認
 kubectl get storageclass
-# 出力: local-storage が表示されるはず
 
-# クラスタバージョンの etcd が PVC を使用しているか確認
-kubectl get clusterversion cv-k8s-1-31 -o yaml | grep -A10 volumeClaimTemplates
+# ClusterVersion が tenant 専用に作成されたか確認
+kubectl get clusterversions
+
+# selector が正しく設定されたか確認
+kubectl get clusterversion cv-k8s-1-31-tenant-alpha -o yaml | grep -A5 selector
+
+# PV-PVC バインディングが正しいか確認
+kubectl get pvc -A | grep data-etcd
+kubectl get pv | grep pv-etcd
 ```
 
 #### 例2: 整備済み StorageClass を使用
@@ -267,6 +330,57 @@ kubectl delete storageclass <name>
 ansible-playbook k8s-management.yml -t k8s-vc-instances
 ```
 
+**症状: PV 割当てが逆転している / テナント名と PV の割当てが一致しない**
+
+**原因**: etcd 永続ストレージ有効時, 複数テナントが同じ ClusterVersion を共有していると, volumeClaimTemplates の selector でテナントを区別できないため, PVC が誤った PV にバインドされることがあります。
+
+**解決方法**: **各テナント専用の ClusterVersion を作成**してください。本ロールは ClusterVersion 名から tenant 名を自動抽出し, volumeClaimTemplates に適切な selector を追加します。
+
+**誤った設定の例**: 複数テナントで同じ ClusterVersion を共有
+
+```yaml
+# host_vars/k8sctrlplane01.local
+
+vcinstances_clusterversions:
+  - name: "cv-k8s-1-31"
+
+vcinstances_virtualclusters:
+  - name: "tenant-alpha"
+    clusterVersionName: "cv-k8s-1-31"  # 共有ClusterVersion
+  - name: "tenant-beta"
+    clusterVersionName: "cv-k8s-1-31"  # 共有ClusterVersion
+```
+
+**適切な設定例**:
+
+```yaml
+# 正しい: 各テナント専用の ClusterVersion を使用
+vcinstances_clusterversions:
+  - name: "cv-k8s-1-31-tenant-alpha"  # tenant-alpha専用
+  - name: "cv-k8s-1-31-tenant-beta"   # tenant-beta専用
+
+vcinstances_virtualclusters:
+  - name: "tenant-alpha"
+    clusterVersionName: "cv-k8s-1-31-tenant-alpha"  # 専用ClusterVersion
+  - name: "tenant-beta"
+    clusterVersionName: "cv-k8s-1-31-tenant-beta"   # 専用ClusterVersion
+```
+
+**ClusterVersion 命名規則**: `<base-name>-tenant-<tenant-name>` 形式で命名してください。本ロールは最後の2つのセグメント ( `tenant-<tenant-name>`）を抽出して selector に使用します。
+
+**再作成手順**:
+
+```bash
+# PV 割当てを確認
+kubectl get pv | grep pv-etcd
+kubectl get pvc -A | grep etcd
+
+# 設定を修正後, 強制再作成で実行
+ansible-playbook k8s-management.yml -t k8s-vc-instances
+```
+
+`vcinstances_force_recreate_resources: true` (デフォルト) の場合, ロール実行時に既存リソースが自動的にクリーンアップされるため, 通常は手動削除は不要です。
+
 ## テンプレートと生成ファイル
 
 | テンプレート | 出力先 | 説明 |
@@ -288,6 +402,7 @@ ansible-playbook k8s-management.yml -t k8s-vc-instances
 `vcinstances_clusterversions` はリスト形式で定義します。各要素は以下のキーを持ちます。
 
 ```yaml
+# etcd 永続ストレージ無効時 ( emptyDir使用）
 vcinstances_clusterversions:
   - name: "cv-k8s-1-31"  # ClusterVersionインスタンス リソース名(必須)
     # 以下はオプション(省略時は検出値を使用)
@@ -300,20 +415,51 @@ vcinstances_clusterversions:
     controllerManager:
       image: "registry.k8s.io/kube-controller-manager"
       imageTag: "v1.31.0"
+
+# etcd 永続ストレージ有効時 ( PVC使用）
+# 各テナント専用のClusterVersionを定義してください  ( 命名規則: *-tenant-<tenant-name>）
+vcinstances_clusterversions:
+  # tenant-alpha専用
+  - name: "cv-k8s-1-31-tenant-alpha"
+  # tenant-beta専用
+  - name: "cv-k8s-1-31-tenant-beta"
 ```
 
 **設定のポイント**:
 - `name` は必須です。未指定の場合, 該当定義は警告を出してスキップされます。
 - `etcd`, `apiServer`, `controllerManager` は省略可能です。省略時はスーパークラスタから自動検出されたイメージを使用します。
 - `vcinstances_auto_detect_supercluster_images: false` の場合, イメージは明示指定してください。
+- **etcd 永続ストレージ有効時**: ClusterVersion 名を `<base-name>-tenant-<tenant-name>` 形式で命名してください。ロールは最後の2つのセグメント ( `tenant-<tenant-name>`）を抽出して volumeClaimTemplates の selector に自動設定します。
 
 ### VirtualClusterインスタンス定義
 
 `vcinstances_virtualclusters` はリスト形式で定義します。各要素は以下のキーを持ちます。
 
 ```yaml
+# etcd 永続ストレージ無効時 ( emptyDir使用）
 vcinstances_virtualclusters:
   - name: "tenant-alpha"               # VirtualClusterインスタンス リソース名(必須)
+    namespace: "vc-manager"            # デプロイ先 Kubernetes の名前空間(省略時: vc-manager)
+    clusterVersionName: "cv-k8s-1-31"  # 共有ClusterVersionでOK
+    clusterDomain: "tenant-alpha.vc.local"         # テナント DNS ドメイン(オプション)
+    kubeConfigSecretName: "tenant-alpha-kubeconfig"  # kubeconfig Secret 名(オプション)
+  - name: "tenant-beta"
+    namespace: "vc-manager"
+    clusterVersionName: "cv-k8s-1-31"  # 共有ClusterVersionでOK
+    clusterDomain: "tenant-beta.vc.local"
+
+# etcd 永続ストレージ有効時 ( PVC使用）
+# 各テナントに専用ClusterVersionを割り当ててください
+vcinstances_virtualclusters:
+  - name: "tenant-alpha"
+    namespace: "vc-manager"
+    clusterVersionName: "cv-k8s-1-31-tenant-alpha"  # tenant専用ClusterVersion
+    clusterDomain: "tenant-alpha.vc.local"
+    kubeConfigSecretName: "tenant-alpha-kubeconfig"
+  - name: "tenant-beta"
+    namespace: "vc-manager"
+    clusterVersionName: "cv-k8s-1-31-tenant-beta"   # tenant専用ClusterVersion
+    clusterDomain: "tenant-beta.vc.local"
     namespace: "vc-manager"            # デプロイ先 Kubernetes の名前空間(省略時: vc-manager)
     clusterVersionName: "cv-k8s-1-31"  # 使用する ClusterVersionインスタンス リソース名(必須)
     clusterDomain: "tenant-alpha.vc.local"         # テナント DNS ドメイン(オプション)
@@ -329,8 +475,11 @@ vcinstances_virtualclusters:
 - `name` と `clusterVersionName` は必須です。未指定の場合, 該当定義は警告を出してスキップされます。
 - `namespace` は省略時に `virtualcluster_namespace`(既定: `vc-manager`)が使用されます。
 - `clusterDomain`, `kubeConfigSecretName` はオプションです。
+- **etcd 永続ストレージ有効時**: `clusterVersionName` にテナント専用の ClusterVersion を指定してください。
 
 ### host_vars での完全な設定例
+
+#### パターン1: etcd 永続ストレージ無効時 ( emptyDir使用, 開発環境向け）
 
 ```yaml
 # host_vars/k8sctrlplane01.local
@@ -341,7 +490,10 @@ virtualcluster_enabled: true
 # k8s-vc-instances を有効化
 k8s_vcinstances_enabled: true
 
-# ClusterVersionインスタンス定義
+# etcd 永続ストレージを無効化 ( デフォルト）
+vcinstances_etcd_storage_enabled: false
+
+# ClusterVersionインスタンス定義 ( 共有ClusterVersionでOK）
 vcinstances_clusterversions:
   - name: "cv-k8s-1-31"
     # イメージ指定を省略(スーパークラスタ検出値を使用)
@@ -357,6 +509,42 @@ vcinstances_virtualclusters:
   - name: "tenant-beta"
     namespace: "vc-manager"
     clusterVersionName: "cv-k8s-1-31"
+    clusterDomain: "tenant-beta.vc.local"
+    kubeConfigSecretName: "tenant-beta-kubeconfig"
+```
+
+#### パターン2: etcd 永続ストレージ有効時 ( PVC使用, 本番環境向け）
+
+```yaml
+# host_vars/k8sctrlplane01.local
+
+# k8s-virtual-cluster を有効化
+virtualcluster_enabled: true
+
+# k8s-vc-instances を有効化
+k8s_vcinstances_enabled: true
+
+# etcd 永続ストレージを有効化
+vcinstances_etcd_storage_enabled: true
+vcinstances_etcd_storage_size: "10Gi"
+# vcinstances_etcd_storage_class: "" # 空の場合はデフォルトStorageClassを使用
+
+# 各テナント専用のClusterVersionインスタンス定義
+vcinstances_clusterversions:
+  - name: "cv-k8s-1-31-tenant-alpha"  # tenant-alpha専用
+  - name: "cv-k8s-1-31-tenant-beta"   # tenant-beta専用
+
+# VirtualClusterインスタンス定義 ( 各テナントに専用ClusterVersionを割り当て）
+vcinstances_virtualclusters:
+  - name: "tenant-alpha"
+    namespace: "vc-manager"
+    clusterVersionName: "cv-k8s-1-31-tenant-alpha"  # 専用ClusterVersion
+    clusterDomain: "tenant-alpha.vc.local"
+    kubeConfigSecretName: "tenant-alpha-kubeconfig"
+
+  - name: "tenant-beta"
+    namespace: "vc-manager"
+    clusterVersionName: "cv-k8s-1-31-tenant-beta"   # 専用ClusterVersion
     clusterDomain: "tenant-beta.vc.local"
     kubeConfigSecretName: "tenant-beta-kubeconfig"
 ```
