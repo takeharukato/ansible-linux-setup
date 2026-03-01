@@ -51,7 +51,9 @@ _vc_tenant_apply_completion() {
     case $cword in
         1)
             # 第1引数: テナント名
-            COMPREPLY=($(compgen -W "$(_vc_tenant_get_tenant_list)" -- "$cur"))
+            local -a tenants
+            tenants=($(_vc_tenant_get_tenant_list))
+            COMPREPLY=($(compgen -W "${tenants[*]}" -- "$cur"))
             ;;
         *)
             # 第2引数以降: オプション補完
@@ -82,7 +84,9 @@ _vc_tenant_get_completion() {
     case $cword in
         1)
             # 第1引数: テナント名
-            COMPREPLY=($(compgen -W "$(_vc_tenant_get_tenant_list)" -- "$cur"))
+            local -a tenants
+            tenants=($(_vc_tenant_get_tenant_list))
+            COMPREPLY=($(compgen -W "${tenants[*]}" -- "$cur"))
             ;;
         2)
             # 第2引数: リソース型
@@ -96,9 +100,9 @@ _vc_tenant_get_completion() {
             local tenant_ns
             tenant_ns=$(_vc_tenant_get_namespace "$tenant_name")
             if [[ -n "$tenant_ns" && -n "$resource_type" ]]; then
-                local resources
-                resources=$(_vc_tenant_get_resources "$tenant_ns" "$resource_type")
-                COMPREPLY=($(compgen -W "$resources" -- "$cur"))
+                local -a resources
+                resources=($(_vc_tenant_get_resources "$tenant_ns" "$resource_type"))
+                COMPREPLY=($(compgen -W "${resources[*]}" -- "$cur"))
             fi
             ;;
         *)
@@ -127,7 +131,9 @@ _vc_tenant_delete_completion() {
     case $cword in
         1)
             # 第1引数: テナント名
-            COMPREPLY=($(compgen -W "$(_vc_tenant_get_tenant_list)" -- "$cur"))
+            local -a tenants
+            tenants=($(_vc_tenant_get_tenant_list))
+            COMPREPLY=($(compgen -W "${tenants[*]}" -- "$cur"))
             ;;
         2)
             # 第2引数: リソース型
@@ -141,9 +147,9 @@ _vc_tenant_delete_completion() {
             local tenant_ns
             tenant_ns=$(_vc_tenant_get_namespace "$tenant_name")
             if [[ -n "$tenant_ns" && -n "$resource_type" ]]; then
-                local resources
-                resources=$(_vc_tenant_get_resources "$tenant_ns" "$resource_type")
-                COMPREPLY=($(compgen -W "$resources" -- "$cur"))
+                local -a resources
+                resources=($(_vc_tenant_get_resources "$tenant_ns" "$resource_type"))
+                COMPREPLY=($(compgen -W "${resources[*]}" -- "$cur"))
             fi
             ;;
         *)
@@ -172,7 +178,9 @@ _vc_tenant_exec_completion() {
     case $cword in
         1)
             # 第1引数: テナント名
-            COMPREPLY=($(compgen -W "$(_vc_tenant_get_tenant_list)" -- "$cur"))
+            local -a tenants
+            tenants=($(_vc_tenant_get_tenant_list))
+            COMPREPLY=($(compgen -W "${tenants[*]}" -- "$cur"))
             ;;
         2)
             # 第2引数: Pod 名（動的取得）
@@ -180,9 +188,9 @@ _vc_tenant_exec_completion() {
             local tenant_ns
             tenant_ns=$(_vc_tenant_get_namespace "$tenant_name")
             if [[ -n "$tenant_ns" ]]; then
-                local pods
-                pods=$(_vc_tenant_get_pods "$tenant_ns")
-                COMPREPLY=($(compgen -W "$pods" -- "$cur"))
+                local -a pods
+                pods=($(_vc_tenant_get_pods "$tenant_ns"))
+                COMPREPLY=($(compgen -W "${pods[*]}" -- "$cur"))
             fi
             ;;
         *)
@@ -195,9 +203,9 @@ _vc_tenant_exec_completion() {
                     local tenant_ns
                     tenant_ns=$(_vc_tenant_get_namespace "$tenant_name")
                     if [[ -n "$tenant_ns" && -n "$pod_name" ]]; then
-                        local containers
-                        containers=$(_vc_tenant_get_containers "$tenant_ns" "$pod_name")
-                        COMPREPLY=($(compgen -W "$containers" -- "$cur"))
+                        local -a containers
+                        containers=($(_vc_tenant_get_containers "$tenant_ns" "$pod_name"))
+                        COMPREPLY=($(compgen -W "${containers[*]}" -- "$cur"))
                     fi
                     return
                     ;;
@@ -220,7 +228,9 @@ _vc_tenant_logs_completion() {
     case $cword in
         1)
             # 第1引数: テナント名
-            COMPREPLY=($(compgen -W "$(_vc_tenant_get_tenant_list)" -- "$cur"))
+            local -a tenants
+            tenants=($(_vc_tenant_get_tenant_list))
+            COMPREPLY=($(compgen -W "${tenants[*]}" -- "$cur"))
             ;;
         2)
             # 第2引数: Pod 名（動的取得）
@@ -228,9 +238,9 @@ _vc_tenant_logs_completion() {
             local tenant_ns
             tenant_ns=$(_vc_tenant_get_namespace "$tenant_name")
             if [[ -n "$tenant_ns" ]]; then
-                local pods
-                pods=$(_vc_tenant_get_pods "$tenant_ns")
-                COMPREPLY=($(compgen -W "$pods" -- "$cur"))
+                local -a pods
+                pods=($(_vc_tenant_get_pods "$tenant_ns"))
+                COMPREPLY=($(compgen -W "${pods[*]}" -- "$cur"))
             fi
             ;;
         *)
@@ -243,9 +253,9 @@ _vc_tenant_logs_completion() {
                     local tenant_ns
                     tenant_ns=$(_vc_tenant_get_namespace "$tenant_name")
                     if [[ -n "$tenant_ns" && -n "$pod_name" ]]; then
-                        local containers
-                        containers=$(_vc_tenant_get_containers "$tenant_ns" "$pod_name")
-                        COMPREPLY=($(compgen -W "$containers" -- "$cur"))
+                        local -a containers
+                        containers=($(_vc_tenant_get_containers "$tenant_ns" "$pod_name"))
+                        COMPREPLY=($(compgen -W "${containers[*]}" -- "$cur"))
                     fi
                     return
                     ;;
