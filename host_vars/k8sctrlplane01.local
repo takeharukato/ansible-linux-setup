@@ -143,21 +143,20 @@ vcinstances_etcd_storage_size: "10Gi"
 # StorageClass 名
 vcinstances_etcd_storage_class: "default-sc"
 
-# ClusterVersion インスタンス定義
 vcinstances_clusterversions:
-  - name: "cv-k8s-1-31"
-    # イメージ指定を省略 (スーパークラスタ検出値を使用)
+  - name: "cv-k8s-1-31-tenant-alpha"  # tenant-alpha専用
+  - name: "cv-k8s-1-31-tenant-beta"   # tenant-beta専用
 
 # VirtualCluster インスタンス定義
 vcinstances_virtualclusters:
   - name: "tenant-alpha"
     namespace: "vc-manager"
-    clusterVersionName: "cv-k8s-1-31"
+    clusterVersionName: "cv-k8s-1-31-tenant-alpha"
     clusterDomain: "tenant-alpha.vc.local"
     kubeConfigSecretName: "tenant-alpha-kubeconfig"
 
   - name: "tenant-beta"
     namespace: "vc-manager"
-    clusterVersionName: "cv-k8s-1-31"
+    clusterVersionName: "cv-k8s-1-31-tenant-beta"
     clusterDomain: "tenant-beta.vc.local"
     kubeConfigSecretName: "tenant-beta-kubeconfig"
