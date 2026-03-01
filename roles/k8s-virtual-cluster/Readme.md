@@ -16,11 +16,11 @@ Kubernetes Virtual Cluster ) の基盤コンポーネントをデプロイする
 | etcd | - | Kubernetes の設定情報と状態を保存する分散キーバリューストア。 |
 | kube-apiserver | - | Kubernetes API サーバー, API リクエストを受け付けて処理するコンポーネント。 |
 | kube-controller-manager | - | Kubernetes コントローラーマネージャー, リソースの状態を監視して制御するコンポーネント。 |
-| kubectl | - | Kubernetes クラスタを操作するコマンドラインツール。API サーバーへのリクエストを送信し, リソースの作成・更新・削除・確認を行う。 |
+| kubectl | - | Kubernetes クラスタを操作するコマンドラインツール。API サーバーへのリクエストを送信し, リソースの作成, 更新, 削除, 確認を行う。 |
 | コントロールプレーンノード ( Control Plane Node ) | - | Kubernetesクラスタを制御するためのコンポーネント(API サーバー, スケジューラー, コントローラーマネージャー, etcd など)が動作し, , クラスタ全体の制御と調整を行うノード。|
 | ワーカーノード ( Worker Node ) | - | Kubernetes クラスタで実際にアプリケーション(ポッド ( Pod ))が実行されるノード。kubelet と呼ばれるエージェントが動作し, コントロールプレインノードからの指示に基づいてコンテナを実行管理する。 |
 | コンテナ ( Container ) | - | アプリケーションと依存関係を一つのパッケージ化したもの。軽量で, どの環境でも一貫して実行可能。 |
-| ポッド ( Pod ) | - | Kubernetes の最小デプロイメント単位。1 個以上のコンテナ ( Container ) で構成される実行環境。ポッド ( Pod ) 内のすべてのコンテナ ( Container ) は共有ネットワーク(共用 IP・ポート), 共有ストレージによって密接に結合され, 同一ノード上で常に共存・同期スケジュール される。 |
+| ポッド ( Pod ) | - | Kubernetes の最小デプロイメント単位。1 個以上のコンテナ ( Container ) で構成される実行環境。ポッド ( Pod ) 内のすべてのコンテナ ( Container ) は共有ネットワーク(共用 IP, ポート), 共有ストレージによって密接に結合され, 同一ノード上で常に共存, 同期スケジュール される。 |
 | デプロイメント ( Deployment ) | - | Kubernetes リソース。ステートレスなアプリケーション向け。複数のレプリカ(ポッド ( Pod ) の複製)を管理し, 水平スケーリング に対応。 |
 | デーモンセット ( DaemonSet ) | - | Kubernetes リソース。Kubernetes クラスタ内の全ノード(またはフィルタ条件を満たすノード)に 1 つのポッド ( Pod ) を配置するリソース。監視やログ収集に適す。 |
 | ステートレス ( Stateless ) | - | アプリケーションの性質を表す用語で，アプリケーションから使用される各種データの状態を永続記憶(ストレージ)に保持しなくとも，動作可能なアプリケーションであることを示す。 |
@@ -33,11 +33,11 @@ Kubernetes Virtual Cluster ) の基盤コンポーネントをデプロイする
 | プロビジョニング ( Provisioning ) | - | Kubernetes ストレージレイヤーにおける処理。StorageClass で定義されたプロビジョナーが, PersistentVolumeClaim の要求に応じて新しい PersistentVolume を自動的に作成するプロセス。動的プロビジョニングにより, ユーザーが個別に PV を作成する手間を削減できる。静的プロビジョニング(管理者が事前に PV を作成)に対応する概念。 |
 | プロビジョナー ( Provisioner ) | - | Kubernetes ストレージスタックのコンポーネント。StorageClass で指定し, PersistentVolumeClaim の要求に基づいて PersistentVolume を自動作成する。実装にはローカルストレージプロビジョナー, AWS EBS CSI ドライバー, NFS などが存在。 |
 | emptyDir | - | Kubernetes ボリュームタイプ。ポッドがノードに割り当てられた時に作成される一時的なボリューム。ポッドが存在する限りデータが保持され, ポッド削除時にデータが失われる。開発環境での一時データ保存や Pod 内のコンテナ間でのファイル共有に使用。 |
-| コンフィグマップ ( ConfigMap ) | - | Kubernetes リソース。設定データをキー・バリューペアで保存し, 非機密情報を管理。 |
-| シークレット ( Secret ) | - | Kubernetes リソース。パスワード, API キー, 証明書などの機密データを暗号化して安全に保存・管理。 |
+| コンフィグマップ ( ConfigMap ) | - | Kubernetes リソース。設定データをキー, バリューペアで保存し, 非機密情報を管理。 |
+| シークレット ( Secret ) | - | Kubernetes リソース。パスワード, API キー, 証明書などの機密データを暗号化して安全に保存, 管理。 |
 | 仮想クラスタ ( Virtual Cluster ) | - | Kubernetes API を仮想化して提供する論理的な Kubernetes クラスタ。 |
 | スーパークラスタ ( Super Cluster ) | - | 仮想クラスタ ( Virtual Cluster ) を動作させるホスト側の物理 Kubernetes クラスタ。 |
-| Kubernetesのデプロイメント | - | Kubernetes を用いて, アプリケーションプロセスやリソースを配置, 展開, 管理するための操作を意味する。Kubernetes の配置・管理における最小実行単位は, ポッド ( Pod ) となる。 |
+| Kubernetesのデプロイメント | - | Kubernetes を用いて, アプリケーションプロセスやリソースを配置, 展開, 管理するための操作を意味する。Kubernetes の配置, 管理における最小実行単位は, ポッド ( Pod ) となる。 |
 | テナント ( Tenant ) | - | 互いに独立した Kubernetes コントロールプレインノードを持つ論理的な利用者またはチーム。各テナントについて, 専用の仮想クラスタ ( Virtual Cluster ) が割り当てられ, テナントに割り当てられた仮想クラスタ ( Virtual Cluster ) 内のリソース (名前空間 ( namespace ) , CRD) を他のテナントに影響を与えずに作成できる。物理リソース (ノード) をスーパークラスタ ( Super Cluster ) を通じて他のテナントと共有し, かつ, 仮想リソース (Kubernetes のリソース) は, Kubernetes のコントロールプレインノードレベルで分離される。 |
 | vc-manager ( Virtual Cluster Manager ) | vc-manager | 仮想クラスタ ( Virtual Cluster ) の制御コンポーネント。スーパークラスタ ( Super Cluster ) 上で仮想クラスタ ( Virtual Cluster ) の管理を行う。 |
 | vc-syncer ( Virtual Cluster Syncer ) | vc-syncer | 仮想クラスタ ( Virtual Cluster ) とスーパークラスタ ( Super Cluster ) の状態を同期するコンポーネント。 |
@@ -120,16 +120,16 @@ etcd の永続ストレージを有効にする場合 (`vcinstances_etcd_storage
 ## 実行フロー
 
 1. `validate.yml` で前提条件と API 疎通を検証します。
-2. `detect-supercluster-images.yml` でスーパークラスタから稼働中のetcd, kube-apiserver, kube-controller-managerのイメージを自動検出します（デフォルト, `virtualcluster_auto_detect_supercluster_images: true` の場合）。
-3. `cleanup.yml` でクリーンビルド時に既存リソースを削除します（`virtualcluster_clean_build: true` の場合）:
+2. `detect-supercluster-images.yml` でスーパークラスタから稼働中のetcd, kube-apiserver, kube-controller-managerのイメージを自動検出します ( デフォルト, `virtualcluster_auto_detect_supercluster_images: true` の場合 ) 。
+3. `cleanup.yml` でクリーンビルド時に既存リソースを削除します ( `virtualcluster_clean_build: true` の場合 ) :
    - VirtualClusterインスタンス削除  =>  テナント名前空間 ( namespace ) 消滅待機  =>  ClusterVersionインスタンス削除  =>  vc-manager名前空間 ( namespace ) 削除  =>  CRD削除の順で実行します。
 4. `namespace.yml` で `vc-manager` の名前空間 ( namespace ) を作成します。
 5. `crd.yml` で ClusterVersion と VirtualCluster の CRD を登録します。
 6. `virtualcluster_build_from_source: true` の場合:
-   - `download-source.yml` でソースリポジトリをクローン/更新します（`virtualcluster_clean_build: true` の場合は `force: true` でローカル変更を破棄）。
+   - `download-source.yml` でソースリポジトリをクローン/更新します ( `virtualcluster_clean_build: true` の場合は `force: true` でローカル変更を破棄 ) 。
    - `patch-provisioner.yml`, `patch-virtualcluster-types.yml`, `patch-kubeconfig.yml`, `patch-service-mutate.yml` で4つのunified diff形式パッチを適用します。
    - `build-binaries.yml` で `make build-images` を実行してバイナリをビルドします。
-   - `build-kubectl-vc.yml` でkubectl-vcプラグインをビルドします（`virtualcluster_build_kubectl_vc: true` の場合）。
+   - `build-kubectl-vc.yml` でkubectl-vcプラグインをビルドします ( `virtualcluster_build_kubectl_vc: true` の場合 ) 。
    - `build-docker-images.yml` でDockerイメージをビルドしてtarファイルに保存します。
    - `fetch-images.yml` でビルドノードからAnsibleの制御ノード(localhost)へtarファイルを取得します。
 7. `upload-to-ctrlplane.yml` でコントロールプレーンノード ( Control Plane Node ) へイメージをアップロードします。
@@ -266,7 +266,7 @@ virtualcluster_persistent_volumes:
 | `capacity` | 必須 | PV の容量。Kubernetes Quantity 形式で指定。未設定の場合は当該エントリを無効としてスキップし, 他の有効エントリの処理を継続します。 | `10Gi` | なし |
 | `storage_class` | 任意 | 紐付ける StorageClass 名。 | `default-sc` | `local-storage` |
 | `host_path` | 必須 | ワーカーノード上のローカルパス。未設定の場合は当該エントリを無効としてスキップし, 他の有効エントリの処理を継続します。 | `/mnt/etcd-data/tenant-alpha` | なし |
-| `node_name` | 必須 | PV をバインド（Bind）するノード名。未設定の場合は当該エントリを無効としてスキップし, 他の有効エントリの処理を継続します。 | `k8sworker0101` | なし |
+| `node_name` | 必須 | PV をバインド ( Bind ) するノード名。未設定の場合は当該エントリを無効としてスキップし, 他の有効エントリの処理を継続します。 | `k8sworker0101` | なし |
 | `access_modes` | 任意 | アクセスモードの配列。 | `["ReadWriteOnce"]` | `["ReadWriteOnce"]` |
 | `reclaim_policy` | 任意 | 削除時の回収ポリシー。 | `Delete` | `Delete` |
 | `labels` | 任意 | PV に付与するラベル辞書。未設定の場合はテンプレートで `type: local` ラベルのみ付与されます。 | `{ type: "local", purpose: "etcd" }` | なし |
@@ -392,7 +392,7 @@ vcinstances_etcd_storage_enabled: true
 
 - `vcinstances_etcd_storage_enabled: true` の場合, etcd の StatefulSet に `volumeClaimTemplates` が自動追加されます
 - 各テナント用仮想クラスタ ( Virtual Cluster ) の etcd Pod は専用 PVC(`etcd-data-etcd-0`) を自動作成
-- 割り当てられた PV にバインド（Bind）され, etcd のデータが永続化されます
+- 割り当てられた PV にバインド ( Bind ) され, etcd のデータが永続化されます
 - `emptyDir` と異なり, Pod の再起動後もデータが保持されます
 
 #### 注意点
@@ -476,7 +476,7 @@ spec:
 flowchart TD
     A["テナント側で<br/>PVC を作成"] --> B["syncer が<br/>スーパークラスタ側に同期"]
     B --> C["スーパークラスタの<br/>StorageClass が処理"]
-    C --> D["PV が自動作成/<br/>バインド（Bind）"]
+    C --> D["PV が自動作成/<br/>バインド ( Bind ) "]
     D --> E["テナント Pod が<br/>ストレージにアクセス"]
 ```
 
@@ -720,9 +720,9 @@ vc-tenant-apply.sh tenant-alpha -f /tmp/busybox-demo.yaml
 pod/busybox-demo created
 ```
 
-出力結果のメッセージが「pod/busybox-demo created」であることを確認して、Pod が正常に作成されていることを確認してください。
+出力結果のメッセージが「pod/busybox-demo created」であることを確認して, Pod が正常に作成されていることを確認してください。
 
-**ステップC: Pod の状態を確認（作成直後）**
+**ステップC: Pod の状態を確認 ( 作成直後 ) **
 
 Pod の現在の状態を確認します。Podは作成直後のため, ContainerCreatingの状態です。
 
@@ -744,9 +744,9 @@ controller-manager-0     1/1     Running             0          23m
 etcd-0                   1/1     Running             0          23m
 ```
 
-出力結果のSTATUSが「ContainerCreating」であることを確認して、Pod が起動中であることを確認してください。
+出力結果のSTATUSが「ContainerCreating」であることを確認して, Pod が起動中であることを確認してください。
 
-**ステップD: ログを取得（起動中エラー）**
+**ステップD: ログを取得 ( 起動中エラー ) **
 
 Podの起動が完了する前にログを取得しようとするとエラーが発生します。これは正常な動作です。
 
@@ -764,7 +764,7 @@ vc-tenant-logs.sh tenant-alpha busybox-demo
 Error from server (BadRequest): container "busybox" in pod "busybox-demo" is waiting to start: ContainerCreating
 ```
 
-出力結果のエラーメッセージ「BadRequest」から、Podがまだ起動中のためログアクセスができていないことを確認してください。次のステップで起動を待機します。
+出力結果のエラーメッセージ「BadRequest」から, Podがまだ起動中のためログアクセスができていないことを確認してください。次のステップで起動を待機します。
 
 **ステップE: Pod の起動完了を待機**
 
@@ -774,7 +774,7 @@ Pod が Running 状態に遷移するまで数秒待機します。
 sleep 10
 ```
 
-**ステップF: ログを取得（起動完了後）**
+**ステップF: ログを取得 ( 起動完了後 ) **
 
 Pod が起動完了したので,ログを取得します。
 
@@ -792,7 +792,7 @@ vc-tenant-logs.sh tenant-alpha busybox-demo
 Hello from tenant!
 ```
 
-出力結果に「Hello from tenant!」というメッセージが表示されていることを確認して、Pod 内のコマンドが正常に実行されていることを確認してください。
+出力結果に「Hello from tenant!」というメッセージが表示されていることを確認して, Pod 内のコマンドが正常に実行されていることを確認してください。
 
 **ステップG: Pod の最終状態確認**
 
@@ -836,7 +836,7 @@ vc-tenant-delete.sh tenant-alpha pod busybox-demo
 pod "busybox-demo" deleted
 ```
 
-出力結果のメッセージが「pod \"busybox-demo\" deleted」であることを確認して、Pod が正常に削除されていることを確認してください。
+出力結果のメッセージが「pod \"busybox-demo\" deleted」であることを確認して, Pod が正常に削除されていることを確認してください。
 
 #### 例2: Deployment のデプロイと確認
 
@@ -895,7 +895,7 @@ vc-tenant-apply.sh tenant-alpha -f /tmp/nginx-deploy.yaml
 deployment.apps "test-webserver" created
 ```
 
-出力結果のメッセージが「deployment.apps \"test-webserver\" created」であることを確認して、Deployment が正常に作成されていることを確認してください。
+出力結果のメッセージが「deployment.apps \"test-webserver\" created」であることを確認して, Deployment が正常に作成されていることを確認してください。
 
 **ステップC: Deployment の詳細情報を確認**
 
@@ -916,7 +916,7 @@ NAME             READY   UP-TO-DATE   AVAILABLE   AGE   CONTAINERS   IMAGES     
 test-webserver   0/2     2            0           0s    web          nginx:latest   app=test-web
 ```
 
-出力結果のREADYが「0/2」であることを確認して、2つのレプリカがまだ起動中であることを確認してください。
+出力結果のREADYが「0/2」であることを確認して, 2つのレプリカがまだ起動中であることを確認してください。
 
 **ステップD: 生成された Pod の状態確認**
 
@@ -941,7 +941,7 @@ test-webserver-6947c798c8-g7k2b   0/1     ContainerCreating   0          0s
 test-webserver-6947c798c8-rb8xh   0/1     ContainerCreating   0          0s
 ```
 
-出力結果のSTATUSが「ContainerCreating」であることを確認して、2つのPod が起動中であることを確認してください。
+出力結果のSTATUSが「ContainerCreating」であることを確認して, 2つのPod が起動中であることを確認してください。
 
 **ステップE: Deployment を削除**
 
@@ -961,7 +961,7 @@ vc-tenant-delete.sh tenant-alpha deployment test-webserver
 deployment.apps "test-webserver" deleted
 ```
 
-出力結果のメッセージが「deployment.apps \"test-webserver\" deleted」であることを確認して、Deployment と関連するすべてのPodが削除されていることを確認してください。
+出力結果のメッセージが「deployment.apps \"test-webserver\" deleted」であることを確認して, Deployment と関連するすべてのPodが削除されていることを確認してください。
 
 #### 例3: 実行中の Pod でコマンド実行
 
@@ -1012,7 +1012,7 @@ vc-tenant-exec.sh tenant-alpha nginx-demo -- sh -c 'echo "Hello from container"'
 Hello from container
 ```
 
-出力結果に「Hello from container」というメッセージが表示されていることを確認して、コマンドが正常に実行されていることを確認してください。
+出力結果に「Hello from container」というメッセージが表示されていることを確認して, コマンドが正常に実行されていることを確認してください。
 
 **ステップB: 複数コマンドの実行**
 
@@ -1039,7 +1039,7 @@ lib
 /
 ```
 
-出力結果に「---」セパレータが表示されていることを確認して、複数のコマンドが順序通り実行されていることを確認してください。
+出力結果に「---」セパレータが表示されていることを確認して, 複数のコマンドが順序通り実行されていることを確認してください。
 
 **ステップC: 対話型シェルセッション**
 
@@ -1059,7 +1059,7 @@ vc-tenant-exec.sh tenant-alpha nginx-demo -it -- /bin/sh
 / #
 ```
 
-この状態でコマンドを入力できます。出力結果に「/ # 」プロンプトが表示されていることを確認して、対話型シェルが正常に起動していることを確認してください。終了する場合は `exit` と入力するか, `Ctrl+D` を使用します。
+この状態でコマンドを入力できます。出力結果に「/ # 」プロンプトが表示されていることを確認して, 対話型シェルが正常に起動していることを確認してください。終了する場合は `exit` と入力するか, `Ctrl+D` を使用します。
 
 ```bash
 / # exit
@@ -1106,10 +1106,7 @@ source /etc/bash_completion.d/vc-tenant-completion
 
 **zsh の場合:**
 
-```bash
-# 新しいターミナルセッションを開始
-# (既存セッションでは自動補完が有効化されません)
-```
+zshの場合は, 新しいターミナルセッションを開始しなおしてください。
 
 #### 補完の動作
 
@@ -1179,7 +1176,7 @@ NAME          STATUS   VOLUME                   CAPACITY   ACCESS MODES   STORAG
 data-etcd-0   Bound    pv-etcd-tenant-alpha-0   10Gi       RWO            default-sc     <unset>                 117s
 ```
 
-出力結果のSTATUSが「Bound」であることを確認して、PVC が正常に PersistentVolume にバインド(結合)されていることを確認してください。
+出力結果のSTATUSが「Bound」であることを確認して, PVC が正常に PersistentVolume にバインド(結合)されていることを確認してください。
 
 #### 例5: カスタム管理 namespace の指定
 
@@ -1202,7 +1199,7 @@ controller-manager-0   1/1     Running   0          21m
 etcd-0                 1/1     Running   0          21m
 ```
 
-出力結果のPodリストが表示されていることを確認して、カスタムnamespace内のテナント情報が正常に取得されていることを確認してください。
+出力結果のPodリストが表示されていることを確認して, カスタムnamespace内のテナント情報が正常に取得されていることを確認してください。
 
 ### トラブルシューティング
 
@@ -1333,7 +1330,7 @@ kubectl -n $TENANT_NS apply -f manifest.yaml
      E0224 21:10:35.677305       1 mccontroller.go:461] default/kube-root-ca.crt dws request reconcile failed: pConfigMap vc-manager-64b627-tenant-alpha-default/kube-root-ca.crt delegated UID is different from updated object.
      ```
     なお, 上記の`default/kube-root-ca.crt dws request reconcile failed: pConfigMap`は,
-    vc-managerの既知の問題( テナント ( Tenant ) に割り当てられた仮想クラスタ ( Virtual Cluster ) の`kube-system/kube-root-ca.crt` ConfigMapをスーパークラスタ ( Super Cluster ) に同期する際のUID不一致)であり, `kube-root-ca.crt` ConfigMapの同期が失敗しますが、仮想クラスタ ( Virtual Cluster ) の基本動作には影響しません。
+    vc-managerの既知の問題( テナント ( Tenant ) に割り当てられた仮想クラスタ ( Virtual Cluster ) の`kube-system/kube-root-ca.crt` ConfigMapをスーパークラスタ ( Super Cluster ) に同期する際のUID不一致)であり, `kube-root-ca.crt` ConfigMapの同期が失敗しますが, 仮想クラスタ ( Virtual Cluster ) の基本動作には影響しません。
 
 5. DaemonSet の配置確認
    - 目的: vn-agent がワーカーノード ( Worker Node ) のみに配置されていることを確認します。
@@ -1406,7 +1403,7 @@ kubectl -n $TENANT_NS apply -f manifest.yaml
      kubectl get service -n $TENANT_NS
 
      # ポートフォワーディングでテナント用APIサーバーに接続
-     # 別のターミナルで以下を実行し、接続を維持
+     # 別のターミナルで以下を実行し, 接続を維持
      kubectl port-forward -n $TENANT_NS service/apiserver-svc 6443:6443 &
 
      # admin-kubeconfigからkubeconfigを取得
@@ -1423,9 +1420,9 @@ kubectl -n $TENANT_NS apply -f manifest.yaml
      ```
    - 期待される結果: テナント ( Tenant ) に割り当てられた仮想クラスタ ( Virtual Cluster ) 内の仮想ノード一覧が表示されること。
    - 注意:
-     - テナント用APIサーバーは、スーパークラスタ ( Super Cluster ) 内のServiceとして動作しているため、外部から直接アクセスするにはポートフォワーディングが必要です。
-     - admin-kubeconfigに保存されているサーバーアドレスは、テナント ( Tenant ) に割り当てられた仮想クラスタ ( Virtual Cluster ) 内部用の設定のため、`localhost`に変更する必要があります。
-     - 証明書検証をスキップするため、`--insecure-skip-tls-verify`オプションを使用しています。
+     - テナント用APIサーバーは, スーパークラスタ ( Super Cluster ) 内のServiceとして動作しているため, 外部から直接アクセスするにはポートフォワーディングが必要です。
+     - admin-kubeconfigに保存されているサーバーアドレスは, テナント ( Tenant ) に割り当てられた仮想クラスタ ( Virtual Cluster ) 内部用の設定のため, `localhost`に変更する必要があります。
+     - 証明書検証をスキップするため, `--insecure-skip-tls-verify`オプションを使用しています。
 
 9. etcd 永続ストレージ動作確認 (オプション, `vcinstances_etcd_storage_enabled: true` の場合)
    - 目的: テナント ( Tenant ) に割り当てられた仮想クラスタ ( Virtual Cluster ) の etcd が PV/PVC に正しく接続され, Pod が起動していることを確認します。
@@ -1483,7 +1480,7 @@ kubectl get virtualclusters <NAME> -n <NAMESPACE> -o jsonpath='{.status.clusterN
 #### 3. テナント用StatefulSetの確認
 
 ```bash
-# テナント用のStatefulSet（etcd, apiserver, controller-manager）を確認
+# テナント用のStatefulSet ( etcd, apiserver, controller-manager ) を確認
 kubectl get statefulsets -n <tenant-namespace>
 
 # 詳細確認
@@ -1503,7 +1500,7 @@ kubectl describe statefulset controller-manager -n <tenant-namespace>
 #### 4. vc-managerのログ詳細確認
 
 ```bash
-# vc-managerの全ログを確認（CreateVirtualCluster処理の詳細）
+# vc-managerの全ログを確認 ( CreateVirtualCluster処理の詳細 )
 kubectl -n vc-manager logs deployment/vc-manager | grep -A 20 "will create a VirtualCluster"
 
 # エラーログを確認
@@ -1520,7 +1517,7 @@ kubectl -n vc-manager logs deployment/vc-manager | grep "<vc-name>"
 - `"deploying StatefulSet for control plane component"`: 各コンポーネントのデプロイ
 - `"VirtualCluster is running"`: 正常に作成完了
 
-#### 5. PKI（証明書）Secretの確認
+#### 5. PKI ( 証明書 ) Secretの確認
 
 ```bash
 # テナント用名前空間にPKI Secretが作成されているか確認
@@ -1643,7 +1640,7 @@ Error: ...ImagePullBackOff...
 ```
 **対処**: イメージがワーカーノード ( Worker Node ) に配布されているか確認してください。
 ```bash
-# イメージ配布状態の確認（Ansibleタスクのログ確認）
+# イメージ配布状態の確認 ( Ansibleタスクのログ確認 )
 # ワーカーノードでイメージを確認
 ssh <worker-node> "sudo ctr -n k8s.io images ls | grep virtualcluster"
 ```
@@ -1730,11 +1727,11 @@ E0224 20:26:16.832348       1 dws.go:65] failed reconcile service default/kubern
 
 **原因**:
 - テナント ( Tenant ) に割り当てられた仮想クラスタ ( Virtual Cluster ) の`default/kubernetes` Serviceをスーパークラスタ ( Super Cluster ) に同期する際のフィールド処理の問題です。
-- vc-syncerは`clusterIP`を空文字列に設定しますが、Kubernetes v1.20以降では"`clusterIP`が未設定の場合`clusterIPs`もnil/空でなければならない"という検証ルールがあります。
-- `service_mutate.patch`により、`clusterIPs`をnilに設定することで解決されます。
+- vc-syncerは`clusterIP`を空文字列に設定しますが, Kubernetes v1.20以降では"`clusterIP`が未設定の場合`clusterIPs`もnil/空でなければならない"という検証ルールがあります。
+- `service_mutate.patch`により, `clusterIPs`をnilに設定することで解決されます。
 
 **影響**:
-- この警告がある場合、`default/kubernetes` Serviceの同期が失敗します。
+- この警告がある場合, `default/kubernetes` Serviceの同期が失敗します。
 - テナント ( Tenant ) に割り当てられた仮想クラスタ ( Virtual Cluster ) 内のPodがKubernetes APIにアクセスできない可能性があります。
 
 **確認方法**:
@@ -1744,7 +1741,7 @@ TENANT_NS=$(kubectl get virtualclusters -n vc-manager <vc-name> -o jsonpath='{.s
 kubectl get services -n $TENANT_NS kubernetes
 ```
 
-本ロールでは`service_mutate.patch`を適用することでこの問題が解決されています。既存環境で警告が出る場合は、クリーンビルド(`virtualcluster_clean_build: true`)でvc-syncerを再デプロイしてください。
+本ロールでは`service_mutate.patch`を適用することでこの問題が解決されています。既存環境で警告が出る場合は, クリーンビルド(`virtualcluster_clean_build: true`)でvc-syncerを再デプロイしてください。
 
 ### CRD 登録が失敗する場合
 

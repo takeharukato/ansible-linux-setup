@@ -25,6 +25,8 @@
       tags: create-users
     - role: k8s-common
       tags: k8s-common
+    - role: k8s-devel
+      tags: k8s-devel
     - role: k8s-worker
       tags: k8s-worker
       # k8s-kubeconfigの呼び出し条件を満たしたタイミングで実行

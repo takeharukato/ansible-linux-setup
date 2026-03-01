@@ -515,6 +515,11 @@ gitlab_backup_dir_on_nfs: "/Linux/Gitlab"
 # Terraformをインストールする場合は true
 terraform_enabled: false
 
+# Go言語のバージョン
+# 未指定時は, OSディストリビューションが提供する
+# パッケージ経由でGo言語をインストールする
+# go_lang_version: "1.18"
+
 #
 # Kubernetes
 #
@@ -629,6 +634,18 @@ k8s_multus_version: "v4.2.3"
 k8s_whereabouts_enabled: true
 # Whereabouts CNIのバージョン
 k8s_whereabouts_version: "0.9.2"
+
+#
+# Kubernetes Client ライブラリ
+#
+
+# 言語別 Kubernetes Client 導入制御
+# Kubernetes Python Clientをインストールする場合は true
+# k8s_devel_python_client_enabled: false
+# Kubernetes Go Clientをインストールする場合は true
+# k8s_devel_go_client_enabled: false
+# Kubernetes C Clientをインストールする場合は true
+# k8s_devel_c_client_enabled: false
 
 #
 # Netgauge

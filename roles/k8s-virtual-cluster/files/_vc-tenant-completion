@@ -13,8 +13,8 @@
 
 # 共通ヘルパー関数: テナント名一覧を取得
 _vc_tenant_get_tenant_list() {
-    local tenants
-    tenants=(${(f)"$(kubectl get virtualclusters.tenancy.x-k8s.io -n vc-manager -o jsonpath='{.items[*].metadata.name}' 2>/dev/null)"})
+    local -a tenants
+    tenants=($(kubectl get virtualclusters.tenancy.x-k8s.io -n vc-manager -o jsonpath='{.items[*].metadata.name}' 2>/dev/null))
     _describe 'tenant' tenants
 }
 
@@ -29,16 +29,16 @@ _vc_tenant_get_namespace() {
 _vc_tenant_get_resources() {
     local tenant_ns="$1"
     local resource_type="$2"
-    local resources
-    resources=(${(f)"$(kubectl -n "$tenant_ns" get "$resource_type" -o jsonpath='{.items[*].metadata.name}' 2>/dev/null)"})
+    local -a resources
+    resources=($(kubectl -n "$tenant_ns" get "$resource_type" -o jsonpath='{.items[*].metadata.name}' 2>/dev/null))
     _describe 'resource' resources
 }
 
 # 共通ヘルパー関数: Pod 名一覧を取得
 _vc_tenant_get_pods() {
     local tenant_ns="$1"
-    local pods
-    pods=(${(f)"$(kubectl -n "$tenant_ns" get pods -o jsonpath='{.items[*].metadata.name}' 2>/dev/null)"})
+    local -a pods
+    pods=($(kubectl -n "$tenant_ns" get pods -o jsonpath='{.items[*].metadata.name}' 2>/dev/null))
     _describe 'pod' pods
 }
 
@@ -46,8 +46,8 @@ _vc_tenant_get_pods() {
 _vc_tenant_get_containers() {
     local tenant_ns="$1"
     local pod_name="$2"
-    local containers
-    containers=(${(f)"$(kubectl -n "$tenant_ns" get pod "$pod_name" -o jsonpath='{.spec.containers[*].name}' 2>/dev/null)"})
+    local -a containers
+    containers=($(kubectl -n "$tenant_ns" get pod "$pod_name" -o jsonpath='{.spec.containers[*].name}' 2>/dev/null))
     _describe 'container' containers
 }
 

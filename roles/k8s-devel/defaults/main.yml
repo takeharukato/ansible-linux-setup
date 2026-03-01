@@ -1,0 +1,41 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  ロール固有変数のデフォルト値
+#  group_vars/all/all.yml やhost_varsで上書き可能とするため,
+#  ロール名/defaults/main.yml に定義している
+
+# 言語別 Kubernetes client 導入制御
+k8s_devel_python_client_enabled: false
+k8s_devel_go_client_enabled: false
+k8s_devel_c_client_enabled: false
+
+# Go module domain (go mod init で使用)
+# デフォルト: dns_domain の末尾ピリオド除去, 未定義時は example.org
+k8s_devel_go_module_domain: "{{ (dns_domain | regex_replace('\\.$', '') | default('example.org', true)) }}"
+
+# Go 最小ツールチェーン導入制御
+# true の場合, Go client 導入有無に関わらず golang を導入する
+k8s_devel_go_packages_enabled: false
+
+# Kubernetes client 版数
+# 空文字列の場合は k8s_major_minor から自動導出する
+k8s_devel_python_client_version: ""
+k8s_devel_go_client_version: ""
+
+# Go 言語版数
+# 空文字列の場合は OS 提供パッケージを latest で導入する
+# x.y 形式 (例: 1.18) または x.y.z 形式 (例: 1.18.5) で指定すると Go 公式から tarball を取得する
+go_lang_version: ""
+
+# go_lang_version 指定時に既存の Go パッケージを削除するか
+# true: 既存パッケージを削除してから tarball をインストールする
+# false: 既存パッケージを残したまま tarball をインストールする (PATH の優先順位に注意)
+go_lang_remove_existing_package: true
+
+# Go パッケージ名
+k8s_devel_go_package_name: "golang"
+
+# Go 開発用作業ディレクトリ
+k8s_devel_go_work_dir: "/opt/k8s-devel/go-client"

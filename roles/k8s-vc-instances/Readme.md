@@ -19,11 +19,11 @@ Kubernetes Virtual Cluster ) のテナント ( Tenant ) 環境を構築するロ
 | etcd | - | Kubernetes の設定情報と状態を保存する分散キーバリューストア。 |
 | kube-apiserver | - | Kubernetes API サーバー, API リクエストを受け付けて処理するコンポーネント。 |
 | kube-controller-manager | - | Kubernetes コントローラーマネージャー, リソースの状態を監視して制御するコンポーネント。 |
-| kubectl | - | Kubernetes クラスタを操作するコマンドラインツール。API サーバーへのリクエストを送信し, リソースの作成・更新・削除・確認を行う。 |
+| kubectl | - | Kubernetes クラスタを操作するコマンドラインツール。API サーバーへのリクエストを送信し, リソースの作成, 更新, 削除, 確認を行う。 |
 | コントロールプレーンノード ( Control Plane Node ) | - | Kubernetesクラスタを制御するためのコンポーネント(API サーバー, スケジューラー, コントローラーマネージャー, etcd など)が動作し, , クラスタ全体の制御と調整を行うノード。|
 | ワーカーノード ( Worker Node ) | - | Kubernetes クラスタで実際にアプリケーション(ポッド ( Pod ))が実行されるノード。kubelet と呼ばれるエージェントが動作し, コントロールプレインノードからの指示に基づいてコンテナを実行管理する。 |
 | コンテナ ( Container ) | - | アプリケーションと依存関係を一つのパッケージ化したもの。軽量で, どの環境でも一貫して実行可能。 |
-| ポッド ( Pod ) | - | Kubernetes の最小デプロイメント単位。1 個以上のコンテナ ( Container ) で構成される実行環境。ポッド ( Pod ) 内のすべてのコンテナ ( Container ) は共有ネットワーク(共用 IP・ポート), 共有ストレージによって密接に結合され, 同一ノード上で常に共存・同期スケジュール される。 |
+| ポッド ( Pod ) | - | Kubernetes の最小デプロイメント単位。1 個以上のコンテナ ( Container ) で構成される実行環境。ポッド ( Pod ) 内のすべてのコンテナ ( Container ) は共有ネットワーク(共用 IP, ポート), 共有ストレージによって密接に結合され, 同一ノード上で常に共存, 同期スケジュール される。 |
 | デプロイメント ( Deployment ) | - | Kubernetes リソース。ステートレスなアプリケーション向け。複数のレプリカ(ポッド ( Pod ) の複製)を管理し, 水平スケーリング に対応。 |
 | ステートレス ( Stateless ) | - | アプリケーションの性質を表す用語で，アプリケーションから使用される各種データの状態を永続記憶(ストレージ)に保持しなくとも，動作可能なアプリケーションであることを示す。 |
 | ステートフル ( Stateful ) | - | アプリケーションの性質を表す用語で，アプリケーションから使用される各種データの状態を永続記憶(ストレージ)に保持することを前提として動作するアプリケーションであることを示す。 |
@@ -34,11 +34,11 @@ Kubernetes Virtual Cluster ) のテナント ( Tenant ) 環境を構築するロ
 | プロビジョニング ( Provisioning ) | - | Kubernetes ストレージレイヤーにおける処理。StorageClass で定義されたプロビジョナーが, PersistentVolumeClaim の要求に応じて新しい PersistentVolume を自動的に作成するプロセス。動的プロビジョニングにより, ユーザーが個別に PV を作成する手間を削減できる。静的プロビジョニング(管理者が事前に PV を作成)に対応する概念。 |
 | プロビジョナー ( Provisioner ) | - | Kubernetes ストレージスタックのコンポーネント。StorageClass で指定し, PersistentVolumeClaim の要求に基づいて PersistentVolume を自動作成する。実装にはローカルストレージプロビジョナー, AWS EBS CSI ドライバー, NFS などが存在。 |
 | emptyDir | - | Kubernetes ボリュームタイプ。ポッドがノードに割り当てられた時に作成される一時的なボリューム。ポッドが存在する限りデータが保持され, ポッド削除時にデータが失われる。開発環境での一時データ保存や Pod 内のコンテナ間でのファイル共有に使用。 |
-| コンフィグマップ ( ConfigMap ) | - | Kubernetes リソース。設定データをキー・バリューペアで保存し, 非機密情報を管理。 |
-| シークレット ( Secret ) | - | Kubernetes リソース。パスワード, API キー, 証明書などの機密データを暗号化して安全に保存・管理。 |
+| コンフィグマップ ( ConfigMap ) | - | Kubernetes リソース。設定データをキー, バリューペアで保存し, 非機密情報を管理。 |
+| シークレット ( Secret ) | - | Kubernetes リソース。パスワード, API キー, 証明書などの機密データを暗号化して安全に保存, 管理。 |
 | 仮想クラスタ ( Virtual Cluster ) | - | Kubernetes API を仮想化して提供する論理的な Kubernetes クラスタ。各テナントに独立した専用クラスタとして見える環境を提供する。 |
 | スーパークラスタ ( Super Cluster ) | - | 仮想クラスタ ( Virtual Cluster ) を動作させるホスト側の物理 Kubernetes クラスタ。実際のノードリソースを提供する。 |
-| Kubernetesのデプロイメント | - | Kubernetes を用いて, アプリケーションプロセスやリソースを配置, 展開, 管理するための操作を意味する。Kubernetes の配置・管理における最小実行単位は, ポッド ( Pod ) となる。 |
+| Kubernetesのデプロイメント | - | Kubernetes を用いて, アプリケーションプロセスやリソースを配置, 展開, 管理するための操作を意味する。Kubernetes の配置, 管理における最小実行単位は, ポッド ( Pod ) となる。 |
 | テナント ( Tenant ) | - | 互いに独立した Kubernetes コントロールプレインノードを持つ論理的な利用者またはチーム。各テナントについて, 専用の仮想クラスタ ( Virtual Cluster ) が割り当てられ, テナントに割り当てられた仮想クラスタ ( Virtual Cluster ) 内のリソース (名前空間 ( namespace ) , CRD) を他のテナントに影響を与えずに作成できる。物理リソース (ノード) をスーパークラスタ (Super Cluster) を通じて他のテナントと共有し, かつ, 仮想リソース (Kubernetes のリソース) は, Kubernetes のコントロールプレインノードレベルで分離される。 |
 | VirtualClusterCRD | - | テナント用仮想クラスタ ( Virtual Cluster ) の設定を定義するリソース型(CRD)。 |
 | ClusterVersionCRD | - | 仮想クラスタ ( Virtual Cluster ) 内で使用するコンポーネント(etcd, kube-apiserver, kube-controller-manager)のコンテナイメージ情報を定義するリソース型(CRD)。 |
@@ -125,7 +125,7 @@ k8s-virtual-cluster ロール由来の列に`yes`と記載されている変数�
 | kube-apiserver | `registry.k8s.io/kube-apiserver:v<バージョン>.0` | `k8s_major_minor` | `1.31` |
 | kube-controller-manager | `registry.k8s.io/kube-controller-manager:v<バージョン>.0` | `k8s_major_minor` | `1.31` |
 
-`k8s_major_minor` と `k8s_etcd_major_minor` は、各リポジトリロール（`repo-deb`, `repo-rpm`）の `defaults/main.yml` でデフォルト値を定義しています。
+`k8s_major_minor` と `k8s_etcd_major_minor` は, 各リポジトリロール ( `repo-deb`, `repo-rpm` ) の `defaults/main.yml` でデフォルト値を定義しています。
 
 `vcinstances_auto_detect_supercluster_images: false` の場合, 検出処理は行われないため, ClusterVersionインスタンスの各イメージを明示指定してください。
 
@@ -134,7 +134,7 @@ k8s-virtual-cluster ロール由来の列に`yes`と記載されている変数�
 - `k8s_vcinstances_enabled` の有効化を確認します。
 - CRD 関連の変数と `vc-manager` 名前空間 ( namespace ) の存在を検証します。
 - マニフェスト出力先ディレクトリを作成します。
-- kube-system からコントロールプレインノード管理コンポーネント（etcd, kube-apiserver, kube-controller-manager）のイメージを検出します(自動検出有効時)。
+- kube-system からコントロールプレインノード管理コンポーネント ( etcd, kube-apiserver, kube-controller-manager ) のイメージを検出します(自動検出有効時)。
 - **StorageClass の準備** (`prepare-storage.yml`): `vcinstances_etcd_storage_enabled: true` の場合, スーパークラスタ側に StorageClass が存在しない場合は自動作成します。存在する場合はスキップします。
 - **Failed PV のクリーンアップ** (`cleanup-pvs.yml`): `vcinstances_cleanup_failed_pvs: true` の場合, テナント名に一致する Failed 状態の PV を自動削除します。VirtualCluster 再作成時に古い Claim を保持した PV が Failed 状態になる問題を自動的に解決します。
 - **PersistentVolume の準備** (`prepare-pvs.yml`): `vcinstances_etcd_storage_enabled: true` かつ `vcinstances_auto_create_pv: true` の場合, テナント数分の etcd 用 PV を自動作成します。ワーカーノード上にディレクトリを作成し, local-storage タイプの PV を生成します。
@@ -260,7 +260,7 @@ kubectl --kubeconfig=/etc/kubernetes/admin.conf get storageclass
 本ロールは既存 StorageClass を優先します。新しい StorageClass を作成させたい場合は, 既存の StorageClass を削除してからロールを実行してください:
 
 ```bash
-# 既存 StorageClass 削除（データ損失のリスク注意）
+# 既存 StorageClass 削除 ( データ損失のリスク注意 )
 kubectl delete storageclass <name>
 
 # ロールを再実行
@@ -704,10 +704,10 @@ kubectl describe pod etcd-0 -n <tenant-namespace>
 **症状**:
 - PVC が `Pending` 状態のまま。
 - `kubectl get pv` で PV が `Failed` 状態になっている。
-- PV の CLAIM が現在の名前空間 ( namespace ) と一致しない（例: PV が `vc-manager-c55f6e-tenant-alpha/data-etcd-0` を参照しているが, 実際の PVC は `vc-manager-476dc1-tenant-alpha` 名前空間 ( namespace ) にある）。
+- PV の CLAIM が現在の名前空間 ( namespace ) と一致しない ( 例: PV が `vc-manager-c55f6e-tenant-alpha/data-etcd-0` を参照しているが, 実際の PVC は `vc-manager-476dc1-tenant-alpha` 名前空間 ( namespace ) にある ) 。
 
 **原因**:
-VirtualCluster が再作成されると名前空間 ( namespace ) のサフィックス（ハッシュ値）が変わりますが, 既存の PV は古い Claim 情報を保持し続けるため, バインドできなくなります。
+VirtualCluster が再作成されると名前空間 ( namespace ) のサフィックス ( ハッシュ値 ) が変わりますが, 既存の PV は古い Claim 情報を保持し続けるため, バインドできなくなります。
 
 **確認コマンド**:
 ```bash
@@ -719,9 +719,9 @@ kubectl get pvc -A | grep etcd
 ```
 
 **自動解決**:
-このロールでは, `vcinstances_cleanup_failed_pvs: true`（デフォルト）の場合, PV作成前に自動的にFailed状態のPVをクリーンアップします。通常は手動対応は不要です。
+このロールでは, `vcinstances_cleanup_failed_pvs: true` ( デフォルト ) の場合, PV作成前に自動的にFailed状態のPVをクリーンアップします。通常は手動対応は不要です。
 
-**手動解決方法**（自動クリーンアップが無効の場合）:
+**手動解決方法** ( 自動クリーンアップが無効の場合 ) :
 1. Failed 状態の古い PV を削除:
    ```bash
    kubectl delete pv pv-etcd-tenant-alpha-0 pv-etcd-tenant-beta-1
@@ -737,7 +737,7 @@ kubectl get pvc -A | grep etcd
    kubectl get pvc -A | grep etcd
    ```
 
-**クリーンアップの無効化**（通常は非推奨）:
+**クリーンアップの無効化** ( 通常は非推奨 ) :
 ```yaml
 # host_vars/k8sctrlplane01.local
 vcinstances_cleanup_failed_pvs: false  # 自動クリーンアップを無効化
@@ -784,7 +784,7 @@ kubectl delete virtualcluster tenant-beta -n vc-manager
 
 VirtualCluster インスタンスを削除すると, 対応するテナント名前空間 ( namespace ) `vc-manager-<hash>-<tenant>` と PVC も自動的に削除されます。
 
-#### 2. PV の削除（永続ストレージ有効時）
+#### 2. PV の削除 ( 永続ストレージ有効時 )
 
 `vcinstances_etcd_storage_enabled: true` の場合, PV は自動削除されないため手動で削除する必要があります。
 
@@ -798,7 +798,7 @@ kubectl delete pv pv-etcd-tenant-alpha-0 pv-etcd-tenant-beta-1
 
 **注意**: PV を削除すると, etcd データも完全に失われます。必要に応じて事前にバックアップを取得してください。
 
-#### 3. ClusterVersion インスタンスの削除（必要に応じて）
+#### 3. ClusterVersion インスタンスの削除 ( 必要に応じて )
 
 ```bash
 # 全 ClusterVersion インスタンスを削除
@@ -808,7 +808,7 @@ kubectl delete clusterversions --all
 kubectl delete clusterversion cv-k8s-1-31
 ```
 
-#### 4. ワーカーノード上の PV データディレクトリ削除（必要に応じて）
+#### 4. ワーカーノード上の PV データディレクトリ削除 ( 必要に応じて )
 
 ローカルストレージを使用している場合, ワーカーノード上のデータディレクトリも削除してください。
 
@@ -831,10 +831,10 @@ ansible-playbook -i inventory/hosts k8s-management.yml -t k8s-vc-instances
 # 1. 対象の VirtualCluster インスタンスを削除
 kubectl delete virtualcluster tenant-alpha -n vc-manager
 
-# 2. 対象の PV を削除（永続ストレージ有効時）
+# 2. 対象の PV を削除 ( 永続ストレージ有効時 )
 kubectl delete pv pv-etcd-tenant-alpha-0
 
-# 3. ロールを再実行（全体を実行すると他のテナントも再作成されるため注意）
+# 3. ロールを再実行 ( 全体を実行すると他のテナントも再作成されるため注意 )
 ansible-playbook -i inventory/hosts k8s-management.yml -t k8s-vc-instances
 ```
 

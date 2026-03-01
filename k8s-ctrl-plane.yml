@@ -25,6 +25,8 @@
       tags: create-users
     - role: k8s-common
       tags: k8s-common
+    - role: k8s-devel
+      tags: k8s-devel
     - role: k8s-shared-ca
       tags: k8s-shared-ca
     - role: k8s-ctrlplane

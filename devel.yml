@@ -31,6 +31,8 @@
       tags: post-user-create
     - role: devel-packages
       tags: devel-packages
+    - role: k8s-devel
+      tags: k8s-devel
     - role: docker-ce
       tags: docker-ce
     - role: terraform

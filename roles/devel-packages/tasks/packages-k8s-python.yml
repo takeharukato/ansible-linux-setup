@@ -10,7 +10,7 @@
   ansible.builtin.package:
     pkg:
       '{{ k8s_python_packages }}'
-    state: latest
+    state: present
   notify: disable_gui
   when:
     - k8s_python_packages_enabled | default(false) | bool
@@ -20,7 +20,7 @@
   ansible.builtin.package:
     pkg:
       '{{ k8s_python_devel_packages }}'
-    state: latest
+    state: present
   notify: disable_gui
   when:
     - k8s_python_devel_packages_enabled | default(false) | bool

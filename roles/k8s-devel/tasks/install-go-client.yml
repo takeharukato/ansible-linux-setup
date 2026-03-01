@@ -1,0 +1,56 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  Go Kubernetes client 導入
+#
+---
+
+# Go インストールがスキップされた場合の警告
+- name: Warn if go installation was skipped
+  ansible.builtin.debug:
+    msg: "WARNING: Go installation was skipped. Go client installation will be skipped."
+  when:
+    - k8s_devel_go_client_enabled | bool
+    - go_installation_skipped | default(false)
+
+# Go クライアント導入用のワーキングディレクトリを作成し, go mod init してから client-go モジュールを導入する
+#
+# 留意事項: Kubernetes Go client は go mod を使用して導入するため,
+# ワーキングディレクトリで go mod init してから
+# client-go モジュールを導入する
+#
+- name: Ensure go client work dir exists
+  ansible.builtin.file:
+    path: "{{ k8s_devel_go_work_dir }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+  when:
+    - k8s_devel_go_client_enabled | bool
+    - not (go_installation_skipped | default(false))
+
+# Kubernetes Client の go moduleを初期化する
+- name: Initialize go module for k8s client
+  ansible.builtin.command:
+    cmd: "{{ go_command }} mod init {{ k8s_devel_go_module_domain }}/k8s-devel-client-go"
+    chdir: "{{ k8s_devel_go_work_dir }}"
+    creates: "{{ k8s_devel_go_work_dir }}/go.mod"
+  when:
+    - k8s_devel_go_client_enabled | bool
+    - not (go_installation_skipped | default(false))
+
+# Kubernetes Client の go module の版数を指定して導入する
+- name: Ensure client-go module version
+  ansible.builtin.command:
+    cmd: "{{ go_command }} get k8s.io/client-go@{{ k8s_devel_go_client_version_effective }}"
+    chdir: "{{ k8s_devel_go_work_dir }}"
+  register: k8s_devel_go_get_result
+  changed_when: >-
+    ('go: added' in k8s_devel_go_get_result.stdout) or
+    ('go: upgraded' in k8s_devel_go_get_result.stdout) or
+    ('go: downgraded' in k8s_devel_go_get_result.stdout)
+  when:
+    - k8s_devel_go_client_enabled | bool
+    - not (go_installation_skipped | default(false))

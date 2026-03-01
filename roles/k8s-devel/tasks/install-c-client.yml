@@ -1,0 +1,13 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  C Kubernetes client 導入
+#
+---
+
+- name: Notify C client installation is deferred
+  ansible.builtin.debug:
+    msg: "C Kubernetes client installation is deferred in this phase."
+  when:
+    - k8s_devel_c_client_enabled | bool

@@ -1,0 +1,82 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  前提パッケージ導入
+#
+---
+
+#
+# Kubernetes クライアント導入の前提となるパッケージを導入する
+#
+
+# Python クライアントの前提パッケージを導入する
+- name: Install python prereq packages
+  ansible.builtin.package:
+    name: "{{ k8s_devel_python_prereq_packages }}"
+    state: present
+  when:
+    - k8s_devel_python_client_enabled | bool
+
+# Go バージョン指定時: Go公式tarballから導入
+- name: Resolve and install go from official tarball
+  when:
+    - go_lang_version is defined
+    - go_lang_version | length > 0
+    - (k8s_devel_go_packages_enabled | bool) or (k8s_devel_go_client_enabled | bool)
+  block:
+    - name: Resolve go version from official API
+      ansible.builtin.include_tasks: resolve-go-version.yml
+
+    # 既存の Go パッケージを削除 (Debian/Ubuntu 系)
+    - name: Remove existing go package on Debian
+      ansible.builtin.apt:
+        name: "{{ k8s_devel_go_package_name }}"
+        state: absent
+        purge: true
+      when:
+        - ansible_facts.os_family == 'Debian'
+        - go_lang_remove_existing_package | bool
+        - not (go_installation_skipped | default(false))
+
+    # 既存の Go パッケージを削除 (RHEL 系)
+    - name: Remove existing go package on RHEL
+      ansible.builtin.dnf:
+        name: "{{ k8s_devel_go_package_name }}"
+        state: absent
+      when:
+        - ansible_facts.os_family == 'RedHat'
+        - go_lang_remove_existing_package | bool
+        - not (go_installation_skipped | default(false))
+
+    - name: Install go from official tarball
+      ansible.builtin.include_tasks: install-go-from-tarball.yml
+
+# Go バージョン未指定時: パッケージマネージャから導入 (Debian/Ubuntu 系)
+- name: Install go prereq packages on Debian
+  ansible.builtin.apt:
+    name: "{{ k8s_devel_go_package_name }}"
+    state: latest  # noqa package-latest
+    update_cache: true
+  when:
+    - ansible_facts.os_family == 'Debian'
+    - go_lang_version is not defined or go_lang_version | length == 0
+    - (k8s_devel_go_packages_enabled | bool) or (k8s_devel_go_client_enabled | bool)
+
+# Go バージョン未指定時: パッケージマネージャから導入 (RHEL 系)
+- name: Install go prereq packages on RHEL
+  ansible.builtin.dnf:
+    name: "{{ k8s_devel_go_package_name }}"
+    state: latest  # noqa package-latest
+  when:
+    - ansible_facts.os_family == 'RedHat'
+    - go_lang_version is not defined or go_lang_version | length == 0
+    - (k8s_devel_go_packages_enabled | bool) or (k8s_devel_go_client_enabled | bool)
+
+# パッケージマネージャ導入時のGoコマンドパス設定
+- name: Set go command path for package installation
+  ansible.builtin.set_fact:
+    go_command: "{{ go_command_package }}"
+  when:
+    - go_lang_version is not defined or go_lang_version | length == 0
+    - (k8s_devel_go_packages_enabled | bool) or (k8s_devel_go_client_enabled | bool)

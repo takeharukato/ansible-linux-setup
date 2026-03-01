@@ -1,0 +1,63 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  Kubernetesクライアント版数算出処理
+#
+---
+
+# Kubernetes のマイナーバージョンを取得するため,
+# k8s_major_minor 変数のフォーマットを検査する
+- name: Validate k8s_major_minor format
+  ansible.builtin.assert:
+    that:
+      - k8s_major_minor is string
+      - k8s_major_minor is match('^[0-9]+\.[0-9]+$')
+    fail_msg: "k8s_major_minor must be major.minor format (example: 1.31)."
+  register: k8s_devel_validation_result
+  ignore_errors: true
+
+# バージョン算出をスキップするフラグを設定する
+- name: Initialize version derivation flag
+  ansible.builtin.set_fact:
+    k8s_devel_skip_version_derivation: "{{ k8s_devel_validation_result is failed }}"
+
+# Kubernetes のマイナーバージョンを取得する
+- name: Derive Kubernetes minor version
+  ansible.builtin.set_fact:
+    k8s_devel_k8s_minor: "{{ (k8s_major_minor.split('.'))[1] }}"
+  when: not k8s_devel_skip_version_derivation | bool
+
+# Kubernetes Python クライアントのバージョンを算出する
+- name: Resolve default python client version
+  ansible.builtin.set_fact:
+    k8s_devel_python_client_version_effective: >-
+      {{
+        (k8s_devel_python_client_version | length > 0)
+        | ternary(k8s_devel_python_client_version, '~=' ~ k8s_devel_k8s_minor ~ '.0')
+      }}
+  when: not k8s_devel_skip_version_derivation | bool
+
+# Kubernetes Go クライアントのバージョンを算出する
+- name: Resolve default go client version
+  ansible.builtin.set_fact:
+    k8s_devel_go_client_version_effective: >-
+      {{
+        (k8s_devel_go_client_version | length > 0)
+        | ternary(k8s_devel_go_client_version, 'v0.' ~ k8s_devel_k8s_minor ~ '.0')
+      }}
+  when: not k8s_devel_skip_version_derivation | bool
+
+# PEP 668 対応: Ubuntu 24.04 以降では --break-system-packages が必要
+- name: Set pip extra args for PEP 668 compliance (Ubuntu 24.04+)
+  ansible.builtin.set_fact:
+    k8s_devel_python_pip_extra_args: "--break-system-packages"
+  when:
+    - ansible_facts.os_family == 'Debian'
+    - ansible_facts.distribution_version is version('24.04', '>=')
+
+# PEP 668 非対応環境では extra_args を空にする
+- name: Set pip extra args to empty for other environments
+  ansible.builtin.set_fact:
+    k8s_devel_python_pip_extra_args: ""
+  when: k8s_devel_python_pip_extra_args is not defined

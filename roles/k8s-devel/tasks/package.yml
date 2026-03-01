@@ -1,0 +1,22 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  パッケージ関連処理
+---
+
+# 前提パッケージの導入
+- name: Install prereq packages
+  ansible.builtin.include_tasks: install-prereqs.yml
+
+# Python用Kubernetes クライアントの導入
+- name: Install python kubernetes client
+  ansible.builtin.include_tasks: install-python-client.yml
+
+# Go用Kubernetes クライアントの導入
+- name: Install go kubernetes client
+  ansible.builtin.include_tasks: install-go-client.yml
+
+# C用Kubernetes クライアントの導入
+- name: Install C kubernetes client
+  ansible.builtin.include_tasks: install-c-client.yml

@@ -1,0 +1,16 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  Python Kubernetes client 導入
+#
+---
+
+# Kubernetes Python クライアントをpip経由で導入する
+- name: Install kubernetes python client via pip
+  ansible.builtin.pip:
+    name: "kubernetes{{ k8s_devel_python_client_version_effective }}"
+    state: present
+    extra_args: "{{ k8s_devel_python_pip_extra_args | default('') }}"
+  when:
+    - k8s_devel_python_client_enabled | bool

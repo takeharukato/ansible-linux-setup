@@ -96,6 +96,10 @@ k8s_python_packages:
 k8s_python_devel_packages:
   - python3.12-devel
 
+# k8s-devel ロール用前提パッケージ
+k8s_devel_python_prereq_packages:
+  - python3-pip
+
 common_mdns_packages:
   - avahi
   - avahi-tools
