@@ -42,6 +42,8 @@ Kubernetes Virtual Cluster ) の基盤コンポーネントをデプロイする
 | vc-manager ( Virtual Cluster Manager ) | vc-manager | 仮想クラスタ ( Virtual Cluster ) の制御コンポーネント。スーパークラスタ ( Super Cluster ) 上で仮想クラスタ ( Virtual Cluster ) の管理を行う。 |
 | vc-syncer ( Virtual Cluster Syncer ) | vc-syncer | 仮想クラスタ ( Virtual Cluster ) とスーパークラスタ ( Super Cluster ) の状態を同期するコンポーネント。 |
 | vn-agent ( Virtual Node Agent ) | vn-agent | ワーカーノード上で仮想クラスタ ( Virtual Cluster ) の通信を中継するエージェント。 |
+| feature gate | - | Kubernetesやその関連プロジェクトで使用される機能制御スイッチ。実験的または段階的に導入される機能を個別に有効化/無効化するための仕組み。`--feature-gates=FeatureName=true/false`形式でコマンドライン引数として指定する。これにより, 安定版に到達していない機能などを選択的に有効化可能。VirtualClusterでは, vc-syncerの`SyncTenantPVCStatusPhase=true`などが該当する。 |
+| Phase sync | - | VirtualCluster固有の機能。テナント側で作成された PersistentVolumeClaim (PVC) の状態(Phase: Pending, Bound等)をスーパークラスタ側と同期する仕組み。vc-syncer の feature gate (`SyncTenantPVCStatusPhase=true`)で有効化され, テナント側から PVC の実際の状態を確認可能にする。この同期により, テナント内で PVC が正常にバインドされたかどうかをリアルタイムで把握できる。 |
 | webhook | - | Kubernetes API 拡張機構。vc-manager では VirtualCluster リソースの検証と変更時の操作を行う際に使用される。 |
 | Debian Bookworm Slim | debian:bookworm-slim | Dockerイメージ作成時に使用するDebian 12 (Bookworm)の軽量ベースイメージ。 |
 | 名前空間 ( namespace ) | - | Kubernetes におけるリソースのグループ化と分離の仕組み。 |
@@ -143,7 +145,7 @@ etcd の永続ストレージを有効にする場合 (`vcinstances_etcd_storage
 
 ## コンテナイメージ作成と配布の流れ
 
-以下の`<component>`には`virtualcluster_build_components`の各要素を指し, 既定では`manager`, `syncer`, `vn-agent`が入ります。
+以下の`<component>`には`virtualcluster_build_components`の各要素を指し, 既定では`manager`, `vc-syncer`, `vn-agent`が入ります。
 
 - `virtualcluster_source_repo`を`virtualcluster_build_host`上の`virtualcluster_source_dir`へクローンまたは更新します。
 - `make build-images`でバイナリを生成します。
@@ -351,7 +353,7 @@ ansible-playbook k8s-management.yml -t k8s-virtual-cluster
 | `templates/namespace.yaml.j2` | `{{ virtualcluster_config_dir }}/namespace.yaml` (既定: `~/kubeadm/virtual-cluster/namespace.yaml`) | 名前空間 ( namespace ) 定義です。 |
 | `templates/clusterversion-crd.yaml.j2` | `{{ virtualcluster_config_dir }}/clusterversion-crd.yaml` (既定: `~/kubeadm/virtual-cluster/clusterversion-crd.yaml`) | ClusterVersion CRD です。 |
 | `templates/virtualcluster-crd.yaml.j2` | `{{ virtualcluster_config_dir }}/virtualcluster-crd.yaml` (既定: `~/kubeadm/virtual-cluster/virtualcluster-crd.yaml`) | VirtualCluster CRD です。 |
-| `templates/all-in-one.yaml.j2` | `{{ virtualcluster_config_dir }}/all-in-one.yaml` (既定: `~/kubeadm/virtual-cluster/all-in-one.yaml`) | vc-manager, syncer, vn-agent のマニフェストです。 |
+| `templates/all-in-one.yaml.j2` | `{{ virtualcluster_config_dir }}/all-in-one.yaml` (既定: `~/kubeadm/virtual-cluster/all-in-one.yaml`) | vc-manager, vc-syncer, vn-agent のマニフェストです。 |
 
 ## 生成されるリソース
 
@@ -474,7 +476,7 @@ spec:
 
 ```mermaid
 flowchart TD
-    A["テナント側で<br/>PVC を作成"] --> B["syncer が<br/>スーパークラスタ側に同期"]
+    A["テナント側で<br/>PVC を作成"] --> B["vc-syncer が<br/>スーパークラスタ側に同期"]
     B --> C["スーパークラスタの<br/>StorageClass が処理"]
     C --> D["PV が自動作成/<br/>バインド ( Bind ) "]
     D --> E["テナント Pod が<br/>ストレージにアクセス"]
@@ -486,14 +488,14 @@ flowchart TD
 |------|------|------|
 | **PV の直接作成** | テナント側では不可 | StorageClass を通じて PVC から自動作成 |
 | **StorageClass の可視性** | `PublicObjectKey=true` ラベル付きのみ | スーパークラスタで SC にラベルを付与 |
-| **マルチテナント分離** | 完全なストレージクォータなし | 運用の RBAC で予めテナント namespace を制限 |
-| **クロステナント PVC** | 他テナントの PVC にはアクセス不可 | namespace 分離で自動的に実現 |
+| **マルチテナント分離** | 完全なストレージクォータなし | 運用の RBAC で予めテナント 名前空間 ( namespace ) を制限 |
+| **クロステナント PVC** | 他テナントの PVC にはアクセス不可 | 名前空間 ( namespace ) 分離で自動的に実現 |
 | **PVC status 同期** | Phase sync が必須 | feature gate により自動有効化 |
 
 #### 検証手順
 
 ```bash
-# 1. syncer の feature gate を確認
+# 1. vc-syncer の feature gate を確認
 kubectl -n vc-manager describe deployment vc-syncer | grep feature-gates
 
 # 2. スーパークラスタで StorageClass にラベルを付与
@@ -538,19 +540,19 @@ kubectl get storageclass -L PublicObjectKey
 TENANT_NS=$(kubectl get virtualclusters -n vc-manager <vc-name> -o jsonpath='{.status.clusterNamespace}')
 kubectl -n $TENANT_NS get storageclass
 
-# 3. syncer のログで同期エラーを確認
+# 3. vc-syncer のログで同期エラーを確認
 kubectl -n vc-manager logs -l app=vc-syncer --tail=100 | grep -i pvc
 ```
 
-**症状: syncer が PVC Status Phase を同期していない**
+**症状: vc-syncer が PVC Status Phase を同期していない**
 
 ```bash
 # feature gate が有効になっているか確認
 kubectl -n vc-manager get deployment vc-syncer -o jsonpath='{.spec.template.spec.containers[0].args}' | grep -o 'feature-gates=[^ ]*'
-
-# 期待する状態: feature-gates=SyncTenantPVCStatusPhase=true
-# そうでない場合は, Deployment 再起動で反映されます
 ```
+
+**期待する状態:** feature-gates=SyncTenantPVCStatusPhase=true
+そうでない場合は, Deployment 再起動で反映されます。
 
 ---
 
@@ -605,7 +607,7 @@ vc-tenant-logs.sh <テナント名> <Pod名> [kubectlオプション...]
 | オプション | 説明 |
 |----------|------|
 | `-h, --help` | ヘルプメッセージを表示して終了 |
-| `--vc-manager-ns NS` | VirtualCluster 管理 namespace(デフォルト: `vc-manager`) |
+| `--vc-manager-ns NS` | VirtualCluster 管理 名前空間 ( namespace ) (デフォルト: `vc-manager`) |
 
 ### スクリプト固有オプション
 
@@ -626,7 +628,7 @@ vc-tenant-logs.sh <テナント名> <Pod名> [kubectlオプション...]
 | オプション | 説明 |
 |----------|------|
 | `--all` | 全リソース削除(確認なし) |
-| `--grace-period=N` | Graceful 削除の猶予時間(秒) |
+| `--grace-period=N` | 削除猶予時間(秒) |
 
 **vc-tenant-exec.sh**
 
@@ -722,7 +724,7 @@ pod/busybox-demo created
 
 出力結果のメッセージが「pod/busybox-demo created」であることを確認して, Pod が正常に作成されていることを確認してください。
 
-**ステップC: Pod の状態を確認 ( 作成直後 ) **
+**ステップC: Pod の状態を確認 ( 作成直後 )**
 
 Pod の現在の状態を確認します。Podは作成直後のため, ContainerCreatingの状態です。
 
@@ -746,7 +748,7 @@ etcd-0                   1/1     Running             0          23m
 
 出力結果のSTATUSが「ContainerCreating」であることを確認して, Pod が起動中であることを確認してください。
 
-**ステップD: ログを取得 ( 起動中エラー ) **
+**ステップD: ログを取得 ( 起動中エラー )**
 
 Podの起動が完了する前にログを取得しようとするとエラーが発生します。これは正常な動作です。
 
@@ -774,7 +776,7 @@ Pod が Running 状態に遷移するまで数秒待機します。
 sleep 10
 ```
 
-**ステップF: ログを取得 ( 起動完了後 ) **
+**ステップF: ログを取得 ( 起動完了後 )**
 
 Pod が起動完了したので,ログを取得します。
 
@@ -1178,9 +1180,9 @@ data-etcd-0   Bound    pv-etcd-tenant-alpha-0   10Gi       RWO            defaul
 
 出力結果のSTATUSが「Bound」であることを確認して, PVC が正常に PersistentVolume にバインド(結合)されていることを確認してください。
 
-#### 例5: カスタム管理 namespace の指定
+#### 例5: カスタム管理 名前空間 ( namespace ) の指定
 
-デフォルトでは `vc-manager` namespace を使用してテナント情報を取得します。環境によって異なる namespace を使用する場合は, `--vc-manager-ns` オプションで明示的に指定します。
+デフォルトでは `vc-manager` 名前空間 ( namespace ) を使用してテナント情報を取得します。環境によって異なる 名前空間 ( namespace ) を使用する場合は, `--vc-manager-ns` オプションで明示的に指定します。
 
 ```bash
 vc-tenant-get.sh tenant-alpha pods --vc-manager-ns custom-vc-manager
@@ -1199,7 +1201,7 @@ controller-manager-0   1/1     Running   0          21m
 etcd-0                 1/1     Running   0          21m
 ```
 
-出力結果のPodリストが表示されていることを確認して, カスタムnamespace内のテナント情報が正常に取得されていることを確認してください。
+出力結果のPodリストが表示されていることを確認して, カスタム名前空間 ( namespace ) 内のテナント情報が正常に取得されていることを確認してください。
 
 ### トラブルシューティング
 
@@ -1244,7 +1246,7 @@ vc-tenant-get.sh tenant-alpha pods
 一部の環境では IPv6 接続が不安定な場合があります。その場合は以下の代替手段を使用してください。
 
 ```bash
-# スーパークラスタから直接 namespace を指定してアクセス
+# スーパークラスタから直接 名前空間 ( namespace ) を指定してアクセス
 TENANT_NS=$(kubectl get virtualclusters.tenancy.x-k8s.io -n vc-manager <tenant-name> \
   -o jsonpath='{.status.clusterNamespace}')
 
