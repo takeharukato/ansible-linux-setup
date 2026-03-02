@@ -2,9 +2,61 @@
 
 Kubernetes コントロールプレーンノードを構築するロールです。`k8s-common` で整えた共通前提の上に, kubeadm 設定の生成と実行, Cilium の導入, Cluster Mesh 用 kubeconfig 生成ツールの配布, Helm/Cilium CLI 環境整備を行います。IPv4/IPv6 デュアルスタックを前提にしており, 再実行にも対応するよう設計されています。
 
+## 用語
+
+| 正式名称 | 略称 | 意味 |
+| --- | --- | --- |
+| Application Programming Interface | API | アプリケーション同士がやり取りする方法を定めた仕様。 |
+| Custom Resource Definition | CRD | Kubernetes APIを拡張してユーザ独自のリソース種別を定義する仕組み。 |
+| Role-Based Access Control | RBAC | ユーザやサービスアカウントが実行可能な操作を役割(Role)で制限する仕組み。 |
+| Service Account | - | Kubernetes内部でPodが他のリソースにアクセスする際に用いる仮想的なアカウント。 |
+| ClusterRole | - | クラスタ全体に適用される権限の集合。 |
+| ClusterRoleBinding | - | ClusterRoleをユーザやサービスアカウントに紐付ける仕組み。 |
+| Role | - | 特定の名前空間内で有効な権限の集合。 |
+| RoleBinding | - | Roleをユーザやサービスアカウントに紐付ける仕組み。 |
+| Namespace | - | Kubernetes内部でリソースを論理的に分離する単位。 |
+| Pod | - | Kubernetes上で動作するコンテナの最小単位。 |
+| DaemonSet | - | クラスタ内の全ノード(または指定した一部のノード)で必ずPodを1つずつ起動させるリソース。 |
+| Deployment | - | 指定した数のPodを維持し, ローリングアップデート等を管理するリソース。 |
+| StatefulSet | - | 状態を持つアプリケーションのPodを順序付けて管理するリソース。 |
+| Service | - | Podへのアクセスを抽象化し, 負荷分散やサービスディスカバリを提供するリソース。 |
+| Ingress | - | クラスタ外部からHTTP/HTTPS通信を受け付け, 内部のServiceへルーティングする仕組み。 |
+| ConfigMap | - | 設定情報を保持し, Podへ環境変数やファイルとして注入するリソース。 |
+| Secret | - | 機密情報を保持し, Podへ安全に注入するリソース。 |
+| PersistentVolume | PV | クラスタ内で利用可能なストレージリソースを表すオブジェクト。 |
+| PersistentVolumeClaim | PVC | ユーザがPVを要求する際に利用するリソース。 |
+| StorageClass | - | 動的にPVをプロビジョニングする際のストレージ種別を定義するリソース。 |
+| Node | - | Kubernetesクラスタを構成する物理マシンまたは仮想マシン。 |
+| Control Plane | - | クラスタ全体を管理, 制御する中枢ノード群。kube-apiserver, kube-controller-manager, kube-schedulerなどが動作する。 |
+| Worker Node | - | 実際にアプリケーションのPodを実行するノード。 |
+| kube-apiserver | - | KubernetesのAPIリクエストを受け付け, etcdへの読み書きを仲介するコンポーネント。 |
+| kube-controller-manager | - | Deployment, ReplicaSetなど各種コントローラを実行し, クラスタの状態を監視, 調整するコンポーネント。 |
+| kube-scheduler | - | 新規作成されたPodを適切なNodeへ配置するコンポーネント。 |
+| kubelet | - | 各Node上で動作し, Podの起動, 停止, 監視を行うエージェント。 |
+| kube-proxy | - | 各Node上でServiceのネットワークルールを管理するコンポーネント。 |
+| etcd | - | Kubernetesのクラスタ状態を保存する分散Key-Valueストア。 |
+| Container Network Interface | CNI | コンテナ間のネットワーク接続を標準化するプラグイン仕様。 |
+| Cilium | - | eBPFを活用した高性能なCNIプラグイン。ネットワークポリシーやサービスメッシュ機能を提供する。 |
+| Multus | - | 複数のCNIプラグインを同時に使用できるようにするメタCNIプラグイン。 |
+| Container Runtime Interface | CRI | Kubernetesがコンテナランタイムと通信するための標準インターフェース。 |
+| containerd | - | Dockerから分離された軽量なコンテナランタイム。 |
+| kubeadm | - | Kubernetesクラスタの初期構築と管理を支援する公式ツール。 |
+| kubectl | - | Kubernetesクラスタを操作するためのコマンドラインツール。 |
+| Helm | - | Kubernetesアプリケーションのパッケージ管理ツール。Chart形式でアプリケーションを配布, インストールする。 |
+| Chart | - | Helmで管理されるアプリケーションパッケージの単位。Kubernetes Manifestのテンプレート集。 |
+| Operator | - | アプリケーション固有の運用知識をコードで自動化するKubernetesの拡張パターン。 |
+| Custom Resource | CR | CRDで定義されたユーザ独自のリソースの実体。 |
+| Admission Controller | - | APIリクエストがetcdに保存される前に検証, 変更を行うプラグイン。 |
+| Network Policy | - | Pod間の通信を制御するファイアウォールルールを定義するリソース。 |
+| Label | - | リソースに付与するKey-Value形式のメタデータ。リソースの分類, 検索に利用される。 |
+| Selector | - | Labelを利用してリソースを選択する条件式。 |
+| Annotation | - | リソースに付与するKey-Value形式の補足情報。ツールやコントローラが参照するメタデータ。 |
+| Taint | - | Nodeに設定する特殊なマークで, 特定の条件を満たさないPodの配置を拒否する。 |
+| Toleration | - | PodがTaintを持つNodeへ配置されることを許可する設定。 |
+
 ## 実行フロー
 
-1. `load-params.yml` で OS 別パッケージ定義 (`vars/packages-*.yml`) とクラスタ共通変数 (`vars/cross-distro.yml`, `vars/all-config.yml`, `vars/k8s-api-address.yml`) を読み込みます。
+1. `load-params.yml` で OS 別パッケージ定義 (`vars/packages-*.yml`) とKubernetesクラスタ共通変数 (`vars/cross-distro.yml`, `vars/all-config.yml`, `vars/k8s-api-address.yml`) を読み込みます。
 2. `package.yml` を読み込みます (現状はタスクなしのプレースホルダです)。
 3. `directory.yml` が Cilium / Multus / Whereabouts 用の設定ディレクトリ (既定では `{{ k8s_kubeadm_config_store }}/cilium` など) を作成します。Multus / Whereabouts の導入は本ロールでは行いません。
 4. `user_group.yml` と `service.yml` は将来の拡張用に読み込まれます (現状はタスクなし)。
@@ -13,21 +65,21 @@ Kubernetes コントロールプレーンノードを構築するロールです
 7. `config-k8s-helm-shell-completion.yml` が `k8s_helm_cli_completion_enabled` 有効時に bash/zsh 用補完スクリプトを生成・配置します。
 8. `config-k8s-cilium-shell-completion.yml` が `k8s_cilium_cli_completion_enabled` 有効時に bash/zsh 用補完スクリプトを生成・配置します。
 9. `config.yml` が kubeadm 設定ファイル `ctrlplane-kubeadm.config.yml` を生成し, Pod/Service CIDR の順序を API ファミリと揃えた上で `kubeadm reset` → `kubeadm init` を実行します。必要に応じて共通 CA を `/etc/kubernetes/pki` へ復元し, containerd / kubelet を有効化してから kubeconfig を root / ansible / `k8s_operator_user` に配布し, ホストを再起動します。
-10. `config-cilium.yml` が API サーバの起動を待機し, `kubernetes-admin` に cluster-admin 権限を付与してから kube-proxy (DaemonSet / ConfigMap / iptables ルール) を除去し, (必要時) `k8s-cilium-shared-ca` ロールで Cluster Mesh 用 Secret を更新し, 生成した values で `helm install cilium` を実行します (既存リリースが残っていると失敗するため, 再適用時は手動で削除が必要)。処理後に再起動します。
+10. `config-cilium.yml` が kube-apiserverの起動を待機し, `kubernetes-admin` に cluster-admin 権限を付与してから kube-proxy (DaemonSet / ConfigMap / iptables ルール) を除去し, (必要時) `k8s-cilium-shared-ca` ロールで Cluster Mesh 用 Secret を更新し, 生成した values で `helm install cilium` を実行します (既存リリースが残っていると失敗するため, 再適用時は手動で削除が必要)。処理後に再起動します。
 11. `config-cilium-bgp-cplane.yml` は `k8s_bgp.enabled` が `true` のホストで発動し, ノード名などの識別子を算出して Cilium BGP Control Plane 用 manifest を生成します。その後, 関連 CRD (CiliumBGPAdvertisement / CiliumBGPPeerConfig / CiliumBGPClusterConfig) の存在を確認しながら manifest を適用します。
-12. `config-cluster-mesh-tools.yml` が Cluster Mesh 向けツールディレクトリを作成し, 証明書埋め込み kubeconfig 生成スクリプトと手順書を配布します。クラスタ名/ID が指定されている場合は共有 CA の存在を検証し, 見つからなければ明示的に失敗させます。条件を満たせば埋め込み kubeconfig を生成し, ファイル所有者を `k8s_operator_user` に設定します。
+12. `config-cluster-mesh-tools.yml` が Cluster Mesh 向けツールディレクトリを作成し, 証明書埋め込み kubeconfig 生成スクリプトと手順書を配布します。Kubernetesクラスタ名/ID が指定されている場合は共有 CA の存在を検証し, 見つからなければ明示的に失敗させます。条件を満たせば埋め込み kubeconfig を生成し, ファイル所有者を `k8s_operator_user` に設定します。
 
 ## 主要変数
 
 | 変数名 | 既定値 | 説明 |
 | --- | --- | --- |
 | `k8s_ctrlplane_endpoint` | 各ホストの `host_vars` で指定 | Control Plane API の広告アドレス (IPv4/IPv6)。kubeadm 設定, 本ロール内の待機処理, Cilium 設定で使用。|
-| `k8s_api_wait_host` | `"{{ k8s_ctrlplane_endpoint }}"` | Kubernetes APIサーバの待ち合わせ先(接続先)ホスト名/IPアドレス。|
-| `k8s_api_wait_port` | `"{{ k8s_ctrlplane_port }}"` | Kubernetes APIサーバの待ち合わせ先ポート番号。 (規定: `6443`)|
-| `k8s_api_wait_timeout` | `600` | Kubernetes APIサーバ待ち合わせ時間(単位: 秒)。|
-| `k8s_api_wait_delay` | `2` | Kubernetes APIサーバ待ち合わせる際の開始遅延時間(単位: 秒)。|
-| `k8s_api_wait_sleep` | `1` | Kubernetes APIサーバ待ち合わせる際の待機間隔(単位: 秒)。|
-| `k8s_api_wait_delegate_to` | `"localhost"` | Kubernetes APIサーバ待ち合わせる際の接続元ホスト名/IPアドレス。|
+| `k8s_api_wait_host` | "{{ k8s_ctrlplane_endpoint }}" | kube-apiserverの待ち合わせ先(接続先)ホスト名/IPアドレス。|
+| `k8s_api_wait_port` | "{{ k8s_ctrlplane_port }}" | kube-apiserverの待ち合わせ先ポート番号。 (規定: `6443`)|
+| `k8s_api_wait_timeout` | `600` | kube-apiserver待ち合わせ時間(単位: 秒)。|
+| `k8s_api_wait_delay` | `2` | kube-apiserver待ち合わせる際の開始遅延時間(単位: 秒)。|
+| `k8s_api_wait_sleep` | `1` | kube-apiserver待ち合わせる際の待機間隔(単位: 秒)。|
+| `k8s_api_wait_delegate_to` | "localhost" | kube-apiserver待ち合わせる際の接続元ホスト名/IPアドレス。|
 | `k8s_kubeadm_config_store` | `{{ ansible_home_dir }}/kubeadm` | `ctrlplane-kubeadm.config.yml` や Cilium values の生成先ルート。|
 | `k8s_cilium_config_dir` | `{{ k8s_kubeadm_config_store }}/cilium` | Cilium 設定ファイルの生成先ディレクトリ。|
 | `k8s_multus_config_dir` | 未定義 | Multus 設定ディレクトリ (本ロールでは作成のみ)。|
@@ -78,7 +130,7 @@ Kubernetes コントロールプレーンノードを構築するロールです
 
 ## 検証ポイント
 
-- `kubeadm init` 実行後に `kubectl --kubeconfig /etc/kubernetes/admin.conf get nodes` が正常に返り, API サーバが `Ready` である。
+- `kubeadm init` 実行後に `kubectl --kubeconfig /etc/kubernetes/admin.conf get nodes` が正常に返り, kube-apiserverが `Ready` である。
 - `/etc/kubernetes/pki` に共通 CA が配置されている (必要に応じて `openssl x509 -in /etc/kubernetes/pki/ca.crt -noout -subject`)。
 - `kubectl -n kube-system get ds cilium` で Cilium DaemonSet が稼働し, `cilium status` が `OK` を示す。
 - `helm list -n kube-system` に `cilium` が想定通りのバージョンで存在する。
@@ -88,7 +140,7 @@ Kubernetes コントロールプレーンノードを構築するロールです
 
 ### デュアルスタック構成の確認
 
-コントロールプレーン構築後, クラスタが IPv4/IPv6 デュアルスタックで正常に動作しているかを確認するため, 以下の手順を実行します。これらは特にワーカーノード追加前の段階での検証に有用です。
+コントロールプレーンノード構築後, Kubernetesクラスタが IPv4/IPv6 デュアルスタックで正常に動作しているかを確認するため, 以下の手順を実行します。これらは特にワーカーノード追加前の段階での検証に有用です。
 
 #### Node podCIDRs の確認
 
@@ -161,7 +213,7 @@ spec:
 
 #### kube-apiserver の service-cluster-ip-range 確認
 
-API サーバが起動時に指定された Service CIDR 範囲を確認します:
+kube-apiserverが起動時に指定された Service CIDR 範囲を確認します:
 
 ```bash
 kubectl cluster-info dump | grep service-cluster-ip-range
@@ -181,13 +233,13 @@ kubectl cluster-info dump | grep service-cluster-ip-range
 
 #### 確認のタイミング
 
-- コントロールプレーン構築直後 (ワーカーノード追加前) に実行することで, クラスタ基盤のデュアルスタック設定を早期検証できます。
+- コントロールプレーンノード構築直後 (ワーカーノード追加前) に実行することで, Kubernetesクラスタ基盤のデュアルスタック設定を早期検証できます。
 - シングルスタックで構築された場合, kubeadm による再初期化が必要です。デュアルスタックへのアップグレードはKubernetesの仕様によりサポートされていません。
 
 ## 補足
 
 - `k8s_shared_ca_replace_kube_ca: true` を組み合わせると, `k8s-shared-ca` で生成した共通 CA で kube-apiserver / etcd 証明書を再発行できます。ローテーション時は `k8s-cilium-shared-ca` と合わせて再実行してください。
-- `config.yml` は `kubeadm reset` を含むため, 既存クラスタに適用する際は事前に制御プレーンを退避させるなど必要に応じた停止計画を立ててください。
+- `config.yml` は `kubeadm reset` を含むため, 既存Kubernetesクラスタに適用する際は事前に制御プレーンを退避させるなど必要に応じた停止計画を立ててください。
 - Helm リポジトリは全削除されるため, 既存のリポジトリ運用がある場合は事前に退避してください。
 - Cilium BGP Control Plane のマニフェストは `k8s-common` ロールの `templates/cilium-bgp-resources.yml.j2` を使って生成し, 既定では `{{ k8s_cilium_config_dir }}/bgp` 配下に出力します。
 - Cluster Mesh 用 kubeconfig を追加で配布したい場合は生成された `<cluster>-embedded.kubeconfig` を `cilium clustermesh connect` や `cilium clustermesh status` コマンドに引き渡してください。

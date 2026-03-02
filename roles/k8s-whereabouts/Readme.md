@@ -2,25 +2,77 @@
 
 Kubernetes コントロールプレーンノード上に Whereabouts を導入し, NetworkAttachmentDefinition (NAD) を適用するロールです。`k8s-common`, `k8s-ctrlplane`, `k8s-multus` で整えた共通前提の上に, Whereabouts の Helm チャート導入と NAD の適用を行います。再実行にも対応するよう設計されています。
 
+## 用語
+
+| 正式名称 | 略称 | 意味 |
+| --- | --- | --- |
+| Application Programming Interface | API | アプリケーション同士がやり取りする方法を定めた仕様。 |
+| Custom Resource Definition | CRD | Kubernetes APIを拡張してユーザ独自のリソース種別を定義する仕組み。 |
+| Role-Based Access Control | RBAC | ユーザやサービスアカウントが実行可能な操作を役割(Role)で制限する仕組み。 |
+| Service Account | - | Kubernetes内部でPodが他のリソースにアクセスする際に用いる仮想的なアカウント。 |
+| ClusterRole | - | クラスタ全体に適用される権限の集合。 |
+| ClusterRoleBinding | - | ClusterRoleをユーザやサービスアカウントに紐付ける仕組み。 |
+| Role | - | 特定の名前空間内で有効な権限の集合。 |
+| RoleBinding | - | Roleをユーザやサービスアカウントに紐付ける仕組み。 |
+| Namespace | - | Kubernetes内部でリソースを論理的に分離する単位。 |
+| Pod | - | Kubernetes上で動作するコンテナの最小単位。 |
+| DaemonSet | - | クラスタ内の全ノード(または指定した一部のノード)で必ずPodを1つずつ起動させるリソース。 |
+| Deployment | - | 指定した数のPodを維持し, ローリングアップデート等を管理するリソース。 |
+| StatefulSet | - | 状態を持つアプリケーションのPodを順序付けて管理するリソース。 |
+| Service | - | Podへのアクセスを抽象化し, 負荷分散やサービスディスカバリを提供するリソース。 |
+| Ingress | - | クラスタ外部からHTTP/HTTPS通信を受け付け, 内部のServiceへルーティングする仕組み。 |
+| ConfigMap | - | 設定情報を保持し, Podへ環境変数やファイルとして注入するリソース。 |
+| Secret | - | 機密情報を保持し, Podへ安全に注入するリソース。 |
+| PersistentVolume | PV | クラスタ内で利用可能なストレージリソースを表すオブジェクト。 |
+| PersistentVolumeClaim | PVC | ユーザがPVを要求する際に利用するリソース。 |
+| StorageClass | - | 動的にPVをプロビジョニングする際のストレージ種別を定義するリソース。 |
+| Node | - | Kubernetesクラスタを構成する物理マシンまたは仮想マシン。 |
+| Control Plane | - | クラスタ全体を管理, 制御する中枢ノード群。kube-apiserver, kube-controller-manager, kube-schedulerなどが動作する。 |
+| Worker Node | - | 実際にアプリケーションのPodを実行するノード。 |
+| kube-apiserver | - | KubernetesのAPIリクエストを受け付け, etcdへの読み書きを仲介するコンポーネント。 |
+| kube-controller-manager | - | Deployment, ReplicaSetなど各種コントローラを実行し, クラスタの状態を監視, 調整するコンポーネント。 |
+| kube-scheduler | - | 新規作成されたPodを適切なNodeへ配置するコンポーネント。 |
+| kubelet | - | 各Node上で動作し, Podの起動, 停止, 監視を行うエージェント。 |
+| kube-proxy | - | 各Node上でServiceのネットワークルールを管理するコンポーネント。 |
+| etcd | - | Kubernetesのクラスタ状態を保存する分散Key-Valueストア。 |
+| Container Network Interface | CNI | コンテナ間のネットワーク接続を標準化するプラグイン仕様。 |
+| Cilium | - | eBPFを活用した高性能なCNIプラグイン。ネットワークポリシーやサービスメッシュ機能を提供する。 |
+| Multus | - | 複数のCNIプラグインを同時に使用できるようにするメタCNIプラグイン。 |
+| Container Runtime Interface | CRI | Kubernetesがコンテナランタイムと通信するための標準インターフェース。 |
+| containerd | - | Dockerから分離された軽量なコンテナランタイム。 |
+| kubeadm | - | Kubernetesクラスタの初期構築と管理を支援する公式ツール。 |
+| kubectl | - | Kubernetesクラスタを操作するためのコマンドラインツール。 |
+| Helm | - | Kubernetesアプリケーションのパッケージ管理ツール。Chart形式でアプリケーションを配布, インストールする。 |
+| Chart | - | Helmで管理されるアプリケーションパッケージの単位。Kubernetes Manifestのテンプレート集。 |
+| Operator | - | アプリケーション固有の運用知識をコードで自動化するKubernetesの拡張パターン。 |
+| Custom Resource | CR | CRDで定義されたユーザ独自のリソースの実体。 |
+| Admission Controller | - | APIリクエストがetcdに保存される前に検証, 変更を行うプラグイン。 |
+| Network Policy | - | Pod間の通信を制御するファイアウォールルールを定義するリソース。 |
+| Label | - | リソースに付与するKey-Value形式のメタデータ。リソースの分類, 検索に利用される。 |
+| Selector | - | Labelを利用してリソースを選択する条件式。 |
+| Annotation | - | リソースに付与するKey-Value形式の補足情報。ツールやコントローラが参照するメタデータ。 |
+| Taint | - | Nodeに設定する特殊なマークで, 特定の条件を満たさないPodの配置を拒否する。 |
+| Toleration | - | PodがTaintを持つNodeへ配置されることを許可する設定。 |
+
 ## 実行フロー
 
-1. `load-params.yml` で OS 別パッケージ定義 (`vars/packages-*.yml`) とクラスタ共通変数 (`vars/cross-distro.yml`, `vars/all-config.yml`, `vars/k8s-api-address.yml`) を読み込みます。
+1. `load-params.yml` で OS 別パッケージ定義 (`vars/packages-*.yml`) とKubernetesクラスタ共通変数 (`vars/cross-distro.yml`, `vars/all-config.yml`, `vars/k8s-api-address.yml`) を読み込みます。
 2. `package.yml` を読み込みます (現状はタスクなしのプレースホルダです)。
 3. `directory.yml` が Whereabouts 用の設定ディレクトリ (既定では `{{ k8s_kubeadm_config_store }}/whereabouts`) を作成します。
 4. `user_group.yml` と `service.yml` は将来の拡張用に読み込まれます (現状はタスクなし)。
-5. `config-whereabouts.yml` は `k8s_multus_enabled` と `k8s_whereabouts_enabled` が有効で, かつ IPv4 または IPv6 のアドレス範囲が揃っている場合に発動します。API サーバの起動を待機後, Whereabouts Helm チャートを導入し, `ipvlan-wb-nad.yml.j2` から生成した NAD を `kubectl apply` します。
+5. `config-whereabouts.yml` は `k8s_multus_enabled` と `k8s_whereabouts_enabled` が有効で, かつ IPv4 または IPv6 のアドレス範囲が揃っている場合に発動します。kube-apiserverの起動を待機後, Whereabouts Helm チャートを導入し, `ipvlan-wb-nad.yml.j2` から生成した NAD を `kubectl apply` します。
 
 ## 主要変数
 
 | 変数名 | 既定値 | 説明 |
 | --- | --- | --- |
 | `k8s_ctrlplane_endpoint` | 各ホストの `host_vars` で指定 | Control Plane API の広告アドレス (IPv4/IPv6)。待機処理で使用。|
-| `k8s_api_wait_host` | `"{{ k8s_ctrlplane_endpoint }}"` | Kubernetes APIサーバの待ち合わせ先(接続先)ホスト名/IPアドレス。|
-| `k8s_api_wait_port` | `"{{ k8s_ctrlplane_port }}"` | Kubernetes APIサーバの待ち合わせ先ポート番号。 (規定: `6443`)|
-| `k8s_api_wait_timeout` | `600` | Kubernetes APIサーバ待ち合わせ時間(単位: 秒)。|
-| `k8s_api_wait_delay` | `2` | Kubernetes APIサーバ待ち合わせる際の開始遅延時間(単位: 秒)。|
-| `k8s_api_wait_sleep` | `1` | Kubernetes APIサーバ待ち合わせる際の待機間隔(単位: 秒)。|
-| `k8s_api_wait_delegate_to` | `"localhost"` | Kubernetes APIサーバ待ち合わせる際の接続元ホスト名/IPアドレス。|
+| `k8s_api_wait_host` | "{{ k8s_ctrlplane_endpoint }}" | kube-apiserverの待ち合わせ先(接続先)ホスト名/IPアドレス。|
+| `k8s_api_wait_port` | "{{ k8s_ctrlplane_port }}" | kube-apiserverの待ち合わせ先ポート番号。 (規定: `6443`)|
+| `k8s_api_wait_timeout` | `600` | kube-apiserver待ち合わせ時間(単位: 秒)。|
+| `k8s_api_wait_delay` | `2` | kube-apiserver待ち合わせる際の開始遅延時間(単位: 秒)。|
+| `k8s_api_wait_sleep` | `1` | kube-apiserver待ち合わせる際の待機間隔(単位: 秒)。|
+| `k8s_api_wait_delegate_to` | "localhost" | kube-apiserver待ち合わせる際の接続元ホスト名/IPアドレス。|
 | `k8s_kubeadm_config_store` | `{{ ansible_home_dir }}/kubeadm` | Whereabouts 設定ファイルのルートディレクトリ。|
 | `k8s_whereabouts_config_dir` | `{{ k8s_kubeadm_config_store }}/whereabouts` | NAD 設定ファイルの生成先ディレクトリ。|
 | `k8s_multus_enabled` | `false` | Multus が有効な場合のみ Whereabouts を導入します。|

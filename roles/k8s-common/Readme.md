@@ -2,8 +2,60 @@
 
 Kubernetes ノード共通の前提条件を整えるロールです。制御プレーン / ワーカーノードを問わず, コンテナランタイム (containerd)・kubeadm/kubelet/kubectl の導入, ネットワークモジュールと sysctl の調整, swap 無効化, kubelet の NIC 設定, ファイアウォールの開放, オペレータ用ユーザ作成, 証明書埋め込み kubeconfig の補助ツール配布などを一括で実施します。最後に containerd の設定変更を反映させるためリブートを伴う構成となっており, 再実行にも対応しています。
 
+## 用語
+
+| 正式名称 | 略称 | 意味 |
+| --- | --- | --- |
+| Application Programming Interface | API | アプリケーション同士がやり取りする方法を定めた仕様。 |
+| Custom Resource Definition | CRD | Kubernetes APIを拡張してユーザ独自のリソース種別を定義する仕組み。 |
+| Role-Based Access Control | RBAC | ユーザやサービスアカウントが実行可能な操作を役割(Role)で制限する仕組み。 |
+| Service Account | - | Kubernetes内部でPodが他のリソースにアクセスする際に用いる仮想的なアカウント。 |
+| ClusterRole | - | クラスタ全体に適用される権限の集合。 |
+| ClusterRoleBinding | - | ClusterRoleをユーザやサービスアカウントに紐付ける仕組み。 |
+| Role | - | 特定の名前空間内で有効な権限の集合。 |
+| RoleBinding | - | Roleをユーザやサービスアカウントに紐付ける仕組み。 |
+| Namespace | - | Kubernetes内部でリソースを論理的に分離する単位。 |
+| Pod | - | Kubernetes上で動作するコンテナの最小単位。 |
+| DaemonSet | - | クラスタ内の全ノード(または指定した一部のノード)で必ずPodを1つずつ起動させるリソース。 |
+| Deployment | - | 指定した数のPodを維持し, ローリングアップデート等を管理するリソース。 |
+| StatefulSet | - | 状態を持つアプリケーションのPodを順序付けて管理するリソース。 |
+| Service | - | Podへのアクセスを抽象化し, 負荷分散やサービスディスカバリを提供するリソース。 |
+| Ingress | - | クラスタ外部からHTTP/HTTPS通信を受け付け, 内部のServiceへルーティングする仕組み。 |
+| ConfigMap | - | 設定情報を保持し, Podへ環境変数やファイルとして注入するリソース。 |
+| Secret | - | 機密情報を保持し, Podへ安全に注入するリソース。 |
+| PersistentVolume | PV | クラスタ内で利用可能なストレージリソースを表すオブジェクト。 |
+| PersistentVolumeClaim | PVC | ユーザがPVを要求する際に利用するリソース。 |
+| StorageClass | - | 動的にPVをプロビジョニングする際のストレージ種別を定義するリソース。 |
+| Node | - | Kubernetesクラスタを構成する物理マシンまたは仮想マシン。 |
+| Control Plane | - | クラスタ全体を管理, 制御する中枢ノード群。kube-apiserver, kube-controller-manager, kube-schedulerなどが動作する。 |
+| Worker Node | - | 実際にアプリケーションのPodを実行するノード。 |
+| kube-apiserver | - | KubernetesのAPIリクエストを受け付け, etcdへの読み書きを仲介するコンポーネント。 |
+| kube-controller-manager | - | Deployment, ReplicaSetなど各種コントローラを実行し, クラスタの状態を監視, 調整するコンポーネント。 |
+| kube-scheduler | - | 新規作成されたPodを適切なNodeへ配置するコンポーネント。 |
+| kubelet | - | 各Node上で動作し, Podの起動, 停止, 監視を行うエージェント。 |
+| kube-proxy | - | 各Node上でServiceのネットワークルールを管理するコンポーネント。 |
+| etcd | - | Kubernetesのクラスタ状態を保存する分散Key-Valueストア。 |
+| Container Network Interface | CNI | コンテナ間のネットワーク接続を標準化するプラグイン仕様。 |
+| Cilium | - | eBPFを活用した高性能なCNIプラグイン。ネットワークポリシーやサービスメッシュ機能を提供する。 |
+| Multus | - | 複数のCNIプラグインを同時に使用できるようにするメタCNIプラグイン。 |
+| Container Runtime Interface | CRI | Kubernetesがコンテナランタイムと通信するための標準インターフェース。 |
+| containerd | - | Dockerから分離された軽量なコンテナランタイム。 |
+| kubeadm | - | Kubernetesクラスタの初期構築と管理を支援する公式ツール。 |
+| kubectl | - | Kubernetesクラスタを操作するためのコマンドラインツール。 |
+| Helm | - | Kubernetesアプリケーションのパッケージ管理ツール。Chart形式でアプリケーションを配布, インストールする。 |
+| Chart | - | Helmで管理されるアプリケーションパッケージの単位。Kubernetes Manifestのテンプレート集。 |
+| Operator | - | アプリケーション固有の運用知識をコードで自動化するKubernetesの拡張パターン。 |
+| Custom Resource | CR | CRDで定義されたユーザ独自のリソースの実体。 |
+| Admission Controller | - | APIリクエストがetcdに保存される前に検証, 変更を行うプラグイン。 |
+| Network Policy | - | Pod間の通信を制御するファイアウォールルールを定義するリソース。 |
+| Label | - | リソースに付与するKey-Value形式のメタデータ。リソースの分類, 検索に利用される。 |
+| Selector | - | Labelを利用してリソースを選択する条件式。 |
+| Annotation | - | リソースに付与するKey-Value形式の補足情報。ツールやコントローラが参照するメタデータ。 |
+| Taint | - | Nodeに設定する特殊なマークで, 特定の条件を満たさないPodの配置を拒否する。 |
+| Toleration | - | PodがTaintを持つNodeへ配置されることを許可する設定。 |
+
 なお, Cilium BGP Control Plane 用リソースの生成と適用は `k8s-ctrlplane` / `k8s-worker` ロール側の `config-cilium-bgp-cplane.yml` で, `k8s_bgp` 変数が有効化されているホストに対して, Cilium BGP Control Plane 用リソースを定義するCustom Resource Definition (CRD) を適用します。
-コントロールプレイン構築処理とワーカーノード構築処理の双方から使用される共通テンプレートファイルを一元管理するため, Cilium BGP Control Plane 用リソースを定義するためのmanifestを生成するテンプレートファイルを本ロール配下の`templates/cilium-bgp-resources.yml.j2`に配置しています。
+コントロールプレーン構築処理とワーカーノード構築処理の双方から使用される共通テンプレートファイルを一元管理するため, Cilium BGP Control Plane 用リソースを定義するためのmanifestを生成するテンプレートファイルを本ロール配下の`templates/cilium-bgp-resources.yml.j2`に配置しています。
 
 ## 実行フロー
 
@@ -52,7 +104,7 @@ Kubernetes ノード共通の前提条件を整えるロールです。制御プ
 
 ### Cilium BGP Control Plane設定関連変数
 
-Cilium BGP Control Planeの設定は, `host_vars`配下のK8sクラスタを構成するコントロールプレイン, ワーカーノードの各設定ファイルに`k8s_bgp`変数を定義することで行います。
+Cilium BGP Control Planeの設定は, `host_vars`配下のK8sクラスタを構成するコントロールプレーンノード, ワーカーノードの各設定ファイルに`k8s_bgp`変数を定義することで行います。
 `k8s_bgp`変数は, Cilium BGP Control Plane の動作を制御するマッピング(辞書)です。`k8s_bgp`変数のキーと設定値の型,設定値の説明, 設定値の例は, 以下の通りです:
 
 | キー | 型 | 説明 | 設定例 |

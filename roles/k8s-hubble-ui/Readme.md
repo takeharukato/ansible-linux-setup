@@ -2,9 +2,62 @@
 
 Cilium Hubble UI を Kubernetes クラスタに導入するロールです。Hubble UI は Cilium が提供する可観測性機能 (Observability) の Web UI であり, クラスタ内のネットワークフローやサービス依存関係をグラフィカルに可視化します。このロールは既存の Cilium Helm リリースを `helm upgrade --install` でアップグレードし, `hubble.ui.enabled: true` を適用することで Hubble UI コンポーネントを有効化します。
 
+## 用語
+
+| 正式名称 | 略称 | 意味 |
+| --- | --- | --- |
+| Application Programming Interface | API | アプリケーション同士がやり取りする方法を定めた仕様。 |
+| Custom Resource Definition | CRD | Kubernetes APIを拡張してユーザ独自のリソース種別を定義する仕組み。 |
+| Role-Based Access Control | RBAC | ユーザやサービスアカウントが実行可能な操作を役割(Role)で制限する仕組み。 |
+| Service Account | - | Kubernetes内部でPodが他のリソースにアクセスする際に用いる仮想的なアカウント。 |
+| ClusterRole | - | クラスタ全体に適用される権限の集合。 |
+| ClusterRoleBinding | - | ClusterRoleをユーザやサービスアカウントに紐付ける仕組み。 |
+| Role | - | 特定の名前空間内で有効な権限の集合。 |
+| RoleBinding | - | Roleをユーザやサービスアカウントに紐付ける仕組み。 |
+| Namespace | - | Kubernetes内部でリソースを論理的に分離する単位。 |
+| Pod | - | Kubernetes上で動作するコンテナの最小単位。 |
+| レプリカ ( Replica ) | - | Podの複製。DeploymentなどのリソースがPodの高可用性や負荷分散のために複数のレプリカを作成, 管理する。指定されたレプリカ数に基づいて同一の仕様を持つPodが複数実行される。 |
+| DaemonSet | - | クラスタ内の全ノード(または指定した一部のノード)で必ずPodを1つずつ起動させるリソース。 |
+| Deployment | - | 指定した数のPodを維持し, ローリングアップデート等を管理するリソース。 |
+| StatefulSet | - | 状態を持つアプリケーションのPodを順序付けて管理するリソース。 |
+| Service | - | Podへのアクセスを抽象化し, 負荷分散やサービスディスカバリを提供するリソース。 |
+| Ingress | - | クラスタ外部からHTTP/HTTPS通信を受け付け, 内部のServiceへルーティングする仕組み。 |
+| ConfigMap | - | 設定情報を保持し, Podへ環境変数やファイルとして注入するリソース。 |
+| Secret | - | 機密情報を保持し, Podへ安全に注入するリソース。 |
+| PersistentVolume | PV | クラスタ内で利用可能なストレージリソースを表すオブジェクト。 |
+| PersistentVolumeClaim | PVC | ユーザがPVを要求する際に利用するリソース。 |
+| StorageClass | - | 動的にPVをプロビジョニングする際のストレージ種別を定義するリソース。 |
+| Node | - | Kubernetesクラスタを構成する物理マシンまたは仮想マシン。 |
+| Control Plane | - | クラスタ全体を管理, 制御する中枢ノード群。kube-apiserver, kube-controller-manager, kube-schedulerなどが動作する。 |
+| Worker Node | - | 実際にアプリケーションのPodを実行するノード。 |
+| kube-apiserver | - | KubernetesのAPIリクエストを受け付け, etcdへの読み書きを仲介するコンポーネント。 |
+| kube-controller-manager | - | Deployment, ReplicaSetなど各種コントローラを実行し, クラスタの状態を監視, 調整するコンポーネント。 |
+| kube-scheduler | - | 新規作成されたPodを適切なNodeへ配置するコンポーネント。 |
+| kubelet | - | 各Node上で動作し, Podの起動, 停止, 監視を行うエージェント。 |
+| kube-proxy | - | 各Node上でServiceのネットワークルールを管理するコンポーネント。 |
+| etcd | - | Kubernetesのクラスタ状態を保存する分散Key-Valueストア。 |
+| Container Network Interface | CNI | コンテナ間のネットワーク接続を標準化するプラグイン仕様。 |
+| Cilium | - | eBPFを活用した高性能なCNIプラグイン。ネットワークポリシーやサービスメッシュ機能を提供する。 |
+| Multus | - | 複数のCNIプラグインを同時に使用できるようにするメタCNIプラグイン。 |
+| Container Runtime Interface | CRI | Kubernetesがコンテナランタイムと通信するための標準インターフェース。 |
+| containerd | - | Dockerから分離された軽量なコンテナランタイム。 |
+| kubeadm | - | Kubernetesクラスタの初期構築と管理を支援する公式ツール。 |
+| kubectl | - | Kubernetesクラスタを操作するためのコマンドラインツール。 |
+| Helm | - | Kubernetesアプリケーションのパッケージ管理ツール。Chart形式でアプリケーションを配布, インストールする。 |
+| Chart | - | Helmで管理されるアプリケーションパッケージの単位。Kubernetes Manifestのテンプレート集。 |
+| Operator | - | アプリケーション固有の運用知識をコードで自動化するKubernetesの拡張パターン。 |
+| Custom Resource | CR | CRDで定義されたユーザ独自のリソースの実体。 |
+| Admission Controller | - | APIリクエストがetcdに保存される前に検証, 変更を行うプラグイン。 |
+| Network Policy | - | Pod間の通信を制御するファイアウォールルールを定義するリソース。 |
+| Label | - | リソースに付与するKey-Value形式のメタデータ。リソースの分類, 検索に利用される。 |
+| Selector | - | Labelを利用してリソースを選択する条件式。 |
+| Annotation | - | リソースに付与するKey-Value形式の補足情報。ツールやコントローラが参照するメタデータ。 |
+| Taint | - | Nodeに設定する特殊なマークで, 特定の条件を満たさないPodの配置を拒否する。 |
+| Toleration | - | PodがTaintを持つNodeへ配置されることを許可する設定。 |
+
 ## 前提条件
 
-- Kubernetes クラスタが稼働していること
+- Kubernetes Kubernetesクラスタが稼働していること
 - Cilium が Helm 経由でインストール済みであること (`k8s-ctrlplane` ロール実行済み)
 - **Hubble Relay が有効化されている必要があります**
   - Hubble Relay が無効な場合, 以下の警告メッセージが表示されます:
@@ -17,7 +70,7 @@ Cilium Hubble UI を Kubernetes クラスタに導入するロールです。Hub
 
 1. `load-params.yml` で変数を読み込みます。
 2. `config.yml` で以下を実行します:
-   - Kubernetes API サーバーの起動を待機
+   - kube-apiserverの起動を待機
    - Cilium CRD の存在確認 (最大 30 回リトライ, 10 秒間隔)
    - Hubble Relay Deployment の存在確認 (無効な場合は警告表示)
    - Hubble UI 用 Helm values ファイルを生成 (`{{ k8s_cilium_config_dir }}/hubble-ui-values.yml`)
@@ -29,12 +82,12 @@ Cilium Hubble UI を Kubernetes クラスタに導入するロールです。Hub
 
 | 変数名 | 既定値 | 説明 |
 | --- | --- | --- |
-| `k8s_api_wait_host` | `"{{ k8s_ctrlplane_endpoint }}"` | Kubernetes APIサーバの待ち合わせ先(接続先)ホスト名/IPアドレス。|
-| `k8s_api_wait_port` | `"{{ k8s_ctrlplane_port }}"` | Kubernetes APIサーバの待ち合わせ先ポート番号。 (規定: `6443`)|
-| `k8s_api_wait_timeout` | `600` | Kubernetes APIサーバ待ち合わせ時間(単位: 秒)。|
-| `k8s_api_wait_delay` | `2` | Kubernetes APIサーバ待ち合わせる際の開始遅延時間(単位: 秒)。|
-| `k8s_api_wait_sleep` | `1` | Kubernetes APIサーバ待ち合わせる際の待機間隔(単位: 秒)。|
-| `k8s_api_wait_delegate_to` | `"localhost"` | Kubernetes APIサーバ待ち合わせる際の接続元ホスト名/IPアドレス。|
+| `k8s_api_wait_host` | "{{ k8s_ctrlplane_endpoint }}" | kube-apiserverの待ち合わせ先(接続先)ホスト名/IPアドレス。|
+| `k8s_api_wait_port` | "{{ k8s_ctrlplane_port }}" | kube-apiserverの待ち合わせ先ポート番号。 (規定: `6443`)|
+| `k8s_api_wait_timeout` | `600` | kube-apiserver待ち合わせ時間(単位: 秒)。|
+| `k8s_api_wait_delay` | `2` | kube-apiserver待ち合わせる際の開始遅延時間(単位: 秒)。|
+| `k8s_api_wait_sleep` | `1` | kube-apiserver待ち合わせる際の待機間隔(単位: 秒)。|
+| `k8s_api_wait_delegate_to` | "localhost" | kube-apiserver待ち合わせる際の接続元ホスト名/IPアドレス。|
 | `k8s_hubble_ui_config_dir` | `"{{ k8s_kubeadm_config_store }}/hubble-ui"` | Hubble UI 設定ファイル格納ディレクトリパスを指定します。Helm values ファイルなどがここに保存されます。 |
 | `hubble_ui_enabled` | `false` | Hubble UI を有効化するかどうかを指定します。`true` に設定すると Hubble UI がインストールされます。 |
 | `hubble_ui_version` | `""` (自動設定) | Hubble UI のバージョンを指定します。空文字列の場合は `k8s_cilium_version` の値を使用します。Cilium Helm Chart のバージョンと一致させる必要があります。 |
@@ -68,7 +121,7 @@ Cilium Hubble UI を Kubernetes クラスタに導入するロールです。Hub
 http://<node-ip>:31234
 ```
 
-- `<node-ip>`: クラスタ内の任意のノードの IP アドレス
+- `<node-ip>`: Kubernetesクラスタ内の任意のノードの IP アドレス
 - ポート番号は `hubble_ui_nodeport` 変数で変更可能です
 
 ブラウザで上記 URL にアクセスすると, Hubble UI のダッシュボードが表示されます。
@@ -85,7 +138,7 @@ kubectl --kubeconfig /etc/kubernetes/admin.conf get svc -n kube-system hubble-ui
 
 ### ClusterIP 経由でのアクセス
 
-`hubble_ui_service_type: "ClusterIP"` に設定した場合, クラスタ内部からのみアクセス可能です。クラスタ外部からアクセスする場合は `kubectl port-forward` を使用します:
+`hubble_ui_service_type: "ClusterIP"` に設定した場合, Kubernetesクラスタ内部からのみアクセス可能です。Kubernetesクラスタ外部からアクセスする場合は `kubectl port-forward` を使用します:
 
 ```bash
 kubectl --kubeconfig /etc/kubernetes/admin.conf port-forward -n kube-system svc/hubble-ui 8080:80
@@ -125,7 +178,7 @@ kubectl --kubeconfig /etc/kubernetes/admin.conf port-forward -n kube-system svc/
 - `bgpControlPlane.enabled: true` などの BGP 設定
 - `kubeProxyReplacement: true` などの kube-proxy 置換設定
 
-これらの設定が Hubble UI 用の values ファイルに記載されていない場合, Helm upgrade 実行時にチャートのデフォルト値に戻り, **クラスタのネットワーク機能が正常に動作しなくなる可能性があります**。
+これらの設定が Hubble UI 用の values ファイルに記載されていない場合, Helm upgrade 実行時にチャートのデフォルト値に戻り, **Kubernetesクラスタのネットワーク機能が正常に動作しなくなる可能性があります**。
 
 #### 対策方法
 
@@ -152,7 +205,7 @@ hubble_ui_enabled: true
 
 ### Hubble Relay の依存関係
 
-Hubble UI は Hubble Relay を経由してクラスタ内のフロー情報を取得します。Hubble Relay が無効化されている場合, Hubble UI は正常に動作しません。事前に `k8s-ctrlplane` ロールで Cilium をインストールする際に `hubble.relay.enabled: true` が設定されていることを確認してください。
+Hubble UI は Hubble Relay を経由してKubernetesクラスタ内のフロー情報を取得します。Hubble Relay が無効化されている場合, Hubble UI は正常に動作しません。事前に `k8s-ctrlplane` ロールで Cilium をインストールする際に `hubble.relay.enabled: true` が設定されていることを確認してください。
 
 ## 検証手順
 
@@ -270,7 +323,7 @@ hubble_ui_nodeport: 31234
 hubble_ui_merge_existing_values: false  # 非推奨: 既存の Cilium 設定が失われる可能性
 ```
 
-**注意**: マージを無効化すると, 既存の Cilium 設定 (ipam, routing, bgp, kube-proxy置換など) がチャートのデフォルト値に戻り, クラスタのネットワーク機能が正常に動作しなくなる可能性があります。特別な理由がない限り, デフォルトのマージ有効状態を維持してください。
+**注意**: マージを無効化すると, 既存の Cilium 設定 (ipam, routing, bgp, kube-proxy置換など) がチャートのデフォルト値に戻り, Kubernetesクラスタのネットワーク機能が正常に動作しなくなる可能性があります。特別な理由がない限り, デフォルトのマージ有効状態を維持してください。
 
 ### 特定のバージョンを指定する場合
 
