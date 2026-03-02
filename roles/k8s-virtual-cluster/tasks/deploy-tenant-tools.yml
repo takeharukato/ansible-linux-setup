@@ -15,5 +15,6 @@
     - vc-tenant-delete.sh
     - vc-tenant-exec.sh
     - vc-tenant-logs.sh
+    - vc-tenant-kubeconfig.sh
   when: virtualcluster_tenant_tools_enabled | bool
   run_once: true
