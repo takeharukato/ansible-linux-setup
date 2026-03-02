@@ -278,9 +278,37 @@ _vc_tenant_logs_completion() {
     esac
 }
 
+# vc-tenant-kubeconfig.sh の補完関数
+_vc_tenant_kubeconfig_completion() {
+    local cur prev words cword
+    _init_completion || return
+
+    case $cword in
+        1)
+            # 第1引数: テナント名
+            local -a tenants
+            tenants=($(_vc_tenant_get_tenant_list))
+            COMPREPLY=($(compgen -W "${tenants[*]}" -- "$cur"))
+            ;;
+        *)
+            # 第2引数以降: オプション
+            case $prev in
+                -o|--output)
+                    # ファイルパス補完
+                    _filedir
+                    return
+                    ;;
+            esac
+            local opts="-o --output -h --help --vc-manager-ns"
+            COMPREPLY=($(compgen -W "$opts" -- "$cur"))
+            ;;
+    esac
+}
+
 # 各スクリプトに補完関数を関連付け
 complete -F _vc_tenant_apply_completion vc-tenant-apply.sh
 complete -F _vc_tenant_get_completion vc-tenant-get.sh
 complete -F _vc_tenant_delete_completion vc-tenant-delete.sh
 complete -F _vc_tenant_exec_completion vc-tenant-exec.sh
 complete -F _vc_tenant_logs_completion vc-tenant-logs.sh
+complete -F _vc_tenant_kubeconfig_completion vc-tenant-kubeconfig.sh

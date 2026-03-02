@@ -747,8 +747,26 @@ ls -la ~/.kube/tenant-alpha.conf
 
 **ステップC: テナント環境で kubectl を実行**
 
+テナントのAPI サーバはスーパークラスタ内部の Pod として実行されているため, 以下のように, スーパークラスタ内部のAPIサーバにアクセスするようにport-forwardを設定する必要があります:
+
 ```bash
-# kubeconfig を指定してテナント環境にアクセス
+# 別のターミナルで kubectl port-forward を開始
+kubectl port-forward -n <テナント実行namespace> svc/apiserver-svc 6443:6443
+```
+
+テナント実行namespace は通常, `vc-manager-<ハッシュ>-<テナント名>` の形式です。例えば, ハッシュが, `5001a5`で, テナント名が, `tenant-alpha` の場合,
+
+```bash
+kubectl port-forward -n vc-manager-5001a5-tenant-alpha svc/apiserver-svc 6443:6443
+```
+
+のようにport-forwardを設定します。
+
+
+ポートフォワーディングが確立されたら, 別のターミナルで以下を実行します:
+
+```bash
+# 環境変数KUBECONFIGを指定してテナント環境にアクセス
 export KUBECONFIG=~/.kube/tenant-alpha.conf
 
 # テナント内のリソースを確認
@@ -760,6 +778,35 @@ kubectl get svc
 kubectl --kubeconfig ~/.kube/tenant-alpha.conf get pods
 ```
 
+**認証証明書の検証エラーについて**
+
+kubeconfig の server エンドポイントを `localhost` に変更すると, TLS 証明書の CN (Common Name) が一致せず以下のエラーが発生します:
+
+```
+x509: certificate is valid for kubernetes, kubernetes.default, ..., apiserver-svc.vc-manager-5001a5-tenant-alpha, ..., not localhost
+```
+
+この場合は, kubeconfig で以下のいずれかの対応を実施してください:
+
+1. **証明書検証をスキップ**:
+```bash
+# kubeconfig を編集
+kubectl config set-cluster virtualcluster-tenant-alpha --insecure-skip-tls-verify=true \
+  --kubeconfig ~/.kube/tenant-alpha.conf
+```
+
+2. **API サーバーの FQDN で接続**:
+   - port-forward で localhost:6443 にフォワードしているので, kubeconfig はそのまま `apiserver-svc.vc-manager-5001a5-tenant-alpha:6443` で保持
+   - ローカルマシンの `/etc/hosts` に以下を追加:
+   ```
+   127.0.0.1 apiserver-svc.vc-manager-5001a5-tenant-alpha
+   ```
+   これにより DNS 解決が localhost に向きます
+
+3. **別マシンからのアクセス**:
+   - スーパークラスタのロードバランサーまたはゲートウェイ経由でアクセス
+   - kubeconfig の server を `https://<loadbalancer-ip>:6443` に変更
+
 **ステップD: Kubernetesクラスタ情報を確認**
 
 ```bash
@@ -770,9 +817,7 @@ kubectl cluster-info
 kubectl get servicestep
 ```
 
-注意: kubeconfig ファイルには認証トークンが含まれています。セキュリティに関する注意事項:
-- root, 管理者以外にアクセスを許可しないでください
-- kubeconfig ファイルにはトークンが含まれているため, 共有時に注意してください
+上記の `kubectl port-forward` は同一マシンからのアクセスのみを想定しているため, リモートマシンからアクセスする場合は別途設定が必要です。
 
 #### 例2: busybox Pod の配置と確認
 
@@ -2019,6 +2064,89 @@ ansible-playbook k8s-management.yml -t k8s-virtual-cluster -e "virtualcluster_cl
 ```
 
 これにより, ローカル変更が破棄され, クリーンなソースに対してパッチが適用されます。
+
+## テナント kubeconfig 生成スクリプト
+
+`roles/k8s-virtual-cluster/files/vc-tenant-kubeconfig.sh` スクリプトは, VirtualCluster テナント用の kubeconfig を生成するツールです。このスクリプトを使用することで, テナント管理者がテナント専用の Kubernetes クラスタにアクセスするための kubeconfig を簡単に取得できます。
+
+### スクリプトの概要
+
+- VirtualCluster リソースからテナント用 Pod namespace を特定
+- テナント namespace 内の `admin-kubeconfig` シークレットから kubeconfig を抽出
+- kubeconfig を標準出力またはファイルに出力
+
+### 使用方法
+
+```bash
+# 基本的な使用法: kubeconfigを標準出力に表示
+vc-tenant-kubeconfig.sh tenant-alpha
+
+# kubeconfigをファイルに保存
+vc-tenant-kubeconfig.sh -o ~/.kube/tenant-alpha.conf tenant-alpha
+
+# 複数のオプションを指定
+vc-tenant-kubeconfig.sh -o ~/.kube/config --vc-manager-ns vc-manager tenant-alpha
+```
+
+### オプション
+
+| オプション | 説明 |
+| --- | --- |
+| `-h, --help` | このヘルプメッセージを表示して終了 |
+| `-o, --output FILE` | 出力先ファイル(指定しない場合は標準出力) |
+| `--vc-manager-ns NS` | VirtualCluster 管理 namespace(デフォルト: vc-manager) |
+
+### テナント kubeconfig の使用
+
+生成された kubeconfig でテナント側の Kubernetes クラスタにアクセスするには, **ポートフォワーディングが必要です**。これは, テナント用 API サーバーが VirtualCluster スーパークラスタ内部の Pod として実行されているためです。
+
+#### 方法 1: kubectl port-forward を使用
+
+```bash
+# 別のターミナルで port-forward を開始
+kubectl port-forward -n vc-manager-5001a5-tenant-alpha svc/apiserver-svc 6443:6443
+
+# 生成された kubeconfig を編集して server エンドポイントを変更
+# 変更前: https://apiserver-svc.vc-manager-5001a5-tenant-alpha:6443
+# 変更後: https://localhost:6443
+
+# テナント kubeconfig を使用
+export KUBECONFIG=~/.kube/tenant-alpha.conf
+kubectl get nodes
+kubectl get pods -A
+```
+
+または, 直接 port-forward オプションを指定:
+
+```bash
+kubectl --kubeconfig ~/.kube/tenant-alpha.conf \
+  port-forward -n vc-manager-5001a5-tenant-alpha svc/apiserver-svc 6443:6443 &
+
+# ポートフォワーディングが確立されたら
+kubectl --kubeconfig ~/.kube/tenant-alpha.conf get nodes
+```
+
+#### 方法 2: kubeconfig を動的に編集
+
+生成時に API サーバーのエンドポイントを localhost に置き換えることも可能です:
+
+```bash
+# kubeconfig を生成してから sed で localhost に置き換え
+vc-tenant-kubeconfig.sh tenant-alpha | sed 's|apiserver-svc\.vc-manager-[a-f0-9]*-tenant-alpha|localhost|' > ~/.kube/tenant-alpha.conf
+
+# ポートフォワーディングを開始
+kubectl port-forward -n vc-manager-5001a5-tenant-alpha svc/apiserver-svc 6443:6443 &
+
+# テナント API にアクセス
+export KUBECONFIG=~/.kube/tenant-alpha.conf
+kubectl get pods
+```
+
+### 注意事項
+
+- Apache License 2.0 で保護された kubeconfig には, テナント管理者用の認証情報(証明書とキー)が含まれます。安全に保管, 配布してください。
+- テナント API サーバーへのアクセスには port-forward やロードバランサーなど, 別途ネットワーク経路の確立が必要です。スーパークラスタの外部からのダイレクトアクセスはサポートされていません。
+- API サーバー Endpoint (`apiserver-svc.vc-manager-*-tenant-name`) は スーパークラスタ内部の Kubernetes Service FQDN のため, スーパークラスタ独自の DNS 名前解決が必要です。
 
 ## 留意事項
 

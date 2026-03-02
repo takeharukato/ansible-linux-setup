@@ -17,10 +17,11 @@ set -euo pipefail
 readonly SCRIPT_NAME="$(basename "$0")"
 readonly VC_MANAGER_NS="${VC_MANAGER_NS:-vc-manager}"
 readonly KUBE_VERSION="1.31"
+VERBOSE="${VERBOSE:-0}"  # -o オプション指定時のみ詳細出力
 
 usage() {
   cat <<EOF
-使用方法: $SCRIPT_NAME <テナント名> [オプション]
+使用方法: $SCRIPT_NAME [オプション...] <テナント名>
 
 説明:
   VirtualClusterテナント用のkubeconfigを生成し、標準出力に出力します。
@@ -40,7 +41,10 @@ usage() {
   $SCRIPT_NAME tenant-alpha
 
   # kubeconfigをファイルに保存
-  $SCRIPT_NAME tenant-alpha -o /tmp/tenant-alpha-kubeconfig
+  $SCRIPT_NAME -o /tmp/tenant-alpha-kubeconfig tenant-alpha
+
+  # 複数のオプションを指定
+  $SCRIPT_NAME -o /tmp/tenant-alpha-kubeconfig --vc-manager-ns vc-manager tenant-alpha
 
   # kubeconfigを確認してから使用
   $SCRIPT_NAME tenant-alpha > ~/.kube/tenant-alpha.conf
@@ -57,7 +61,9 @@ error() {
 
 # 情報出力
 info() {
-  echo "[INFO] $*" >&2
+  if [[ "$VERBOSE" == "1" ]]; then
+    echo "[INFO] $*" >&2
+  fi
 }
 
 # 警告出力
@@ -115,60 +121,27 @@ generate_kubeconfig() {
   api_server_host="${cluster_domain:-${tenant_name}.vc.local}"
   api_server_port="6443"
 
-  # デフォルトServiceAccountのシークレットを取得
-  local sa_secret
-  sa_secret=$(kubectl get secret -n "$cluster_ns" -o name \
-    --sort-by=.metadata.creationTimestamp | grep -E "default-token|default-sa-token" | tail -1)
+  # VirtualClusterのadmin-kubeconfigシークレットから kubeconfig を取得
+  local kubeconfig_data
+  kubeconfig_data=$(kubectl get secret admin-kubeconfig -n "$cluster_ns" \
+    -o jsonpath='{.data.admin-kubeconfig}' 2>/dev/null)
 
-  if [[ -z "$sa_secret" ]]; then
-    error "Serviceアカウントシークレットが見つかりません (namespace: $cluster_ns)"
+  if [[ -z "$kubeconfig_data" ]]; then
+    info "admin-kubeconfigシークレットから kubeconfig を取得できません"
+    info "namespace $cluster_ns 内のシークレット一覧:"
+    kubectl get secret -n "$cluster_ns" 2>/dev/null | tail -n +2 | awk '{print "  " $1}'
+    error "kubeconfig生成に必要なシークレット情報が見つかりません (namespace: $cluster_ns)"
   fi
 
-  info "  Serviceアカウントシークレット: $sa_secret"
+  info "  admin-kubeconfigシークレット: 取得済み"
 
-  # トークンを抽出
-  local token
-  token=$(kubectl get "$sa_secret" -n "$cluster_ns" \
-    -o jsonpath='{.data.token}' | base64 -d)
-
-  if [[ -z "$token" ]]; then
-    error "トークンを抽出できません"
-  fi
-
-  # CA証明書を抽出
-  local ca_cert
-  ca_cert=$(kubectl get "$sa_secret" -n "$cluster_ns" \
-    -o jsonpath='{.data.ca\.crt}')
-
-  if [[ -z "$ca_cert" ]]; then
-    error "CA証明書を抽出できません"
-  fi
-
-  info "  トークン: ${token:0:20}..."
-  info "  CA証明書: 取得済み"
-
-  # kubeconfig YAMLを生成
+  # base64 デコード
   local kubeconfig
-  kubeconfig=$(cat <<KUBECONFIG_EOF
-apiVersion: v1
-kind: Config
-clusters:
-- cluster:
-    certificate-authority-data: ${ca_cert}
-    server: https://${api_server_host}:${api_server_port}
-  name: virtualcluster-${tenant_name}
-contexts:
-- context:
-    cluster: virtualcluster-${tenant_name}
-    user: virtualcluster-${tenant_name}
-  name: virtualcluster-${tenant_name}
-current-context: virtualcluster-${tenant_name}
-users:
-- name: virtualcluster-${tenant_name}
-  user:
-    token: ${token}
-KUBECONFIG_EOF
-)
+  kubeconfig=$(echo "$kubeconfig_data" | base64 -d)
+
+  if [[ -z "$kubeconfig" ]]; then
+    error "kubeconfigのデコードに失敗しました"
+  fi
 
   # 出力先に書き込み
   if [[ -n "$output_file" ]]; then
@@ -186,7 +159,7 @@ KUBECONFIG_EOF
 main() {
   local tenant_name="" output_file=""
 
-  # 引数パー
+  # 引数パース
   while [[ $# -gt 0 ]]; do
     case "$1" in
       -h|--help)
@@ -194,11 +167,19 @@ main() {
         exit 0
         ;;
       -o|--output)
+        if [[ $# -lt 2 ]]; then
+          error "$1 オプションには値を指定してください"
+        fi
         output_file="$2"
+        VERBOSE="1"
         shift 2
         ;;
       --vc-manager-ns)
+        if [[ $# -lt 2 ]]; then
+          error "$1 オプションには値を指定してください"
+        fi
         VC_MANAGER_NS="$2"
+        VERBOSE="1"
         shift 2
         ;;
       -*)
@@ -219,6 +200,11 @@ main() {
   if [[ -z "$tenant_name" ]]; then
     usage >&2
     error "テナント名を指定してください"
+  fi
+
+  # 出力ファイル指定なし時は、詳細出力を有効化
+  if [[ -z "$output_file" ]]; then
+    VERBOSE="1"
   fi
 
   # kubectl が利用可能か確認

@@ -270,6 +270,18 @@ _vc-tenant-logs() {
     esac
 }
 
+# vc-tenant-kubeconfig.sh の補完関数
+_vc-tenant-kubeconfig() {
+    local context state line
+    typeset -A opt_args
+
+    _arguments -C \
+        '1: :_vc_tenant_get_tenant_list' \
+        '(-o --output)'{-o,--output}'[Output file]:file:_files' \
+        '--vc-manager-ns[VirtualCluster manager namespace]:namespace: ' \
+        '(-h --help)'{-h,--help}'[Show help]'
+}
+
 # メイン処理: スクリプト名に応じて適切な補完関数を呼び出し
 case "$service" in
     vc-tenant-apply.sh)
@@ -286,5 +298,8 @@ case "$service" in
         ;;
     vc-tenant-logs.sh)
         _vc-tenant-logs "$@"
+        ;;
+    vc-tenant-kubeconfig.sh)
+        _vc-tenant-kubeconfig "$@"
         ;;
 esac
