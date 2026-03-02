@@ -1,6 +1,6 @@
 # k8s-worker ロール
 
-Kubernetes ワーカーノードをクラスタへ再参加させるためのロールです。`k8s-common` で整えた前提の上に, 低遅延化向けの OS チューニング, `kubeadm join` の再実行, NodePort を含む防火壁構成, Cilium BGP Control Plane の設定をまとめて適用します。再実行を想定し, 既存ノードの cordon / drain / delete まで一括で扱います。
+Kubernetes ワーカーノードをクラスタへ再参加させるためのロールです。`k8s-common` で整えた前提の上に, 低遅延化向けの OS チューニング, `kubeadm join` の再実行, NodePort を含む防火壁構成, Cilium BGP Control Plane の設定をまとめて適用します。再実行を想定し, 既存Kubernetes ノードの cordon / drain / delete まで一括で扱います。
 
 ## 用語
 
@@ -10,31 +10,31 @@ Kubernetes ワーカーノードをクラスタへ再参加させるためのロ
 | Custom Resource Definition | CRD | Kubernetes APIを拡張してユーザ独自のリソース種別を定義する仕組み。 |
 | Role-Based Access Control | RBAC | ユーザやサービスアカウントが実行可能な操作を役割(Role)で制限する仕組み。 |
 | Service Account | - | Kubernetes内部でPodが他のリソースにアクセスする際に用いる仮想的なアカウント。 |
-| ClusterRole | - | クラスタ全体に適用される権限の集合。 |
+| ClusterRole | - | Kubernetesクラスタ全体に適用される権限の集合。 |
 | ClusterRoleBinding | - | ClusterRoleをユーザやサービスアカウントに紐付ける仕組み。 |
 | Role | - | 特定の名前空間内で有効な権限の集合。 |
 | RoleBinding | - | Roleをユーザやサービスアカウントに紐付ける仕組み。 |
 | Namespace | - | Kubernetes内部でリソースを論理的に分離する単位。 |
-| Pod | - | Kubernetes上で動作するコンテナの最小単位。 |
-| DaemonSet | - | クラスタ内の全ノード(または指定した一部のノード)で必ずPodを1つずつ起動させるリソース。 |
-| Deployment | - | 指定した数のPodを維持し, ローリングアップデート等を管理するリソース。 |
+| ポッド ( Pod ) | - | Kubernetes上で動作するコンテナの最小単位。 |
+| デーモンセット ( DaemonSet ) | - | Kubernetesクラスタ内の全ノード(または指定した一部のノード)で必ずPodを1つずつ起動させるリソース。 |
+| デプロイメント ( Deployment ) | - | 指定した数のPodを維持し, ローリングアップデート等を管理するリソース。 |
 | StatefulSet | - | 状態を持つアプリケーションのPodを順序付けて管理するリソース。 |
-| Service | - | Podへのアクセスを抽象化し, 負荷分散やサービスディスカバリを提供するリソース。 |
-| Ingress | - | クラスタ外部からHTTP/HTTPS通信を受け付け, 内部のServiceへルーティングする仕組み。 |
-| ConfigMap | - | 設定情報を保持し, Podへ環境変数やファイルとして注入するリソース。 |
-| Secret | - | 機密情報を保持し, Podへ安全に注入するリソース。 |
-| PersistentVolume | PV | クラスタ内で利用可能なストレージリソースを表すオブジェクト。 |
+| サービス ( Service ) | - | Podへのアクセスを抽象化し, 負荷分散やサービスディスカバリを提供するリソース。 |
+| Ingress | - | Kubernetesクラスタ外部からHTTP/HTTPS通信を受け付け, 内部のServiceへルーティングする仕組み。 |
+| コンフィグマップ ( ConfigMap ) | - | 設定情報を保持し, Podへ環境変数やファイルとして注入するリソース。 |
+| シークレット ( Secret ) | - | 機密情報を保持し, Podへ安全に注入するリソース。 |
+| PersistentVolume | PV | Kubernetesクラスタ内で利用可能なストレージリソースを表すオブジェクト。 |
 | PersistentVolumeClaim | PVC | ユーザがPVを要求する際に利用するリソース。 |
 | StorageClass | - | 動的にPVをプロビジョニングする際のストレージ種別を定義するリソース。 |
-| Node | - | Kubernetesクラスタを構成する物理マシンまたは仮想マシン。 |
-| Control Plane | - | クラスタ全体を管理, 制御する中枢ノード群。kube-apiserver, kube-controller-manager, kube-schedulerなどが動作する。 |
-| Worker Node | - | 実際にアプリケーションのPodを実行するノード。 |
+| Kubernetes ノード ( Kubernetes Node ) | - | Kubernetesクラスタを構成する物理マシンまたは仮想マシン。 |
+| コントロールプレーンノード ( Control Plane Node ) | - | Kubernetesクラスタ全体を管理, 制御する中枢ノード群。kube-apiserver, kube-controller-manager, kube-schedulerなどが動作する。 |
+| ワーカノード ( Worker Node ) | - | 実際にアプリケーションのPodを実行するノード。 |
 | kube-apiserver | - | KubernetesのAPIリクエストを受け付け, etcdへの読み書きを仲介するコンポーネント。 |
-| kube-controller-manager | - | Deployment, ReplicaSetなど各種コントローラを実行し, クラスタの状態を監視, 調整するコンポーネント。 |
+| kube-controller-manager | - | Deployment, ReplicaSetなど各種コントローラを実行し, Kubernetesクラスタの状態を監視, 調整するコンポーネント。 |
 | kube-scheduler | - | 新規作成されたPodを適切なNodeへ配置するコンポーネント。 |
 | kubelet | - | 各Node上で動作し, Podの起動, 停止, 監視を行うエージェント。 |
 | kube-proxy | - | 各Node上でServiceのネットワークルールを管理するコンポーネント。 |
-| etcd | - | Kubernetesのクラスタ状態を保存する分散Key-Valueストア。 |
+| etcd | - | KubernetesのKubernetesクラスタ状態を保存する分散Key-Valueストア。 |
 | Container Network Interface | CNI | コンテナ間のネットワーク接続を標準化するプラグイン仕様。 |
 | Cilium | - | eBPFを活用した高性能なCNIプラグイン。ネットワークポリシーやサービスメッシュ機能を提供する。 |
 | Multus | - | 複数のCNIプラグインを同時に使用できるようにするメタCNIプラグイン。 |
@@ -61,7 +61,7 @@ Kubernetes ワーカーノードをクラスタへ再参加させるためのロ
 3. [roles/k8s-worker/tasks/config-k8sworker-firewall.yml](roles/k8s-worker/tasks/config-k8sworker-firewall.yml#L8-L195) は `enable_firewall` と `firewall_backend` に応じて UFW もしくは firewalld を整備し, 6443 側からの kubelet アクセスや NodePort 範囲の開放, 状態確認を行います。
 4. [roles/k8s-worker/tasks/config-shielding.yml](roles/k8s-worker/tasks/config-shielding.yml#L8-L27) が `k8s_systemd_slices` 向けに cpuset ドロップイン (`systemd-cpuset.conf.j2`) を生成し, CPU シールドの前提を整えます。
 5. [roles/k8s-worker/tasks/config-worker-node.yml](roles/k8s-worker/tasks/config-worker-node.yml#L11-L354) が `irq_balance_package` の削除, `k8s_reserved_system_cpus_default` を基にしたアプリケーション用 CPU レンジ算出, GRUB コマンドラインの最適化, pin スクリプトと systemd サービスの展開, 初回リブートと待機をまとめて実施します。
-6. [roles/k8s-worker/tasks/config.yml](roles/k8s-worker/tasks/config.yml#L8-L186) が kube-apiserver の起動待ちとトークン／CA ハッシュ取得, `worker-kubeadm.config.j2` の生成, 既存ノードの cordon / drain / delete, `kubeadm reset` と再 join, サービス有効化, 二度目のリブートを実行します。
+6. [roles/k8s-worker/tasks/config.yml](roles/k8s-worker/tasks/config.yml#L8-L186) が kube-apiserver の起動待ちとトークン／CA ハッシュ取得, `worker-kubeadm.config.j2` の生成, 既存Kubernetes ノードの cordon / drain / delete, `kubeadm reset` と再 join, サービス有効化, 二度目のリブートを実行します。
 7. [roles/k8s-worker/tasks/config-cilium-bgp-cplane.yml](roles/k8s-worker/tasks/config-cilium-bgp-cplane.yml#L8-L105) は `k8s_bgp.enabled` が true の場合にのみ発動し, マニフェスト出力ディレクトリを整備して `roles/k8s-common/templates/cilium-bgp-resources.yml.j2` をレンダリングし, 関連 CRD の存在確認後に適用します。
 
 ## 主要変数
@@ -97,7 +97,7 @@ Kubernetes ワーカーノードをクラスタへ再参加させるためのロ
 - **CPU シールドの準備**: systemd スライス単位で AllowedCPUs を固定し, IRQ 片寄せスクリプトと連携する前提を整備します。
 - **GRUB と低遅延調整**: `k8s_reserved_system_cpus_default` に基づき `nohz_full` や `isolcpus` などのカーネルパラメータを更新し, ワーカースレッドと IRQ をアプリケーション用 / システム用に分離します。
 - **kubeadm 再 join**: 既存ワーカーの cordon / drain / delete, `kubeadm reset`, `kubeadm join --config` を自動化し, containerd / kubelet を有効化して再起動します。
-- **Cilium BGP Control Plane**: ノード固有の識別子で CRD マニフェストを生成し, CiliumBGPAdvertisement / CiliumBGPPeerConfig / CiliumBGPClusterConfig を適用して Pod/Service CIDR をルータへ広告します。
+- **Cilium BGP Control Plane**: Kubernetes ノード固有の識別子で CRD マニフェストを生成し, CiliumBGPAdvertisement / CiliumBGPPeerConfig / CiliumBGPClusterConfig を適用して Pod/Service CIDR をルータへ広告します。
 - **再起動とユーティリティ登録**: pin-worker-queue / pin-irqs の systemd サービスを enabled 登録し, OS チューニング後と join 後にそれぞれリブートします。
 
 ## テンプレート／ファイル
@@ -110,7 +110,7 @@ Kubernetes ワーカーノードをクラスタへ再参加させるためのロ
 | [roles/k8s-worker/templates/pin-worker-queue.service.j2](roles/k8s-worker/templates/pin-worker-queue.service.j2) | pin-worker-queue.service ( 対象ホストの systemd ユニットディレクトリ ) | pin-worker-queue.sh をワンショット実行し, ブート後に CPU ピニングを適用する systemd ユニットを登録します。 |
 | [roles/k8s-worker/templates/pin-irqs.py.j2](roles/k8s-worker/templates/pin-irqs.py.j2) | pin-irqs.py ( 対象ホストの k8s_node_setup_tools_dir 配下 ) | 割込みをシステム用 CPU へ片寄せる Python スクリプトを配備します。 |
 | [roles/k8s-worker/templates/pin-irqs.service.j2](roles/k8s-worker/templates/pin-irqs.service.j2) | pin-irqs.service ( 対象ホストの systemd ユニットディレクトリ ) | pin-irqs.py を起動して IRQ アフィニティを適用する systemd ユニットを登録します。 |
-| [roles/k8s-common/templates/cilium-bgp-resources.yml.j2](roles/k8s-common/templates/cilium-bgp-resources.yml.j2) | Cilium BGP マニフェスト ( 対象ホストの cilium_bgp_manifest_dir 配下 ) | ノード固有の識別子を含む CiliumBGP* リソースをまとめたマニフェストを生成し, apply_delegate で指定したホストに保存します。 |
+| [roles/k8s-common/templates/cilium-bgp-resources.yml.j2](roles/k8s-common/templates/cilium-bgp-resources.yml.j2) | Cilium BGP マニフェスト ( 対象ホストの cilium_bgp_manifest_dir 配下 ) | Kubernetes ノード固有の識別子を含む CiliumBGP* リソースをまとめたマニフェストを生成し, apply_delegate で指定したホストに保存します。 |
 
 ## ハンドラ
 
@@ -132,7 +132,7 @@ Kubernetes ワーカーノードをクラスタへ再参加させるためのロ
 ## 補足と注意事項
 
 - 本ロールは `config-worker-node.yml` と `config.yml` の両方でリブートを実行します。
-- `config.yml` には `kubeadm reset` が含まれるため, 稼働中Kubernetesクラスタへ適用する際は事前に Pod 退避や停止計画を準備してください。`kubectl drain --ignore-daemonsets --delete-emptydir-data` は DaemonSet を退避しないため, 必要に応じて, 対象ノードで稼働する各 DaemonSet Pod の停止／再スケジューリング手順を整備し, Local Persistent Volume に格納されたデータは退避やアンマウントを含めた保全策を講じてから実行してください。
+- `config.yml` には `kubeadm reset` が含まれるため, 稼働中Kubernetesクラスタへ適用する際は事前に Pod 退避や停止計画を準備してください。`kubectl drain --ignore-daemonsets --delete-emptydir-data` は DaemonSet を退避しないため, 必要に応じて, 対象Kubernetes ノードで稼働する各 DaemonSet Pod の停止／再スケジューリング手順を整備し, Local Persistent Volume に格納されたデータは退避やアンマウントを含めた保全策を講じてから実行してください。
 - control-plane 側で `kubeadm token create` や `kubectl` を実行するため, `k8s_ctrlplane_host` ではパスワードレス sudo などの権限を整備しておいてください。設定を誤ると join 用トークン取得が失敗します。
 - Cilium BGP Control Plane のマニフェストは `k8s_bgp.apply_delegate` で指定したホスト ( 既定は `k8s_ctrlplane_host` )上で生成・適用されます。
 - NodePort を有効化する場合は必要なサービスのみが公開されるよう, 上位ネットワーク機器側のアクセス制御リストも合わせて確認してください。

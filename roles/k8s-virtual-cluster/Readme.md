@@ -37,8 +37,8 @@ Kubernetes 仮想クラスタ ) の基盤コンポーネントをデプロイす
 | emptyDir | - | Kubernetes ボリュームタイプ。ポッドがノードに割り当てられた時に作成される一時的なボリューム。ポッドが存在する限りデータが保持され, ポッド削除時にデータが失われる。開発環境での一時データ保存や Pod 内のコンテナ間でのファイル共有に使用。 |
 | コンフィグマップ ( ConfigMap ) | - | Kubernetes リソース。設定データをキー, バリューペアで保存し, 非機密情報を管理。 |
 | シークレット ( Secret ) | - | Kubernetes リソース。パスワード, API キー, 証明書などの機密データを暗号化して安全に保存, 管理。 |
-| 仮想クラスタ ( Virtual Cluster ) | - | Kubernetes API を仮想化して提供する論理的な Kubernetes クラスタ。各テナントに独立した専用クラスタとして見える環境を提供する。 |
-| スーパークラスタ ( Super Cluster ) | - | 仮想クラスタ ( Virtual Cluster ) を動作させるホスト側の物理 Kubernetes クラスタ。実際のノードリソースを提供する。 |
+| 仮想クラスタ ( Virtual Cluster ) | - | Kubernetes API を仮想化して提供する論理的な Kubernetesクラスタ。各テナントに独立した専用Kubernetesクラスタとして見える環境を提供する。 |
+| スーパークラスタ ( Super Cluster ) | - | 仮想クラスタ ( Virtual Cluster ) を動作させるホスト側の物理Kubernetesクラスタ。実際のノードリソースを提供する。 |
 | テナント ( Tenant ) | - | 互いに独立した Kubernetes コントロールプレーンノードを持つ論理的な利用者またはチーム。各テナントについて, 専用の仮想クラスタ ( Virtual Cluster ) が割り当てられ, テナントに割り当てられた仮想クラスタ ( Virtual Cluster ) 内のリソース (名前空間 ( namespace ) , CRD) を他のテナントに影響を与えずに作成できる。物理リソース (ノード) をスーパークラスタ ( Super Cluster ) を通じて他のテナントと共有し, かつ, 仮想リソース (Kubernetes のリソース) は, Kubernetes のコントロールプレーンノードレベルで分離される。 |
 | vc-manager ( Virtual Cluster Manager ) | vc-manager | 仮想クラスタ ( Virtual Cluster ) の制御コンポーネント。スーパークラスタ ( Super Cluster ) 上で仮想クラスタ ( Virtual Cluster ) の管理を行う。 |
 | vc-syncer ( Virtual Cluster Syncer ) | vc-syncer | 仮想クラスタ ( Virtual Cluster ) とスーパークラスタ ( Super Cluster ) の状態を同期するコンポーネント。 |
@@ -54,7 +54,7 @@ Kubernetes 仮想クラスタ ) の基盤コンポーネントをデプロイす
 
 ## 前提条件
 
-- Kubernetes Kubernetesクラスタが稼働していること。目安は v1.22 以上です。
+- Kubernetesクラスタが稼働していること。目安は v1.22 以上です。
 - `kubectl` コマンドが利用可能であること。
 - `k8s-common` と `k8s-ctrlplane` ロールが事前に実行済みであること。
 - 仮想クラスタ のコンポーネントは実験環境向けの実装です。
@@ -272,7 +272,7 @@ virtualcluster_persistent_volumes:
 | `capacity` | 必須 | PV の容量。Kubernetes Quantity 形式で指定。未設定の場合は当該エントリを無効としてスキップし, 他の有効エントリの処理を継続します。 | `10Gi` | なし |
 | `storage_class` | 任意 | 紐付ける StorageClass 名。 | `default-sc` | `local-storage` |
 | `host_path` | 必須 | ワーカノード上のローカルパス。未設定の場合は当該エントリを無効としてスキップし, 他の有効エントリの処理を継続します。 | `/mnt/etcd-data/tenant-alpha` | なし |
-| `node_name` | 必須 | PV をバインド ( Bind ) するノード名。未設定の場合は当該エントリを無効としてスキップし, 他の有効エントリの処理を継続します。 | `k8sworker0101` | なし |
+| `node_name` | 必須 | PV をバインド ( Bind ) するKubernetes ノード名。未設定の場合は当該エントリを無効としてスキップし, 他の有効エントリの処理を継続します。 | `k8sworker0101` | なし |
 | `access_modes` | 任意 | アクセスモードの配列。 | `["ReadWriteOnce"]` | `["ReadWriteOnce"]` |
 | `reclaim_policy` | 任意 | 削除時の回収ポリシ。 | `Delete` | `Delete` |
 | `labels` | 任意 | PV に付与するラベル辞書。未設定の場合はテンプレートで `type: local` ラベルのみ付与されます。 | `{ type: "local", purpose: "etcd" }` | なし |
@@ -1520,7 +1520,7 @@ kubectl -n $TENANT_NS apply -f manifest.yaml
      # kubeconfigのサーバーアドレスをlocalhostに変更
      sed -i 's|server: https://.*:6443|server: https://localhost:6443|' /tmp/tenant-test-kubeconfig.yaml
 
-     # テナントに割り当てられた仮想クラスタ のノード一覧確認
+     # テナントに割り当てられた仮想クラスタ のKubernetes ノード一覧確認
      kubectl --kubeconfig=/tmp/tenant-test-kubeconfig.yaml get nodes --insecure-skip-tls-verify
 
      # ポートフォワーディングを停止

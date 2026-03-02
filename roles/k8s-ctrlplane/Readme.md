@@ -10,31 +10,31 @@ Kubernetes コントロールプレーンノードを構築するロールです
 | Custom Resource Definition | CRD | Kubernetes APIを拡張してユーザ独自のリソース種別を定義する仕組み。 |
 | Role-Based Access Control | RBAC | ユーザやサービスアカウントが実行可能な操作を役割(Role)で制限する仕組み。 |
 | Service Account | - | Kubernetes内部でPodが他のリソースにアクセスする際に用いる仮想的なアカウント。 |
-| ClusterRole | - | クラスタ全体に適用される権限の集合。 |
+| ClusterRole | - | Kubernetesクラスタ全体に適用される権限の集合。 |
 | ClusterRoleBinding | - | ClusterRoleをユーザやサービスアカウントに紐付ける仕組み。 |
 | Role | - | 特定の名前空間内で有効な権限の集合。 |
 | RoleBinding | - | Roleをユーザやサービスアカウントに紐付ける仕組み。 |
 | Namespace | - | Kubernetes内部でリソースを論理的に分離する単位。 |
-| Pod | - | Kubernetes上で動作するコンテナの最小単位。 |
-| DaemonSet | - | クラスタ内の全ノード(または指定した一部のノード)で必ずPodを1つずつ起動させるリソース。 |
-| Deployment | - | 指定した数のPodを維持し, ローリングアップデート等を管理するリソース。 |
+| ポッド ( Pod ) | - | Kubernetes上で動作するコンテナの最小単位。 |
+| デーモンセット ( DaemonSet ) | - | Kubernetesクラスタ内の全ノード(または指定した一部のノード)で必ずPodを1つずつ起動させるリソース。 |
+| デプロイメント ( Deployment ) | - | 指定した数のPodを維持し, ローリングアップデート等を管理するリソース。 |
 | StatefulSet | - | 状態を持つアプリケーションのPodを順序付けて管理するリソース。 |
-| Service | - | Podへのアクセスを抽象化し, 負荷分散やサービスディスカバリを提供するリソース。 |
-| Ingress | - | クラスタ外部からHTTP/HTTPS通信を受け付け, 内部のServiceへルーティングする仕組み。 |
-| ConfigMap | - | 設定情報を保持し, Podへ環境変数やファイルとして注入するリソース。 |
-| Secret | - | 機密情報を保持し, Podへ安全に注入するリソース。 |
-| PersistentVolume | PV | クラスタ内で利用可能なストレージリソースを表すオブジェクト。 |
+| サービス ( Service ) | - | Podへのアクセスを抽象化し, 負荷分散やサービスディスカバリを提供するリソース。 |
+| Ingress | - | Kubernetesクラスタ外部からHTTP/HTTPS通信を受け付け, 内部のServiceへルーティングする仕組み。 |
+| コンフィグマップ ( ConfigMap ) | - | 設定情報を保持し, Podへ環境変数やファイルとして注入するリソース。 |
+| シークレット ( Secret ) | - | 機密情報を保持し, Podへ安全に注入するリソース。 |
+| PersistentVolume | PV | Kubernetesクラスタ内で利用可能なストレージリソースを表すオブジェクト。 |
 | PersistentVolumeClaim | PVC | ユーザがPVを要求する際に利用するリソース。 |
 | StorageClass | - | 動的にPVをプロビジョニングする際のストレージ種別を定義するリソース。 |
-| Node | - | Kubernetesクラスタを構成する物理マシンまたは仮想マシン。 |
-| Control Plane | - | クラスタ全体を管理, 制御する中枢ノード群。kube-apiserver, kube-controller-manager, kube-schedulerなどが動作する。 |
-| Worker Node | - | 実際にアプリケーションのPodを実行するノード。 |
+| Kubernetes ノード ( Kubernetes Node ) | - | Kubernetesクラスタを構成する物理マシンまたは仮想マシン。 |
+| コントロールプレーンノード ( Control Plane Node ) | - | Kubernetesクラスタ全体を管理, 制御する中枢ノード群。kube-apiserver, kube-controller-manager, kube-schedulerなどが動作する。 |
+| ワーカノード ( Worker Node ) | - | 実際にアプリケーションのPodを実行するノード。 |
 | kube-apiserver | - | KubernetesのAPIリクエストを受け付け, etcdへの読み書きを仲介するコンポーネント。 |
-| kube-controller-manager | - | Deployment, ReplicaSetなど各種コントローラを実行し, クラスタの状態を監視, 調整するコンポーネント。 |
+| kube-controller-manager | - | Deployment, ReplicaSetなど各種コントローラを実行し, Kubernetesクラスタの状態を監視, 調整するコンポーネント。 |
 | kube-scheduler | - | 新規作成されたPodを適切なNodeへ配置するコンポーネント。 |
 | kubelet | - | 各Node上で動作し, Podの起動, 停止, 監視を行うエージェント。 |
 | kube-proxy | - | 各Node上でServiceのネットワークルールを管理するコンポーネント。 |
-| etcd | - | Kubernetesのクラスタ状態を保存する分散Key-Valueストア。 |
+| etcd | - | KubernetesのKubernetesクラスタ状態を保存する分散Key-Valueストア。 |
 | Container Network Interface | CNI | コンテナ間のネットワーク接続を標準化するプラグイン仕様。 |
 | Cilium | - | eBPFを活用した高性能なCNIプラグイン。ネットワークポリシーやサービスメッシュ機能を提供する。 |
 | Multus | - | 複数のCNIプラグインを同時に使用できるようにするメタCNIプラグイン。 |
@@ -66,7 +66,7 @@ Kubernetes コントロールプレーンノードを構築するロールです
 8. `config-k8s-cilium-shell-completion.yml` が `k8s_cilium_cli_completion_enabled` 有効時に bash/zsh 用補完スクリプトを生成・配置します。
 9. `config.yml` が kubeadm 設定ファイル `ctrlplane-kubeadm.config.yml` を生成し, Pod/Service CIDR の順序を API ファミリと揃えた上で `kubeadm reset` → `kubeadm init` を実行します。必要に応じて共通 CA を `/etc/kubernetes/pki` へ復元し, containerd / kubelet を有効化してから kubeconfig を root / ansible / `k8s_operator_user` に配布し, ホストを再起動します。
 10. `config-cilium.yml` が kube-apiserverの起動を待機し, `kubernetes-admin` に cluster-admin 権限を付与してから kube-proxy (DaemonSet / ConfigMap / iptables ルール) を除去し, (必要時) `k8s-cilium-shared-ca` ロールで Cluster Mesh 用 Secret を更新し, 生成した values で `helm install cilium` を実行します (既存リリースが残っていると失敗するため, 再適用時は手動で削除が必要)。処理後に再起動します。
-11. `config-cilium-bgp-cplane.yml` は `k8s_bgp.enabled` が `true` のホストで発動し, ノード名などの識別子を算出して Cilium BGP Control Plane 用 manifest を生成します。その後, 関連 CRD (CiliumBGPAdvertisement / CiliumBGPPeerConfig / CiliumBGPClusterConfig) の存在を確認しながら manifest を適用します。
+11. `config-cilium-bgp-cplane.yml` は `k8s_bgp.enabled` が `true` のホストで発動し, Kubernetes ノード名などの識別子を算出して Cilium BGP Control Plane 用 manifest を生成します。その後, 関連 CRD (CiliumBGPAdvertisement / CiliumBGPPeerConfig / CiliumBGPClusterConfig) の存在を確認しながら manifest を適用します。
 12. `config-cluster-mesh-tools.yml` が Cluster Mesh 向けツールディレクトリを作成し, 証明書埋め込み kubeconfig 生成スクリプトと手順書を配布します。Kubernetesクラスタ名/ID が指定されている場合は共有 CA の存在を検証し, 見つからなければ明示的に失敗させます。条件を満たせば埋め込み kubeconfig を生成し, ファイル所有者を `k8s_operator_user` に設定します。
 
 ## 主要変数
@@ -144,7 +144,7 @@ Kubernetes コントロールプレーンノードを構築するロールです
 
 #### Node podCIDRs の確認
 
-各ノードに割り当てられた Pod CIDR が IPv4 と IPv6 の両方を含むことを確認します:
+各Kubernetes ノードに割り当てられた Pod CIDR が IPv4 と IPv6 の両方を含むことを確認します:
 
 ```bash
 kubectl get nodes -o custom-columns=NAME:.metadata.name,POD-CIDRS:.spec.podCIDRs

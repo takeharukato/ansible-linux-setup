@@ -1,6 +1,6 @@
 # k8s-kubeconfig ロール
 
-このロールは Kubernetes ノードで利用する `kubeconfig` を生成, 統合, 配布し, オペレータ (`k8s_operator_user` 変数で定義, `kube` ユーザ) 用ホームディレクトリと `/etc/kubernetes` の両方を一貫した内容に保ちます。コントロールプレーンノード毎に証明書埋め込み版 `kubeconfig` を生成し, kubeconfigファイル結合ツール(`create-uniq-kubeconfig.py`) で複数クラスタコンテキストを統合した上で, 各ワーカーノードへも同じ内容を展開します。
+このロールはKubernetesの各ノードで利用する `kubeconfig` を生成, 統合, 配布し, オペレータ (`k8s_operator_user` 変数で定義, `kube` ユーザ) 用ホームディレクトリと `/etc/kubernetes` の両方を一貫した内容に保ちます。コントロールプレーンノード毎に証明書埋め込み版 `kubeconfig` を生成し, kubeconfigファイル結合ツール(`create-uniq-kubeconfig.py`) で複数クラスタコンテキストを統合した上で, 各ワーカーノードへも同じ内容を展開します。
 
 以下では, `ansible-playbook` コマンド実行ノードを`制御ノード`と記載します。
 
@@ -12,31 +12,31 @@
 | Custom Resource Definition | CRD | Kubernetes APIを拡張してユーザ独自のリソース種別を定義する仕組み。 |
 | Role-Based Access Control | RBAC | ユーザやサービスアカウントが実行可能な操作を役割(Role)で制限する仕組み。 |
 | Service Account | - | Kubernetes内部でPodが他のリソースにアクセスする際に用いる仮想的なアカウント。 |
-| ClusterRole | - | クラスタ全体に適用される権限の集合。 |
+| ClusterRole | - | Kubernetesクラスタ全体に適用される権限の集合。 |
 | ClusterRoleBinding | - | ClusterRoleをユーザやサービスアカウントに紐付ける仕組み。 |
 | Role | - | 特定の名前空間内で有効な権限の集合。 |
 | RoleBinding | - | Roleをユーザやサービスアカウントに紐付ける仕組み。 |
 | Namespace | - | Kubernetes内部でリソースを論理的に分離する単位。 |
-| Pod | - | Kubernetes上で動作するコンテナの最小単位。 |
-| DaemonSet | - | クラスタ内の全ノード(または指定した一部のノード)で必ずPodを1つずつ起動させるリソース。 |
-| Deployment | - | 指定した数のPodを維持し, ローリングアップデート等を管理するリソース。 |
+| ポッド ( Pod ) | - | Kubernetes上で動作するコンテナの最小単位。 |
+| デーモンセット ( DaemonSet ) | - | Kubernetesクラスタ内の全ノード(または指定した一部のノード)で必ずPodを1つずつ起動させるリソース。 |
+| デプロイメント ( Deployment ) | - | 指定した数のPodを維持し, ローリングアップデート等を管理するリソース。 |
 | StatefulSet | - | 状態を持つアプリケーションのPodを順序付けて管理するリソース。 |
-| Service | - | Podへのアクセスを抽象化し, 負荷分散やサービスディスカバリを提供するリソース。 |
-| Ingress | - | クラスタ外部からHTTP/HTTPS通信を受け付け, 内部のServiceへルーティングする仕組み。 |
-| ConfigMap | - | 設定情報を保持し, Podへ環境変数やファイルとして注入するリソース。 |
-| Secret | - | 機密情報を保持し, Podへ安全に注入するリソース。 |
-| PersistentVolume | PV | クラスタ内で利用可能なストレージリソースを表すオブジェクト。 |
+| サービス ( Service ) | - | Podへのアクセスを抽象化し, 負荷分散やサービスディスカバリを提供するリソース。 |
+| Ingress | - | Kubernetesクラスタ外部からHTTP/HTTPS通信を受け付け, 内部のServiceへルーティングする仕組み。 |
+| コンフィグマップ ( ConfigMap ) | - | 設定情報を保持し, Podへ環境変数やファイルとして注入するリソース。 |
+| シークレット ( Secret ) | - | 機密情報を保持し, Podへ安全に注入するリソース。 |
+| PersistentVolume | PV | Kubernetesクラスタ内で利用可能なストレージリソースを表すオブジェクト。 |
 | PersistentVolumeClaim | PVC | ユーザがPVを要求する際に利用するリソース。 |
 | StorageClass | - | 動的にPVをプロビジョニングする際のストレージ種別を定義するリソース。 |
-| Node | - | Kubernetesクラスタを構成する物理マシンまたは仮想マシン。 |
-| Control Plane | - | クラスタ全体を管理, 制御する中枢ノード群。kube-apiserver, kube-controller-manager, kube-schedulerなどが動作する。 |
-| Worker Node | - | 実際にアプリケーションのPodを実行するノード。 |
+| Kubernetes ノード ( Kubernetes Node ) | - | Kubernetesクラスタを構成する物理マシンまたは仮想マシン。 |
+| コントロールプレーンノード ( Control Plane Node ) | - | Kubernetesクラスタ全体を管理, 制御する中枢ノード群。kube-apiserver, kube-controller-manager, kube-schedulerなどが動作する。 |
+| ワーカノード ( Worker Node ) | - | 実際にアプリケーションのPodを実行するノード。 |
 | kube-apiserver | - | KubernetesのAPIリクエストを受け付け, etcdへの読み書きを仲介するコンポーネント。 |
-| kube-controller-manager | - | Deployment, ReplicaSetなど各種コントローラを実行し, クラスタの状態を監視, 調整するコンポーネント。 |
+| kube-controller-manager | - | Deployment, ReplicaSetなど各種コントローラを実行し, Kubernetesクラスタの状態を監視, 調整するコンポーネント。 |
 | kube-scheduler | - | 新規作成されたPodを適切なNodeへ配置するコンポーネント。 |
 | kubelet | - | 各Node上で動作し, Podの起動, 停止, 監視を行うエージェント。 |
 | kube-proxy | - | 各Node上でServiceのネットワークルールを管理するコンポーネント。 |
-| etcd | - | Kubernetesのクラスタ状態を保存する分散Key-Valueストア。 |
+| etcd | - | KubernetesのKubernetesクラスタ状態を保存する分散Key-Valueストア。 |
 | Container Network Interface | CNI | コンテナ間のネットワーク接続を標準化するプラグイン仕様。 |
 | Cilium | - | eBPFを活用した高性能なCNIプラグイン。ネットワークポリシーやサービスメッシュ機能を提供する。 |
 | Multus | - | 複数のCNIプラグインを同時に使用できるようにするメタCNIプラグイン。 |
@@ -74,11 +74,11 @@
 | ファイル / ディレクトリ | 配置ホスト | 説明 |
 | --- | --- | --- |
 | `/etc/kubernetes/ca-embedded-admin.conf` | コントロールプレーンノード | 証明書を埋め込み済みの管理者 `kubeconfig`。`kubectl` をルート権限で利用するための控え。|
-| `/etc/kubernetes/merged-kubeconfig.conf` | 全ノード | 全コントロールプレーンノードのコンテキストを統合した `kubeconfig`。コントロールプレーンノード/ワーカーノード共通で参照。|
+| `/etc/kubernetes/merged-kubeconfig.conf` | 全Kubernetes ノード | 全コントロールプレーンノードのコンテキストを統合した `kubeconfig`。コントロールプレーンノード/ワーカーノード共通で参照。|
 | `~{{ k8s_operator_user }}/.kube/cluster*-embedded.kubeconfig` | コントロールプレーンノード | `create-embedded-kubeconfig.py` が生成するクラスタ固有の埋め込み版 kubeconfig。|
 | `~{{ k8s_operator_user }}/.kube/ca-embedded-admin.conf` | コントロールプレーンノード | `/etc/kubernetes` に配置した埋め込み版のオペレータ控え。|
-| `~{{ k8s_operator_user }}/.kube/merged-kubeconfig.conf` | 全ノード | `/etc/kubernetes/merged-kubeconfig.conf` のコピー。オペレータユーザが直接参照。|
-| `~{{ k8s_operator_user }}/.kube/config -> merged-kubeconfig.conf` | 全ノード | 統合 `kubeconfig` への相対シンボリックリンク。既存ファイルは `config-default` にバックアップ。|
+| `~{{ k8s_operator_user }}/.kube/merged-kubeconfig.conf` | 全Kubernetes ノード | `/etc/kubernetes/merged-kubeconfig.conf` のコピー。オペレータユーザが直接参照。|
+| `~{{ k8s_operator_user }}/.kube/config -> merged-kubeconfig.conf` | 全Kubernetes ノード | 統合 `kubeconfig` への相対シンボリックリンク。既存ファイルは `config-default` にバックアップ。|
 
 ## 主要変数
 
