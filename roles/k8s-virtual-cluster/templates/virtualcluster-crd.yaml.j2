@@ -87,6 +87,54 @@ spec:
                   type: string
                   # kubeconfigを保存するSecretの名前。
                   description: "Secret name that stores kubeconfig."
+                # opaqueMetaPrefixes定義。
+                # opaqueMetaPrefixes は, 仮想クラスタ ( Virtual Cluster ) 側に保持されている
+                # ラベル/アノテーションのうち, 指定されたプレフィックスに一致する
+                # ラベル/アノテーションのキーを持つものをスーパークラスタ ( Super Cluster ) に
+                # 同期しないための指定。
+                #
+                # 指定されたラベル/アノテーションは, 仮想クラスタ ( Virtual Cluster ) 側から
+                # スーパークラスタ ( Super Cluster ) 側への反映が行われないため,
+                # スーパークラスタ ( Super Cluster ) 側からは, 参照不能となる。
+                #
+                # ラベル（label）: リソースに対する付加情報の一種で,
+                #                  key=value 形式で指定される。
+                #                  典型的には, リソースの検索, 選別 ( selector ) に用いられる。
+                #
+                # アノテーション（annotation）: リソースに対する付加情報の一種で, key: value 形式で
+                #                               指定される。
+                #                               リソースの検索, 選別 ( selector ) を目的としない用途の
+                #                               付加情報を指定するために用いられる。
+                #
+                opaqueMetaPrefixes:
+                  items:
+                    type: string
+                  type: array
+                # transparentMetaPrefixes定義。
+                # transparentMetaPrefixes は, スーパークラスタ ( Super Cluster ) 側で
+                # 保持されるラベル/アノテーションのうち, 指定されたプレフィックスに
+                # 一致するラベル/アノテーションのキーを持つものを
+                # 仮想クラスタ ( Virtual Cluster ) に反映するための指定。
+                #
+                # スーパークラスタ ( Super Cluster ) 側で保持される
+                # ラベル/アノテーションのうち,
+                # 仮想クラスタ ( Virtual Cluster ) 側でも参照可能にすべきもの
+                # ( 運用上必要なメタデータ )を指定して仮想クラスタ側に
+                # 反映するために用いられる。
+                #
+                # ラベル（label）: リソースに対する付加情報の一種で,
+                #                  key=value 形式で指定される。
+                #                  典型的には, リソースの検索, 選別 ( selector ) に用いられる。
+                #
+                # アノテーション（annotation）: リソースに対する付加情報の一種で, key: value 形式で
+                #                               指定される。
+                #                               リソースの検索, 選別 ( selector ) を目的としない用途の
+                #                               付加情報を指定するために用いられる。
+                #
+                transparentMetaPrefixes:
+                  items:
+                    type: string
+                  type: array
             # status定義。
             status:
               # status型。

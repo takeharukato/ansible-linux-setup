@@ -16,6 +16,7 @@ Kubernetes Virtual Cluster ) のテナント ( Tenant ) 環境を構築するロ
 | Role Based Access Control | RBAC | 権限を役割単位で制御する仕組み。 |
 | Transport Layer Security | TLS | 通信を暗号化する仕組み。 |
 | Domain Name System | DNS | 名前と IP アドレスを対応付ける仕組み。 |
+| トラフィック ( Traffic ) | - | ネットワーク上で送受信される通信電文。Kubernetes では主に HTTP, TCP, UDP などの通信手順に基づいて送受信される通信データを指す。 |
 | etcd | - | Kubernetes の設定情報と状態を保存する分散キーバリューストア。 |
 | kube-apiserver | - | Kubernetes API サーバー, API リクエストを受け付けて処理するコンポーネント。 |
 | kube-controller-manager | - | Kubernetes コントローラーマネージャー, リソースの状態を監視して制御するコンポーネント。 |
@@ -27,6 +28,7 @@ Kubernetes Virtual Cluster ) のテナント ( Tenant ) 環境を構築するロ
 | デプロイメント ( Deployment ) | - | Kubernetes リソース。ステートレスなアプリケーション向け。複数のレプリカ(ポッド ( Pod ) の複製)を管理し, 水平スケーリング に対応。 |
 | ステートレス ( Stateless ) | - | アプリケーションの性質を表す用語で，アプリケーションから使用される各種データの状態を永続記憶(ストレージ)に保持しなくとも，動作可能なアプリケーションであることを示す。 |
 | ステートフル ( Stateful ) | - | アプリケーションの性質を表す用語で，アプリケーションから使用される各種データの状態を永続記憶(ストレージ)に保持することを前提として動作するアプリケーションであることを示す。 |
+| サービス ( Service ) | - | Kubernetes リソース。ポッド ( Pod ) へのネットワークアクセスを定義。仮想 IP アドレスを提供し, 通信電文 ( トラフィック ) を適切なポッドに転送 ( ルーティング ) する。 |
 | PersistentVolume | PV | Kubernetes リソース。クラスタ内の永続ストレージを表すリソース。ボリュームのサイズ, アクセスモード, 回収ポリシー, バックエンド(ローカルストレージ, NFS, ブロック型ストレージなど)を定義。 |
 | PersistentVolumeClaim | PVC | Kubernetes リソース。ポッド ( Pod ) がストレージを利用する際の要求リソース。必要なストレージ容量, アクセスモードを指定し, Kubernetes のコントローラーが対応する PersistentVolume にバインドする。 |
 | StorageClass | - | Kubernetes リソース。永続ストレージのプロビジョニング方法を定義するリソース。プロビジョナー(ローカルストレージプロビジョナー, AWS EBS, NFS など)とパラメータを指定し, PersistentVolumeClaim の要求に基づいて動的に PersistentVolume を作成する。 |
@@ -48,6 +50,9 @@ Kubernetes Virtual Cluster ) のテナント ( Tenant ) 環境を構築するロ
 | vc-syncer ( Virtual Cluster Syncer ) | vc-syncer | 仮想クラスタ ( Virtual Cluster ) とスーパークラスタ ( Super Cluster ) の状態を同期するコンポーネント。 |
 | vn-agent ( Virtual Node Agent ) | vn-agent | ワーカーノード上で仮想クラスタ ( Virtual Cluster ) の通信を中継するエージェント。 |
 | 名前空間 ( namespace ) | - | Kubernetes におけるリソースのグループ化と分離の仕組み。 |
+| ラベル ( label ) | - | リソースに対する付加情報の一種で, key=value 形式で指定される。典型的には, リソースの検索, 選別 ( selector ) のために用いられる。 |
+| アノテーション ( annotation ) | - | リソースに対する付加情報の一種で, key: value 形式で指定される。リソースの検索, 選別 ( selector ) を目的としない用途の付加情報を指定するために用いられる。 |
+| セレクター ( selector ) | - | Kubernetes において, ラベル ( label ) に基づいてリソースを識別, 選択するための仕組み。たとえば, Service が特定のラベルを持つ Pod を選択して通信電文を転送する際に使用される。 |
 
 ## 前提条件
 
@@ -176,13 +181,13 @@ pv-etcd-<tenant-name>-<replica-index>
 
 2. **ClusterVersion 作成時**: ClusterVersion 名から tenant 名を抽出し, volumeClaimTemplates の selector に自動設定されます
    - ClusterVersion 名: `cv-k8s-1-31-tenant-alpha`  =>  selector: `tenant: tenant-alpha`
-   - **命名規則**: `<base-name>-tenant-<tenant-name>` 形式 ( 最後の2つのセグメント `tenant-<tenant-name>` を抽出）
+   - **命名規則**: `<base-name>-tenant-<tenant-name>` 形式 ( 最後の2つのセグメント `tenant-<tenant-name>` を抽出 )
 
 3. **PVC 作成時**: VirtualCluster が起動すると, etcd StatefulSet の volumeClaimTemplates から PVC が自動生成されます
-   - PVC は selector に一致する PV ( 同じ tenant ラベルを持つ PV）のみをバインド対象とします
+   - PVC は selector に一致する PV ( 同じ tenant ラベルを持つ PV ) のみをバインド対象とします
 
 4. **バインディング確認**: bind-pvs.yml タスクが PV-PVC バインディングの正当性を検証します
-   - ミスマッチが検出された場合, 自動的に修正を試みます ( 通常は発生しません）
+   - ミスマッチが検出された場合, 自動的に修正を試みます ( 通常は発生しません )
 
 **動作例**:
 
@@ -260,7 +265,7 @@ vcinstances_virtualclusters:
 
 1. スーパークラスタの StorageClass をチェック
 2. StorageClass が存在しない場合, `local-storage` という名前の StorageClass を作成
-3. 各テナント専用の ClusterVersion を作成 ( volumeClaimTemplates に `selector.matchLabels.tenant: <tenant-name>` が自動追加される）
+3. 各テナント専用の ClusterVersion を作成 ( volumeClaimTemplates に `selector.matchLabels.tenant: <tenant-name>` が自動追加される )
 4. PV の `tenant` ラベルと PVC の selector が一致し, 正しくバインド
 
 検証方法:
@@ -366,7 +371,7 @@ vcinstances_virtualclusters:
     clusterVersionName: "cv-k8s-1-31-tenant-beta"   # 専用ClusterVersion
 ```
 
-**ClusterVersion 命名規則**: `<base-name>-tenant-<tenant-name>` 形式で命名してください。本ロールは最後の2つのセグメント ( `tenant-<tenant-name>`）を抽出して selector に使用します。
+**ClusterVersion 命名規則**: `<base-name>-tenant-<tenant-name>` 形式で命名してください。本ロールは最後の2つのセグメント ( `tenant-<tenant-name>` ) を抽出して selector に使用します。
 
 **再作成手順**:
 
@@ -402,7 +407,7 @@ ansible-playbook k8s-management.yml -t k8s-vc-instances
 `vcinstances_clusterversions` はリスト形式で定義します。各要素は以下のキーを持ちます。
 
 ```yaml
-# etcd 永続ストレージ無効時 ( emptyDir使用）
+# etcd 永続ストレージ無効時 ( emptyDir使用 )
 vcinstances_clusterversions:
   - name: "cv-k8s-1-31"  # ClusterVersionインスタンス リソース名(必須)
     # 以下はオプション(省略時は検出値を使用)
@@ -416,8 +421,8 @@ vcinstances_clusterversions:
       image: "registry.k8s.io/kube-controller-manager"
       imageTag: "v1.31.0"
 
-# etcd 永続ストレージ有効時 ( PVC使用）
-# 各テナント専用のClusterVersionを定義してください  ( 命名規則: *-tenant-<tenant-name>）
+# etcd 永続ストレージ有効時 ( PVC使用 )
+# 各テナント専用のClusterVersionを定義してください  ( 命名規則: *-tenant-<tenant-name> )
 vcinstances_clusterversions:
   # tenant-alpha専用
   - name: "cv-k8s-1-31-tenant-alpha"
@@ -429,26 +434,35 @@ vcinstances_clusterversions:
 - `name` は必須です。未指定の場合, 該当定義は警告を出してスキップされます。
 - `etcd`, `apiServer`, `controllerManager` は省略可能です。省略時はスーパークラスタから自動検出されたイメージを使用します。
 - `vcinstances_auto_detect_supercluster_images: false` の場合, イメージは明示指定してください。
-- **etcd 永続ストレージ有効時**: ClusterVersion 名を `<base-name>-tenant-<tenant-name>` 形式で命名してください。ロールは最後の2つのセグメント ( `tenant-<tenant-name>`）を抽出して volumeClaimTemplates の selector に自動設定します。
+- **etcd 永続ストレージ有効時**: ClusterVersion 名を `<base-name>-tenant-<tenant-name>` 形式で命名してください。ロールは最後の2つのセグメント ( `tenant-<tenant-name>` ) を抽出して volumeClaimTemplates の selector に自動設定します。
 
 ### VirtualClusterインスタンス定義
 
 `vcinstances_virtualclusters` はリスト形式で定義します。各要素は以下のキーを持ちます。
 
 ```yaml
-# etcd 永続ストレージ無効時 ( emptyDir使用）
+# etcd 永続ストレージ無効時 ( emptyDir使用 )
 vcinstances_virtualclusters:
   - name: "tenant-alpha"               # VirtualClusterインスタンス リソース名(必須)
     namespace: "vc-manager"            # デプロイ先 Kubernetes の名前空間(省略時: vc-manager)
     clusterVersionName: "cv-k8s-1-31"  # 共有ClusterVersionでOK
     clusterDomain: "tenant-alpha.vc.local"         # テナント DNS ドメイン(オプション)
     kubeConfigSecretName: "tenant-alpha-kubeconfig"  # kubeconfig Secret 名(オプション)
+    transparentMetaPrefixes:           # スーパークラスタ側の運用メタデータを可視化(オプション)
+      - "operation.example.com/"
+      - "monitoring.example.com/"
+    opaqueMetaPrefixes:                # テナント内部メタデータを隠ぺい(オプション)
+      - "internal.tenant.local/"
   - name: "tenant-beta"
     namespace: "vc-manager"
     clusterVersionName: "cv-k8s-1-31"  # 共有ClusterVersionでOK
     clusterDomain: "tenant-beta.vc.local"
+    transparentMetaPrefixes:
+      - "operation.example.com/"
+    opaqueMetaPrefixes:
+      - "internal.tenant.local/"
 
-# etcd 永続ストレージ有効時 ( PVC使用）
+# etcd 永続ストレージ有効時 ( PVC使用 )
 # 各テナントに専用ClusterVersionを割り当ててください
 vcinstances_virtualclusters:
   - name: "tenant-alpha"
@@ -479,7 +493,7 @@ vcinstances_virtualclusters:
 
 ### host_vars での完全な設定例
 
-#### パターン1: etcd 永続ストレージ無効時 ( emptyDir使用, 開発環境向け）
+#### パターン1: etcd 永続ストレージ無効時 ( emptyDir使用, 開発環境向け )
 
 ```yaml
 # host_vars/k8sctrlplane01.local
@@ -490,10 +504,10 @@ virtualcluster_enabled: true
 # k8s-vc-instances を有効化
 k8s_vcinstances_enabled: true
 
-# etcd 永続ストレージを無効化 ( デフォルト）
+# etcd 永続ストレージを無効化 ( デフォルト )
 vcinstances_etcd_storage_enabled: false
 
-# ClusterVersionインスタンス定義 ( 共有ClusterVersionでOK）
+# ClusterVersionインスタンス定義 ( 共有ClusterVersionでOK )
 vcinstances_clusterversions:
   - name: "cv-k8s-1-31"
     # イメージ指定を省略(スーパークラスタ検出値を使用)
@@ -513,7 +527,7 @@ vcinstances_virtualclusters:
     kubeConfigSecretName: "tenant-beta-kubeconfig"
 ```
 
-#### パターン2: etcd 永続ストレージ有効時 ( PVC使用, 本番環境向け）
+#### パターン2: etcd 永続ストレージ有効時 ( PVC使用, 本番環境向け )
 
 ```yaml
 # host_vars/k8sctrlplane01.local
@@ -534,7 +548,7 @@ vcinstances_clusterversions:
   - name: "cv-k8s-1-31-tenant-alpha"  # tenant-alpha専用
   - name: "cv-k8s-1-31-tenant-beta"   # tenant-beta専用
 
-# VirtualClusterインスタンス定義 ( 各テナントに専用ClusterVersionを割り当て）
+# VirtualClusterインスタンス定義 ( 各テナントに専用ClusterVersionを割り当て )
 vcinstances_virtualclusters:
   - name: "tenant-alpha"
     namespace: "vc-manager"

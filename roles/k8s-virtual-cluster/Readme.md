@@ -13,6 +13,7 @@ Kubernetes Virtual Cluster ) の基盤コンポーネントをデプロイする
 | Role Based Access Control | RBAC | 権限を役割単位で制御する仕組み。 |
 | Transport Layer Security | TLS | 通信を暗号化する仕組み。 |
 | Domain Name System | DNS | 名前と IP アドレスを対応付ける仕組み。 |
+| トラフィック ( Traffic ) | - | ネットワーク上で送受信される通信電文。Kubernetes では主に HTTP, TCP, UDP などの通信手順に基づいて送受信される通信データを指す。 |
 | etcd | - | Kubernetes の設定情報と状態を保存する分散キーバリューストア。 |
 | kube-apiserver | - | Kubernetes API サーバー, API リクエストを受け付けて処理するコンポーネント。 |
 | kube-controller-manager | - | Kubernetes コントローラーマネージャー, リソースの状態を監視して制御するコンポーネント。 |
@@ -25,7 +26,7 @@ Kubernetes Virtual Cluster ) の基盤コンポーネントをデプロイする
 | デーモンセット ( DaemonSet ) | - | Kubernetes リソース。Kubernetes クラスタ内の全ノード(またはフィルタ条件を満たすノード)に 1 つのポッド ( Pod ) を配置するリソース。監視やログ収集に適す。 |
 | ステートレス ( Stateless ) | - | アプリケーションの性質を表す用語で，アプリケーションから使用される各種データの状態を永続記憶(ストレージ)に保持しなくとも，動作可能なアプリケーションであることを示す。 |
 | ステートフル ( Stateful ) | - | アプリケーションの性質を表す用語で，アプリケーションから使用される各種データの状態を永続記憶(ストレージ)に保持することを前提として動作するアプリケーションであることを示す。 |
-| サービス ( Service ) | - | Kubernetes リソース。ポッド ( Pod ) へのネットワークアクセスを定義。仮想 IP を提供してトラフィックをルーティング。 |
+| サービス ( Service ) | - | Kubernetes リソース。ポッド ( Pod ) へのネットワークアクセスを定義。仮想 IP アドレスを提供し, 通信電文 ( トラフィック ) を適切なポッドに転送 ( ルーティング ) する。 |
 | PersistentVolume | PV | Kubernetes リソース。クラスタ内の永続ストレージを表すリソース。ボリュームのサイズ, アクセスモード, 回収ポリシー, バックエンド(ローカルストレージ, NFS, ブロック型ストレージなど)を定義。 |
 | PersistentVolumeClaim | PVC | Kubernetes リソース。ポッド ( Pod ) がストレージを利用する際の要求リソース。必要なストレージ容量, アクセスモードを指定し, Kubernetes のコントローラーが対応する PersistentVolume にバインドする。 |
 | StorageClass | - | Kubernetes リソース。永続ストレージのプロビジョニング方法を定義するリソース。プロビジョナー(ローカルストレージプロビジョナー, AWS EBS, NFS など)とパラメータを指定し, PersistentVolumeClaim の要求に基づいて動的に PersistentVolume を作成する。 |
@@ -47,6 +48,9 @@ Kubernetes Virtual Cluster ) の基盤コンポーネントをデプロイする
 | webhook | - | Kubernetes API 拡張機構。vc-manager では VirtualCluster リソースの検証と変更時の操作を行う際に使用される。 |
 | Debian Bookworm Slim | debian:bookworm-slim | Dockerイメージ作成時に使用するDebian 12 (Bookworm)の軽量ベースイメージ。 |
 | 名前空間 ( namespace ) | - | Kubernetes におけるリソースのグループ化と分離の仕組み。 |
+| ラベル ( label ) | - | リソースに対する付加情報の一種で, key=value 形式で指定される。典型的には, リソースの検索, 選別 ( selector ) のために用いられる。 |
+| アノテーション ( annotation ) | - | リソースに対する付加情報の一種で, key: value 形式で指定される。リソースの検索, 選別 ( selector ) を目的としない用途の付加情報を指定するために用いられる。 |
+| セレクター ( selector ) | - | Kubernetes において, ラベル ( label ) に基づいてリソースを識別, 選択するための仕組み。たとえば, Service が特定のラベルを持つ Pod を選択して通信電文を転送する際に使用される。 |
 
 ## 前提条件
 
@@ -277,6 +281,22 @@ virtualcluster_persistent_volumes:
 | `group` | 任意 | `host_path` 作成時の所有グループ。 | `root` | `root` |
 
 **注意**: etcd用のPVは, `k8s-vc-instances` ロールが作成します。このため, etcd用のPV設定を`virtualcluster_persistent_volumes`に記載する必要はありません。本設定は `k8s-virtual-cluster` ロール単独で使用する場合や, etcd 以外の用途のPVを作成する場合に使用します。
+
+## VirtualCluster CRD spec キー
+
+VirtualCluster CRD の `spec` セクションで指定可能なキーを以下に示します。
+
+| キー | 型 | 必須/任意 | 既定値 | 説明 |
+| --- | --- | --- | --- | --- |
+| `clusterVersionName` | string | 必須 | なし | 使用するClusterVersionインスタンス名です。 |
+| `clusterDomain` | string | 任意 | なし | テナントDNSドメインです。 |
+| `kubeConfigSecretName` | string | 任意 | なし | kubeconfig Secret名です。 |
+| `transparentMetaPrefixes` | array[string] | 任意 | なし | スーパークラスタ ( Super Cluster ) 側で保持されるラベル/アノテーションのうち, 指定されたプレフィックスに一致するラベル/アノテーションのキーを持つものを仮想クラスタ ( Virtual Cluster ) に反映するための指定です。スーパークラスタ ( Super Cluster )側で保持されるラベル/アノテーションのうち, 仮想クラスタ ( Virtual Cluster ) 側でも参照可能にすべきもの ( 運用上必要なメタデータ )を指定して仮想クラスタ側に反映するために用いられます。スーパークラスタ ( Super Cluster ) 側から仮想クラスタ ( Virtual Cluster ) 側への同期で, 一致するキーのみを反映します。未指定時は, 空配列を指定したものとして扱われます。 |
+| `opaqueMetaPrefixes` | array[string] | 任意 | なし | 仮想クラスタ ( Virtual Cluster ) 側に保持されているラベル/アノテーションのうち, 指定されたプレフィックスに一致するラベル/アノテーションのキーを持つものをスーパークラスタ ( Super Cluster ) に同期しないための指定です。指定されたラベル/アノテーションは, 仮想クラスタ ( Virtual Cluster ) 側からスーパークラスタ ( Super Cluster ) 側への反映が行われないため, スーパークラスタ ( Super Cluster ) 側からは参照不能となります。仮想クラスタ ( Virtual Cluster ) 側からスーパークラスタ ( Super Cluster ) 側への同期で, 一致するキーを除外します。未指定時は, 空配列を指定したものとして扱われます。 |
+
+### 同一プレフィックスがtransparentMetaPrefixesとopaqueMetaPrefixesの両方に指定された場合の挙動について
+
+同一プレフィックスが`transparentMetaPrefixes`と`opaqueMetaPrefixes`の両方に指定された場合, 仮想クラスタ ( Virtual Cluster ) 側からスーパークラスタ ( Super Cluster ) 側への同期で除外対象となります。意図しない動作を避けるため, 同一プレフィックスを両方に指定しないことを推奨します。
 
 ## 実行方法
 
@@ -1374,6 +1394,12 @@ kubectl -n $TENANT_NS apply -f manifest.yaml
        namespace: vc-manager
      spec:
        clusterVersionName: cv-k8s-1-31
+       # transparentMetaPrefixesとopaqueMetaPrefixesの併用例
+       transparentMetaPrefixes:
+         - "operation.example.com/"  # スーパークラスタ側の運用メタデータを可視化
+         - "monitoring.example.com/"  # 監視用メタデータを可視化
+       opaqueMetaPrefixes:
+         - "internal.tenant.local/"   # テナント内部メタデータを隠ぺい
      EOF
 
      # VirtualClusterのステータス確認
