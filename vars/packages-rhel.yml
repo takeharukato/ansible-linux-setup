@@ -90,15 +90,18 @@ k8s_netgauge_packages:
 # python3.9 系が提供されているためpython3.12 を個別に指定して導入する
 # 参照) Red Hat Enterprise Linux 9 での Python および PHP のインストールおよび使用
 # https://docs.redhat.com/ja/documentation/red_hat_enterprise_linux/9/html-single/installing_and_using_dynamic_programming_languages/index?utm_source=chatgpt.com#assembly_introduction-to-python_installing-and-using-dynamic-programming-languages
+# Kubernetes開発関連Pythonパッケージバージョン
+k8s_python_packages_version: "3.12"
+
 k8s_python_packages:
-  - python3.12
-  - python3.12-pip
+  - "python{{ k8s_python_packages_version }}"
+  - "python{{ k8s_python_packages_version }}-pip"
 k8s_python_devel_packages:
-  - python3.12-devel
+  - "python{{ k8s_python_packages_version }}-devel"
 
 # k8s-devel ロール用前提パッケージ
 k8s_devel_python_prereq_packages:
-  - python3-pip
+  - "python{{ k8s_python_packages_version }}-pip"
 
 common_mdns_packages:
   - avahi

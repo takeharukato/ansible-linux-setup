@@ -1,0 +1,19 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  Python Kubernetes client向け実効変数算出処理
+#
+---
+
+# k8s-devel Python クライアント導入前提パッケージの実効値を設定する
+- name: Resolve effective python prereq packages for k8s-devel
+  ansible.builtin.set_fact:
+    k8s_devel_python_prereq_packages_effective: >-
+      {{ k8s_devel_python_prereq_packages_cross_distro }}
+
+# k8s-devel Python クライアント導入時の pip 実行ファイル実効値を設定する
+- name: Resolve effective pip executable for k8s-devel
+  ansible.builtin.set_fact:
+    k8s_devel_python_pip_executable_effective: >-
+      {{ k8s_devel_python_pip_executable_cross_distro }}

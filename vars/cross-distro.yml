@@ -604,6 +604,46 @@ pkgs_k8s_worker_extra_debian: []
 pkgs_k8s_worker_extra_rhel: []
 
 ########################################################################################
+# k8s-devel Python client ( distro 差分吸収 )
+########################################################################################
+
+# k8s_python_packages_version 指定時に利用する Python pip パッケージ名
+k8s_devel_python_prereq_pip_pkg_debian: "python{{ k8s_python_packages_version }}-pip"
+k8s_devel_python_prereq_pip_pkg_rhel: "python{{ k8s_python_packages_version }}-pip"
+
+# k8s_python_packages_version 未指定時のデフォルト Python pip パッケージ名
+k8s_devel_python_prereq_pip_pkg_default_debian: "python3-pip"
+k8s_devel_python_prereq_pip_pkg_default_rhel: "python3-pip"
+
+# k8s_python_packages_version 指定有無で切り替える前提パッケージ
+k8s_devel_python_prereq_packages_debian: >-
+  {{ [k8s_devel_python_prereq_pip_pkg_default_debian] }}
+k8s_devel_python_prereq_packages_rhel: >-
+  {{
+    ((k8s_python_packages_version is defined) and ((k8s_python_packages_version | string | length) > 0))
+    | ternary([k8s_devel_python_prereq_pip_pkg_rhel], [k8s_devel_python_prereq_pip_pkg_default_rhel])
+  }}
+k8s_devel_python_prereq_packages_cross_distro: >-
+  {{
+    (ansible_facts.os_family == 'Debian')
+    | ternary(k8s_devel_python_prereq_packages_debian, k8s_devel_python_prereq_packages_rhel)
+  }}
+
+# pip 実行ファイル名 (k8s client 導入時)
+k8s_devel_python_pip_executable_debian: >-
+  {{ 'pip3' }}
+k8s_devel_python_pip_executable_rhel: >-
+  {{
+    ((k8s_python_packages_version is defined) and ((k8s_python_packages_version | string | length) > 0))
+    | ternary('pip' ~ k8s_python_packages_version, 'pip3')
+  }}
+k8s_devel_python_pip_executable_cross_distro: >-
+  {{
+    (ansible_facts.os_family == 'Debian')
+    | ternary(k8s_devel_python_pip_executable_debian, k8s_devel_python_pip_executable_rhel)
+  }}
+
+########################################################################################
 # nfs-server
 ########################################################################################
 # NFSサーバーパッケージ

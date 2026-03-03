@@ -6,11 +6,25 @@
 #
 ---
 
-# Kubernetes Python クライアントをpip経由で導入する
-- name: Install kubernetes python client via pip
+# 標準パッケージのpython3用Kubernetes Python クライアントをpip経由で導入する
+- name: Install kubernetes python client for system python via pip
   ansible.builtin.pip:
     name: "kubernetes{{ k8s_devel_python_client_version_effective }}"
     state: present
+    executable: "pip3"
     extra_args: "{{ k8s_devel_python_pip_extra_args | default('') }}"
   when:
     - k8s_devel_python_client_enabled | bool
+
+# 開発用python向けKubernetes Python クライアントをpip経由で導入する
+# k8s_python_packages_version指定時のみ実行
+- name: Install kubernetes python client for development python via pip
+  ansible.builtin.pip:
+    name: "kubernetes{{ k8s_devel_python_client_version_effective }}"
+    state: present
+    executable: "{{ k8s_devel_python_pip_executable_effective }}"
+    extra_args: "{{ k8s_devel_python_pip_extra_args | default('') }}"
+  when:
+    - k8s_devel_python_client_enabled | bool
+    - k8s_python_packages_version is defined
+    - k8s_python_packages_version | length > 0

@@ -13,7 +13,7 @@
 # Python クライアントの前提パッケージを導入する
 - name: Install python prereq packages
   ansible.builtin.package:
-    name: "{{ k8s_devel_python_prereq_packages }}"
+    name: "{{ k8s_devel_python_prereq_packages_effective }}"
     state: present
   when:
     - k8s_devel_python_client_enabled | bool

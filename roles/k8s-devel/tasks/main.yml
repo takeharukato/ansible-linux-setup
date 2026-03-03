@@ -13,6 +13,8 @@
   ansible.builtin.include_tasks: load-params.yml
 - name: "Post Load Params"
   ansible.builtin.include_tasks: post-load-params.yml
+- name: "Post Load Params Python Client"
+  ansible.builtin.include_tasks: post-load-params-python-client.yml
 
 # Runtime libraries (Python kubernetes, Go client-go) の導入
 # クライアント有効化フラグでゲート
