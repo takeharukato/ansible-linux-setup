@@ -1,0 +1,150 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  Ubuntu固有リポジトリ関連タスク (Ansible < 2.15)
+#  Ansible 2.15未満では deb822_repository モジュールが利用できないため,
+#  従来の apt_repository モジュールを使用して sources.list.d 形式で設定する
+#
+
+# 既存のdeb822形式 (.sources) のソースを削除
+- name: Remove deb822 format sources
+  ansible.builtin.file:
+    path: "/etc/apt/sources.list.d/{{ item }}"
+    state: absent
+  loop:
+    - "ubuntu-main.sources"
+    - "ubuntu-updates.sources"
+    - "ubuntu-security.sources"
+    - "ubuntu-backports.sources"
+    - "ubuntu.sources"
+  notify: "apt_update_repo_deb"
+
+# Ubuntu基本リポジトリの設定
+- name: Configure Ubuntu repositories
+  block:
+    - name: Ubuntu Main repository
+      ansible.builtin.apt_repository:
+        repo: >
+          deb [signed-by={{ ubuntu_archive_keyring }}]
+          {{ ubuntu_archive_uris | default(['http://archive.ubuntu.com/ubuntu/']) | first }}
+          {{ ubuntu_sources_suite }}
+          {{ ubuntu_sources_components | join(' ') }}
+        state: "{{ 'present' if repo_enable_main else 'absent' }}"
+        filename: "ubuntu-main"
+      notify: "apt_update_repo_deb"
+
+    - name: Ubuntu Updates repository
+      ansible.builtin.apt_repository:
+        repo: >
+          deb [signed-by={{ ubuntu_archive_keyring }}]
+          {{ ubuntu_archive_uris | default(['http://archive.ubuntu.com/ubuntu/']) | first }}
+          {{ ubuntu_sources_suite }}-updates
+          {{ ubuntu_sources_components | join(' ') }}
+        state: "{{ 'present' if repo_enable_updates else 'absent' }}"
+        filename: "ubuntu-updates"
+      notify: "apt_update_repo_deb"
+
+    - name: Ubuntu Security repository
+      ansible.builtin.apt_repository:
+        repo: >
+          deb [signed-by={{ ubuntu_archive_keyring }}]
+          {{ ubuntu_security_uris | default(['http://security.ubuntu.com/ubuntu/']) | first }}
+          {{ ubuntu_sources_suite }}-security
+          {{ ubuntu_sources_components | join(' ') }}
+        state: "{{ 'present' if repo_enable_security else 'absent' }}"
+        filename: "ubuntu-security"
+      notify: "apt_update_repo_deb"
+
+    - name: Ubuntu Backports repository
+      ansible.builtin.apt_repository:
+        repo: >
+          deb [signed-by={{ ubuntu_archive_keyring }}]
+          {{ ubuntu_backports_uris | default(ubuntu_archive_uris)
+          | default(['http://archive.ubuntu.com/ubuntu/']) | first }}
+          {{ ubuntu_sources_suite }}-backports
+          {{ ubuntu_sources_components | join(' ') }}
+        state: "{{ 'present' if repo_enable_backports else 'absent' }}"
+        filename: "ubuntu-backports"
+      notify: "apt_update_repo_deb"
+
+# Docker Community Editionのキーリングを配置する
+- name: Docker keyring
+  when: repo_enable_docker
+  ansible.builtin.shell: |
+    set -o pipefail
+    curl -fsSL "{{ docker_apt_keyring_url }}" | gpg --dearmor > "{{ docker_apt_keyring }}"
+    chmod 0644 "{{ docker_apt_keyring }}"
+  args:
+    executable: /bin/bash
+  register: _result
+  changed_when: _result.rc == 0
+
+# Docker repo (APT)を有効にする
+- name: Docker repo (APT)
+  when: repo_enable_docker
+  ansible.builtin.apt_repository:
+    repo: "deb [signed-by={{ docker_apt_keyring }} arch={{ docker_arch_apt }}] {{ docker_apt_uri }} {{ docker_apt_suite }} {{ docker_apt_components }}"
+    state: present
+    filename: "docker"
+  notify: "apt_update_repo_deb"
+
+# Kubernetesのキーリングを配置する
+- name: Kubernetes keyring
+  when: repo_enable_kubernetes
+  ansible.builtin.shell: |
+    set -o pipefail
+    curl -fsSL "{{ k8s_apt_keyring_url }}" | gpg --dearmor > "{{ k8s_apt_keyring }}"
+    chmod 0644 "{{ k8s_apt_keyring }}"
+  args:
+    executable: /bin/bash
+  register: _result
+  changed_when: _result.rc == 0
+
+# Kubernetes repo (APT)を有効にする
+- name: Kubernetes repo (APT)
+  when: repo_enable_kubernetes
+  ansible.builtin.apt_repository:
+    repo: "deb [signed-by={{ k8s_apt_keyring }}] {{ k8s_apt_uri }} {{ k8s_apt_suites }} {{ k8s_apt_components }}"
+    state: present
+    filename: "kubernetes"
+  notify: "apt_update_repo_deb"
+
+# Google Chrome
+- name: Chrome keyring
+  when: repo_enable_chrome
+  ansible.builtin.shell: |
+    set -o pipefail
+    curl -fsSL "{{ chrome_keyring_url }}" | gpg --dearmor > "{{ chrome_keyring_path }}"
+    chmod 0644 "{{ chrome_keyring_path }}"
+  args:
+    executable: /bin/bash
+  register: _result
+  changed_when: _result.rc == 0
+
+# Chrome repo (APT)を有効にする
+- name: Chrome repo (APT)
+  when: repo_enable_chrome
+  ansible.builtin.apt_repository:
+    repo: "deb [signed-by={{ chrome_keyring_path }} arch={{ chrome_arch_apt }}] {{ chrome_apt_uri }} {{ chrome_apt_suite }} {{ chrome_apt_components }}"
+    state: present
+    filename: "google-chrome"
+  notify: "apt_update_repo_deb"
+
+# Pinning ( 外部を下げる )
+- name: Pin external origins lower than base
+  ansible.builtin.copy:
+    dest: "/etc/apt/preferences.d/99-external.pref"
+    mode: "0644"
+    content: |
+      Package: *
+      Pin: origin "download.docker.com"
+      Pin-Priority: {{ pin_external | int }}
+
+      Package: *
+      Pin: origin "pkgs.k8s.io"
+      Pin-Priority: {{ pin_external | int }}
+
+      Package: *
+      Pin: origin "dl.google.com"
+      Pin-Priority: {{ pin_external | int }}

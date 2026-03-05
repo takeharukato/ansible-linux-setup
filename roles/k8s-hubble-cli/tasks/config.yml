@@ -6,11 +6,38 @@
 #
 ---
 
-- name: Download hubble-cli archive
+- name: Download hubble-cli archive (using get_url)
   ansible.builtin.get_url:
     url: "{{ hubble_cli_download_url }}"
     dest: "{{ hubble_cli_temp_archive }}"
     mode: "0644"
+  when:
+    - ansible_python.version.major == 3
+    - >-
+      ansible_python.version.minor < 12 or
+      (ansible_version.major > 2 or (ansible_version.major == 2 and ansible_version.minor >= 15))
+
+- name: Download hubble-cli archive (curl workaround for Python 3.12+ with Ansible < 2.15)
+  ansible.builtin.shell: |
+    set -e
+    tmpfile=$(mktemp)
+    trap "rm -f $tmpfile" EXIT
+    curl -fsSL "{{ hubble_cli_download_url }}" -o "$tmpfile"
+    if [ -f "{{ hubble_cli_temp_archive }}" ] && cmp -s "$tmpfile" "{{ hubble_cli_temp_archive }}"; then
+      exit 0
+    fi
+    install -m 0644 "$tmpfile" "{{ hubble_cli_temp_archive }}"
+    exit 10
+  args:
+    executable: /bin/bash
+  register: _hubble_cli_download_result
+  changed_when: _hubble_cli_download_result.rc == 10
+  failed_when: _hubble_cli_download_result.rc not in [0, 10]
+  when:
+    - ansible_python.version.major == 3
+    - ansible_python.version.minor >= 12
+    - ansible_version.major == 2
+    - ansible_version.minor < 15
 
 - name: Extract hubble-cli archive
   ansible.builtin.unarchive:

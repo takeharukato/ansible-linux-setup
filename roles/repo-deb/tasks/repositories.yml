@@ -29,10 +29,23 @@
     - ansible_distribution == "Debian"
     - ansible_version.major < 2 or (ansible_version.major == 2 and ansible_version.minor < 15)
 
-# Ubuntu用
-- name: Include Ubuntu tasks
+# Ubuntu用 (deb822形式: Ansible 2.15以降 AND Ubuntu 22.04以降)
+- name: Include Ubuntu tasks (deb822 format)
   ansible.builtin.include_tasks: ubuntu.yml
-  when: ansible_distribution == "Ubuntu"
+  when:
+    - ansible_distribution == "Ubuntu"
+    - ansible_distribution_major_version | int >= 22
+    - ansible_version.major > 2 or (ansible_version.major == 2 and ansible_version.minor >= 15)
+
+# Ubuntu用 (従来形式: Ansible 2.15未満 OR Ubuntu 22.04未満)
+- name: Include Ubuntu tasks (legacy format)
+  ansible.builtin.include_tasks: ubuntu-on-rhel9.yml
+  when:
+    - ansible_distribution == "Ubuntu"
+    - >-
+      (ansible_version.major < 2 or (ansible_version.major == 2 and ansible_version.minor < 15))
+      or
+      (ansible_distribution_major_version | int < 22)
 
 # 外部リポジトリの読み込み（Ansible バージョンに基づいた分岐）
 - name: Include external repositories (Ansible >= 2.15)

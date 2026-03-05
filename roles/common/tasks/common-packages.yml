@@ -27,6 +27,8 @@
 
 # Google Chrome パッケージが自動作成する .list ファイルを削除
 # （repo-deb ロールで .sources ファイルを使用しているため、重複を防ぐ）
+# Ansible 2.15以上かつUbuntu 22.04以上の環境でのみ削除
+# （それ以外の環境では .list 形式を使用しているため削除しない）
 - name: Remove auto-generated google-chrome.list if present
   ansible.builtin.file:
     path: "/etc/apt/sources.list.d/google-chrome.list"
@@ -34,6 +36,9 @@
   when:
     - ansible_facts.os_family == 'Debian'
     - repo_enable_chrome | default(true)
+    - ansible_version.major > 2 or (ansible_version.major == 2 and ansible_version.minor >= 15)
+    - ansible_distribution == 'Ubuntu'
+    - ansible_distribution_major_version | int >= 22
 
 # apt file update
 - name: "APT File Update"

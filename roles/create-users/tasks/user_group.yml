@@ -78,8 +78,9 @@
     - ( item.name | default('', true) | length ) > 0
   become: true
 
-# authorized_keys に GitHub からインポート
-- name: Import authorized key from GitHub
+# authorized_keys に GitHub からインポート (ansible.posix.authorized_keyモジュール使用)
+# Python 3.12未満, またはAnsible 2.15以降で使用
+- name: Import authorized key from GitHub (using authorized_key module)
   ansible.posix.authorized_key:
     user: "{{ item.name }}"
     state: present
@@ -92,7 +93,51 @@
     - ( users_list | default([], true) | length ) > 0
     - ( item.name | default('', true) | length ) > 0
     - ( item.github | default('', true) | length ) > 0
+    - ansible_python.version.major == 3
+    - >-
+      ansible_python.version.minor < 12 or
+      (ansible_version.major > 2 or (ansible_version.major == 2 and ansible_version.minor >= 15))
   become: true
+
+# authorized_keys に GitHub からインポート (curl代替実装)
+# Python 3.12以上 かつ Ansible 2.15未満でansible.posix.authorized_keyモジュールに
+# 互換性問題があるため代替実装を使用
+# (HTTPSConnection.__init__()のcert_fileパラメータの変更により失敗)
+- name: Import authorized key from GitHub (curl workaround for Python 3.12+ with Ansible < 2.15)
+  ansible.builtin.shell: |
+    set -e
+    tmpfile=$(mktemp)
+    trap "rm -f $tmpfile" EXIT
+    changed=0
+    curl -fsSL "https://github.com/{{ item.github }}.keys" -o "$tmpfile"
+    if [ -s "$tmpfile" ]; then
+      # 既存のキーと重複しないように追加
+      while IFS= read -r key; do
+        if ! grep -Fxq "$key" "/home/{{ item.name }}/.ssh/authorized_keys" 2>/dev/null; then
+          echo "$key" >> "/home/{{ item.name }}/.ssh/authorized_keys"
+          changed=1
+        fi
+      done < "$tmpfile"
+    fi
+    # exit 10: 変更あり, exit 0: 変更なし
+    exit $((changed * 10))
+  args:
+    executable: /bin/bash
+  loop: "{{ users_list | default([], true) }}"
+  when:
+    - item.name is defined
+    - item.github is defined
+    - ( users_list | default([], true) | length ) > 0
+    - ( item.name | default('', true) | length ) > 0
+    - ( item.github | default('', true) | length ) > 0
+    - ansible_python.version.major == 3
+    - ansible_python.version.minor >= 12
+    - ansible_version.major == 2
+    - ansible_version.minor < 15
+  become: true
+  register: _github_key_result
+  changed_when: _github_key_result.rc == 10
+  failed_when: _github_key_result.rc not in [0, 10]
 
 # 管理系グループを作成しておく ( 存在していれば無変更 )
 - name: Ensure admin groups exist

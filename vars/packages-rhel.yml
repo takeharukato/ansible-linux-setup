@@ -118,6 +118,9 @@ devel_packages:
   - ninja-build
   - gcc
   - gcc-c++
+  - glibc-devel
+  - libgcc
+  - libstdc++-devel
   - make
   - gdb
   - gawk
