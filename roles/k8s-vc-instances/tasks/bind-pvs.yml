@@ -167,9 +167,11 @@
 - name: "Parse PV bindings and detect errors"
   ansible.builtin.shell:
     cmd: |
+      set -o pipefail
       kubectl --kubeconfig {{ k8s_supercluster_kubeconfig_path }} get pv -o json | \
       jq -r '.items[] | select(.metadata.name | startswith("pv-etcd-")) |
               "\(.metadata.name) \(.metadata.labels.tenant // "none")"'
+    executable: /bin/bash
   register: _pv_list_result
   become: true
   changed_when: false
@@ -181,6 +183,7 @@
 - name: "Verify PVC bindings are correct"
   ansible.builtin.shell:
     cmd: |
+      set -o pipefail
       kubectl --kubeconfig {{ k8s_supercluster_kubeconfig_path }} get pvc -A -o json | \
       jq -r '.items[] | select(.metadata.name | startswith("data-etcd")) |
               "\(.metadata.namespace) \(.metadata.name) \(.spec.volumeName)"' | \
@@ -193,6 +196,7 @@
           echo "$ns $pvc $pv"  # Output for processing
         fi
       done 2>/dev/null || true
+    executable: /bin/bash
   register: _binding_check_result
   changed_when: false
   become: true
@@ -243,6 +247,7 @@
 - name: "Unbind PVs from mismatched claims"
   ansible.builtin.shell:
     cmd: |
+      set -o pipefail
       for line in {{ _mismatched_pvcs | map(attribute='') | list | join(' ') }}; do
         pv=$(echo "$line" | awk '{print $3}')
         if [ -n "$pv" ]; then
@@ -250,6 +255,7 @@
             --type=merge -p '{"spec":{"claimRef":null}}' 2>/dev/null || true
         fi
       done
+    executable: /bin/bash
   register: _unbind_result
   become: true
   changed_when: false
