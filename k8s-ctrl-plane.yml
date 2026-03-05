@@ -21,8 +21,12 @@
       tags: ntp-client
     - role: aide
       tags: aide
+    - role: user-settings
+      tags: user-settings
     - role: create-users
       tags: create-users
+    - role: post-user-create
+      tags: post-user-create
     - role: k8s-common
       tags: k8s-common
     - role: k8s-devel

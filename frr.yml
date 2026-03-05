@@ -22,8 +22,12 @@
       tags: ntp-client
     - role: aide
       tags: aide
+    - role: user-settings
+      tags: user-settings
     - role: create-users
       tags: create-users
+    - role: post-user-create
+      tags: post-user-create
     - role: frr-basic
       tags: frr-basic
     - role: sbom
