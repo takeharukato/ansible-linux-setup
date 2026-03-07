@@ -18,7 +18,7 @@ Docker Community Edition (Docker CE) を導入し, サービス初期化, sysctl
 
 ## 前提条件
 
-- 対象 OS: Debian/Ubuntu 系 (Ubuntu24.04想定), RHEL 9 系 (Rocky Linux, AlmaLinux 等) (AlmaLinux9.6想定)
+- 対象 OS: Debian/Ubuntu系 (Ubuntu 24.04を想定), RHEL9 系 (Rocky Linux, AlmaLinux など, AlmaLinux 9.6を想定)
 - Ansible 2.15 以降
 - リモートホストへの SSH 接続が確立されていること
 - `sudo` による管理者権限でのコマンド実行が可能であること

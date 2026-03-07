@@ -14,7 +14,7 @@ Kubernetes コントロールプレーンノードを構築するロールです
 | ClusterRoleBinding | - | ClusterRoleをユーザやサービスアカウントに紐付ける仕組み。 |
 | Role | - | 特定の名前空間内で有効な権限の集合。 |
 | RoleBinding | - | Roleをユーザやサービスアカウントに紐付ける仕組み。 |
-| Namespace | - | Kubernetes内部でリソースを論理的に分離する単位。 |
+| 名前空間 ( namespace ) | - | Kubernetes内部でリソースを論理的に分離する単位。 |
 | ポッド ( Pod ) | - | Kubernetes上で動作するコンテナの最小単位。 |
 | デーモンセット ( DaemonSet ) | - | Kubernetesクラスタ内の全ノード(または指定した一部のノード)で必ずPodを1つずつ起動させるリソース。 |
 | デプロイメント ( Deployment ) | - | 指定した数のPodを維持し, ローリングアップデート等を管理するリソース。 |
@@ -37,6 +37,8 @@ Kubernetes コントロールプレーンノードを構築するロールです
 | etcd | - | KubernetesのKubernetesクラスタ状態を保存する分散Key-Valueストア。 |
 | Container Network Interface | CNI | コンテナ間のネットワーク接続を標準化するプラグイン仕様。 |
 | Cilium | - | eBPFを活用した高性能なCNIプラグイン。ネットワークポリシーやサービスメッシュ機能を提供する。 |
+| Serviceエンドポイント ( Service Endpoint ) | - | Serviceのバックエンドとして通信を受けるPod, または, 当該の通信を受けるPodに加え, 当該の通信を受けるPodへ通信を届けるためのネットワーク上の転送先情報全体を指す。 |
+| Serviceエンドポイント情報 ( Service Endpoint Information ) | - | Serviceエンドポイントを特定して転送先を決めるための情報。主にバックエンドPodのIPアドレス, ポート番号, プロトコル, 所属クラスタ名(またはクラスタ識別子)で構成される。 |
 | Multus | - | 複数のCNIプラグインを同時に使用できるようにするメタCNIプラグイン。 |
 | Container Runtime Interface | CRI | Kubernetesがコンテナランタイムと通信するための標準インターフェース。 |
 | containerd | - | Dockerから分離された軽量なコンテナランタイム。 |
@@ -54,194 +56,509 @@ Kubernetes コントロールプレーンノードを構築するロールです
 | Taint | - | Kubernetes ノードに設定する特殊なマークで, 特定の条件を満たさないPodの配置を拒否する。 |
 | Toleration | - | PodがTaintを持つNodeへ配置されることを許可する設定。 |
 
+## 前提条件
+
+- **Linux OS**: Debian/Ubuntu 系 (Ubuntu 24.04を想定) または RHEL9系 (Rocky Linux, AlmaLinux など, AlmaLinux 9.6を想定)
+- **前段ロール**: `k8s-common` を先に実行済みであること
+- **実行権限**: root または sudo 実行権限
+- **クラスタ変数**: `k8s_ctrlplane_endpoint`, `k8s_ctrlplane_port`, `k8s_cilium_version`, Pod/Service CIDR 変数を定義済みであること
+- **ネットワーク**: 複数 NIC 構成では API 到達先 NIC と `k8s_ctrlplane_endpoint` の整合を確認すること
+
+`config.yml` は `kubeadm reset` を含むため, 既存クラスタへ適用する場合は停止計画とバックアップ計画を事前に準備してください。
+
+## 実行方法
+
+### Makefile を使用
+
+```bash
+make run_k8s_ctrlplane
+```
+
+### Ansible コマンド直接実行
+
+```bash
+# すべての対象ホストに適用
+ansible-playbook -i inventory/hosts k8s-ctrl-plane.yml
+
+# 特定ホストだけ実行
+ansible-playbook -i inventory/hosts k8s-ctrl-plane.yml --limit <hostname>
+
+# 主要タグのみ実行
+ansible-playbook -i inventory/hosts k8s-ctrl-plane.yml -t k8s-ctrlplane
+```
+
 ## 実行フロー
 
-1. `load-params.yml` で OS 別パッケージ定義 (`vars/packages-*.yml`) とKubernetesクラスタ共通変数 (`vars/cross-distro.yml`, `vars/all-config.yml`, `vars/k8s-api-address.yml`) を読み込みます。
-2. `package.yml` を読み込みます (現状はタスクなしのプレースホルダです)。
-3. `directory.yml` が Cilium / Multus / Whereabouts 用の設定ディレクトリ (既定では `{{ k8s_kubeadm_config_store }}/cilium` など) を作成します。Multus / Whereabouts の導入は本ロールでは行いません。
-4. `user_group.yml` と `service.yml` は将来の拡張用に読み込まれます (現状はタスクなし)。
-5. `config-k8sctrlplane-firewall.yml` が `enable_firewall` と `firewall_backend` に応じて UFW もしくは firewalld を有効化し, 6443/tcp, 10250/tcp, 10257/tcp, 10259/tcp, 2379-2380/tcp を恒久的に開放します。
-6. `config-helm.yml` で Helm (指定バージョンまたは最新) と Cilium CLI を導入し, 既存の Helm リポジトリを全削除したうえで cilium リポジトリを root / `k8s_operator_user` 双方に登録します。
-7. `config-k8s-helm-shell-completion.yml` が `k8s_helm_cli_completion_enabled` 有効時に bash/zsh 用補完スクリプトを生成・配置します。
-8. `config-k8s-cilium-shell-completion.yml` が `k8s_cilium_cli_completion_enabled` 有効時に bash/zsh 用補完スクリプトを生成・配置します。
-9. `config.yml` が kubeadm 設定ファイル `ctrlplane-kubeadm.config.yml` を生成し, Pod/Service CIDR の順序を API ファミリと揃えた上で `kubeadm reset` → `kubeadm init` を実行します。必要に応じて共通 CA を `/etc/kubernetes/pki` へ復元し, containerd / kubelet を有効化してから kubeconfig を root / ansible / `k8s_operator_user` に配布し, ホストを再起動します。
-10. `config-cilium.yml` が kube-apiserverの起動を待機し, `kubernetes-admin` に cluster-admin 権限を付与してから kube-proxy (DaemonSet / ConfigMap / iptables ルール) を除去し, (必要時) `k8s-cilium-shared-ca` ロールで Cluster Mesh 用 Secret を更新し, 生成した values で `helm install cilium` を実行します (既存リリースが残っていると失敗するため, 再適用時は手動で削除が必要)。処理後に再起動します。
-11. `config-cilium-bgp-cplane.yml` は `k8s_bgp.enabled` が `true` のホストで発動し, Kubernetes ノード名などの識別子を算出して Cilium BGP Control Plane 用 manifest を生成します。その後, 関連 CRD (CiliumBGPAdvertisement / CiliumBGPPeerConfig / CiliumBGPClusterConfig) の存在を確認しながら manifest を適用します。
-12. `config-cluster-mesh-tools.yml` が Cluster Mesh 向けツールディレクトリを作成し, 証明書埋め込み kubeconfig 生成スクリプトと手順書を配布します。Kubernetesクラスタ名/ID が指定されている場合は共有 CA の存在を検証し, 見つからなければ明示的に失敗させます。条件を満たせば埋め込み kubeconfig を生成し, ファイル所有者を `k8s_operator_user` に設定します。
+### ステップ1: 変数読み込み
+
+1. `load-params.yml` が OS別パッケージ変数 (`vars/packages-*.yml`) と共通変数 (`vars/cross-distro.yml`, `vars/all-config.yml`, `vars/k8s-api-address.yml`) を読み込みます。
+
+### ステップ2: ディレクトリ準備
+
+2. `directory.yml` が `k8s_cilium_config_dir`, `k8s_multus_config_dir`, `k8s_whereabouts_config_dir` を作成します (Multus/Whereabouts は本ロールでは作成のみ)。
+
+### ステップ3: 予約タスク読み込み
+
+3. `package.yml`, `user_group.yml`, `service.yml` を読み込みます (現時点では処理なしのプレースホルダ)。
+
+### ステップ4: ファイアウォール構成
+
+4. `config-k8sctrlplane-firewall.yml` が `enable_firewall` と `firewall_backend` に応じて UFW または firewalld を構成し, 6443/tcp, 10250/tcp, 10257/tcp, 10259/tcp, 2379-2380/tcp を開放します。
+
+### ステップ5: Helm/Cilium CLI と補完構成
+
+5. `config-helm.yml` が Helm と Cilium CLI を導入します。`k8s_helm_version` が未定義または `latest` なら公式スクリプト経由, 明示バージョン指定時はアーカイブを取得して配置します。
+6. 同タスクで既存 Helm リポジトリを全削除し, `cilium` リポジトリを root と `k8s_operator_user` の双方に再登録します。
+7. `config-k8s-helm-shell-completion.yml` が `k8s_helm_cli_completion_enabled: true` のとき Helm 補完を配置します。
+8. `config-k8s-cilium-shell-completion.yml` が `k8s_cilium_cli_completion_enabled: true` のとき Cilium CLI 補完を配置します。
+
+### ステップ6: kubeadm 初期化
+
+9. `config.yml` が API ファミリ (IPv4/IPv6) を判定し, Pod/Service CIDR を API ファミリ順に並べ替えて `ctrlplane-kubeadm.config.yml` を生成します。
+10. 同タスクが `kubeadm reset -f` 後に `kubelet` 停止, `/etc/kubernetes/manifests` 削除, `/var/lib/kubelet/cpu_manager_state` 削除を実行します。
+11. `k8s_shared_ca_*` 変数が定義されている場合は共有CAを復元し, `k8s_shared_ca_replace_kube_ca: true` のとき `/etc/kubernetes/pki/ca.crt` と `/etc/kubernetes/pki/ca.key` を置換します。
+12. `kubeadm init --config ...` を実行し, containerd/kubelet を有効化します。その後 `admin.conf` を root, ansible, `k8s_operator_user` に配布して再起動します。
+
+### ステップ7: Cilium 導入
+
+13. `config-cilium.yml` が API サーバ起動を待機し, `kubernetes-admin` へ cluster-admin 権限を付与します。
+14. 同タスクが kube-proxy のデーモンセット/コンフィグマップと関連 iptables ルールを削除し, `cilium-install.yml` を生成して `helm install cilium` を実行します。
+15. `k8s_cilium_shared_ca_enabled: true` の場合は `k8s-cilium-shared-ca` ロールを実行して Cluster Mesh 用 Secret を整備します。
+
+### ステップ8: Cilium BGP Control Plane (任意)
+
+16. `config-cilium-bgp-cplane.yml` は `k8s_bgp.enabled: true` のホストだけで実行されます。
+17. 同タスクは `k8s-common/templates/cilium-bgp-resources.yml.j2` を参照してマニフェストを生成し, Cilium BGP関連CRD (Advertisement/PeerConfig/ClusterConfig) の出現を待ってから `kubectl apply` します。
+
+### ステップ9: Cluster Mesh ツール配布
+
+18. `config-cluster-mesh-tools.yml` が `create-embedded-kubeconfig.py` と手順書を配布します。
+19. `k8s_cilium_cm_cluster_name` と `k8s_cilium_cm_cluster_id` が有効な場合, 共有CAファイルの存在を確認し, 埋め込み kubeconfig を生成して所有者を `k8s_operator_user` に調整します。
 
 ## 主要変数
 
+### API待機・kubeadm関連
+
 | 変数名 | 既定値 | 説明 |
 | --- | --- | --- |
-| `k8s_ctrlplane_endpoint` | 各ホストの `host_vars` で指定 | Control Plane API の広告アドレス (IPv4/IPv6)。kubeadm 設定, 本ロール内の待機処理, Cilium 設定で使用。|
-| `k8s_api_wait_host` | "{{ k8s_ctrlplane_endpoint }}" | kube-apiserverの待ち合わせ先(接続先)ホスト名/IPアドレス。|
-| `k8s_api_wait_port` | "{{ k8s_ctrlplane_port }}" | kube-apiserverの待ち合わせ先ポート番号。 (規定: `6443`)|
-| `k8s_api_wait_timeout` | `600` | kube-apiserver待ち合わせ時間(単位: 秒)。|
-| `k8s_api_wait_delay` | `2` | kube-apiserver待ち合わせる際の開始遅延時間(単位: 秒)。|
-| `k8s_api_wait_sleep` | `1` | kube-apiserver待ち合わせる際の待機間隔(単位: 秒)。|
-| `k8s_api_wait_delegate_to` | "localhost" | kube-apiserver待ち合わせる際の接続元ホスト名/IPアドレス。|
-| `k8s_kubeadm_config_store` | `{{ ansible_home_dir }}/kubeadm` | `ctrlplane-kubeadm.config.yml` や Cilium values の生成先ルート。|
-| `k8s_cilium_config_dir` | `{{ k8s_kubeadm_config_store }}/cilium` | Cilium 設定ファイルの生成先ディレクトリ。|
-| `k8s_multus_config_dir` | 未定義 | Multus 設定ディレクトリ (本ロールでは作成のみ)。|
-| `k8s_whereabouts_config_dir` | 未定義 | Whereabouts 設定ディレクトリ (本ロールでは作成のみ)。|
-| `k8s_kubeadm_ignore_preflight_errors_arg` | `--ignore-preflight-errors=all` | `kubeadm init` 実行時に無視する preflight エラーを制御。|
-| `k8s_pod_ipv4_network_cidr` / `k8s_pod_ipv6_network_cidr` | 必須 | Pod ネットワーク CIDR。kubeadm と Cilium で参照。|
-| `k8s_pod_ipv4_service_subnet` / `k8s_pod_ipv6_service_subnet` | 必須 | Service CIDR。API ファミリ順に並べ替えて kubeadm で使用。|
-| `enable_firewall` | `false` | `true` の場合, UFW/firewalld によりコントロールプレーンポートを開放します。|
-| `firewall_backend` | OS 既定 | `ufw` または `firewalld` を指定 (複数可)。|
-| `k8s_control_plane_ports` | 6443/10250/10257/10259/2379-2380 | 開放するコントロールプレーンポートの一覧。|
-| `k8s_helm_version` | 未定義 | `latest` または明示バージョン。未定義時は最新版を導入します。|
-| `k8s_helm_cli_completion_enabled` | `true` | Helm の bash/zsh 補完ファイルを生成・配置します。|
-| `k8s_cilium_version` | 必須 | Cilium のベースバージョン。Helm チャートやイメージタグの既定値に参照されます。|
-| `k8s_cilium_helm_chart_version` | `{{ k8s_cilium_version }}` | 導入する Cilium チャートのバージョン。|
-| `k8s_cilium_image_version` | `v{{ k8s_cilium_version }}` | Cilium / Cilium Operator コンテナイメージのタグ。|
-| `k8s_cilium_helm_repo_url` | `https://helm.cilium.io/` | Helm リポジトリ URL (`config-helm.yml` で登録)。|
-| `k8s_cilium_cli_completion_enabled` | `true` | Cilium CLI の bash / zsh 補完ファイルを生成・配置します。|
-| `k8s_cilium_shared_ca_enabled` | `false` | Cluster Mesh 用の共通 CA Secret を `k8s-cilium-shared-ca` ロールで整備するか。|
-| `k8s_cilium_bgp_control_plane_enabled` | 未定義 | Cilium Helm values 内の BGP Control Plane 有効化フラグ。未定義時は `k8s_bgp.enabled` に連動します。|
-| `k8s_cilium_cm_cluster_name` / `k8s_cilium_cm_cluster_id` | 必要時に設定 | Cluster Mesh を構成する場合に指定。埋め込み kubeconfig 生成で使用。|
-| `k8s_embed_kubeconfig_*` | defaults 参照 | 埋め込み kubeconfig の出力先やコンテキスト名を制御します。|
-| `k8s_shared_ca_replace_kube_ca` | `false` | kubeadm reset 後に `/etc/kubernetes/pki/{ca.crt,ca.key}` を共通 CA で置換するか。|
-| `k8s_shared_ca_source_cert` / `k8s_shared_ca_source_key` | 未定義 | 共通 CA のソースファイル (指定時のみ復元を実行)。|
-| `k8s_shared_ca_cert_path` / `k8s_shared_ca_key_path` | 未定義 | 共通 CA の配置先パス。|
-| `k8s_shared_ca_output_dir` | 未定義 | 共通 CA 出力ディレクトリ。|
-| `k8s_bgp` | 未定義 | `enabled` / `neighbors` などの BGP 設定を含むマップ (`enabled: true` の場合は `neighbors` 必須)。|
-| `k8s_operator_user` | `kube` | オペレータユーザ名。kubeconfig 配布や Helm リポジトリ登録で利用。|
+| `k8s_ctrlplane_endpoint` | host_vars で指定 | Control Plane API の広告アドレス。 |
+| `k8s_api_wait_host` | `{{ k8s_ctrlplane_endpoint }}` | API サーバ待機先ホスト。 |
+| `k8s_api_wait_port` | `{{ k8s_ctrlplane_port }}` | API サーバ待機先ポート。 |
+| `k8s_api_wait_timeout` | `600` | API 待機タイムアウト(秒)。 |
+| `k8s_api_wait_delay` | `2` | API 待機開始遅延(秒)。 |
+| `k8s_api_wait_sleep` | `1` | API 待機ポーリング間隔(秒)。 |
+| `k8s_api_wait_delegate_to` | `localhost` | API 待機を実行する接続元ホスト。 |
+| `k8s_kubeadm_config_store` | `{{ ansible_home_dir }}/kubeadm` | kubeadm/Cilium 設定生成の基点ディレクトリ。 |
+| `k8s_kubeadm_ignore_preflight_errors_arg` | `--ignore-preflight-errors=all` | `kubeadm init` 実行時の preflight 制御。 |
+| `k8s_pod_ipv4_network_cidr` / `k8s_pod_ipv6_network_cidr` | 必須 | Pod ネットワーク CIDR。 |
+| `k8s_pod_ipv4_service_subnet` / `k8s_pod_ipv6_service_subnet` | 必須 | Service CIDR。 |
 
-その他, `helm_bash_completion_path` / `helm_zsh_completion_path` / `cilium_bash_completion_path` / `cilium_zsh_completion_path` は `vars/cross-distro.yml` から読み込まれ, OS ごとに補完ファイルの配置先が決まります。
+### Cilium/Helm関連
+
+| 変数名 | 既定値 | 説明 |
+| --- | --- | --- |
+| `k8s_helm_version` | 未定義 | 未定義または `latest` で最新版を導入。 |
+| `k8s_helm_cli_completion_enabled` | `true` | Helm 補完の生成有効化。 |
+| `k8s_cilium_version` | 必須 | Cilium ベースバージョン。 |
+| `k8s_cilium_helm_chart_version` | `{{ k8s_cilium_version }}` | Cilium Helm Chart バージョン。 |
+| `k8s_cilium_image_version` | `v{{ k8s_cilium_version }}` | Cilium イメージタグ。 |
+| `k8s_cilium_helm_repo_url` | `https://helm.cilium.io/` | Cilium Helm リポジトリURL。 |
+| `k8s_cilium_config_dir` | `{{ k8s_kubeadm_config_store }}/cilium` | Cilium values 出力先。 |
+| `k8s_cilium_cli_completion_enabled` | `true` | Cilium CLI 補完の生成有効化。 |
+| `k8s_cilium_shared_ca_enabled` | `false` | `k8s-cilium-shared-ca` を実行するか。 |
+| `k8s_cilium_bgp_control_plane_enabled` | 未定義 | Helm values の `bgpControlPlane.enabled` を明示制御。未定義時は `k8s_bgp.enabled` に連動。 |
+
+### Cilium BGP/Cluster Mesh関連
+
+| 変数名 | 既定値 | 説明 |
+| --- | --- | --- |
+| `k8s_bgp` | (未定義) | BGP Control Plane 設定マッピング。`enabled: true` のとき `neighbors` が必須。 |
+| `k8s_cilium_cm_cluster_name` | 未定義 | Cluster Mesh クラスタ名。 |
+| `k8s_cilium_cm_cluster_id` | 未定義 | Cluster Mesh クラスタID。 |
+| `k8s_embed_kubeconfig_script_path` | `{{ k8s_node_setup_tools_dir }}/create-embedded-kubeconfig.py` | 埋め込み kubeconfig 生成スクリプト配置先。 |
+| `k8s_embed_kubeconfig_output_dir` | `{{ k8s_operator_home }}/.kube` | 埋め込み kubeconfig 出力先。 |
+| `k8s_embed_kubeconfig_file_postfix` | `-embedded.kubeconfig` | 埋め込み kubeconfig の接尾辞。 |
+
+### 共有CA関連
+
+| 変数名 | 既定値 | 説明 |
+| --- | --- | --- |
+| `k8s_shared_ca_replace_kube_ca` | `false` | `kubeadm reset` 後に `/etc/kubernetes/pki/ca.*` を置換するか。 |
+| `k8s_shared_ca_source_cert` / `k8s_shared_ca_source_key` | 未定義 | 共有CAの入力ソース。 |
+| `k8s_shared_ca_cert_path` / `k8s_shared_ca_key_path` | 未定義 | 共有CAの配置先。 |
+| `k8s_shared_ca_output_dir` | 未定義 | 共有CA配置ディレクトリ。 |
+
+### firewall/補完/オペレータ関連
+
+| 変数名 | 既定値 | 説明 |
+| --- | --- | --- |
+| `enable_firewall` | `false` | `true` で firewall 構成を実行。 |
+| `firewall_backend` | OS 既定 | `ufw` または `firewalld`。 |
+| `k8s_control_plane_ports` | 6443,10250,10257,10259,2379-2380 | 開放ポート一覧。 |
+| `k8s_operator_user` | `kube` | オペレータユーザ。 |
+| `k8s_operator_home` | `/home/kube` | オペレータホーム。 |
+| `k8s_node_setup_tools_prefix` | `/opt/k8snodes` | ツール類ベースパス。 |
+| `k8s_node_setup_tools_dir` | `{{ k8s_node_setup_tools_prefix }}/sbin` | ツール配置ディレクトリ。 |
+| `k8s_node_setup_tools_docs_dir` | `{{ k8s_node_setup_tools_prefix }}/docs` | ドキュメント配置ディレクトリ。 |
+| `reboot_timeout_sec` | `600` | 再起動待機タイムアウト(秒)。 |
+
+## デフォルト動作
+
+| 条件 | 結果 |
+| --- | --- |
+| `enable_firewall: false` | `config-k8sctrlplane-firewall.yml` をスキップします。 |
+| `k8s_helm_version` 未定義 | Helm は最新版を導入します。 |
+| `k8s_helm_cli_completion_enabled: true` | Helm 補完ファイルを生成・配置します。 |
+| `k8s_cilium_cli_completion_enabled: true` | Cilium CLI 補完ファイルを生成・配置します。 |
+| `k8s_bgp` が未定義 | `config-cilium-bgp-cplane.yml` をスキップします。 |
+| `k8s_bgp.enabled: true` | BGP マニフェストを生成し, CRD待機後に `kubectl apply` を実行します。 |
+| `k8s_cilium_cm_cluster_name` または `k8s_cilium_cm_cluster_id` が未定義 | 埋め込み kubeconfig 生成をスキップします。 |
+| `k8s_shared_ca_replace_kube_ca: true` | `kubeadm reset` 後に `/etc/kubernetes/pki/ca.*` を共有CAで置換します。 |
+
+## テンプレート / ファイル
+
+本ロールでは以下のテンプレート / ファイルを出力します:
+
+| テンプレートファイル名 | 出力先パス | 説明 |
+| --- | --- | --- |
+| `templates/ctrlplane-kubeadm.config.j2` | `{{ k8s_kubeadm_config_store }}/ctrlplane-kubeadm.config.yml` (既定: `/home/ansible/kubeadm/ctrlplane-kubeadm.config.yml`) | kubeadm 初期化設定。APIファミリに応じた Pod/Service CIDR 並び替え結果を反映します。 |
+| `templates/cilium-install.yml.j2` | `{{ k8s_cilium_config_dir }}/cilium-install.yml` (既定: `/home/ansible/kubeadm/cilium/cilium-install.yml`) | Cilium Helm values。kube-proxy 置換, native routing, dual-stack 設定を出力します。 |
+| `templates/create-embedded-kubeconfig.py.j2` | `{{ k8s_embed_kubeconfig_script_path }}` (既定: `/opt/k8snodes/sbin/create-embedded-kubeconfig.py`) | Cluster Mesh 用の証明書埋め込み kubeconfig 生成スクリプト。 |
+| `files/Readme-create-embedded-kubeconfig-JP.md` | `{{ k8s_node_setup_tools_docs_dir }}/Readme-create-embedded-kubeconfig-JP.md` (既定: `/opt/k8snodes/docs/Readme-create-embedded-kubeconfig-JP.md`) | 上記スクリプトの利用手順書。 |
+| `../k8s-common/templates/cilium-bgp-resources.yml.j2` | `{{ k8s_cilium_config_dir }}/bgp/cilium-bgp-resources-<node>.yml` (既定) | Cilium BGP Control Plane マニフェスト。`k8s-ctrlplane` 側実装は `k8s-common` 側テンプレートに依存します。 |
+
+## OS 差異
+
+| 項目 | Debian/Ubuntu 系 | RHEL 系 |
+| --- | --- | --- |
+| パッケージマネージャー | `apt` | `yum` / `dnf` |
+| firewall 実装 | UFW (`ufw allow`) | firewalld (`firewall-cmd --permanent --add-port`) |
+| firewall 再読込 | `ufw reload` | `firewall-cmd --reload` |
+| Helm zsh 補完パス | `/usr/share/zsh/vendor-completions/_helm` | `/usr/share/zsh/site-functions/_helm` |
+| Cilium zsh 補完パス | `/usr/share/zsh/vendor-completions/_cilium` | `/usr/share/zsh/site-functions/_cilium` |
+| `etc_default_dir` | `/etc/default` | `/etc/sysconfig` |
 
 ## 主な処理
 
-- **kubeadm 設定と再初期化**: `ctrlplane-kubeadm.config.j2` をもとに API アドレスや Pod/Service CIDR を API ファミリ順に並べ替えた上で `kubeadm init` を実行します。共通 CA を再配置するロジックも含みます。
-- **Cilium 導入**: kube-proxy を削除し, Helm から Cilium をネイティブルーティング (IPv4/IPv6) で導入します。必要に応じて `k8s-cilium-shared-ca` ロールで Cluster Mesh 向け Secret を整備し, `helm install cilium` 後にホストを再起動します (再適用時は既存リリースの削除が前提)。
-- **Cilium CLI 補完**: `k8s_cilium_cli_completion_enabled` が `true` の場合に bash / zsh 用補完スクリプトを生成し, root 配下に配置します。
-- **Helm 環境構築**: Helm 本体と Cilium CLI を導入し, 既存リポジトリを削除したうえで cilium リポジトリを root と `k8s_operator_user` 双方に登録します。
-- **Firewall 開放**: コントロールプレーンの必須ポートを UFW/firewalld で恒久的に許可し, 状態確認コマンドを実行します。
-- **Cluster Mesh ツール**: `create-embedded-kubeconfig.py` と手順書を配布し, Cluster Mesh 用に共通 CA を埋め込んだ kubeconfig を生成します。必須の CA ファイルが欠けている場合は明示的に失敗させ, 生成した kubeconfig の所有者を `k8s_operator_user` に調整します。
+- **kubeadm 設定と再初期化**: APIファミリに合わせて Pod/Service CIDR を並べ替え, `kubeadm reset` と `kubeadm init` を実行します。`service IP family ... must match public address family ...` の不整合を回避するための処理です。
+- **Cilium 導入**: `kubeProxyReplacement=true`, `routingMode=native`, `autoDirectNodeRoutes=true`, `ipv4NativeRoutingCIDR`, `ipv6NativeRoutingCIDR` を values に反映し, kube-proxy を削除して Cilium を導入します。
+- **Cluster Mesh 連携**: 条件を満たす場合, 共有CAの存在を検証して埋め込み kubeconfig を生成します。不足時は明示的に失敗させます。
+- **BGP Control Plane**: `k8s_bgp.enabled=true` の場合に限り, BGP関連CRDの利用可能状態を待機してからマニフェストを適用します。
+- **補完/運用ツール**: Helm/Cilium 補完ファイルと Cluster Mesh 用運用ツールを配布します。
 
-## テンプレート／ファイル
+## 設定例
 
-| テンプレート/ファイル | 用途 | インストール先パス |
-| --- | --- | --- |
-| `templates/ctrlplane-kubeadm.config.j2` | kubeadm 初期化設定のテンプレート。 | `{{ k8s_kubeadm_config_store }}/ctrlplane-kubeadm.config.yml` (既定: `/home/ansible/kubeadm/ctrlplane-kubeadm.config.yml`) |
-| `templates/cilium-install.yml.j2` | Cilium Helm リリース用 values。 | `{{ k8s_cilium_config_dir }}/cilium-install.yml` (既定: `/home/ansible/kubeadm/cilium/cilium-install.yml`) |
-| `templates/create-embedded-kubeconfig.py.j2` | 証明書埋め込み kubeconfig 生成スクリプト。 | `{{ k8s_embed_kubeconfig_script_path }}` (既定: `/opt/k8snodes/sbin/create-embedded-kubeconfig.py`) |
-| `files/Readme-create-embedded-kubeconfig-JP.md` | Cluster Mesh 用 kubeconfig 生成手順書。 | `{{ k8s_node_setup_tools_docs_dir }}/Readme-create-embedded-kubeconfig-JP.md` (既定: `/opt/k8snodes/docs/Readme-create-embedded-kubeconfig-JP.md`) |
+### パターン 1: IPv4優先デュアルスタック (基本)
 
-## 検証ポイント
+```yaml
+# host_vars/k8sctrlplane01.local
+k8s_ctrlplane_endpoint: 192.168.20.41
+k8s_ctrlplane_port: 6443
+k8s_cilium_version: "1.16.0"
+k8s_pod_ipv4_network_cidr: "10.244.0.0/16"
+k8s_pod_ipv6_network_cidr: "fdb6:6e92:3cfb::/56"
+k8s_pod_ipv4_service_subnet: "10.254.0.0/16"
+k8s_pod_ipv6_service_subnet: "fdb6:6e92:3cfb:feed::/112"
+enable_firewall: true
+firewall_backend:
+  - ufw
+```
 
-- `kubeadm init` 実行後に `kubectl --kubeconfig /etc/kubernetes/admin.conf get nodes` が正常に返り, kube-apiserverが `Ready` である。
-- `/etc/kubernetes/pki` に共通 CA が配置されている (必要に応じて `openssl x509 -in /etc/kubernetes/pki/ca.crt -noout -subject`)。
-- `kubectl -n kube-system get ds cilium` で Cilium DaemonSet が稼働し, `cilium status` が `OK` を示す。
-- `helm list -n kube-system` に `cilium` が想定通りのバージョンで存在する。
-- `ls /opt/k8snodes/sbin` に `create-embedded-kubeconfig.py` が存在し, `/home/{{ k8s_operator_user }}/.kube/<cluster>-embedded.kubeconfig` が生成されている。
-- ファイアウォールの設定が反映され, `ufw status` または `firewall-cmd --list-ports` にコントロールプレーンポートが開放済みである。
-- Cluster Mesh 接続時に `cilium clustermesh connect` が TLS エラーなく成功する。
+### パターン 2: IPv6優先デュアルスタック
 
-### デュアルスタック構成の確認
+```yaml
+# host_vars/k8sctrlplane01.local
+k8s_ctrlplane_endpoint: "fdb6:6e92:3cfb:1::41"
+k8s_ctrlplane_port: 6443
+k8s_cilium_version: "1.16.0"
+k8s_pod_ipv4_network_cidr: "10.244.0.0/16"
+k8s_pod_ipv6_network_cidr: "fdb6:6e92:3cfb::/56"
+k8s_pod_ipv4_service_subnet: "10.254.0.0/16"
+k8s_pod_ipv6_service_subnet: "fdb6:6e92:3cfb:feed::/112"
+```
 
-コントロールプレーンノード構築後, Kubernetesクラスタが IPv4/IPv6 デュアルスタックで正常に動作しているかを確認するため, 以下の手順を実行します。これらは特にワーカーノード追加前の段階での検証に有用です。
+### パターン 3: Cluster Mesh 用埋め込み kubeconfig を生成
 
-#### Node podCIDRs の確認
+```yaml
+# host_vars/k8sctrlplane01.local
+k8s_cilium_cm_cluster_name: cluster1
+k8s_cilium_cm_cluster_id: 1
+k8s_embed_kubeconfig_shared_ca_path: /etc/kubernetes/pki/ca.crt
+k8s_cilium_shared_ca_enabled: true
+```
 
-各Kubernetes ノードに割り当てられた Pod CIDR が IPv4 と IPv6 の両方を含むことを確認します:
+### パターン 4: Cilium BGP Control Plane を有効化
+
+```yaml
+# host_vars/k8sctrlplane01.local
+k8s_bgp:
+  enabled: true
+  node_name: k8sctrlplane01
+  local_asn: 65011
+  kubeconfig: /etc/kubernetes/admin.conf
+  export_pod_cidr: true
+  advertise_services: false
+  neighbors:
+    - peer_address: 192.168.30.49/32
+      peer_asn: 65011
+      peer_port: 179
+      hold_time_seconds: 90
+      connect_retry_seconds: 15
+```
+
+## 検証
+
+### パターン A: 基本構成
+
+**目的**: kubeadm, Cilium, Helm, firewall, kubeconfig 配布の基本動作が正常であることを確認します。
+
+**実行コマンド**:
+
+```bash
+# 1. コントロールプレーン状態
+kubectl --kubeconfig /etc/kubernetes/admin.conf get nodes -o wide
+
+# 2. Cilium 状態
+kubectl -n kube-system get ds cilium
+cilium status
+
+# 3. Helm リリース
+helm list -n kube-system
+
+# 4. kubeconfig 配布
+ls -la /root/.kube/config
+ls -la /home/ansible/.kube/config
+ls -la /home/kube/.kube/config
+```
+
+**コマンド出力例**:
+
+```text
+# 1. コントロールプレーン状態
+NAME             STATUS   ROLES           AGE   VERSION    INTERNAL-IP
+k8sctrlplane01   Ready    control-plane   18h   v1.31.14   fdad:ba50:248b:1::41
+
+# 2. Cilium 状態
+NAME     DESIRED   CURRENT   READY   UP-TO-DATE   AVAILABLE
+cilium   3         3         3       3            3
+
+# 3. Helm リリース
+NAME            NAMESPACE     STATUS    CHART         APP VERSION
+cilium          kube-system   deployed  cilium-1.16.0 1.16.0
+multus-cni      kube-system   deployed  multus-cni-4.2.3 v4.2.3
+whereabouts     kube-system   deployed  whereabouts-chart-0.9.2 v0.9.2
+
+# 4. kubeconfig 配布
+-rw------- 1 root    root    ... /root/.kube/config
+-rw-r--r-- 1 ansible ansible ... /home/ansible/.kube/config
+lrwxrwxrwx 1 root    root    ... /home/kube/.kube/config -> merged-kubeconfig.conf
+```
+
+**確認ポイント**:
+
+- k8sctrlplane01 の STATUS が Ready であること
+- cilium デーモンセットの DESIRED/CURRENT/READY が一致すること
+- helm list に cilium が deployed で存在すること
+- /root, /home/ansible, /home/kube の kubeconfig が存在すること
+
+### パターン B: デュアルスタック順序確認 (IPv4優先デュアルスタック / IPv6優先デュアルスタック)
+
+**目的**: デュアルスタック環境で, APIエンドポイントで指定されたIPアドレスファミリを優先し, Pod CIDRおよびService CIDRが正しい順序で適用されていることを確認します。
+
+**実行コマンド**:
 
 ```bash
 kubectl get nodes -o custom-columns=NAME:.metadata.name,POD-CIDRS:.spec.podCIDRs
-```
-
-期待される出力例 (IPv6 優先の場合):
-
-```plaintext
-NAME             POD-CIDRS
-k8sctrlplane01   [fdb6:6e92:3cfb:200::/64 10.244.0.0/24]
-```
-
-期待される出力例 (IPv4 優先の場合):
-
-```plaintext
-NAME             POD-CIDRS
-k8sctrlplane01   [10.244.0.0/24 fdb6:6e92:3cfb:200::/64]
-```
-
-#### CoreDNS Service の ipFamilyPolicy 確認
-
-kube-system 名前空間の kube-dns (CoreDNS) Service がデュアルスタック設定になっているか確認します:
-
-```bash
-kubectl get svc -n kube-system kube-dns -o yaml
-```
-
-デュアルスタックの場合の出力例 (重要な部分のみ抜粋):
-
-```yaml
-spec:
-  clusterIP: fdb6:6e92:3cfb:feed::a
-  clusterIPs:
-  - fdb6:6e92:3cfb:feed::a
-  - 10.254.0.10
-  ipFamilies:
-  - IPv6
-  - IPv4
-  ipFamilyPolicy: PreferDualStack
-```
-
-シングルスタックの場合(IPv6の場合):
-
-```yaml
-spec:
-  clusterIP: fdb6:6e92:3cfb:feed::a
-  clusterIPs:
-  - fdb6:6e92:3cfb:feed::a
-  ipFamilies:
-  - IPv6
-  ipFamilyPolicy: SingleStack
-```
-
-シングルスタックの場合(IPv4の場合):
-
-```yaml
-spec:
-  clusterIP: 10.254.0.10
-  clusterIPs:
-  - 10.254.0.10
-  internalTrafficPolicy: Cluster
-  ipFamilies:
-  - IPv4
-  ipFamilyPolicy: SingleStack
-```
-
-#### kube-apiserver の service-cluster-ip-range 確認
-
-kube-apiserverが起動時に指定された Service CIDR 範囲を確認します:
-
-```bash
 kubectl cluster-info dump | grep service-cluster-ip-range
 ```
 
-期待される出力例 (IPv6 優先の場合):
+**コマンド出力例**:
 
-```plaintext
-      "--service-cluster-ip-range=fdb6:6e92:3cfb:feed::/112,10.254.0.0/16",
+```text
+# Node podCIDRs の確認 (IPv6優先デュアルスタック)
+NAME             POD-CIDRS
+k8sctrlplane01   [fdb6:6e92:3cfb:200::/64 10.244.0.0/24]
+
+# Node podCIDRs の確認 (IPv4優先デュアルスタック)
+NAME             POD-CIDRS
+k8sctrlplane01   [10.244.0.0/24 fdb6:6e92:3cfb:200::/64]
+
+# service-cluster-ip-range の確認 (IPv6優先デュアルスタック)
+--service-cluster-ip-range=fdb6:6e92:3cfb:feed::/112,10.254.0.0/16
+
+# service-cluster-ip-range の確認 (IPv4優先デュアルスタック)
+--service-cluster-ip-range=10.254.0.0/16,fdb6:6e92:3cfb:feed::/112
 ```
 
-期待される出力例 (IPv4 優先の場合):
+**確認ポイント**:
 
-```plaintext
-      "--service-cluster-ip-range=10.254.0.0/16,fdb6:6e92:3cfb:feed::/112",
+- IPv6優先デュアルスタックでは POD-CIDRS が IPv6,IPv4 の順序であること
+- IPv4優先デュアルスタックでは POD-CIDRS が IPv4,IPv6 の順序であること
+- IPv6優先デュアルスタックでは service-cluster-ip-range が IPv6,IPv4 の順序であること
+- IPv4優先デュアルスタックでは service-cluster-ip-range が IPv4,IPv6 の順序であること
+
+### パターン C: Cluster Mesh ツール生成
+
+**前提**: `k8s_cilium_cm_cluster_name` と `k8s_cilium_cm_cluster_id` を定義済み。
+
+**実行コマンド**:
+
+```bash
+# 1. スクリプトとドキュメントの配置
+ls -la /opt/k8snodes/sbin/create-embedded-kubeconfig.py
+ls -la /opt/k8snodes/docs/Readme-create-embedded-kubeconfig-JP.md
+
+# 2. 生成結果
+ls -la /home/kube/.kube/*-embedded.kubeconfig
+
+# 3. 生成 kubeconfig の利用
+kubectl --kubeconfig /home/kube/.kube/<cluster>-embedded.kubeconfig cluster-info
 ```
 
-#### 確認のタイミング
+**コマンド出力例**:
 
-- コントロールプレーンノード構築直後 (ワーカーノード追加前) に実行することで, Kubernetesクラスタ基盤のデュアルスタック設定を早期検証できます。
-- シングルスタックで構築された場合, kubeadm による再初期化が必要です。デュアルスタックへのアップグレードはKubernetesの仕様によりサポートされていません。
+```text
+# 1. スクリプトとドキュメントの配置
+-rwxr-xr-x 1 root root ... /opt/k8snodes/sbin/create-embedded-kubeconfig.py
+-rw-r--r-- 1 root root ... /opt/k8snodes/docs/Readme-create-embedded-kubeconfig-JP.md
 
-## 補足
+# 2. 生成結果
+-rw------- 1 kube kube ... /home/kube/.kube/cluster1-embedded.kubeconfig
+```
 
-- `k8s_shared_ca_replace_kube_ca: true` を組み合わせると, `k8s-shared-ca` で生成した共通 CA で kube-apiserver / etcd 証明書を再発行できます。ローテーション時は `k8s-cilium-shared-ca` と合わせて再実行してください。
-- `config.yml` は `kubeadm reset` を含むため, 既存Kubernetesクラスタに適用する際は事前に制御プレーンを退避させるなど必要に応じた停止計画を立ててください。
-- Helm リポジトリは全削除されるため, 既存のリポジトリ運用がある場合は事前に退避してください。
-- Cilium BGP Control Plane のマニフェストは `k8s-common` ロールの `templates/cilium-bgp-resources.yml.j2` を使って生成し, 既定では `{{ k8s_cilium_config_dir }}/bgp` 配下に出力します。
-- Cluster Mesh 用 kubeconfig を追加で配布したい場合は生成された `<cluster>-embedded.kubeconfig` を `cilium clustermesh connect` や `cilium clustermesh status` コマンドに引き渡してください。
-- `k8s_cilium_cli_completion_enabled: false` とすると Cilium CLI の補完ファイル生成をスキップできます (生成先パスは `vars/cross-distro.yml` で OS 別に定義)。
-- `enable_firewall` を有効にした場合は, `firewall_backend` に応じて UFW または firewalld の導入とポート開放が実施されます (`reload ufw` / `reload firewalld` ハンドラが呼ばれます)。
+**確認ポイント**:
+
+- create-embedded-kubeconfig.py と手順書が所定パスに存在すること
+- cluster1-embedded.kubeconfig が生成済みであること
+- 必要に応じて kubectl --kubeconfig /home/kube/.kube/cluster1-embedded.kubeconfig cluster-info が成功すること
+
+### パターン D: Cilium BGP Control Plane 適用時確認
+
+**実行コマンド**:
+
+```bash
+# 1. BGP 関連 CRD の存在確認
+sudo -n kubectl --kubeconfig /etc/kubernetes/admin.conf get crd | \
+  grep -E 'ciliumbgpadvertisements|ciliumbgppeerconfigs|ciliumbgpclusterconfigs'
+
+# 2. BGP マニフェスト出力先確認
+sudo -n ls -la /home/ansible/kubeadm/cilium/bgp
+```
+
+**確認ポイント**:
+
+- `ciliumbgpadvertisements.cilium.io`, `ciliumbgppeerconfigs.cilium.io`, `ciliumbgpclusterconfigs.cilium.io` が表示されること
+- `/home/ansible/kubeadm/cilium/bgp/` 配下に `cilium-bgp-resources-<node>.yml` が存在すること
+- 必要に応じて `kubectl get ciliumbgpclusterconfigs -A` / `kubectl get ciliumbgppeerconfigs -A` / `kubectl get ciliumbgpadvertisements -A` を追加実行し, BGP リソースが作成済みであること
+
+## トラブルシューティング
+
+### kubeadm init が失敗する
+
+**症状**: `kubeadm init` が `service IP family ... must match public address family ...` で失敗する。
+
+**確認**:
+
+```bash
+cat {{ k8s_kubeadm_config_store }}/ctrlplane-kubeadm.config.yml
+```
+
+**原因**: APIエンドポイントのファミリと Service CIDR の順序が不一致。
+
+**対処**: `k8s_ctrlplane_endpoint` と Pod/Service CIDR 変数を見直して再実行する。
+
+### Cilium が起動しない
+
+**症状**: `kubectl -n kube-system get pods` で cilium Pod が `CrashLoopBackOff`。
+
+**確認**:
+
+```bash
+kubectl -n kube-system get pods -l k8s-app=cilium
+kubectl -n kube-system logs ds/cilium --tail=200
+cat {{ k8s_cilium_config_dir }}/cilium-install.yml
+```
+
+**原因**: `k8sServiceHost`, native routing CIDR, kube-proxy 削除順序の不整合。
+
+**対処**: values と API 到達性を確認し, 必要なら `helm delete cilium -n kube-system` 後に再実行する。
+
+### firewall 設定が反映されない
+
+**症状**: 6443/tcp などが外部から到達しない。
+
+**確認**:
+
+```bash
+# Debian/Ubuntu
+sudo ufw status verbose
+
+# RHEL
+sudo firewall-cmd --list-ports
+```
+
+**原因**: `enable_firewall` が `false` または `firewall_backend` の指定不整合。
+
+**対処**: 変数設定を修正し, ロールを再実行する。
+
+### Cluster Mesh 用埋め込み kubeconfig 生成に失敗する
+
+**症状**: `Abort when shared CA certificate is missing` で失敗する。
+
+**確認**:
+
+```bash
+ls -la {{ k8s_embed_kubeconfig_shared_ca_path }}
+```
+
+**原因**: 共有CAファイル未生成, もしくは読み取り不可。
+
+**対処**: `k8s-shared-ca` / `k8s-cilium-shared-ca` 側の生成結果を確認して再実行する。
+
+### BGP マニフェスト適用で失敗する
+
+**症状**: `k8s_bgp.neighbors must not be empty` や CRD未検出で失敗する。
+
+**確認**:
+
+```bash
+kubectl get crd ciliumbgpadvertisements.cilium.io
+kubectl get crd ciliumbgppeerconfigs.cilium.io
+kubectl get crd ciliumbgpclusterconfigs.cilium.io
+```
+
+**期待される結果**:
+
+```
+NAME                                 CREATED AT
+ciliumbgpadvertisements.cilium.io    2026-03-05T10:30:15Z
+```
+
+```
+NAME                              CREATED AT
+ciliumbgppeerconfigs.cilium.io    2026-03-05T10:30:15Z
+```
+
+```
+NAME                                CREATED AT
+ciliumbgpclusterconfigs.cilium.io   2026-03-05T10:30:15Z
+```
+
+**確認ポイント**:
+
+- 各CRD (`ciliumbgpadvertisements.cilium.io`, `ciliumbgppeerconfigs.cilium.io`, `ciliumbgpclusterconfigs.cilium.io`) が存在すること
+- これらのCRDが存在しない場合は, Cilium がBGP Control Plane機能を有効化していないか, Ciliumのバージョンが古い可能性があります
+
+**原因**: `k8s_bgp` 設定不足, もしくは Cilium 側 CRD の未準備。
+
+**対処**: `k8s_bgp.neighbors` を含む設定を修正し, Cilium が CRD を作成したことを確認して再実行する。
+
+## 留意事項
+
+- **破壊的操作**: `config.yml` は `kubeadm reset` を実行します。既存クラスタ適用時は必ず停止計画を立ててください。
+- **Helm リポジトリの再構成**: `config-helm.yml` は既存 Helm リポジトリを全削除して `cilium` を再登録します。既存運用がある場合は事前に退避してください。
+- **再実行時の Cilium**: `helm install cilium` は同名リリースが残っていると失敗します。必要に応じて `helm delete cilium -n kube-system` を実施してください。
+- **ロール依存**: 本ロールは `k8s-common` 実行後を前提にしています。
+- **テンプレート依存**: Cilium BGP Control Plane のマニフェスト生成は, `k8s-common/templates/cilium-bgp-resources.yml.j2` を参照する実装です。`k8s-ctrlplane` 側実装は `k8s-common` 側テンプレートに依存しています。
+- **共有CA依存**: `k8s_cilium_shared_ca_enabled: true` の場合, `k8s-cilium-shared-ca` の実行結果が前提になります。
+- **補完無効化**: `k8s_helm_cli_completion_enabled: false` または `k8s_cilium_cli_completion_enabled: false` でシェル用補完ファイル生成をスキップできます。

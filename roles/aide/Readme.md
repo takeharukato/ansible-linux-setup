@@ -3,6 +3,16 @@
 本ロールでは, Advanced Intrusion Detection Environment (AIDE)を,
 RHEL/Ubuntuのパッケージから導入する。
 
+## 用語
+
+| 正式名称 | 略称 | 意味 |
+| --- | --- | --- |
+| Advanced Intrusion Detection Environment | AIDE | ファイルシステムの改ざん検知を行うホスト型侵入検知システム, ファイルハッシュでの整合性確認 |
+| Red Hat Enterprise Linux | RHEL | Red Hatが提供する商用Linuxディストリビューション |
+| - | Debian | コミュニティ主導で開発されるLinuxディストリビューション |
+| - | Ubuntu | Canonicalが提供するDebianベースのLinuxディストリビューション |
+| General Electric Comprehensive Operating System | GECOS | Unixパスワードファイルのユーザ情報フィールド, フルネームやオフィス情報を格納 |
+
 ## 変数一覧
 
 | 変数名 | 意味 | 例 | 備考 |

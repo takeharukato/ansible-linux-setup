@@ -38,7 +38,7 @@
 
 ## 前提条件
 
-- 対象 OS: Ubuntu 22.04/24.04, RHEL 9 系 (Rocky Linux, AlmaLinux 等)
+- 対象 OS: Debian/Ubuntu系 (Ubuntu 24.04を想定), RHEL9 系 (Rocky Linux, AlmaLinux など, AlmaLinux 9.6を想定)
 - Ansible 2.15 以降
 - `ansible.posix` コレクションがインストールされていること
 - リモートホストへの SSH 接続が確立されていること

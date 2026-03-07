@@ -16,7 +16,7 @@
 
 ## 前提条件
 
-- 対象 OS: Debian/Ubuntu 系 (Ubuntu24.04を想定), RHEL9 系 (AlmaLinux9.6を想定)
+- 対象 OS: Debian/Ubuntu系 (Ubuntu 24.04を想定), RHEL9 系 (Rocky Linux, AlmaLinux など, AlmaLinux 9.6を想定)
 - Ansible 2.15 以降, ansibleメタパッケージをディストリビューションから導入していることを想定
 - `mgmt_nic` が正しく設定されていること
 

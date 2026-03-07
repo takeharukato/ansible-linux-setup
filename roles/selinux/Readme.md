@@ -2,6 +2,19 @@
 
 このロールは SELinux を利用するホストに対して, 期待するモード (`enforcing` / `permissive` / `disabled`) を永続設定およびランタイム設定に反映し, 必要に応じて再ラベルや再起動を自動化します。SELinux が無い (Debian/Ubuntu 系など) 環境では自動的にスキップし, AppArmor など別メカニズムを採用するホストに影響を与えません。
 
+## 用語
+
+| 正式名称 | 略称 | 意味 |
+| --- | --- | --- |
+| Security-Enhanced Linux | SELinux | Linuxカーネルに強制アクセス制御機能を追加するセキュリティモジュール, RHEL系で標準採用 |
+| - | AppArmor | プロセスごとにアクセス権限を制御するLinuxセキュリティモジュール, Debian/Ubuntu系で標準採用 |
+| - | enforcing | SELinuxがポリシー違反を検出しアクセスを拒否する動作モード |
+| - | permissive | SELinuxがポリシー違反をログ記録のみ行い拒否しない動作モード, デバッグ用 |
+| - | disabled | SELinuxが完全に無効化されている状態, 有効化には再起動が必要 |
+| Red Hat Enterprise Linux | RHEL | Red Hatが提供する商用Linuxディストリビューション, SELinuxを標準搭載 |
+| - | Debian | コミュニティ主導で開発されるLinuxディストリビューション, AppArmorを標準採用 |
+| - | Ubuntu | Canonicalが提供するDebianベースのLinuxディストリビューション |
+
 ## 主な処理
 
 - `tasks/load-params.yml` で OS ごとの追加パッケージ定義 (`vars/packages-ubuntu.yml` / `vars/packages-rhel.yml`) や共通変数 (`vars/cross-distro.yml` / `vars/all-config.yml` / `vars/k8s-api-address.yml`) を読み込み, `common_selinux_state`・`force_relabel` などのパラメータを初期化します。

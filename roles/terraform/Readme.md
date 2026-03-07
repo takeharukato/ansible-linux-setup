@@ -3,6 +3,21 @@
 このロールは HashiCorp 提供の公式リポジトリを登録し、`terraform` パッケージをインストールします。
 Debian/Ubuntu 系では APT (deb822) を、RHEL 系では YUM/DNF リポジトリを設定し、GPG 公開鍵による検証を有効化します。
 
+## 用語
+
+| 正式名称 | 略称 | 意味 |
+| --- | --- | --- |
+| - | Terraform | HashiCorp提供のインフラストラクチャをコードで管理するIaCツール |
+| - | HashiCorp | Terraform, Vault, Consulなどのインフラ管理ツールを提供する企業 |
+| Infrastructure as Code | IaC | インフラ構成をコードで定義・管理する手法, 再現性と保守性を向上 |
+| Advanced Package Tool | APT | Debian系Linuxディストリビューションのパッケージ管理システム |
+| Yellowdog Updater Modified | YUM | RPMベースのパッケージ管理ツール, RHEL 7まで標準 |
+| Dandified YUM | DNF | YUMの後継として開発されたパッケージ管理ツール, RHEL 8以降で標準 |
+| GNU Privacy Guard | GPG | 電子署名と暗号化を行うオープンソース暗号化ソフトウェア |
+| Red Hat Enterprise Linux | RHEL | Red Hatが提供する商用Linuxディストリビューション |
+| - | Debian | コミュニティ主導で開発されるLinuxディストリビューション |
+| - | Ubuntu | Canonicalが提供するDebianベースのLinuxディストリビューション |
+
 ## 変数一覧
 
 変数名|既定値|説明

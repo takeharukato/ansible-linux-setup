@@ -24,6 +24,21 @@
     - [gitlab-restore.pyスクリプトのコマンドラインオプション](#gitlab-restorepyスクリプトのコマンドラインオプション)
   - [参考URL](#参考url)
 
+## 用語
+
+| 正式名称 | 略称 | 意味 |
+| --- | --- | --- |
+| - | GitLab | Git リポジトリ管理とCI/CD機能を統合した開発プラットフォーム |
+| - | Docker | コンテナ仮想化技術を用いたアプリケーション実行環境 |
+| Secure Shell | SSH | 暗号化されたネットワークプロトコル, リモート操作やGit通信で使用 |
+| Hypertext Transfer Protocol Secure | HTTPS | TLS/SSLで暗号化されたHTTP通信プロトコル |
+| - | PostgreSQL | オープンソースのリレーショナルデータベース管理システム, GitLabのデータ保存に使用 |
+| - | Git | 分散型バージョン管理システム, ソースコード管理の基盤 |
+| Continuous Integration/Continuous Delivery | CI/CD | ソフトウェア開発における継続的な統合と継続的な配信の自動化プロセス |
+| Secure Sockets Layer/Transport Layer Security | SSL/TLS | ネットワーク通信を暗号化するセキュリティプロトコル |
+| Router Advertisement | RA | IPv6ネットワークでルータが配布するネットワーク設定情報 |
+| User Interface | UI | ユーザがシステムと対話する画面やインターフェース |
+| Uniform Resource Locator | URL | インターネット上のリソースの場所を示すアドレス表記 |
 
 このロールは GitLab Omnibus の公式 Docker イメージと GitLab Runner をホスト上で運用するための基盤を構築します。`docker compose` によるコンテナ起動 / 停止, 永続化ディレクトリの準備, バックアップ / リストア補助スクリプトの展開を自動化し, 再実行可能な手順で GitLab サービスを維持します。
 

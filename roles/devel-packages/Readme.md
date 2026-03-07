@@ -15,7 +15,7 @@
 
 ## 前提条件
 
-- 対象 OS: Ubuntu 24.04, RHEL 9.6 系
+- 対象 OS: Debian/Ubuntu系 (Ubuntu 24.04を想定), RHEL9 系 (Rocky Linux, AlmaLinux など, AlmaLinux 9.6を想定)
 - Ansible 2.15 以降
 - リモートホストへの SSH 接続が確立されていること
 - sudo 権限が利用可能であること

@@ -6,6 +6,21 @@
 
 また、生成された `*.spdx.json` を `ansible-playbook` 実行ノード ( 以下、制御ノード ) へ収集できます。
 
+## 用語
+
+| 正式名称 | 略称 | 意味 |
+| --- | --- | --- |
+| Software Bill of Materials | SBOM | ソフトウェア構成部品の明細書, 使用しているライブラリや依存関係を記録 |
+| Software Package Data Exchange | SPDX | ソフトウェアパッケージのメタデータとライセンス情報を記述する標準形式 |
+| JavaScript Object Notation | JSON | データ交換用の軽量テキストフォーマット, 人間可読かつ機械処理可能 |
+| - | Kubernetes | コンテナオーケストレーションプラットフォーム, 大規模コンテナ管理システム |
+| - | Helm | Kubernetesアプリケーションのパッケージ管理ツール, チャート形式で定義 |
+| - | Pod | Kubernetesの最小デプロイ単位, 1つ以上のコンテナをグループ化 |
+| YAML Ain't Markup Language | YAML | 人間可読なデータシリアライゼーション形式, 設定ファイルで広く使用 |
+| - | Docker | コンテナ仮想化技術を用いたアプリケーション実行環境 |
+| - | Ansible | YAML形式で定義された自動化タスクを実行するIT自動化ツール |
+| Operating System | OS | コンピュータのハードウェアとソフトウェアを管理する基本ソフトウェア |
+
 ## 生成物
 
 ### 対象ホスト上の生成物

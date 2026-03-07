@@ -1,50 +1,413 @@
 # router-config ロール
 
-本ロールは, 複合ネットワーク環境で管理ネットワークと外部ネットワーク間のトラフィック中継を実現するためのルータホストの設定を行います。
-本ロールでは, IPv4/IPv6 パケット転送の有効化, Reverse Path Filtering (RPF) の設定, パケット転送ルール (iptables/ip6tables) の設定, および sysctl 設定ファイルを生成, 配置します。
+本ロールは, ルータホストで IPv4/IPv6 パケット転送と Network Address Translation (NAT) を制御する設定を行います。実装では, sysctl 設定ファイルの生成, iptables/ip6tables ルール投入, OS 別の永続化, サービス有効化, および再起動を実施します。
 
-## 動作モード
+## 用語
 
-- 純粋なルーティング (デフォルト): NAT無しの双方向パケット転送 (`config-forward.yml`)
-- NAT動作: MASQUERADE による送信元アドレス変換 (`config-nat.yml`)
+| 正式名称 | 略称 | 意味 |
+| --- | --- | --- |
+| Operating System | OS | 基本ソフトウエア。 |
+| Ansible | - | 構成管理ツール。宣言的なタスク定義でホスト設定を自動化する。 |
+| systemd | - | Linux のサービス管理基盤。 |
+| Network Address Translation | NAT | IP アドレスを変換する仕組み。 |
+| Source Network Address Translation | SNAT | 送信元アドレスを変換する NAT 方式。 |
+| Masquerading | MASQUERADE | iptables の SNAT ターゲット。送信元を送信インターフェースのアドレスへ変換する。 |
+| Reverse Path Filtering | RPF | 送信元アドレスの到達可能性を検査するカーネル機能。 |
+| Internet Protocol version 4 | IPv4 | 32 ビットアドレスを使う通信方式。 |
+| Internet Protocol version 6 | IPv6 | 128 ビットアドレスを使う通信方式。 |
+| Classless Inter-Domain Routing | CIDR | `192.168.30.0/24` のようにネットワーク範囲を表す方式。 |
+| Network Interface Card | NIC | ホストのネットワーク接続口。 |
+| iptables | - | Linux の IPv4 パケットフィルタ設定ツール。 |
+| ip6tables | - | Linux の IPv6 パケットフィルタ設定ツール。 |
+| FORWARD chain | FORWARD | 転送パケットを評価するフィルタチェーン。 |
+| POSTROUTING chain | POSTROUTING | 送信直前パケットを評価する NAT チェーン。 |
+| Connection Tracking | conntrack | 接続状態を追跡する機能。 |
+| Connection State | ESTABLISHED, RELATED | 既存接続, または既存接続に関連する通信状態。 |
+| conntrack state match | ctstate | `-m conntrack --ctstate ...` で接続状態を条件指定する機能。 |
+| netfilter-persistent | - | Debian 系で iptables/ip6tables ルールを保存, 復元する仕組み。 |
+| iptables-services | - | RedHat 系で iptables/ip6tables を管理するパッケージ。 |
+| systemctl | - | systemd サービスを操作するコマンド。 |
+| sysctl | - | Linux カーネルパラメータを参照, 設定する仕組み。 |
+| Handler | - | Ansible で `notify` により実行される処理。 |
+| Role | - | Ansible の機能単位。tasks, templates, defaults などをまとめた構成。 |
+| Playbook | - | Ansible の実行手順を記述した YAML ファイル。 |
+| Yet Another Markup Language | YAML | 可読性を重視したデータ記述形式。 |
+| Tag | - | Ansible 実行対象を絞り込むラベル。 |
+| Inventory | - | Ansible が接続先ホスト群を定義する設定。 |
+| Docker Community Edition | Docker CE | コンテナ実行基盤 Docker のコミュニティ版。 |
+| become | - | Ansible の権限昇格指定。管理者権限でタスクを実行する。 |
+| tcpdump | - | パケットをキャプチャして通信を確認するコマンド。 |
+| Graceful reboot | - | 稼働中サービスへの影響を抑えて実行する再起動方式。 |
 
 ## 前提条件
 
-ロールの実行には以下の変数が必須です :
+- 対象 OS: Debian/Ubuntu 系または RedHat/CentOS 系。
+- Ansible から対象ホストへ接続可能であること。
+- 対象ホストで管理者権限へ昇格して実行できること (`become: true`)。
+- 以下の変数が定義済みであること。
+  - `gpm_mgmt_nic`
+  - `mgmt_nic`
+  - `gpm_mgmt_ipv4_network_cidr`
+  - `gpm_mgmt_ipv6_network_cidr`
+- `gpm_mgmt_nic` と `mgmt_nic` が, 対象ホストのインターフェース一覧に存在すること。
 
-- `gpm_mgmt_nic` 仮想環境内部管理ネットワークのインターフェース名
-- `mgmt_nic` 物理サーバ/管理用ネットワークのインターフェース名
-- `gpm_mgmt_ipv4_network_cidr` 管理ネットワークの IPv4 CIDR
-- `gpm_mgmt_ipv6_network_cidr` 管理ネットワークの IPv6 CIDR
+これらの NIC 条件を満たさない場合, `Load Params` 以外のタスクは実行されません。
 
-これらが未定義, または, 指定されたインターフェースがシステムに存在しない場合, 本ロールは実行されません。
+## 実行フロー
 
-## ネットワーク構成とIPアドレスの役割
+`roles/router-config/tasks/main.yml` は次の順序で処理します。
 
-このロールが対象とするネットワークは, 以下の2つの独立したネットワークセグメントで構成されます。ルータホストはこれら2つのネットワークを中継し, パケット転送やNATを行います。
+1. **Load Params** (`tasks/load-params.yml`)
+- OS 別パッケージ変数, `cross-distro.yml`, `all-config.yml`, `k8s-api-address.yml` を読み込みます。
 
-### ネットワークの分類
+2. **Package** (`tasks/package.yml`)
+- `iptables_persistent_package` をインストールします。
 
-| ネットワーク | 本稿で例示する際に使用するネットワークCIDR | 用途 | インターフェース | 説明 |
+3. **Directory** (`tasks/directory.yml`)
+- 現在の実装は空タスクです。
+
+4. **User Group** (`tasks/user_group.yml`)
+- 現在の実装は空タスクです。
+
+5. **Service** (`tasks/service.yml`)
+- RedHat 系で `iptables_persistent_service`, `iptables_persistent_ipv6_service` を `enabled: true` にします。
+
+6. **Config Sysctl** (`tasks/config-sysctl.yml`)
+- `templates/95-ipfoward.j2` を `/etc/sysctl.d/95-ipfoward.conf` に配置します。
+- 変更時はハンドラ `bastion_config_reload_sysctl` を通知します。
+
+7. **Config Clear Rules** (`tasks/config-clear-rules.yml`)
+- `router_forwarding_enabled`, `router_nat_enabled`, `additional_network_routes` のいずれかが有効な場合に既存ルールを削除します。
+
+8. **Config Forward** (`tasks/config-forward.yml`)
+- 実行条件: `(router_forwarding_enabled == true or additional_network_routes が定義済み) and router_nat_enabled == false`。
+- IPv4/IPv6 双方向 FORWARD ルールを設定します。
+
+9. **Config Nat** (`tasks/config-nat.yml`)
+- 実行条件: `router_nat_enabled == true and router_forwarding_enabled == false and (additional_network_routes 未定義または空)`。
+- IPv4/IPv6 の FORWARD ルールと POSTROUTING MASQUERADE ルールを設定します。
+
+10. **Config** (`tasks/config.yml`)
+- 現在の実装は空タスクです。
+
+11. **Reboot** (`tasks/reboot.yml`)
+- `reboot_timeout_sec` を使って graceful reboot を実行します。
+
+## 主要変数
+
+### 動作制御
+
+| 変数名 | 既定値 | 説明 |
+| --- | --- | --- |
+| `router_forwarding_enabled` | `true` | NAT 無しの双方向 FORWARD ルールを有効化します。`true` の場合は NAT より優先されます。 |
+| `router_nat_enabled` | `false` | NAT 構成を有効化します。`router_forwarding_enabled: true` または `additional_network_routes` 定義時は実行されません。 |
+| `additional_network_routes` | 未定義 | `additional-routes` ロールと連携する追加ルート定義です。定義時は FORWARD 構成が優先されます。 |
+
+### パッケージ, サービス, 再起動
+
+| 変数名 | 既定値 | 説明 |
+| --- | --- | --- |
+| `iptables_persistent_package` | OS 依存 | Debian 系は `iptables-persistent`, RedHat 系は `iptables-services`。 |
+| `iptables_persistent_service` | OS 依存 | Debian 系は `iptables-persistent`, RedHat 系は `iptables`。 |
+| `iptables_persistent_ipv6_service` | OS 依存 | Debian 系は `iptables-persistent`, RedHat 系は `ip6tables`。 |
+| `etc_default_dir` | OS 依存 | Debian 系は `/etc/default`, RedHat 系は `/etc/sysconfig`。 |
+| `reboot_timeout_sec` | `600` | 再起動後の応答待ちタイムアウト (秒)。 |
+
+### ネットワーク関連 (必須)
+
+| 変数名 | 既定値 | 説明 |
+| --- | --- | --- |
+| `mgmt_nic` | 必須 | 外部向けネットワーク側 NIC。 |
+| `gpm_mgmt_nic` | 必須 | 内部プライベートネットワーク側 NIC。 |
+| `network_ipv4_network_address` | 必須 | 外部向け IPv4 ネットワークアドレス。 |
+| `network_ipv4_prefix_len` | 必須 | 外部向け IPv4 プレフィックス長。 |
+| `network_ipv6_network_address` | 必須 | 外部向け IPv6 ネットワークアドレス。 |
+| `network_ipv6_prefix_len` | 必須 | 外部向け IPv6 プレフィックス長。 |
+| `gpm_mgmt_ipv4_network_cidr` | 必須 | 内部プライベート側 IPv4 CIDR。 |
+| `gpm_mgmt_ipv6_network_cidr` | 必須 | 内部プライベート側 IPv6 CIDR。 |
+
+## 主な処理
+
+- `95-ipfoward.conf` を配置し, IPv4/IPv6 転送と RPF ルーズモードを有効化します。
+- ルール投入前に既存 FORWARD/POSTROUTING ルールを削除し, モード切替時のルール残骸を防ぎます。
+- 純粋ルーティングモードでは, 外部向けネットワーク <=> 内部プライベートネットワークの双方向 FORWARD ルールを投入します。
+- NAT モードでは, FORWARD ルールに加えて POSTROUTING MASQUERADE を投入します。
+- ルールは OS 別方式で永続化します。
+  - Debian 系: `netfilter-persistent save`
+  - RedHat 系: `iptables-save`, `ip6tables-save` で `{{ etc_default_dir }}/iptables`, `{{ etc_default_dir }}/ip6tables` へ保存
+- RedHat 系では保存後に `iptables`, `ip6tables` サービスを再起動して即時反映します。
+
+## テンプレート / 出力ファイル
+
+| テンプレートまたは生成物 | 出力先 | 説明 |
+| --- | --- | --- |
+| `templates/95-ipfoward.j2` | `/etc/sysctl.d/95-ipfoward.conf` | IPv4/IPv6 転送, RPF, `accept_ra` を設定します。 |
+| 永続化処理 (Debian 系) | `netfilter-persistent` 管理下 | `netfilter-persistent save` でルールを保存します。 |
+| 永続化処理 (RedHat 系, IPv4) | `{{ etc_default_dir }}/iptables` | `iptables-save` の出力先。 |
+| 永続化処理 (RedHat 系, IPv6) | `{{ etc_default_dir }}/ip6tables` | `ip6tables-save` の出力先。 |
+
+## ハンドラ
+
+### bastion_config_reload_sysctl (`handlers/reload-sysctl.yml`)
+
+- `listen`: `bastion_config_reload_sysctl`
+- 実行コマンド: `sysctl --system`
+- 起動条件: `config-sysctl.yml` でテンプレート更新が発生した場合
+
+## OS差異
+
+| 項目 | Debian/Ubuntu | RedHat/CentOS |
+| --- | --- | --- |
+| 永続化パッケージ | `iptables-persistent` | `iptables-services` |
+| IPv4 サービス変数 | `iptables-persistent` | `iptables` |
+| IPv6 サービス変数 | `iptables-persistent` | `ip6tables` |
+| 永続化コマンド | `netfilter-persistent save` | `iptables-save`, `ip6tables-save` |
+| 保存先ディレクトリ | `/etc/default` | `/etc/sysconfig` |
+| service.yml の有効化処理 | 実質なし | `iptables`, `ip6tables` を有効化 |
+
+## 実行方法
+
+### 前提
+
+- インベントリに対象ルータホストが含まれていること。
+- `router.yml` では `docker-ce` の後に `router-config` が実行されます。
+- モード切替時は, 必要に応じて先にクリアルールを実行します。
+
+### Make ターゲットで実行
+
+```bash
+# router-config ロール実行
+make run_router_config
+
+# 既存ルールクリア
+make run_router_clear_rules
+```
+
+`run_router_clear_rules` は `router-clear-rules.yml` を `hosts: all` で実行します。必要に応じて `-l router.local` で対象ホストを限定してください。
+
+### ansible-playbook で直接実行
+
+```bash
+# router プレイブック全体
+ansible-playbook -i inventory/hosts router.yml
+
+# site.yml から router-config タグのみ
+ansible-playbook -i inventory/hosts site.yml --tags "router-config"
+
+# ホスト限定で実行
+ansible-playbook -i inventory/hosts site.yml --tags "router-config" -l router.local
+
+# クリア専用プレイブック
+ansible-playbook -i inventory/hosts router-clear-rules.yml
+```
+
+### 推奨実行順序 (モード切替時)
+
+1. `make run_router_clear_rules` で既存ルールを削除します。
+2. 変数 (`router_forwarding_enabled`, `router_nat_enabled`, `additional_network_routes`) を調整します。
+3. `make run_router_config` で新モードを適用します。
+
+## 検証
+
+### 1. 共通検証
+
+#### 1.1 sysctl 設定確認
+
+**実施ノード**: ルータホスト
+
+**コマンド**:
+```bash
+cat /etc/sysctl.d/95-ipfoward.conf
+sysctl net.ipv4.ip_forward
+sysctl net.ipv4.conf.all.rp_filter
+sysctl net.ipv6.conf.all.forwarding
+```
+
+**確認ポイント**:
+- `95-ipfoward.conf` が存在し, `ip_forward=1`, `rp_filter=2`, `ipv6 forwarding=1` が設定されていること。
+- 実行中カーネル値も期待通りであること。
+
+#### 1.2 永続化状態確認
+
+**実施ノード**: ルータホスト
+
+**コマンド**:
+```bash
+# Debian/Ubuntu
+sudo netfilter-persistent save
+
+# RedHat/CentOS
+sudo systemctl status iptables
+sudo systemctl status ip6tables
+sudo cat /etc/sysconfig/iptables
+sudo cat /etc/sysconfig/ip6tables
+```
+
+**確認ポイント**:
+- Debian 系では `netfilter-persistent save` が成功すること。
+- RedHat 系では `iptables`, `ip6tables` が `enabled` かつ `active` であること。
+
+### 2. 純粋ルーティング構成の検証 (config-forward.yml)
+
+#### 2.1 FORWARD ルール確認
+
+**実施ノード**: ルータホスト
+
+**コマンド**:
+```bash
+sudo iptables -L FORWARD -nv --line-numbers | grep -E '192\.168\.20\.0/24|192\.168\.30\.0/24'
+sudo ip6tables -L FORWARD -nv --line-numbers | grep -E 'fd69:6684:61a:1::/64|fdad:ba50:248b:1::/64'
+```
+
+**確認ポイント**:
+- 外部向け <=> 内部プライベートの双方向 ACCEPT ルールが存在すること。
+
+#### 2.2 NAT 不在確認
+
+**実施ノード**: ルータホスト
+
+**コマンド**:
+```bash
+sudo iptables -t nat -L POSTROUTING -nv
+sudo ip6tables -t nat -L POSTROUTING -nv
+```
+
+**確認ポイント**:
+- 純粋ルーティングモードでは MASQUERADE ルールが存在しないこと。
+
+#### 2.3 疎通確認 (送信元保持)
+
+**実施ノード**: 外部向けネットワークのホスト
+
+**コマンド**:
+```bash
+ping -c3 192.168.30.100
+```
+
+**確認ポイント**:
+- 疎通が成功すること。
+- 送信元 IP が NAT 変換されず保持されること。
+
+### 3. NAT 構成の検証 (config-nat.yml)
+
+#### 3.1 FORWARD, POSTROUTING ルール確認
+
+**実施ノード**: ルータホスト
+
+**コマンド**:
+```bash
+sudo iptables -L FORWARD -nv
+sudo iptables -t nat -L POSTROUTING -nv | grep MASQUERADE
+sudo ip6tables -L FORWARD -nv
+sudo ip6tables -t nat -L POSTROUTING -nv | grep MASQUERADE
+```
+
+**確認ポイント**:
+- IPv4/IPv6 の FORWARD ルールが存在すること。
+- IPv4/IPv6 の POSTROUTING に MASQUERADE が存在すること。
+
+#### 3.2 疎通確認 (NAT 変換)
+
+**実施ノード**: 内部プライベートネットワークのホスト
+
+**コマンド**:
+```bash
+ping -c3 8.8.8.8
+```
+
+**確認ポイント**:
+- 内部から外部への通信が成功すること。
+
+#### 3.3 tcpdump による SNAT 確認
+
+**実施ノード**: ルータホスト
+
+**コマンド**:
+```bash
+sudo tcpdump -i <外部向けNIC> -n icmp
+```
+
+**確認ポイント**:
+- 外向きパケットの送信元が, 内部ホスト IP ではなくルータ外部 NIC の IP で観測されること。
+
+### 4. 意図的にパケット転送を無効化している場合
+
+#### 4.1 ルール未設定確認
+
+**実施ノード**: ルータホスト
+
+**コマンド**:
+```bash
+sudo iptables -L FORWARD -nv
+sudo iptables -t nat -L POSTROUTING -nv
+```
+
+**確認ポイント**:
+- FORWARD ルールと MASQUERADE ルールが存在しないこと。
+
+#### 4.2 ルール残骸がある場合の対処
+
+**実施ノード**: Ansible 実行ホスト
+
+**コマンド**:
+```bash
+make run_router_clear_rules
+make run_router_config
+```
+
+**確認ポイント**:
+- クリア後の再適用で, 意図した無効化ポリシーが維持されること。
+
+## 補足
+
+### 動作モード
+
+- 純粋なルーティング (デフォルト): NAT 無しの双方向パケット転送 (`config-forward.yml`)。
+- NAT 動作: MASQUERADE による送信元アドレス変換 (`config-nat.yml`)。
+
+### 設定値による動作の違い
+
+以下の表は, `enable_firewall` が `false` である前提での挙動です。
+
+| `router_forwarding_enabled` | `router_nat_enabled` | `additional_network_routes` | 動作 |
+| --- | --- | --- | --- |
+| `false` | `false` | 未定義, または空リスト | FORWARD/NAT 設定なし |
+| `false` | `false` | 長さ 1 以上 | FORWARD 設定を実施 (純粋ルーティング) |
+| `false` | `true` | 未定義, または空リスト | SNAT (MASQUERADE) と FORWARD 設定を実施 |
+| `false` | `true` | 長さ 1 以上 | 設定値矛盾のため, FORWARD/NAT 設定なし |
+| `true` | `false` | 未定義, または空リスト | FORWARD 設定を実施 (純粋ルーティング) |
+| `true` | `false` | 長さ 1 以上 | FORWARD 設定を実施 (純粋ルーティング) |
+| `true` | `true` | 未定義, または空リスト | 設定値矛盾のため, FORWARD/NAT 設定なし |
+| `true` | `true` | 長さ 1 以上 | 設定値矛盾のため, FORWARD/NAT 設定なし |
+
+### run_router_clear_rules の利用用途
+
+- NAT から純粋ルーティングへ切替える前に NAT ルールを削除します。
+- 純粋ルーティングから NAT へ切替える前に FORWARD ルールを削除します。
+- ルーティング機能を停止する前に, ルール残骸を削除します。
+- クリア処理は削除対象ルールが存在しない場合でも `|| true` により継続されます。
+- `make run_router_clear_rules` 実行時のログは `build-router-clear-rules.log` に保存されます。
+
+### ネットワーク構成とルータホストの役割
+
+#### ネットワークの分類
+
+| ネットワーク | 本稿で例示するネットワーク CIDR | 用途 | インターフェース | 説明 |
 | --- | --- | --- | --- | --- |
-| 外部向けネットワーク | `192.168.20.0/24` | 物理サーバ/管理用 | `mgmt_nic` (ens160) | 物理ホスト, 管理ネットワーク, 外部ネットワークに接続するための NIC。 |
-| 内部プライベート | `192.168.30.0/24` | 内部管理 | `gpm_mgmt_nic` (ens192) | 内部で隔離されたプライベートネットワーク。 |
+| 外部向けネットワーク | `192.168.20.0/24` | 物理サーバ/管理用 | `mgmt_nic` (ens160) | 外部接続側 NIC。 |
+| 内部プライベート | `192.168.30.0/24` | 内部管理 | `gpm_mgmt_nic` (ens192) | 内部接続側 NIC。 |
 
-### IPアドレスの例
+#### IP アドレスの例
 
-本節では, 本稿で例示に使用するIPアドレスの例について説明します。
+- 外部向け `192.168.20.0/24`
+- `192.168.20.1`: 外部ゲートウェイ
+- `192.168.20.10`: ルータホスト `mgmt_nic`
 
-#### 192.168.20.0/24 ネットワーク (外部向け)
+- 内部プライベート `192.168.30.0/24`
+- `192.168.30.10`: ルータホスト `gpm_mgmt_nic`
+- `192.168.30.100`, `192.168.30.101`: 内部側テストホスト
 
-- `192.168.20.1` - 仮想環境ホストから外部のネットワークに出るためのゲートウェイ
-- `192.168.20.10` - ルータホスト上で外部向けネットワークに接続されているNIC (mgmt_nic)のIPアドレス
-
-#### 192.168.30.0/24 ネットワーク (仮想環境内プライベート)
-
-- `192.168.30.10` - ルータホスト上で内部プライベートネットワークに接続されているNIC(gpm_mgmt_nic)のIPアドレス
-- `192.168.30.100`, `192.168.30.101` - 内部プライベートネットワークに接続されているテスト対象ホスト
-
-### トラフィックの流れ
+#### トラフィックの流れ
 
 ```mermaid
 graph TD
@@ -60,7 +423,7 @@ graph TD
         D["gpm_mgmt_nic: ens192<br/>192.168.30.10"]
         B --> C
         C --> D
-        D -.->|内部→外部| C2
+        D -.->|内部->外部| C2
         C2 -.-> B
     end
 
@@ -83,279 +446,21 @@ graph TD
     classDef controlStyle fill:#fff3cd,stroke:#333,stroke-width:2px
     classDef networkStyle fill:#f0f0f0,stroke:#666,stroke-width:2px
 
-    class H,F,G,I,J hostStyle
+    class F,G,I,J hostStyle
     class B,D nicStyle
     class C,C2 controlStyle
     class ExtNet,IntNet networkStyle
 ```
 
-このロールにより, ルータホストが 192.168.20.0/24 <=> 192.168.30.0/24 間のパケット転送 を制御します。
-
-## 変数一覧
-
-| 変数名 | 既定値 | 説明 |
-| --- | --- | --- |
-| `router_forwarding_enabled` | `false` | 純粋なルーティング (NAT 無し) を有効化するフラグ。host_vars で `true` に設定すると config-forward.yml が実行される。`router_nat_enabled` との同時設定は不可。 |
-| `router_nat_enabled` | `false` | NAT 動作を有効化するフラグ。`router_forwarding_enabled` または `additional_network_routes` 定義時は無視される。host_vars で `true` に設定すると NAT モードで動作。 |
-| `additional_network_routes` | (未定義) | additional-routes ロールで定義される追加ルート情報。定義済みの場合, 本ロールは NAT 無しの純粋なルーティング動作となり, `router_nat_enabled` は無視される。 |
-| `iptables_persistent_package` | OS 依存 | インストールする iptables 永続化パッケージ。Debian 系: `iptables-persistent`, RHEL 系: `iptables-services`。 |
-| `iptables_persistent_service` | OS 依存 | 有効化する iptables サービス名。Debian 系: `netfilter-persistent`, RHEL 系: `iptables`。 |
-| `iptables_persistent_ipv6_service` | OS 依存 | 有効化する ip6tables サービス名。RHEL 系のみ: `ip6tables`。 |
-| `mgmt_nic` | (必須) | 物理サーバ/管理ネットワークのインターフェース名 (例: `ens160`)。 |
-| `gpm_mgmt_nic` | (必須) | 仮想環境内部管理ネットワークのインターフェース名 (例: `ens192`)。 |
-| `network_ipv4_network_address` | (必須) | 物理ネットワークの IPv4 アドレス (例: `192.168.20.0`)。 |
-| `network_ipv4_prefix_len` | (必須) | 物理ネットワークの IPv4 プレフィックス長 (例: `24`)。 |
-| `network_ipv6_network_address` | (必須) | 物理ネットワークの IPv6 プレフィックス (例: `fd69:6684:61a:1::`)。 |
-| `network_ipv6_prefix_len` | (必須) | 物理ネットワークの IPv6 プレフィックス長 (例: `64`)。 |
-| `gpm_mgmt_ipv4_network_cidr` | (必須) | 管理ネットワークの IPv4 CIDR (例: `192.168.30.0/24`)。 |
-| `gpm_mgmt_ipv6_network_cidr` | (必須) | 管理ネットワークの IPv6 CIDR (例: `fdad:ba50:248b:1::/64`)。 |
-
-OS 別の詳細は [vars/cross-distro.yml](../../vars/cross-distro.yml) を参照してください。
-
-## ロール内の動作
-
-1. [tasks/load-params.yml](tasks/load-params.yml) で OS ごとのパッケージ名, ディストロ差異吸収変数, 共通ネットワーク設定を読み込みます。
-2. 以降のタスク実行は `gpm_mgmt_nic` と `mgmt_nic` が定義済みかつシステムに存在するという条件で進みます。
-3. [tasks/package.yml](tasks/package.yml) で `iptables_persistent_package` をインストールします。
-4. [tasks/config-sysctl.yml](tasks/config-sysctl.yml) で [templates/95-ipfoward.j2](templates/95-ipfoward.j2) を `/etc/sysctl.d/95-ipfoward.conf` に展開します。テンプレートは以下の設定を行います :
-   - IPv4 パケット転送の有効化 (`net.ipv4.ip_forward=1`)
-   - IPv4 Reverse Path Filtering をルーズモードに設定 (`net.ipv4.conf.all.rp_filter=2`, `.default.rp_filter=2`)
-   - IPv6 パケット転送の有効化 (`net.ipv6.conf.all.forwarding=1`, `.default.forwarding=1`)
-   - 管理インターフェースでのルーター広告受け入れ (`net.ipv6.conf.{{ mgmt_nic }}.accept_ra=2`)
-5. 設定変更時はハンドラ `bastion_config_reload_sysctl` で `sysctl --system` を実行します。
-6. パケット転送ルールの設定 (条件分岐):
-   - `router_forwarding_enabled: true` または `additional_network_routes` 定義時: [tasks/config-forward.yml](tasks/config-forward.yml) を実行
-     - 物理ネットワーク (192.168.20.0/24) <=> 管理ネットワーク (192.168.30.0/24) 間の双方向 FORWARD ルール設定
-     - NAT 無し, 送信元 IP アドレス保持
-     - IPv4/IPv6 双方に対応
-     - `router_nat_enabled` が `true` の場合は config-forward.yml が優先され, NAT は実行されない
-   - `router_nat_enabled: true` かつ上記条件未満時: [tasks/config-nat.yml](tasks/config-nat.yml) を実行
-     - IPv4 NAT: 管理ネットワークから外部ネットワークへのトラフィックを MASQUERADE で変換
-     - IPv4 FORWARD: 管理 => 外部 (全許可), 外部 => 管理 (ESTABLISHED/RELATED + 新規セッション許可)
-     - IPv6 FORWARD/NAT: 管理<=>外部の双方向パケット転送 + MASQUERADE
-   - どちらも該当しない場合: パケット転送ルール設定をスキップ
-   - OS ごとの永続化: Debian/Ubuntu は `netfilter-persistent save`, RHEL/CentOS は `iptables-save` / `ip6tables-save` を実行
-7. [tasks/service.yml](tasks/service.yml) でサービスを有効化します ( RHEL 系のみ, Debian 系は netfilter-persistent が自動処理 ) 。
-
-## 利用の流れ
-
-### 設定値による動作の違い
-
-設定値の違いによる動作の違いを以下に示します。
-以下の表では, `enable_firewall`変数に`false`が設定されていることを前提としています。
-
-|`router_forwarding_enabled`|`router_nat_enabled`|`additional_network_routes`|動作|
-|---|---|---|---|
-|false|false|未定義, または, 空リストを定義|FORWARD/NAT設定なし|
-|false|false|`additional_network_routes`リストの長さが1以上|iptables/ip6tablesによるFORWARD設定を実施(純粋ルーティング)|
-|false|true|未定義, または, 空リストを定義|SNAT (MASQUERADE) によるアドレス変換とFORWARDルール設定を実施|
-|false|true|`additional_network_routes`リストの長さが1以上|設定値矛盾のため, FORWARD/NAT設定なし|
-|true|false|未定義, または, 空リストを定義|iptables/ip6tablesによるFORWARD設定を実施(純粋ルーティング)|
-|true|false|`additional_network_routes`リストの長さが1以上|iptables/ip6tablesによるFORWARD設定を実施(純粋ルーティング)|
-|true|true|未定義, または, 空リストを定義|設定値矛盾のため, FORWARD/NAT設定なし|
-|true|true|`additional_network_routes`リストの長さが1以上|設定値矛盾のため, FORWARD/NAT設定なし|
-
-### 純粋なルーティング構成
-
-#### 方法1: router_forwarding_enabled を使用
-
-1. host_vars内のルータホストの設定に `router_forwarding_enabled: true` を設定します。
-2. ルータホストに対してplaybookをmakeなどで実行します。
-3. sysctl 設定は即座に反映され, 双方向の FORWARD ルールが設定されます (NAT 無し)。
-
-#### 方法2: additional_network_routes を使用
-
-1. 外部向けネットワークに接続されているホストの host_vars または group_vars に `additional_network_routes` を定義します (additional-routes ロールと連携)。
-2. ルータホストに対してplaybookをmakeなどで実行します。
-3. ルータホストが `additional_network_routes` を検出し, sysctl 設定は即座に反映され, 双方向の FORWARD ルールが設定されます (NAT 無し)。
-
-### NAT 構成
-
-1. host_vars内のルータホストの設定に `router_nat_enabled: true` を設定します。
-2. `router_forwarding_enabled` が `false` または未定義であることを確認します。
-3. `additional_network_routes` が未定義であることを確認します。
-4. ルータホストに対してplaybookをmakeなどで実行します。
-5. MASQUERADE による NAT ルールが設定されます。
-
-## Makeターゲット`run_router_clear_rules`によるiptablesルールのクリア手順
-
-### 概要
-
-`make run_router_clear_rules` ターゲットは, router-config ロールによって設定された既存の iptables/ip6tables ルールをクリアします。このターゲットは以下の処理を実行します:
-
-- 純粋なルーティング構成（双方向 FORWARD ルール）のクリア
-- NAT 構成（MASQUERADE ルールと NAT 用 FORWARD ルール）のクリア
-- 設定の永続化（クリア後の状態を保存）
-
-### 利用用途
-
-このターゲットは, ルーティング構成を変更する前や, 設定を完全にやり直す際に使用します:
-
-- NAT から 純粋なルーティング構成への切り替え前: NAT の MASQUERADE ルールを削除
-- 純粋なルーティング構成 から NAT への切り替え前: 既存の双方向 FORWARD ルールを削除
-- 設定の完全無効化: 両方の変数を `false` に設定する前にルールをクリア
-
-### 実行方法
-
-```bash
-make run_router_clear_rules
-```
-
-実行ログは `build-router-clear-rules.log` に保存されます。
-
-### 留意事項
-
-- 上記実行後, 新しい設定を適用するためにrouterホストに対して, playbookを再実行してください。
-- クリア処理は `tasks/config-clear-rules.yml` タスクを実行し, 永続化まで行います
-- 既存のルールが存在しない場合でもエラーにはなりません（`|| true` で処理を継続）
-
-## 検証ポイント
-
-### 共通
-
-- `/etc/sysctl.d/95-ipfoward.conf` が正しく生成され, パケット転送およびフォワーディング設定が期待どおりか。
-- `sysctl net.ipv4.ip_forward` などで現在のカーネル設定が `1` になっているか。
-- Debian 系: `sudo iptables-save` で永続化ルールが確認できるか。
-- RHEL 系: `systemctl status iptables` および `systemctl status ip6tables` でサービスが `enabled` かつ `active` か。
-
-### 純粋なルーティング構成 (config-forward.yml)
-
-```bash
-# 双方向 FORWARD ルール確認
-sudo iptables -L FORWARD -nv --line-numbers | grep -E '192\.168\.20\.0/24|192\.168\.30\.0/24'
-sudo ip6tables -L FORWARD -nv --line-numbers | grep -E 'fd69:6684:61a:1::/64|fdad:ba50:248b:1::/64'
-
-# NAT 無し確認
-sudo iptables -t nat -L POSTROUTING -nv | grep -E '192\.168\.20\.0/24|192\.168\.30\.0/24'
-# 外部向けネットワーク(192.168.20.0/24) <=> 内部プライベートネットワーク(192.168.30.0/24) 間の MASQUERADE ルールが無いこと
-
-# 疎通確認 ( 外部向けネットワーク(192.168.20.0/24) のノードから実施 )
-ping -c3 192.168.30.100  # 送信元 IP が保持されること
-```
-
-### NAT 構成 (config-nat.yml)
-
-```bash
-# NAT ルール確認
-sudo iptables -t nat -L POSTROUTING -nv | grep MASQUERADE
-
-# FORWARD ルール確認
-sudo iptables -L FORWARD -nv | grep -E '192\.168\.30\.0/24'
-
-# 疎通確認 (内部プライベートネットワークネットワークから外部)
-ping -c3 8.8.8.8  # 内部プライベートネットワークからインターネットへ到達
-```
-
-### 検証作業の例
-
-#### 純粋なルーティング構成の場合 (router_forwarding_enabled: true に設定時, または, `additional_network_routes`リストの長さを1以上に設定時)
-
-ルータホスト上で以下を実行して, パケットのフォワードが意図通りに動作していることを確認してください。
-
-```bash
-# 双方向のFORWARDルールが設定されているか確認
-$ sudo iptables -L FORWARD -nv
-Chain FORWARD (policy ACCEPT 9 packets, 684 bytes)
- pkts bytes target     prot opt in     out     source               destination
-    0     0 ACCEPT     0    --  ens160   ens192    192.168.20.0/24      192.168.30.0/24
-    9   662 ACCEPT     0    --  ens192   ens160    192.168.30.0/24      192.168.20.0/24
-
-# 外部向けネットワーク(192.168.20.0/24)から内部プライベートネットワーク(192.168.30.0/24)のホストへpingを実行
-
-# パケットカウンタが増加しているか確認
-$ sudo iptables -L FORWARD -nv
-Chain FORWARD (policy ACCEPT 9 packets, 684 bytes)
- pkts bytes target     prot opt in     out     source               destination
-    4   240 ACCEPT     0    --  ens160   ens192    192.168.20.0/24      192.168.30.0/24
-   13   902 ACCEPT     0    --  ens192   ens160    192.168.30.0/24      192.168.20.0/24
-
-# MASQUERADEルールが設定されていないことを確認
-$ sudo iptables -t nat -L POSTROUTING -nv
-Chain POSTROUTING (policy ACCEPT 0 packets, 0 bytes)
- pkts bytes target     prot opt in     out     source               destination
-```
-
-疎通不可の場合は, 双方向のFORWARDルールが設定されているか, パケットカウンタ（pkts列）が増加しているか確認してください。
-
-#### NAT構成の場合 (router_nat_enabled: true に設定時)
-
-ルータホスト上で以下を実行して, NATとパケットのフォワードが意図通りに動作していることを確認してください。
-
-```bash
-# FORWARDルールが設定されているか確認
-$ sudo iptables -L FORWARD -nv
-Chain FORWARD (policy ACCEPT 0 packets, 0 bytes)
- pkts bytes target     prot opt in     out     source               destination
-   21  1754 ACCEPT     0    --  ens192   ens160    192.168.30.0/24      0.0.0.0/0
-   21  3112 ACCEPT     0    --  ens160   ens192    0.0.0.0/0            192.168.30.0/24      ctstate RELATED,ESTABLISHED
-    0     0 ACCEPT     0    --  ens160   ens192    0.0.0.0/0            192.168.30.0/24
-
-# MASQUERADEルールが設定されているか確認
-$ sudo iptables -t nat -L POSTROUTING -nv
-Chain POSTROUTING (policy ACCEPT 54 packets, 7044 bytes)
- pkts bytes target     prot opt in     out     source               destination
-   38  3094 MASQUERADE  0    --  *      ens160    192.168.30.0/24      0.0.0.0/0
-```
-
-疎通不可の場合は, 以下を確認してください:
-
-- 内部 => 外部, 外部 => 内部のFORWARDルールが設定されていること
-- パケットカウンタ（pkts列）が増加していること
-- MASQUERADEルールが設定されていること
-
-NAT動作を詳細に確認する場合は, ルータホスト上で以下を実行してください:
-
-```bash
-# ルータホスト上で外部向けNICをキャプチャ（別ターミナルで実行）
-$ sudo tcpdump -i ens160 -n icmp
-tcpdump: verbose output suppressed, use -v[v]... for full protocol decode
-listening on ens160, link-type EN10MB (Ethernet), snapshot length 262144 bytes
-22:44:01.046180 IP 192.168.20.10 > 192.168.20.1: ICMP echo request, id 15304, seq 1, length 64
-22:44:01.047075 IP 192.168.20.1 > 192.168.20.10: ICMP echo reply, id 15304, seq 1, length 64
-22:44:02.047332 IP 192.168.20.10 > 192.168.20.1: ICMP echo request, id 15304, seq 2, length 64
-22:44:02.047585 IP 192.168.20.1 > 192.168.20.10: ICMP echo reply, id 15304, seq 2, length 64
-22:44:03.055337 IP 192.168.20.10 > 192.168.20.1: ICMP echo request, id 15304, seq 3, length 64
-22:44:03.055590 IP 192.168.20.1 > 192.168.20.10: ICMP echo reply, id 15304, seq 3, length 64
-```
-
-上記tcpdump実行中に, 内部プライベートネットワーク上のホスト(例では, 192.168.30.103)から外部ネットワーク上のホスト(例では, 192.168.20.1)に向けてpingを実行:
-
-```bash
-# 内部プライベートネットワークのホスト(192.168.30.103)で実行
-$ ping -c 3 192.168.20.1
-PING 192.168.20.1 (192.168.20.1) 56(84) bytes of data.
-64 bytes from 192.168.20.1: icmp_seq=1 ttl=254 time=0.630 ms
-64 bytes from 192.168.20.1: icmp_seq=2 ttl=254 time=0.391 ms
-64 bytes from 192.168.20.1: icmp_seq=3 ttl=254 time=0.398 ms
-
---- 192.168.20.1 ping statistics ---
-3 packets transmitted, 3 received, 0% packet loss, time 2080ms
-rtt min/avg/max/mdev = 0.391/0.473/0.630/0.111 ms
-```
-
-tcpdumpの出力で, 送信元IPが192.168.30.103ではなく192.168.20.10(ルータの外部NIC)になっていることから, MASQUERADEによるNAT変換が正しく動作していることが確認できます。
-
-#### 意図的にパケット転送を無効化している場合
-
-本節では, 以下のような純粋ルーティング(FORWARDING), NAT双方を無効にする設定にしている場合の検証例を示します。
-
-- router_forwarding_enabled: false に設定, または, `additional_network_routes`未定義, `additional_network_routes`が空リストで, かつ, router_nat_enabled: falseに設定
-- router_forwarding_enabled, router_nat_enabled共にtrueに設定しているなど設定内容が無効な場合
-
-ルータホスト上で以下を確認してください:
-
-```bash
-# FORWARDルールが設定されていないことを確認
-$ sudo iptables -L FORWARD -nv
-Chain FORWARD (policy ACCEPT 0 packets, 0 bytes)
- pkts bytes target     prot opt in     out     source               destination
-
-# MASQUERADEルールが設定されていないことを確認
-$ sudo iptables -t nat -L POSTROUTING -nv
-Chain POSTROUTING (policy ACCEPT 0 packets, 0 bytes)
- pkts bytes target     prot opt in     out     source               destination
-```
-
-この構成では, ルータホストを経由したネットワーク間の通信は行われません。
-
-意図的にパケット転送を無効化しているにも関わらず, FORWARDINGルールやPOSTROUTINGルールが残っている場合は, `make run_router_clear_rules`を実行するなどにより, 既存のルールを削除してください。
+## 参考リンク
+
+- `roles/router-config/tasks/main.yml`
+- `roles/router-config/tasks/config-forward.yml`
+- `roles/router-config/tasks/config-nat.yml`
+- `roles/router-config/tasks/config-clear-rules.yml`
+- `roles/router-config/tasks/config-sysctl.yml`
+- `roles/router-config/handlers/reload-sysctl.yml`
+- `roles/router-config/templates/95-ipfoward.j2`
+- `router.yml`
+- `router-clear-rules.yml`
+- `Makefile`

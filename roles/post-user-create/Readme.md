@@ -1,5 +1,12 @@
 # post-user-create ロール
 
+## 用語
+
+| 正式名称 | 略称 | 意味 |
+| --- | --- | --- |
+| General Electric Comprehensive Operating System | GECOS | Unixパスワードファイルのユーザ情報フィールド, フルネームやオフィス情報を格納 |
+| YAML Ain't Markup Language | YAML | 人間可読なデータシリアライゼーション形式, 設定ファイルで広く使用 |
+
 ## 概要
 
 本ロールは `create-users` ロール実行後にユーザホーム関連の後処理を行うロールです。
