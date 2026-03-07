@@ -468,7 +468,7 @@ kea_dhcp_interface: "ens192"
 kea_subnet: "192.168.100.0/24"
 # DHCPv4によるアドレス配布範囲
 kea_pool: "192.168.100.100 - 192.168.100.200"
-# ゲートウエイアドレス
+# ゲートウェイアドレス
 kea_gateway: "192.168.100.1"
 # DNSサーバのアドレス
 kea_dns_servers:
@@ -496,7 +496,7 @@ kea_dhcp_interface: "ens192"
 kea_subnet: "10.0.0.0/24"
 # DHCPv4によるアドレス配布範囲
 kea_pool: "10.0.0.50 - 10.0.0.150"
-# ゲートウエイアドレス
+# ゲートウェイアドレス
 kea_gateway: "10.0.0.1"
 # DNSサーバのアドレス
 kea_dns_servers:
