@@ -2,12 +2,3 @@
 #  Ansible playbook
 #  Copyright 2020 Takeharu KATO All Rights Reserved.
 #  ユーザ・グループ作成関連タスク
-# 例:
-# ユーザをdockerグループに追加
-# - name: Add users into docker group
-#   user:
-#     name: '{{ item }}'
-#     groups: docker
-#     append: true
-#   with_items:
-#     '{{ docker_ce_users }}'

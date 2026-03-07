@@ -38,6 +38,17 @@
     mode: '0644'
     backup: false
 
+# 旧設定(default namespace)のNADが残っている場合は削除し, 期待状態(kube-system)へ収束させる
+- name: Delete legacy whereabouts NetworkAttachmentDefinition (NAD) in default namespace
+  ansible.builtin.shell: |
+    kubectl delete network-attachment-definitions.k8s.cni.cncf.io ipvlan-wb \
+      -n default --ignore-not-found
+  environment:
+    KUBECONFIG: /etc/kubernetes/admin.conf
+  become: true
+  register: _nad_cleanup_result
+  changed_when: '"deleted" in (_nad_cleanup_result.stdout | lower)'
+
 # NetworkAttachmentDefinition (NAD)適用
 - name: Apply NetworkAttachmentDefinition (NAD)
   ansible.builtin.shell: |
@@ -46,4 +57,6 @@
     KUBECONFIG: /etc/kubernetes/admin.conf
   become: true
   register: _result
-  changed_when: _result.rc == 0
+  changed_when: >-
+    ' created' in (_result.stdout | lower)
+    or ' configured' in (_result.stdout | lower)

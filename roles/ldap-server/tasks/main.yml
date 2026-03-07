@@ -10,15 +10,54 @@
 # 最初に変数設定を読み直す ( role単独で実行可能とするため )
 - name: "Load Params"
   ansible.builtin.include_tasks: load-params.yml
+
+# 必須変数の検証: ldap_organization と ldap_domain が定義/非空か確認
+- name: "Validate required variables"
+  ansible.builtin.fail:
+    msg: |
+      ldap_organizationまたはldap_domainが未定義または空文字列です。
+      OpenLDAPサーバの設定には、これらの変数が必須です。
+
+      group_vars/all/all.yml または host_vars/{{ inventory_hostname }} で以下を設定してください:
+        ldap_organization: "organization-name"
+        ldap_domain: "example.com"
+  when:
+    - (ldap_organization is undefined or ldap_organization | length == 0) or
+      (ldap_domain is undefined or ldap_domain | length == 0)
+
+# 以下のタスクは、必須変数が定義されている場合のみ実行される
 - name: "Package"
   ansible.builtin.include_tasks: package.yml
+  when:
+    - ldap_organization is defined and ldap_organization | length > 0
+    - ldap_domain is defined and ldap_domain | length > 0
+
 - name: "User Group"
   ansible.builtin.include_tasks: user_group.yml
+  when:
+    - ldap_organization is defined and ldap_organization | length > 0
+    - ldap_domain is defined and ldap_domain | length > 0
+
 - name: "Directory"
   ansible.builtin.include_tasks: directory.yml
+  when:
+    - ldap_organization is defined and ldap_organization | length > 0
+    - ldap_domain is defined and ldap_domain | length > 0
+
 - name: "Sysctl"
   ansible.builtin.include_tasks: sysctl.yml
+  when:
+    - ldap_organization is defined and ldap_organization | length > 0
+    - ldap_domain is defined and ldap_domain | length > 0
+
 - name: "Service"
   ansible.builtin.include_tasks: service.yml
+  when:
+    - ldap_organization is defined and ldap_organization | length > 0
+    - ldap_domain is defined and ldap_domain | length > 0
+
 - name: "Config"
   ansible.builtin.include_tasks: config.yml
+  when:
+    - ldap_organization is defined and ldap_organization | length > 0
+    - ldap_domain is defined and ldap_domain | length > 0

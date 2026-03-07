@@ -12,6 +12,12 @@
 
 # NFSで公開するディレクトリ
 nfs_export_directory: "/home/nfsshare"
+# DNSドメイン名(未設定時は空文字)
+dns_domain: ""
+# IPv4ネットワークアドレス(未設定時は空文字)
+network_ipv4_network_address: ""
+# IPv4プレフィックス長(未設定時は0)
+network_ipv4_prefix_len: 0
 # NFSのクライアントアドレス(ネットワークアドレスを指定)
 nfs_network: "{{ network_ipv4_network_address }}/{{ network_ipv4_prefix_len }}"
 # NFS exportのオプション

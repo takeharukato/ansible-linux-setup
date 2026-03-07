@@ -160,7 +160,7 @@ run_ntp_server:
 	ansible-playbook --tags "ntp-server" ${OPT_COMMON} 2>&1 |tee build-ntp-server.log
 
 run_ntp_client:
-	ansible-playbook --tags "ntp-client" ${OPT_COMMON} 2>&1 |tee build-ntp-server.log
+	ansible-playbook --tags "ntp-client" ${OPT_COMMON} 2>&1 |tee build-ntp-client.log
 
 run_nfs_server:
 	ansible-playbook --tags "nfs-server" ${OPT_COMMON} 2>&1 |tee build-nfs-server.log

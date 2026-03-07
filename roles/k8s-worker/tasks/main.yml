@@ -10,33 +10,58 @@
 # 最初に変数設定を読み直す ( role単独で実行可能とするため )
 - name: "Load Params"
   ansible.builtin.include_tasks: load-params.yml
+
+- name: Check if control-plane endpoint and host are configured
+  ansible.builtin.set_fact:
+    k8s_worker_has_ctrlplane_params: >-
+      {{ (k8s_ctrlplane_endpoint | default('', true) | string | trim | length) > 0 }}
+      and
+      {{ (k8s_ctrlplane_host | default('', true) | string | trim | length) > 0 }}
+  changed_when: false
+
+- name: Skip k8s-worker tasks when control-plane params are undefined or empty
+  ansible.builtin.debug:
+    msg: "Skip k8s-worker role because k8s_ctrlplane_endpoint or k8s_ctrlplane_host is undefined or empty."
+  when: not k8s_worker_has_ctrlplane_params
+
 - name: "Package"
   ansible.builtin.include_tasks: package.yml
+  when: k8s_worker_has_ctrlplane_params
 - name: "Directory"
   ansible.builtin.include_tasks: directory.yml
+  when: k8s_worker_has_ctrlplane_params
 - name: "User Group"
   ansible.builtin.include_tasks: user_group.yml
+  when: k8s_worker_has_ctrlplane_params
 - name: "Service"
   ansible.builtin.include_tasks: service.yml
+  when: k8s_worker_has_ctrlplane_params
 - name: "Config K8Sworker Firewall"
   ansible.builtin.include_tasks: config-k8sworker-firewall.yml
-  when: enable_firewall | default(false)
+  when:
+    - k8s_worker_has_ctrlplane_params
+    - enable_firewall | default(false)
 - name: "Config Irq Balance"
   ansible.builtin.include_tasks: config-irq-balance.yml
   when:
+    - k8s_worker_has_ctrlplane_params
     - (k8s_reserved_system_cpus_default | default('',true)) | length > 0
 - name: "Config Shielding"
   ansible.builtin.include_tasks: config-shielding.yml
   when:
+    - k8s_worker_has_ctrlplane_params
     - (k8s_reserved_system_cpus_default | default('',true)) | length > 0
 - name: "Config Worker Node"
   ansible.builtin.include_tasks: config-worker-node.yml
   when:
+    - k8s_worker_has_ctrlplane_params
     - (k8s_reserved_system_cpus_default | default('',true)) | length > 0
 - name: "Config"
   ansible.builtin.include_tasks: config.yml
+  when: k8s_worker_has_ctrlplane_params
 - name: "Config Cilium Bgp Cplane"
   ansible.builtin.include_tasks: config-cilium-bgp-cplane.yml
   when:
+    - k8s_worker_has_ctrlplane_params
     - k8s_bgp is defined
     - k8s_bgp.enabled | default(false)

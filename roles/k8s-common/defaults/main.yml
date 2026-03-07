@@ -71,6 +71,9 @@ k8s_pod_cidrs:
   - { family: "ipv4", cidr: "{{ k8s_pod_ipv4_network_cidr }}" }
   - { family: "ipv6", cidr: "{{ k8s_pod_ipv6_network_cidr }}" }
 
+# ファイアウォール設定の有効化 (true/false)
+enable_firewall: false
+
 # kubepodsスライスのcpusetをアプリケーションCPUに寄せる
 # 以下をtrueにすると, Ciliumなどのkube-system 名前空間のpodも
 # アプリケーションコアで動作してしまうため, 有効にすべきかは要検討

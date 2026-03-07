@@ -15,21 +15,23 @@
     delay: "{{ k8s_api_wait_delay }}"
     sleep: "{{ k8s_api_wait_sleep }}"
   delegate_to: "{{ k8s_api_wait_delegate_to }}"
-# ssh 192.168.20.41 "sudo kubeadm token list|grep -v TOKEN"|awk -F' ' '{print $1}'
+# ssh 192.168.20.41 "kubeadm token list|grep -v TOKEN"|awk -F' ' '{print $1}'
 - name: Get join token in token list
   ansible.builtin.shell: |
     set -o pipefail
-    sudo kubeadm token list|grep -v TOKEN|awk -F' ' '{print $1}'|head -1
+    kubeadm token list|grep -v TOKEN|awk -F' ' '{print $1}'|head -1 || true
   args:
     executable: /bin/bash
   delegate_to: "{{ k8s_ctrlplane_host }}"
+  become: true
   register: k8s_join_token_list
   changed_when: false
 
 - name: Create new join token
   ansible.builtin.shell: |
-    sudo kubeadm token create
+    kubeadm token create
   delegate_to: "{{ k8s_ctrlplane_host }}"
+  become: true
   changed_when: false
   when:
     - k8s_join_token_list.stdout is defined and k8s_join_token_list.stdout == ''
@@ -37,10 +39,11 @@
 - name: Get join token in token list
   ansible.builtin.shell: |
     set -o pipefail
-    sudo kubeadm token list|grep -v TOKEN|awk -F' ' '{print $1}'|head -1
+    kubeadm token list|grep -v TOKEN|awk -F' ' '{print $1}'|head -1 || true
   args:
     executable: /bin/bash
   delegate_to: "{{ k8s_ctrlplane_host }}"
+  become: true
   register: k8s_join_token_from_ctrlplane
   changed_when: false
 
@@ -48,10 +51,11 @@
 - name: Get join discovery hash
   ansible.builtin.shell: |
     set -o pipefail
-    sudo openssl x509 -pubkey -in /etc/kubernetes/pki/ca.crt | openssl rsa -pubin -outform der 2>/dev/null | openssl dgst -sha256 -hex | sed 's/^.* //'
+    openssl x509 -pubkey -in /etc/kubernetes/pki/ca.crt | openssl rsa -pubin -outform der 2>/dev/null | openssl dgst -sha256 -hex | sed 's/^.* //'
   args:
     executable: /bin/bash
   delegate_to: "{{ k8s_ctrlplane_host }}"
+  become: true
   register: k8s_join_discovery_hash_from_ctrlplane
   changed_when: false
 

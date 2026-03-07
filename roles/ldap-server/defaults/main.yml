@@ -29,5 +29,13 @@ openldap_wait_delay: 5
 openldap_wait_sleep: 2
 # OpenLDAPサービス待ち合わせる際の接続元ホスト名/IPアドレス
 openldap_wait_delegate_to: "localhost"
-
+# OpenLDAPでIPv6を有効化する場合はtrueを指定する
 openldap_enable_ipv6: true
+# LDAPの組織名
+ldap_organization: ""
+# LDAPのドメイン名
+ldap_domain: ""
+# LDAP管理者のパスワード
+ldap_admin_password: "admin"
+# LDAPユーザのリスト
+ldap_users: []

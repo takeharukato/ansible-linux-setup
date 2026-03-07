@@ -14,5 +14,10 @@
 # 外部NTPサーバ
 #
 external_ntp_servers_list: []
+# IPv4ネットワークアドレス(未設定時は空文字)
+network_ipv4_network_address: ""
+# IPv4プレフィックス長(未設定時は0)
+network_ipv4_prefix_len: 0
 # NTPクライアントからのアクセス許可ネットワーク
-ntp_allow: "{{ network_ipv4_network_address }}/{{ network_ipv4_prefix_len }}"
+# 未設定時はlocalhostのみ許可
+ntp_allow: "{{ network_ipv4_network_address ~ '/' ~ network_ipv4_prefix_len if (network_ipv4_network_address | default('', true) | length) > 0 and (network_ipv4_prefix_len | default(0, true) | int) > 0 else '127.0.0.1/32' }}"
