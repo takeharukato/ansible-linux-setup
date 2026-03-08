@@ -1272,9 +1272,9 @@ DNS サーバ側のキーと一致しているか確認します。
 ```bash
 sudo nsupdate -k /etc/nsupdate/ddns-clients.key <<EOF
 server 192.168.30.1
-zone example.com
-update delete hostname.example.com A
-update add hostname.example.com 300 A 192.168.30.42
+zone example.org
+update delete hostname.example.org A
+update add hostname.example.org 300 A 192.168.30.42
 send
 EOF
 ```

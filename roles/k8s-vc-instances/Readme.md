@@ -449,8 +449,8 @@ vcinstances_virtualclusters:
     clusterDomain: "tenant-alpha.vc.local"         # テナント DNS ドメイン(オプション)
     kubeConfigSecretName: "tenant-alpha-kubeconfig"  # kubeconfig Secret 名(オプション)
     transparentMetaPrefixes:           # スーパークラスタ側の運用メタデータを可視化(オプション)
-      - "operation.example.com/"
-      - "monitoring.example.com/"
+      - "operation.example.org/"
+      - "monitoring.example.org/"
     opaqueMetaPrefixes:                # テナント内部メタデータを隠ぺい(オプション)
       - "internal.tenant.local/"
   - name: "tenant-beta"
@@ -458,7 +458,7 @@ vcinstances_virtualclusters:
     clusterVersionName: "cv-k8s-1-31"  # 共有ClusterVersionでOK
     clusterDomain: "tenant-beta.vc.local"
     transparentMetaPrefixes:
-      - "operation.example.com/"
+      - "operation.example.org/"
     opaqueMetaPrefixes:
       - "internal.tenant.local/"
 

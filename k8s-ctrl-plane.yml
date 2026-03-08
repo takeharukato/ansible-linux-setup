@@ -49,6 +49,8 @@
       tags: k8s-hubble-cli
     - role: netgauge
       tags: netgauge
+      when:
+        - netgauge_enabled| default(false) | bool
     - role: sbom
       tags: sbom
       when:

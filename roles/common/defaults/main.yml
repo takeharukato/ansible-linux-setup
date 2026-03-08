@@ -85,6 +85,8 @@ sudo_nopasswd_groups_autodetect: true
 sudo_nopasswd_absent: false
 # 生成する drop-in ファイル名の接頭辞 ( 競合しにくい高番を使用 )
 sudo_dropin_prefix: "99-nopasswd"
+# sudoをパスワード無しで実行可能なユーザのリスト
+sudo_nopasswd_users: []
 
 ###############################################################################
 # ネットワークインターフェース関連変数定義

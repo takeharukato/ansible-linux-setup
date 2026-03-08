@@ -111,25 +111,28 @@ ansible-playbook -i inventory/hosts server.yml --tags dns-server --skip-tags con
 
 ### サイト全体共通変数
 
-| 変数名 | 説明 |
-|-------|------|
-| `dns_domain` | 正引きゾーン名。ゾーンファイルの SOA, NS レコードを決定。 |
-| `dns_server` | SOA ホスト名 (FQDN)。 |
-| `dns_network` | IPv4 ACL とゾーン内 A レコードのベースアドレス。 |
-| `dns_network_ipv4_prefix_len` | IPv4 ネットワークプレフィクス長。 |
-| `dns_network_ipv6_prefix` | IPv6 ACL や逆引きゾーンの生成に使用するプレフィクス。 |
-| `dns_network_ipv6_prefix_len` | IPv6 ネットワークプレフィクス長。 |
-| `dns_host_list` | 順引き/逆引きレコードを生成するためのホスト定義リスト。 |
-| `dns_ipv4_reverse` | IPv4 逆引きゾーン名 (例: `"20.168.192"`  =>  `"20.168.192.in-addr.arpa"`)。 |
-| `dns_ipv6_reverse` | IPv6 逆引きゾーン名 (ニブル形式)。 |
-| `dns_ddns_key_secret` | Dynamic DNS update key のシークレット。**バージョン管理外に保管してください**。 |
-| `internal_network_list` | 複数ネットワーク逆引きゾーン対応: 追加ネットワークのリスト。各要素は `{ipv4: "...", ipv6: "..."}` 形式。 |
-| `enable_firewall` | Firewall 設定の有効化フラグ (roles/common/defaults/main.yml で定義)。 |
+| 変数名 | 既定値 | 説明 |
+|-------|--------|------|
+| `dns_domain` | `""` | 正引きゾーン名。ゾーンファイルの SOA, NS レコードを決定。 |
+| `dns_server` | `""` | SOA ホスト名 (FQDN)。**この変数が空の場合, パッケージインストール, ディレクトリ作成, ユーザ/グループ作成, サービス設定, 設定ファイル生成の各タスクはスキップされます**。 |
+| `dns_network` | `""` | IPv4 ACL とゾーン内 A レコードのベースアドレス。 |
+| `dns_network_ipv4_prefix` | `""` | ネットワークプレフィクス (IPv4, 例: `"192.168.20.0"`)。 |
+| `dns_network_ipv4_prefix_len` | `""` | IPv4 ネットワークプレフィクス長 (例: `24`)。 |
+| `dns_network_ipv6_prefix` | `""` | IPv6 ACL や逆引きゾーンの生成に使用するプレフィクス (例: `"fd00:1234:5678:1::"`)。 |
+| `dns_network_ipv6_prefix_len` | `""` | IPv6 ネットワークプレフィクス長 (例: `64`)。 |
+| `dns_host_list` | `[]` | 順引き/逆引きレコードを生成するためのホスト定義リスト。 |
+| `dns_ipv4_reverse` | `""` | IPv4 逆引きゾーン名 (例: `"20.168.192"`  =>  `"20.168.192.in-addr.arpa"`)。 |
+| `dns_ipv6_reverse` | `""` | IPv6 逆引きゾーン名 (ニブル形式)。 |
+| `dns_ddns_key_secret` | `""` | Dynamic DNS update key のシークレット。**バージョン管理外に保管してください**。 |
+| `internal_network_list` | `[]` | 複数ネットワーク逆引きゾーン対応: 追加ネットワークのリスト。各要素は `{ipv4: "...", ipv6: "..."}` 形式。 |
+| `enable_firewall` | `false` | Firewall 設定の有効化フラグ (roles/common/defaults/main.yml で定義)。 |
 
 ## デフォルト動作
 
 | 条件 | 結果 |
 |-----|------|
+| `dns_server` が未定義または空文字列 | パッケージインストール, ディレクトリ作成, ユーザ/グループ作成, サービス設定, 設定ファイル生成の各タスクはスキップされます。 |
+| `dns_host_list` が未定義または空リスト | テンプレート展開は失敗せず, A/PTR の静的レコードは生成されません。 |
 | `enable_firewall: false` | Firewall 設定はスキップされます。 |
 | `dns_bind_ipv4_only: false` (デフォルト) | named は IPv4 と IPv6 の両方でリッスンします。 |
 | `dns_bind_ipv4_only: true` | systemd drop-in で ExecStart に `-4` フラグが付与され, IPv4 のみに限定。 |
@@ -201,8 +204,8 @@ RHEL 系では以下の専用処理を実施します:
 `vars/all-config.yml`:
 
 ```yaml
-dns_domain: "example.com"
-dns_server: "ns1.example.com"
+dns_domain: "example.org"
+dns_server: "ns1.example.org"
 dns_server_ipv4_address: "192.168.20.1"
 dns_network: "192.168.20.0"
 dns_network_ipv4_prefix_len: 24
@@ -254,7 +257,7 @@ internal_network_list:
 本例で使用する設定値:
 
 - 検証対象 DNS サーバー: `mgmt-server.local` (または任意のホスト名)
-- DNS ドメイン: `example.com`
+- DNS ドメイン: `example.org`
 - DNS サーバー IPv4 アドレス: `192.168.20.1`
 - DNS サーバー IPv6 アドレス: `fd00:1234:5678:1::1`
 - ネットワーク IPv4: `192.168.20.0/24`
@@ -262,8 +265,8 @@ internal_network_list:
 - 逆引きゾーン IPv4: `20.168.192.in-addr.arpa`
 - 逆引きゾーン IPv6: `1.0.0.0.8.7.6.5.4.3.2.1.0.0.d.f.ip6.arpa`
 - 登録ホスト例:
-  - `host1.example.com`: `192.168.20.10`, `fd00:1234:5678:1::10`
-  - `host2.example.com`: `192.168.20.11`, `fd00:1234:5678:1::11`
+  - `host1.example.org`: `192.168.20.10`, `fd00:1234:5678:1::10`
+  - `host2.example.org`: `192.168.20.11`, `fd00:1234:5678:1::11`
 - TSIG キー名: `ddns-clients`
 - Firewall: 有効 (`enable_firewall: true`)
 
@@ -294,7 +297,7 @@ systemctl status bind9
      CGroup: /system.slice/named.service
              └─1234 /usr/sbin/named -u named -c /etc/named.conf
 
-Mar 06 10:30:15 mgmt-server.local named[1234]: zone example.com/IN: loaded serial 2026030601
+Mar 06 10:30:15 mgmt-server.local named[1234]: zone example.org/IN: loaded serial 2026030601
 Mar 06 10:30:15 mgmt-server.local named[1234]: zone 20.168.192.in-addr.arpa/IN: loaded serial 2026030601
 Mar 06 10:30:15 mgmt-server.local named[1234]: zone 1.0.0.0.8.7.6.5.4.3.2.1.0.0.d.f.ip6.arpa/IN: loaded serial 2026030601
 Mar 06 10:30:15 mgmt-server.local named[1234]: all zones loaded
@@ -315,7 +318,7 @@ Mar 06 10:30:15 mgmt-server.local named[1234]: running
      CGroup: /system.slice/bind9.service
              └─1234 /usr/sbin/named -f -u bind
 
-Mar 06 10:30:15 mgmt-server named[1234]: zone example.com/IN: loaded serial 2026030601
+Mar 06 10:30:15 mgmt-server named[1234]: zone example.org/IN: loaded serial 2026030601
 Mar 06 10:30:15 mgmt-server named[1234]: zone 20.168.192.in-addr.arpa/IN: loaded serial 2026030601
 Mar 06 10:30:15 mgmt-server named[1234]: zone 1.0.0.0.8.7.6.5.4.3.2.1.0.0.d.f.ip6.arpa/IN: loaded serial 2026030601
 Mar 06 10:30:15 mgmt-server named[1234]: all zones loaded
@@ -326,7 +329,7 @@ Mar 06 10:30:15 mgmt-server named[1234]: running
 
 1. **Loaded 行**: `enabled` が表示されていることを確認 (システム起動時に自動起動が有効)
 2. **Active 行**: `active (running)` が表示されていることを確認 (サービスが正常に起動中)
-3. **ログ出力**: 各ゾーン (`example.com`, `20.168.192.in-addr.arpa`, IPv6 逆引きゾーン) が `loaded serial` と表示されていることを確認 (全ゾーンファイルが正常に読み込まれている)
+3. **ログ出力**: 各ゾーン (`example.org`, `20.168.192.in-addr.arpa`, IPv6 逆引きゾーン) が `loaded serial` と表示されていることを確認 (全ゾーンファイルが正常に読み込まれている)
 4. **最終メッセージ**: `all zones loaded` と `running` が表示されていることを確認 (named が正常に動作中)
 
 #### 2. 設定構文検証
@@ -340,7 +343,7 @@ named-checkconf -z
 **期待される出力例 (単一ネットワーク構成)**:
 
 ```
-zone example.com/IN: loaded serial 2026030601
+zone example.org/IN: loaded serial 2026030601
 zone 20.168.192.in-addr.arpa/IN: loaded serial 2026030601
 zone 1.0.0.0.8.7.6.5.4.3.2.1.0.0.d.f.ip6.arpa/IN: loaded serial 2026030601
 zone localhost/IN: loaded serial 0
@@ -352,7 +355,7 @@ zone 255.in-addr.arpa/IN: loaded serial 0
 **期待される出力例 (複数ネットワーク構成)**:
 
 ```
-zone example.com/IN: loaded serial 2026030601
+zone example.org/IN: loaded serial 2026030601
 zone 20.168.192.in-addr.arpa/IN: loaded serial 2026030601
 zone 1.0.0.0.8.7.6.5.4.3.2.1.0.0.d.f.ip6.arpa/IN: loaded serial 2026030601
 zone 30.168.192.in-addr.arpa/IN: loaded serial 2026030601
@@ -365,7 +368,7 @@ zone 127.in-addr.arpa/IN: loaded serial 0
 **確認ポイント**:
 
 1. **エラーメッセージの有無**: コマンド実行後にエラーメッセージが表示されないことを確認 (構文エラーがない)
-2. **順引きゾーン**: `zone example.com/IN: loaded serial` が表示されることを確認 (順引きゾーンが正常に読み込まれている)
+2. **順引きゾーン**: `zone example.org/IN: loaded serial` が表示されることを確認 (順引きゾーンが正常に読み込まれている)
 3. **IPv4 逆引きゾーン**: `zone 20.168.192.in-addr.arpa/IN: loaded serial` が表示されることを確認 (IPv4 逆引きゾーンが正常に読み込まれている)
 4. **IPv6 逆引きゾーン**: `zone 1.0.0.0.8.7.6.5.4.3.2.1.0.0.d.f.ip6.arpa/IN: loaded serial` が表示されることを確認 (IPv6 逆引きゾーンが正常に読み込まれている)
 5. **複数ネットワーク構成の場合**: `internal_network_list` で定義した追加ネットワークの逆引きゾーン (例: `30.168.192.in-addr.arpa`, `2.0.0.0.a.1.6.0.4.8.6.6.9.6.d.f.ip6.arpa`) も `loaded serial` と表示されることを確認
@@ -376,13 +379,13 @@ zone 127.in-addr.arpa/IN: loaded serial 0
 **実施ノード**: DNS サーバー (`mgmt-server.local`) または任意のクライアントノード
 
 ```bash
-dig @localhost host1.example.com
+dig @localhost host1.example.org
 ```
 
 **期待される出力例**:
 
 ```
-; <<>> DiG 9.18.24 <<>> @localhost host1.example.com
+; <<>> DiG 9.18.24 <<>> @localhost host1.example.org
 ; (2 servers found)
 ;; global options: +cmd
 ;; Got answer:
@@ -393,11 +396,11 @@ dig @localhost host1.example.com
 ; EDNS: version: 0, flags:; udp: 1232
 ; COOKIE: abcdef0123456789 (good)
 ;; QUESTION SECTION:
-;host1.example.com.             IN      A
+;host1.example.org.             IN      A
 
 ;; ANSWER SECTION:
-host1.example.com.      86400   IN      A       192.168.20.10
-host1.example.com.      86400   IN      AAAA    fd00:1234:5678:1::10
+host1.example.org.      86400   IN      A       192.168.20.10
+host1.example.org.      86400   IN      AAAA    fd00:1234:5678:1::10
 
 ;; Query time: 0 msec
 ;; SERVER: ::1#53(localhost) (UDP)
@@ -410,8 +413,8 @@ host1.example.com.      86400   IN      AAAA    fd00:1234:5678:1::10
 1. **status**: `status: NOERROR` が表示されることを確認 (クエリが正常に処理された)
 2. **flags**: `aa` (Authoritative Answer) フラグが含まれていることを確認 (権威サーバーとして応答している)
 3. **ANSWER SECTION**: 2つのレコードが返されることを確認
-   - **A レコード**: `host1.example.com. 86400 IN A 192.168.20.10` が表示されることを確認 (IPv4 アドレスが正しく返される)
-   - **AAAA レコード**: `host1.example.com. 86400 IN AAAA fd00:1234:5678:1::10` が表示されることを確認 (IPv6 アドレスが正しく返される)
+   - **A レコード**: `host1.example.org. 86400 IN A 192.168.20.10` が表示されることを確認 (IPv4 アドレスが正しく返される)
+   - **AAAA レコード**: `host1.example.org. 86400 IN AAAA fd00:1234:5678:1::10` が表示されることを確認 (IPv6 アドレスが正しく返される)
 4. **TTL**: 86400 (1日) が設定されていることを確認 (デフォルト TTL が適用されている)
 5. **アドレスの正確性**: `dns_host_list` で定義した IPv4/IPv6 アドレスと一致していることを確認
 
@@ -440,7 +443,7 @@ dig @localhost -x 192.168.20.10
 ;10.20.168.192.in-addr.arpa.    IN      PTR
 
 ;; ANSWER SECTION:
-10.20.168.192.in-addr.arpa. 86400 IN    PTR     host1.example.com.
+10.20.168.192.in-addr.arpa. 86400 IN    PTR     host1.example.org.
 
 ;; Query time: 0 msec
 ;; SERVER: ::1#53(localhost) (UDP)
@@ -453,7 +456,7 @@ dig @localhost -x 192.168.20.10
 1. **status**: `status: NOERROR` が表示されることを確認 (クエリが正常に処理された)
 2. **flags**: `aa` (Authoritative Answer) フラグが含まれていることを確認 (権威サーバーとして応答している)
 3. **QUESTION SECTION**: `10.20.168.192.in-addr.arpa. IN PTR` が表示されることを確認 (IPv4 アドレスが正しく逆引き形式に変換されている)
-4. **ANSWER SECTION**: `10.20.168.192.in-addr.arpa. 86400 IN PTR host1.example.com.` が表示されることを確認
+4. **ANSWER SECTION**: `10.20.168.192.in-addr.arpa. 86400 IN PTR host1.example.org.` が表示されることを確認
    - PTR レコードが返されている
    - ホスト名が FQDN 形式 (末尾にドット `.` 付き) で返される
    - `dns_host_list` で定義したホスト名と一致している
@@ -484,7 +487,7 @@ dig @localhost -x fd00:1234:5678:1::10
 ;0.1.0.0.0.0.0.0.0.0.0.0.0.0.0.0.1.0.0.0.8.7.6.5.4.3.2.1.0.0.d.f.ip6.arpa. IN PTR
 
 ;; ANSWER SECTION:
-0.1.0.0.0.0.0.0.0.0.0.0.0.0.0.0.1.0.0.0.8.7.6.5.4.3.2.1.0.0.d.f.ip6.arpa. 86400 IN PTR host1.example.com.
+0.1.0.0.0.0.0.0.0.0.0.0.0.0.0.0.1.0.0.0.8.7.6.5.4.3.2.1.0.0.d.f.ip6.arpa. 86400 IN PTR host1.example.org.
 
 ;; Query time: 1 msec
 ;; SERVER: ::1#53(localhost) (UDP)
@@ -499,7 +502,7 @@ dig @localhost -x fd00:1234:5678:1::10
 3. **QUESTION SECTION**: IPv6 アドレスがニブル形式の逆引き表現に変換されていることを確認
    - `fd00:1234:5678:1::10` が `0.1.0.0.0.0.0.0.0.0.0.0.0.0.0.0.1.0.0.0.8.7.6.5.4.3.2.1.0.0.d.f.ip6.arpa.` に変換されている
 4. **ANSWER SECTION**: PTR レコードが返されていることを確認
-   - `0.1.0.0...d.f.ip6.arpa. 86400 IN PTR host1.example.com.` が表示される
+   - `0.1.0.0...d.f.ip6.arpa. 86400 IN PTR host1.example.org.` が表示される
    - ホスト名が FQDN 形式 (末尾にドット `.` 付き) で返される
    - `dns_host_list` で定義したホスト名と一致している
 5. **TTL**: 86400 (1日) が設定されていることを確認
@@ -519,7 +522,7 @@ ls -Z /var/named/zone/
 ```
 unconfined_u:object_r:named_zone_t:s0 db.1.0.0.0.8.7.6.5.4.3.2.1.0.0.d.f
 unconfined_u:object_r:named_zone_t:s0 db.20.168.192
-unconfined_u:object_r:named_zone_t:s0 db.example.com
+unconfined_u:object_r:named_zone_t:s0 db.example.org
 ```
 
 **複数ネットワーク構成の場合の出力例**:
@@ -530,14 +533,14 @@ unconfined_u:object_r:named_zone_t:s0 db.2.0.0.0.a.1.6.0.4.8.6.6.9.6.d.f
 unconfined_u:object_r:named_zone_t:s0 db.20.168.192
 unconfined_u:object_r:named_zone_t:s0 db.30.168.192
 unconfined_u:object_r:named_zone_t:s0 db.40.168.192
-unconfined_u:object_r:named_zone_t:s0 db.example.com
+unconfined_u:object_r:named_zone_t:s0 db.example.org
 ```
 
 **確認ポイント**:
 
 1. **SELinux タイプ**: 全ゾーンファイルのコンテキストに `named_zone_t` が含まれていることを確認
    - 形式: `<ユーザー>:object_r:named_zone_t:s0 <ファイル名>`
-2. **順引きゾーンファイル**: `db.example.com` に `named_zone_t` コンテキストが設定されていることを確認
+2. **順引きゾーンファイル**: `db.example.org` に `named_zone_t` コンテキストが設定されていることを確認
 3. **IPv4 逆引きゾーンファイル**: `db.20.168.192` (メインネットワーク), `db.30.168.192`, `db.40.168.192` (追加ネットワーク) に `named_zone_t` コンテキストが設定されていることを確認
 4. **IPv6 逆引きゾーンファイル**: `db.1.0.0.0.8.7.6.5.4.3.2.1.0.0.d.f` (メインネットワーク), `db.2.0.0.0.a.1.6.0.4.8.6.6.9.6.d.f` (追加ネットワーク) に `named_zone_t` コンテキストが設定されていることを確認
 5. **named プロセスのアクセス権**: SELinux が Enforcing モードでも named プロセスがゾーンファイルにアクセスできる状態であることを確認 (コンテキスト不一致による Permission denied エラーが発生しない)
@@ -661,13 +664,13 @@ To                         Action      From
 # DDNS レコード追加
 nsupdate -k /etc/bind/rndc.key << EOF
 server 192.168.20.1
-zone example.com.
-update add test-host.example.com. 300 A 192.168.20.100
+zone example.org.
+update add test-host.example.org. 300 A 192.168.20.100
 send
 EOF
 
 # 追加したレコードの確認
-dig @localhost test-host.example.com
+dig @localhost test-host.example.org
 ```
 
 **期待される出力例 (nsupdate)**:
@@ -687,7 +690,7 @@ update failed: REFUSED
 **期待される出力例 (dig)**:
 
 ```
-; <<>> DiG 9.18.24 <<>> @localhost test-host.example.com
+; <<>> DiG 9.18.24 <<>> @localhost test-host.example.org
 ; (2 servers found)
 ;; global options: +cmd
 ;; Got answer:
@@ -698,10 +701,10 @@ update failed: REFUSED
 ; EDNS: version: 0, flags:; udp: 1232
 ; COOKIE: 1234567890abcdef (good)
 ;; QUESTION SECTION:
-;test-host.example.com.         IN      A
+;test-host.example.org.         IN      A
 
 ;; ANSWER SECTION:
-test-host.example.com.  300     IN      A       192.168.20.100
+test-host.example.org.  300     IN      A       192.168.20.100
 
 ;; Query time: 0 msec
 ;; SERVER: ::1#53(localhost) (UDP)
@@ -713,7 +716,7 @@ test-host.example.com.  300     IN      A       192.168.20.100
 
 1. **nsupdate の実行**: エラーメッセージが表示されないことを確認 (TSIG 認証が成功し, レコード追加が許可されている)
 2. **status**: `status: NOERROR` が表示されることを確認 (クエリが正常に処理された)
-3. **ANSWER SECTION**: `test-host.example.com. 300 IN A 192.168.20.100` が表示されることを確認
+3. **ANSWER SECTION**: `test-host.example.org. 300 IN A 192.168.20.100` が表示されることを確認
    - 動的に追加したレコードが正しく返される
    - TTL が nsupdate で指定した 300 秒になっている
    - IP アドレスが指定した `192.168.20.100` と一致している
@@ -723,10 +726,10 @@ test-host.example.com.  300     IN      A       192.168.20.100
 
 ```bash
 # ゾーンファイルの保存状態確認 (RHEL 系)
-cat /var/named/zone/db.example.com
+cat /var/named/zone/db.example.org
 
 # ゾーンファイルの保存状態確認 (Debian 系)
-cat /var/lib/bind/db.example.com
+cat /var/lib/bind/db.example.org
 ```
 
 動的に追加されたレコードは, named の再起動後も保持されます (BIND の動的ゾーン機能により, `.jnl` ジャーナルファイルに記録され, 定期的にゾーンファイルに反映されます)。
@@ -736,8 +739,8 @@ cat /var/lib/bind/db.example.com
 ```bash
 nsupdate -k /etc/bind/rndc.key << EOF
 server 192.168.20.1
-zone example.com.
-update delete test-host.example.com. A
+zone example.org.
+update delete test-host.example.org. A
 send
 EOF
 ```
@@ -748,17 +751,17 @@ EOF
 
 ```bash
 # Debian 系
-cat /var/lib/bind/db.example.com
+cat /var/lib/bind/db.example.org
 
 # RHEL 系
-cat /var/named/zone/db.example.com
+cat /var/named/zone/db.example.org
 ```
 
 **期待される出力例**:
 
 ```
 $TTL 86400
-@       IN      SOA     mgmt-server.example.com. root.example.com. (
+@       IN      SOA     mgmt-server.example.org. root.example.org. (
         2026030601 ;Serial
         3600            ;Refresh
         1800            ;Retry
@@ -766,7 +769,7 @@ $TTL 86400
         86400           ;Minimum TTL
 )
 
-       IN      NS       mgmt-server.example.com.
+       IN      NS       mgmt-server.example.org.
 
 ; === A レコード ===
 host1                   IN      A       192.168.20.10
@@ -781,11 +784,11 @@ host2                   IN      AAAA    fd00:1234:5678:1::11
 
 1. **TTL 設定**: ファイル冒頭に `$TTL 86400` (1日) が定義されていることを確認
 2. **SOA レコード**: `@  IN  SOA  <DNSサーバーFQDN>  <管理者メール>` 形式で定義されていることを確認
-   - プライマリネームサーバー: `mgmt-server.example.com.` (FQDN 末尾にドット `.` 付き)
-   - 管理者メール: `root.example.com.` (@ を . に置換した形式)
+   - プライマリネームサーバー: `mgmt-server.example.org.` (FQDN 末尾にドット `.` 付き)
+   - 管理者メール: `root.example.org.` (@ を . に置換した形式)
    - シリアル番号: 日付ベース形式 (例: `2026030601` = 2026年3月6日 01版) が設定されている
    - Refresh, Retry, Expire, Minimum TTL が適切に設定されている
-3. **NS レコード**: `IN  NS  mgmt-server.example.com.` が定義されていることを確認 (ネームサーバー自身を NS レコードとして登録)
+3. **NS レコード**: `IN  NS  mgmt-server.example.org.` が定義されていることを確認 (ネームサーバー自身を NS レコードとして登録)
 4. **A レコード**: `dns_host_list` で定義した各ホストの IPv4 アドレスが正しく登録されていることを確認
    - 形式: `<ホスト名>  IN  A  <IPv4アドレス>`
    - 例: `host1  IN  A  192.168.20.10`
@@ -808,7 +811,7 @@ cat /var/named/zone/db.20.168.192
 
 ```
 $TTL 86400
-@       IN      SOA     mgmt-server.example.com. root.example.com. (
+@       IN      SOA     mgmt-server.example.org. root.example.org. (
         2026030601 ;Serial
         3600            ;Refresh
         1800            ;Retry
@@ -816,18 +819,18 @@ $TTL 86400
         86400           ;Minimum TTL
 )
 
-       IN      NS       mgmt-server.example.com.
+       IN      NS       mgmt-server.example.org.
 
 ; === PTR レコード ===
-10                      IN      PTR     host1.example.com.
-11                      IN      PTR     host2.example.com.
+10                      IN      PTR     host1.example.org.
+11                      IN      PTR     host2.example.org.
 ```
 
 **確認ポイント (IPv4 逆引き)**:
 
 1. **PTR レコード**: 各 IPv4 アドレスの最終オクテットに対する PTR レコードが定義されていることを確認
    - 形式: `<最終オクテット>  IN  PTR  <ホスト名FQDN>.`
-   - 例: `10  IN  PTR  host1.example.com.` (192.168.20.10 の逆引き)
+   - 例: `10  IN  PTR  host1.example.org.` (192.168.20.10 の逆引き)
    - ホスト名の末尾にドット `.` が付いている (FQDN 形式)
 
 **逆引きゾーンファイルの確認 (IPv6)**:
@@ -844,7 +847,7 @@ cat /var/named/zone/db.1.0.0.0.8.7.6.5.4.3.2.1.0.0.d.f
 
 ```
 $TTL 86400
-@       IN      SOA     mgmt-server.example.com. root.example.com. (
+@       IN      SOA     mgmt-server.example.org. root.example.org. (
         2026030601 ;Serial
         3600            ;Refresh
         1800            ;Retry
@@ -852,18 +855,18 @@ $TTL 86400
         86400           ;Minimum TTL
 )
 
-       IN      NS       mgmt-server.example.com.
+       IN      NS       mgmt-server.example.org.
 
 ; === PTR レコード ===
-0.1.0.0.0.0.0.0.0.0.0.0.0.0.0.0       IN      PTR     host1.example.com.
-1.1.0.0.0.0.0.0.0.0.0.0.0.0.0.0       IN      PTR     host2.example.com.
+0.1.0.0.0.0.0.0.0.0.0.0.0.0.0.0       IN      PTR     host1.example.org.
+1.1.0.0.0.0.0.0.0.0.0.0.0.0.0.0       IN      PTR     host2.example.org.
 ```
 
 **確認ポイント (IPv6 逆引き)**:
 
 1. **PTR レコード**: 各 IPv6 アドレスのホスト部がニブル形式で定義されていることを確認
    - 形式: `<ニブル表現>  IN  PTR  <ホスト名FQDN>.`
-   - 例: `0.1.0.0.0.0.0.0.0.0.0.0.0.0.0.0  IN  PTR  host1.example.com.` (`fd00:1234:5678:1::10` の逆引き)
+   - 例: `0.1.0.0.0.0.0.0.0.0.0.0.0.0.0.0  IN  PTR  host1.example.org.` (`fd00:1234:5678:1::10` の逆引き)
    - ホスト名の末尾にドット `.` が付いている (FQDN 形式)
 
 ### パターン2: IPv4 限定構成
@@ -931,8 +934,8 @@ journalctl -u bind9 -n 50  # Debian
 **診断方法**:
 
 ```bash
-named-checkzone example.com /var/lib/bind/db.example.com  # Debian
-named-checkzone example.com /var/named/zone/db.example.com  # RHEL
+named-checkzone example.org /var/lib/bind/db.example.org  # Debian
+named-checkzone example.org /var/named/zone/db.example.org  # RHEL
 ```
 
 **原因と解決**:

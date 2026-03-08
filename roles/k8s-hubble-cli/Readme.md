@@ -180,7 +180,7 @@ hubble_cli_version: "1.18.3"
 
 ```yaml
 hubble_cli_version: "1.18.3"
-hubble_cli_download_url: "https://mirror.example.com/hubble/v{{ hubble_cli_version }}/hubble-linux-amd64.tar.gz"
+hubble_cli_download_url: "https://mirror.example.org/hubble/v{{ hubble_cli_version }}/hubble-linux-amd64.tar.gz"
 ```
 
 ### 補完スクリプトを無効化

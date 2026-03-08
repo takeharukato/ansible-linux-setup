@@ -133,7 +133,7 @@ users_list:
     shell: "/bin/bash"
     home: "/home/alice"
     comment: "Alice Example"
-    email: "alice@example.com"
+    email: "alice@example.org"
     github: "alice-gh"
 ```
 
@@ -149,7 +149,7 @@ users_list:
 | `shell` | ログインシェルです。 | `/bin/bash` | 指定シェルが設定されます。 |
 | `home` | ホームディレクトリです。 | `/home/alice` | 指定パスでホームが作成されます。 |
 | `comment` | コメントです。 | `Alice Example` | コメント欄に反映されます。 |
-| `email` | 連絡先メールです。 | `alice@example.com` | `.gitconfig` 用の情報として保持します。 |
+| `email` | 連絡先メールです。 | `alice@example.org` | `.gitconfig` 用の情報として保持します。 |
 | `github` | GitHub アカウント名です。 | `alice-gh` | `https://github.com/<ユーザ名>.keys` から公開鍵が追加されます。 |
 
 ## 検証ポイント

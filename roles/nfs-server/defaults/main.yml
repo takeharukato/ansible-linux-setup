@@ -14,11 +14,9 @@
 nfs_export_directory: "/home/nfsshare"
 # DNSドメイン名(未設定時は空文字)
 dns_domain: ""
-# IPv4ネットワークアドレス(未設定時は空文字)
-network_ipv4_network_address: ""
-# IPv4プレフィックス長(未設定時は0)
-network_ipv4_prefix_len: 0
-# NFSのクライアントアドレス(ネットワークアドレスを指定)
-nfs_network: "{{ network_ipv4_network_address }}/{{ network_ipv4_prefix_len }}"
+# NFSのクライアントアドレス
+# (ネットワークアドレスを指定, 未設定時は空文字列)
+nfs_network: ""
 # NFS exportのオプション
-nfs_options: "rw,no_root_squash,sync,no_subtree_check,no_wdelay"
+# (未定義時, または, 空文字列を指定した場合は, NFSのデフォルト動作を使用)
+nfs_options: ""

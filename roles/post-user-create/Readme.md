@@ -298,14 +298,14 @@ cat /home/username/.gitconfig
 ```ini
 [user]
 	name = username
-	email = username@example.com
+	email = username@example.org
 ```
 
 **期待される出力例 (post_user_create_gitconfig_use_login_name: false の場合):**
 ```ini
 [user]
 	name = Taro Yamada
-	email = username@example.com
+	email = username@example.org
 ```
 
 **確認ポイント:**

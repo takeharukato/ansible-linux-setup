@@ -22,6 +22,13 @@
   ansible.builtin.include_tasks: directory.yml
 - name: "Certification"
   ansible.builtin.include_tasks: certification.yml
+  when:
+    - rancher_host | default('', true) | length > 0
+    - rancher_cert_domain_name | default('', true) | length > 0
+    - rancher_cert_subject_country | default('', true) | length > 0
+    - rancher_cert_subject_state | default('', true) | length > 0
+    - rancher_cert_subject_locality | default('', true) | length > 0
+    - rancher_cert_subject_org | default('', true) | length > 0
 - name: "User Group"
   ansible.builtin.include_tasks: user_group.yml
 - name: "Service"

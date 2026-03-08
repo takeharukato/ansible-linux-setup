@@ -10,12 +10,30 @@
     regexp: '^\s*Domain\s*=.*'
     line: 'Domain = {{ dns_domain }}'
 
-# 共有ディレクトリを設定
-- name: "Export {{ nfs_export_directory }}"
+# NFS exportオプションの有無を判定
+- name: Determine whether NFS export options are set
+  ansible.builtin.set_fact:
+    nfs_has_options: "{{ (nfs_options | default('', true) | string | trim | length) > 0 }}"
+
+# 共有ディレクトリを設定 ( export オプション有 )
+# nfs_optionsが設定されている場合は, オプション付きでエクスポートする
+- name: "Export {{ nfs_export_directory }} with options"
   ansible.builtin.lineinfile:
     path: /etc/exports
     regexp: '{{ nfs_export_directory }} .*'
     line: '{{ nfs_export_directory }} {{ nfs_network }}({{ nfs_options }})'
+  when:
+    - nfs_has_options | bool
+
+# 共有ディレクトリを設定 ( export オプション無し )
+# nfs_optionsが未定義または空文字の場合は, オプションなしでエクスポートする
+- name: "Export {{ nfs_export_directory }} without options"
+  ansible.builtin.lineinfile:
+    path: /etc/exports
+    regexp: '{{ nfs_export_directory }} .*'
+    line: '{{ nfs_export_directory }} {{ nfs_network }}'
+  when:
+    - not (nfs_has_options | bool)
 
 # NFSを起動する
 - name: Restart_nfs

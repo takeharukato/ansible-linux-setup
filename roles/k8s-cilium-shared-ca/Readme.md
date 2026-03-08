@@ -180,6 +180,7 @@ Cluster Mesh 用の Secret 生成は `k8s_cilium_clustermesh_secret_enabled` が
 
 | 条件 | 結果 |
 | --- | --- |
+| `cilium_shared_ca_kubeconfig` が空文字列または未定義 | CA証明書パス決定 (`config-cilium-ca.yml`) と Cluster Mesh TLS 証明書生成 (`clustermesh-ca.yml`) タスクはスキップされます。パッケージインストール, ディレクトリ作成, サービス設定タスクのみが実行されます。 |
 | `k8s_cilium_shared_ca_enabled: false` | このロールは Secret を変更しません。何も実行されません。 |
 | `k8s_cilium_shared_ca_enabled: true` かつ `k8s_cilium_shared_ca_reuse_k8s_ca: true` | k8s-shared-ca ロールが生成した共通CAを使用します。k8s-shared-ca ロールが未実行の場合はタスクが失敗します。 |
 | `k8s_cilium_shared_ca_enabled: true` かつ `k8s_cilium_shared_ca_auto_create: true` | CA ファイルが存在しない場合, openssl で共通CAを自動生成します。既存ファイルがある場合は上書きせずに利用します。 |
@@ -884,7 +885,7 @@ k8s_cilium_clustermesh_secret_enabled: true
 k8s_cilium_clustermesh_tls_san_dns:
   - "clustermesh-apiserver.cilium.svc.cluster.local"
   - "clustermesh-apiserver.cilium.svc"
-  - "custom-domain.example.com"
+  - "custom-domain.example.org"
 ```
 
 **適用条件**:

@@ -1521,8 +1521,8 @@ kubectl -n $TENANT_NS apply -f manifest.yaml
        clusterVersionName: cv-k8s-1-31
        # transparentMetaPrefixesとopaqueMetaPrefixesの併用例
        transparentMetaPrefixes:
-         - "operation.example.com/"  # スーパークラスタ側の運用メタデータを可視化
-         - "monitoring.example.com/"  # 監視用メタデータを可視化
+         - "operation.example.org/"  # スーパークラスタ側の運用メタデータを可視化
+         - "monitoring.example.org/"  # 監視用メタデータを可視化
        opaqueMetaPrefixes:
          - "internal.tenant.local/"   # テナント内部メタデータを隠ぺい
      EOF

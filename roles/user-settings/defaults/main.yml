@@ -103,3 +103,10 @@ ssh_legacy_key_hosts: []
 # sshのconfigファイルに, mDNSでホスト名解決する
 # ホストを指定するためのリスト
 mdns_host_list: []
+
+# sshのconfigファイルに, 'Host <name>.<dns_domain>'形式のエントリを
+# 追記する際に使用するDNSドメイン名('<domain>')
+dns_domain: ""
+# sshのconfigファイルに, 'Host <name>.<dns_domain>'形式のエントリを
+# 追記するためのホスト名('<name>')のリスト
+dns_host_list: []

@@ -19,7 +19,9 @@
 # To activate this key, place the following in named.conf, and
 # in a separate keyfile on the system or systems from which nsupdate
 # will be run:
+{% if ( dns_ddns_key_name|default('', true)|length ) > 0 and ( dns_ddns_key_secret | default('', true)| length ) > 0 %}
 key "{{dns_ddns_key_name}}" {
         algorithm hmac-sha256;
         secret "{{dns_ddns_key_secret}}";
 };
+{% endif %}

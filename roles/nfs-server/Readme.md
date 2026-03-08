@@ -77,7 +77,7 @@
 - Ansible 2.15 以降, ansibleメタパッケージをディストリビューションから導入していることを想定
 - 対象ノードで管理者権限が利用できること。
 - `dns_domain`, `network_ipv4_network_address`, `network_ipv4_prefix_len`は, 実運用値で上書きすること。
-- `dns_domain`または`network_ipv4_network_address`が空文字, もしくは`network_ipv4_prefix_len`が0/空の場合, `package.yml`, `directory.yml`, `service.yml`, `config.yml`は実行されません。
+- `nfs_export_directory`, `dns_domain`, `nfs_network`のいずれかが空文字の場合, `package.yml`, `directory.yml`, `service.yml`, `config.yml`は実行されません。
 
 ## 実行フロー
 
@@ -117,17 +117,15 @@
 | 変数名 | 既定値 | 説明 |
 | --- | --- | --- |
 | `nfs_export_directory` | `/home/nfsshare` | NFSで公開するディレクトリです。 |
-| `nfs_network` | `{{ network_ipv4_network_address }}/{{ network_ipv4_prefix_len }}` | NFS公開を許可するクライアント側ネットワークです。 |
-| `nfs_options` | `rw,no_root_squash,sync,no_subtree_check,no_wdelay` | `/etc/exports`へ書き込むNFS公開オプションです。 |
+| `nfs_network` | `""` | NFS公開を許可するクライアント側ネットワークです (例: `"192.168.20.0/24"`)。**空文字のままでは主要処理を実行しません**。 |
+| `nfs_options` | `""` | `/etc/exports`へ書き込むNFS公開オプションです。空文字または未定義時はNFSのデフォルト動作を使用します。 |
 
 ### 依存変数
 
 | 変数名 | 既定値 | 説明 |
 | --- | --- | --- |
 | `nfs_server_packages` | OS依存 | Debian系は`nfs-kernel-server`, RHEL系は`nfs-utils`です。 |
-| `dns_domain` | `""` | `/etc/idmapd.conf`へ設定するドメインです。空文字のままでは主要処理を実行しません。 |
-| `network_ipv4_network_address` | `""` | クライアントネットワークアドレスです。空文字のままでは主要処理を実行しません。 |
-| `network_ipv4_prefix_len` | `0` | クライアントネットワークのプレフィックス長です。`0`または空値では主要処理を実行しません。 |
+| `dns_domain` | `""` | `/etc/idmapd.conf`へ設定するドメインです。**空文字のままでは主要処理を実行しません**。 |
 
 ## 主な処理
 

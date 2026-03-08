@@ -12,8 +12,10 @@
   ansible.builtin.include_tasks: load-params.yml
 - name: "Config Cilium Ca"
   ansible.builtin.include_tasks: config-cilium-ca.yml
+  when: ( cilium_shared_ca_kubeconfig | default('', true) | string | trim | length ) > 0
 - name: "Clustermesh Ca"
   ansible.builtin.include_tasks: clustermesh-ca.yml
+  when: ( cilium_shared_ca_kubeconfig | default('', true) | string | trim | length ) > 0
 - name: "Package"
   ansible.builtin.include_tasks: package.yml
 - name: "Directory"

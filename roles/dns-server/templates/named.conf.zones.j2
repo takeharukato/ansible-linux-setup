@@ -44,7 +44,7 @@ zone "{{dns_ipv6_reverse}}.ip6.arpa" IN {
 // === 複数ネットワーク逆引きゾーン ===
 {% set _primary_ipv4_reverse = dns_ipv4_reverse | default('', true) %}
 {% set _primary_ipv6_reverse = dns_ipv6_reverse | default('', true) %}
-{% for network in internal_network_list %}
+{% for network in internal_network_list|default([], true) %}
 {% if network.ipv4 is defined and network.ipv4|length > 0 %}
 {% set _ipv4_rev = network.ipv4 | ipv4_reverse_zone %}
 {% if _ipv4_rev != _primary_ipv4_reverse %}

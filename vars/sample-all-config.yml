@@ -1,0 +1,721 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+
+# ======================================================
+# グローバル設定 ( 推奨 )
+# ======================================================
+
+# システムタイムゾーン
+common_timezone: "Asia/Tokyo"
+
+# SELinux (Security-Enhanced Linux, 強制アクセス制御の仕組み) の状態
+# 指定可能な値: 'enforcing' (強制), 'permissive' (許可的), 'disabled' (無効)
+common_selinux_state: "permissive"
+
+# ======================================================
+# 基本設定 / 仮想化基盤関連設定 (オプション)
+# ======================================================
+
+# cron (定期的にコマンドやスクリプトを実行するスケジューラデーモン) からのメール送信を無効化する場合は true に設定する
+# common_disable_cron_mails: true
+
+# ノード設定後に再起動する場合は true に設定する
+# force_reboot: false
+
+# VMWare (仮想化基盤) を使用する場合は true に設定する (open-vm-tools をインストール)
+# use_vmware: false
+
+# xcp-ng (Xen Cloud Platform next generation, 仮想化基盤) を使用する場合は true に設定する (xe-guest-utilities をインストール)
+# use_xcpng: false
+
+# ======================================================
+# Firewall設定 (オプション)
+# ======================================================
+
+# ファイアウォール (通信を制御する仕組み) 有効化フラグ
+# false の場合は firewalld (RHEL系) または UFW (Debian系) を停止、無効化する
+# enable_firewall: false
+
+# ======================================================
+# ユーザ設定 (オプション)
+# 各ホストごとに作成するユーザを変えたい
+# 場合は, host_vars側で設定し,
+# vars/all-config.ymlには設定しないこと
+# ======================================================
+#
+# 書式: 以下のキーを持つ辞書のリストとして定義する
+#
+#   - name    ユーザ名
+#   - group   ユーザの所属グループ (ユーザと同名のグループを作成する場合は省略可能)
+#   - password ユーザのパスワード (ハッシュ化された文字列を指定する必要がある)
+#   - update_password ユーザのパスワードを更新する条件
+#     - on_create: ユーザが存在しない場合にのみパスワードを設定する
+#     - always: ユーザが存在する場合でもパスワードを更新する
+#   - shell  ユーザのログインシェル (省略した場合は /bin/bash になる)
+#   - home   ユーザのホームディレクトリ (省略した場合は /home/ユーザ名 になる)
+#   - comment ユーザのコメント (ユーザのフルネームなどを指定する)
+#   - email ユーザのメールアドレス (.gitconfigのuser.emailに使用する)
+#   - github ユーザのGitHubアカウント (公開鍵取得処理で使用する)
+#
+# 例:
+#
+# users_list:
+#   - name: 'user1'
+#     group: 'user1'
+#     password: "{{ 'user1' | password_hash('sha512') }}"
+#     update_password: 'on_create'
+#     shell: "/bin/zsh"
+#     home: "/home/user1"
+#     comment: 'Sample User'
+#     email: "user1@example.org"
+#     github: 'githubuser'
+
+# ======================================================
+# 公開鍵追加設定 (オプション)
+# 各ホストごとに公開鍵設定を変えたい
+# 場合は, host_vars側で設定し,
+# vars/all-config.ymlには設定しないこと
+# ======================================================
+
+# ユーザが存在しない場合に自動作成するか
+# auto_user_add_for_users_authorized_keys: false
+
+# ユーザごとの追加公開鍵リスト
+#
+# users_listへのユーザ登録の有無に依らず, users_authorized_keysに記載された公開鍵が
+# 対象ユーザの.ssh/authorized_keysに追加される。
+# ユーザが存在しない場合の動作は auto_user_add_for_users_authorized_keys 変数で制御する。
+#
+# 書式:
+# users_authorized_keys:
+#  "ユーザ名":
+#    - "公開鍵文字列1 (.ssh/authorized_keysに追記する形式)"
+#
+# 例:
+# users_authorized_keys:
+#   "alice":
+#     - "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIExampleKeyForAlice alice@example"
+#   "bob":
+#     - "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIExampleKeyForBobOne bob@example"
+#     - "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQDBExampleKeyForBobTwo bob@workstation"
+
+
+# ======================================================
+# sudoers設定 (オプション)
+# ======================================================
+
+# パスワード無しでsudo実行可能なユーザのリスト
+# sudo_nopasswd_users: ['user1']
+
+# パスワード無しでsudo実行可能なユーザを参加させるグループ
+# sudo_nopasswd_groups_extra: ['adm', 'cdrom', 'sudo', 'dip', 'plugdev', 'lxd', 'systemd-journal']
+
+# パスワード無しでsudo実行可能なユーザを参加させるグループを自動検出する場合は, trueに設定する
+# sudo_nopasswd_groups_autodetect: true
+
+# 生成ではなく削除 ( ロールバック )したい場合は trueに設定する
+# sudo_nopasswd_absent: false
+
+# ======================================================
+# 基本ネットワーク設定 (条件的必須: dns-server/nfs-server/ntp-server利用時)
+# ======================================================
+
+# 基本ネットワークアドレスとプレフィックス定義
+# DNS サーバー (dns_network, dns_network_ipv4_prefix), NFS サーバー (nfs_network), NTP サーバー (ntp_allow) で使用される
+#
+# IPv4 ネットワークアドレス (第4オクテットは0)
+# network_ipv4_network_address: "192.168.20.0"
+#
+# IPv4 ネットワークプレフィックス (第1-3オクテット, ドット区切り)
+# network_ipv4_prefix: "192.168.20"
+#
+# IPv4 ネットワークプレフィックス長 (サブネットマスクのビット数)
+# network_ipv4_prefix_len: 24
+#
+# IPv6 ネットワークアドレス (プレフィックス部分)
+# network_ipv6_network_address: "fd69:6684:61a:1::"
+#
+# IPv6 ネットワークプレフィックス長 (サブネットマスクのビット数)
+# network_ipv6_prefix_len: 64
+
+# ======================================================
+# 仮想環境管理ネットワーク設定
+# (条件的必須: kea-dhcp/router-config利用時)
+# ======================================================
+
+# 仮想環境内部管理ネットワークを構築する場合に定義する
+# kea-dhcp ロール (DHCP サーバー) と router-config ロール (NAT, フォワーディング設定) で使用される
+#
+# 仮想環境内部管理ネットワークの IPv4 CIDR (Classless Inter-Domain Routing, IP アドレスとネットワークプレフィックス長を組み合わせた表記法)
+# gpm_mgmt_ipv4_network_cidr: "192.168.30.0/24"
+#
+# 仮想環境内部管理ネットワークの IPv6 CIDR
+# gpm_mgmt_ipv6_network_cidr: "fdad:ba50:248b:1::/64"
+#
+# 仮想環境内部管理ネットワークのルータ IPv4 アドレス
+# gpm_mgmt_router_ipv4_address: "192.168.30.10"
+#
+# 仮想環境内部管理ネットワークのルータ IPv6 アドレス
+# gpm_mgmt_router_ipv6_address: "fdad:ba50:248b:1::10"
+#
+# 仮想環境内部管理ネットワークの IPv4 ネットワークゲートウェイ
+# gpm_mgmt_ipv4_network_gateway: "192.168.30.10"
+#
+# 仮想環境内部管理ネットワークの IPv6 ネットワークゲートウェイ
+# gpm_mgmt_ipv6_network_gateway: "fdad:ba50:248b:1::10"
+
+# ======================================================
+# 追加ネットワーク設定 (条件的必須: dns-server利用時)
+# ======================================================
+
+# DNS 逆引き (IP アドレスからドメイン名を検索する方向の名前解決) レコード用内部ネットワーク定義のリスト
+# dns-server ロールで追加ネットワークの逆引きゾーンを生成する場合に定義する
+# 複数ネットワーク逆引きゾーン対応: 追加ネットワークのリスト。各要素は { ipv4: "...", ipv6: "..." } 形式
+#
+# 例:
+# internal_network_list:
+#   - ipv4: "192.168.30.0/24"
+#     ipv6: "fdad:ba50:248b:1::/64"
+
+# =======================================================
+# DNSクライアント設定
+# (条件的必須: クライアントの使用DNSサーバ明示的指定時)
+# =======================================================
+
+# IPv4 DNS サーバ 1
+# ipv4_name_server1: "192.168.20.11"
+#
+# IPv4 DNS サーバ 2
+# ipv4_name_server2: "192.168.20.1"
+#
+# IPv6 DNS サーバ 1
+# ipv6_name_server1: "fd69:6684:61a:1::11"
+#
+# IPv6 DNS サーバ 2
+# ipv6_name_server2: "2606:4700:4700::1111"
+#
+# DNS 検索ドメイン (ホスト名解決時に自動で追加されるドメイン名)
+# dns_search: "example.org"
+
+# ======================================================
+# DNSレコード設定 (オプション)
+# ======================================================
+
+# 順引き (ドメイン名から IP アドレスを検索する方向の名前解決) /逆引き (IP アドレスからドメイン名を検索する方向の名前解決) レコードを生成するためのホスト定義リスト
+# 各要素は { name: "ホスト名", ipv4_addr: 'IPv4アドレスの最終オクテット' } 形式
+#
+# 例:
+# dns_host_list:
+#   - { name: 'router', ipv4_addr: '1'}
+#   - { name: 'mgmt-server', ipv4_addr: '11'}
+#   - { name: 'nas', ipv4_addr: '31'}
+
+# ======================================================
+# mDNS設定 (オプション)
+# ======================================================
+
+# Avahi マルチキャスト DNS (mDNS, 同一ネットワーク内の名前解決方式) サービスを導入する場合は true に設定する
+# mdns_enabled: false
+#
+# mDNS ホストリスト
+# mDNSホスト名を.ssh/configのHostに追加するための設定。
+# 各要素は { name: 'mDNSホスト名 (.localは自動付与)' } 形式
+#
+# 例:
+#
+# mdns_host_list:
+#   - { name: 'vmlinux1'}
+#   - { name: 'vmlinux2'}
+
+# ========================================================
+# NTPクライアント設定 (条件的必須: NTPクライアント利用時)
+# ========================================================
+
+# 時刻同期先 NTP サーバ一覧
+# 空要素, 空文字, 重複はテンプレートで除去される
+# ntp_servers_list:
+#   - "192.168.20.11"
+#   - "ntp.nict.jp"
+
+# ======================================================
+# DNSサーバ設定 (条件的必須: DNSサーバ機能利用時)
+# ======================================================
+
+# SOA (Start of Authority, 権威開始レコード) ホスト名 (FQDN, 完全修飾ドメイン名)
+# dns_server: "mgmt-server.example.org"
+#
+# DNS サーバの IPv4 アドレス
+# dns_server_ipv4_address: "192.168.20.11"
+#
+# DNS サーバの IPv6 アドレス
+# dns_server_ipv6_address: "fd69:6684:61a:1::11"
+#
+# 順引きゾーン名 (ドメイン名)
+# dns_domain: "example.org"
+#
+# IPv4 ACL (Access Control List, アクセス制御リスト) とゾーン内 A レコードのベースアドレス
+# dns_network: "192.168.20.0"
+#
+# IPv4 ネットワークプレフィックス (ネットワークアドレスの先頭部分)
+# dns_network_ipv4_prefix: "192.168.20"
+#
+# IPv4 ネットワークプレフィクス長
+# dns_network_ipv4_prefix_len: "24"
+#
+# IPv6 ACL や逆引きゾーンの生成に使用するプレフィックス
+# dns_network_ipv6_prefix: "fd69:6684:61a:1::"
+#
+# IPv6 ネットワークプレフィックス長
+# dns_network_ipv6_prefix_len: "64"
+#
+# IPv6 逆引きゾーンファイル名用プレフィックス (ハイフン区切り)
+# dns_network_ipv6_prefix_filename: "fd69-6684-61a-1"
+#
+# IPv4 逆引きゾーン名 (例: "20.168.192" => "20.168.192.in-addr.arpa")
+# dns_ipv4_reverse: "20.168.192"
+#
+# IPv6 逆引きゾーン名 (ニブル形式, 4ビット単位で逆順に並べる)
+# dns_ipv6_reverse: "1.0.0.0.a.1.6.0.4.8.6.6.9.6.d.f"
+#
+# Dynamic DNS (DDNS, IP アドレスの変化に合わせて DNS を更新する仕組み) update key のシークレット (Base64 エンコード済み)
+# 生成コマンド例: ddns-confgen -a hmac-sha256 -k ddns-clients -r /dev/urandom
+# dns_ddns_key_secret: "Base64EncodedSecretKeyHere=="
+#
+# NetworkManager (Linux のネットワーク管理ツール) 経由で Dynamic DNS にホスト名と IP アドレスを自動登録する場合は true に設定する
+# use_nm_ddns_update_scripts: true
+
+# ======================================================
+# NFSサーバ設定 (条件的必須: NFS利用時)
+# ======================================================
+
+# NFS (Network File System, ネットワーク越しにファイル共有を行う仕組み) で公開するディレクトリ
+# nfs_export_directory: "/home/nfsshare"
+#
+# NFS公開を許可するクライアント側ネットワーク (CIDR 形式)
+# nfs_network: "192.168.20.0/24"
+#
+# /etc/exports へ書き込む NFS 公開オプション
+# rw: 読み書き可能, no_root_squash: クライアント側 root 権限を制限しない,
+# sync: 同期書き込み, no_subtree_check: サブツリーチェックを無効化, no_wdelay: 書き込み遅延を無効化
+# nfs_options: "rw,no_root_squash,sync,no_subtree_check,no_wdelay"
+
+# ======================================================
+# NTPサーバ設定 (条件的必須: NTPサーバ利用時)
+# ======================================================
+
+# 上位 NTP (Network Time Protocol, 時刻同期の仕組み) サーバ一覧
+# 空要素, 空文字, 重複はテンプレートで除去されます
+# external_ntp_servers_list:
+#   - jp.pool.ntp.org
+#   - time.google.com
+#
+# NTP クライアントアクセスを許可するネットワーク (CIDR 形式)
+# ntp_allow: "192.168.20.0/24"
+
+# ======================================================
+# プロキシ設定 (条件的必須: プロキシ利用時)
+# ======================================================
+
+# HTTP/HTTPS プロキシ (ネットワーク中継サーバ, クライアントとサーバの間で通信を仲介) のホスト名
+# proxy_server: "proxy.example.org"
+#
+# プロキシサーバの待ち受けポート番号
+# proxy_port: "8080"
+#
+# プロキシ認証が必要な場合のユーザ名 (オプション, 認証プロキシ時のみ)
+# proxy_user: ""
+#
+# プロキシ認証パスワード (オプション, 認証プロキシ時のみ)
+# proxy_password: ""
+#
+# プロキシ経由させないホスト/ドメインの一覧 (カンマ区切り)
+# no_proxy: "localhost,127.0.0.1"
+
+# ======================================================
+# Rancher設定 (条件的必須: 全6個を定義)
+# ======================================================
+
+# Rancher ホスト名
+# rancher_host: "rancher01"
+#
+# Rancher 証明書のドメイン名
+# rancher_cert_domain_name: "example.org"
+#
+# Rancher 証明書の国名 (2文字の ISO 3166-1 国コード)
+# rancher_cert_subject_country: "JP"
+#
+# Rancher 証明書の都道府県名
+# rancher_cert_subject_state: "Tokyo"
+#
+# Rancher 証明書の市区町村名
+# rancher_cert_subject_locality: "Chiyoda-ku"
+#
+# Rancher 証明書の組織名
+# rancher_cert_subject_org: "MyOrganization"
+
+# ======================================================
+# Docker Community Edition (オプション)
+# ======================================================
+
+# docker グループへ追加する利用者一覧を定義する
+#
+# 書式: ユーザ名文字列のリスト
+#
+# 例:
+# docker_ce_users:
+#   - user1
+#   - user2
+#
+# Docker コンテナバックアップ設定
+#
+# バックアップスクリプト生成有効化フラグ
+# docker_ce_enable_backup_script: false
+#
+# バックアップ世代数 (保持するバックアップの数)
+# docker_ce_backup_rotation: "5"
+#
+# NFS (Network File System, ネットワーク越しにファイル共有を行う仕組み) サーバー名
+# docker_ce_backup_nfs_server: "nas.example.org"
+#
+# NFS 側の共有ディレクトリ
+# docker_ce_backup_nfs_dir: "/share"
+#
+# NFS マウントポイント (ローカルホスト上で NFS をマウントするディレクトリ)
+# docker_ce_backup_mount_point: "/mnt"
+#
+# NFS マウントポイント配下の保存ディレクトリ
+# docker_ce_backup_dir_on_nfs: "/Linux/containers"
+
+# ======================================================
+# ユーザ設定ファイル (/etc/skel)生成指示 (オプション)
+# 各ホストごとに生成指示を変えたい場合は, host_vars側で
+# 設定し, vars/all-config.ymlには設定しないこと
+# ======================================================
+
+# Bash (シェル, コマンド入力環境) 用の設定ファイルを作成する場合は true を指定する
+# user_settings_create_bash_skel: false
+#
+# zsh (Z Shell, 強力な対話的シェル) 用の設定ファイルを作成する場合は true を指定する
+# user_settings_create_zsh_skel: false
+#
+# SSH (Secure Shell, リモートコンピュータへの安全なログインと通信を可能にするプロトコル) 用の設定ファイルを作成する場合は true を指定する
+# user_settings_create_ssh_skel: false
+#
+# curl (コマンドラインHTTPクライアント) 用の設定ファイルを作成する場合は true を指定する
+# user_settings_create_curl_skel: false
+#
+# wget (GNU Wget, コマンドラインダウンロードツール) 用の設定ファイルを作成する場合は true を指定する
+# user_settings_create_wget_skel: false
+#
+# screen (GNU Screen, 複数のシェルセッションを管理する画面マルチプレクサ) 用の設定ファイルを作成する場合は true を指定する
+# user_settings_create_screen_skel: false
+#
+# tmux (Terminal multiplexer, 複数のシェルセッションを管理するターミナル分割ツール) 用の設定ファイルを作成する場合は true を指定する
+# user_settings_create_tmux_skel: false
+#
+# aspell (スペルチェッカープログラム) 用の設定ファイルを作成する場合は true を指定する
+# user_settings_create_aspell_skel: false
+#
+# Git (分散バージョン管理システム) 用の設定ファイル (.gitignore) を /etc/skel に作成する場合は true を指定する
+# user_settings_create_git_skel: false
+#
+# デフォルトの .gitignore をホームディレクトリ直下 (/etc/skel/.gitignore) に作成する場合は true を指定する
+# user_settings_create_gitignore_on_homedir_skel: false
+#
+# GDB (GNU Debugger, GNU プロジェクトのデバッガ) 用の設定ファイルを作成する場合は true を指定する
+# user_settings_create_gdb_skel: false
+#
+# Emacs (テキスト編集機能が豊富な高機能テキストエディタ) 用の基本設定ファイルを作成する場合は true を指定する
+# user_settings_create_emacs_skel: false
+
+# ======================================================
+# Git関連設定 (オプション)
+# 各ホストごとに生成指示を変えたい場合は, host_vars側で
+# 設定し, vars/all-config.ymlには設定しないこと
+# ======================================================
+
+# ユーザ作成後に .gitconfig (ユーザ固有の Git 設定ファイル) を配置する場合は true を指定する
+# post_user_create_gitconfig_enabled: true
+#
+# .gitconfig の user.name にログイン名を使用する場合は true を指定する (false の場合は users_list の comment フィールドを使用)
+# post_user_create_gitconfig_use_login_name: false
+
+# ======================================================
+# ホームディレクトリバックアップ (オプション)
+# 各ホストごとに指示を変えたい場合は, host_vars側で
+# 設定し, vars/all-config.ymlには設定しないこと
+# ======================================================
+
+# ホームディレクトリのバックアップスクリプトを作成する場合は true を指定する
+# user_settings_backup_home_script_enabled: false
+#
+# バックアップ世代数 (0以下の場合はスクリプト生成をスキップ)
+# user_settings_backup_home_rotation: 2
+#
+# マウントする NFS (Network File System, ネットワーク越しにファイル共有を行う仕組み) サーバのホスト名 (空の場合はスクリプト生成をスキップ)
+# user_settings_backup_home_nfs_server: "nas.example.org"
+#
+# マウントする NFS 共有ディレクトリ (空の場合はスクリプト生成をスキップ)
+# user_settings_backup_home_nfs_dir: "/share"
+#
+# NFS マウントポイント (ローカルホスト上で NFS をマウントするディレクトリ, 空の場合はスクリプト生成をスキップ)
+# user_settings_backup_home_mount_point: "/mnt"
+#
+# NFS マウントポイント配下のバックアップ配置先ディレクトリ (空の場合はスクリプト生成をスキップ)
+# user_settings_backup_dir_on_nfs: "/Linux/Devel"
+#
+# バックアップ対象ユーザのリスト (空の場合はスクリプト生成をスキップ)
+# user_settings_backup_users_list:
+#   - user1
+
+# ======================================================
+# Emacsパッケージ設定 (オプション)
+# 各ホストごとに指示を変えたい場合は, host_vars側で
+# 設定し, vars/all-config.ymlには設定しないこと
+# ======================================================
+
+# Emacs (テキスト編集機能が豊富な高機能テキストエディタ) パッケージを自動インストールするパッケージ名のリスト
+#
+# 書式: Emacs パッケージ名 (例: docker, rust-mode, yaml-mode など)をリストで指定する
+#
+# 例:
+# create_user_emacs_package_list:
+#   - docker
+#   - dockerfile-mode
+#   - docker-compose-mode
+#   - rust-mode
+#   - yaml-mode
+
+# ======================================================
+# LDAP設定 (条件的必須: 全4個を定義)
+# ======================================================
+
+# LDAP (Lightweight Directory Access Protocol, 階層型ディレクトリサービスへのアクセスプロトコル) 組織名
+# OpenLDAP コンテナの LDAP_ORGANISATION 環境変数として設定される
+# 未定義または空文字列の場合, ロール実行時に fail で停止する
+# ldap_organization: "MyOrganization"
+#
+# LDAP ドメイン名
+# OpenLDAP コンテナの LDAP_DOMAIN 環境変数として設定され, DC (Domain Component, DNSドメインをディレクトリツリーに対応付ける構成要素) 構成要素に使用されます
+# 未定義または空文字列の場合, ロール実行時に fail で停止する
+# ldap_domain: "ldap.example.org"
+#
+# LDAP 管理者 (cn=admin) のパスワード
+# OpenLDAP コンテナの LDAP_ADMIN_PASSWORD 環境変数として設定される
+# ldap_admin_password: "secure_password"
+#
+# phpLDAPadmin (Webベースの管理画面) Web UI の HTTPS 公開ポート番号
+# ldap_admin_port: 10443
+
+# ======================================================
+# Redmine設定 (オプション)
+# ======================================================
+
+# Redmine (プロジェクト管理ソフトウェア) バックアップスクリプトを生成する場合は true を指定する
+# redmine_enable_backup_script: false
+#
+# バックアップ世代数 (日数)
+# redmine_backup_rotation: 7
+#
+# NFS (Network File System, ネットワーク越しにファイル共有を行う仕組み) サーバー名
+# redmine_backup_nfs_server: "nas.example.org"
+#
+# NFS 側の共有ディレクトリ
+# redmine_backup_nfs_dir: "/share"
+#
+# NFS マウントポイント (ローカルホスト上で NFS をマウントするディレクトリ)
+# redmine_backup_mount_point: "/mnt"
+#
+# NFS マウントポイント配下の保存ディレクトリ
+# redmine_backup_dir_on_nfs: "/Linux/Redmine"
+
+# ======================================================
+# Gitlab設定 (オプション)
+# ======================================================
+
+# GitLab (バージョン管理システムとDevOpsプラットフォーム) バックアップスクリプトを生成する場合は true を指定する
+# gitlab_enable_backup_script: false
+#
+# バックアップ世代数 (日数)
+# gitlab_backup_rotation: 7
+#
+# NFS (Network File System, ネットワーク越しにファイル共有を行う仕組み) サーバー名
+# gitlab_backup_nfs_server: "nas.example.org"
+#
+# NFS 側の共有ディレクトリ
+# gitlab_backup_nfs_dir: "/share"
+#
+# NFS マウントポイント (ローカルホスト上で NFS をマウントするディレクトリ)
+# gitlab_backup_mount_point: "/mnt"
+#
+# NFS マウントポイント配下の保存ディレクトリ
+# gitlab_backup_dir_on_nfs: "/Linux/Gitlab"
+
+# ======================================================
+# Terraform 設定 (オプション)
+# 各ホストごとに指示を変えたい場合は, host_vars側で
+# 設定し, vars/all-config.ymlには設定しないこと
+# ======================================================
+
+# Terraform (インフラストラクチャをコードで管理するツール) を導入する場合は true を指定する
+# terraform_enabled: false
+
+# ======================================================
+# Go 言語設定 (オプション)
+# 各ホストごとに指示を変えたい場合は, host_vars側で
+# 設定し, vars/all-config.ymlには設定しないこと
+# ======================================================
+
+# Go 言語 (プログラミング言語) のバージョン
+# go_lang_version: "1.18"
+
+# ======================================================
+# Kubernetes設定 (条件的必須: Kubernetes 利用時)
+# ======================================================
+
+# Kubernetes (コンテナオーケストレーションプラットフォーム) のメジャー.マイナーバージョン (例: "1.31")
+# k8s_major_minor: "1.31"
+#
+# Kubernetes 共通 CA (証明書管理局) を作成する場合は true を指定する
+# enable_create_k8s_ca: true
+#
+# Kubernetes 共通 CA のソースホスト (証明書を生成するホスト)
+# k8s_shared_ca_source_host: "localhost"
+#
+# Kubernetes 共通 CA の証明書内容 (空文字列の場合は新規作成)
+# k8s_common_ca: ""
+#
+# Kubernetes 共通 CA の出力ディレクトリ
+# k8s_shared_ca_output_dir: "/etc/kubernetes/pki/shared-ca"
+#
+# Kubernetes 標準 CA を共通 CA で置き換える場合は true を指定する
+# k8s_shared_ca_replace_kube_ca: true
+#
+# =======================================================
+# Cilium CNI (eBPFを活用した高性能なCNIプラグイン) 設定
+# (条件的必須: Kubernetes利用時)
+# =======================================================
+
+# Cilium CNI (Container Network Interface, Kubernetes のネットワークプラグイン仕様, eBPFを活用した高性能なCNIプラグイン) のバージョン
+# k8s_cilium_version: "1.16.0"
+#
+# Cilium 共通 CA を有効化する場合は true を指定する
+# k8s_cilium_shared_ca_enabled: true
+#
+# Kubernetes CA を Cilium CA として再利用する場合は true を指定する
+# k8s_cilium_shared_ca_reuse_k8s_ca: true
+#
+# Cilium CA を自動作成する場合は true を指定する
+# k8s_cilium_shared_ca_auto_create: false
+#
+# Cilium 共通 CA の出力ディレクトリ
+# k8s_cilium_shared_ca_output_dir: "/etc/kubernetes/pki/cilium-shared-ca"
+#
+# Cilium CA 証明書ファイル名
+# k8s_cilium_shared_ca_cert_filename: "cilium-ca.crt"
+#
+# Cilium CA 秘密鍵ファイル名
+# k8s_cilium_shared_ca_key_filename: "cilium-ca.key"
+#
+# Cilium CA 証明書パス (外部証明書を使用する場合に指定)
+# k8s_cilium_shared_ca_cert_path: ""
+#
+# Cilium CA 秘密鍵パス (外部鍵を使用する場合に指定)
+# k8s_cilium_shared_ca_key_path: ""
+#
+# Cilium 共通 CA 用 kubeconfig (クラスタ接続設定ファイル) パス
+# cilium_shared_ca_kubeconfig: "/etc/kubernetes/admin.conf"
+#
+# その他Kubernetes設定
+# システム用に予約する CPU (Central Processing Unit, 中央処理装置) コアの範囲 (CPU割り当て固定用)
+# k8s_reserved_system_cpus_default: "0-1"
+#
+# ワーカーノードで NodePort (ノードの IP アドレスとポートでサービスを公開する方式) を有効化する場合は true を指定する
+# k8s_worker_enable_nodeport: false
+#
+# NodePort のポート範囲
+# k8s_worker_nodeport_range: "30000-32767"
+#
+# Kubernetes オペレータユーザの GitHub アカウントから公開鍵を取得するリスト
+#
+# https://github.com/<アカウント名>.keys から鍵を取得し, authorized_keys に追記する
+
+# 書式: キーに, 'github', 値に,  `GitHubアカウント名`指定した辞書
+#      ( { github: 'GitHubアカウント名' } 形式 ) のリスト
+#
+# 例:
+#
+# k8s_operator_github_key_list:
+#   - { github: 'githubuser' }
+#
+# Kubernetes オペレータユーザの追加で登録したい公開鍵のリスト
+#
+# 書式:
+#   公開鍵文字列(例: "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIExampleKeyForOperator operator@example")のリスト
+#
+# 例:
+# k8s_operator_authorized_key_list:
+#   - "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIExampleKeyForOperator operator@example"
+#
+# k8s_operator_authorized_key_list: []
+#
+# ======================================================
+# Helm設定 (Kubernetes利用時のオプション)
+# ======================================================
+
+# Helm (Kubernetesアプリケーションのパッケージ管理ツール) のバージョン
+# k8s_helm_version: "3.19.0"
+
+# ======================================================
+# Multus CNI設定 (Kubernetes利用時のオプション)
+# ======================================================
+
+# Multus CNI (複数のCNIプラグインを同時に使用できるようにするメタCNIプラグイン) を導入する場合は true を指定する
+# k8s_multus_enabled: true
+#
+# Multus CNI のバージョン
+# k8s_multus_version: "v4.2.3"
+
+# ======================================================
+# Whereabouts CNI設定 (Kubernetes利用時のオプション)
+# ======================================================
+
+# Whereabouts CNI (IP アドレス管理を行う CNI IPAM, IP Address Management, IPアドレス管理, プラグイン) を導入する場合は true を指定する
+# k8s_whereabouts_enabled: true
+#
+# Whereabouts CNI のバージョン
+# k8s_whereabouts_version: "0.9.2"
+
+# ======================================================
+# Kubernetes Clientライブラリ (Kubernetes利用時のオプション)
+# 各ホストごとに指示を変えたい場合は, host_vars側で
+# 設定し, vars/all-config.ymlには設定しないこと
+# ======================================================
+
+# Kubernetes Python クライアントライブラリ (Python から Kubernetes API を操作するライブラリ) を導入する場合は true を指定する
+# k8s_devel_python_client_enabled: false
+#
+# Kubernetes Go クライアントライブラリ (Go 言語から Kubernetes API を操作するライブラリ) を導入する場合は true を指定する
+# k8s_devel_go_client_enabled: false
+#
+
+# ======================================================
+# Netgauge設定 (Kubernetes利用時のオプション)
+# 各ホストごとに指示を変えたい場合は, host_vars側で
+# 設定し, vars/all-config.ymlには設定しないこと
+# ======================================================
+#
+# Netgauge を使用する場合は, trueに設定する
+# netgauge_enabled: false
+#
+# Netgauge (ネットワークベンチマークツール) のバージョン
+# netgauge_version: "2.4.6"
+#
+# Netgauge のインストールディレクトリ
+# netgauge_dir: "/opt/netgauge"
+#
+# Netgauge の configure (ビルド設定スクリプト) オプション
+# MPI (Message Passing Interface, 並列計算用メッセージパッシングインターフェース) を使用しない設定でインストール先を /opt/netgauge に指定
+# netgauge_configure: "--with-mpi=no --prefix={{ netgauge_dir }}"

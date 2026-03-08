@@ -38,3 +38,11 @@ rancher_data_dir: "/var/lib/rancher"
 
 # Rancherイメージ
 rancher_image: "rancher/rancher:latest"
+
+# Rancher証明書関連設定
+rancher_host: ""
+rancher_cert_domain_name: ""
+rancher_cert_subject_country: ""
+rancher_cert_subject_state: ""
+rancher_cert_subject_locality: ""
+rancher_cert_subject_org: ""
