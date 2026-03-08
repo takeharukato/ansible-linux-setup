@@ -17,7 +17,7 @@ mgmt_nic: "ens160"
 # 仮想環境内部管理ネットワークのvNIC
 gpm_mgmt_nic: "ens192"
 # 疑似外部ネットワークのvNIC
-external_net__nic: "enX2"
+external_net_nic: "enX2"
 
 # FRR02のIPアドレス末尾
 frr02_ipv4_addr_octet: "48"
@@ -36,7 +36,7 @@ frr02_ipv6_addr_field: "48"
 #  IPv4: 192.168.40.0
 #  IPv6: fd69:6684:61a:2::
 #
-# 疑似外部ネットワーク(enX2)
+# 疑似外部ネットワーク(ens224)
 # 本サーバは, マルチホーム構成としており, 管理系IFが接続されたスイッチ
 # と疑似外部ネットワーク用IFが接続されたスイッチ, 疑似外部ネットワークの3系統のスイッチに接続される
 # 疑似外部ネットワーク用IFが接続されたスイッチのネットワークは以下を使用する
@@ -64,7 +64,7 @@ netif_list:
     name_server_ipv6_1: "{{ipv6_name_server1}}"
     name_server_ipv6_2: "{{ipv6_name_server2}}"
     dns_search: "example.org"
-  - netif: "ens192"
+  - netif: "{{gpm_mgmt_nic}}"
     mac: "00:50:56:00:03:02"
     static_ipv4_addr: "{{k8s_net2_ipv4_prefix}}.{{frr02_ipv4_addr_octet}}"
     network_ipv4_prefix_len: 24
@@ -79,7 +79,7 @@ netif_list:
     route_metric_ipv4: 300
     route_metric_ipv6: 300
     dns_search: "example.org"
-  - netif: "enX2"
+  - netif: "{{external_net_nic}}"
     mac: "00:50:56:00:03:0c"
     static_ipv4_addr: "{{external_net_ipv4_prefix}}.{{frr02_ipv4_addr_octet}}"
     network_ipv4_prefix_len: 24
