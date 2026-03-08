@@ -204,13 +204,14 @@ common_selinux_state: "permissive"
 # ======================================================
 
 # 順引き (ドメイン名から IP アドレスを検索する方向の名前解決) /逆引き (IP アドレスからドメイン名を検索する方向の名前解決) レコードを生成するためのホスト定義リスト
-# 各要素は { name: "ホスト名", ipv4_addr: 'IPv4アドレスの最終オクテット' } 形式
+# 各要素は { name: "ホスト名", ipv4_addr: 'IPv4アドレスの最終オクテット', ipv6_addr: 'IPv6アドレスのホスト部' } 形式
+# ipv4_addr と ipv6_addr は共にオプションで, 少なくとも一方を指定するとレコードが生成されます。
 #
 # 例:
 # dns_host_list:
-#   - { name: 'router', ipv4_addr: '1'}
-#   - { name: 'mgmt-server', ipv4_addr: '11'}
-#   - { name: 'nas', ipv4_addr: '31'}
+#   - { name: 'router', ipv4_addr: '1', ipv6_addr: '::1'}
+#   - { name: 'mgmt-server', ipv4_addr: '11', ipv6_addr: '::11'}
+#   - { name: 'nas', ipv4_addr: '31'}  # IPv4のみ
 
 # ======================================================
 # mDNS設定 (オプション)

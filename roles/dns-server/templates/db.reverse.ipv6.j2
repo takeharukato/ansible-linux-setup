@@ -22,6 +22,21 @@ $TTL 86400
 )
 
        IN      NS       {{ dns_server|default('', true) }}.
+{# 各行は, 先頭にインデントを入れてはいけないことに注意 #}
+{#- Jinja2の'-'を使用して前後の空白を削除すると末尾の改行が削除されるので使用していない #}
+{% for host in dns_host_list|default([], true) %}
+{% set ipv6_addr = (host.ipv6_addr | default('',true) | string | trim) %}
+{% set name = (host.name | default('',true) | string | trim) %}
+{% if name and ipv6_addr|length > 0 %}
+{% set full_ipv6 = (dns_network_ipv6_prefix|default('', true) ~ ipv6_addr) | string | trim %}
+{% set nibbles = full_ipv6 | ipv6_host_nibble(dns_network_ipv6_prefix_len|default(64, true)|int) %}
+{% if nibbles|length > 0 %}
+; {{ nibbles }}  IN  PTR  {{ name }}.{{ dns_domain|default('', true) }}.
+{{ nibbles }}  IN  PTR  {{ name }}.{{ dns_domain|default('', true) }}.
+
+{% endif %}
+{% endif %}
+{% endfor %}
 ; 以降, クライアントが nsupdate で自分の PTR を登録する
 ; 固定IPv6アドレスを持つホストを手動で登録する場合は, 以下の行を参考にして登録する
 ; ただし, 行の先頭にインデントを入れてはいけないことに注意

@@ -158,15 +158,20 @@ mdns_host_list:
 |キー名|設定値|設定値の例|
 |---|---|---|
 |name|DNSのホスト名 (ドメインを除去したホスト名)。|'k8sctrlplane01'|
+|ipv4_addr|(オプション) IPv4 アドレスの最終オクテット。`dns-server` ロールで DNS A レコード生成に使用される。`user-settings` ロールでは参照されない。|'101'|
+|ipv6_addr|(オプション) IPv6 アドレスのホスト部。`dns-server` ロールで DNS AAAA レコード生成に使用される。`user-settings` ロールでは参照されない。|'::10'|
 
 記載例は以下の通りです:
 
 ```yaml
 dns_domain: "example.org"
 dns_host_list:
-   - { name: 'k8sctrlplane01' }
-   - { name: 'k8sworker0101' }
+   - { name: 'k8sctrlplane01', ipv4_addr: '101', ipv6_addr: '::101' }
+   - { name: 'k8sworker0101', ipv4_addr: '111', ipv6_addr: '::111' }
+   - { name: 'legacy-host', ipv4_addr: '200' }  # IPv4のみ
 ```
+
+注: `dns_host_list` は `dns-server` ロールと `user-settings` ロールで共有される変数です。`dns-server` ロールでは `name`, `ipv4_addr`, `ipv6_addr` を使用して DNS A/AAAA レコードと PTR レコードを生成し, `user-settings` ロールでは `name` のみを使用して `.ssh/config` の Host エントリを生成します。`ipv4_addr` と `ipv6_addr` は省略可能で, 少なくとも一方が定義されていれば対応するレコードが生成されます。
 
 `Host <dns_host_listで指定したホスト名>.<dns_domainで指定したドメイン名>`形式で, `.ssh/config`のホストエントリが作成されます。`
 `dns_domain` が未定義または空文字列の場合は, `Host <dns_host_listで指定したホスト名>` 形式 (ドメイン名を除いたホスト名のみを指定)で出力されます。

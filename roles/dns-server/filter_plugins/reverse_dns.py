@@ -149,9 +149,66 @@ class FilterModule(object):
 
         return reverse_zone
 
+    def ipv6_host_nibble(self, ipv6_addr: str, prefix_len: int = 64) -> str:
+        """
+        IPv6アドレスのホスト部をニブル逆順表記に変換します。
+
+        引数:
+            ipv6_addr (str): 完全なIPv6アドレス (例: 'fd69:6684:61a:1::10')
+            prefix_len (int): プレフィックス長 (既定値: 64)
+
+        戻り値:
+            str: ニブル逆順表記のホスト部 (例: '0.1.0.0.0.0.0.0.0.0.0.0.0.0.0.0')
+
+        例外:
+            AnsibleFilterError: IPv6アドレス形式が無効な場合
+
+        使用例:
+            >>> ipv6_host_nibble('fd69:6684:61a:1::10')
+            '0.1.0.0.0.0.0.0.0.0.0.0.0.0.0.0'
+            >>> ipv6_host_nibble('fd69:6684:61a:2::20')
+            '0.2.0.0.0.0.0.0.0.0.0.0.0.0.0.0'
+        """
+        try:
+            # IPv6アドレスをパース
+            addr = ipaddress.IPv6Address(ipv6_addr)
+        except ValueError as e:
+            raise AnsibleFilterError(
+                f"Invalid IPv6 address format: '{ipv6_addr}'. "
+                f"Expected format: xxxx:xxxx:xxxx:xxxx:xxxx:xxxx:xxxx:xxxx. Error: {str(e)}"
+            )
+        except TypeError as e:
+            raise AnsibleFilterError(
+                f"Invalid type for ipv6_host_nibble: {type(ipv6_addr)}. "
+                f"Expected string (e.g., 'fd69:6684:61a:1::10')"
+            )
+
+        # 完全な表記に展開
+        addr_full = addr.exploded  # 例: 'fd69:6684:061a:0001:0000:0000:0000:0010'
+
+        # コロンを削除して連続した16進数文字列を取得
+        addr_hex = addr_full.replace(':', '')  # 例: 'fd6966840...0010'
+
+        # ホスト部のニブル数を計算 (128ビット - prefix_len)
+        host_bits = 128 - prefix_len
+        host_nibbles = host_bits // 4
+
+        # 下位のhost_nibbles個を取得（ホスト部）
+        host_part = addr_hex[-host_nibbles:] if host_nibbles > 0 else ''
+
+        # ニブルを逆順にする
+        nibbles = list(host_part)
+        nibbles.reverse()
+
+        # ドットで結合
+        nibble_notation = '.'.join(nibbles)
+
+        return nibble_notation
+
     def filters(self) -> Dict[str, Any]:
         """フィルター関数を返す"""
         return {
             'ipv4_reverse_zone': self.ipv4_reverse_zone,
             'ipv6_reverse_zone': self.ipv6_reverse_zone,
+            'ipv6_host_nibble': self.ipv6_host_nibble,
         }

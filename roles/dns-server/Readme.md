@@ -214,8 +214,8 @@ dns_network_ipv6_prefix_len: 64
 dns_ipv4_reverse: "20.168.192"
 dns_ipv6_reverse: "1.0.0.0.8.7.6.5.4.3.2.1.0.0.d.f"
 dns_host_list:
-  - { name: "host1", ipv4: "192.168.20.10", ipv6: "fd00:1234:5678:1::10" }
-  - { name: "host2", ipv4: "192.168.20.11", ipv6: "fd00:1234:5678:1::11" }
+  - { name: "host1", ipv4_addr: "10", ipv6_addr: "::10" }
+  - { name: "host2", ipv4_addr: "11", ipv6_addr: "::11" }
 dns_ddns_key_secret: "YOUR_BASE64_ENCODED_SECRET_HERE"
 ```
 
