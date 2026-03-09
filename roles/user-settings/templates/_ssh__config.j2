@@ -33,17 +33,33 @@ ForwardAgent yes
 ServerAliveInterval 30
 StrictHostKeyChecking no
 UserKnownHostsFile=/dev/null
+
+{% if ( mdns_host_list | default([], true) | length ) > 0 %}
+#
+# mDNS (multicast DNS) ホスト
+#
 {% for host in mdns_host_list | default([], true) %}
 {% set host_name = host.name | default('', true) | string | trim %}
 {% if host_name | length > 0 %}
 Host {{ host_name }}.local
 {% endif %}
+{# 行単位の改行を入れるため, 以下に空行を入れている #}
+
 {% endfor %}
+{% endif %}
+{% if ( dns_host_list | default([], true) | length ) > 0 %}
+#
+# DNS静的登録ホスト
+#
 {% for host in dns_host_list | default([], true) %}
 {% set host_name = host.name | default('', true) | string | trim %}
 {% set host_domain = dns_domain | default('', true) | string | trim %}
 {% if host_name | length > 0 %}
-Host {{ host_name }}{% if host_domain | length > 0 %}.{{ host_domain }}{% endif %}
+{% if host_domain | length > 0 %}
+Host {{ host_name }}.{{ host_domain }}
+{% else %}
+Host {{ host_name }}
+{% endif %}
 {% if ssh_legacy_key_hosts is defined and (ssh_legacy_key_hosts | default([], true) | length) > 0 %}
 {% if host_name in ssh_legacy_key_hosts %}
   #
@@ -55,7 +71,13 @@ Host {{ host_name }}{% if host_domain | length > 0 %}.{{ host_domain }}{% endif 
 {% endif %}
 {% endif %}
 {% endif %}
+{# 行単位の改行を入れるため, 以下に空行を入れている #}
+
 {% endfor %}
+{% endif %}
+#
+# GitHubアクセス用
+#
 Host github.com
   User git
   Port 22
