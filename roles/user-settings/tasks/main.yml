@@ -62,6 +62,11 @@
   ansible.builtin.include_tasks: directory-gdb.yml
   when:
     - user_settings_create_gdb_skel|default(false)
+# systemd ssh-agent 関連ファイル, ディレクトリ作成関連タスク
+- name: "Directory Systemd Ssh Agent"
+  ansible.builtin.include_tasks: directory-systemd-ssh-agent.yml
+  when:
+    - user_settings_systemd_ssh_agent_skel|default(false)
 # ホームディレクトリのバックアップ関連タスク
 # バックアップスクリプトで必要な変数が全て定義されている場合にのみ,
 # バックアップスクリプト関連タスクを実行する

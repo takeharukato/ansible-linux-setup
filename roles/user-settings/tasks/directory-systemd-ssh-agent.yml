@@ -1,0 +1,62 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#  systemd ssh-agent 関連ファイル・ディレクトリ作成関連タスク
+---
+
+#
+# .config ディレクトリの作成
+#
+- name: Create /etc/skel/.config directory
+  ansible.builtin.file:
+    path: /etc/skel/.config
+    state: directory
+    owner: root
+    group: root
+    mode: '0755'
+
+#
+# .config/systemd ディレクトリの作成
+#
+- name: Create /etc/skel/.config/systemd directory
+  ansible.builtin.file:
+    path: /etc/skel/.config/systemd
+    state: directory
+    owner: root
+    group: root
+    mode: '0755'
+
+#
+# .config/systemd/user ディレクトリの作成
+#
+- name: Create /etc/skel/.config/systemd/user directory
+  ansible.builtin.file:
+    path: /etc/skel/.config/systemd/user
+    state: directory
+    owner: root
+    group: root
+    mode: '0755'
+
+#
+# ssh-agent.socket ユニットファイルの配布
+#
+- name: Deploy ssh-agent.socket unit file
+  ansible.builtin.template:
+    src: _config_systemd_user_ssh-agent.socket.j2
+    dest: /etc/skel/.config/systemd/user/ssh-agent.socket
+    owner: root
+    group: root
+    mode: '0644'
+    backup: false
+
+#
+# ssh-agent.service ユニットファイルの配布
+#
+- name: Deploy ssh-agent.service unit file
+  ansible.builtin.template:
+    src: _config_systemd_user_ssh-agent.service.j2
+    dest: /etc/skel/.config/systemd/user/ssh-agent.service
+    owner: root
+    group: root
+    mode: '0644'
+    backup: false

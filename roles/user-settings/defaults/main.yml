@@ -30,6 +30,12 @@ user_settings_create_git_skel: false
 user_settings_create_gitignore_on_homedir_skel: false
 # gdb用の設定ファイルを作成する場合は, trueを指定する
 user_settings_create_gdb_skel: false
+# systemd ユーザー機能を使用した ssh-agent の設定ファイルを作成する場合は, trueを指定する
+# trueを指定すると, /etc/skel/.config/systemd/user/ 配下に ssh-agent.service と ssh-agent.socket が配置され,
+# .zprofile と .bash_profile で SSH_AUTH_SOCK が systemd のソケットを参照するように設定される。
+# SSH 接続経由のログイン時は SSH agent forwarding を維持するため, SSH_AUTH_SOCK を上書きしない。
+# 有効化するには, ユーザ側で systemctl --user enable --now ssh-agent.socket を実行する必要がある。
+user_settings_systemd_ssh_agent_skel: false
 
 #
 # ホームディレクトリのバックアップ

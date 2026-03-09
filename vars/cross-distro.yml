@@ -66,6 +66,14 @@ getent_passwd_field_gecos_rhel: 3
 getent_passwd_field_gecos: "{{ (ansible_facts.os_family == 'Debian') | ternary(getent_passwd_field_gecos_debian, getent_passwd_field_gecos_rhel) }}"
 
 ##################################################################################
+# bash シェル補完
+##################################################################################
+# RHEL, Debian, Ubuntuの共通で存在するbash補完処理初期化処理スクリプトファイル
+user_settings_bash_completion_init_path_rhel: "/usr/share/bash-completion/bash_completion"
+# Debian/Ubuntuのbash補完処理初期化処理スクリプトファイル
+user_settings_bash_completion_init_path_debian: "/etc/bash_completion"
+
+##################################################################################
 # kubectl シェル補完
 ##################################################################################
 kubectl_bash_completion_path_debian: "/usr/share/bash-completion/completions/kubectl"
@@ -148,6 +156,29 @@ go_remove_packages: "{{ (ansible_facts.os_family == 'Debian') | ternary(go_remov
 
 # Goコマンドパス: tarball導入時
 go_command_tarball: "{{ go_install_dir }}/bin/go"
+
+##################################################################################
+# systemd ssh-agent (user-settings ロール用)
+##################################################################################
+# ssh-agent バイナリパス
+user_settings_systemd_ssh_agent_bin_debian: "/usr/bin/ssh-agent"
+user_settings_systemd_ssh_agent_bin_rhel: "/usr/bin/ssh-agent"
+user_settings_systemd_ssh_agent_bin: "{{ (ansible_facts.os_family == 'Debian') | ternary(user_settings_systemd_ssh_agent_bin_debian, user_settings_systemd_ssh_agent_bin_rhel) }}"
+
+# systemd unit 内で使用するソケットパス (%t は XDG_RUNTIME_DIR に展開される)
+user_settings_systemd_ssh_agent_socket_path_debian: "%t/ssh-agent.socket"
+user_settings_systemd_ssh_agent_socket_path_rhel: "%t/ssh-agent.socket"
+user_settings_systemd_ssh_agent_socket_path: "{{ (ansible_facts.os_family == 'Debian') | ternary(user_settings_systemd_ssh_agent_socket_path_debian, user_settings_systemd_ssh_agent_socket_path_rhel) }}"
+
+# シェル初期化ファイルで使用するソケットパス ($XDG_RUNTIME_DIR は実行時に展開される)
+user_settings_systemd_ssh_agent_shell_socket_path_debian: "$XDG_RUNTIME_DIR/ssh-agent.socket"
+user_settings_systemd_ssh_agent_shell_socket_path_rhel: "$XDG_RUNTIME_DIR/ssh-agent.socket"
+user_settings_systemd_ssh_agent_shell_socket_path: "{{ (ansible_facts.os_family == 'Debian') | ternary(user_settings_systemd_ssh_agent_shell_socket_path_debian, user_settings_systemd_ssh_agent_shell_socket_path_rhel) }}"
+
+# systemd user unit ファイル配置先 (ホームディレクトリ基準の相対パス)
+user_settings_systemd_user_unit_dir_debian: ".config/systemd/user"
+user_settings_systemd_user_unit_dir_rhel: ".config/systemd/user"
+user_settings_systemd_user_unit_dir: "{{ (ansible_facts.os_family == 'Debian') | ternary(user_settings_systemd_user_unit_dir_debian, user_settings_systemd_user_unit_dir_rhel) }}"
 
 # Goコマンドパス: デフォルト (パッケージマネージャを想定)
 # 実際の値はインストール処理で上書きされる

@@ -28,49 +28,36 @@
     backup: false
 
 #
-# .bashrcのスケルトンに補完設定処理を追加する
-# [ -f ~/.bashrc.proxy ] && source ~/.bashrc.proxy
+# .bash_profile のスケルトンファイル生成
 #
-- name: Add sourcing completion setting line into /etc/skel/.bashrc
-  ansible.builtin.lineinfile:
-    path: /etc/skel/.bashrc
-    regexp: '^\[ \-f /usr/share/bash-completion/bash_completion \] && source /usr/share/bash-completion/bash_completion'
-    insertafter: EOF
-    line: '[ -f /usr/share/bash-completion/bash_completion ] && source /usr/share/bash-completion/bash_completion # load bash completion'
-    backup: false
-
-#
-# .bashrcのスケルトンにプロキシ設定読込行を追加する
-# [ -f ~/.bashrc.proxy ] && source ~/.bashrc.proxy
-#
-- name: Add sourcing proxy setting line into /etc/skel/.bashrc
-  ansible.builtin.lineinfile:
-    path: /etc/skel/.bashrc
-    regexp: '^\[ \-f ${HOME}/.bashrc.proxy \] && source ${HOME}/.bashrc.proxy'
-    insertafter: EOF
-    line: '[ -f ${HOME}/.bashrc.proxy ] && source ${HOME}/.bashrc.proxy # load proxy settings'
+- name: Deploy a bash_profile skeleton
+  ansible.builtin.template:
+    src: _bash_profile.j2
+    dest: /etc/skel/.bash_profile
+    owner: root
+    group: root
+    mode: '0644'
     backup: false
 
 #
 # .bashrcのスケルトンに個人設定ファイル読込行を追加する
-# [ -f ~/.bashrc.mine ] && source ~/.bashrc.mine
 #
 - name: Add sourcing personal setting line into /etc/skel/.bashrc
   ansible.builtin.lineinfile:
     path: /etc/skel/.bashrc
     regexp: '^\[ \-f ${HOME}/.bashrc.mine \] && source ${HOME}/.bashrc.mine'
     insertafter: EOF
-    line: '[ -f ${HOME}/.bashrc.mine ] && source ${HOME}/.bashrc.mine # load personal settings'
+    line: '[ -f ${HOME}/.bashrc.mine ] && source ${HOME}/.bashrc.mine'
     backup: false
 
 #
-# .bashrcのスケルトンにLmod設定ファイル読込行を追加する
-# [ -f ~/.bashrc.lmod ] && source ~/.bashrc.lmod
+# .bashrc.mine のスケルトンファイル
 #
-- name: Add sourcing Lmod setting line into /etc/skel/.bashrc
-  ansible.builtin.lineinfile:
-    path: /etc/skel/.bashrc
-    regexp: '^\[ \-f ${HOME}/.bashrc.lmod \] && source ${HOME}/.bashrc.lmod'
-    insertafter: EOF
-    line: '[ -f ${HOME}/.bashrc.lmod ] && source ${HOME}/.bashrc.lmod # load Lmod settings'
+- name: Deploy a bashrc.mine skeleton
+  ansible.builtin.template:
+    src: _bashrc.mine.j2
+    dest: /etc/skel/.bashrc.mine
+    owner: root
+    group: root
+    mode: '0644'
     backup: false
