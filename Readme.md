@@ -706,8 +706,10 @@ K8sを構成するコントロールプレイン, ワーカーノードとは別
 |---|---|---|
 |`frr_bgp_asn`|BGPで使用する自律システム (`Autonomous System`) 番号(`AS番号`)を指定する。1〜4294967295の整数で設定する。|`65011`|
 |`frr_bgp_router_id`|FRRノードを識別するBGP Router-ID (IPv4アドレス形式) を指定する。|`192.168.30.49`|
-|`frr_k8s_neighbors`|iBGPでピアリングするK8sノード群を定義する。`addr`(接続先IPv4アドレス) / `asn`(ピアのAS番号) / `desc`(ピアの説明文) を要素に持つ辞書のリストで指定する。|`[{ addr: '192.168.30.41', asn: 65011, desc: 'C1 control-plane' }]`|
+|`frr_ibgp_neighbors`|iBGPでピアリングするノード群を定義する。`addr`(接続先IPv4アドレス) / `asn`(ピアのAS番号) / `desc`(ピアの説明文) を要素に持つ辞書のリストで指定する。|`[{ addr: '192.168.30.41', asn: 65011, desc: 'C1 control-plane' }]`|
+|`frr_ibgp_neighbors_v6`|iBGPでピアリングするノード群をIPv6アドレスで定義する。`addr`(接続先IPv6アドレス) / `asn`(ピアのAS番号) / `desc`(ピアの説明文) を要素に持つ辞書のリストで指定する。|`[{ addr: 'fd69:6684:61a:2::41', asn: 65011, desc: 'C1 control-plane' }]`|
 |`frr_ebgp_neighbors`|eBGPで接続する外部ピアを定義する。`addr`(接続先IPv4アドレス) / `asn`(ピアのAS番号) / `desc`(ピアの説明文) を要素に持つ辞書のリストで指定する。|`[{ addr: '192.168.90.1', asn: 65100, desc: 'External GW' }]`|
+|`frr_ebgp_neighbors_v6`|eBGPで接続する外部ピアをIPv6アドレスで定義する。`addr`(接続先IPv6アドレス) / `asn`(ピアのAS番号) / `desc`(ピアの説明文) を要素に持つ辞書のリストで指定する。|`[{ addr: 'fd69:6684:61a:90::1', asn: 65100, desc: 'External GW' }]`|
 |`frr_networks_v4`|BGPで広告するIPv4プレフィックスをCIDR表記のリストで指定する。|`['192.168.30.0/24', '192.168.90.0/24']`|
 |`frr_networks_v6`|BGPで広告するIPv6プレフィックスをCIDR表記のリストで指定する。|`['fd69:6684:61a:2::/64', 'fd69:6684:61a:90::/64']`|
 

@@ -53,7 +53,7 @@
 | ------ | ---- | -- | ---- | ---- |
 | `frr_bgp_asn` | BGP 自律システム (Autonomous System - ASと略す)番号 | `65011` | 必須 | `frr.conf`を生成する`frr.conf.j2` テンプレートで使用。 |
 | `frr_bgp_router_id` | BGP Router-ID | `192.168.30.49` | 必須 | BGPセッションで使用するIPv4アドレスを指定する。IPv4 形式で指定。`frr.conf`を生成する`frr.conf.j2` テンプレートで使用。 |
-| `frr_k8s_neighbors` | iBGP ピア情報のリスト | `[{ addr: '192.168.30.41', asn: 65011, desc: 'C1 control-plane' }, ...]` | 任意 | `addr` は IPv4/IPv6 どちらでも指定可能。`frr.conf`を生成する`frr.conf.j2` テンプレートで使用。 |
+| `frr_ibgp_neighbors` | iBGP ピア情報のリスト | `[{ addr: '192.168.30.41', asn: 65011, desc: 'C1 control-plane' }, ...]` | 任意 | `addr` は IPv4/IPv6 どちらでも指定可能。`frr.conf`を生成する`frr.conf.j2` テンプレートで使用。 |
 | `frr_ebgp_neighbors` | eBGP ピア情報のリスト | `[{ addr: '192.168.90.1', asn: 65100, desc: 'External GW' }]` | 任意 | `addr` は IPv4/IPv6 どちらでも指定可能。`frr.conf`を生成する`frr.conf.j2` テンプレートで使用。 |
 | `frr_networks_v4` | 広告する IPv4 プレフィックス | `['192.168.30.0/24', '192.168.90.0/24']` | 任意 | BGP address-family ipv4 の設定に使用。`frr.conf`を生成する`frr.conf.j2` テンプレートで使用。 |
 | `frr_networks_v6` | 広告する IPv6 プレフィックス | `['fd69:6684:61a:2::/64', 'fd69:6684:61a:90::/64']` | 任意 | BGP address-family ipv6 の設定に使用。 `frr.conf`を生成する`frr.conf.j2` テンプレートで使用。 |
@@ -79,7 +79,7 @@
 
 ### IPv6 でピアが張れていることの検証手順
 
-IPv6 アドレスで BGP ピア (`frr_k8s_neighbors` / `frr_ebgp_neighbors` の `addr`) を指定している場合は, 以下の順で切り分けると確実です。
+IPv6 アドレスで BGP ピア (`frr_ibgp_neighbors` / `frr_ebgp_neighbors` の `addr`) を指定している場合は, 以下の順で切り分けると確実です。
 
 1. L3 到達性 (IPv6) を確認
 

@@ -104,13 +104,13 @@ frr_bgp_router_id: "{{k8s_net2_ipv4_prefix}}.{{frr02_ipv4_addr_octet}}"
 
 # K8sノードとの iBGP ピア (IPv4セッション)
 # K8sネットワーク側アドレスを使用（DC接続側）
-frr_k8s_neighbors:
+frr_ibgp_neighbors:
   - { addr: "{{k8s_net2_ipv4_prefix}}.51", asn: 65012, desc: "C1 control-plane" }
   - { addr: "{{k8s_net2_ipv4_prefix}}.52", asn: 65012, desc: "C1 worker-1" }
   - { addr: "{{k8s_net2_ipv4_prefix}}.53", asn: 65012, desc: "C1 worker-2" }
 
 # K8sノードとの iBGP ピア (IPv6セッション)
-frr_k8s_neighbors_v6:
+frr_ibgp_neighbors_v6:
   - { addr: "{{k8s_net2_ipv6_prefix}}51", asn: 65012, desc: "C1 control-plane" }
   - { addr: "{{k8s_net2_ipv6_prefix}}52", asn: 65012, desc: "C1 worker-1" }
   - { addr: "{{k8s_net2_ipv6_prefix}}53", asn: 65012, desc: "C1 worker-2" }

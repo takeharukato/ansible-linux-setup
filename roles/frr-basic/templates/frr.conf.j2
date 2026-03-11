@@ -32,13 +32,13 @@ router bgp {{ frr_bgp_asn }}
  no bgp ebgp-requires-policy
 
  ! --- iBGP: K8s ノード (IPv4) ---
-{% for n in frr_k8s_neighbors | default([], true) %}
+{% for n in frr_ibgp_neighbors | default([], true) %}
  neighbor {{ n.addr }} remote-as {{ n.asn }}
  neighbor {{ n.addr }} description {{ n.desc }}
 {% endfor %}
 
  ! --- iBGP: K8s ノード (IPv6) ---
-{% for n in frr_k8s_neighbors_v6 | default([], true) %}
+{% for n in frr_ibgp_neighbors_v6 | default([], true) %}
  neighbor {{ n.addr }} remote-as {{ n.asn }}
  neighbor {{ n.addr }} description {{ n.desc }}
 {% endfor %}
@@ -60,7 +60,7 @@ router bgp {{ frr_bgp_asn }}
 {% for p in frr_networks_v4 | default([], true) %}
   network {{ p }}
 {% endfor %}
-{% for n in (frr_k8s_neighbors | default([], true)) + (frr_ebgp_neighbors | default([], true)) %}
+{% for n in (frr_ibgp_neighbors | default([], true)) + (frr_ebgp_neighbors | default([], true)) %}
   neighbor {{ n.addr }} activate
 {% endfor %}
  exit-address-family
@@ -70,7 +70,7 @@ router bgp {{ frr_bgp_asn }}
 {% for p in frr_networks_v6 | default([], true) %}
   network {{ p }}
 {% endfor %}
-{% for n in (frr_k8s_neighbors_v6 | default([], true)) + (frr_ebgp_neighbors_v6 | default([], true)) %}
+{% for n in (frr_ibgp_neighbors_v6 | default([], true)) + (frr_ebgp_neighbors_v6 | default([], true)) %}
   neighbor {{ n.addr }} activate
 {% endfor %}
  exit-address-family

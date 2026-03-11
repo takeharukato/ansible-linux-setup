@@ -78,8 +78,8 @@ frr_bgp_asn: 65100
 frr_bgp_router_id: "{{external_net_ipv4_prefix}}.{{extgw_ipv4_addr_octet}}"
 
 # K8sノードとは直接話さない
-frr_k8s_neighbors: []
-frr_k8s_neighbors_v6: []
+frr_ibgp_neighbors: []
+frr_ibgp_neighbors_v6: []
 
 # frr01/frr02とeBGP接続 (IPv4セッション)
 frr_ebgp_neighbors:

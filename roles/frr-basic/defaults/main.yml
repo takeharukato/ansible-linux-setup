@@ -13,7 +13,7 @@ frr_bgp_asn: 0
 frr_bgp_router_id: ""
 
 # K8s側 iBGP ピア / 疑似外部 eBGP ピア
-frr_k8s_neighbors: []
+frr_ibgp_neighbors: []
 frr_ebgp_neighbors: []
 
 # 広告プレフィックス
