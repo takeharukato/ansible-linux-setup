@@ -535,7 +535,9 @@ enable_create_k8s_ca: true
 k8s_shared_ca_source_host: "localhost"
 
 # 既存の共通CAを利用する場合に, 証明書と秘密鍵が格納されたディレクトリパスを指定する
-# ディレクトリ配下には {{ k8s_shared_ca_cert_filename }} と {{ k8s_shared_ca_key_filename }} を配置すること
+# 以下の共通CAファイルを事前に用意して配置する
+#   - cluster-mesh-ca.crt
+#   - cluster-mesh-ca.key
 k8s_common_ca: ""
 
 # 共通CAを各ノードへ配置するディレクトリ

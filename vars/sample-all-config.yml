@@ -583,12 +583,18 @@ common_selinux_state: "permissive"
 # k8s_major_minor: "1.31"
 #
 # Kubernetes 共通 CA (証明書管理局) を作成する場合は true を指定する
+#   true: ロールが共通CAを生成/再利用する (k8s_common_ca 未指定時)
+#   false: 事前に用意した共通CAを k8s_common_ca で指定する必要がある
 # enable_create_k8s_ca: true
 #
 # Kubernetes 共通 CA のソースホスト (証明書を生成するホスト)
 # k8s_shared_ca_source_host: "localhost"
 #
 # Kubernetes 共通 CA の証明書内容 (空文字列の場合は新規作成)
+# 既存の共通CAを利用する場合に, 証明書と秘密鍵が格納されたディレクトリパスを指定する
+# 以下の共通CAファイルを事前に用意して配置する
+#   - cluster-mesh-ca.crt
+#   - cluster-mesh-ca.key
 # k8s_common_ca: ""
 #
 # Kubernetes 共通 CA の出力ディレクトリ
