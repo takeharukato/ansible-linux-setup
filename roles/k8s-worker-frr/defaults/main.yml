@@ -9,8 +9,7 @@
 # roles/k8s-worker-frr/defaults/main.yml
 
 # K8s Worker FRR 設定のデフォルト値
-# 実際の設定は group_vars/k8s_worker/k8s_worker_frr.yml および
-# host_vars/<hostname>.local で定義すること
+# 実際の設定は host_vars/<hostname>.local で定義すること
 k8s_worker_frr:
   enabled: false
   local_asn: 0
