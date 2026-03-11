@@ -101,7 +101,7 @@ k8s_bgp:
     - ipv4
     - ipv6
   neighbors:
-    - peer_address: "192.168.50.59/32"
+    - peer_address: "192.168.50.48/32"
       peer_asn: 65012
       peer_port: 179
       hold_time_seconds: 90
