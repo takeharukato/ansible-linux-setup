@@ -37,7 +37,7 @@ k8s_pod_ipv6_service_subnet: "fdb6:6e92:3cfb:feec::/112"
 # Clium Cluster Meshのクラスタ名
 k8s_cilium_cm_cluster_name: "cluster2"
 # Clium Cluster MeshのクラスタID
-k8s_cilium_cm_cluster_id: "2"
+k8s_cilium_cm_cluster_id: 2
 
 # NICリスト
 # 管理系IF(ens160)
