@@ -119,7 +119,7 @@ k8s_bgp:
 #
 # hubble-uiの導入
 #
-hubble_ui_enabled: true
+k8s_hubble_ui_enabled: true
 
 #
 # Virtual Clusterの導入（実験環境用）

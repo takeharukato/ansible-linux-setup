@@ -6,12 +6,12 @@
 #
 ---
 
-# hubble_ui_enabled の検証
-- name: Assert hubble_ui_enabled is boolean
+# k8s_hubble_ui_enabled の検証
+- name: Assert k8s_hubble_ui_enabled is boolean
   ansible.builtin.assert:
     that:
-      - hubble_ui_enabled is boolean
-    fail_msg: 'hubble_ui_enabled must be a boolean value (true or false).'
+      - k8s_hubble_ui_enabled is boolean
+    fail_msg: 'k8s_hubble_ui_enabled must be a boolean value (true or false).'
   changed_when: false
 
 # hubble_ui_version の正規化 (未設定の場合は k8s_cilium_version を使用)

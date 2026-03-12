@@ -82,7 +82,7 @@ Cilium Hubble UI を Kubernetes クラスタへ導入するロールです。
 
 1. **パラメータ読み込み** (`load-params.yml`): OS 別パッケージ定義 (`vars/packages-ubuntu.yml`, `vars/packages-rhel.yml`), クロスディストロ変数 (`vars/cross-distro.yml`), 共通変数 (`vars/all-config.yml`, `vars/k8s-api-address.yml`) を読み込みます。
 
-2. **変数検証** (`validate.yml`): `hubble_ui_enabled` の型チェック (true/false のいずれか), `hubble_ui_version` が空文字列の場合は `k8s_cilium_version` に自動設定します。
+2. **変数検証** (`validate.yml`): `k8s_hubble_ui_enabled` の型チェック (true/false のいずれか), `hubble_ui_version` が空文字列の場合は `k8s_cilium_version` に自動設定します。
 
 3. **パッケージ・ディレクトリ・ユーザ・サービス準備** (`package.yml`, `directory.yml`, `user_group.yml`, `service.yml`): 現在プレースホルダ (実処理なし)。
 
@@ -117,7 +117,7 @@ Cilium Hubble UI を Kubernetes クラスタへ導入するロールです。
 | 変数名 | 既定値 | 説明 |
 | ------ | ------ | ---- |
 | `k8s_hubble_ui_config_dir` | `"{{ k8s_kubeadm_config_store }}/hubble-ui"` | Hubble UI 設定ファイル格納ディレクトリ。Helm values ファイル等を保存。 |
-| `hubble_ui_enabled` | `false` | Hubble UI を有効化するか (true/false)。`true` でインストール。 |
+| `k8s_hubble_ui_enabled` | `false` | Hubble UI を有効化するか (true/false)。`true` でインストール。 |
 | `hubble_ui_version` | `""` (自動設定) | Hubble UI バージョン。空文字列時は `k8s_cilium_version` を使用。 |
 | `hubble_ui_service_type` | `"NodePort"` | Service 公開方法 (NodePort/LoadBalancer/ClusterIP)。 |
 | `hubble_ui_nodeport` | `31234` | NodePort 使用時のポート番号。 |
@@ -221,7 +221,7 @@ kubectl --kubeconfig /etc/kubernetes/admin.conf port-forward -n kube-system svc/
 マージ機能 (`hubble_ui_merge_existing_values: true`) により, 既存の Helm values を取得してマージします。これにより, 既存の Cilium 設定を保持したまま Hubble UI 設定のみを追加できます。
 
 ```yaml
-hubble_ui_enabled: true
+k8s_hubble_ui_enabled: true
 # hubble_ui_merge_existing_values は既定で true なので設定不要
 ```
 
@@ -439,7 +439,7 @@ ui:
 `vars/all-config.yml` または `host_vars/<hostname>` で以下のように設定します:
 
 ```yaml
-hubble_ui_enabled: true
+k8s_hubble_ui_enabled: true
 hubble_ui_service_type: "NodePort"
 hubble_ui_nodeport: 31234
 hubble_ui_replicas: 1
@@ -455,7 +455,7 @@ hubble_ui_replicas: 1
 クラウドプロバイダまたはオンプレミス環境で LoadBalancer サポートがある場合, 以下のように設定します:
 
 ```yaml
-hubble_ui_enabled: true
+k8s_hubble_ui_enabled: true
 hubble_ui_service_type: "LoadBalancer"
 hubble_ui_replicas: 2
 ```
@@ -467,7 +467,7 @@ hubble_ui_replicas: 2
 マージ機能を意図的に無効化する場合は, 以下のように設定します。ただし, この設定は推奨されません:
 
 ```yaml
-hubble_ui_enabled: true
+k8s_hubble_ui_enabled: true
 hubble_ui_service_type: "NodePort"
 hubble_ui_nodeport: 31234
 hubble_ui_merge_existing_values: false
@@ -482,7 +482,7 @@ hubble_ui_merge_existing_values: false
 Hubble UI のバージョンを `k8s_cilium_version` と異なる値で指定する場合:
 
 ```yaml
-hubble_ui_enabled: true
+k8s_hubble_ui_enabled: true
 hubble_ui_version: "1.16.0"
 hubble_ui_service_type: "NodePort"
 hubble_ui_nodeport: 31234

@@ -10,7 +10,7 @@ hubble:
   relay:
     enabled: true
   ui:
-    enabled: {{ hubble_ui_enabled | to_json }}
+    enabled: {{ k8s_hubble_ui_enabled | to_json }}
     replicas: {{ hubble_ui_replicas }}
     service:
       type: {{ hubble_ui_service_type }}
