@@ -13,7 +13,7 @@ radvd_router_advertisement_min_interval: 30
 # ルーター広告の最大待機間隔(広告周期) (秒)
 radvd_router_advertisement_max_interval: 100
 # radvdのルーター広告設定プレフィックス
-radvd_router_advertisement_prefix: "{{ gpm_mgmt_ipv6_prefix }}/{{ gpm_mgmt_ipv6_addr_prefix_len }}"
+radvd_router_advertisement_prefix: ""
 # ルーター広告の可到達時間 (ミリ秒)
 radvd_router_advertisement_reachable_time: 3000
 # ルーター広告の再送時間 (ミリ秒)
@@ -28,9 +28,7 @@ radvd_router_advertisement_prefix_valid_lifetime: 'infinity'
 radvd_router_advertisement_prefix_preferred_lifetime: 'infinity'
 
 
-# radvdのRDNSSサーバーのリスト
-radvd_dns_servers:
-  - "{{ ipv6_name_server1 }}"
-  - "{{ ipv6_name_server2 }}"
-radvd_search_domains:
-  - "{{ dns_domain }}"
+# radvdで広告するDNSサーバーのリスト
+radvd_dns_servers: []
+# radvdで広告するDNS-Serchdomain (DNSサフィックス) のリスト
+radvd_search_domains: []

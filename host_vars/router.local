@@ -86,5 +86,18 @@ router_forwarding_enabled: false
 # Network Address Translation (NAT) 動作を有効化する場合は, trueに設定
 router_nat_enabled: false
 
+#
+# Router Advertise Daemonの設定
+#
+# ルータ広告するアドレスプレフィクス CIDR
+radvd_router_advertisement_prefix: "{{ gpm_mgmt_ipv6_prefix }}/{{ gpm_mgmt_ipv6_addr_prefix_len }}"
+# ルーター広告で配布されるDNSサーバアドレス情報
+radvd_dns_servers:
+  - "{{ ipv6_name_server1 }}"
+  - "{{ ipv6_name_server2 }}"
+# ルーター広告で配布されるDNSサーチドメイン
+radvd_search_domains:
+  - "{{ dns_domain }}"
+
 # コンテナバックアップ機能を使用しない
 build_docker_ce_backup_container_image: false
