@@ -7,8 +7,7 @@
 #
 # {{ radvd_config_file_path }} 設定
 #
-{% if radvd_nic | default('', true) | length > 0 %}
-interface {{ radvd_nic }} {
+interface {{ radvd_nic|default('ens192',true) }} {
         # ルーター広告を有効化
         AdvSendAdvert on;
         # ルーター広告の最小送信間隔を設定 (秒)
@@ -55,4 +54,3 @@ interface {{ radvd_nic }} {
         {% endif %}
 
 };
-{% endif %}

@@ -63,7 +63,7 @@
 
 | 変数名 | 既定値 | 説明 |
 | --- | --- | --- |
-| `kea_dhcp_interface` | `{{ gpm_mgmt_nic \| default(mgmt_nic, true) }}` | Kea がバインドするインターフェース名。管理 NIC が未指定の場合は `mgmt_nic` を使用。 |
+| `kea_dhcp_interfaces` | `["{{ gpm_mgmt_nic \| default(mgmt_nic, true) }}"]` | Kea がバインドするインターフェース名のリスト。複数指定可。管理 NIC が未指定の場合は `mgmt_nic` を使用。 |
 | `kea_dhcp_config_file` | `/etc/kea/kea-dhcp4.conf` | 生成する設定ファイルの配置先。 |
 
 ### タイマー設定
@@ -147,7 +147,7 @@
 
 - **Kea パッケージのインストール**: OS に応じた適切なパッケージ (`kea-dhcp4-server` / `kea-dhcp4`) をインストール。
 - **設定ファイルの生成**: [templates/kea-dhcp4.conf.j2](templates/kea-dhcp4.conf.j2) から `/etc/kea/kea-dhcp4.conf` を生成。
-- **インターフェース設定**: `kea_dhcp_interface` で指定されたインターフェースにバインド。
+- **インターフェース設定**: `kea_dhcp_interfaces` で指定されたインターフェースにバインド。複数指定可。
 - **サブネット/プール設定**: IPv4 サブネット (`kea_subnet`), アドレスプール (`kea_pool`), デフォルトゲートウェイ (`kea_gateway`) を設定。
 - **DHCP オプション設定**: DNS サーバー (`kea_dns_servers`), ドメイン名 (`kea_domain_name`), ドメインサーチ (`kea_domain_search`) を配布。
 - **リース回収設定**: 期限切れリースの再利用メカニズム (`expired-leases-processing`) を設定。
@@ -463,7 +463,8 @@ address,hwaddr,client_id,valid_lifetime,expire,subnet_id,fqdn_fwd,fqdn_rev,hostn
 # Kea DHCP 設定
 # 仮想化基盤内部管理ネットワークのインターフェース名に
 # 合わせて変更してください
-kea_dhcp_interface: "ens192"
+kea_dhcp_interfaces:
+  - "ens192"
 # DHCPv4によるアドレス配布対象ネットワークアドレスのCIDR
 kea_subnet: "192.168.100.0/24"
 # DHCPv4によるアドレス配布範囲
@@ -491,7 +492,8 @@ kea_renew_timer_wait_time: 3600
 
 ```yaml
 # Kea DHCP 設定 (特定サーバー向け)
-kea_dhcp_interface: "ens192"
+kea_dhcp_interfaces:
+  - "ens192"
 # DHCPv4によるアドレス配布対象ネットワークアドレスのCIDR
 kea_subnet: "10.0.0.0/24"
 # DHCPv4によるアドレス配布範囲

@@ -12,47 +12,41 @@
 - name: "Load Params"
   ansible.builtin.include_tasks: load-params.yml
   when:
-    - radvd_nic is defined
-    - radvd_nic in ansible_facts.interfaces
-    - radvd_router_advertisement_prefix is defined
-    - radvd_router_advertisement_prefix != ""
+    - radvd_nic | default('', true) | length > 0
+    - ( radvd_nic | default('', true) ) in ansible_facts.interfaces
+    - radvd_router_advertisement_prefix | default('', true) | length > 0
 
 - name: "Package"
   ansible.builtin.include_tasks: package.yml
   when:
-    - radvd_nic is defined
-    - radvd_nic in ansible_facts.interfaces
-    - radvd_router_advertisement_prefix is defined
-    - radvd_router_advertisement_prefix != ""
+    - radvd_nic | default('', true) | length > 0
+    - ( radvd_nic | default('', true) ) in ansible_facts.interfaces
+    - radvd_router_advertisement_prefix | default('', true) | length > 0
 
 - name: "Directory"
   ansible.builtin.include_tasks: directory.yml
   when:
-    - radvd_nic is defined
-    - radvd_nic in ansible_facts.interfaces
-    - radvd_router_advertisement_prefix is defined
-    - radvd_router_advertisement_prefix != ""
+    - radvd_nic | default('', true) | length > 0
+    - ( radvd_nic | default('', true) ) in ansible_facts.interfaces
+    - radvd_router_advertisement_prefix | default('', true) | length > 0
 
 - name: "User Group"
   ansible.builtin.include_tasks: user_group.yml
   when:
-    - radvd_nic is defined
-    - radvd_nic in ansible_facts.interfaces
-    - radvd_router_advertisement_prefix is defined
-    - radvd_router_advertisement_prefix != ""
+    - radvd_nic | default('', true) | length > 0
+    - ( radvd_nic | default('', true) ) in ansible_facts.interfaces
+    - radvd_router_advertisement_prefix | default('', true) | length > 0
 
 - name: "Config"
   ansible.builtin.include_tasks: config.yml
   when:
-    - radvd_nic is defined
-    - radvd_nic in ansible_facts.interfaces
-    - radvd_router_advertisement_prefix is defined
-    - radvd_router_advertisement_prefix != ""
+    - radvd_nic | default('', true) | length > 0
+    - ( radvd_nic | default('', true) ) in ansible_facts.interfaces
+    - radvd_router_advertisement_prefix | default('', true) | length > 0
 
 - name: "Service"
   ansible.builtin.include_tasks: service.yml
   when:
-    - radvd_nic is defined
-    - radvd_nic in ansible_facts.interfaces
-    - radvd_router_advertisement_prefix is defined
-    - radvd_router_advertisement_prefix != ""
+    - radvd_nic | default('', true) | length > 0
+    - ( radvd_nic | default('', true) ) in ansible_facts.interfaces
+    - radvd_router_advertisement_prefix | default('', true) | length > 0
