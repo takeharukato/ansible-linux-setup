@@ -9,6 +9,7 @@
 .PHONY: init validate plan fmt
 .PHONY: prepare build build-k8s destroy
 .PHONY: networks destroy-networks
+.PHONY: prune-unused-networks prune-unused-networks-dry-run
 .PHONY: migrate migrate-infrastructure migrate-vmlinux migrate-devlinux migrate-k8s
 
 TERRAFORM ?= terraform
@@ -41,6 +42,12 @@ networks: prepare
 
 destroy-networks: prepare
 	${TERRAFORM} destroy ${TERRAFORM_FLAGS} -target='module.network' 2>&1 | tee $@.log
+
+prune-unused-networks: prepare
+	bash ./scripts/prune-unused-networks.sh --apply 2>&1 | tee $@.log
+
+prune-unused-networks-dry-run: prepare
+	bash ./scripts/prune-unused-networks.sh --dry-run 2>&1 | tee $@.log
 
 ############################################
 # State Migration Targets

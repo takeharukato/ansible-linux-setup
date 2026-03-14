@@ -66,7 +66,8 @@ locals {
   ######################################################
   # ネットワークID
   # - network_names で定義した全キーを動的に解決
-  # - 予約キー mgmt は Terraform 管理外の pool-wide network を参照
+  # - external_control_plane_network は既存ネットワーク参照
+  # - それ以外は Terraform 管理ネットワークを参照
   ######################################################
   network_ids = merge(
     {
@@ -74,7 +75,8 @@ locals {
       network_key => network_module.network_id
     },
     {
-      mgmt = data.xenorchestra_network.mgmt.id
+      for network_key, network_data in data.xenorchestra_network.existing :
+      network_key => network_data.id
     }
   )
 
@@ -86,8 +88,8 @@ locals {
   vm_instances = merge([
     for group_name, vm_map in var.vm_groups : {
       for vm_name, vm in vm_map : "${group_name}/${vm_name}" => {
-        group_name       = group_name
-        vm_name          = vm_name
+        group_name = group_name
+        vm_name    = vm_name
         template_type = (
           try(vm.template_type, null) != null
           ? vm.template_type
@@ -142,7 +144,7 @@ locals {
             )].disk_gb, null)
           )
         )
-        networks         = vm.networks
+        networks = vm.networks
       }
     }
   ]...)

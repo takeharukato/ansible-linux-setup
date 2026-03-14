@@ -494,6 +494,21 @@ make destroy-cluster02
 make destroy
 ```
 
+#### unused networkの自動整理
+
+`make destroy-*` 実行後は, state上で未参照になった managed network を自動で整理する。
+
+```bash
+# 自動整理を無効化してdestroyする場合
+make destroy-router DESTROY_PRUNE=false
+
+# 手動で確認のみ実行
+make prune-unused-networks-dry-run
+
+# 手動で適用
+make prune-unused-networks
+```
+
 ### State移行ターゲット
 
 ```bash

@@ -308,17 +308,6 @@ variable "xcpng_template_rhel" {
   default     = "rhel-vm"
 }
 
-variable "xcpng_mgmt_network_name" {
-  description = "管理/外部接続用ネットワークの name_label (VM Network相当)"
-  type        = string
-  default     = "VM Network"
-}
-
-variable "xcpng_private_network_name" {
-  description = "内部管理用ネットワークの name_label"
-  type        = string
-  default     = "GlobalPrivateManagementNetwork"
-}
 variable "network_force_create_network" {
   description = "If true, instruct network modules to always create networks"
   type        = bool
@@ -331,6 +320,7 @@ variable "network_names" {
   description = "Network names for creation"
   type        = map(string)
   default = {
+    ext_mgmt  = "Pool-wide network associated with eth0"
     gpn_mgmt  = "GlobalPrivateManagementNetwork"
     k8s_net01 = "K8sNetwork01"
     k8s_net02 = "K8sNetwork02"
@@ -344,9 +334,25 @@ variable "network_names" {
     error_message = "network_names の値は空文字を許容しません。"
   }
 
+}
+
+variable "network_roles" {
+  description = "Network role definitions (role -> network key list)"
+  type        = map(list(string))
+  default = {
+    external_control_plane_network = ["ext_mgmt"]
+    private_control_plane_network  = ["gpn_mgmt"]
+    data_plane_network             = ["k8s_net01", "k8s_net02"]
+    bgp_transport_network          = ["core_net"]
+  }
+
   validation {
-    condition     = !contains(keys(var.network_names), "mgmt")
-    error_message = "network_names に 'mgmt' は指定できません。'mgmt' は既存の pool-wide network 参照用の予約キーです。"
+    condition = alltrue(flatten([
+      for _, keys_list in var.network_roles : [
+        for network_key in keys_list : contains(keys(var.network_names), network_key)
+      ]
+    ]))
+    error_message = "network_roles の値は network_names で定義されたキーのみ指定可能です。"
   }
 }
 
@@ -456,12 +462,12 @@ variable "vm_groups" {
       for _, vm_map in var.vm_groups : [
         for _, vm in vm_map : alltrue([
           for net in vm.networks : contains(
-            setunion(toset(keys(var.network_names)), toset(["mgmt"])),
+            toset(keys(var.network_names)),
             net.network_key
           )
         ])
       ]
     ]))
-    error_message = "vm_groups.*.*.networks[*].network_key は network_names のキー, または予約キー 'mgmt' を指定してください。"
+    error_message = "vm_groups.*.*.networks[*].network_key は network_names のキーを指定してください。"
   }
 }

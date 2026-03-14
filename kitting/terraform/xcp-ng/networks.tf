@@ -21,8 +21,15 @@
 # ネットワークリソース生成
 ############################################
 module "network" {
-  source   = "./modules/network"
-  for_each = var.network_names
+  source = "./modules/network"
+  for_each = {
+    for network_key, network_name in var.network_names :
+    network_key => network_name
+    if !contains(
+      toset(lookup(var.network_roles, "external_control_plane_network", [])),
+      network_key
+    )
+  }
 
   network_name = each.value
   pool_id      = data.xenorchestra_pool.pool.id

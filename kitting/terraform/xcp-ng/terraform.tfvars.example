@@ -49,29 +49,28 @@ xcpng_template_ubuntu      = "ubuntu-vm"
 xcpng_template_rhel        = "rhel-vm"
 
 ########################################################
-# VM共通で使用するネットワーク名(ラベル名)
-########################################################
-# 仮想環境外部へ接続可能なネットワーク(外部ネットワーク)のラベル名
-# 管理サーバ(mgmt-server)や内部ネットワーク用ルータノード(router)など
-# Infrastructure VMで定義されたVM, 外部ネットワークに接続された
-# 開発用VM(vmlinux)が接続されるネットワーク
-xcpng_mgmt_network_name    = "Pool-wide network associated with eth0"
-# 仮想環境内部プライベートネットワーク名
-# (K8sクラスタ構成ノード, devlinuxなど仮想環境内部のVMを管理するために使用)
-xcpng_private_network_name = "GlobalPrivateManagementNetwork"
-
-########################################################
 # Terraformで作成・管理するネットワークのキーとラベル名
 # - キーはVM定義側の network_key から参照する
 # - 新設: キーを追加
 # - 削除: VM側の参照を先に削除してからキーを削除
-# - 予約キー "mgmt" は既存 pool-wide network 参照専用
 ########################################################
 network_names = {
+  ext_mgmt  = "Pool-wide network associated with eth0"
   gpn_mgmt  = "GlobalPrivateManagementNetwork"
   k8s_net01 = "K8sNetwork01"
   k8s_net02 = "K8sNetwork02"
   core_net  = "coreNetwork"
+}
+
+########################################################
+# ネットワーク役割定義
+# role名 -> network_names のキー配列
+########################################################
+network_roles = {
+  external_control_plane_network = ["ext_mgmt"]
+  private_control_plane_network  = ["gpn_mgmt"]
+  data_plane_network             = ["k8s_net01", "k8s_net02"]
+  bgp_transport_network          = ["core_net"]
 }
 
 ########################################################
@@ -163,7 +162,7 @@ vm_groups = {
       template_type = "ubuntu"
       firmware      = "uefi"
       networks = [
-        { network_key = "mgmt", mac_address = "00:50:56:00:46:51" },
+        { network_key = "ext_mgmt", mac_address = "00:50:56:00:46:51" },
         { network_key = "gpn_mgmt", mac_address = "00:50:56:00:46:7c" }
       ]
     }
@@ -171,7 +170,7 @@ vm_groups = {
       template_type = "rhel"
       firmware      = "bios"
       networks = [
-        { network_key = "mgmt", mac_address = "00:50:56:00:eb:bb" },
+        { network_key = "ext_mgmt", mac_address = "00:50:56:00:eb:bb" },
         { network_key = "gpn_mgmt", mac_address = "00:50:56:00:eb:7c" }
       ]
     }
@@ -179,7 +178,7 @@ vm_groups = {
       template_type = "ubuntu"
       firmware      = "uefi"
       networks = [
-        { network_key = "mgmt", mac_address = "00:50:56:00:dd:88" },
+        { network_key = "ext_mgmt", mac_address = "00:50:56:00:dd:88" },
         { network_key = "gpn_mgmt", mac_address = "00:50:56:00:dd:7c" }
       ]
     }
@@ -187,7 +186,7 @@ vm_groups = {
       template_type = "ubuntu"
       firmware      = "uefi"
       networks = [
-        { network_key = "mgmt", mac_address = "00:50:56:00:f3:72" },
+        { network_key = "ext_mgmt", mac_address = "00:50:56:00:f3:72" },
         { network_key = "gpn_mgmt", mac_address = "00:50:56:00:f3:7c" }
       ]
     }
@@ -195,7 +194,7 @@ vm_groups = {
       template_type = "ubuntu"
       firmware      = "uefi"
       networks = [
-        { network_key = "mgmt", mac_address = "00:50:56:00:cd:88" },
+        { network_key = "ext_mgmt", mac_address = "00:50:56:00:cd:88" },
         { network_key = "gpn_mgmt", mac_address = "00:50:56:00:cd:7c" }
       ]
     }
@@ -206,7 +205,7 @@ vm_groups = {
       template_type = "ubuntu"
       firmware      = "uefi"
       networks = [
-        { network_key = "mgmt", mac_address = null },
+        { network_key = "ext_mgmt", mac_address = null },
         { network_key = "gpn_mgmt", mac_address = null }
       ]
     }
@@ -214,7 +213,7 @@ vm_groups = {
       template_type = "ubuntu"
       firmware      = "uefi"
       networks = [
-        { network_key = "mgmt", mac_address = null },
+        { network_key = "ext_mgmt", mac_address = null },
         { network_key = "gpn_mgmt", mac_address = null }
       ]
     }
@@ -222,7 +221,7 @@ vm_groups = {
       template_type = "ubuntu"
       firmware      = "uefi"
       networks = [
-        { network_key = "mgmt", mac_address = null },
+        { network_key = "ext_mgmt", mac_address = null },
         { network_key = "gpn_mgmt", mac_address = null }
       ]
     }
@@ -230,7 +229,7 @@ vm_groups = {
       template_type = "rhel"
       firmware      = "bios"
       networks = [
-        { network_key = "mgmt", mac_address = null },
+        { network_key = "ext_mgmt", mac_address = null },
         { network_key = "gpn_mgmt", mac_address = null }
       ]
     }
@@ -238,7 +237,7 @@ vm_groups = {
       template_type = "rhel"
       firmware      = "bios"
       networks = [
-        { network_key = "mgmt", mac_address = null },
+        { network_key = "ext_mgmt", mac_address = null },
         { network_key = "gpn_mgmt", mac_address = null }
       ]
     }

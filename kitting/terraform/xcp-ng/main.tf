@@ -13,7 +13,7 @@
 provider "xenorchestra" {
   # XCP-ng は通常 Xen Orchestra (XO) 経由で管理します。
   # ws / wss を指定してください (例: wss://xo.example.local)
-  url      = var.xoa_url
+  url = var.xoa_url
   # Xen Orchestraログイン名
   username = var.xoa_username
   # Xen Orchestraログインパスワード

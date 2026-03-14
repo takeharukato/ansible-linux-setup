@@ -33,9 +33,11 @@ data "xenorchestra_template" "rhel" {
 }
 
 #############################################
-# 管理ネットワーク (プール全体のネットワーク)
-# (Pool-wide Network)
+# 既存参照ネットワーク
+# network_roles.external_control_plane_network
+# で指定されたキーを既存ネットワークとして参照する
 #############################################
-data "xenorchestra_network" "mgmt" {
-  name_label = var.xcpng_mgmt_network_name
+data "xenorchestra_network" "existing" {
+  for_each   = toset(lookup(var.network_roles, "external_control_plane_network", []))
+  name_label = var.network_names[each.value]
 }
