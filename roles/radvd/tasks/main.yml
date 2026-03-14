@@ -11,10 +11,6 @@
 # 最初に変数設定を読み直す ( role単独で実行可能とするため )
 - name: "Load Params"
   ansible.builtin.include_tasks: load-params.yml
-  when:
-    - radvd_nic | default('', true) | length > 0
-    - ( radvd_nic | default('', true) ) in ansible_facts.interfaces
-    - radvd_router_advertisement_prefix | default('', true) | length > 0
 
 - name: "Package"
   ansible.builtin.include_tasks: package.yml

@@ -16,7 +16,6 @@
 # 共通パラメータを読み込むタスク
 - name: "Load Params"
   ansible.builtin.include_tasks: load-params.yml
-  when: k8s_virtualcluster_enabled | bool
 
 # Virtual Cluster を有効にするための前提条件を検証するタスク
 - name: "Validate"

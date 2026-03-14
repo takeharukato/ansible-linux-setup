@@ -11,7 +11,6 @@
 # 最初に変数設定を読み直す ( role単独で実行可能とするため )
 - name: "Load Params"
   ansible.builtin.include_tasks: load-params.yml
-  when: k8s_vcinstances_enabled | default(false) | bool
 
 - name: "Load Additional Params"
   ansible.builtin.include_tasks: load-additional-params.yml

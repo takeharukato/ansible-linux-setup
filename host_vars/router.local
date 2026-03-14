@@ -99,5 +99,17 @@ radvd_dns_servers:
 radvd_search_domains:
   - "{{ dns_domain }}"
 
+# ルーター広告 (RA) で通知する IPv6 プレフィックス (CIDR 表記)
+radvd_router_advertisement_prefix: "{{ gpm_mgmt_ipv6_network_cidr }}"
+
+# radvd_dns_servers: ルーター広告 (RA) で通知する IPv6 DNS サーバアドレス一覧
+radvd_dns_servers:
+  - "{{ ipv6_name_server1 }}"  # ルーター広告 (RA) で通知する IPv6 DNS サーバアドレス1
+  - "{{ ipv6_name_server2 }}"  # ルーター広告 (RA) で通知する IPv6 DNS サーバアドレス2
+
+# radvd_search_domains: ルーター広告 (RA) で通知する DNS サーチドメイン一覧
+radvd_search_domains:
+  - "{{ dns_domain }}"  # ルーター広告 (RA) で通知する DNS サーチドメイン一覧
+
 # コンテナバックアップ機能を使用しない
 build_docker_ce_backup_container_image: false
