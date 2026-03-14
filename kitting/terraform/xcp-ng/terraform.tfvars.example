@@ -8,8 +8,8 @@
 # 本ファイルをterraform.tfvarsにコピー, 各パラメタを修正して使用
 #
 # Xen Orchestra接続先, 使用するXCP-ngホスト, ストレージリポジトリを指定の上,
-# VMのパラメタを設定する。VMのパラメタ定義には, locals.tf内の
-# 以下の定義を用いて定義する
+# VMのパラメタを設定する。VMのパラメタ定義には, tfvars内の
+# ネットワークキー定義とlocals.tf内のVMプロファイル定義を用いる
 #
 #  - VMテンプレート名
 #  - 使用するネットワークのラベル名
@@ -59,6 +59,21 @@ xcpng_mgmt_network_name    = "Pool-wide network associated with eth0"
 # 仮想環境内部プライベートネットワーク名
 # (K8sクラスタ構成ノード, devlinuxなど仮想環境内部のVMを管理するために使用)
 xcpng_private_network_name = "GlobalPrivateManagementNetwork"
+
+########################################################
+# Terraformで作成・管理するネットワークのキーとラベル名
+# - キーはVM定義側の network_key から参照する
+# - 新設: キーを追加
+# - 削除: VM側の参照を先に削除してからキーを削除
+# - 予約キー "mgmt" は既存 pool-wide network 参照専用
+########################################################
+network_names = {
+  gpn_mgmt  = "GlobalPrivateManagementNetwork"
+  k8s_net01 = "K8sNetwork01"
+  k8s_net02 = "K8sNetwork02"
+  core_net  = "coreNetwork"
+}
+
 ########################################################
 # ネットワークオプション設定
 # 各ネットワークに対して詳細なオプションを設定可能
@@ -121,252 +136,235 @@ xcpng_vm_vcpus   = 4
 # メモリ割当量 (単位:MiB)
 xcpng_vm_mem_mb  = 4096
 
-##################################################################################
-# Infrastructure VM
-# - 仮想環境内部プライベートネットワーク<=>Pool-wideネットワーク間ルータ (router)
-# - 管理サーバ (mgmt-server)
-# - RHEL管理サーバ検証用VM(rhel-server)
-# - Ubuntu管理サーバ検証用VM(ubuntu-server)
-# - 旧管理サーバ (devserver)
-##################################################################################
-infrastructure_vms = {
-  router = {
-    template_type    = "ubuntu"
-    firmware         = "uefi"
-    resource_profile = "infrastructure"
-    networks = [
-      { network_key = "mgmt", mac_address = "00:50:56:00:46:51" },
-      { network_key = "gpn_mgmt", mac_address = "00:50:56:00:46:7c" }
-    ]
+####################################################
+# VMグループ既定値
+####################################################
+vm_group_defaults = {
+  infrastructure = {
+    default_template_type    = "ubuntu"
+    default_firmware         = "uefi"
+    default_resource_profile = "infrastructure"
   }
-  rhel-server = {
-    template_type    = "rhel"
-    firmware         = "bios"
-    resource_profile = "infrastructure"
-    networks = [
-      { network_key = "mgmt", mac_address = "00:50:56:00:eb:bb" },
-      { network_key = "gpn_mgmt", mac_address = "00:50:56:00:eb:7c" }
-    ]
+  vmlinux = {
+    default_resource_profile = "vmlinux"
   }
-  ubuntu-server = {
-    template_type    = "ubuntu"
-    firmware         = "uefi"
-    resource_profile = "infrastructure"
-    networks = [
-      { network_key = "mgmt", mac_address = "00:50:56:00:dd:88" },
-      { network_key = "gpn_mgmt", mac_address = "00:50:56:00:dd:7c" }
-    ]
+  devlinux = {
+    default_resource_profile = "devlinux"
   }
-  "mgmt-server" = {
-    template_type    = "ubuntu"
-    firmware         = "uefi"
-    resource_profile = "infrastructure"
-    networks = [
-      { network_key = "mgmt", mac_address = "00:50:56:00:f3:72" },
-      { network_key = "gpn_mgmt", mac_address = "00:50:56:00:f3:7c" }
-    ]
-  }
-  devserver = {
-    template_type    = "ubuntu"
-    firmware         = "uefi"
-    resource_profile = "infrastructure"
-    networks = [
-      { network_key = "mgmt", mac_address = "00:50:56:00:cd:88" },
-      { network_key = "gpn_mgmt", mac_address = "00:50:56:00:cd:7c" }
-    ]
-  }
+  k8s = {}
 }
 
 ####################################################
-# vmlinux 開発 VM (vmlinux1 - vmlinux5)の情報
-# pool-wide networkに接続
-# MACアドレスは自動割当てするよう指定していない
+# VMグループ定義
 ####################################################
-vmlinux_vms = {
-  vmlinux1 = {
-    template_type    = "ubuntu"
-    firmware         = "uefi"
-    resource_profile = "vmlinux"
-    networks = [
-      { network_key = "mgmt", mac_address = null },
-      { network_key = "gpn_mgmt", mac_address = null }
-    ]
+vm_groups = {
+  infrastructure = {
+    router = {
+      template_type = "ubuntu"
+      firmware      = "uefi"
+      networks = [
+        { network_key = "mgmt", mac_address = "00:50:56:00:46:51" },
+        { network_key = "gpn_mgmt", mac_address = "00:50:56:00:46:7c" }
+      ]
+    }
+    rhel-server = {
+      template_type = "rhel"
+      firmware      = "bios"
+      networks = [
+        { network_key = "mgmt", mac_address = "00:50:56:00:eb:bb" },
+        { network_key = "gpn_mgmt", mac_address = "00:50:56:00:eb:7c" }
+      ]
+    }
+    ubuntu-server = {
+      template_type = "ubuntu"
+      firmware      = "uefi"
+      networks = [
+        { network_key = "mgmt", mac_address = "00:50:56:00:dd:88" },
+        { network_key = "gpn_mgmt", mac_address = "00:50:56:00:dd:7c" }
+      ]
+    }
+    "mgmt-server" = {
+      template_type = "ubuntu"
+      firmware      = "uefi"
+      networks = [
+        { network_key = "mgmt", mac_address = "00:50:56:00:f3:72" },
+        { network_key = "gpn_mgmt", mac_address = "00:50:56:00:f3:7c" }
+      ]
+    }
+    devserver = {
+      template_type = "ubuntu"
+      firmware      = "uefi"
+      networks = [
+        { network_key = "mgmt", mac_address = "00:50:56:00:cd:88" },
+        { network_key = "gpn_mgmt", mac_address = "00:50:56:00:cd:7c" }
+      ]
+    }
   }
-  vmlinux2 = {
-    template_type    = "ubuntu"
-    firmware         = "uefi"
-    resource_profile = "vmlinux"
-    networks = [
-      { network_key = "mgmt", mac_address = null },
-      { network_key = "gpn_mgmt", mac_address = null }
-    ]
-  }
-  vmlinux3 = {
-    template_type    = "ubuntu"
-    firmware         = "uefi"
-    resource_profile = "vmlinux"
-    networks = [
-      { network_key = "mgmt", mac_address = null },
-      { network_key = "gpn_mgmt", mac_address = null }
-    ]
-  }
-  vmlinux4 = {
-    template_type    = "rhel"
-    firmware         = "bios"
-    resource_profile = "vmlinux"
-    networks = [
-      { network_key = "mgmt", mac_address = null },
-      { network_key = "gpn_mgmt", mac_address = null }
-    ]
-  }
-  vmlinux5 = {
-    template_type    = "rhel"
-    firmware         = "bios"
-    resource_profile = "vmlinux"
-    networks = [
-      { network_key = "mgmt", mac_address = null },
-      { network_key = "gpn_mgmt", mac_address = null }
-    ]
-  }
-}
 
-####################################################
-# devlinux 開発用VM ( devlinux1 - devlinux5 )の情報
-# 内部プライベートネットワークのみに接続
-# MACアドレスは自動割当てするよう指定していない
-####################################################
-devlinux_vms = {
-  devlinux1 = {
-    template_type    = "ubuntu"
-    firmware         = "uefi"
-    resource_profile = "devlinux"
-    networks = [
-      { network_key = "gpn_mgmt", mac_address = null }
-    ]
+  vmlinux = {
+    vmlinux1 = {
+      template_type = "ubuntu"
+      firmware      = "uefi"
+      networks = [
+        { network_key = "mgmt", mac_address = null },
+        { network_key = "gpn_mgmt", mac_address = null }
+      ]
+    }
+    vmlinux2 = {
+      template_type = "ubuntu"
+      firmware      = "uefi"
+      networks = [
+        { network_key = "mgmt", mac_address = null },
+        { network_key = "gpn_mgmt", mac_address = null }
+      ]
+    }
+    vmlinux3 = {
+      template_type = "ubuntu"
+      firmware      = "uefi"
+      networks = [
+        { network_key = "mgmt", mac_address = null },
+        { network_key = "gpn_mgmt", mac_address = null }
+      ]
+    }
+    vmlinux4 = {
+      template_type = "rhel"
+      firmware      = "bios"
+      networks = [
+        { network_key = "mgmt", mac_address = null },
+        { network_key = "gpn_mgmt", mac_address = null }
+      ]
+    }
+    vmlinux5 = {
+      template_type = "rhel"
+      firmware      = "bios"
+      networks = [
+        { network_key = "mgmt", mac_address = null },
+        { network_key = "gpn_mgmt", mac_address = null }
+      ]
+    }
   }
-  devlinux2 = {
-    template_type    = "ubuntu"
-    firmware         = "uefi"
-    resource_profile = "devlinux"
-    networks = [
-      { network_key = "gpn_mgmt", mac_address = null }
-    ]
-  }
-  devlinux3 = {
-    template_type    = "ubuntu"
-    firmware         = "uefi"
-    resource_profile = "devlinux"
-    networks = [
-      { network_key = "gpn_mgmt", mac_address = null }
-    ]
-  }
-  devlinux4 = {
-    template_type    = "rhel"
-    firmware         = "bios"
-    resource_profile = "devlinux"
-    networks = [
-      { network_key = "gpn_mgmt", mac_address = null }
-    ]
-  }
-  devlinux5 = {
-    template_type    = "rhel"
-    firmware         = "bios"
-    resource_profile = "devlinux"
-    networks = [
-      { network_key = "gpn_mgmt", mac_address = null }
-    ]
-  }
-}
 
-################################################
-# Kubernetes クラスタ構成VM
-# - extgw 疑似外部ネットワークのゲートウエイ
-# - frr01-02 各K8sクラスタの代表FRRサーバ
-# - k8sctrlplane01-02 K8sコントロールプレイン
-# - k8sworker0101-0202 K8sワーカーノード
-################################################
-k8s_vms = {
-  k8sctrlplane01 = {
-    template_type    = "ubuntu"
-    firmware         = "uefi"
-    resource_profile = "k8s_ctrlplane"
-    networks = [
-      { network_key = "gpn_mgmt", mac_address = "00:50:56:00:36:71" },
-      { network_key = "k8s_net01", mac_address = "00:50:56:00:36:7b" }
-    ]
+  devlinux = {
+    devlinux1 = {
+      template_type = "ubuntu"
+      firmware      = "uefi"
+      networks = [
+        { network_key = "gpn_mgmt", mac_address = null }
+      ]
+    }
+    devlinux2 = {
+      template_type = "ubuntu"
+      firmware      = "uefi"
+      networks = [
+        { network_key = "gpn_mgmt", mac_address = null }
+      ]
+    }
+    devlinux3 = {
+      template_type = "ubuntu"
+      firmware      = "uefi"
+      networks = [
+        { network_key = "gpn_mgmt", mac_address = null }
+      ]
+    }
+    devlinux4 = {
+      template_type = "rhel"
+      firmware      = "bios"
+      networks = [
+        { network_key = "gpn_mgmt", mac_address = null }
+      ]
+    }
+    devlinux5 = {
+      template_type = "rhel"
+      firmware      = "bios"
+      networks = [
+        { network_key = "gpn_mgmt", mac_address = null }
+      ]
+    }
   }
-  k8sworker0101 = {
-    template_type    = "ubuntu"
-    firmware         = "uefi"
-    resource_profile = "k8s_worker"
-    networks = [
-      { network_key = "gpn_mgmt", mac_address = "00:50:56:00:7b:1c" },
-      { network_key = "k8s_net01", mac_address = "00:50:56:00:7b:26" }
-    ]
-  }
-  k8sworker0102 = {
-    template_type    = "ubuntu"
-    firmware         = "uefi"
-    resource_profile = "k8s_worker"
-    networks = [
-      { network_key = "gpn_mgmt", mac_address = "00:50:56:00:bf:1d" },
-      { network_key = "k8s_net01", mac_address = "00:50:56:00:bf:27" }
-    ]
-  }
-  frr01 = {
-    template_type    = "ubuntu"
-    firmware         = "uefi"
-    resource_profile = "frr"
-    networks = [
-      { network_key = "gpn_mgmt", mac_address = "00:50:56:00:4a:12" },
-      { network_key = "k8s_net01", mac_address = "00:50:56:00:4a:1c" },
-      { network_key = "core_net", mac_address = "00:50:56:00:4a:26" }
-    ]
-  }
-  k8sctrlplane02 = {
-    template_type    = "rhel"
-    firmware         = "bios"
-    resource_profile = "k8s_ctrlplane"
-    networks = [
-      { network_key = "gpn_mgmt", mac_address = "00:50:56:00:1f:8b" },
-      { network_key = "k8s_net02", mac_address = "00:50:56:00:1f:95" }
-    ]
-  }
-  k8sworker0201 = {
-    template_type    = "rhel"
-    firmware         = "bios"
-    resource_profile = "k8s_worker"
-    networks = [
-      { network_key = "gpn_mgmt", mac_address = "00:50:56:00:d3:9e" },
-      { network_key = "k8s_net02", mac_address = "00:50:56:00:d3:a8" }
-    ]
-  }
-  k8sworker0202 = {
-    template_type    = "rhel"
-    firmware         = "bios"
-    resource_profile = "k8s_worker"
-    networks = [
-      { network_key = "gpn_mgmt", mac_address = "00:50:56:00:43:0d" },
-      { network_key = "k8s_net02", mac_address = "00:50:56:00:43:17" }
-    ]
-  }
-  frr02 = {
-    template_type    = "rhel"
-    firmware         = "bios"
-    resource_profile = "frr"
-    networks = [
-      { network_key = "gpn_mgmt", mac_address = "00:50:56:00:03:f8" },
-      { network_key = "k8s_net02", mac_address = "00:50:56:00:03:02" },
-      { network_key = "core_net", mac_address = "00:50:56:00:03:0c" }
-    ]
-  }
-  extgw = {
-    template_type    = "rhel"
-    firmware         = "bios"
-    resource_profile = "extgw"
-    networks = [
-      { network_key = "gpn_mgmt", mac_address = "00:50:56:00:b8:e1" },
-      { network_key = "core_net", mac_address = "00:50:56:00:b8:eb" }
-    ]
+
+  k8s = {
+    k8sctrlplane01 = {
+      template_type    = "ubuntu"
+      firmware         = "uefi"
+      resource_profile = "k8s_ctrlplane"
+      networks = [
+        { network_key = "gpn_mgmt", mac_address = "00:50:56:00:36:71" },
+        { network_key = "k8s_net01", mac_address = "00:50:56:00:36:7b" }
+      ]
+    }
+    k8sworker0101 = {
+      template_type    = "ubuntu"
+      firmware         = "uefi"
+      resource_profile = "k8s_worker"
+      networks = [
+        { network_key = "gpn_mgmt", mac_address = "00:50:56:00:7b:1c" },
+        { network_key = "k8s_net01", mac_address = "00:50:56:00:7b:26" }
+      ]
+    }
+    k8sworker0102 = {
+      template_type    = "ubuntu"
+      firmware         = "uefi"
+      resource_profile = "k8s_worker"
+      networks = [
+        { network_key = "gpn_mgmt", mac_address = "00:50:56:00:bf:1d" },
+        { network_key = "k8s_net01", mac_address = "00:50:56:00:bf:27" }
+      ]
+    }
+    frr01 = {
+      template_type    = "ubuntu"
+      firmware         = "uefi"
+      resource_profile = "frr"
+      networks = [
+        { network_key = "gpn_mgmt", mac_address = "00:50:56:00:4a:12" },
+        { network_key = "k8s_net01", mac_address = "00:50:56:00:4a:1c" },
+        { network_key = "core_net", mac_address = "00:50:56:00:4a:26" }
+      ]
+    }
+    k8sctrlplane02 = {
+      template_type    = "rhel"
+      firmware         = "bios"
+      resource_profile = "k8s_ctrlplane"
+      networks = [
+        { network_key = "gpn_mgmt", mac_address = "00:50:56:00:1f:8b" },
+        { network_key = "k8s_net02", mac_address = "00:50:56:00:1f:95" }
+      ]
+    }
+    k8sworker0201 = {
+      template_type    = "rhel"
+      firmware         = "bios"
+      resource_profile = "k8s_worker"
+      networks = [
+        { network_key = "gpn_mgmt", mac_address = "00:50:56:00:d3:9e" },
+        { network_key = "k8s_net02", mac_address = "00:50:56:00:d3:a8" }
+      ]
+    }
+    k8sworker0202 = {
+      template_type    = "rhel"
+      firmware         = "bios"
+      resource_profile = "k8s_worker"
+      networks = [
+        { network_key = "gpn_mgmt", mac_address = "00:50:56:00:43:0d" },
+        { network_key = "k8s_net02", mac_address = "00:50:56:00:43:17" }
+      ]
+    }
+    frr02 = {
+      template_type    = "rhel"
+      firmware         = "bios"
+      resource_profile = "frr"
+      networks = [
+        { network_key = "gpn_mgmt", mac_address = "00:50:56:00:03:f8" },
+        { network_key = "k8s_net02", mac_address = "00:50:56:00:03:02" },
+        { network_key = "core_net", mac_address = "00:50:56:00:03:0c" }
+      ]
+    }
+    extgw = {
+      template_type    = "rhel"
+      firmware         = "bios"
+      resource_profile = "extgw"
+      networks = [
+        { network_key = "gpn_mgmt", mac_address = "00:50:56:00:b8:e1" },
+        { network_key = "core_net", mac_address = "00:50:56:00:b8:eb" }
+      ]
+    }
   }
 }

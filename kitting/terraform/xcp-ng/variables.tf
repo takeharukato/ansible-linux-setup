@@ -328,18 +328,25 @@ variable "network_force_create_network" {
 # Network Names
 ############################################
 variable "network_names" {
-  description = "Network names for creation or lookup"
-  type = object({
-    gpn_mgmt  = string
-    k8s_net01 = string
-    k8s_net02 = string
-    core_net  = string
-  })
+  description = "Network names for creation"
+  type        = map(string)
   default = {
     gpn_mgmt  = "GlobalPrivateManagementNetwork"
     k8s_net01 = "K8sNetwork01"
     k8s_net02 = "K8sNetwork02"
     core_net  = "coreNetwork"
+  }
+
+  validation {
+    condition = alltrue([
+      for network_name in values(var.network_names) : trimspace(network_name) != ""
+    ])
+    error_message = "network_names の値は空文字を許容しません。"
+  }
+
+  validation {
+    condition     = !contains(keys(var.network_names), "mgmt")
+    error_message = "network_names に 'mgmt' は指定できません。'mgmt' は既存の pool-wide network 参照用の予約キーです。"
   }
 }
 
@@ -355,17 +362,40 @@ variable "network_options" {
     source_pif_device = optional(string)
   }))
   default = {}
+
+  validation {
+    condition = alltrue([
+      for network_key in keys(var.network_options) : contains(keys(var.network_names), network_key)
+    ])
+    error_message = "network_options のキーは network_names で定義したキーのみ指定可能です。"
+  }
 }
 
 ############################################
-# Infrastructure VMs
+# VM Group Defaults
 ############################################
-variable "infrastructure_vms" {
-  description = "Infrastructure VM definitions"
+variable "vm_group_defaults" {
+  description = "Optional default values for each VM group"
   type = map(object({
-    template_type    = string
-    firmware         = string
-    resource_profile = string
+    default_template_type    = optional(string)
+    default_firmware         = optional(string)
+    default_resource_profile = optional(string)
+    default_vcpus            = optional(number)
+    default_memory_mb        = optional(number)
+    default_disk_gb          = optional(number)
+  }))
+  default = {}
+}
+
+############################################
+# VM Groups
+############################################
+variable "vm_groups" {
+  description = "VM group definitions"
+  type = map(map(object({
+    template_type    = optional(string)
+    firmware         = optional(string)
+    resource_profile = optional(string)
     vcpus            = optional(number)
     memory_mb        = optional(number)
     disk_gb          = optional(number)
@@ -373,122 +403,65 @@ variable "infrastructure_vms" {
       network_key = string
       mac_address = optional(string)
     }))
-  }))
+  })))
   default = {}
 
   validation {
-    condition = alltrue([
-      for k, v in var.infrastructure_vms : contains(["ubuntu", "rhel"], v.template_type)
-    ])
-    error_message = "template_type must be either 'ubuntu' or 'rhel'"
+    condition = alltrue(flatten([
+      for group_name, vm_map in var.vm_groups : [
+        for vm_name, _ in vm_map : length(regexall("/", group_name)) == 0 && length(regexall("/", vm_name)) == 0
+      ]
+    ]))
+    error_message = "vm_groups のグループ名およびVM名には '/' を含めないでください。"
   }
 
   validation {
-    condition = alltrue([
-      for k, v in var.infrastructure_vms : contains(["uefi", "bios"], v.firmware)
-    ])
-    error_message = "firmware must be either 'uefi' or 'bios'"
-  }
-}
-
-############################################
-# Vmlinux Development VMs
-############################################
-variable "vmlinux_vms" {
-  description = "Vmlinux VM definitions"
-  type = map(object({
-    template_type    = string
-    firmware         = string
-    resource_profile = string
-    vcpus            = optional(number)
-    memory_mb        = optional(number)
-    disk_gb          = optional(number)
-    networks = list(object({
-      network_key = string
-      mac_address = optional(string)
-    }))
-  }))
-  default = {}
-
-  validation {
-    condition = alltrue([
-      for k, v in var.vmlinux_vms : contains(["ubuntu", "rhel"], v.template_type)
-    ])
-    error_message = "template_type must be either 'ubuntu' or 'rhel'"
+    condition = alltrue(flatten([
+      for group_name, vm_map in var.vm_groups : [
+        for _, vm in vm_map : contains(
+          ["ubuntu", "rhel"],
+          coalesce(vm.template_type, try(var.vm_group_defaults[group_name].default_template_type, null), "")
+        )
+      ]
+    ]))
+    error_message = "template_type は 'ubuntu' または 'rhel' を指定してください (vm_group_defaults での既定値指定も可)。"
   }
 
   validation {
-    condition = alltrue([
-      for k, v in var.vmlinux_vms : contains(["uefi", "bios"], v.firmware)
-    ])
-    error_message = "firmware must be either 'uefi' or 'bios'"
-  }
-}
-
-############################################
-# Devlinux Development VMs
-############################################
-variable "devlinux_vms" {
-  description = "Devlinux VM definitions"
-  type = map(object({
-    template_type    = string
-    firmware         = string
-    resource_profile = string
-    vcpus            = optional(number)
-    memory_mb        = optional(number)
-    disk_gb          = optional(number)
-    networks = list(object({
-      network_key = string
-      mac_address = optional(string)
-    }))
-  }))
-  default = {}
-
-  validation {
-    condition = alltrue([
-      for k, v in var.devlinux_vms : contains(["ubuntu", "rhel"], v.template_type)
-    ])
-    error_message = "template_type must be either 'ubuntu' or 'rhel'"
+    condition = alltrue(flatten([
+      for group_name, vm_map in var.vm_groups : [
+        for _, vm in vm_map : contains(
+          ["uefi", "bios"],
+          coalesce(vm.firmware, try(var.vm_group_defaults[group_name].default_firmware, null), "")
+        )
+      ]
+    ]))
+    error_message = "firmware は 'uefi' または 'bios' を指定してください (vm_group_defaults での既定値指定も可)。"
   }
 
   validation {
-    condition = alltrue([
-      for k, v in var.devlinux_vms : contains(["uefi", "bios"], v.firmware)
-    ])
-    error_message = "firmware must be either 'uefi' or 'bios'"
-  }
-}
-
-############################################
-# Kubernetes Lab VMs
-############################################
-variable "k8s_vms" {
-  description = "Kubernetes lab VM definitions"
-  type = map(object({
-    template_type    = string
-    firmware         = string
-    resource_profile = string
-    vcpus            = optional(number)
-    memory_mb        = optional(number)
-    disk_gb          = optional(number)
-    networks = list(object({
-      network_key = string
-      mac_address = optional(string)
-    }))
-  }))
-  default = {}
-
-  validation {
-    condition = alltrue([
-      for k, v in var.k8s_vms : contains(["ubuntu", "rhel"], v.template_type)
-    ])
-    error_message = "template_type must be either 'ubuntu' or 'rhel'"
+    condition = alltrue(flatten([
+      for group_name, vm_map in var.vm_groups : [
+        for _, vm in vm_map : contains(
+          ["infrastructure", "vmlinux", "devlinux", "k8s_ctrlplane", "k8s_worker", "frr", "extgw"],
+          coalesce(vm.resource_profile, try(var.vm_group_defaults[group_name].default_resource_profile, null), "")
+        )
+      ]
+    ]))
+    error_message = "resource_profile は定義済みプロファイル(infrastructure, vmlinux, devlinux, k8s_ctrlplane, k8s_worker, frr, extgw)を指定してください。"
   }
 
   validation {
-    condition = alltrue([
-      for k, v in var.k8s_vms : contains(["uefi", "bios"], v.firmware)
-    ])
-    error_message = "firmware must be either 'uefi' or 'bios'"
+    condition = alltrue(flatten([
+      for _, vm_map in var.vm_groups : [
+        for _, vm in vm_map : alltrue([
+          for net in vm.networks : contains(
+            setunion(toset(keys(var.network_names)), toset(["mgmt"])),
+            net.network_key
+          )
+        ])
+      ]
+    ]))
+    error_message = "vm_groups.*.*.networks[*].network_key は network_names のキー, または予約キー 'mgmt' を指定してください。"
   }
 }

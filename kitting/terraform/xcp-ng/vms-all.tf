@@ -1,22 +1,20 @@
-# vms-devlinux.tf
+# vms-all.tf
 #
 # Copyright 2025 Takeharu KATO  All Rights Reserved.
 # SPDX-License-Identifier: BSD-2-Clause
 # Notes: Portions of this codebase were initially drafted with ChatGPT assistance.
 #
-# devlinux (内部プライベートネットワークのみに接続された開発用VM) 構築処理
+# VM 構築処理
 #
-# 設定ファイルに定義された複数の VM をテンプレートベースで自動作成する
-# modules/vm ディレクトリに定義された再利用可能な VM 作成ロジックを呼び出し,
-# 変数devlinux_vms 内に定義された各 VMを生成する
-# (変数devlinux_vms は, terraform.tfvars内に定義)。
+# vm_groups で定義された VM 群をフラット化し,
+# modules/vm を単一モジュールとして for_each 展開する。
 #
 
-module "devlinux_vms" {
+module "vms" {
   source   = "./modules/vm"
-  for_each = var.devlinux_vms
+  for_each = local.vm_instances
 
-  name            = each.key
+  name            = each.value.vm_name
   template_id     = local.template_ids[each.value.template_type]
   firmware        = each.value.firmware
   vcpus           = coalesce(each.value.vcpus, local.vm_resource_defaults[each.value.resource_profile].vcpus)

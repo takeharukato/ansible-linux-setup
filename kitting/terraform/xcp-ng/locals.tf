@@ -64,20 +64,88 @@ locals {
   }
 
   ######################################################
-  # ネットワークID (各モジュールの出力(outputs)から取得)
+  # ネットワークID
+  # - network_names で定義した全キーを動的に解決
+  # - 予約キー mgmt は Terraform 管理外の pool-wide network を参照
   ######################################################
-  network_ids = {
-    # 内部プライベートネットワーク
-    gpn_mgmt  = module.network["gpn_mgmt"].network_id
-    # K8sクラスタ1内ネットワーク
-    k8s_net01 = module.network["k8s_net01"].network_id
-    # K8sクラスタ2内ネットワーク
-    k8s_net02 = module.network["k8s_net02"].network_id
-    # FRR間通信用ネットワーク
-    core_net  = module.network["core_net"].network_id
-    # 外部接続管理ネットワーク (Pool-wide network)
-    mgmt      = data.xenorchestra_network.mgmt.id
-  }
+  network_ids = merge(
+    {
+      for network_key, network_module in module.network :
+      network_key => network_module.network_id
+    },
+    {
+      mgmt = data.xenorchestra_network.mgmt.id
+    }
+  )
+
+  ############################################
+  # VMインスタンス定義
+  # - vm_groups を module for_each 用にフラット化
+  # - vm_group_defaults で未指定項目を補完
+  ############################################
+  vm_instances = merge([
+    for group_name, vm_map in var.vm_groups : {
+      for vm_name, vm in vm_map : "${group_name}/${vm_name}" => {
+        group_name       = group_name
+        vm_name          = vm_name
+        template_type = (
+          try(vm.template_type, null) != null
+          ? vm.template_type
+          : try(var.vm_group_defaults[group_name].default_template_type, null)
+        )
+        firmware = (
+          try(vm.firmware, null) != null
+          ? vm.firmware
+          : try(var.vm_group_defaults[group_name].default_firmware, null)
+        )
+        resource_profile = (
+          try(vm.resource_profile, null) != null
+          ? vm.resource_profile
+          : try(var.vm_group_defaults[group_name].default_resource_profile, null)
+        )
+        vcpus = (
+          try(vm.vcpus, null) != null
+          ? vm.vcpus
+          : (
+            try(var.vm_group_defaults[group_name].default_vcpus, null) != null
+            ? var.vm_group_defaults[group_name].default_vcpus
+            : try(local.vm_resource_defaults[(
+              try(vm.resource_profile, null) != null
+              ? vm.resource_profile
+              : try(var.vm_group_defaults[group_name].default_resource_profile, "")
+            )].vcpus, null)
+          )
+        )
+        memory_mb = (
+          try(vm.memory_mb, null) != null
+          ? vm.memory_mb
+          : (
+            try(var.vm_group_defaults[group_name].default_memory_mb, null) != null
+            ? var.vm_group_defaults[group_name].default_memory_mb
+            : try(local.vm_resource_defaults[(
+              try(vm.resource_profile, null) != null
+              ? vm.resource_profile
+              : try(var.vm_group_defaults[group_name].default_resource_profile, "")
+            )].memory_mb, null)
+          )
+        )
+        disk_gb = (
+          try(vm.disk_gb, null) != null
+          ? vm.disk_gb
+          : (
+            try(var.vm_group_defaults[group_name].default_disk_gb, null) != null
+            ? var.vm_group_defaults[group_name].default_disk_gb
+            : try(local.vm_resource_defaults[(
+              try(vm.resource_profile, null) != null
+              ? vm.resource_profile
+              : try(var.vm_group_defaults[group_name].default_resource_profile, "")
+            )].disk_gb, null)
+          )
+        )
+        networks         = vm.networks
+      }
+    }
+  ]...)
 
   ############################################
   # テンプレートのID (データソースから取得)

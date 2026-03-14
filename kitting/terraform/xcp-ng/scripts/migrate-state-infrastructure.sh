@@ -56,14 +56,14 @@ for old in "${!VMS_MAP[@]}"; do
   echo "Processing VM: $old -> $new" | tee -a "$LOG_FILE"
 
   # 既に移行済みであることを確認 (新キーで存在するか)
-  if terraform state list | grep -q "module.infrastructure_vms\[\"$new\"\]"; then
+  if terraform state list | grep -q "module.vms\[\"infrastructure/$new\"\]"; then
     echo "  [OK] Already migrated, skipping" | tee -a "$LOG_FILE"
     continue
   fi
 
   # cloud-configの移行 (ソースは旧リソース名)
   if terraform state list | grep -q "xenorchestra_cloud_config.$old"; then
-    CMD="terraform state mv 'xenorchestra_cloud_config.$old' 'module.infrastructure_vms[\"$new\"].xenorchestra_cloud_config.this'"
+    CMD="terraform state mv 'xenorchestra_cloud_config.$old' 'module.vms[\"infrastructure/$new\"].xenorchestra_cloud_config.this'"
     echo "  Migrating cloud-config: $CMD" | tee -a "$LOG_FILE"
     if [ "$DRY_RUN" = false ]; then
       eval "$CMD" 2>&1 | tee -a "$LOG_FILE"
@@ -74,7 +74,7 @@ for old in "${!VMS_MAP[@]}"; do
 
   # VMの移行 (ソースは旧リソース名)
   if terraform state list | grep -q "xenorchestra_vm.$old"; then
-    CMD="terraform state mv 'xenorchestra_vm.$old' 'module.infrastructure_vms[\"$new\"].xenorchestra_vm.this'"
+    CMD="terraform state mv 'xenorchestra_vm.$old' 'module.vms[\"infrastructure/$new\"].xenorchestra_vm.this'"
     echo "  Migrating VM: $CMD" | tee -a "$LOG_FILE"
     if [ "$DRY_RUN" = false ]; then
       eval "$CMD" 2>&1 | tee -a "$LOG_FILE"
@@ -92,12 +92,12 @@ echo "" | tee -a "$LOG_FILE"
 
 if [ "$DRY_RUN" = false ]; then
   echo "State after migration:" | tee -a "$LOG_FILE"
-  terraform state list | grep "infrastructure_vms" | tee -a "$LOG_FILE"
+  terraform state list | grep 'module.vms\["infrastructure/' | tee -a "$LOG_FILE"
   echo "" | tee -a "$LOG_FILE"
   echo "Log saved to: $LOG_FILE"
 fi
 
 echo "" | tee -a "$LOG_FILE"
 echo "Next steps:" | tee -a "$LOG_FILE"
-echo "1. Run: terraform plan -target='module.infrastructure_vms'" | tee -a "$LOG_FILE"
+echo "1. Run: terraform plan -target='module.vms'" | tee -a "$LOG_FILE"
 echo "2. Verify no changes are detected" | tee -a "$LOG_FILE"

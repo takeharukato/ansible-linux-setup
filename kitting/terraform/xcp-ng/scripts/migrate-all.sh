@@ -80,11 +80,11 @@ fi
 # Step 3: インフラストラクチャVMの移行
 echo "=== Step 3: Migrating Infrastructure VMs ===" | tee -a "$LOG_FILE"
 if [ "$DRY_RUN" = true ]; then
-  "$SCRIPT_DIR/migrate-state-infrastructure.sh" --dry-run 2>&1 | tee -a "$LOG_FILE"
+  bash "$SCRIPT_DIR/migrate-state-infrastructure.sh" --dry-run 2>&1 | tee -a "$LOG_FILE"
 else
-  "$SCRIPT_DIR/migrate-state-infrastructure.sh" 2>&1 | tee -a "$LOG_FILE"
+  bash "$SCRIPT_DIR/migrate-state-infrastructure.sh" 2>&1 | tee -a "$LOG_FILE"
   echo "Verifying infrastructure migration..." | tee -a "$LOG_FILE"
-  terraform plan -target='module.infrastructure_vms' -detailed-exitcode > /dev/null 2>&1 || {
+  terraform plan -target='module.vms' -detailed-exitcode > /dev/null 2>&1 || {
     EXIT_CODE=$?
     if [ $EXIT_CODE -eq 2 ]; then
       echo "[WARNING] Warning: Changes detected after migration" | tee -a "$LOG_FILE"
@@ -97,11 +97,11 @@ echo "" | tee -a "$LOG_FILE"
 # Step 4: vmlinux VMsの移行
 echo "=== Step 4: Migrating vmlinux VMs ===" | tee -a "$LOG_FILE"
 if [ "$DRY_RUN" = true ]; then
-  "$SCRIPT_DIR/migrate-state-vmlinux.sh" --dry-run 2>&1 | tee -a "$LOG_FILE"
+  bash "$SCRIPT_DIR/migrate-state-vmlinux.sh" --dry-run 2>&1 | tee -a "$LOG_FILE"
 else
-  "$SCRIPT_DIR/migrate-state-vmlinux.sh" 2>&1 | tee -a "$LOG_FILE"
+  bash "$SCRIPT_DIR/migrate-state-vmlinux.sh" 2>&1 | tee -a "$LOG_FILE"
   echo "Verifying vmlinux migration..." | tee -a "$LOG_FILE"
-  terraform plan -target='module.vmlinux_vms' -detailed-exitcode > /dev/null 2>&1 || {
+  terraform plan -target='module.vms' -detailed-exitcode > /dev/null 2>&1 || {
     EXIT_CODE=$?
     if [ $EXIT_CODE -eq 2 ]; then
       echo "[WARNING] Warning: Changes detected after migration" | tee -a "$LOG_FILE"
@@ -114,11 +114,11 @@ echo "" | tee -a "$LOG_FILE"
 # Step 5: devlinux VMsの移行
 echo "=== Step 5: Migrating devlinux VMs ===" | tee -a "$LOG_FILE"
 if [ "$DRY_RUN" = true ]; then
-  "$SCRIPT_DIR/migrate-state-devlinux.sh" --dry-run 2>&1 | tee -a "$LOG_FILE"
+  bash "$SCRIPT_DIR/migrate-state-devlinux.sh" --dry-run 2>&1 | tee -a "$LOG_FILE"
 else
-  "$SCRIPT_DIR/migrate-state-devlinux.sh" 2>&1 | tee -a "$LOG_FILE"
+  bash "$SCRIPT_DIR/migrate-state-devlinux.sh" 2>&1 | tee -a "$LOG_FILE"
   echo "Verifying devlinux migration..." | tee -a "$LOG_FILE"
-  terraform plan -target='module.devlinux_vms' -detailed-exitcode > /dev/null 2>&1 || {
+  terraform plan -target='module.vms' -detailed-exitcode > /dev/null 2>&1 || {
     EXIT_CODE=$?
     if [ $EXIT_CODE -eq 2 ]; then
       echo "[WARNING] Warning: Changes detected after migration" | tee -a "$LOG_FILE"
@@ -131,11 +131,11 @@ echo "" | tee -a "$LOG_FILE"
 # Step 6: Kubernetes Lab VMsの移行
 echo "=== Step 6: Migrating Kubernetes Lab VMs ===" | tee -a "$LOG_FILE"
 if [ "$DRY_RUN" = true ]; then
-  "$SCRIPT_DIR/migrate-state-k8s.sh" --dry-run 2>&1 | tee -a "$LOG_FILE"
+  bash "$SCRIPT_DIR/migrate-state-k8s.sh" --dry-run 2>&1 | tee -a "$LOG_FILE"
 else
-  "$SCRIPT_DIR/migrate-state-k8s.sh" 2>&1 | tee -a "$LOG_FILE"
+  bash "$SCRIPT_DIR/migrate-state-k8s.sh" 2>&1 | tee -a "$LOG_FILE"
   echo "Verifying k8s migration..." | tee -a "$LOG_FILE"
-  terraform plan -target='module.k8s_vms' -detailed-exitcode > /dev/null 2>&1 || {
+  terraform plan -target='module.vms' -detailed-exitcode > /dev/null 2>&1 || {
     EXIT_CODE=$?
     if [ $EXIT_CODE -eq 2 ]; then
       echo "[WARNING] Warning: Changes detected after migration" | tee -a "$LOG_FILE"

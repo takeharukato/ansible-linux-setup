@@ -49,14 +49,14 @@ for vm in "${VMS[@]}"; do
   echo "Processing VM: $vm" | tee -a "$LOG_FILE"
 
   # 既に移行済みであることを確認
-  if terraform state list | grep -q "module.devlinux_vms\[\"$vm\"\]"; then
+  if terraform state list | grep -q "module.vms\[\"devlinux/$vm\"\]"; then
     echo "  [OK] Already migrated, skipping" | tee -a "$LOG_FILE"
     continue
   fi
 
   # cloud-configの移行
   if terraform state list | grep -q "xenorchestra_cloud_config.$vm"; then
-    CMD="terraform state mv 'xenorchestra_cloud_config.$vm' 'module.devlinux_vms[\"$vm\"].xenorchestra_cloud_config.this'"
+    CMD="terraform state mv 'xenorchestra_cloud_config.$vm' 'module.vms[\"devlinux/$vm\"].xenorchestra_cloud_config.this'"
     echo "  Migrating cloud-config: $CMD" | tee -a "$LOG_FILE"
     if [ "$DRY_RUN" = false ]; then
       eval "$CMD" 2>&1 | tee -a "$LOG_FILE"
@@ -67,7 +67,7 @@ for vm in "${VMS[@]}"; do
 
   # VMの移行
   if terraform state list | grep -q "xenorchestra_vm.$vm"; then
-    CMD="terraform state mv 'xenorchestra_vm.$vm' 'module.devlinux_vms[\"$vm\"].xenorchestra_vm.this'"
+    CMD="terraform state mv 'xenorchestra_vm.$vm' 'module.vms[\"devlinux/$vm\"].xenorchestra_vm.this'"
     echo "  Migrating VM: $CMD" | tee -a "$LOG_FILE"
     if [ "$DRY_RUN" = false ]; then
       eval "$CMD" 2>&1 | tee -a "$LOG_FILE"
@@ -85,12 +85,12 @@ echo "" | tee -a "$LOG_FILE"
 
 if [ "$DRY_RUN" = false ]; then
   echo "State after migration:" | tee -a "$LOG_FILE"
-  terraform state list | grep "devlinux_vms" | tee -a "$LOG_FILE"
+  terraform state list | grep 'module.vms\["devlinux/' | tee -a "$LOG_FILE"
   echo "" | tee -a "$LOG_FILE"
   echo "Log saved to: $LOG_FILE"
 fi
 
 echo "" | tee -a "$LOG_FILE"
 echo "Next steps:" | tee -a "$LOG_FILE"
-echo "1. Run: terraform plan -target='module.devlinux_vms'" | tee -a "$LOG_FILE"
+echo "1. Run: terraform plan -target='module.vms'" | tee -a "$LOG_FILE"
 echo "2. Verify no changes are detected" | tee -a "$LOG_FILE"
