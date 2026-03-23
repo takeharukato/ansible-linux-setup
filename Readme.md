@@ -51,6 +51,7 @@
     - [host\_vars/ ディレクトリ配下のホスト設定ファイル](#host_vars-ディレクトリ配下のホスト設定ファイル)
       - [ホスト設定ファイル中でのネットワークインターフェース設定](#ホスト設定ファイル中でのネットワークインターフェース設定)
   - [ansible-lint設定ファイル (ansible-lint.yml)の使用法](#ansible-lint設定ファイル-ansible-lintymlの使用法)
+  - [host\_varsファイル作成作業支援ツールについて](#host_varsファイル作成作業支援ツールについて)
   - [用語](#用語)
   - [参考サイト](#参考サイト)
 
@@ -1137,6 +1138,14 @@ ansible-lint -c ansible-lint.yml
 ansible-lintコマンドを, `-c`オプションを指定せずに実行した場合は, デフォルトの設定でplaybookの検証が行われる。
 
 原則としては, デフォルトの設定でansible-lintの警告, エラーが出ないことが望ましいが, タスク名の命名規則や行の長さに関する警告など, 警告, エラーを解消することで, 可読性と保守性が損なわれる場合は, 当該の警告, エラーを無視することも許容する方針で本playbookは作成されている。
+
+## host_varsファイル作成作業支援ツールについて
+
+本playbook用のhost_varsファイル作成作業を支援するツールである[ansibleConfigGenerator](https://github.com/takeharukato/ansibleConfigGenerator)を使用することで, ホストをまたがった設定値の設定, 確認, `host_vars`ファイルの生成, `kitting/terraform`配下のノード構築処理用の設定ファイルの生成作業を行うことが可能です。
+
+以下のGithubリポジトリも併せて確認してください:
+
+- [ansibleConfigGenerator](https://github.com/takeharukato/ansibleConfigGenerator)
 
 ## 用語
 
