@@ -49,13 +49,17 @@ kubeProxyReplacement: true
 
 bpf:
   masquerade: true
+  lbExternalClusterIP: true
+loadBalancer:
+  mode: dsr
 
 ipMasqAgent:
   enabled: false
 
 routingMode: native
 autoDirectNodeRoutes: true
-tunnel: "disabled"
+directRoutingSkipUnreachable: true
+
 ipv4NativeRoutingCIDR: {{k8s_pod_ipv4_network_cidr}}
 ipv6NativeRoutingCIDR: {{k8s_pod_ipv6_network_cidr}}
 
