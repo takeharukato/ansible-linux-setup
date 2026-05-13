@@ -154,7 +154,7 @@
         path: "{{ grub_default_cfg_path }}"
         backrefs: true
         regexp: '^({{ grub_cmdline_var_name }}="[^"]*?\b)isolcpus=[^\s"]+([^"]*")$'
-        line: '\1isolcpus=domain,managed,managed_irq,{{ k8s_worker_app_cpu_range.stdout }}\2'
+        line: '\1isolcpus=domain,managed_irq,{{ k8s_worker_app_cpu_range.stdout }}\2'
         backup: true
       when:
         - grub_cmdline_check_isolcpus.changed
@@ -164,7 +164,7 @@
         backrefs: true
         path: "{{ grub_default_cfg_path }}"
         regexp: "^({{ grub_cmdline_var_name }}=\".*)\"$"
-        line: '\1 isolcpus=managed,{{ k8s_worker_app_cpu_range.stdout }}"'
+        line: '\1 isolcpus=domain,managed_irq,{{ k8s_worker_app_cpu_range.stdout }}"'
       when:
         - not grub_cmdline_check_isolcpus.changed
 
