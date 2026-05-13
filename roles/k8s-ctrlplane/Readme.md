@@ -254,7 +254,7 @@ ansible-playbook -i inventory/hosts k8s-ctrl-plane.yml -t k8s-ctrlplane
 # host_vars/k8sctrlplane01.local
 k8s_ctrlplane_endpoint: 192.168.20.41
 k8s_ctrlplane_port: 6443
-k8s_cilium_version: "1.16.0"
+k8s_cilium_version: "1.18.9"
 k8s_pod_ipv4_network_cidr: "10.244.0.0/16"
 k8s_pod_ipv6_network_cidr: "fdb6:6e92:3cfb::/56"
 k8s_pod_ipv4_service_subnet: "10.254.0.0/16"
@@ -270,7 +270,7 @@ firewall_backend:
 # host_vars/k8sctrlplane01.local
 k8s_ctrlplane_endpoint: "fdb6:6e92:3cfb:1::41"
 k8s_ctrlplane_port: 6443
-k8s_cilium_version: "1.16.0"
+k8s_cilium_version: "1.18.9"
 k8s_pod_ipv4_network_cidr: "10.244.0.0/16"
 k8s_pod_ipv6_network_cidr: "fdb6:6e92:3cfb::/56"
 k8s_pod_ipv4_service_subnet: "10.254.0.0/16"
@@ -344,7 +344,7 @@ cilium   3         3         3       3            3
 
 # 3. Helm リリース
 NAME            NAMESPACE     STATUS    CHART         APP VERSION
-cilium          kube-system   deployed  cilium-1.16.0 1.16.0
+cilium          kube-system   deployed  cilium-1.18.9 1.18.9
 multus-cni      kube-system   deployed  multus-cni-4.2.3 v4.2.3
 whereabouts     kube-system   deployed  whereabouts-chart-0.9.2 v0.9.2
 

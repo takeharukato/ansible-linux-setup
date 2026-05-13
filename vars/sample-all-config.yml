@@ -609,7 +609,7 @@ common_selinux_state: "permissive"
 # =======================================================
 
 # Cilium CNI (Container Network Interface, Kubernetes のネットワークプラグイン仕様, eBPFを活用した高性能なCNIプラグイン) のバージョン
-# k8s_cilium_version: "1.16.0"
+# k8s_cilium_version: "1.18.9"
 #
 # Cilium 共通 CA を有効化する場合は true を指定する
 # k8s_cilium_shared_ca_enabled: true

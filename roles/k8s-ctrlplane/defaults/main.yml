@@ -122,6 +122,9 @@ k8s_cilium_cli_archive_name: "cilium-linux-amd64.tar.gz"
 k8s_cilium_cli_download_url: "https://github.com/cilium/cilium-cli/releases/latest/download/{{ k8s_cilium_cli_archive_name }}"
 k8s_cilium_cli_checksum_url: "{{ k8s_cilium_cli_download_url }}.sha256sum"
 
+# Cilium CNIのバージョン
+k8s_cilium_version: "1.18.9"
+
 # Cilium Helm Chartのバージョン
 k8s_cilium_helm_chart_version: "{{ k8s_cilium_version }}"
 # Ciliumコンテナイメージのバージョン

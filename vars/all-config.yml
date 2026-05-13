@@ -619,7 +619,7 @@ k8s_operator_authorized_key_list: []
 # Cilium
 #
 # Cilium CNIのバージョン
-k8s_cilium_version: "1.16.0"
+k8s_cilium_version: "1.18.9"
 
 #
 # Multus CNI
