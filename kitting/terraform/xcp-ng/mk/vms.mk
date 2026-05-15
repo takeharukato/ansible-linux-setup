@@ -16,7 +16,7 @@
 .PHONY: infrastructure devlinux vmlinux k8s destroy-infrastructure destroy-devlinux destroy-vmlinux destroy-k8s
 
 # destroy後にunused network pruneを実行するか
-DESTROY_PRUNE ?= true
+DESTROY_PRUNE ?= false
 
 define RUN_PRUNE_AFTER_DESTROY
 	@if [ "${DESTROY_PRUNE}" = "true" ]; then \
