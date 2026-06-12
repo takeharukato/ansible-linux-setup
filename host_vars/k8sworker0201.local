@@ -64,8 +64,8 @@ netif_list:
     network_ipv4_prefix_len: 24
     static_ipv6_addr: "{{gpm_mgmt_ipv6_prefix}}{{k8sworker0201_ipv6_addr_field}}"
     network_ipv6_prefix_len: 64
-    gateway4: "{{gpm_mgmt_router_ipv4_address}}"
-    gateway6: "{{gpm_mgmt_router_ipv6_address}}"
+    gateway4: "{{ gpm_mgmt_ipv4_network_gateway }}"
+    gateway6: "{{ gpm_mgmt_ipv6_network_gateway }}"
     ignore_auto_ipv4_dns: true
     ignore_auto_ipv6_dns: true
     name_server_ipv4_1: "{{ipv4_name_server1}}"

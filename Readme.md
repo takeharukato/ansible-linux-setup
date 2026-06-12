@@ -227,10 +227,10 @@ users_listには, 以下の要素からなる辞書のリストを記述する.
 |gpm_mgmt_ipv6_network_address|仮想環境内部管理ネットワークのIPv6アドレス|"{{ gpm_mgmt_ipv6_prefix }}"|
 |gpm_mgmt_ipv4_network_cidr|仮想環境内部管理ネットワークのIPv4ネットワークアドレスCIDR|"{{ gpm_mgmt_ipv4_network_address }}/{{ gpm_mgmt_ipv4_addr_prefix_len }}"|
 |gpm_mgmt_ipv6_network_cidr|仮想環境内部管理ネットワークのIPv6ネットワークアドレスCIDR|"{{ gpm_mgmt_ipv6_network_address }}/{{ gpm_mgmt_ipv6_addr_prefix_len }}"|
-|gpm_mgmt_router_ipv4_address|仮想環境内部管理ネットワークのIPv4ルータアドレス|"{{ gpm_mgmt_ipv4_prefix }}.17"|
-|gpm_mgmt_router_ipv6_address|仮想環境内部管理ネットワークのIPv6ルータアドレス|"{{ gpm_mgmt_ipv6_prefix }}::17"|
-|gpm_mgmt_ipv4_network_gateway|仮想環境内部管理ネットワークのIPv4ネットワークゲートウェイアドレス|"{{ gpm_mgmt_router_ipv4_address }}"|
-|gpm_mgmt_ipv6_network_gateway|仮想環境内部管理ネットワークのIPv6ネットワークゲートウェイアドレス|"{{ gpm_mgmt_router_ipv6_address }}"|
+|gpm_mgmt_internal_router_ipv4_address|仮想環境内部管理ネットワークのIPv4ルータアドレス|"{{ gpm_mgmt_ipv4_prefix }}.17"|
+|gpm_mgmt_internal_router_ipv6_address|仮想環境内部管理ネットワークのIPv6ルータアドレス|"{{ gpm_mgmt_ipv6_prefix }}::17"|
+|gpm_mgmt_ipv4_network_gateway|仮想環境内部管理ネットワークのIPv4ネットワークゲートウェイアドレス|"{{ gpm_mgmt_internal_router_ipv4_address }}"|
+|gpm_mgmt_ipv6_network_gateway|仮想環境内部管理ネットワークのIPv6ネットワークゲートウェイアドレス|"{{ gpm_mgmt_internal_router_ipv6_address }}"|
 |mgmt_nic|デフォルトの管理用ネットワークインターフェース名|"ens160"|
 
 #### クライアントのDomain Name System (DNS) サーバ関連設定

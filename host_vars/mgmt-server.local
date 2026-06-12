@@ -3,19 +3,21 @@
 #  Copyright 2020 Takeharu KATO All Rights Reserved.
 #
 
-# 管理サーバのIPアドレス末尾
-mgmt_server_ipv4_addr_octet: "11"
-mgmt_server_ipv6_addr_field: "11"
+#
+# 管理サーバアドレス
+# 物理サーバ/管理用VMネットワーク内のIPv4アドレス定義変数
+# mgmt_server_ipv4_address, mgmt_server_ipv6_address は,
+# vars/all-config.ymlで定義
+#
 
-# 物理サーバ/管理用VMネットワーク内のIPv4アドレス
-mgmt_server_ipv4_address: "{{router_ipv4_prefix}}.{{ mgmt_server_ipv4_addr_octet }}"
-# 物理サーバ/管理用VMネットワーク内のIPv6アドレス
-mgmt_server_ipv6_address: "{{router_ipv6_prefix}}{{ mgmt_server_ipv6_addr_field }}"
-
+# 仮想環境内部管理ネットワーク内のIPv4アドレスオクテット
+gpm_mgmt_mgmt_server_ipv4_addr_octet: "{{ mgmt_server_ipv4_addr_octet }}"
+# 仮想環境内部管理ネットワーク内のIPv6アドレスフィールド
+gpm_mgmt_mgmt_server_ipv6_addr_field: "{{ mgmt_server_ipv6_addr_field }}"
 # 仮想環境内部管理ネットワーク内のIPv4アドレス
-gpm_mgmt_mgmt_server_ipv4_address: "{{gpm_mgmt_ipv4_prefix}}.{{ mgmt_server_ipv4_addr_octet }}"
+gpm_mgmt_mgmt_server_ipv4_address: "{{gpm_mgmt_ipv4_prefix}}.{{ gpm_mgmt_mgmt_server_ipv4_addr_octet }}"
 # 仮想環境内部管理ネットワーク内のIPv6アドレス
-gpm_mgmt_mgmt_server_ipv6_address: "{{gpm_mgmt_ipv6_prefix}}{{ mgmt_server_ipv6_addr_field }}"
+gpm_mgmt_mgmt_server_ipv6_address: "{{gpm_mgmt_ipv6_prefix}}{{ gpm_mgmt_mgmt_server_ipv6_addr_field }}"
 
 # 管理ネットワークIF
 mgmt_nic: "ens160"

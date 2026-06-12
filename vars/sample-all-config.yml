@@ -155,10 +155,10 @@ common_selinux_state: "permissive"
 # gpm_mgmt_ipv6_network_cidr: "fdad:ba50:248b:1::/64"
 #
 # 仮想環境内部管理ネットワークのルータ IPv4 アドレス
-# gpm_mgmt_router_ipv4_address: "192.168.30.10"
+# gpm_mgmt_internal_router_ipv4_address: "192.168.30.10"
 #
 # 仮想環境内部管理ネットワークのルータ IPv6 アドレス
-# gpm_mgmt_router_ipv6_address: "fdad:ba50:248b:1::10"
+# gpm_mgmt_internal_router_ipv6_address: "fdad:ba50:248b:1::10"
 #
 # 仮想環境内部管理ネットワークの IPv4 ネットワークゲートウェイ
 # gpm_mgmt_ipv4_network_gateway: "192.168.30.10"
