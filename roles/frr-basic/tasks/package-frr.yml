@@ -5,13 +5,13 @@
 #  frrパッケージ関連処理
 ---
 
-# Install FRR package
-- name: Install FRR package
-  ansible.builtin.package:
-    name: "{{ frr_packages }}"
-    state: present
+# 共通FRR導入処理 (frr_version指定時はソースビルド経路)
+- name: Include frr-common role for FRR package/service
+  ansible.builtin.include_role:
+    name: frr-common
+    tasks_from: package.yml
 
-# Enable and start FRR service
+# FRRサービスを有効化して起動する
 - name: Enable and start FRR service
   ansible.builtin.service:
     name: "{{ frr_svc_name }}"

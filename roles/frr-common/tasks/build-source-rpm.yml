@@ -1,0 +1,164 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  FRR rpmソースビルド処理
+#
+---
+
+# FRRソースビルド処理のためのディレクトリを作成する
+# - FRRビルド作業ディレクトリ (frr_build_workspace)
+# - FRRパッケージの成果物出力先ディレクトリ (frr_build_output_dir)
+- name: Prepare local workspace for FRR rpm build
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    mode: "0755"
+  loop:
+    - "{{ frr_build_workspace }}"
+    - "{{ frr_build_output_dir }}"
+  delegate_to: "{{ frr_build_host }}"
+  run_once: true
+
+# FRR debビルド用のコンテナイメージをDockerfileから生成する
+- name: Build FRR rpm builder container image from Dockerfile
+  ansible.builtin.command:
+    argv:
+      - "{{ frr_build_container_runtime }}"
+      - build
+      - --network
+      - "{{ frr_build_container_network_mode }}"
+      - -t
+      - "{{ frr_build_container_image_rhel }}"
+      - -f
+      - "{{ role_path }}/templates/Dockerfile.almalinux"
+      - "{{ role_path }}/templates"
+  async: "{{ frr_build_timeout_seconds }}"
+  poll: 0
+  register: frr_rpm_builder_image_build_job
+  delegate_to: "{{ frr_build_host }}"
+  run_once: true
+  changed_when: true
+
+# FRR rpmビルド用のコンテナイメージのビルドが完了するまで待機する
+- name: Wait FRR rpm builder image build with progress polling
+  ansible.builtin.async_status:
+    jid: "{{ frr_rpm_builder_image_build_job.ansible_job_id }}"
+  register: frr_rpm_builder_image_build_cmd
+  until: frr_rpm_builder_image_build_cmd.finished
+  retries: "{{ (frr_build_timeout_seconds // frr_build_loop_delay_seconds) | int }}"
+  delay: "{{ frr_build_loop_delay_seconds }}"
+  failed_when: (frr_rpm_builder_image_build_cmd.rc | default(0)) != 0
+  delegate_to: "{{ frr_build_host }}"
+  run_once: true
+
+# コンテナ内で実行するFRR rpmビルドスクリプトを生成する
+- name: Render FRR rpm build script for container execution
+  ansible.builtin.template:
+    src: build-frr-rpm.sh.j2
+    dest: "{{ frr_build_workspace }}/build-frr-rpm.sh"
+    mode: "0755"
+  delegate_to: "{{ frr_build_host }}"
+  run_once: true
+
+# FRR rpmパッケージをコンテナ内でビルドする
+# - 長時間かかる処理であるため非同期実行(async), ポーリング0秒に設定し, 別タスクでビルド完了を待機する
+# 留意事項:
+#  - ansible以外でもビルド処理スクリプトを使用・流用可能なように
+#    以下の実行時パラメタ環境変数は, playbook側から渡す設計とした
+#    - FRR_VERSION: ビルド対象のFRR版数
+#    - FRR_GIT_URL: FRRソース取得先のGitリポジトリURL
+#    - FRR_GIT_REF_PREFIX: FRRソース取得先のGitリポジトリのタグ名の接頭辞
+- name: Build FRR rpm package in container
+  ansible.builtin.command:
+    argv:
+      - "{{ frr_build_container_runtime }}"
+      - run
+      - --rm
+      - --network
+      - "{{ frr_build_container_network_mode }}"
+      - -e
+      - "FRR_VERSION={{ frr_version }}"
+      - -e
+      - "FRR_GIT_URL={{ frr_source_git_url }}"
+      - -e
+      - "FRR_GIT_REF_PREFIX={{ frr_source_git_ref_prefix }}"
+      - -v
+      - "{{ frr_build_workspace }}:/work"
+      - -w
+      - /work
+      - "{{ frr_build_container_image_rhel }}"
+      - /bin/bash
+      - /work/build-frr-rpm.sh
+  async: "{{ frr_build_timeout_seconds }}"
+  poll: 0
+  register: frr_rpm_package_build_job
+  delegate_to: "{{ frr_build_host }}"
+  run_once: true
+  changed_when: true
+
+# FRR rpmパッケージのビルド処理が完了するまで待機する
+# - 必要に応じて中途経過状態を表示するタスクを用意することが可能なように
+#   非同期実行タスクを監視する仕組みにしている。
+- name: Wait FRR rpm package build with progress polling
+  ansible.builtin.async_status:
+    jid: "{{ frr_rpm_package_build_job.ansible_job_id }}"
+  register: frr_rpm_package_build_cmd
+  until: frr_rpm_package_build_cmd.finished
+  retries: "{{ (frr_build_timeout_seconds // frr_build_loop_delay_seconds) | int }}"
+  delay: "{{ frr_build_loop_delay_seconds }}"
+  failed_when: (frr_rpm_package_build_cmd.rc | default(0)) != 0
+  delegate_to: "{{ frr_build_host }}"
+  run_once: true
+
+# 構築されたRPMパッケージをリストアップする
+- name: Discover built FRR rpm files
+  ansible.builtin.find:
+    paths: "{{ frr_build_output_dir }}"
+    patterns: "*.rpm"
+    file_type: file
+  register: frr_rpm_files_discovered
+  delegate_to: "{{ frr_build_host }}"
+  run_once: true
+
+# FRR rpmファイルのみを選択する
+# - ビルド依存関係のrpmファイルが混在する可能性があるため,
+#   ファイル名にfrrが含まれるrpmファイルのみを選択する
+- name: Select FRR rpm files only
+  ansible.builtin.set_fact:
+    frr_rpm_files: "{{ frr_rpm_files_discovered.files | selectattr('path', 'search', '/frr[^/]*-[^/]+\\.rpm$') | list }}"
+  delegate_to: "{{ frr_build_host }}"
+  run_once: true
+
+# パッケージ生成に失敗したらビルド失敗とする
+- name: Fail when FRR rpm package was not generated
+  ansible.builtin.fail:
+    msg: "FRR rpm package was not generated for requested version {{ frr_version }}"
+  when: (frr_rpm_files | default([]) | length) == 0
+  delegate_to: "{{ frr_build_host }}"
+  run_once: true
+
+# RPMファイルの版数を取得する
+- name: Read built FRR rpm package version
+  ansible.builtin.command:
+    argv:
+      - rpm
+      - -qp
+      - --qf
+      - '%{VERSION}'
+      - "{{ (frr_rpm_files | map(attribute='path') | list | first) }}"
+  register: frr_rpm_pkg_version_cmd
+  delegate_to: "{{ frr_build_host }}"
+  run_once: true
+  changed_when: false
+
+# ビルドされたFRR rpmパッケージの版数が要求された版数と一致することを確認する
+- name: Assert built FRR rpm version matches request
+  ansible.builtin.assert:
+    that:
+      - "(frr_rpm_pkg_version_cmd.stdout | trim) == (frr_version | trim)"
+    fail_msg: >-
+      Built FRR rpm package version mismatch.
+      requested={{ frr_version | trim }}, built={{ frr_rpm_pkg_version_cmd.stdout | trim }}
+  delegate_to: "{{ frr_build_host }}"
+  run_once: true

@@ -1,0 +1,41 @@
+# FRR source build image for RHEL/AlmaLinux RPM package build
+# rpmパッケージをビルドするためのAlmaLinux9.6のDockerイメージ
+# コンテナイメージ作成時に開発環境を導入する
+FROM almalinux:9.6
+
+RUN dnf -y install \
+      dnf-plugins-core \
+      epel-release && \
+    crb enable && \
+    dnf -y install \
+      git \
+      rpm-build \
+      make \
+      gcc \
+      gcc-c++ \
+      autoconf \
+      automake \
+      libtool \
+      bison \
+      flex \
+      byacc \
+      cmake \
+      gettext \
+      json-c-devel \
+      libcap-devel \
+      libyang-devel \
+      libpcap-devel \
+      net-snmp-devel \
+      pam-devel \
+      pcre2-devel \
+      readline-devel \
+      systemd-devel \
+      protobuf-c-devel \
+      python3-devel \
+      rpmdevtools \
+      rpm-sign \
+      redhat-rpm-config && \
+    dnf clean all && \
+    rm -rf /var/cache/dnf
+
+WORKDIR /work

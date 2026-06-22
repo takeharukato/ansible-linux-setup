@@ -1,0 +1,42 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  パッケージ関連処理
+---
+
+- name: Install distro default FRR package
+  ansible.builtin.package:
+    name: "{{ frr_packages }}"
+    state: present
+  when:
+    - (frr_version | default('', true) | trim | length) == 0
+
+- name: Build and install strict FRR version on Debian family
+  when:
+    - (frr_version | default('', true) | trim | length) > 0
+    - ansible_facts.os_family == 'Debian'
+  block:
+    - name: Build FRR deb package from source
+      ansible.builtin.include_tasks: build-source-deb.yml
+
+    - name: Install built FRR deb package
+      ansible.builtin.include_tasks: install-local-deb.yml
+
+- name: Build and install strict FRR version on RedHat family
+  when:
+    - (frr_version | default('', true) | trim | length) > 0
+    - ansible_facts.os_family == 'RedHat'
+  block:
+    - name: Build FRR rpm package from source
+      ansible.builtin.include_tasks: build-source-rpm.yml
+
+    - name: Install built FRR rpm package
+      ansible.builtin.include_tasks: install-local-rpm.yml
+
+- name: Fail for unsupported OS family when strict version is requested
+  ansible.builtin.fail:
+    msg: "Strict FRR source build is supported only on Debian and RedHat families. os_family={{ ansible_facts.os_family }}"
+  when:
+    - (frr_version | default('', true) | trim | length) > 0
+    - ansible_facts.os_family not in ['Debian', 'RedHat']

@@ -1,0 +1,195 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  FRR rpm導入処理
+#
+---
+
+# 導入対象RPMファイルの確認
+# 対象ホストの frr_rpm_files, localhost側の frr_rpm_filesの順に調べ,
+# いずれもなければ,空リストに定義
+- name: Resolve FRR rpm file list scope (host or localhost)
+  ansible.builtin.set_fact:
+    frr_rpm_source_files: >-
+      {{
+        (frr_rpm_files | default([]))
+        if ((frr_rpm_files | default([]) | length) > 0)
+        else (
+          (hostvars[frr_build_host].frr_rpm_files | default([]))
+          if ((hostvars[frr_build_host].frr_rpm_files | default([]) | length) > 0)
+          else (hostvars['localhost'].frr_rpm_files | default([]))
+        )
+      }}
+
+# 導入対象RPMファイルが指定されていなければ失敗させる
+- name: Fail when no FRR rpm file is found in both host and localhost scopes
+  ansible.builtin.fail:
+    msg: "No FRR rpm file found in both host and localhost scopes. Please define frr_rpm_files variable with at least one rpm file path."
+  when: (frr_rpm_source_files | default([]) | length) == 0
+
+# 導入対象RPMファイルの選別
+# - debuginfo/debugsourceを含むファイルは導入対象から除外する
+- name: Select installable FRR rpm packages (exclude debuginfo/debugsource)
+  ansible.builtin.set_fact:
+    frr_rpm_install_files: >-
+      {{
+        (frr_rpm_source_files | default([]))
+        | rejectattr('path', 'search', 'debuginfo')
+        | rejectattr('path', 'search', 'debugsource')
+        | list
+      }}
+
+# 導入対象RPMファイルがなければ失敗させる
+- name: Fail when no installable FRR rpm package was found
+  ansible.builtin.fail:
+    msg: "No installable FRR rpm package was found in frr_rpm_files."
+  when: (frr_rpm_install_files | default([]) | length) == 0
+
+- name: Ensure built FRR rpm package permissions are readable on build host
+  ansible.builtin.file:
+    path: "{{ item.path }}"
+    mode: "0644"
+  loop: "{{ frr_rpm_install_files | default([]) }}"
+  delegate_to: "{{ frr_build_host }}"
+  run_once: true
+
+# build host から制御ノードへRPM成果物を回収するための一時ディレクトリを作成する
+- name: Ensure local staging directory exists for FRR rpm packages
+  ansible.builtin.tempfile:
+    state: directory
+    path: "{{ lookup('env', 'HOME') }}/.ansible/tmp"
+    prefix: rpm-fetch-
+  register: frr_rpm_fetch_tmpdir
+  delegate_to: localhost
+  become: false
+  run_once: true
+
+# build host で生成されたFRR rpmパッケージを制御ノードに回収する
+- name: Fetch built FRR rpm packages from build host to controller
+  ansible.builtin.fetch:
+    src: "{{ item.path }}"
+    dest: "{{ frr_rpm_fetch_tmpdir.path }}/{{ item.path | basename }}"
+    flat: true
+  loop: "{{ frr_rpm_install_files | default([]) }}"
+  delegate_to: "{{ frr_build_host }}"
+  run_once: true
+
+# 構築ホストから制御ホスト上に回収したFRR rpmパッケージのリストを表示する
+- name: Check fetched FRR rpm packages exist on controller
+  ansible.builtin.stat:
+    path: "{{ frr_rpm_fetch_tmpdir.path }}/{{ item.path | basename }}"
+  loop: "{{ frr_rpm_install_files | default([]) }}"
+  register: frr_rpm_fetch_stat
+  delegate_to: localhost
+  become: false
+  run_once: true
+
+# 回収したFRR rpmパッケージが制御ホスト上に存在することを確認する
+- name: Fail when fetched FRR rpm package is missing on controller
+  ansible.builtin.fail:
+    msg: "Fetched FRR rpm package is missing on controller: {{ item.item.path | basename }}"
+  loop: "{{ frr_rpm_fetch_stat.results | default([]) }}"
+  when: not (item.stat.exists | default(false))
+
+# 回収済みのFRR rpmパッケージをターゲットホストにコピーする
+- name: Copy built FRR rpm packages from controller to target host
+  ansible.builtin.copy:
+    src: "{{ frr_rpm_fetch_tmpdir.path }}/{{ item.path | basename }}"
+    dest: "/tmp/{{ item.path | basename }}"
+    mode: "0644"
+  loop: "{{ frr_rpm_install_files | default([]) }}"
+
+# FRR rpmパッケージ導入用のパスリストを構築する
+#   - default([]) で未定義時の安全性を確保
+#   - map(attribute='path') で各要素のpathだけ抽出
+#   - basename でファイル名部分を抽出
+#   - regex_replace('^', '/tmp/') で /tmp/<ファイル名> 形式に変換
+- name: Build local FRR rpm install list for one transaction
+  ansible.builtin.set_fact:
+    frr_rpm_install_paths: >-
+      {{
+        (frr_rpm_install_files | default([]))
+        | map(attribute='path')
+        | map('basename')
+        | map('regex_replace', '^', '/tmp/')
+        | list
+      }}
+
+# /etc/init.d のパスの状態を確認する
+- name: Check current /etc/init.d path type
+  ansible.builtin.stat:
+    path: /etc/init.d
+    follow: false
+  register: frr_initd_path_stat
+
+# chkconfig互換のために /etc/init.d のパスを正規化する
+# - /etc/init.d が存在し, ディレクトリで, シンボリックリンクでない場合にのみ処理する
+#   - chkconfigは /etc/init.d がディレクトリであることを前提としているため,
+#     それ以外のケースでは処理しない
+- name: Normalize /etc/init.d path for chkconfig compatibility
+  when:
+    - frr_initd_path_stat.stat.exists | default(false)
+    - frr_initd_path_stat.stat.isdir | default(false)
+    - not (frr_initd_path_stat.stat.islnk | default(false))
+  block:
+    # chkconfig互換のために /etc/init.d のパスが存在することを保証する
+    - name: Ensure /etc/rc.d/init.d directory exists
+      ansible.builtin.file:
+        path: /etc/rc.d/init.d
+        state: directory
+        mode: "0755"
+
+    # chkconfig互換のために /etc/init.d の内容を /etc/rc.d/init.d にコピーする
+    # -a オプションで属性を保持しつつコピーする
+    # -n オプションで既存ファイルを上書きしないようにする
+    - name: Copy legacy init scripts to /etc/rc.d/init.d when present
+      ansible.builtin.shell: |
+        set -euo pipefail
+        if [ -n "$(ls -A /etc/init.d 2>/dev/null)" ]; then
+          cp -a -n /etc/init.d/. /etc/rc.d/init.d/
+        fi
+      args:
+        executable: /bin/bash
+      changed_when: false
+
+    # 古い/etc/init.d ディレクトリを削除
+    - name: Remove legacy /etc/init.d directory
+      ansible.builtin.file:
+        path: /etc/init.d
+        state: absent
+
+    # /etc/init.d へのシンボリックリンクを作成
+    - name: Create /etc/init.d symlink to /etc/rc.d/init.d
+      ansible.builtin.file:
+        src: /etc/rc.d/init.d
+        dest: /etc/init.d
+        state: link
+
+# FRR rpmパッケージの導入処理を実行する
+- name: Install local FRR rpm packages in one transaction
+  ansible.builtin.dnf:
+    name: "{{ frr_rpm_install_paths }}"
+    state: present
+    disable_gpg_check: true
+
+# 導入されたFRR rpmパッケージのバージョンを取得する
+- name: Get installed FRR rpm version on target host
+  ansible.builtin.command:
+    argv:
+      - rpm
+      - -q
+      - --qf
+      - '%{VERSION}'
+      - frr
+  register: frr_installed_rpm_version_cmd
+  changed_when: false
+
+# インストールされたFRRパッケージのバージョンが要求されたバージョンと一致することを確認する
+- name: Assert installed FRR rpm version matches request
+  ansible.builtin.assert:
+    that:
+      - "(frr_installed_rpm_version_cmd.stdout | trim) == (frr_version | trim)"
+    fail_msg: >-
+      Installed FRR rpm version mismatch.
+      requested={{ frr_version | trim }}, installed={{ frr_installed_rpm_version_cmd.stdout | trim }}

@@ -1,0 +1,19 @@
+# FRR source build image for Debian/Ubuntu package build
+# debパッケージをビルドするためのUbuntu24.04のDockerイメージ
+# コンテナイメージ作成時に開発環境を導入する
+
+FROM ubuntu:24.04
+
+ENV DEBIAN_FRONTEND=noninteractive
+
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+      ca-certificates \
+      git \
+      devscripts \
+      equivs \
+      dpkg-dev \
+      build-essential && \
+    rm -rf /var/lib/apt/lists/*
+
+WORKDIR /work

@@ -1,0 +1,203 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  FRR debソースビルド処理
+#
+---
+
+# FRRソースビルド処理のためのディレクトリを作成する
+# - FRRビルド作業ディレクトリ (frr_build_workspace)
+# - FRRパッケージの成果物出力先ディレクトリ (frr_build_output_dir)
+- name: Prepare local workspace for FRR deb build
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    mode: "0755"
+  loop:
+    - "{{ frr_build_workspace }}"
+    - "{{ frr_build_output_dir }}"
+  delegate_to: "{{ frr_build_host }}"
+  run_once: true
+
+# FRR debビルド用のコンテナイメージをDockerfileから生成する
+- name: Build FRR deb builder container image from Dockerfile
+  ansible.builtin.command:
+    argv:
+      - "{{ frr_build_container_runtime }}"
+      - build
+      - --network
+      - "{{ frr_build_container_network_mode }}"
+      - -t
+      - "{{ frr_build_container_image_debian }}"
+      - -f
+      - "{{ role_path }}/templates/Dockerfile.ubuntu"
+      - "{{ role_path }}/templates"
+  async: "{{ frr_build_timeout_seconds }}"
+  poll: 0
+  register: frr_deb_builder_image_build_job
+  delegate_to: "{{ frr_build_host }}"
+  run_once: true
+  changed_when: true
+
+# FRR debビルド用のコンテナイメージのビルドが完了するまで待機する
+- name: Wait FRR deb builder image build with progress polling
+  ansible.builtin.async_status:
+    jid: "{{ frr_deb_builder_image_build_job.ansible_job_id }}"
+  register: frr_deb_builder_image_build_cmd
+  until: frr_deb_builder_image_build_cmd.finished
+  retries: "{{ (frr_build_timeout_seconds // frr_build_loop_delay_seconds) | int }}"
+  delay: "{{ frr_build_loop_delay_seconds }}"
+  failed_when: (frr_deb_builder_image_build_cmd.rc | default(0)) != 0
+  delegate_to: "{{ frr_build_host }}"
+  run_once: true
+
+# コンテナ内で実行するFRR debビルドスクリプトを生成する
+- name: Render FRR deb build script for container execution
+  ansible.builtin.template:
+    src: build-frr-deb.sh.j2
+    dest: "{{ frr_build_workspace }}/build-frr-deb.sh"
+    mode: "0755"
+  delegate_to: "{{ frr_build_host }}"
+  run_once: true
+
+# FRR debパッケージをコンテナ内でビルドする
+# - FRR-10系を構築する場合, libyangのバージョンがUbuntu 24.04のリポジトリに存在する
+#   バージョンより新しいため, 先にlibyangをソースビルドしてインストールしてからFRRをビルドする
+# - 長時間かかる処理であるため非同期実行(async), ポーリング0秒に設定し, 別タスクでビルド完了を待機する
+# 留意事項:
+#  - ansible以外でもビルド処理スクリプトを使用・流用可能なように
+#    以下の実行時パラメタ環境変数は, playbook側から渡す設計とした
+#    - FRR_VERSION: ビルド対象のFRR版数
+#    - FRR_GIT_URL: FRRソース取得先のGitリポジトリURL
+#    - FRR_GIT_REF_PREFIX: FRRソース取得先のGitリポジトリのタグ名の接頭辞
+#    - LIBYANG_VERSION: ビルド対象のlibyang版数
+#    - LIBYANG_GIT_URL: libyangソース取得先のGitリポジトリURL
+#    - LIBYANG_GIT_REF_PREFIX: libyangソース取得先のGitリポジトリのタグ名の接頭辞
+- name: Build FRR deb package in container
+  ansible.builtin.command:
+    argv:
+      - "{{ frr_build_container_runtime }}"
+      - run
+      - --rm
+      - --network
+      - "{{ frr_build_container_network_mode }}"
+      - -e
+      - "FRR_VERSION={{ frr_version }}"
+      - -e
+      - "FRR_GIT_URL={{ frr_source_git_url }}"
+      - -e
+      - "FRR_GIT_REF_PREFIX={{ frr_source_git_ref_prefix }}"
+      - -e
+      - "LIBYANG_VERSION={{ frr_libyang_version }}"
+      - -e
+      - "LIBYANG_GIT_URL={{ frr_libyang_git_url }}"
+      - -e
+      - "LIBYANG_GIT_REF_PREFIX={{ frr_libyang_git_ref_prefix }}"
+      - -v
+      - "{{ frr_build_workspace }}:/work"
+      - -w
+      - /work
+      - "{{ frr_build_container_image_debian }}"
+      - /bin/bash
+      - /work/build-frr-deb.sh
+  async: "{{ frr_build_timeout_seconds }}"
+  poll: 0
+  register: frr_deb_package_build_job
+  delegate_to: "{{ frr_build_host }}"
+  run_once: true
+  changed_when: true
+
+# FRR debビルド処理が完了するまで待機する
+# - 必要に応じて中途経過状態を表示するタスクを用意することが可能なように
+#   非同期実行タスクを監視する仕組みにしている。
+- name: Wait FRR deb package build with progress polling
+  ansible.builtin.async_status:
+    jid: "{{ frr_deb_package_build_job.ansible_job_id }}"
+  register: frr_deb_package_build_cmd
+  until: frr_deb_package_build_cmd.finished
+  retries: "{{ (frr_build_timeout_seconds // frr_build_loop_delay_seconds) | int }}"
+  delay: "{{ frr_build_loop_delay_seconds }}"
+  failed_when: (frr_deb_package_build_cmd.rc | default(0)) != 0
+  delegate_to: "{{ frr_build_host }}"
+  run_once: true
+
+# FRR debパッケージビルド処理の標準出力を表示する
+- name: Show FRR deb package build stdout lines
+  ansible.builtin.debug:
+    var: frr_deb_package_build_cmd.stdout_lines
+  when: (frr_deb_package_build_cmd.stdout | default('') | length) > 0
+  delegate_to: "{{ frr_build_host }}"
+  run_once: true
+
+# パッケージ構築が完了したことを確認する
+# - ビルドされたdebファイルを探索し、見つからない場合はビルド失敗とする
+- name: Discover built FRR deb files
+  ansible.builtin.find:
+    paths: "{{ frr_build_output_dir }}"
+    patterns: "*.deb"
+    file_type: file
+  register: frr_deb_files_discovered
+  delegate_to: "{{ frr_build_host }}"
+  run_once: true
+
+# FRR debファイルのみを選択する
+# - ビルド依存関係のdebファイルが混在する可能性があるため,
+#   ファイル名にfrrが含まれるdebファイルのみを選択する
+- name: Select FRR deb files only
+  ansible.builtin.set_fact:
+    frr_deb_files: >-
+      {{
+        frr_deb_files_discovered.files
+        | rejectattr('path', 'search', '/frr-build-deps_[^/]+\.deb$')
+        | list
+      }}
+  delegate_to: "{{ frr_build_host }}"
+  run_once: true
+
+# 選択したFRR debファイルを表示する
+- name: Show selected FRR deb artifacts
+  ansible.builtin.debug:
+    msg: "{{ frr_deb_files | map(attribute='path') | list }}"
+  delegate_to: "{{ frr_build_host }}"
+  run_once: true
+
+# FRR debパッケージの生成に失敗したら処理を中断する
+- name: Fail when FRR deb package was not generated
+  ansible.builtin.fail:
+    msg: "FRR deb package was not generated for requested version {{ frr_version }}"
+  when: (frr_deb_files | default([]) | length) == 0
+  delegate_to: "{{ frr_build_host }}"
+  run_once: true
+
+# ビルドされたFRR debパッケージのバージョンを読み取る
+- name: Read built FRR deb package version
+  ansible.builtin.command:
+    argv:
+      - dpkg-deb
+      - -f
+      - "{{ (frr_deb_files | selectattr('path', 'search', '/frr_[^/]+\\.deb$') | map(attribute='path') | list | first) }}"
+      - Version
+  register: frr_deb_pkg_version_cmd
+  delegate_to: "{{ frr_build_host }}"
+  run_once: true
+  changed_when: false
+
+# ビルドされたFRR debパッケージのバージョンが要求されたバージョンと一致することを確認する
+- name: Fail when core frr deb package was not generated
+  ansible.builtin.fail:
+    msg: "Core FRR deb package (frr_*.deb) was not generated for requested version {{ frr_version }}"
+  when: (frr_deb_files | selectattr('path', 'search', '/frr_[^/]+\\.deb$') | list | length) == 0
+  delegate_to: "{{ frr_build_host }}"
+  run_once: true
+
+# ビルドされたFRR debパッケージのバージョンがアップストリームのソースバージョンと一致することを確認する
+- name: Assert built FRR deb package upstream version matches request
+  ansible.builtin.assert:
+    that:
+      - "(frr_deb_pkg_version_cmd.stdout | trim | regex_replace('-.*$', '')) == (frr_version | trim)"
+    fail_msg: >-
+      Built FRR deb package version mismatch.
+      requested={{ frr_version | trim }}, built={{ frr_deb_pkg_version_cmd.stdout | trim }}
+  delegate_to: "{{ frr_build_host }}"
+  run_once: true

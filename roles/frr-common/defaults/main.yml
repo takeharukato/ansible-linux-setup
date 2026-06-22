@@ -1,0 +1,48 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  ロール固有変数のデフォルト値
+#  group_vars/all/all.yml やhost_varsで上書き可能とするため,
+#  ロール名/defaults/main.yml に定義している
+
+---
+
+# 空文字または未定義の場合はディストリビューション標準版を導入する
+frr_version: ""
+
+# ソースビルドで使用するホスト
+frr_build_host: "localhost"
+
+# ソースビルド時のコンテナランタイム
+frr_build_container_runtime: "docker"
+
+# 最大ビルド時間 (秒)
+frr_build_timeout_seconds: 7200
+
+# ビルドループの待機時間 (秒)
+frr_build_loop_delay_seconds: 5
+
+# ロックファイル待ち時間 (秒)
+frr_install_deb_lock_wait_seconds: 3600
+
+# ソースビルド時のコンテナネットワークモード
+# DNS解決エラー回避のため, デフォルトは host を使用する
+frr_build_container_network_mode: "host"
+
+# ソースビルド用コンテナイメージ
+frr_build_container_image_debian: "frr-build-ubuntu:24.04"
+frr_build_container_image_rhel: "almalinux:9.6"
+
+# ビルド作業ディレクトリ (制御ノード側)
+frr_build_workspace: "/tmp/frr-build"
+frr_build_output_dir: "{{ frr_build_workspace }}/output"
+
+# FRR ソース取得先
+frr_source_git_url: "https://github.com/FRRouting/frr.git"
+frr_source_git_ref_prefix: "frr-"
+
+# Ubuntu 24.04向けに先行導入する libyang のソースビルド設定
+frr_libyang_git_url: "https://github.com/CESNET/libyang.git"
+frr_libyang_version: "2.1.148"
+frr_libyang_git_ref_prefix: "v"
