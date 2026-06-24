@@ -518,12 +518,12 @@ terraform_enabled: false
 # Go言語のバージョン
 # 未指定時は, OSディストリビューションが提供する
 # パッケージ経由でGo言語をインストールする
-# go_lang_version: "1.18"
+# go_lang_version: "1.25"
 
 # Free Range Routing (FRR) のバージョン
 # 未指定時は, OSディストリビューションが提供する
 # パッケージ経由でFRRをインストールする
-frr_version: "10.4.1"
+# frr_version: "10.4.1"
 
 #
 # Kubernetes
