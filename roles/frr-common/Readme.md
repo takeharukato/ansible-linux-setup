@@ -1,6 +1,6 @@
 # frr-common ロール
 
-このロールは FRRouting (FRR) の導入処理を共通化し, `frr-basic` と `k8s-worker-frr` から `include_role` で呼び出して使うためのロールである。
+このロールは Free Range Routing (FRR) の導入処理を共通化し, `frr-basic` と `k8s-worker-frr` から `include_role` で呼び出して使うためのロールである。
 
 - [frr-common ロール](#frr-common-ロール)
   - [用語](#用語)
@@ -48,8 +48,8 @@
 | `frr_build_container_network_mode` | ソースビルド用コンテナのネットワークモード。 | `"host"` |
 | `frr_build_container_image_debian` | Debian 系ビルドに使うコンテナイメージ。 | `"ubuntu:24.04"` |
 | `frr_build_container_image_rhel` | RHEL 系ビルドに使うコンテナイメージ。 | `"almalinux:9.6"` |
-| `frr_build_workspace` | 制御ノード側のビルド作業ディレクトリ。 | `"/tmp/frr-build"` |
-| `frr_build_output_dir` | 制御ノード側の成果物出力先。 | `"{{ frr_build_workspace }}/output"` |
+| `frr_build_workspace` | 構築ノード側のビルド作業ディレクトリ。 | `"/tmp/frr-build"` |
+| `frr_build_output_dir` | 構築ノード側の成果物出力先。 | `"{{ frr_build_workspace }}/output"` |
 | `frr_source_git_url` | FRR ソース取得先。 | `"https://github.com/FRRouting/frr.git"` |
 | `frr_source_git_ref_prefix` | Git checkout 時の版数プレフィックス。 | `"frr-"` |
 | `frr_libyang_git_url` | Ubuntu 24.04向けlibyangのソース取得先。 | `"https://github.com/CESNET/libyang.git"` |
@@ -79,8 +79,8 @@
 |templates/install-libyang.sh.j2|frr-10系で必要となるlibyangのUbuntu/Debian用debパッケージ構築用を構築するシェルスクリプト|
 |templates/install-libyang-dev.control.j2|frr-10系で必要となるlibyang開発関連ファイルのUbuntu/Debian用debパッケージ構築用controlファイル|
 |templates/install-libyang-runtime.control.j2|frr-10系で必要となるlibyangのUbuntu/Debian用debパッケージ構築用controlファイル|
-|templates/Dockerfile.almalinux|RHEL(AlmaLinux9.6)用rpmパッケージ構築に使用するコンテナ環境作成用Dockerfile|
-|templates/Dockerfile.ubuntu|Ubuntu/Debian(Ubuntu24.04)用debパッケージ構築に使用するコンテナ環境作成用Dockerfile|
+|templates/Dockerfile.almalinux.j2|RHEL(AlmaLinux9.6)用rpmパッケージ構築に使用するコンテナ環境作成用Dockerfile生成テンプレート|
+|templates/Dockerfile.ubuntu.j2|Ubuntu/Debian(Ubuntu24.04)用debパッケージ構築に使用するコンテナ環境作成用Dockerfile生成テンプレート|
 
 
 ### パッケージ構築～導入までの流れ

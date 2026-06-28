@@ -30,6 +30,10 @@ set -euo pipefail
 # debパッケージビルド時に対話的な質問を抑制する
 export DEBIAN_FRONTEND=noninteractive
 
+# 作業ディレクトリ
+# Dockerfile.ubuntu内のWORKDIRと合わせること
+workdir="{{ frr_build_container_workdir }}"
+
 #
 # libyangのソースコードをビルドしてインストールする
 #
@@ -44,11 +48,16 @@ build_libyang(){
     #
     # libyangを構築するためのディレクトリを作成する
     #
-    libyang_srcdir="/work/libyang-src-${LIBYANG_VERSION}"
-    srcdir="/work/frr-src-${FRR_VERSION}"
+    libyang_srcdir="${workdir}/libyang-src-${LIBYANG_VERSION}"
+    srcdir="${workdir}/frr-src-${FRR_VERSION}"
 
-    rm -rf "${libyang_srcdir}"
-    rm -rf "${srcdir}"
+    if [[ -d "${libyang_srcdir}" ]]; then
+        rm -rf "${libyang_srcdir}"
+    fi
+
+    if [[ -d "${srcdir}" ]]; then
+        rm -rf "${srcdir}"
+    fi
 
     #
     # libyangのソースコードをGitリポジトリから取得する
@@ -103,8 +112,11 @@ build_frr(){
 
     # ソースコード展開先ディレクトリを一旦削除し
     # Gitリポジトリから取得したソースコードに置き換える
-    srcdir="/work/frr-src-${FRR_VERSION}"
-    rm -rf "${srcdir}"
+    srcdir="${workdir}/frr-src-${FRR_VERSION}"
+
+    if [[ -d "${srcdir}" ]]; then
+        rm -rf "${srcdir}"
+    fi
 
     # Gitリポジトリからソースコードを取得する
     git clone "${FRR_GIT_URL}" "${srcdir}"
@@ -125,10 +137,11 @@ build_frr(){
     # /workは, ホスト側のディレクトリにマウントされている
     # dockerコンテナ内での作業ディレクトリとして, playbook側で
     # 指定することを前提としている。
-    mkdir -p /work/output
+    mkdir -p "${workdir}/output"
+
     # ビルドされたdebパッケージを /work/output にコピーする
-    find /work -maxdepth 1 -type f -name '*.deb' -exec cp -f {} /work/output/ \;
-    find "${srcdir}" -maxdepth 1 -type f -name '*.deb' -exec cp -f {} /work/output/ \;
+    find "${workdir}" -maxdepth 1 -type f -name '*.deb' -exec cp -f {} "${workdir}/output/" \;
+    find "${srcdir}" -maxdepth 1 -type f -name '*.deb' -exec cp -f {} "${workdir}/output/" \;
 }
 
 #

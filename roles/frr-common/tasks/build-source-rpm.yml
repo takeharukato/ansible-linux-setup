@@ -20,7 +20,16 @@
   delegate_to: "{{ frr_build_host }}"
   run_once: true
 
-# FRR debビルド用のコンテナイメージをDockerfileから生成する
+# FRR rpmビルド用Dockerfileを生成する
+- name: Render FRR rpm Dockerfile for container image build
+  ansible.builtin.template:
+    src: Dockerfile.almalinux.j2
+    dest: "{{ frr_build_workspace }}/Dockerfile.frr-rpm"
+    mode: "0644"
+  delegate_to: "{{ frr_build_host }}"
+  run_once: true
+
+# FRR rpmビルド用のコンテナイメージをDockerfileから生成する
 - name: Build FRR rpm builder container image from Dockerfile
   ansible.builtin.command:
     argv:
@@ -31,8 +40,8 @@
       - -t
       - "{{ frr_build_container_image_rhel }}"
       - -f
-      - "{{ role_path }}/templates/Dockerfile.almalinux"
-      - "{{ role_path }}/templates"
+      - "{{ frr_build_workspace }}/Dockerfile.frr-rpm"
+      - "{{ frr_build_workspace }}"
   async: "{{ frr_build_timeout_seconds }}"
   poll: 0
   register: frr_rpm_builder_image_build_job

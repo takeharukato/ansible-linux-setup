@@ -21,6 +21,10 @@ set -euo pipefail
 : "${FRR_GIT_URL:?FRR_GIT_URL is required}"
 : "${FRR_GIT_REF_PREFIX:?FRR_GIT_REF_PREFIX is required}"
 
+# 作業ディレクトリ
+# Dockerfile.almalinux内のWORKDIRと合わせること
+workdir="{{ frr_build_container_workdir }}"
+
 build_frr(){
     local srcdir
     local specfile
@@ -28,8 +32,10 @@ build_frr(){
     #
     # FRRを構築するためのディレクトリを作成する
     #
-    srcdir="/work/frr-src-${FRR_VERSION}"
-    rm -rf "${srcdir}"
+    srcdir="${workdir}/frr-src-${FRR_VERSION}"
+    if [[ -d "${srcdir}" ]]; then
+        rm -rf "${srcdir}"
+    fi
 
     #
     # FRRのソースコードをGitリポジトリから取得する
@@ -66,17 +72,30 @@ build_frr(){
     #
 
     # RPMビルド用のディレクトリを作成する
-    rm -rf /work/rpmbuild
-    mkdir -p /work/rpmbuild/{BUILD,BUILDROOT,RPMS,SOURCES,SPECS,SRPMS}
+    if [[ -d "${workdir}/rpmbuild" ]]; then
+        rm -rf "${workdir}/rpmbuild"
+    fi
+    mkdir -p \
+        "${workdir}/rpmbuild/BUILD" \
+        "${workdir}/rpmbuild/BUILDROOT" \
+        "${workdir}/rpmbuild/RPMS" \
+        "${workdir}/rpmbuild/SOURCES" \
+        "${workdir}/rpmbuild/SPECS" \
+        "${workdir}/rpmbuild/SRPMS"
 
     # FRRのソースコードをtar.gz形式に圧縮する
-    tar -czf "/work/rpmbuild/SOURCES/frr-${FRR_VERSION}.tar.gz" --transform "s#^frr-src-${FRR_VERSION}#frr-${FRR_VERSION}#" -C /work "frr-src-${FRR_VERSION}"
+    tar -czf "${workdir}/rpmbuild/SOURCES/frr-${FRR_VERSION}.tar.gz" --transform "s#^frr-src-${FRR_VERSION}#frr-${FRR_VERSION}#" -C "${workdir}" "frr-src-${FRR_VERSION}"
     # specファイルをRPMビルド用のディレクトリにコピーする
-    cp -f "${specfile}" /work/rpmbuild/SPECS/frr.spec
+    cp -f "${specfile}" "${workdir}/rpmbuild/SPECS/frr.spec"
 
     # FRRのrpmパッケージをビルドする
-    rpmbuild -ba /work/rpmbuild/SPECS/frr.spec \
-    --define "_topdir /work/rpmbuild" \
+    # パラメタ:
+    #   _topdir: rpmbuildのトップディレクトリを指定する
+    #   with_rpki 0: RPKI機能を無効化する
+    #   with_docs 0: ドキュメントを生成しない
+    #   version ${FRR_VERSION}: specファイル内の%define versionを上書きする
+    rpmbuild -ba "${workdir}/rpmbuild/SPECS/frr.spec" \
+    --define "_topdir ${workdir}/rpmbuild" \
     --define "with_rpki 0" \
     --define "with_docs 0" \
     --define "version ${FRR_VERSION}"
@@ -85,8 +104,8 @@ build_frr(){
     # /workは, ホスト側のディレクトリにマウントされている
     # dockerコンテナ内での作業ディレクトリとして, playbook側で
     # 指定することを前提としている。
-    mkdir -p /work/output
-    find /work/rpmbuild/RPMS -type f -name '*.rpm' -exec cp -f {} /work/output/ \;
+    mkdir -p "${workdir}/output"
+    find "${workdir}/rpmbuild/RPMS" -type f -name '*.rpm' -exec cp -f {} "${workdir}/output/" \;
 }
 
 #

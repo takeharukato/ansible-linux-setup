@@ -20,6 +20,15 @@
   delegate_to: "{{ frr_build_host }}"
   run_once: true
 
+# FRR debビルド用Dockerfileを生成する
+- name: Render FRR deb Dockerfile for container image build
+  ansible.builtin.template:
+    src: Dockerfile.ubuntu.j2
+    dest: "{{ frr_build_workspace }}/Dockerfile.frr-deb"
+    mode: "0644"
+  delegate_to: "{{ frr_build_host }}"
+  run_once: true
+
 # FRR debビルド用のコンテナイメージをDockerfileから生成する
 - name: Build FRR deb builder container image from Dockerfile
   ansible.builtin.command:
@@ -31,8 +40,8 @@
       - -t
       - "{{ frr_build_container_image_debian }}"
       - -f
-      - "{{ role_path }}/templates/Dockerfile.ubuntu"
-      - "{{ role_path }}/templates"
+      - "{{ frr_build_workspace }}/Dockerfile.frr-deb"
+      - "{{ frr_build_workspace }}"
   async: "{{ frr_build_timeout_seconds }}"
   poll: 0
   register: frr_deb_builder_image_build_job

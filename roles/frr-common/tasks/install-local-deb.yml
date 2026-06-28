@@ -2,17 +2,99 @@
 #  Ansible playbook
 #  Copyright 2020 Takeharu KATO All Rights Reserved.
 #
-#  FRR 導入処理
+#  Debian/Ubuntu 環境用 Free Range Routing (FRR) 導入処理
 #
 ---
 
-# FRR debパッケージをターゲットホストにコピーする
-- name: Copy built FRR deb packages to target host
-  ansible.builtin.copy:
+# 留意事項
+# FRRから使用するlibyangライブラリの構築方針について
+#
+# Debian/Ubuntu系の場合, libyangのパッケージ名がlibyang2と
+# libyang2t64のように系統が分かれるため, 事前導入だけでは
+# 最終状態を固定しきれない。
+# このため, 構築時(コンパイル時)とインストール後の2段階で
+# libyangのシンボル整合性を確認し, 不足する場合は構築ホスト上で
+# libyangをビルドして導入する方針とした。
+
+
+# 導入対象debファイルを frr_deb_files 変数に設定する
+# 1. (frr_deb_files|default([]))
+# 2. frr_deb_files が未定義の場合は, 構築ホストの hostvarsで定義されているfrr_deb_files を使用する
+# 3. 構築ホストの hostvarsのfrr_deb_files が未定義の場合は,
+#    制御ホストの hostvarsで定義されているfrr_deb_files を使用する
+- name: Resolve FRR deb file list scope (host or localhost)
+  ansible.builtin.set_fact:
+    frr_deb_source_files: >-
+      {{
+        (frr_deb_files | default([]))
+        if ((frr_deb_files | default([]) | length) > 0)
+        else (
+          (hostvars[frr_build_host].frr_deb_files | default([]))
+          if ((hostvars[frr_build_host].frr_deb_files | default([]) | length) > 0)
+          else (hostvars['localhost'].frr_deb_files | default([]))
+        )
+      }}
+
+# 導入対象debファイルが見つからない場合は失敗する
+- name: Fail when no FRR deb file is found in both host and localhost scopes
+  ansible.builtin.fail:
+    msg: "No FRR deb file found in both host and localhost scopes. Please define frr_deb_files variable with at least one deb file path."
+  when: (frr_deb_source_files | default([]) | length) == 0
+
+# 構築ホスト上のFRR debパッケージのパーミッションを読み取り可能に変更する
+- name: Ensure built FRR deb package permissions are readable on build host
+  ansible.builtin.file:
+    path: "{{ item.path }}"
+    mode: "0644"
+  loop: "{{ frr_deb_source_files | default([]) }}"
+  delegate_to: "{{ frr_build_host }}"
+  run_once: true
+
+# 構築ホストから制御ホストへ回収するための一時ディレクトリを作成する
+- name: Ensure local staging directory exists for FRR deb packages
+  ansible.builtin.tempfile:
+    state: directory
+    path: "{{ lookup('env', 'HOME') }}/.ansible/tmp"
+    prefix: deb-fetch-
+  register: frr_deb_fetch_tmpdir
+  delegate_to: localhost
+  become: false
+  run_once: true
+
+# 構築済みFRR debパッケージを制御ホストに回収する
+- name: Fetch built FRR deb packages from build host to controller
+  ansible.builtin.fetch:
     src: "{{ item.path }}"
+    dest: "{{ frr_deb_fetch_tmpdir.path }}/{{ item.path | basename }}"
+    flat: true
+  loop: "{{ frr_deb_source_files | default([]) }}"
+  delegate_to: "{{ frr_build_host }}"
+  run_once: true
+
+# 回収したFRR debパッケージの存在を確認する
+- name: Check fetched FRR deb packages exist on controller
+  ansible.builtin.stat:
+    path: "{{ frr_deb_fetch_tmpdir.path }}/{{ item.path | basename }}"
+  loop: "{{ frr_deb_source_files | default([]) }}"
+  register: frr_deb_fetch_stat
+  delegate_to: localhost
+  become: false
+  run_once: true
+
+# 回収したFRR debパッケージが存在しない場合は失敗する
+- name: Fail when fetched FRR deb package is missing on controller
+  ansible.builtin.fail:
+    msg: "Fetched FRR deb package is missing on controller: {{ item.item.path | basename }}"
+  loop: "{{ frr_deb_fetch_stat.results | default([]) }}"
+  when: not (item.stat.exists | default(false))
+
+# 回収済みFRR debパッケージをターゲットホストへコピーする
+- name: Copy built FRR deb packages from controller to target host
+  ansible.builtin.copy:
+    src: "{{ frr_deb_fetch_tmpdir.path }}/{{ item.path | basename }}"
     dest: "/tmp/{{ item.path | basename }}"
     mode: "0644"
-  loop: "{{ frr_deb_files | default([]) }}"
+  loop: "{{ frr_deb_source_files | default([]) }}"
 
 # FRR debパッケージをターゲットホストに導入するための
 # コマンド引数を構築する
@@ -44,7 +126,7 @@
         ]
         +
         (
-          frr_deb_files
+          frr_deb_source_files
           | default([])
           | map(attribute='path')
           | map('basename')
@@ -67,7 +149,20 @@
   retries: "{{ (frr_build_timeout_seconds // frr_build_loop_delay_seconds) | int }}"
   delay: "{{ frr_build_loop_delay_seconds }}"
 
+#
 # FRR実行時に必要なlibyangシンボルが不足する場合は先行導入する
+#  1. ldconfig -p | awk '/libyang\.so\.2/{print $4; exit}'
+#    a. ldconfig -p で共有ライブラリのキャッシュを表示し, libyang.so.2 のパスを取得する
+#    b. awk '/libyang\.so\.2/{print $4; exit}'
+#       libyang.so.2 が見つかった場合はそのパスを出力し,
+#       見つからなければ空文字列を出力する
+#  2. test -n "${libyang_so}"
+#     libyang.so.2 のパスが空文字列でないことを確認する
+#  3. nm -D "${libyang_so}" 2>/dev/null | grep -qE 'lyd_parent$'
+#     libyang.so.2 のシンボルテーブルを表示し, lyd_parent シンボルが存在することを確認する
+#     register で結果を grepの終了コードをfrr_libyang_symbol_check.rc に格納する
+#     a. frr_libyang_symbol_check.rc が 0 の場合はシンボルが存在するため, libyangの先行導入は不要
+#     b. frr_libyang_symbol_check.rc が 0以外 の場合はシンボルが存在しないため, libyangの先行導入が必要
 - name: Check whether installed libyang provides lyd_parent symbol
   ansible.builtin.shell: >-
     libyang_so="$(ldconfig -p | awk '/libyang\.so\.2/{print $4; exit}')";
@@ -81,176 +176,13 @@
 # FRR実行時に必要なlibyangシンボルが不足する場合は, libyangをビルドして先行導入する
 #
 
-# libyangをビルドするためのシェルスクリプトを制御ホスト上に生成する
-- name: Render libyang installer script on build host
-  ansible.builtin.template:
-    src: install-libyang.sh.j2
-    dest: /tmp/install-libyang.sh
-    mode: "0755"
-  delegate_to: "{{ frr_build_host }}"
-  run_once: true
-  when:
-    - ansible_facts.os_family == 'Debian'
-
-# libyangのランタイムパッケージのcontrolファイルを制御ホスト上に生成する
-- name: Render libyang runtime control template on build host
-  ansible.builtin.template:
-    src: install-libyang-runtime.control.j2
-    dest: /tmp/install-libyang-runtime.control.in
-    mode: "0644"
-  delegate_to: "{{ frr_build_host }}"
-  run_once: true
-  when:
-    - ansible_facts.os_family == 'Debian'
-
-# libyangの開発パッケージのcontrolファイルを制御ホスト上に生成する
-- name: Render libyang dev control template on build host
-  ansible.builtin.template:
-    src: install-libyang-dev.control.j2
-    dest: /tmp/install-libyang-dev.control.in
-    mode: "0644"
-  delegate_to: "{{ frr_build_host }}"
-  run_once: true
-  when:
-    - ansible_facts.os_family == 'Debian'
-
-# FRR実行時に必要なlibyangシンボルが不足する場合は, 制御ホスト上でlibyangをビルドする
-- name: Build compatible libyang deb packages on build host when symbol is missing
-  ansible.builtin.command:
-    argv:
-      - /bin/bash
-      - /tmp/install-libyang.sh
-  delegate_to: "{{ frr_build_host }}"
-  run_once: true
-  when:
-    - ansible_facts.os_family == 'Debian'
-    - frr_libyang_symbol_check.rc != 0
-
-# 構築済みのlibyang debパッケージを構築ホスト上で探索する
-- name: Discover built libyang deb packages on build host when symbol is missing
-  ansible.builtin.find:
-    paths: /tmp
-    patterns:
-      - "libyang2_{{ frr_libyang_version }}-1_*.deb"
-      - "libyang2t64_{{ frr_libyang_version }}-1_*.deb"
-      - "libyang2-dev_{{ frr_libyang_version }}-1_*.deb"
-    file_type: file
-  register: frr_libyang_deb_files_before_install_discovered
-  delegate_to: "{{ frr_build_host }}"
-  run_once: true
-  when:
-    - ansible_facts.os_family == 'Debian'
-    - frr_libyang_symbol_check.rc != 0
-
-# 構築済みのlibyang debパッケージのリストを取得する
-- name: Set built libyang deb package list when symbol is missing
-  ansible.builtin.set_fact:
-    frr_libyang_deb_files_before_install: "{{ frr_libyang_deb_files_before_install_discovered.files | default([]) }}"
-  delegate_to: "{{ frr_build_host }}"
-  run_once: true
-  when:
-    - ansible_facts.os_family == 'Debian'
-    - frr_libyang_symbol_check.rc != 0
-
-# 構築済みのlibyang debパッケージが存在しない場合は処理を中断する
-- name: Fail when libyang deb packages were not generated before FRR install
-  ansible.builtin.fail:
-    msg: "libyang deb package was not generated on build host for requested version {{ frr_libyang_version }}"
-  when:
-    - ansible_facts.os_family == 'Debian'
-    - frr_libyang_symbol_check.rc != 0
-    - (frr_libyang_deb_files_before_install | default([]) | length) == 0
-  delegate_to: "{{ frr_build_host }}"
-  run_once: true
-
-# 構築したlibyang debパッケージのパーミッションを変更する
-- name: Ensure built libyang deb package permissions are readable before FRR install
-  ansible.builtin.file:
-    path: "{{ item.path }}"
-    mode: "0644"
-  loop: "{{ frr_libyang_deb_files_before_install | default([]) }}"
-  delegate_to: "{{ frr_build_host }}"
-  run_once: true
-  when:
-    - ansible_facts.os_family == 'Debian'
-    - frr_libyang_symbol_check.rc != 0
-
-# 導入先のホスト上にパッケージ導入用の一時ディレクトリ(ステージングディレクトリ)を作成する
-- name: Ensure local staging directory exists for libyang deb packages before FRR install
-  ansible.builtin.tempfile:
-    state: directory
-    path: "{{ lookup('env', 'HOME') }}/.ansible/tmp"
-    prefix: libyang-fetch-before-
-  register: frr_libyang_fetch_before_tmpdir
-  delegate_to: localhost
-  become: false
-  run_once: true
-  when:
-    - ansible_facts.os_family == 'Debian'
-    - frr_libyang_symbol_check.rc != 0
-
-# 構築したlibyang debパッケージを構築ホストから導入先ホストに回収するために,
-# 構築ホストから制御ホストにコピーする
-- name: Fetch built libyang deb packages from build host to controller before FRR install
-  ansible.builtin.fetch:
-    src: "{{ item.path }}"
-    dest: "{{ frr_libyang_fetch_before_tmpdir.path }}/{{ item.path | basename }}"
-    flat: true
-  loop: "{{ frr_libyang_deb_files_before_install | default([]) }}"
-  delegate_to: "{{ frr_build_host }}"
-  run_once: true
-  when:
-    - ansible_facts.os_family == 'Debian'
-    - frr_libyang_symbol_check.rc != 0
-
-# 回収したlibyang debパッケージが制御ホスト上に存在することを確認する
-- name: Check fetched libyang deb packages exist on controller before FRR install
-  ansible.builtin.stat:
-    path: "{{ frr_libyang_fetch_before_tmpdir.path }}/{{ item.path | basename }}"
-  loop: "{{ frr_libyang_deb_files_before_install | default([]) }}"
-  register: frr_libyang_fetch_before_stat
-  delegate_to: localhost
-  become: false
-  run_once: true
-  when:
-    - ansible_facts.os_family == 'Debian'
-    - frr_libyang_symbol_check.rc != 0
-
-# 回収したlibyang debパッケージが制御ホスト上に存在しない場合は処理を中断する
-- name: Fail when fetched libyang deb package is missing on controller before FRR install
-  ansible.builtin.fail:
-    msg: "Fetched libyang deb package is missing on controller: {{ item.item.path | basename }}"
-  loop: "{{ frr_libyang_fetch_before_stat.results | default([]) }}"
-  when:
-    - ansible_facts.os_family == 'Debian'
-    - frr_libyang_symbol_check.rc != 0
-    - not (item.stat.exists | default(false))
-
-# 回収したlibyang debパッケージを導入先ホストにコピーする
-- name: Copy built libyang deb packages from controller to target host when symbol is missing
-  ansible.builtin.copy:
-    src: "{{ frr_libyang_fetch_before_tmpdir.path }}/{{ item.path | basename }}"
-    dest: "/tmp/{{ item.path | basename }}"
-    mode: "0644"
-  loop: "{{ frr_libyang_deb_files_before_install | default([]) }}"
-  when:
-    - ansible_facts.os_family == 'Debian'
-    - frr_libyang_symbol_check.rc != 0
-
-# 構築したlibyang debパッケージをターゲットホストに導入する
-- name: Install built libyang deb packages on target host when symbol is missing
-  ansible.builtin.shell: >-
-    set -euo pipefail;
-    shopt -s nullglob;
-    debs=(/tmp/libyang2_{{ frr_libyang_version }}-1_*.deb /tmp/libyang2t64_{{ frr_libyang_version }}-1_*.deb /tmp/libyang2-dev_{{ frr_libyang_version }}-1_*.deb);
-    test -n "${debs[*]:-}";
-    apt-get -y --allow-downgrades install "${debs[@]}";
-    ldconfig
-  args:
-    executable: /bin/bash
-  when:
-    - ansible_facts.os_family == 'Debian'
-    - frr_libyang_symbol_check.rc != 0
+# FRR実行時に必要なlibyangシンボルが不足する場合は, 構築ホスト上でlibyangをビルドして導入する
+- name: Remediate libyang packages before FRR install when symbol is missing
+  ansible.builtin.include_tasks: remediate-libyang.yml
+  vars:
+    frr_libyang_symbol_check_rc: "{{ frr_libyang_symbol_check.rc | default(0) }}"
+    frr_libyang_phase_label: "before FRR install"
+    frr_libyang_fetch_prefix: "libyang-fetch-before-"
 
 # FRR debパッケージ導入時にpostinstでサービス自動起動させないよう一時的に抑止する
 - name: Install local FRR deb packages in one transaction with service autostart suppressed
@@ -311,151 +243,18 @@
   changed_when: false
   failed_when: false
 
-# FRR導入後にlibyangのシンボルが不足する場合は, 制御ホスト上でlibyangを再ビルドする
-- name: Rebuild compatible libyang deb packages on build host when symbol is missing after FRR install
-  ansible.builtin.command:
-    argv:
-      - /bin/bash
-      - /tmp/install-libyang.sh
-  delegate_to: "{{ frr_build_host }}"
-  run_once: true
-  when:
-    - ansible_facts.os_family == 'Debian'
-    - frr_libyang_symbol_check_after_install.rc != 0
+#
+# FRR導入後にlibyangのシンボルが不足する場合は,
+# 構築ホスト上でlibyangを再ビルドする
+#
 
-# 再構築したlibyang debパッケージを構築ホスト上で探索する
-- name: Discover rebuilt libyang deb packages on build host when symbol is missing after FRR install
-  ansible.builtin.find:
-    paths: /tmp
-    patterns:
-      - "libyang2_{{ frr_libyang_version }}-1_*.deb"
-      - "libyang2t64_{{ frr_libyang_version }}-1_*.deb"
-      - "libyang2-dev_{{ frr_libyang_version }}-1_*.deb"
-    file_type: file
-  register: frr_libyang_deb_files_after_install_discovered
-  delegate_to: "{{ frr_build_host }}"
-  run_once: true
-  when:
-    - ansible_facts.os_family == 'Debian'
-    - frr_libyang_symbol_check_after_install.rc != 0
-
-# 構築ホスト上で再構築したlibyang debパッケージのリストを取得する
-- name: Set rebuilt libyang deb package list when symbol is missing after FRR install
-  ansible.builtin.set_fact:
-    frr_libyang_deb_files_after_install: "{{ frr_libyang_deb_files_after_install_discovered.files | default([]) }}"
-  delegate_to: "{{ frr_build_host }}"
-  run_once: true
-  when:
-    - ansible_facts.os_family == 'Debian'
-    - frr_libyang_symbol_check_after_install.rc != 0
-
-# 再構築したlibyang debパッケージが存在しない場合は処理を中断する
-- name: Fail when libyang deb packages were not generated after FRR install
-  ansible.builtin.fail:
-    msg: "libyang deb package was not generated on build host for requested version {{ frr_libyang_version }}"
-  when:
-    - ansible_facts.os_family == 'Debian'
-    - frr_libyang_symbol_check_after_install.rc != 0
-    - (frr_libyang_deb_files_after_install | default([]) | length) == 0
-  delegate_to: "{{ frr_build_host }}"
-  run_once: true
-
-# 再構築したlibyang debパッケージのパーミッションを変更する
-- name: Ensure rebuilt libyang deb package permissions are readable after FRR install
-  ansible.builtin.file:
-    path: "{{ item.path }}"
-    mode: "0644"
-  loop: "{{ frr_libyang_deb_files_after_install | default([]) }}"
-  delegate_to: "{{ frr_build_host }}"
-  run_once: true
-  when:
-    - ansible_facts.os_family == 'Debian'
-    - frr_libyang_symbol_check_after_install.rc != 0
-
-# 制御ホスト上に構築したパッケージを保存するための一時ディレクトリが存在しない場合は作成する
-- name: Ensure local staging directory exists for rebuilt libyang deb packages after FRR install
-  ansible.builtin.tempfile:
-    state: directory
-    path: "{{ lookup('env', 'HOME') }}/.ansible/tmp"
-    prefix: libyang-fetch-after-
-  register: frr_libyang_fetch_after_tmpdir
-  delegate_to: localhost
-  become: false
-  run_once: true
-  when:
-    - ansible_facts.os_family == 'Debian'
-    - frr_libyang_symbol_check_after_install.rc != 0
-
-# 再構築したlibyang debパッケージを構築ホストから制御ホストにコピーする
-- name: Fetch rebuilt libyang deb packages from build host to controller after FRR install
-  ansible.builtin.fetch:
-    src: "{{ item.path }}"
-    dest: "{{ frr_libyang_fetch_after_tmpdir.path }}/{{ item.path | basename }}"
-    flat: true
-  loop: "{{ frr_libyang_deb_files_after_install | default([]) }}"
-  delegate_to: "{{ frr_build_host }}"
-  run_once: true
-  when:
-    - ansible_facts.os_family == 'Debian'
-    - frr_libyang_symbol_check_after_install.rc != 0
-
-# 再構築したlibyang debパッケージが制御ホスト上に存在することを確認する
-- name: Check fetched rebuilt libyang deb packages exist on controller after FRR install
-  ansible.builtin.stat:
-    path: "{{ frr_libyang_fetch_after_tmpdir.path }}/{{ item.path | basename }}"
-  loop: "{{ frr_libyang_deb_files_after_install | default([]) }}"
-  register: frr_libyang_fetch_after_stat
-  delegate_to: localhost
-  become: false
-  run_once: true
-  when:
-    - ansible_facts.os_family == 'Debian'
-    - frr_libyang_symbol_check_after_install.rc != 0
-
-# 再構築したlibyang debパッケージが制御ホスト上に存在しない場合は処理を中断する
-- name: Fail when fetched rebuilt libyang deb package is missing on controller after FRR install
-  ansible.builtin.fail:
-    msg: "Fetched rebuilt libyang deb package is missing on controller: {{ item.item.path | basename }}"
-  loop: "{{ frr_libyang_fetch_after_stat.results | default([]) }}"
-  when:
-    - ansible_facts.os_family == 'Debian'
-    - frr_libyang_symbol_check_after_install.rc != 0
-    - not (item.stat.exists | default(false))
-
-# 再構築したlibyang debパッケージを導入先ホストにコピーする
-- name: Copy rebuilt libyang deb packages from controller to target host when symbol is missing after FRR install
-  ansible.builtin.copy:
-    src: "{{ frr_libyang_fetch_after_tmpdir.path }}/{{ item.path | basename }}"
-    dest: "/tmp/{{ item.path | basename }}"
-    mode: "0644"
-  loop: "{{ frr_libyang_deb_files_after_install | default([]) }}"
-  when:
-    - ansible_facts.os_family == 'Debian'
-    - frr_libyang_symbol_check_after_install.rc != 0
-
-# 構築したlibyang debパッケージをターゲットホストに再導入する
-#   - set -euo pipefail でエラー時に即座に終了するようにする
-#   - shopt -s nullglob で, globパターンにマッチするファイルが存在しない場合に空配列を返すようにする
-#   - debs=(...) で, 以下の3つのパターンにマッチするファイルを配列に格納する
-#      a. /tmp/libyang2_{{ frr_libyang_version }}-1_*.deb
-#      b. /tmp/libyang2t64_{{ frr_libyang_version }}-1_*.deb
-#      c. /tmp/libyang2-dev_{{ frr_libyang_version }}-1_*.deb
-#   - test -n "${debs[*]:-}" で, 配列が空でないことを確認する
-#   - apt-get -y --allow-downgrades install "${debs[@]}" で, 配列に格納されたdebパッケージを一括導入する
-#   - ldconfig で, ライブラリキャッシュを更新する
-- name: Install rebuilt libyang deb packages when symbol is missing after FRR install
-  ansible.builtin.shell: >-
-    set -euo pipefail;
-    shopt -s nullglob;
-    debs=(/tmp/libyang2_{{ frr_libyang_version }}-1_*.deb /tmp/libyang2t64_{{ frr_libyang_version }}-1_*.deb /tmp/libyang2-dev_{{ frr_libyang_version }}-1_*.deb);
-    test -n "${debs[*]:-}";
-    apt-get -y --allow-downgrades install "${debs[@]}";
-    ldconfig
-  args:
-    executable: /bin/bash
-  when:
-    - ansible_facts.os_family == 'Debian'
-    - frr_libyang_symbol_check_after_install.rc != 0
+# FRR導入後にlibyangのシンボルが不足する場合は, 構築ホスト上でlibyangを再ビルドして導入する
+- name: Remediate libyang packages after FRR install when symbol is missing
+  ansible.builtin.include_tasks: remediate-libyang.yml
+  vars:
+    frr_libyang_symbol_check_rc: "{{ frr_libyang_symbol_check_after_install.rc | default(0) }}"
+    frr_libyang_phase_label: "after FRR install"
+    frr_libyang_fetch_prefix: "libyang-fetch-after-"
 
 # インストールされたFRRパッケージのバージョンを取得する
 - name: Get installed FRR package version on target host

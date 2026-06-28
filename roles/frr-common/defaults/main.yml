@@ -31,8 +31,12 @@ frr_install_deb_lock_wait_seconds: 3600
 frr_build_container_network_mode: "host"
 
 # ソースビルド用コンテナイメージ
-frr_build_container_image_debian: "frr-build-ubuntu:24.04"
+frr_build_container_image_debian: "ubuntu:24.04"
 frr_build_container_image_rhel: "almalinux:9.6"
+# ソースビルド時の作業ディレクトリ (workdir)
+#  - Dockerfile内のWORKDIRとスクリプトのworkdir変数の定義値と
+#    を合わせること
+frr_build_container_workdir: "/work"
 
 # ビルド作業ディレクトリ (制御ノード側)
 frr_build_workspace: "/tmp/frr-build"
