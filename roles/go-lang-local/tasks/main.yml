@@ -11,30 +11,13 @@
 # 最初に変数設定を読み直す ( role単独で実行可能とするため )
 - name: "Load Params"
   ansible.builtin.include_tasks: load-params.yml
-
-# 共通変数設定読込み後の処理
-# - Kubernetesクライアント版数算出処理
-- name: "Post Load Params"
-  ansible.builtin.include_tasks: post-load-params.yml
-
-# Kubernetes Python client 導入用パラメタの設定
-- name: "Post Load Params Python Client"
-  ansible.builtin.include_tasks: post-load-params-python-client.yml
-
-# Runtime libraries (Python kubernetes, Go client-go) の導入
-# クライアント有効化フラグで有効化されている場合に導入する
 - name: "Package"
   ansible.builtin.include_tasks: package.yml
-  when: not (k8s_devel_skip_version_derivation | default(false) | bool)
-
 - name: "Directory"
   ansible.builtin.include_tasks: directory.yml
-
 - name: "User Group"
   ansible.builtin.include_tasks: user_group.yml
-
 - name: "Service"
   ansible.builtin.include_tasks: service.yml
-
 - name: "Config"
   ansible.builtin.include_tasks: config.yml

@@ -1,0 +1,14 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  Go言語パッケージ導入
+#
+---
+
+# Go言語導入は呼び出し元playbook側で実施し, 本ロールでは既定のgoコマンドパスのみ設定する
+- name: Set default go command path
+  ansible.builtin.set_fact:
+    go_command: "{{ go_command_package }}"
+  when:
+    - (k8s_devel_go_packages_enabled | bool) or (k8s_devel_go_client_enabled | bool)

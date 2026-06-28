@@ -1,0 +1,195 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  Go rpmソースビルド処理
+#
+---
+
+# Goソースビルド処理のためのディレクトリを作成する
+- name: Prepare local workspace for go rpm build
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    mode: "0755"
+  loop:
+    - "{{ go_build_workspace }}"
+    - "{{ go_build_output_dir }}"
+  delegate_to: "{{ go_build_host }}"
+  run_once: true
+
+# Go rpmビルドスクリプトを生成する
+- name: Render go rpm build script on build host
+  ansible.builtin.template:
+    src: build-go-rpm.sh.j2
+    dest: "{{ go_build_workspace }}/build-go-rpm.sh"
+    mode: "0755"
+  delegate_to: "{{ go_build_host }}"
+  run_once: true
+
+# Go rpmビルド用Dockerfileを生成する
+- name: Render go rpm Dockerfile on build host
+  ansible.builtin.template:
+    src: Dockerfile.almalinux.j2
+    dest: "{{ go_build_workspace }}/Dockerfile.go-rpm"
+    mode: "0644"
+  delegate_to: "{{ go_build_host }}"
+  run_once: true
+
+#
+# 旧成果物が残っていると同一版数の重複RPMが導入対象になるため先に削除する
+#
+
+# 成果物出力先ディレクトリ内の指定された版数のGo rpmファイル群をリストアップする
+- name: Discover stale go rpm artifacts for current version
+  ansible.builtin.find:
+    paths: "{{ go_build_output_dir }}"
+    patterns: "{{ go_rpm_package_name }}-{{ go_resolved_version }}-*.rpm"
+    file_type: file
+  register: go_rpm_stale_files
+  delegate_to: "{{ go_build_host }}"
+  run_once: true
+
+# 旧成果物が存在する場合は削除する
+- name: Remove stale go rpm artifacts for current version
+  ansible.builtin.file:
+    path: "{{ item.path }}"
+    state: absent
+  loop: "{{ go_rpm_stale_files.files | default([]) }}"
+  when: (go_rpm_stale_files.files | default([]) | length) > 0
+  delegate_to: "{{ go_build_host }}"
+  run_once: true
+
+# Go rpmビルド用のコンテナイメージをDockerfileから生成する
+- name: Build go rpm builder container image from Dockerfile
+  ansible.builtin.command:
+    argv:
+      - "{{ go_build_container_runtime }}"
+      - build
+      - --network
+      - "{{ go_build_container_network_mode }}"
+      - -t
+      - "{{ go_build_container_image_rhel }}"
+      - -f
+      - "{{ go_build_workspace }}/Dockerfile.go-rpm"
+      - "{{ go_build_workspace }}"
+  async: "{{ go_pkg_build_timeout_seconds }}"
+  poll: 0
+  register: go_rpm_builder_image_build_job
+  delegate_to: "{{ go_build_host }}"
+  run_once: true
+  changed_when: true
+
+# Go rpmビルド用コンテナイメージのビルド完了まで待機する
+- name: Wait go rpm builder image build with progress polling
+  ansible.builtin.async_status:
+    jid: "{{ go_rpm_builder_image_build_job.ansible_job_id }}"
+  register: go_rpm_builder_image_build_cmd
+  until: go_rpm_builder_image_build_cmd.finished
+  retries: "{{ (go_pkg_build_timeout_seconds // go_pkg_build_loop_delay_seconds) | int }}"
+  delay: "{{ go_pkg_build_loop_delay_seconds }}"
+  failed_when: (go_rpm_builder_image_build_cmd.rc | default(0)) != 0
+  delegate_to: "{{ go_build_host }}"
+  run_once: true
+
+# Go rpmパッケージをコンテナ内で構築する
+- name: Build go rpm package in container
+  ansible.builtin.command:
+    argv:
+      - "{{ go_build_container_runtime }}"
+      - run
+      - --rm
+      - --network
+      - "{{ go_build_container_network_mode }}"
+      - -e
+      - "GO_VERSION={{ go_resolved_version }}"
+      - -e
+      - "GO_BASE_URL={{ go_base_url }}"
+      - -e
+      - "GO_ARCH={{ go_arch }}"
+      - -e
+      - "GO_RPM_ARCH={{ ansible_facts.architecture }}"
+      - -e
+      - "GO_PACKAGE_NAME={{ go_rpm_package_name }}"
+      - -e
+      - "GO_INSTALL_DIR={{ go_install_dir }}"
+      - -e
+      - "GO_PROFILE_SCRIPT={{ go_profile_script }}"
+      - -v
+      - "{{ go_build_workspace }}:/work"
+      - -w
+      - /work
+      - "{{ go_build_container_image_rhel }}"
+      - /bin/bash
+      - /work/build-go-rpm.sh
+  async: "{{ go_pkg_build_timeout_seconds }}"
+  poll: 0
+  register: go_rpm_package_build_job
+  delegate_to: "{{ go_build_host }}"
+  run_once: true
+  changed_when: true
+
+# Go rpmビルド完了まで待機する
+- name: Wait go rpm package build with progress polling
+  ansible.builtin.async_status:
+    jid: "{{ go_rpm_package_build_job.ansible_job_id }}"
+  register: go_rpm_package_build_cmd
+  until: go_rpm_package_build_cmd.finished
+  retries: "{{ (go_pkg_build_timeout_seconds // go_pkg_build_loop_delay_seconds) | int }}"
+  delay: "{{ go_pkg_build_loop_delay_seconds }}"
+  failed_when: (go_rpm_package_build_cmd.rc | default(0)) != 0
+  delegate_to: "{{ go_build_host }}"
+  run_once: true
+
+# Go rpm成果物を探索する
+- name: Discover built go rpm files
+  ansible.builtin.find:
+    paths: "{{ go_build_output_dir }}"
+    patterns: "{{ go_rpm_package_name }}-{{ go_resolved_version }}-1.*.rpm"
+    file_type: file
+  register: go_rpm_files_discovered
+  delegate_to: "{{ go_build_host }}"
+  run_once: true
+
+# 最新のGo rpm成果物を変数に設定する
+# 上記で探索したGo rpm成果物中で最終更新時刻が最新のファイルを
+# last_go_rpm_file 変数に設定する
+- name: Set built go rpm package list
+  ansible.builtin.set_fact:
+    last_go_rpm_file: "{{ go_rpm_files_discovered.files | sort(attribute='mtime') | last }}"
+  delegate_to: "{{ go_build_host }}"
+  delegate_facts: true
+  run_once: true
+
+# Go rpm成果物が存在しない場合は失敗させる
+- name: Fail when go rpm package was not generated
+  ansible.builtin.fail:
+    msg: "Go rpm package was not generated for requested version {{ go_resolved_version }}"
+  when: (go_rpm_files_discovered.files | default([]) | length) == 0
+  delegate_to: "{{ go_build_host }}"
+  run_once: true
+
+# Go rpmパッケージファイルから版数情報を取得する
+- name: Read built go rpm package version
+  ansible.builtin.command:
+    argv:
+      - rpm
+      - -qp
+      - --qf
+      - '%{VERSION}'
+      - "{{ (go_rpm_files_discovered.files | sort(attribute='mtime') | last).path }}"
+  register: go_rpm_pkg_version_cmd
+  changed_when: false
+  delegate_to: "{{ go_build_host }}"
+  run_once: true
+
+# Go rpmパッケージ版数が要求版数と一致することを確認する
+- name: Assert built go rpm version matches request
+  ansible.builtin.assert:
+    that:
+      - "(go_rpm_pkg_version_cmd.stdout | trim) == (go_resolved_version | trim)"
+    fail_msg: >-
+      Built Go rpm package version mismatch.
+      requested={{ go_resolved_version | trim }}, built={{ go_rpm_pkg_version_cmd.stdout | trim }}
+  delegate_to: "{{ go_build_host }}"
+  run_once: true

@@ -21,94 +21,91 @@
   register: go_versions_response
   delegate_to: localhost
   run_once: true
+  check_mode: false
 
 # バージョン形式を判定 (x.y または x.y.z)
 - name: Determine version format
   ansible.builtin.set_fact:
     go_version_parts: "{{ go_lang_version_normalized.split('.') }}"
 
+#
 # x.y 形式の場合: 該当系列の最新版を検索
+#
 - name: Resolve latest patch version for x.y format
   when: go_version_parts | length == 2
   block:
-    - name: Extract stable versions only
-      ansible.builtin.set_fact:
-        go_stable_versions: "{{ go_versions_response.json | selectattr('stable', 'equalto', true) | list }}"
 
-    - name: Extract versions matching the series
-      ansible.builtin.set_fact:
-        go_matching_versions: >-
-          {{
-            go_stable_versions
-            | map(attribute='version')
-            | select('match', '^go' ~ (go_lang_version_normalized | regex_escape) ~ '\\.[0-9]+$')
-            | list
-          }}
-
-    - name: Sort versions and select latest using Python
+    # APIから取得したJSONをPythonで解析,
+    # 該当するx.y系列の最新パッチバージョン(x.y.zのz部分が最新の版数)を
+    # 取得する
+    - name: Resolve latest patch version from API payload
       ansible.builtin.command:
         argv:
           - python3
-          - -c
-          - |
-            import json
-            import sys
-
-            versions = json.loads(sys.argv[1])
-            sorted_versions = sorted(
-                versions,
-                key=lambda v: tuple(map(int, v.replace('go', '').split('.')))
-            )
-            print(sorted_versions[-1].replace('go', ''))
-          - "{{ go_matching_versions | to_json }}"
+          - "{{ role_path }}/files/resolve_go_latest_patch.py"
+          - "{{ go_lang_version_normalized }}"
+        stdin: "{{ (go_versions_response.json | default([])) | to_json }}"
       register: go_resolved_version_result
       delegate_to: localhost
       run_once: true
       changed_when: false
-      when: go_matching_versions | length > 0
 
+    # Pythonスクリプトの結果から解決されたバージョンをgo_resolved_version変数に設定
     - name: Set resolved version from Python result
       ansible.builtin.set_fact:
         go_resolved_version: "{{ go_resolved_version_result.stdout | trim }}"
-      when: go_matching_versions | length > 0
+      when: (go_resolved_version_result.stdout | trim | length) > 0
 
+    # 公式APIで解決できなかった場合は, フォールバック版数を採用する
+    #   End Of Life (EOL) となった版数系列に対しては, 公式APIから最新版数が取得できないため,
+    #   vars/cross-distro.yml 内の go_series_fallback_versions 変数で
+    #   定義されたフォールバック版数を採用する
     - name: Use fallback version if available for EOL series
       ansible.builtin.set_fact:
         go_resolved_version: "{{ go_series_fallback_versions[go_lang_version_normalized] }}"
       when:
-        - go_matching_versions | length == 0
+        - (go_resolved_version | default('') | length) == 0
         - go_series_fallback_versions[go_lang_version_normalized] is defined
 
+    # EOL系列が指定されたことにより, フォールバック版数を使用する場合は,
+    # 警告メッセージを表示する
     - name: Display fallback version for EOL series
       ansible.builtin.debug:
         msg: "Go version {{ go_lang_version_normalized }}.x is EOL in API. Using fallback version {{ go_resolved_version }}."
       when:
-        - go_matching_versions | length == 0
+        - (go_resolved_version | default('') | length) > 0
         - go_series_fallback_versions[go_lang_version_normalized] is defined
 
+    # 指定された系列の版数が公式APIに存在せず, フォールバック版数も定義されていない場合は,
+    # 警告メッセージを表示し, Go導入をスキップする
     - name: Warn if no matching version found
       ansible.builtin.debug:
         msg: "WARNING: Go version {{ go_lang_version_normalized }}.x series not found in official releases. Skipping Go installation."
       when:
-        - go_matching_versions | length == 0
+        - (go_resolved_version | default('') | length) == 0
         - go_series_fallback_versions[go_lang_version_normalized] is not defined
 
+    # Go導入をスキップするフラグを設定する
     - name: Set skip flag when no version and no fallback found
       ansible.builtin.set_fact:
         go_installation_skipped: true
       when:
-        - go_matching_versions | length == 0
+        - (go_resolved_version | default('') | length) == 0
         - go_series_fallback_versions[go_lang_version_normalized] is not defined
 
-# x.y.z 形式の場合: 正確なバージョンを検索
+# x.y.z 形式で指定された場合, 指定された版数が存在することを確認する
 - name: Resolve exact version for x.y.z format
   when: go_version_parts | length == 3
   block:
+
+    # 指定された版数をgo_resolved_version変数に設定する
     - name: Set resolved version for exact format
       ansible.builtin.set_fact:
         go_resolved_version: "{{ go_lang_version_normalized }}"
 
-# バージョン形式が不正な場合
+#
+# バージョン形式が不正な場合警告を表示し, Go導入をスキップする
+#
 - name: Warn about invalid version format
   ansible.builtin.debug:
     msg: "WARNING: Invalid Go version format '{{ go_lang_version_normalized }}'. Expected x.y or x.y.z format. Skipping Go installation."

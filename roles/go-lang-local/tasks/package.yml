@@ -1,0 +1,103 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  Go パッケージ導入処理
+#
+---
+
+#
+# Go バージョン指定時: Goパッケージを構築ホストで作成して導入
+#
+- name: Resolve and install go from local built packages
+  when:
+    - go_lang_version is defined
+    - go_lang_version | length > 0
+  block:
+
+    # Goのバージョンを公式APIから解決し, 版数解決に失敗した場合は,
+    # go_installation_skipped を true に設定して, 以降の処理をスキップする
+    - name: Resolve go version from official API
+      ansible.builtin.include_tasks: resolve-go-version.yml
+
+    # 既存のGoパッケージを削除する (Debian系)
+    - name: Remove existing go package on Debian family before local package install
+      ansible.builtin.apt:
+        name: "{{ go_remove_packages_debian }}"
+        state: absent
+        autoremove: true
+      become: true
+      when:
+        - ansible_facts.os_family == 'Debian'
+        - go_lang_remove_existing_package | default(true) | bool
+        - not (go_installation_skipped | default(false))
+
+    # 既存のGoパッケージを削除する (RedHat系)
+    - name: Remove existing go package on RedHat family before local package install
+      ansible.builtin.dnf:
+        name: "{{ go_remove_packages_rhel }}"
+        state: absent
+        autoremove: true
+      become: true
+      when:
+        - ansible_facts.os_family == 'RedHat'
+        - go_lang_remove_existing_package | default(true) | bool
+        - not (go_installation_skipped | default(false))
+
+    # チェックモードではローカルパッケージの構築/導入をスキップする
+    - name: Skip local go package build and install in check mode
+      ansible.builtin.debug:
+        msg: >-
+          Check mode: skipping local Go package build/install steps.
+          Go version resolution completed with {{ go_resolved_version }}.
+      when:
+        - ansible_check_mode | bool
+        - not (go_installation_skipped | default(false))
+
+    # Goパッケージを構築ホストで作成して導入する (Debian系)
+    - name: Build go deb package on build host
+      ansible.builtin.include_tasks: build-go-source-deb.yml
+      when:
+        - ansible_facts.os_family == 'Debian'
+        - not (go_installation_skipped | default(false))
+        - not (ansible_check_mode | bool)
+
+    # Goパッケージをターゲットホスト上に導入する (Debian系)
+    - name: Install go deb package on target host
+      ansible.builtin.include_tasks: install-go-local-deb.yml
+      when:
+        - ansible_facts.os_family == 'Debian'
+        - not (go_installation_skipped | default(false))
+        - not (ansible_check_mode | bool)
+
+    # Goパッケージを構築ホストで構築する (RedHat系)
+    - name: Build go rpm package on build host
+      ansible.builtin.include_tasks: build-go-source-rpm.yml
+      when:
+        - ansible_facts.os_family == 'RedHat'
+        - not (go_installation_skipped | default(false))
+        - not (ansible_check_mode | bool)
+
+    # Goパッケージをターゲットホスト上に導入する (RedHat系)
+    - name: Install go rpm package on target host
+      ansible.builtin.include_tasks: install-go-local-rpm.yml
+      when:
+        - ansible_facts.os_family == 'RedHat'
+        - not (go_installation_skipped | default(false))
+        - not (ansible_check_mode | bool)
+
+    # Goコマンドパスを設定する
+    - name: Set go command path for local package installation
+      ansible.builtin.set_fact:
+        go_command: "{{ go_command_from_tarball_path }}"
+      when: not (go_installation_skipped | default(false))
+
+#
+# Go バージョン未指定時: go コマンドパスのみ設定
+#
+
+- name: Set go command path for package installation
+  ansible.builtin.set_fact:
+    go_command: "{{ go_command_package }}"
+  when:
+    - go_lang_version is not defined or go_lang_version | length == 0

@@ -1,0 +1,155 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  Go deb導入処理
+#
+---
+
+# 導入対象debファイルを解決する
+- name: Resolve go deb file list scope (host or localhost)
+  ansible.builtin.set_fact:
+    go_deb_source_files: >-
+      {{
+        (go_deb_files | default([]))
+        if ((go_deb_files | default([]) | length) > 0)
+        else (
+          (hostvars[go_build_host].go_deb_files | default([]))
+          if ((hostvars[go_build_host].go_deb_files | default([]) | length) > 0)
+          else (hostvars['localhost'].go_deb_files | default([]))
+        )
+      }}
+
+# 導入対象debファイルが見つからない場合は失敗する
+- name: Fail when no go deb file is found in both host and localhost scopes
+  ansible.builtin.fail:
+    msg: "No go deb file found in both host and localhost scopes."
+  when: (go_deb_source_files | default([]) | length) == 0
+
+# 構築済みGo debパッケージの権限を調整する
+- name: Ensure built go deb package permissions are readable on build host
+  ansible.builtin.file:
+    path: "{{ item.path }}"
+    mode: "0644"
+  loop: "{{ go_deb_source_files | default([]) }}"
+  delegate_to: "{{ go_build_host }}"
+  run_once: true
+
+# 構築ホストから制御ホストへ回収するための一時ディレクトリを作成する
+- name: Ensure local staging directory exists for go deb packages
+  ansible.builtin.tempfile:
+    state: directory
+    path: "{{ lookup('env', 'HOME') }}/.ansible/tmp"
+    prefix: go-deb-fetch-
+  register: go_deb_fetch_tmpdir
+  delegate_to: localhost
+  become: false
+  run_once: true
+
+# 構築済みGo debパッケージを制御ホストに回収する
+- name: Fetch built go deb packages from build host to controller
+  ansible.builtin.fetch:
+    src: "{{ item.path }}"
+    dest: "{{ go_deb_fetch_tmpdir.path }}/{{ item.path | basename }}"
+    flat: true
+  loop: "{{ go_deb_source_files | default([]) }}"
+  delegate_to: "{{ go_build_host }}"
+  run_once: true
+
+# 回収したGo debパッケージの存在を確認する
+- name: Check fetched go deb packages exist on controller
+  ansible.builtin.stat:
+    path: "{{ go_deb_fetch_tmpdir.path }}/{{ item.path | basename }}"
+  loop: "{{ go_deb_source_files | default([]) }}"
+  register: go_deb_fetch_stat
+  delegate_to: localhost
+  become: false
+  run_once: true
+
+# 回収したGo debパッケージが存在しない場合は失敗する
+- name: Fail when fetched go deb package is missing on controller
+  ansible.builtin.fail:
+    msg: "Fetched go deb package is missing on controller: {{ item.item.path | basename }}"
+  loop: "{{ go_deb_fetch_stat.results | default([]) }}"
+  when: not (item.stat.exists | default(false))
+
+# 回収済みGo debパッケージをターゲットホストへコピーする
+- name: Copy built go deb packages from controller to target host
+  ansible.builtin.copy:
+    src: "{{ go_deb_fetch_tmpdir.path }}/{{ item.path | basename }}"
+    dest: "/tmp/{{ item.path | basename }}"
+    mode: "0644"
+  loop: "{{ go_deb_source_files | default([]) }}"
+
+# Go deb導入コマンド引数を組み立てる
+- name: Build local go deb install argv
+  ansible.builtin.set_fact:
+    go_deb_install_argv: >-
+      {{
+        [
+          'apt-get',
+          '-y',
+          '-o',
+          'DPkg::Lock::Timeout=' ~ (go_install_deb_lock_wait_seconds | string),
+          '-o',
+          'Dpkg::Options::=--force-confdef',
+          '-o',
+          'Dpkg::Options::=--force-confold',
+          'install'
+        ]
+        +
+        (
+          go_deb_source_files
+          | default([])
+          | map(attribute='path')
+          | map('basename')
+          | map('regex_replace', '^', '/tmp/')
+          | list
+        )
+      }}
+
+# Go debパッケージを導入する
+- name: Install local go deb packages in one transaction
+  ansible.builtin.command:
+    argv: "{{ go_deb_install_argv }}"
+  become: true
+
+# Go debパッケージが導入済みであることを確認する
+- name: Query installed local go deb package status
+  ansible.builtin.command:
+    argv:
+      - dpkg-query
+      - -W
+      - -f=${Status}
+      - "{{ go_deb_package_name }}"
+  register: go_deb_pkg_status_cmd
+  changed_when: false
+  become: true
+
+# Go debパッケージが導入済みであることを確認する
+- name: Assert local go deb package is installed
+  ansible.builtin.assert:
+    that:
+      - "'install ok installed' in (go_deb_pkg_status_cmd.stdout | lower)"
+    fail_msg: >-
+      Local go deb package is not installed.
+      package={{ go_deb_package_name }}, status={{ go_deb_pkg_status_cmd.stdout | trim }}
+
+# 導入済みGo版数を確認する
+- name: Get installed go version on target host
+  ansible.builtin.command:
+    argv:
+      - "{{ go_command_from_tarball_path }}"
+      - version
+  register: go_installed_deb_version_cmd
+  changed_when: false
+  become: true
+
+# 導入済みGo版数が要求と一致することを確認する
+- name: Assert installed go version matches request on Debian family
+  ansible.builtin.assert:
+    that:
+      - "(go_installed_deb_version_cmd.stdout | regex_findall('go([0-9]+\\.[0-9]+\\.[0-9]+)') | first | default('')) == (go_resolved_version | trim)"
+    fail_msg: >-
+      Installed Go version mismatch.
+      requested={{ go_resolved_version | trim }}, installed={{ go_installed_deb_version_cmd.stdout | trim }}

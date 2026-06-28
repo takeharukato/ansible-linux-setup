@@ -29,6 +29,11 @@
       tags: post-user-create
     - role: devel-packages
       tags: devel-packages
+    - role: go-lang-local
+      tags: go-lang-local
+      when:
+        - go_lang_version is defined
+        - go_lang_version | length > 0
     - role: k8s-devel
       tags: k8s-devel
     - role: docker-ce

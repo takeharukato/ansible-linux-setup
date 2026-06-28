@@ -155,7 +155,11 @@ go_remove_packages_rhel:
 go_remove_packages: "{{ (ansible_facts.os_family == 'Debian') | ternary(go_remove_packages_debian, go_remove_packages_rhel) }}"
 
 # Goコマンドパス: tarball導入時
-go_command_tarball: "{{ go_install_dir }}/bin/go"
+go_command_from_tarball_path: "{{ go_install_dir }}/bin/go"
+
+# Go パッケージ名(版数指定時のローカルビルド成果物のパッケージ名)
+go_deb_package_name: "go-lang"
+go_rpm_package_name: "go-lang"
 
 ##################################################################################
 # systemd ssh-agent (user-settings ロール用)
@@ -196,7 +200,7 @@ go_arch: "{{ go_arch_map[ansible_facts.architecture] | default('amd64') }}"
 # EOL 系列向け Go 版数フォールバック
 # go.dev API が古い系列を返さない場合に利用する
 go_series_fallback_versions:
-  "1.18": "1.18.10"
+  "1.25": "1.25.11"
 
 ##################################################################################
 # Cilium シェル補完

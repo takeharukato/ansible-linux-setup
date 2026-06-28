@@ -24,18 +24,5 @@ k8s_devel_go_packages_enabled: false
 k8s_devel_python_client_version: ""
 k8s_devel_go_client_version: ""
 
-# Go 言語版数
-# 空文字列の場合は OS 提供パッケージを latest で導入する
-# x.y 形式 (例: 1.18) または x.y.z 形式 (例: 1.18.5) で指定すると Go 公式から tarball を取得する
-go_lang_version: ""
-
-# go_lang_version 指定時に既存の Go パッケージを削除するか
-# true: 既存パッケージを削除してから tarball をインストールする
-# false: 既存パッケージを残したまま tarball をインストールする (PATH の優先順位に注意)
-go_lang_remove_existing_package: true
-
-# Go パッケージ名
-k8s_devel_go_package_name: "golang"
-
-# Go 開発用作業ディレクトリ
-k8s_devel_go_work_dir: "/opt/k8s-devel/go-client"
+# Go client パッケージ作業ディレクトリ
+k8s_devel_go_client_work_dir: "/opt/k8s-devel/go-client"

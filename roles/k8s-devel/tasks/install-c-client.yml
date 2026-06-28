@@ -6,6 +6,7 @@
 #
 ---
 
+# C Kubernetes client 導入は、k8s-devel roleの初期導入フェーズではサポートしない される
 - name: Notify C client installation is deferred
   ansible.builtin.debug:
     msg: "C Kubernetes client installation is deferred in this phase."

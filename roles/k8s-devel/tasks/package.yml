@@ -9,6 +9,10 @@
 - name: Install prereq packages
   ansible.builtin.include_tasks: install-prereqs.yml
 
+# Go言語の導入
+- name: Install go language
+  ansible.builtin.include_tasks: install-go.yml
+
 # Python用Kubernetes クライアントの導入
 - name: Install python kubernetes client
   ansible.builtin.include_tasks: install-python-client.yml
