@@ -22,6 +22,7 @@
     - k8s_devel_go_client_enabled | bool
     - not (go_installation_skipped | default(false))
 
+# Go言語版 Kubernetes client 導入前にGo言語パッケージ導入状態を検証する
 - name: Set go package install status for go client install precheck
   ansible.builtin.set_fact:
     k8s_devel_go_package_installed: >-
@@ -34,6 +35,8 @@
     - k8s_devel_go_client_enabled | bool
     - not (go_installation_skipped | default(false))
 
+# Go言語が導入されていない場合は, Go言語版 Kubernetes client
+# 導入を中止して, playbookを失敗させる
 - name: Fail when go package is missing for go client install
   ansible.builtin.fail:
     msg: >-
@@ -44,55 +47,15 @@
     - not (go_installation_skipped | default(false))
     - not (k8s_devel_go_package_installed | default(false))
 
-- name: Set go command path for go client install
-  ansible.builtin.set_fact:
-    go_command: >-
-      {{
-        ('go-lang' in ansible_facts.packages)
-        | ternary(go_command_from_tarball_path, go_command_package)
-      }}
+# Go言語版 Kubernetes client 導入処理を実行する
+- name: Install go kubernetes client via local package role
+  ansible.builtin.include_role:
+    name: go-k8s-client-local
+  vars:
+    go_k8s_client_version: "{{ k8s_devel_go_client_version_effective }}"
+    go_k8s_client_module_domain: "{{ k8s_devel_go_module_domain }}"
+    go_k8s_client_install_dir: "{{ k8s_devel_go_client_work_dir }}"
   when:
     - k8s_devel_go_client_enabled | bool
     - not (go_installation_skipped | default(false))
     - k8s_devel_go_package_installed | default(false)
-
-# Go クライアント導入用のワーキングディレクトリを作成し, go mod init してから client-go モジュールを導入する
-#
-# 留意事項: Kubernetes Go client は go mod を使用して導入するため,
-# ワーキングディレクトリで go mod init してから
-# client-go モジュールを導入する
-#
-- name: Ensure go client work dir exists
-  ansible.builtin.file:
-    path: "{{ k8s_devel_go_client_work_dir }}"
-    state: directory
-    owner: root
-    group: root
-    mode: "0755"
-  when:
-    - k8s_devel_go_client_enabled | bool
-    - not (go_installation_skipped | default(false))
-
-# Kubernetes Client の go moduleを初期化する
-- name: Initialize go module for k8s client
-  ansible.builtin.command:
-    cmd: "{{ go_command }} mod init {{ k8s_devel_go_module_domain }}/k8s-devel-client-go"
-    chdir: "{{ k8s_devel_go_client_work_dir }}"
-    creates: "{{ k8s_devel_go_client_work_dir }}/go.mod"
-  when:
-    - k8s_devel_go_client_enabled | bool
-    - not (go_installation_skipped | default(false))
-
-# Kubernetes Client の go module の版数を指定して導入する
-- name: Ensure client-go module version
-  ansible.builtin.command:
-    cmd: "{{ go_command }} get k8s.io/client-go@{{ k8s_devel_go_client_version_effective }}"
-    chdir: "{{ k8s_devel_go_client_work_dir }}"
-  register: k8s_devel_go_get_result
-  changed_when: >-
-    ('go: added' in k8s_devel_go_get_result.stdout) or
-    ('go: upgraded' in k8s_devel_go_get_result.stdout) or
-    ('go: downgraded' in k8s_devel_go_get_result.stdout)
-  when:
-    - k8s_devel_go_client_enabled | bool
-    - not (go_installation_skipped | default(false))

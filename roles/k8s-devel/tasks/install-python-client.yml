@@ -6,19 +6,18 @@
 #
 ---
 
-# 標準パッケージのpython3用Kubernetes Python クライアントをpip経由で導入する
-- name: Install kubernetes python client for system python via pip
-  ansible.builtin.pip:
-    name: "kubernetes{{ k8s_devel_python_client_version_effective }}"
-    state: present
-    executable: "pip3"
-    extra_args: "{{ k8s_devel_python_pip_extra_args | default('') }}"
+# 既定: ローカルパッケージ方式で Python 言語版 Kubernetes client を導入する
+- name: Install kubernetes python client via local package role
+  ansible.builtin.include_role:
+    name: python-k8s-client-local
+  vars:
+    python_k8s_client_version_spec: "{{ k8s_devel_python_client_version_effective }}"
   when:
     - k8s_devel_python_client_enabled | bool
+    - not (k8s_devel_python_client_install_via_pip | default(false) | bool)
 
-# 開発用python向けKubernetes Python クライアントをpip経由で導入する
-# k8s_python_packages_version指定時のみ実行
-- name: Install kubernetes python client for development python via pip
+# 互換性維持用: pip導入モードを明示的に有効化した場合のみ実行
+- name: Install kubernetes python client via pip (legacy mode)
   ansible.builtin.pip:
     name: "kubernetes{{ k8s_devel_python_client_version_effective }}"
     state: present
@@ -26,5 +25,4 @@
     extra_args: "{{ k8s_devel_python_pip_extra_args | default('') }}"
   when:
     - k8s_devel_python_client_enabled | bool
-    - k8s_python_packages_version is defined
-    - k8s_python_packages_version | length > 0
+    - k8s_devel_python_client_install_via_pip | default(false) | bool

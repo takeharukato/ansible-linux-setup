@@ -26,3 +26,8 @@ k8s_devel_go_client_version: ""
 
 # Go client パッケージ作業ディレクトリ
 k8s_devel_go_client_work_dir: "/opt/k8s-devel/go-client"
+
+# Python client 導入方式
+# false の場合: python-k8s-client-local ロール(ローカルパッケージ導入)を使用
+# true の場合: 旧方式のpip導入を使用
+k8s_devel_python_client_install_via_pip: false

@@ -17,3 +17,4 @@
     state: present
   when:
     - k8s_devel_python_client_enabled | bool
+    - k8s_devel_python_client_install_via_pip | default(false) | bool

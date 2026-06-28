@@ -6,7 +6,18 @@
 #
 ---
 
-# Go言語導入は呼び出し元playbook側で実施し, 本ロールでは既定のgoコマンドパスのみ設定する
+# go_lang_version 未指定時は, Go言語版 Kubernetes client の前提として
+# OS標準の golang パッケージを導入する
+- name: Install OS provided golang package when go version is not specified
+  ansible.builtin.package:
+    name: "{{ go_language_distro_package }}"
+    state: present
+  become: true
+  when:
+    - k8s_devel_go_client_enabled | bool
+    - (go_lang_version | default('', true) | string | trim | length) == 0
+
+# 本ロールでは既定のgoコマンドパスを設定する
 - name: Set default go command path
   ansible.builtin.set_fact:
     go_command: "{{ go_command_package }}"
