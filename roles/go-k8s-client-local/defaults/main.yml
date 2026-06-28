@@ -1,0 +1,54 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  ロール固有変数のデフォルト値
+#  group_vars/all/all.yml やhost_varsで上書き可能とするため,
+#  ロール名/defaults/main.yml に定義している
+
+---
+
+# Go 言語版 Kubernetes client 版数
+# 例: v0.31.0
+go_k8s_client_version: ""
+
+# Go module domain (go mod init で使用)
+go_k8s_client_module_domain: "{{ (dns_domain | regex_replace('\\.$', '') | default('example.org', true)) }}"
+
+# Go 言語版 Kubernetes client 配置先
+go_k8s_client_install_dir: "/opt/k8s-devel/go-client"
+
+# Go 言語版 Kubernetes client ローカルパッケージ名
+go_k8s_client_deb_package_name: "go-k8s-client"
+go_k8s_client_rpm_package_name: "go-k8s-client"
+
+# Go 言語版 Kubernetes client パッケージ構築ホスト
+go_k8s_client_build_host: "localhost"
+
+# Go 言語版 Kubernetes client パッケージ構築作業ディレクトリ
+go_k8s_client_build_workspace: "/tmp/go-k8s-client-build"
+
+# Go 言語版 Kubernetes client パッケージ成果物出力ディレクトリ
+go_k8s_client_build_output_dir: "{{ go_k8s_client_build_workspace }}/output"
+
+# Go 言語版 Kubernetes client パッケージ構築タイムアウト(秒)
+go_k8s_client_build_timeout_seconds: 3600
+
+# Go 言語版 Kubernetes client パッケージ構築監視ポーリング間隔(秒)
+go_k8s_client_build_loop_delay_seconds: 5
+
+# Debian系でのaptロック待機時間(秒)
+go_k8s_client_install_deb_lock_wait_seconds: 600
+
+# コンテナビルド用ランタイム
+go_k8s_client_build_container_runtime: "docker"
+
+# コンテナビルド用ネットワークモード
+go_k8s_client_build_container_network_mode: "host"
+
+# Go 言語版 Kubernetes client ビルド用コンテナイメージ
+go_k8s_client_build_container_image_debian: "go-k8s-client-build-ubuntu:24.04"
+go_k8s_client_build_container_image_rhel: "go-k8s-client-build-almalinux:9.6"
+
+# Go 言語版 Kubernetes client ビルド時のworkdir
+go_k8s_client_build_container_workdir: "/work"

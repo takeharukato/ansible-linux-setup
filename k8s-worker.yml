@@ -29,6 +29,11 @@
       tags: post-user-create
     - role: k8s-common
       tags: k8s-common
+    - role: go-lang-local
+      tags: go-lang-local
+      when:
+        - go_lang_version is defined
+        - go_lang_version | length > 0
     - role: k8s-devel
       tags: k8s-devel
     - role: k8s-worker

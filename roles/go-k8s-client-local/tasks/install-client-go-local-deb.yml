@@ -1,0 +1,194 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  Go 言語版 Kubernetes client deb導入処理
+#
+---
+
+# 導入対象debファイルを解決する
+- name: Resolve go k8s client deb file list scope (host or localhost)
+  ansible.builtin.set_fact:
+    go_k8s_client_deb_source_files: >-
+      {{
+        (go_k8s_client_deb_files | default([]))
+        if ((go_k8s_client_deb_files | default([]) | length) > 0)
+        else (
+          (hostvars[go_k8s_client_build_host].go_k8s_client_deb_files | default([]))
+          if ((hostvars[go_k8s_client_build_host].go_k8s_client_deb_files | default([]) | length) > 0)
+          else (hostvars['localhost'].go_k8s_client_deb_files | default([]))
+        )
+      }}
+
+# 導入対象debファイルが見つからない場合は失敗する
+- name: Fail when no go k8s client deb file is found in both host and localhost scopes
+  ansible.builtin.fail:
+    msg: "No go k8s client deb file found in both host and localhost scopes."
+  when: (go_k8s_client_deb_source_files | default([]) | length) == 0
+
+# 構築済みGo 言語版 Kubernetes client debパッケージの権限を調整する
+- name: Ensure built go k8s client deb package permissions are readable on build host
+  ansible.builtin.file:
+    path: "{{ item.path }}"
+    mode: "0644"
+  loop: "{{ go_k8s_client_deb_source_files | default([]) }}"
+  delegate_to: "{{ go_k8s_client_build_host }}"
+  run_once: true
+
+# 構築ホストから制御ホストへ回収するための一時ディレクトリを作成する
+- name: Ensure local staging directory exists for go k8s client deb packages
+  ansible.builtin.tempfile:
+    state: directory
+    path: "{{ lookup('env', 'HOME') }}/.ansible/tmp"
+    prefix: go-k8s-client-deb-fetch-
+  register: go_k8s_client_deb_fetch_tmpdir
+  delegate_to: localhost
+  become: false
+  run_once: true
+
+# 構築済みGo 言語版 Kubernetes client debパッケージを制御ホストに回収する
+- name: Fetch built go k8s client deb packages from build host to controller
+  ansible.builtin.fetch:
+    src: "{{ item.path }}"
+    dest: "{{ go_k8s_client_deb_fetch_tmpdir.path }}/{{ item.path | basename }}"
+    flat: true
+  loop: "{{ go_k8s_client_deb_source_files | default([]) }}"
+  delegate_to: "{{ go_k8s_client_build_host }}"
+  run_once: true
+
+# 回収したGo 言語版 Kubernetes client debパッケージの存在を確認する
+- name: Check fetched go k8s client deb packages exist on controller
+  ansible.builtin.stat:
+    path: "{{ go_k8s_client_deb_fetch_tmpdir.path }}/{{ item.path | basename }}"
+  loop: "{{ go_k8s_client_deb_source_files | default([]) }}"
+  register: go_k8s_client_deb_fetch_stat
+  delegate_to: localhost
+  become: false
+  run_once: true
+
+# 回収したGo 言語版 Kubernetes client debパッケージが存在しない場合は失敗する
+- name: Fail when fetched go k8s client deb package is missing on controller
+  ansible.builtin.fail:
+    msg: "Fetched go k8s client deb package is missing on controller: {{ item.item.path | basename }}"
+  loop: "{{ go_k8s_client_deb_fetch_stat.results | default([]) }}"
+  when: not (item.stat.exists | default(false))
+
+# 回収済みGo 言語版 Kubernetes client debパッケージをターゲットホストへコピーする
+- name: Copy built go k8s client deb packages from controller to target host
+  ansible.builtin.copy:
+    src: "{{ go_k8s_client_deb_fetch_tmpdir.path }}/{{ item.path | basename }}"
+    dest: "/tmp/{{ item.path | basename }}"
+    mode: "0644"
+  loop: "{{ go_k8s_client_deb_source_files | default([]) }}"
+
+# Go 言語版 Kubernetes client deb導入コマンド引数を組み立てる
+- name: Build local go k8s client deb install argv
+  ansible.builtin.set_fact:
+    go_k8s_client_deb_install_argv: >-
+      {{
+        [
+          'apt-get',
+          '-y',
+          '-o',
+          'DPkg::Lock::Timeout=' ~ (go_k8s_client_install_deb_lock_wait_seconds | string),
+          '-o',
+          'Dpkg::Options::=--force-confdef',
+          '-o',
+          'Dpkg::Options::=--force-confold',
+          'install'
+        ]
+        +
+        (
+          go_k8s_client_deb_source_files
+          | default([])
+          | map(attribute='path')
+          | map('basename')
+          | map('regex_replace', '^', '/tmp/')
+          | list
+        )
+      }}
+
+# Go 言語版 Kubernetes client debパッケージを導入する
+- name: Install local go k8s client deb packages in one transaction
+  ansible.builtin.command:
+    argv: "{{ go_k8s_client_deb_install_argv }}"
+  become: true
+
+# Go 言語版 Kubernetes client debパッケージが導入済みであることを確認する
+- name: Query installed local go k8s client deb package status
+  ansible.builtin.command:
+    argv:
+      - dpkg-query
+      - -W
+      - -f=${Status}
+      - "{{ go_k8s_client_deb_package_name }}"
+  register: go_k8s_client_deb_pkg_status_cmd
+  changed_when: false
+  become: true
+
+# Go 言語版 Kubernetes client debパッケージが導入済みであることを確認する
+- name: Assert local go k8s client deb package is installed
+  ansible.builtin.assert:
+    that:
+      - "'install ok installed' in (go_k8s_client_deb_pkg_status_cmd.stdout | lower)"
+    fail_msg: >-
+      Local go k8s client deb package is not installed.
+      package={{ go_k8s_client_deb_package_name }}, status={{ go_k8s_client_deb_pkg_status_cmd.stdout | trim }}
+
+# Go 言語版 Kubernetes client オフラインキットが導入済みであることを確認する
+- name: Check go k8s client offline kit files on target host
+  ansible.builtin.stat:
+    path: "{{ item }}"
+  loop:
+    - "{{ go_k8s_client_install_dir }}/go.mod"
+    - "{{ go_k8s_client_install_dir }}/go.sum"
+    - "{{ go_k8s_client_install_dir }}/vendor"
+  register: go_k8s_client_deb_kit_stat
+  become: true
+
+- name: Assert go k8s client offline kit files exist on target host
+  ansible.builtin.assert:
+    that:
+      - (go_k8s_client_deb_kit_stat.results | map(attribute='stat.exists') | list | min)
+    fail_msg: "Go k8s client offline kit files are missing after deb install."
+
+# Go 言語版 Kubernetes client 版数が要求値と一致することを確認する
+- name: Check tarball go command path exists on Debian family
+  ansible.builtin.stat:
+    path: "{{ go_command_from_tarball_path }}"
+  register: go_k8s_client_deb_tarball_go_stat
+  become: true
+
+- name: Select go command path for module version query on Debian family
+  ansible.builtin.set_fact:
+    go_k8s_client_deb_go_command: >-
+      {{
+        (go_k8s_client_deb_tarball_go_stat.stat.exists | default(false))
+        | ternary(go_command_from_tarball_path, go_command_package)
+      }}
+
+- name: Query installed client-go module version on Debian family
+  ansible.builtin.command:
+    argv:
+      - "{{ go_k8s_client_deb_go_command }}"
+      - list
+      - -m
+      - k8s.io/client-go
+    chdir: "{{ go_k8s_client_install_dir }}"
+  register: go_k8s_client_deb_module_list_cmd
+  changed_when: false
+  become: true
+
+- name: Assert installed client-go module version matches requested value on Debian family
+  ansible.builtin.assert:
+    that:
+      - >-
+        (
+          go_k8s_client_deb_module_list_cmd.stdout
+          | regex_findall('^k8s\\.io/client-go\\s+(v[0-9]+\\.[0-9]+\\.[0-9]+)$')
+          | first
+          | default('')
+        ) == (go_k8s_client_version | trim)
+    fail_msg: >-
+      Installed client-go module version mismatch.
+      requested={{ go_k8s_client_version | trim }}, listed={{ go_k8s_client_deb_module_list_cmd.stdout | trim }}

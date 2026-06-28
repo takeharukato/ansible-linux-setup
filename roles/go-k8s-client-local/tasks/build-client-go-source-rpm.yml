@@ -1,0 +1,138 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  Go 言語版 Kubernetes client rpmソースビルド処理
+#
+---
+
+# Go 言語版 Kubernetes client ソースビルド処理のためのディレクトリを作成する
+- name: Prepare local workspace for go k8s client rpm build
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    mode: "0755"
+  loop:
+    - "{{ go_k8s_client_build_workspace }}"
+    - "{{ go_k8s_client_build_output_dir }}"
+  delegate_to: "{{ go_k8s_client_build_host }}"
+  run_once: true
+
+# Go 言語版 Kubernetes client rpmビルドスクリプトを生成する
+- name: Render go k8s client rpm build script on build host
+  ansible.builtin.template:
+    src: build-k8s-client-go-rpm.sh.j2
+    dest: "{{ go_k8s_client_build_workspace }}/build-k8s-client-go-rpm.sh"
+    mode: "0755"
+  delegate_to: "{{ go_k8s_client_build_host }}"
+  run_once: true
+
+# Go 言語版 Kubernetes client rpmビルド用Dockerfileを生成する
+- name: Render go k8s client rpm Dockerfile on build host
+  ansible.builtin.template:
+    src: Dockerfile.almalinux.j2
+    dest: "{{ go_k8s_client_build_workspace }}/Dockerfile.go-k8s-client-rpm"
+    mode: "0644"
+  delegate_to: "{{ go_k8s_client_build_host }}"
+  run_once: true
+
+# Go 言語版 Kubernetes client rpmビルド用のコンテナイメージをDockerfileから生成する
+- name: Build go k8s client rpm builder container image from Dockerfile
+  ansible.builtin.command:
+    argv:
+      - "{{ go_k8s_client_build_container_runtime }}"
+      - build
+      - --network
+      - "{{ go_k8s_client_build_container_network_mode }}"
+      - -t
+      - "{{ go_k8s_client_build_container_image_rhel }}"
+      - -f
+      - "{{ go_k8s_client_build_workspace }}/Dockerfile.go-k8s-client-rpm"
+      - "{{ go_k8s_client_build_workspace }}"
+  async: "{{ go_k8s_client_build_timeout_seconds }}"
+  poll: 0
+  register: go_k8s_client_rpm_builder_image_build_job
+  delegate_to: "{{ go_k8s_client_build_host }}"
+  run_once: true
+  changed_when: true
+
+# Go 言語版 Kubernetes client rpmビルド用コンテナイメージのビルド完了まで待機する
+- name: Wait go k8s client rpm builder image build with progress polling
+  ansible.builtin.async_status:
+    jid: "{{ go_k8s_client_rpm_builder_image_build_job.ansible_job_id }}"
+  register: go_k8s_client_rpm_builder_image_build_cmd
+  until: go_k8s_client_rpm_builder_image_build_cmd.finished
+  retries: "{{ (go_k8s_client_build_timeout_seconds // go_k8s_client_build_loop_delay_seconds) | int }}"
+  delay: "{{ go_k8s_client_build_loop_delay_seconds }}"
+  failed_when: (go_k8s_client_rpm_builder_image_build_cmd.rc | default(0)) != 0
+  delegate_to: "{{ go_k8s_client_build_host }}"
+  run_once: true
+
+# Go 言語版 Kubernetes client rpmパッケージをコンテナ内で構築する
+- name: Build go k8s client rpm package in container
+  ansible.builtin.command:
+    argv:
+      - "{{ go_k8s_client_build_container_runtime }}"
+      - run
+      - --rm
+      - --network
+      - "{{ go_k8s_client_build_container_network_mode }}"
+      - -e
+      - "K8S_CLIENT_GO_VERSION={{ go_k8s_client_version }}"
+      - -e
+      - "K8S_CLIENT_MODULE_DOMAIN={{ go_k8s_client_module_domain }}"
+      - -e
+      - "K8S_CLIENT_RPM_PACKAGE_NAME={{ go_k8s_client_rpm_package_name }}"
+      - -e
+      - "K8S_CLIENT_INSTALL_DIR={{ go_k8s_client_install_dir }}"
+      - -v
+      - "{{ go_k8s_client_build_workspace }}:/work"
+      - -w
+      - /work
+      - "{{ go_k8s_client_build_container_image_rhel }}"
+      - /bin/bash
+      - /work/build-k8s-client-go-rpm.sh
+  async: "{{ go_k8s_client_build_timeout_seconds }}"
+  poll: 0
+  register: go_k8s_client_rpm_package_build_job
+  delegate_to: "{{ go_k8s_client_build_host }}"
+  run_once: true
+  changed_when: true
+
+# Go 言語版 Kubernetes client rpmビルド完了まで待機する
+- name: Wait go k8s client rpm package build with progress polling
+  ansible.builtin.async_status:
+    jid: "{{ go_k8s_client_rpm_package_build_job.ansible_job_id }}"
+  register: go_k8s_client_rpm_package_build_cmd
+  until: go_k8s_client_rpm_package_build_cmd.finished
+  retries: "{{ (go_k8s_client_build_timeout_seconds // go_k8s_client_build_loop_delay_seconds) | int }}"
+  delay: "{{ go_k8s_client_build_loop_delay_seconds }}"
+  failed_when: (go_k8s_client_rpm_package_build_cmd.rc | default(0)) != 0
+  delegate_to: "{{ go_k8s_client_build_host }}"
+  run_once: true
+
+# Go 言語版 Kubernetes client rpm成果物を探索する
+- name: Discover built go k8s client rpm files
+  ansible.builtin.find:
+    paths: "{{ go_k8s_client_build_output_dir }}"
+    patterns: "{{ go_k8s_client_rpm_package_name }}-*.rpm"
+    file_type: file
+  register: go_k8s_client_rpm_files_discovered
+  delegate_to: "{{ go_k8s_client_build_host }}"
+  run_once: true
+
+# 最新のGo 言語版 Kubernetes client rpm成果物を変数に設定する
+- name: Set latest built go k8s client rpm package
+  ansible.builtin.set_fact:
+    last_go_k8s_client_rpm_file: "{{ go_k8s_client_rpm_files_discovered.files | sort(attribute='mtime') | last }}"
+  delegate_to: "{{ go_k8s_client_build_host }}"
+  delegate_facts: true
+  run_once: true
+
+# Go 言語版 Kubernetes client rpm成果物が存在しない場合は失敗させる
+- name: Fail when go k8s client rpm package was not generated
+  ansible.builtin.fail:
+    msg: "Go k8s client rpm package was not generated for requested version {{ go_k8s_client_version }}"
+  when: (go_k8s_client_rpm_files_discovered.files | default([]) | length) == 0
+  delegate_to: "{{ go_k8s_client_build_host }}"
+  run_once: true

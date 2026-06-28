@@ -146,12 +146,16 @@ go_command_package_debian: "/usr/bin/go"
 go_command_package_rhel: "/usr/bin/go"
 go_command_package: "{{ (ansible_facts.os_family == 'Debian') | ternary(go_command_package_debian, go_command_package_rhel) }}"
 
+# Goパッケージ名 (ディストリビューション標準版)
+go_language_distro_package_debian: "golang"
+go_language_distro_package_rhel: "golang"
+go_language_distro_package: "{{ (ansible_facts.os_family == 'Debian') | ternary(go_language_distro_package_debian, go_language_distro_package_rhel) }}"
 # Goパッケージ削除候補名
 go_remove_packages_debian:
-  - "golang"
-  - "golang-go"
+  - "{{ go_language_distro_package_debian }}"
+  - "{{ go_language_distro_package_debian }}-go"
 go_remove_packages_rhel:
-  - "golang"
+  - "{{ go_language_distro_package_rhel }}"
 go_remove_packages: "{{ (ansible_facts.os_family == 'Debian') | ternary(go_remove_packages_debian, go_remove_packages_rhel) }}"
 
 # Goコマンドパス: tarball導入時

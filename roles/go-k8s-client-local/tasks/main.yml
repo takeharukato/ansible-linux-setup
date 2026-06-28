@@ -1,0 +1,15 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  タスクメイン部
+#
+#  include_tasksで他のタスクを読み込む
+#
+---
+
+# 最初に変数設定を読み直す ( role単独で実行可能とするため )
+- name: "Load Params"
+  ansible.builtin.include_tasks: load-params.yml
+- name: "Package"
+  ansible.builtin.include_tasks: package.yml

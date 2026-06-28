@@ -1,0 +1,184 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  Go 言語版 Kubernetes client rpm導入処理
+#
+---
+
+# 導入対象rpmファイルを解決する
+- name: Resolve go k8s client rpm file list scope (host or localhost)
+  ansible.builtin.set_fact:
+    go_k8s_client_rpm_source_files: >-
+      {{
+        ([last_go_k8s_client_rpm_file])
+        if ((last_go_k8s_client_rpm_file | default({})) | length) > 0
+        else (
+          ([hostvars[go_k8s_client_build_host].last_go_k8s_client_rpm_file])
+          if ((hostvars[go_k8s_client_build_host].last_go_k8s_client_rpm_file | default({})) | length) > 0
+          else (
+            ([hostvars['localhost'].last_go_k8s_client_rpm_file])
+            if ((hostvars['localhost'].last_go_k8s_client_rpm_file | default({})) | length) > 0
+            else []
+          )
+        )
+      }}
+
+# 導入対象rpmファイルが見つからない場合は失敗する
+- name: Fail when no go k8s client rpm file is found in both host and localhost scopes
+  ansible.builtin.fail:
+    msg: "No go k8s client rpm file found in both host and localhost scopes."
+  when: (go_k8s_client_rpm_source_files | default([]) | length) == 0
+
+# 構築済みGo 言語版 Kubernetes client rpmパッケージの権限を調整する
+- name: Ensure built go k8s client rpm package permissions are readable on build host
+  ansible.builtin.file:
+    path: "{{ item.path }}"
+    mode: "0644"
+  loop: "{{ go_k8s_client_rpm_source_files | default([]) }}"
+  delegate_to: "{{ go_k8s_client_build_host }}"
+  run_once: true
+
+# 構築ホストから制御ホストへ回収するための一時ディレクトリを作成する
+- name: Ensure local staging directory exists for go k8s client rpm packages
+  ansible.builtin.tempfile:
+    state: directory
+    path: "{{ lookup('env', 'HOME') }}/.ansible/tmp"
+    prefix: go-k8s-client-rpm-fetch-
+  register: go_k8s_client_rpm_fetch_tmpdir
+  delegate_to: localhost
+  become: false
+  run_once: true
+
+# 構築済みGo 言語版 Kubernetes client rpmパッケージを制御ホストに回収する
+- name: Fetch built go k8s client rpm packages from build host to controller
+  ansible.builtin.fetch:
+    src: "{{ item.path }}"
+    dest: "{{ go_k8s_client_rpm_fetch_tmpdir.path }}/{{ item.path | basename }}"
+    flat: true
+  loop: "{{ go_k8s_client_rpm_source_files | default([]) }}"
+  delegate_to: "{{ go_k8s_client_build_host }}"
+  run_once: true
+
+# 回収したGo 言語版 Kubernetes client rpmパッケージの存在を確認する
+- name: Check fetched go k8s client rpm packages exist on controller
+  ansible.builtin.stat:
+    path: "{{ go_k8s_client_rpm_fetch_tmpdir.path }}/{{ item.path | basename }}"
+  loop: "{{ go_k8s_client_rpm_source_files | default([]) }}"
+  register: go_k8s_client_rpm_fetch_stat
+  delegate_to: localhost
+  become: false
+  run_once: true
+
+# 回収したGo 言語版 Kubernetes client rpmパッケージが存在しない場合は失敗する
+- name: Fail when fetched go k8s client rpm package is missing on controller
+  ansible.builtin.fail:
+    msg: "Fetched go k8s client rpm package is missing on controller: {{ item.item.path | basename }}"
+  loop: "{{ go_k8s_client_rpm_fetch_stat.results | default([]) }}"
+  when: not (item.stat.exists | default(false))
+
+# 回収済みGo 言語版 Kubernetes client rpmパッケージをターゲットホストへコピーする
+- name: Copy built go k8s client rpm packages from controller to target host
+  ansible.builtin.copy:
+    src: "{{ go_k8s_client_rpm_fetch_tmpdir.path }}/{{ item.path | basename }}"
+    dest: "/tmp/{{ item.path | basename }}"
+    mode: "0644"
+  loop: "{{ go_k8s_client_rpm_source_files | default([]) }}"
+
+# Go 言語版 Kubernetes client rpmパッケージ導入用パスリストを構築する
+- name: Build local go k8s client rpm install list for one transaction
+  ansible.builtin.set_fact:
+    go_k8s_client_rpm_install_paths: >-
+      {{
+        (go_k8s_client_rpm_source_files | default([]))
+        | map(attribute='path')
+        | map('basename')
+        | map('regex_replace', '^', '/tmp/')
+        | list
+      }}
+
+# Go 言語版 Kubernetes client rpmパッケージを導入する
+- name: Install local go k8s client rpm packages in one transaction
+  ansible.builtin.dnf:
+    name: "{{ go_k8s_client_rpm_install_paths }}"
+    state: present
+    disable_gpg_check: true
+  become: true
+
+# Go 言語版 Kubernetes client rpmパッケージが導入済みであることを確認する
+- name: Query installed local go k8s client rpm package
+  ansible.builtin.command:
+    argv:
+      - rpm
+      - -q
+      - "{{ go_k8s_client_rpm_package_name }}"
+  register: go_k8s_client_rpm_pkg_query_cmd
+  changed_when: false
+  become: true
+
+# Go 言語版 Kubernetes client rpmパッケージが導入済みであることを確認する
+- name: Assert local go k8s client rpm package is installed
+  ansible.builtin.assert:
+    that:
+      - go_k8s_client_rpm_pkg_query_cmd.rc == 0
+    fail_msg: >-
+      Local go k8s client rpm package is not installed.
+      package={{ go_k8s_client_rpm_package_name }}
+
+# Go 言語版 Kubernetes client オフラインキットが導入済みであることを確認する
+- name: Check go k8s client offline kit files on target host
+  ansible.builtin.stat:
+    path: "{{ item }}"
+  loop:
+    - "{{ go_k8s_client_install_dir }}/go.mod"
+    - "{{ go_k8s_client_install_dir }}/go.sum"
+    - "{{ go_k8s_client_install_dir }}/vendor"
+  register: go_k8s_client_rpm_kit_stat
+  become: true
+
+- name: Assert go k8s client offline kit files exist on target host
+  ansible.builtin.assert:
+    that:
+      - (go_k8s_client_rpm_kit_stat.results | map(attribute='stat.exists') | list | min)
+    fail_msg: "Go k8s client offline kit files are missing after rpm install."
+
+# Go 言語版 Kubernetes client 版数が要求値と一致することを確認する
+- name: Check tarball go command path exists on RedHat family
+  ansible.builtin.stat:
+    path: "{{ go_command_from_tarball_path }}"
+  register: go_k8s_client_rpm_tarball_go_stat
+  become: true
+
+- name: Select go command path for module version query on RedHat family
+  ansible.builtin.set_fact:
+    go_k8s_client_rpm_go_command: >-
+      {{
+        (go_k8s_client_rpm_tarball_go_stat.stat.exists | default(false))
+        | ternary(go_command_from_tarball_path, go_command_package)
+      }}
+
+- name: Query installed client-go module version on RedHat family
+  ansible.builtin.command:
+    argv:
+      - "{{ go_k8s_client_rpm_go_command }}"
+      - list
+      - -m
+      - k8s.io/client-go
+    chdir: "{{ go_k8s_client_install_dir }}"
+  register: go_k8s_client_rpm_module_list_cmd
+  changed_when: false
+  become: true
+
+- name: Assert installed client-go module version matches requested value on RedHat family
+  ansible.builtin.assert:
+    that:
+      - >-
+        (
+          go_k8s_client_rpm_module_list_cmd.stdout
+          | regex_findall('^k8s\\.io/client-go\\s+(v[0-9]+\\.[0-9]+\\.[0-9]+)$')
+          | first
+          | default('')
+        ) == (go_k8s_client_version | trim)
+    fail_msg: >-
+      Installed client-go module version mismatch.
+      requested={{ go_k8s_client_version | trim }}, listed={{ go_k8s_client_rpm_module_list_cmd.stdout | trim }}

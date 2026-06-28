@@ -1,0 +1,50 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  Go 言語版 Kubernetes client パッケージ導入処理
+#
+---
+
+# Go 言語版 Kubernetes client 版数の形式を検証する
+- name: Validate go k8s client version format
+  ansible.builtin.assert:
+    that:
+      - go_k8s_client_version is string
+      - go_k8s_client_version is match('^v[0-9]+\.[0-9]+\.[0-9]+$')
+    fail_msg: >-
+      go_k8s_client_version must be vX.Y.Z format
+      (example: v0.31.0).
+
+# チェックモードではローカルパッケージの構築/導入をスキップする
+- name: Skip local go k8s client package build and install in check mode
+  ansible.builtin.debug:
+    msg: >-
+      Check mode: skipping local Go Kubernetes client package build/install steps.
+      requested version={{ go_k8s_client_version }}
+  when: ansible_check_mode | bool
+
+# Go 言語版 Kubernetes client パッケージを構築ホストで作成して導入する
+- name: Build and install local go k8s client packages
+  when: not (ansible_check_mode | bool)
+  block:
+
+    # Go 言語版 Kubernetes client パッケージを構築ホストで作成して導入する (Debian系)
+    - name: Build go k8s client deb package on build host
+      ansible.builtin.include_tasks: build-client-go-source-deb.yml
+      when: ansible_facts.os_family == 'Debian'
+
+    # Go 言語版 Kubernetes client パッケージをターゲットホスト上に導入する (Debian系)
+    - name: Install go k8s client deb package on target host
+      ansible.builtin.include_tasks: install-client-go-local-deb.yml
+      when: ansible_facts.os_family == 'Debian'
+
+    # Go 言語版 Kubernetes client パッケージを構築ホストで作成して導入する (RedHat系)
+    - name: Build go k8s client rpm package on build host
+      ansible.builtin.include_tasks: build-client-go-source-rpm.yml
+      when: ansible_facts.os_family == 'RedHat'
+
+    # Go 言語版 Kubernetes client パッケージをターゲットホスト上に導入する (RedHat系)
+    - name: Install go k8s client rpm package on target host
+      ansible.builtin.include_tasks: install-client-go-local-rpm.yml
+      when: ansible_facts.os_family == 'RedHat'

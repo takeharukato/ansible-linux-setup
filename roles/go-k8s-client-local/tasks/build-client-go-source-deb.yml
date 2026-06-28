@@ -1,0 +1,138 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  Go 言語版 Kubernetes client debソースビルド処理
+#
+---
+
+# Go 言語版 Kubernetes client ソースビルド処理のためのディレクトリを作成する
+- name: Prepare local workspace for go k8s client deb build
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    mode: "0755"
+  loop:
+    - "{{ go_k8s_client_build_workspace }}"
+    - "{{ go_k8s_client_build_output_dir }}"
+  delegate_to: "{{ go_k8s_client_build_host }}"
+  run_once: true
+
+# Go 言語版 Kubernetes client debビルドスクリプトを生成する
+- name: Render go k8s client deb build script on build host
+  ansible.builtin.template:
+    src: build-k8s-client-go-deb.sh.j2
+    dest: "{{ go_k8s_client_build_workspace }}/build-k8s-client-go-deb.sh"
+    mode: "0755"
+  delegate_to: "{{ go_k8s_client_build_host }}"
+  run_once: true
+
+# Go 言語版 Kubernetes client debビルド用Dockerfileを生成する
+- name: Render go k8s client deb Dockerfile on build host
+  ansible.builtin.template:
+    src: Dockerfile.ubuntu.j2
+    dest: "{{ go_k8s_client_build_workspace }}/Dockerfile.go-k8s-client-deb"
+    mode: "0644"
+  delegate_to: "{{ go_k8s_client_build_host }}"
+  run_once: true
+
+# Go 言語版 Kubernetes client debビルド用のコンテナイメージをDockerfileから生成する
+- name: Build go k8s client deb builder container image from Dockerfile
+  ansible.builtin.command:
+    argv:
+      - "{{ go_k8s_client_build_container_runtime }}"
+      - build
+      - --network
+      - "{{ go_k8s_client_build_container_network_mode }}"
+      - -t
+      - "{{ go_k8s_client_build_container_image_debian }}"
+      - -f
+      - "{{ go_k8s_client_build_workspace }}/Dockerfile.go-k8s-client-deb"
+      - "{{ go_k8s_client_build_workspace }}"
+  async: "{{ go_k8s_client_build_timeout_seconds }}"
+  poll: 0
+  register: go_k8s_client_deb_builder_image_build_job
+  delegate_to: "{{ go_k8s_client_build_host }}"
+  run_once: true
+  changed_when: true
+
+# Go 言語版 Kubernetes client debビルド用コンテナイメージのビルド完了まで待機する
+- name: Wait go k8s client deb builder image build with progress polling
+  ansible.builtin.async_status:
+    jid: "{{ go_k8s_client_deb_builder_image_build_job.ansible_job_id }}"
+  register: go_k8s_client_deb_builder_image_build_cmd
+  until: go_k8s_client_deb_builder_image_build_cmd.finished
+  retries: "{{ (go_k8s_client_build_timeout_seconds // go_k8s_client_build_loop_delay_seconds) | int }}"
+  delay: "{{ go_k8s_client_build_loop_delay_seconds }}"
+  failed_when: (go_k8s_client_deb_builder_image_build_cmd.rc | default(0)) != 0
+  delegate_to: "{{ go_k8s_client_build_host }}"
+  run_once: true
+
+# Go 言語版 Kubernetes client debパッケージをコンテナ内で構築する
+- name: Build go k8s client deb package in container
+  ansible.builtin.command:
+    argv:
+      - "{{ go_k8s_client_build_container_runtime }}"
+      - run
+      - --rm
+      - --network
+      - "{{ go_k8s_client_build_container_network_mode }}"
+      - -e
+      - "K8S_CLIENT_GO_VERSION={{ go_k8s_client_version }}"
+      - -e
+      - "K8S_CLIENT_MODULE_DOMAIN={{ go_k8s_client_module_domain }}"
+      - -e
+      - "K8S_CLIENT_DEB_PACKAGE_NAME={{ go_k8s_client_deb_package_name }}"
+      - -e
+      - "K8S_CLIENT_INSTALL_DIR={{ go_k8s_client_install_dir }}"
+      - -v
+      - "{{ go_k8s_client_build_workspace }}:/work"
+      - -w
+      - /work
+      - "{{ go_k8s_client_build_container_image_debian }}"
+      - /bin/bash
+      - /work/build-k8s-client-go-deb.sh
+  async: "{{ go_k8s_client_build_timeout_seconds }}"
+  poll: 0
+  register: go_k8s_client_deb_package_build_job
+  delegate_to: "{{ go_k8s_client_build_host }}"
+  run_once: true
+  changed_when: true
+
+# Go 言語版 Kubernetes client debビルド完了まで待機する
+- name: Wait go k8s client deb package build with progress polling
+  ansible.builtin.async_status:
+    jid: "{{ go_k8s_client_deb_package_build_job.ansible_job_id }}"
+  register: go_k8s_client_deb_package_build_cmd
+  until: go_k8s_client_deb_package_build_cmd.finished
+  retries: "{{ (go_k8s_client_build_timeout_seconds // go_k8s_client_build_loop_delay_seconds) | int }}"
+  delay: "{{ go_k8s_client_build_loop_delay_seconds }}"
+  failed_when: (go_k8s_client_deb_package_build_cmd.rc | default(0)) != 0
+  delegate_to: "{{ go_k8s_client_build_host }}"
+  run_once: true
+
+# Go 言語版 Kubernetes client deb成果物を探索する
+- name: Discover built go k8s client deb files
+  ansible.builtin.find:
+    paths: "{{ go_k8s_client_build_output_dir }}"
+    patterns: "{{ go_k8s_client_deb_package_name }}_*.deb"
+    file_type: file
+  register: go_k8s_client_deb_files_discovered
+  delegate_to: "{{ go_k8s_client_build_host }}"
+  run_once: true
+
+# Go 言語版 Kubernetes client deb成果物一覧を保存する
+- name: Set built go k8s client deb package list
+  ansible.builtin.set_fact:
+    go_k8s_client_deb_files: "{{ go_k8s_client_deb_files_discovered.files | default([]) }}"
+  delegate_to: "{{ go_k8s_client_build_host }}"
+  delegate_facts: true
+  run_once: true
+
+# Go 言語版 Kubernetes client deb成果物が存在しない場合は失敗する
+- name: Fail when go k8s client deb package was not generated
+  ansible.builtin.fail:
+    msg: "Go k8s client deb package was not generated for requested version {{ go_k8s_client_version }}"
+  when: (go_k8s_client_deb_files_discovered.files | default([]) | length) == 0
+  delegate_to: "{{ go_k8s_client_build_host }}"
+  run_once: true

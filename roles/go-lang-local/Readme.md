@@ -1,6 +1,7 @@
 # go-lang-local ロール
 
 本ロールは, 特定の版数のGo言語ソースを公式サイトからダウンロードし, Go 言語パッケージを構築, 導入するロールである。
+Go 言語版 Kubernetes client のローカルパッケージ配布は本ロールでは実施せず, `go-k8s-client-local` ロールで実施する。
 
 - [go-lang-local ロール](#go-lang-local-ロール)
   - [用語](#用語)
@@ -36,7 +37,8 @@
 - `go_lang_version` が空文字または未定義: Go の追加導入は行わず, `go_command` を `go_command_package` に設定する。
 - `go_lang_version` が指定されている場合: Go 公式 API から導入版数を解決し, `go_build_host` で指定した構築ホスト上のコンテナ内で指定版数の Go をソースビルドしてローカル成果物(deb/rpm)を対象ホストへ配布して導入する。
 - 指定版数とビルド結果, さらに導入後の版数が一致しない場合は `fail` で停止する。
-- `go_lang_version` が不正形式, または API から解決不能でフォールバックもない場合は, 警告を出してソース導入処理をスキップする。
+- 版数指定形式が, 'x.y'形式の場合, `go_lang_version` が不正形式, または API から解決不能でフォールバックもない場合は, 警告を出してソース導入処理をスキップする。
+- 版数指定形式が, 'x.y.z'形式の場合, 無条件に, 指定した版数のダウンロードを試みる(指定版数のソース取得に失敗した場合は, ダウンロード処理失敗によりplaybookの動作が停止する)。
 
 ## 主要変数
 
@@ -85,7 +87,7 @@
 
 | ロール内での相対パス | 処理内容 |
 | --- | --- |
-| `tasks/main.yml` | エントリポイント。`load-params.yml`, `package.yml` を読み込む。|
+| `tasks/main.yml` | エントリポイント。本ロールの処理を定義したyamlファイルを読み込む。|
 | `tasks/load-params.yml` | OS別/共通変数(`vars/packages-*.yml`, `vars/cross-distro.yml`, `vars/all-config.yml`)を読み込む。 |
 | `tasks/package.yml` | Go 導入メイン処理。`go_lang_version` 指定時はソースから構築したパッケージを導入し, 未指定時は `go_command` のみ設定する。 |
 | `tasks/resolve-go-version.yml` | Go API 版数解決。`x.y` 系列解決, EOL フォールバック, 不正形式スキップ判定。 |
