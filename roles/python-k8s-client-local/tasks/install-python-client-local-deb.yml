@@ -1,0 +1,159 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  Python 言語版 Kubernetes client deb導入処理
+#
+---
+
+# Python 言語版 Kubernetes client の debパッケージ成果物の一覧を
+# ホスト側とコントローラ側の両方のスコープで検索し, 見つかった方を採用し,
+# python_k8s_client_deb_source_files変数に格納する
+- name: Resolve python k8s client deb file list scope (host or localhost)
+  ansible.builtin.set_fact:
+    python_k8s_client_deb_source_files: >-
+      {{
+        (python_k8s_client_deb_files | default([]))
+        if ((python_k8s_client_deb_files | default([]) | length) > 0)
+        else (
+          (hostvars[python_k8s_client_build_host].python_k8s_client_deb_files | default([]))
+          if ((hostvars[python_k8s_client_build_host].python_k8s_client_deb_files | default([]) | length) > 0)
+          else (hostvars['localhost'].python_k8s_client_deb_files | default([]))
+        )
+      }}
+
+# 成果物が見つからなければ処理を中断する
+- name: Fail when no python k8s client deb file is found in both host and localhost scopes
+  ansible.builtin.fail:
+    msg: "No python k8s client deb file found in both host and localhost scopes."
+  when: (python_k8s_client_deb_source_files | default([]) | length) == 0
+
+# 構築ホスト上のPython 言語版 Kubernetes client debパッケージのパーミッションを
+# 読み取り可能に変更する
+- name: Ensure built python k8s client deb package permissions are readable on build host
+  ansible.builtin.file:
+    path: "{{ item.path }}"
+    mode: "0644"
+  loop: "{{ python_k8s_client_deb_source_files | default([]) }}"
+  delegate_to: "{{ python_k8s_client_build_host }}"
+  run_once: true
+
+# 構築ホストから制御ホストへ回収するための一時ディレクトリを作成する
+- name: Ensure local staging directory exists for python k8s client deb packages
+  ansible.builtin.tempfile:
+    state: directory
+    path: "{{ lookup('env', 'HOME') }}/.ansible/tmp"
+    prefix: python-k8s-client-deb-fetch-
+  register: python_k8s_client_deb_fetch_tmpdir
+  delegate_to: localhost
+  become: false
+  run_once: true
+
+# 構築ホストから制御ホストへPython 言語版 Kubernetes client debパッケージを回収する
+- name: Fetch built python k8s client deb packages from build host to controller
+  ansible.builtin.fetch:
+    src: "{{ item.path }}"
+    dest: "{{ python_k8s_client_deb_fetch_tmpdir.path }}/{{ item.path | basename }}"
+    flat: true
+  loop: "{{ python_k8s_client_deb_source_files | default([]) }}"
+  delegate_to: "{{ python_k8s_client_build_host }}"
+  run_once: true
+
+# 制御ホストからターゲットホストへPython 言語版 Kubernetes client debパッケージをコピーする
+- name: Copy built python k8s client deb packages from controller to target host
+  ansible.builtin.copy:
+    src: "{{ python_k8s_client_deb_fetch_tmpdir.path }}/{{ item.path | basename }}"
+    dest: "/tmp/{{ item.path | basename }}"
+    mode: "0644"
+  loop: "{{ python_k8s_client_deb_source_files | default([]) }}"
+
+# Python 言語版 Kubernetes client の debパッケージを
+# インストールするための コマンドライン引数を構築する
+- name: Build local python k8s client deb install argv
+  ansible.builtin.set_fact:
+    python_k8s_client_deb_install_argv: >-
+      {{
+        [
+          'apt-get',
+          '-y',
+          '-o',
+          'DPkg::Lock::Timeout=' ~ (python_k8s_client_install_deb_lock_wait_seconds | string),
+          'install'
+        ]
+        +
+        (
+          python_k8s_client_deb_source_files
+          | default([])
+          | map(attribute='path')
+          | map('basename')
+          | map('regex_replace', '^', '/tmp/')
+          | list
+        )
+      }}
+
+# Python 言語版 Kubernetes client の debパッケージを
+# ターゲットホストに導入する
+- name: Install local python k8s client deb packages in one transaction
+  ansible.builtin.command:
+    argv: "{{ python_k8s_client_deb_install_argv }}"
+  become: true
+
+# Python 言語版 Kubernetes client の debパッケージが
+# 正しく導入されたかを確認するために, dpkg-query でパッケージの状態を確認する
+- name: Query installed local python k8s client deb package status
+  ansible.builtin.command:
+    argv:
+      - dpkg-query
+      - -W
+      - -f=${Status}
+      - "{{ python_k8s_client_deb_package_name }}"
+  register: python_k8s_client_deb_pkg_status_cmd
+  changed_when: false
+  become: true
+
+# Python 言語版 Kubernetes client の debパッケージが
+# 正しく導入されたことを確認するために, dpkg-query で
+# パッケージのバージョンを確認し, 要求されたバージョンと一致
+# しなければ処理を中断する
+- name: Assert local python k8s client deb package is installed
+  ansible.builtin.assert:
+    that:
+      - "'install ok installed' in (python_k8s_client_deb_pkg_status_cmd.stdout | lower)"
+    fail_msg: >-
+      Local python k8s client deb package is not installed.
+      package={{ python_k8s_client_deb_package_name }}
+
+# Python 言語版 Kubernetes client の debパッケージが
+# 正しく導入されたことをvenv環境内のPythonから確認するために,
+# Pythonでkubernetesモジュールをimportし, バージョンを取得する
+- name: Query installed kubernetes python client version from local venv on Debian family
+  ansible.builtin.command:
+    argv:
+      - "{{ python_k8s_client_install_dir }}/venv/bin/python"
+      - -c
+      - >-
+        import kubernetes; print(kubernetes.__version__)
+  register: python_k8s_client_deb_installed_version_cmd
+  changed_when: false
+  become: true
+
+# Python 言語版 Kubernetes client の debパッケージが指定版数と異なる場合は
+# 処理を中断する
+- name: Assert installed kubernetes python client satisfies requested spec on Debian family
+  ansible.builtin.command:
+    argv:
+      - "{{ python_k8s_client_install_dir }}/venv/bin/python"
+      - -c
+      - >-
+        import sys;
+        from packaging.specifiers import SpecifierSet;
+        spec = sys.argv[1];
+        ver = sys.argv[2].strip();
+        s = SpecifierSet(spec);
+        raise SystemExit(0 if s.contains(ver, prereleases=True) else 1)
+      - "{{ python_k8s_client_version_spec }}"
+      - "{{ python_k8s_client_deb_installed_version_cmd.stdout | trim }}"
+  register: python_k8s_client_deb_spec_assert_cmd
+  changed_when: false
+  failed_when: python_k8s_client_deb_spec_assert_cmd.rc != 0
+  become: true

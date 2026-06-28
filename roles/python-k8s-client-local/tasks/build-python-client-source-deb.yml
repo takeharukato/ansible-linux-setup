@@ -1,0 +1,142 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  Python 言語版 Kubernetes client debソースビルド処理
+#
+---
+
+# Python 言語版 Kubernetes client の debパッケージを
+# 構築するためのディレクトリを作成する
+- name: Prepare local workspace for python k8s client deb build
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    mode: "0755"
+  loop:
+    - "{{ python_k8s_client_build_workspace }}"
+    - "{{ python_k8s_client_build_output_dir }}"
+  delegate_to: "{{ python_k8s_client_build_host }}"
+  run_once: true
+
+# Python 言語版 Kubernetes client の debパッケージを
+# 構築するためのスクリプトを生成する
+- name: Render python k8s client deb build script on build host
+  ansible.builtin.template:
+    src: build-python-k8s-client-deb.sh.j2
+    dest: "{{ python_k8s_client_build_workspace }}/build-python-k8s-client-deb.sh"
+    mode: "0755"
+  delegate_to: "{{ python_k8s_client_build_host }}"
+  run_once: true
+
+# Python 言語版 Kubernetes client の debパッケージを
+# 構築するためのDockerfileを生成する
+- name: Render python k8s client deb Dockerfile on build host
+  ansible.builtin.template:
+    src: Dockerfile.ubuntu.j2
+    dest: "{{ python_k8s_client_build_workspace }}/Dockerfile.python-k8s-client-deb"
+    mode: "0644"
+  delegate_to: "{{ python_k8s_client_build_host }}"
+  run_once: true
+
+# Python 言語版 Kubernetes client の debパッケージを
+# 構築するためのコンテナ環境をDockerfileから生成する
+- name: Build python k8s client deb builder container image from Dockerfile
+  ansible.builtin.command:
+    argv:
+      - "{{ python_k8s_client_build_container_runtime }}"
+      - build
+      - --network
+      - "{{ python_k8s_client_build_container_network_mode }}"
+      - -t
+      - "{{ python_k8s_client_build_container_image_debian }}"
+      - -f
+      - "{{ python_k8s_client_build_workspace }}/Dockerfile.python-k8s-client-deb"
+      - "{{ python_k8s_client_build_workspace }}"
+  async: "{{ python_k8s_client_build_timeout_seconds }}"
+  poll: 0
+  register: python_k8s_client_deb_builder_image_build_job
+  delegate_to: "{{ python_k8s_client_build_host }}"
+  run_once: true
+  changed_when: true
+
+# Python 言語版 Kubernetes client の debパッケージのコンテナ環境生成を待ち合わせる
+- name: Wait python k8s client deb builder image build with progress polling
+  ansible.builtin.async_status:
+    jid: "{{ python_k8s_client_deb_builder_image_build_job.ansible_job_id }}"
+  register: python_k8s_client_deb_builder_image_build_cmd
+  until: python_k8s_client_deb_builder_image_build_cmd.finished
+  retries: "{{ (python_k8s_client_build_timeout_seconds // python_k8s_client_build_loop_delay_seconds) | int }}"
+  delay: "{{ python_k8s_client_build_loop_delay_seconds }}"
+  failed_when: (python_k8s_client_deb_builder_image_build_cmd.rc | default(0)) != 0
+  delegate_to: "{{ python_k8s_client_build_host }}"
+  run_once: true
+
+# Python 言語版 Kubernetes client の debパッケージをコンテナ環境内で構築する
+- name: Build python k8s client deb package in container
+  ansible.builtin.command:
+    argv:
+      - "{{ python_k8s_client_build_container_runtime }}"
+      - run
+      - --rm
+      - --network
+      - "{{ python_k8s_client_build_container_network_mode }}"
+      - -e
+      - "K8S_PY_CLIENT_VERSION_SPEC={{ python_k8s_client_version_spec }}"
+      - -e
+      - "K8S_PY_CLIENT_DEB_PACKAGE_NAME={{ python_k8s_client_deb_package_name }}"
+      - -e
+      - "K8S_PY_CLIENT_INSTALL_DIR={{ python_k8s_client_install_dir }}"
+      - -v
+      - "{{ python_k8s_client_build_workspace }}:/work"
+      - -w
+      - /work
+      - "{{ python_k8s_client_build_container_image_debian }}"
+      - /bin/bash
+      - /work/build-python-k8s-client-deb.sh
+  async: "{{ python_k8s_client_build_timeout_seconds }}"
+  poll: 0
+  register: python_k8s_client_deb_package_build_job
+  delegate_to: "{{ python_k8s_client_build_host }}"
+  run_once: true
+  changed_when: true
+
+# Python 言語版 Kubernetes client の debパッケージ構築処理が完了するまで待機する
+- name: Wait python k8s client deb package build with progress polling
+  ansible.builtin.async_status:
+    jid: "{{ python_k8s_client_deb_package_build_job.ansible_job_id }}"
+  register: python_k8s_client_deb_package_build_cmd
+  until: python_k8s_client_deb_package_build_cmd.finished
+  retries: "{{ (python_k8s_client_build_timeout_seconds // python_k8s_client_build_loop_delay_seconds) | int }}"
+  delay: "{{ python_k8s_client_build_loop_delay_seconds }}"
+  failed_when: (python_k8s_client_deb_package_build_cmd.rc | default(0)) != 0
+  delegate_to: "{{ python_k8s_client_build_host }}"
+  run_once: true
+
+# Python 言語版 Kubernetes client の debパッケージ成果物の一覧を取得する
+- name: Discover built python k8s client deb files
+  ansible.builtin.find:
+    paths: "{{ python_k8s_client_build_output_dir }}"
+    patterns: "{{ python_k8s_client_deb_package_name }}_*.deb"
+    file_type: file
+  register: python_k8s_client_deb_files_discovered
+  delegate_to: "{{ python_k8s_client_build_host }}"
+  run_once: true
+
+# 構築されたPython 言語版 Kubernetes client の
+# debパッケージ一覧をpython_k8s_client_deb_files変数に格納する
+- name: Set built python k8s client deb package list
+  ansible.builtin.set_fact:
+    python_k8s_client_deb_files: "{{ python_k8s_client_deb_files_discovered.files | default([]) }}"
+  delegate_to: "{{ python_k8s_client_build_host }}"
+  delegate_facts: true
+  run_once: true
+
+# 成果物が見つからなければ処理を中断する
+- name: Fail when python k8s client deb package was not generated
+  ansible.builtin.fail:
+    msg: >-
+      Python k8s client deb package was not generated for requested spec {{ python_k8s_client_version_spec }}
+  when: (python_k8s_client_deb_files_discovered.files | default([]) | length) == 0
+  delegate_to: "{{ python_k8s_client_build_host }}"
+  run_once: true

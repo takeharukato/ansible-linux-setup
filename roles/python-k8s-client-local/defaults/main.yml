@@ -1,0 +1,37 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  ロール固有変数のデフォルト値
+#
+---
+
+# Python 言語版 Kubernetes client 版数指定
+# 例: ~=31.0, ==31.0.0
+python_k8s_client_version_spec: ""
+
+# Python 言語版 Kubernetes client ローカルパッケージ名
+python_k8s_client_deb_package_name: "python-k8s-client"
+python_k8s_client_rpm_package_name: "python-k8s-client"
+
+# Python 言語版 Kubernetes client 導入先ディレクトリ
+python_k8s_client_install_dir: "/opt/k8s-devel/python-client"
+
+# パッケージ構築ホストとワークスペース
+python_k8s_client_build_host: "localhost"
+python_k8s_client_build_workspace: "/tmp/python-k8s-client-build"
+python_k8s_client_build_output_dir: "{{ python_k8s_client_build_workspace }}/output"
+
+# タイムアウト/ポーリング
+python_k8s_client_build_timeout_seconds: 3600
+python_k8s_client_build_loop_delay_seconds: 5
+
+# Debian系でのaptロック待機時間(秒)
+python_k8s_client_install_deb_lock_wait_seconds: 600
+
+# コンテナビルド実行環境
+python_k8s_client_build_container_runtime: "docker"
+python_k8s_client_build_container_network_mode: "host"
+python_k8s_client_build_container_image_debian: "python-k8s-client-build-ubuntu:24.04"
+python_k8s_client_build_container_image_rhel: "python-k8s-client-build-almalinux:9.6"
+python_k8s_client_build_container_workdir: "/work"

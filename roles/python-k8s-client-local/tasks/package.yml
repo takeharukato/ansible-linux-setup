@@ -1,0 +1,47 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  Python 言語版 Kubernetes client パッケージ導入処理
+#
+---
+# Python 言語版 Kubernetes client のローカルパッケージをビルドして導入する
+- name: Build and install local python k8s client packages
+  when:
+    - not (ansible_check_mode | bool)
+  block:
+
+    # python_k8s_client_version_specが空でないことを確認する
+    - name: Assert python_k8s_client_version_spec is not empty
+      ansible.builtin.assert:
+        that:
+          - python_k8s_client_version_spec | default('', true) | string | trim | length > 0
+        fail_msg: "python_k8s_client_version_spec is empty. Please specify a version spec for the Kubernetes python client."
+
+    #
+    # debパッケージのビルドと導入
+    #
+
+    # Python 言語版 Kubernetes client の deb パッケージを構築する
+    - name: Build python k8s client deb package on build host
+      ansible.builtin.include_tasks: build-python-client-source-deb.yml
+      when: ansible_facts.os_family == 'Debian'
+
+    # Python 言語版 Kubernetes client の deb パッケージを導入する
+    - name: Install python k8s client deb package on target host
+      ansible.builtin.include_tasks: install-python-client-local-deb.yml
+      when: ansible_facts.os_family == 'Debian'
+
+    #
+    # rpmパッケージのビルドと導入
+    #
+
+    # Python 言語版 Kubernetes client の rpm パッケージを構築する
+    - name: Build python k8s client rpm package on build host
+      ansible.builtin.include_tasks: build-python-client-source-rpm.yml
+      when: ansible_facts.os_family == 'RedHat'
+
+    # Python 言語版 Kubernetes client の rpm パッケージを導入する
+    - name: Install python k8s client rpm package on target host
+      ansible.builtin.include_tasks: install-python-client-local-rpm.yml
+      when: ansible_facts.os_family == 'RedHat'
