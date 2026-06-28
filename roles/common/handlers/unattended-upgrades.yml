@@ -1,0 +1,16 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  unattended-upgrades サービス起動処理実体
+#
+
+# notify の unattended_upgrades_restarted_and_enabled に対応するハンドラ
+- name: "unattended upgrades restarted and enabled"
+  listen: unattended_upgrades_restarted_and_enabled
+  ansible.builtin.systemd:
+    name: unattended-upgrades
+    state: restarted
+    daemon_reload: true
+    enabled: true
+  become: true

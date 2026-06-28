@@ -4,10 +4,12 @@
 #
 - name: "Avahi"
   ansible.builtin.import_tasks: avahi.yml
-- name: "Disable Gui"
+- name: "Disable Gui for Debian"
   ansible.builtin.import_tasks: disable-gui.yml
-- name: "Auto Remove"
+- name: "Auto Remove for Debian"
   ansible.builtin.import_tasks: auto-remove.yml
+- name: "Unattended Upgrades for Debian"
+  ansible.builtin.import_tasks: unattended-upgrades.yml
 - name: "Network Manager Handlers for RHEL"
   ansible.builtin.import_tasks: nm-handlers-rhel.yml
 - name: "Netplan Handlers for Debian"
