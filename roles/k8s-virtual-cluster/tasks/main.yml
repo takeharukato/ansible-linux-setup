@@ -103,19 +103,10 @@
     - virtualcluster_build_from_source | bool
     - virtualcluster_build_kubectl_vc | bool
 
-# Virtual Cluster のコンテナイメージをビルドするタスク
-- name: "Build Docker Images"
-  ansible.builtin.include_tasks: build-docker-images.yml
-  when:
-    - k8s_virtualcluster_enabled | bool
-    - virtualcluster_build_from_source | bool
-
-# Virtual Cluster のコンテナイメージをansibleの制御ノードにダウンロードするタスク
-- name: "Fetch Images"
-  ansible.builtin.include_tasks: fetch-images.yml
-  when:
-    - k8s_virtualcluster_enabled | bool
-    - virtualcluster_build_from_source | bool
+# Virtual Cluster のコンテナイメージ成果物を準備するタスク
+- name: "Prepare Image Artifacts"
+  ansible.builtin.include_tasks: prepare-image-artifacts.yml
+  when: k8s_virtualcluster_enabled | bool
 
 # Virtual Cluster のコンテナイメージをコントロールプレーンノードにアップロードするタスク
 - name: "Upload to Control Plane"
@@ -146,3 +137,10 @@
 - name: "Verify"
   ansible.builtin.include_tasks: verify.yml
   when: k8s_virtualcluster_enabled | bool
+
+# 検証成功後に最新バンドル(イメージとマニフェスト)を昇格保存するタスク
+- name: "Promote Latest Image Bundle"
+  ansible.builtin.include_tasks: promote-image-bundle.yml
+  when:
+    - k8s_virtualcluster_enabled | bool
+    - (virtualcluster_image_source_mode | default('')) == 'build'

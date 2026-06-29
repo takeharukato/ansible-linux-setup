@@ -67,6 +67,39 @@ virtualcluster_build_timeout: 1800
 # localhost(Ansibleコントローラー)上のイメージキャッシュディレクトリ
 virtualcluster_local_cache_dir: "{{ lookup('env', 'HOME') }}/.ansible/vc-images-cache"
 
+# 明示指定する各コンポーネントのtarファイルパス (空文字は未指定)
+# vc-manager, syncer, vn-agent のイメージtarファイルを明示指定する場合は,
+# 下記の変数に制御ノード上でのファイルパスを設定する
+# vc-managerのイメージtarファイルパス
+virtualcluster_manager_image_tar_path: ""
+# syncerのイメージtarファイルパス
+virtualcluster_syncer_image_tar_path: ""
+# vn-agentのイメージtarファイルパス
+virtualcluster_vn_agent_image_tar_path: ""
+
+# 成功した最新バンドル(コンテナイメージtarとマニフェスト)の永続保存先
+# 補足事項
+#   virtualcluster_keep_image_cache が false の場合,
+#   成功した最新バンドルは下記のディレクトリに保存される
+#   virtualcluster_image_source_mode が cache の場合,
+#   以下のディレクトリに保存された最新バンドルは,
+#   次回の構築時にキャッシュとして使用され, コンテナイメージのビルド処理を
+#   スキップする
+
+# コンテナイメージの永続保存先ディレクトリ
+virtualcluster_image_cache_dir: "/opt/virtual-cluster/caches/images"
+
+# マニフェストの永続保存先ディレクトリ
+virtualcluster_manifest_cache_dir: "{{ virtualcluster_image_cache_dir }}/manifests"
+
+# 実行後にlocalhost上の作業キャッシュを保持する指示
+# true: 作業キャッシュを保持する, false: 作業キャッシュを削除する
+#
+# ここでいう作業キャッシュとは, 制御ノード(localhost)からコントロールプレイン,
+# ワーカーノードへコンテナイメージを配布するために一時的に制御ノード(localhost)上に
+# 作成されるディレクトリのことを指す。デフォルトは false (作業キャッシュを削除する)
+virtualcluster_keep_image_cache: false
+
 # コントロールプレーン上のイメージキャッシュディレクトリ
 virtualcluster_ctrlplane_cache_dir: "/tmp/vc-images"
 
@@ -144,7 +177,7 @@ k8s_api_wait_delegate_to: "localhost"
 virtualcluster_kubectl_vc_install_dir: "/usr/local/bin"
 # kubectl-vcプラグインのバイナリ名
 virtualcluster_kubectl_vc_binary: "kubectl-vc"
-# kubectl-vcプラグインをビルドするかどうか
+# kubectl-vcプラグインをビルドする指示
 # true: ソースからビルド, false: ビルドをスキップ
 virtualcluster_build_kubectl_vc: true
 

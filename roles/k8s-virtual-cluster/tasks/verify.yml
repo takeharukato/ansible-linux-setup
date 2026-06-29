@@ -238,7 +238,8 @@
         Status: {{ (result_zsh_completion_check.stat.exists | default(false)) | ternary('OK', 'MISSING or DISABLED') }}
 
       Notes:
-        - 新しいシェルセッションを開始すると補完が有効化されます
+        - Start a new terminal session to enable zsh completion.
+        - For bash completion, run:
         - bash: source {{ vc_tenant_bash_completion_path }}
-        - zsh: 新しいターミナルセッションを開始
+        - zsh: source {{ vc_tenant_zsh_completion_path }}
   when: virtualcluster_tenant_tools_enabled | bool

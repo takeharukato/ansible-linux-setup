@@ -1,0 +1,293 @@
+#  -*- mode: yaml; coding: utf-8; line-endings: unix -*-
+#  SPDX-License-Identifier: BSD-2-Clause
+#
+#  Copyright (c) 2025 TAKEHARU KATO
+#  This file is distributed under the two-clause BSD license.
+#  For the full text of the license, see the LICENSE file in the project root directory.
+#  このファイルは2条項BSDライセンスの下で配布されています。
+#  ライセンス全文はプロジェクト直下の LICENSE を参照してください。
+
+#
+#  生成したコンテナイメージをコントロールプレーン/ワーカーノードに
+#  配布するための準備を行うタスク
+#  本ファイル中で, 動作モードの選択を行い, その結果を変数
+#  (virtualcluster_image_source_mode変数)に格納する
+#
+#  動作モードには以下の3種類がある:
+#
+#   1. 明示的に指定されたコンテナイメージを利用(explicit)
+#   2. キャッシュされたコンテナイメージを利用(cache)
+#   3. ソースからビルドしてコンテナイメージを作成(build)
+#
+#   動作モードの選択は, 以下の優先順位で行われる
+#   1. 明示的に指定されたコンテナイメージが利用可能である場合は, それを利用する(explicit)
+#   2. キャッシュされたコンテナイメージが利用可能である場合は, それを利用する(cache)
+#   3. 上記のいずれも利用できない場合は, ソースからビルドしてコンテナイメージを作成する(build)
+#
+#   このため, 動作モードの優先順位は, explicit > cache > build となる
+#   動作モードがbuildに決定された場合は, virtualcluster_build_from_sourceがtrueであることを確認する
+#   動作モードがbuildに決定された場合で, virtualcluster_build_from_sourceがfalseの場合はエラー
+#   (設定誤り)とみなし, 処理を中断する
+---
+
+# 明示的に指定されたコンテナイメージ(tarファイル)のパスを
+# virtualcluster_explicit_image_tar_paths変数(辞書)に格納
+#   キー:
+#     manager: managerのコンテナイメージへのパス
+#     syncer: syncerのコンテナイメージへのパス
+#     vn-agent: vn-agentのコンテナイメージへのパス
+- name: "Build explicit image tar path map"
+  ansible.builtin.set_fact:
+    virtualcluster_explicit_image_tar_paths:
+      manager: "{{ virtualcluster_manager_image_tar_path | default('', true) | trim }}"
+      syncer: "{{ virtualcluster_syncer_image_tar_path | default('', true) | trim }}"
+      vn-agent: "{{ virtualcluster_vn_agent_image_tar_path | default('', true) | trim }}"
+  run_once: true
+
+# 明示的に指定されたコンテナイメージ(tarファイル)のパスが
+# 全てのコンテナイメージに対して提供されていることを確認
+#   1. map('extract', virtualcluster_explicit_image_tar_paths) で辞書から値を抽出
+#   2. map('trim') で空白を除去
+#   3. reject('equalto', '') で空文字列を除外
+#   4. length で残った要素数を数え, virtualcluster_build_componentsの長さと比較
+- name: "Check whether all explicit image tar paths are provided"
+  ansible.builtin.set_fact:
+    virtualcluster_explicit_image_tar_paths_complete: >-
+      {{
+        (
+          virtualcluster_build_components
+          | map('extract', virtualcluster_explicit_image_tar_paths)
+          | map('trim')
+          | reject('equalto', '')
+          | list
+          | length
+        ) == (virtualcluster_build_components | length)
+      }}
+  run_once: true
+
+# 各コンテナイメージのtarファイルパスが制御ノード(localhost)上に
+# 存在することを確認
+- name: "Verify explicit image tar files exist on localhost"
+  ansible.builtin.stat:
+    path: "{{ virtualcluster_explicit_image_tar_paths[item] }}"
+  loop: "{{ virtualcluster_build_components }}"
+  register: virtualcluster_explicit_tar_stat
+  delegate_to: localhost
+  become: false
+  run_once: true
+  when: virtualcluster_explicit_image_tar_paths_complete
+
+# 明示的に指定されたコンテナイメージが利用可能であることを
+# virtualcluster_explicit_available変数に設定
+#   1. virtualcluster_explicit_image_tar_paths_complete が true であることを確認
+#   2. virtualcluster_explicit_tar_stat.results の各要素の
+#      stat.exists (ファイルが存在すること)が全て true であることを確認
+# 処理ロジック:
+#   virtualcluster_explicit_image_tar_paths_complete | default(false)
+#   virtualcluster_explicit_image_tar_paths_completeが真, かつ,
+#   virtualcluster_explicit_tar_stat.resultsの各要素のstat.existsの
+#   各要素について, map(attribute='stat.exists')で存在有無を抽出,
+#   list化してminで最小値を取得し, それが真(1)であることを確認
+#   (偽が1つでもあれば, minは0となり, 全てのファイルが存在することを確認できる)
+- name: "Set explicit image availability flag"
+  ansible.builtin.set_fact:
+    virtualcluster_explicit_available: >-
+      {{
+        (virtualcluster_explicit_image_tar_paths_complete | default(false))
+        and
+        (
+          virtualcluster_explicit_tar_stat.results
+          | default([])
+          | map(attribute='stat.exists')
+          | list
+          | min
+          | default(false)
+        )
+      }}
+  run_once: true
+
+# 明示的に指定されたコンテナイメージが利用可能であることを確認
+- name: "Verify cached image tar files exist"
+  ansible.builtin.stat:
+    path: "{{ virtualcluster_image_cache_dir }}/latest/images/{{ item }}-amd64.tar"
+  loop: "{{ virtualcluster_build_components }}"
+  register: virtualcluster_cached_tar_stat
+  delegate_to: localhost
+  become: false
+  run_once: true
+
+# 各コンテナイメージのキャッシュファイルが存在することを確認
+# 処理ロジック:
+#   virtualcluster_cached_tar_stat.resultsの各要素のstat.existsの
+#   各要素について, map(attribute='stat.exists')で存在有無を抽出,
+#   list化してminで最小値を取得し, それが真(1)であることを確認
+#   (偽が1つでもあれば, minは0となり, 全てのファイルが存在することを確認できる)
+- name: "Set cache availability flag"
+  ansible.builtin.set_fact:
+    virtualcluster_cache_available: >-
+      {{
+        (
+          virtualcluster_cached_tar_stat.results
+          | default([])
+          | map(attribute='stat.exists')
+          | list
+          | min
+          | default(false)
+        )
+      }}
+  run_once: true
+
+# 明示的指定またはキャッシュのいずれかが利用可能であることを確認し,
+# 動作モード格納変数(virtualcluster_image_source_mode変数)に設定
+#  - virtualcluster_explicit_available が true の場合は 'explicit'
+#    (明示的に指定されたコンテナイメージを利用する)
+#  - virtualcluster_cache_available が true の場合は 'cache'
+#    (キャッシュされたコンテナイメージを利用する)
+#  - いずれも利用できない場合は 'build'
+#    (ソースからビルドしてコンテナイメージを作成する)
+- name: "Select image source mode"
+  ansible.builtin.set_fact:
+    virtualcluster_image_source_mode: >-
+      {{
+        'explicit'
+        if (virtualcluster_explicit_available | default(false))
+        else (
+          'cache'
+          if (virtualcluster_cache_available | default(false))
+          else 'build'
+        )
+      }}
+  run_once: true
+
+# 明示的指定またはキャッシュのいずれも利用できない場合に,
+# virtualcluster_build_from_sourceがfalseである場合はエラーとする
+- name: "Fail when build is required but virtualcluster_build_from_source is disabled"
+  ansible.builtin.fail:
+    msg: >-
+      Image artifacts are missing from both explicit paths and cache, but build is disabled.
+      Set one of virtualcluster_manager_image_tar_path/virtualcluster_syncer_image_tar_path/
+      virtualcluster_vn_agent_image_tar_path, or place cached files under
+      {{ virtualcluster_image_cache_dir }}/latest/images, or enable virtualcluster_build_from_source.
+  when:
+    - virtualcluster_image_source_mode == 'build'
+    - not (virtualcluster_build_from_source | bool)
+  run_once: true
+
+# 選択された動作モードを表示
+- name: "Display selected image source mode"
+  ansible.builtin.debug:
+    msg: "Selected image source mode: {{ virtualcluster_image_source_mode }}"
+  run_once: true
+
+# ローカルの作業用キャッシュディレクトリを作成
+- name: "Ensure localhost working cache directory exists"
+  ansible.builtin.file:
+    path: "{{ virtualcluster_local_cache_dir }}"
+    state: directory
+    mode: "0755"
+  delegate_to: localhost
+  become: false
+  run_once: true
+
+# 明示的に指定されたコンテナイメージファイルをローカルの作業用キャッシュにコピー
+- name: "Copy explicit image tar files to localhost working cache"
+  ansible.builtin.copy:
+    src: "{{ virtualcluster_explicit_image_tar_paths[item] }}"
+    dest: "{{ virtualcluster_local_cache_dir }}/{{ item }}-amd64.tar"
+    mode: "0644"
+  loop: "{{ virtualcluster_build_components }}"
+  delegate_to: localhost
+  become: false
+  run_once: true
+  when: virtualcluster_image_source_mode == 'explicit'
+
+# キャッシュされたコンテナイメージファイルをローカルの作業用キャッシュにコピー
+- name: "Copy cached image tar files to localhost working cache"
+  ansible.builtin.copy:
+    src: "{{ virtualcluster_image_cache_dir }}/latest/images/{{ item }}-amd64.tar"
+    dest: "{{ virtualcluster_local_cache_dir }}/{{ item }}-amd64.tar"
+    mode: "0644"
+  loop: "{{ virtualcluster_build_components }}"
+  delegate_to: localhost
+  become: false
+  run_once: true
+  when: virtualcluster_image_source_mode == 'cache'
+
+# 使用するコンテナイメージファイルを明示的に指定しない場合
+# (指定されたイメージファイルが存在しない場合を含む), かつ,
+# キャッシュされたコンテナイメージファイルが存在しない場合は,
+# コンテナイメージファイルをソースから構築する
+- name: "Build image tar files when explicit/cache is unavailable"
+  ansible.builtin.include_tasks: build-docker-images.yml
+  when: virtualcluster_image_source_mode == 'build'
+
+# ビルドされたコンテナイメージファイルをローカルの作業用キャッシュに取得
+- name: "Fetch built image tar files to localhost working cache"
+  ansible.builtin.include_tasks: fetch-images.yml
+  when: virtualcluster_image_source_mode == 'build'
+
+# ステージング用のバンドルIDを生成
+- name: "Generate bundle id for staging"
+  ansible.builtin.set_fact:
+    virtualcluster_bundle_suffix: >-
+      {{
+        ansible_date_time.iso8601_basic_short
+      }}-{{
+        inventory_hostname | regex_replace('[^A-Za-z0-9_.-]', '_')
+      }}
+  run_once: true
+
+# ステージング用のバンドルディレクトリを作成
+- name: "Set bundle id and staging directory"
+  ansible.builtin.set_fact:
+    virtualcluster_bundle_id: "{{ virtualcluster_bundle_suffix }}"
+    virtualcluster_bundle_staging_dir: >-
+      {{
+        virtualcluster_local_cache_dir
+      }}/staging/{{
+        virtualcluster_bundle_suffix
+      }}
+  run_once: true
+
+# ステージング用のディレクトリを作成
+- name: "Create staging directories for image bundle"
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    mode: "0755"
+  loop:
+    - "{{ virtualcluster_bundle_staging_dir }}"
+    - "{{ virtualcluster_bundle_staging_dir }}/images"
+    - "{{ virtualcluster_bundle_staging_dir }}/manifests"
+  delegate_to: localhost
+  become: false
+  run_once: true
+
+# ステージング用のイメージファイルを配置
+- name: "Stage image tar files for promotion"
+  ansible.builtin.copy:
+    src: "{{ virtualcluster_local_cache_dir }}/{{ item }}-amd64.tar"
+    dest: "{{ virtualcluster_bundle_staging_dir }}/images/{{ item }}-amd64.tar"
+    mode: "0644"
+  loop: "{{ virtualcluster_build_components }}"
+  delegate_to: localhost
+  become: false
+  run_once: true
+
+# ステージング用のメタデータ(管理情報)を配置
+- name: "Write staging metadata"
+  ansible.builtin.copy:
+    dest: "{{ virtualcluster_bundle_staging_dir }}/metadata.yml"
+    mode: "0644"
+    content: |
+      bundle_id: {{ virtualcluster_bundle_id }}
+      source_mode: {{ virtualcluster_image_source_mode }}
+      generated_at: {{ ansible_date_time.iso8601 }}
+      build_from_source: {{ virtualcluster_build_from_source | bool }}
+      components:
+      {% for component in virtualcluster_build_components %}
+        - {{ component }}
+      {% endfor %}
+  delegate_to: localhost
+  become: false
+  run_once: true

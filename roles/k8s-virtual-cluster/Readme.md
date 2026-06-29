@@ -131,21 +131,26 @@ etcd の永続ストレージを有効にする場合 (`vcinstances_etcd_storage
    - VirtualClusterインスタンス削除  =>  テナント名前空間 ( namespace ) 消滅待機  =>  ClusterVersionインスタンス削除  =>  vc-manager名前空間 ( namespace ) 削除  =>  CRD削除の順で実行します。
 4. `namespace.yml` で `vc-manager` の名前空間 ( namespace ) を作成します。
 5. `crd.yml` で ClusterVersion と VirtualCluster の CRD を登録します。
-6. `virtualcluster_build_from_source: true` の場合:
+6. コンテナイメージ成果物の入力を次の優先順位で判定します: `explicit` > `cache` > `build`。
+  - `explicit`: `virtualcluster_manager_image_tar_path`, `virtualcluster_syncer_image_tar_path`, `virtualcluster_vn_agent_image_tar_path` の3つがすべて指定され, ファイルが存在する場合。
+  - `cache`: `{{ virtualcluster_image_cache_dir }}/latest/images/` に3つのtarファイルが存在する場合。
+  - `build`: 上記2つを満たさず, かつ `virtualcluster_build_from_source: true` の場合。
+7. `virtualcluster_build_from_source: true` の場合:
    - `download-source.yml` でソースリポジトリをクローン/更新します ( `virtualcluster_clean_build: true` の場合は `force: true` でローカル変更を破棄 ) 。
    - `patch-provisioner.yml`, `patch-virtualcluster-types.yml`, `patch-kubeconfig.yml`, `patch-service-mutate.yml` で4つのunified diff形式パッチを適用します。
    - `build-binaries.yml` で `make build-images` を実行してバイナリをビルドします。
    - `build-kubectl-vc.yml` でkubectl-vcプラグインをビルドします ( `virtualcluster_build_kubectl_vc: true` の場合 ) 。
-   - `build-docker-images.yml` でDockerイメージをビルドしてtarファイルに保存します。
-   - `fetch-images.yml` でビルドノードからAnsibleの制御ノード(localhost)へtarファイルを取得します。
-7. `upload-to-ctrlplane.yml` でコントロールプレーンノード へイメージをアップロードします。
-8. `distribute-to-workers.yml` でワーカノード へイメージを配布します:
+  - `build-docker-images.yml` でDockerイメージをビルドしてtarファイルに保存します。
+  - `fetch-images.yml` でビルドノードからAnsibleの制御ノード(localhost)へtarファイルを取得します。
+8. `upload-to-ctrlplane.yml` でコントロールプレーンノード へイメージをアップロードします。
+9. `distribute-to-workers.yml` でワーカノード へイメージを配布します:
    - `kubectl get nodes` で実際のワーカノード リストを取得します。
    - コントロールプレーンノード からAnsibleの制御ノード(localhost)へイメージをfetchします。
    - Ansibleの制御ノード(localhost)から各ワーカノード へイメージをcopyします。
    - 各ワーカノードで `ctr -n k8s.io images import` を実行します。
-9. `deploy-manager.yml` で vc-manager, vc-syncer, vn-agent をデプロイします。
-10. `verify.yml` で CRD と Pod 起動を確認します。
+10. `deploy-manager.yml` で vc-manager, vc-syncer, vn-agent をデプロイします。
+11. `verify.yml` で CRD と Pod 起動を確認します。
+12. Build成功かつVerify成功時のみ, イメージtarとマニフェストを最新バンドルとして昇格保存します。
 
 ## コンテナイメージ作成と配布の流れ
 
@@ -172,6 +177,73 @@ etcd の永続ストレージを有効にする場合 (`vcinstances_etcd_storage
 - コントロールプレーンノードへの転送: `upload-to-ctrlplane.yml`。
 - ワーカノードへの配布とクリーンアップ: `distribute-to-workers.yml`。
 
+## 既存のコンテナイメージをコントロールプレイン/ワーカーノードに配布して仮想クラスタ環境を構築する場合の流れ
+
+この節では, 既存のコンテナイメージtarを利用して, ソースビルドを行わずに仮想クラスタ環境を構築する手順を示します。実装上の入力優先順位は `explicit > cache > build` であり, `explicit` または `cache` が成立した場合はビルド処理は実行されません。
+
+### 前提
+
+- `k8s_virtualcluster_enabled: true` を設定してロールを有効化していること。
+- 配布対象の3コンポーネント(`manager`, `syncer`, `vn-agent`)に対応するtarファイルが利用可能であること。
+- ワーカノードが containerd を使用し, Ansible の制御ノード(localhost)から接続可能であること。
+
+### 処理フロー
+
+1. `prepare-image-artifacts.yml` で入力ソースを判定し, 動作モードを判定します。
+  - `explicit` モード: `virtualcluster_manager_image_tar_path`, `virtualcluster_syncer_image_tar_path`, `virtualcluster_vn_agent_image_tar_path` の3つがすべて指定され, かつファイルが存在する場合。
+  - `cache` モード: `{{ virtualcluster_image_cache_dir }}/latest/images/` に3つのtarが存在する場合。
+  - `build` モード: 上記のいずれも成立しない場合。
+2. `explicit` または `cache` の場合, 選択されたtarを `virtualcluster_local_cache_dir` に集約します。`build`モードの場合, ソースから構築したコンテナイメージを`virtualcluster_local_cache_dir` に集約します。
+3. `upload-to-ctrlplane.yml` でコントロールプレーンノードへtarを転送します。
+4. `distribute-to-workers.yml` でワーカノード一覧を取得し, 各ワーカノードへtarを転送して `ctr -n k8s.io images import` で取り込みます。
+5. `deploy-manager.yml` で vc-manager, vc-syncer, vn-agent をデプロイします。
+6. `verify.yml` で CRD と Pod 起動を確認します。
+
+#### 優先順位と昇格保存のルール
+
+`vc-manager`, `vc-syncer`, `vn-agent`の3コンポーネントのtarが揃っていない場合は, キャッシュモードを`build` に設定(フォールバック)し, ソースからのコンテナイメージ生成を試みます。この時, `virtualcluster_build_from_source: false` の場合は, ソースコードからの構築を明示的に抑止しているものとみなし, playbookを停止(fail)します。
+
+`tasks/main.yml`中の `Promote Latest Image Bundle` タスクで, ソースから構築したコンテナイメージと仮想クラスタ構築に使用したマニュフェストからなるバンドルを`{{ virtualcluster_image_cache_dir }}/latest/images/`配下にキャッシュとして保存する処理を行います (本処理を`昇格保存`と呼びます)。
+
+`build`モードで, 以下の条件を満たした場合にのみ, 使用したマニュフェストとコンテナイメージが最新バンドルへ昇格保存されます:
+
+- コンテナイメージ構築に成功し, かつ,
+- コントロールプレイン/ワーカーノードへのコンテナ展開に成功し,
+- 展開されたコンテナイメージの確認に成功
+
+なお, 昇格保存処理は, `build`モード(`virtualcluster_image_source_mode == 'build'`) の場合, かつ,
+`virtualcluster_build_from_source: true` の場合にのみ実施されます。
+このため, 既存イメージ利用時(`virtualcluster_image_source_mode`が, `explicit`, または, `cache`の場合)は, 最新バンドルの昇格保存処理は実行されません。
+
+### 設定例
+
+#### 例1: explicit モード(明示指定)
+
+```yaml
+k8s_virtualcluster_enabled: true
+virtualcluster_build_from_source: false
+
+virtualcluster_manager_image_tar_path: "/srv/images/manager-amd64.tar"
+virtualcluster_syncer_image_tar_path: "/srv/images/syncer-amd64.tar"
+virtualcluster_vn_agent_image_tar_path: "/srv/images/vn-agent-amd64.tar"
+```
+
+#### 例2: cache モード(既定キャッシュ再利用)
+
+```yaml
+k8s_virtualcluster_enabled: true
+virtualcluster_build_from_source: false
+
+# 既定値。必要に応じて変更可能。
+virtualcluster_image_cache_dir: "/opt/virtual-cluster/caches/images"
+```
+
+cache モードでは, 以下の3ファイルが存在することが条件です。
+
+- `{{ virtualcluster_image_cache_dir }}/latest/images/manager-amd64.tar`
+- `{{ virtualcluster_image_cache_dir }}/latest/images/syncer-amd64.tar`
+- `{{ virtualcluster_image_cache_dir }}/latest/images/vn-agent-amd64.tar`
+
 ## 主要変数
 
 | 変数名 | 既定値 | 説明 |
@@ -185,6 +257,12 @@ etcd の永続ストレージを有効にする場合 (`vcinstances_etcd_storage
 | `virtualcluster_source_dir` | `"/tmp/cluster-api-provider-nested"` | ソースのダウンロード先ディレクトリです (既定: `/tmp/cluster-api-provider-nested`)。 |
 | `virtualcluster_build_components` | `['manager', 'syncer', 'vn-agent']` | ビルド対象コンポーネントのリストです。 |
 | `virtualcluster_build_timeout` | `1800` | ビルドタイムアウト(秒)です。 |
+| `virtualcluster_manager_image_tar_path` | `""` | vc-manager イメージtarの明示指定パスです。`explicit` 判定では3コンポーネントすべての指定が必要です。 |
+| `virtualcluster_syncer_image_tar_path` | `""` | vc-syncer イメージtarの明示指定パスです。`explicit` 判定では3コンポーネントすべての指定が必要です。 |
+| `virtualcluster_vn_agent_image_tar_path` | `""` | vn-agent イメージtarの明示指定パスです。`explicit` 判定では3コンポーネントすべての指定が必要です。 |
+| `virtualcluster_image_cache_dir` | `"/opt/virtual-cluster/caches/images"` | 成功した最新バンドル(イメージtar/マニフェスト)の保存先です。`cache` 判定では `{{ virtualcluster_image_cache_dir }}/latest/images/` を参照します。 |
+| `virtualcluster_manifest_cache_dir` | `"{{ virtualcluster_image_cache_dir }}/manifests"` | 成功した最新マニフェストの保存先です。 |
+| `virtualcluster_keep_image_cache` | `false` | 実行後にlocalhost作業用一時生成ファイル群 (`virtualcluster_local_cache_dir`に配置されるコンテナイメージ群) を保持するよう指定します。 |
 | `virtualcluster_local_cache_dir` | `"{{ lookup('env', 'HOME') }}/.ansible/vc-images-cache"` | Ansibleの制御ノード(localhost)上のイメージキャッシュディレクトリです (既定: `~/.ansible/vc-images-cache`)。 |
 | `virtualcluster_ctrlplane_cache_dir` | `"/tmp/vc-images"` | コントロールプレーンノード上のイメージキャッシュディレクトリです (既定: `/tmp/vc-images`)。 |
 | `virtualcluster_namespace` | `"vc-manager"` | 仮想クラスタ ( Virtual Cluster ) 管理コンポーネントを展開する名前空間 ( namespace ) です。 |
@@ -1434,7 +1512,7 @@ kubectl -n $TENANT_NS apply -f manifest.yaml
      clusterversions.tenancy.x-k8s.io                         2026-02-24T19:35:07Z
      ```
 
-2. ClusterVersion の確認
+3. ClusterVersion の確認
    - 目的: ClusterVersion CRDが登録され, ClusterVersionインスタンスが作成されていることを確認します。
    - コマンド:
      ```bash
@@ -1446,7 +1524,7 @@ kubectl -n $TENANT_NS apply -f manifest.yaml
      cv-k8s-1-31   5m
      ```
 
-3. Pod の確認
+4. Pod の確認
    - 目的: vc-manager, vc-syncer, vn-agent の Pod が Running であることを確認します。
    - コマンド:
      ```bash
@@ -1461,7 +1539,7 @@ kubectl -n $TENANT_NS apply -f manifest.yaml
      vn-agent-rd9w7                1/1     Running   0          50m   192.168.30.42   k8sworker0101   <none>           <none>
      ```
 
-4. vc-syncer の確認
+5. vc-syncer の確認
    - 目的: vc-syncer Pod が正常に起動していることを確認します。
    - コマンド:
      ```bash
@@ -1479,7 +1557,7 @@ kubectl -n $TENANT_NS apply -f manifest.yaml
     なお, 上記の`default/kube-root-ca.crt dws request reconcile failed: pConfigMap`は,
     vc-managerの既知の問題( テナント に割り当てられた仮想クラスタ の`kube-system/kube-root-ca.crt` ConfigMapをスーパークラスタ に同期する際のUID不一致)であり, `kube-root-ca.crt` ConfigMapの同期が失敗しますが, 仮想クラスタ の基本動作には影響しません。
 
-5. DaemonSet の配置確認
+6. DaemonSet の配置確認
    - 目的: vn-agent がワーカノード のみに配置されていることを確認します。
    - コマンド:
      ```bash
@@ -1494,7 +1572,7 @@ kubectl -n $TENANT_NS apply -f manifest.yaml
      vn-agent-xjsq4   1/1     Running   0          8m8s   192.168.30.42   k8sworker0101   <none>           <none>
      ```
 
-6. イベントの確認
+7. イベントの確認
    - 目的: 直近のエラーが残っていないことを確認します。
    - コマンド:
      ```bash
@@ -1506,7 +1584,7 @@ kubectl -n $TENANT_NS apply -f manifest.yaml
      $
      ```
 
-7. VirtualCluster作成テスト (オプション)
+8. VirtualCluster作成テスト (オプション)
    - 目的: テナント用仮想クラスタ を作成し, テナント に割り当てられた仮想クラスタ が正常に起動することを確認します。
    - コマンド:
      ```bash
@@ -1545,7 +1623,7 @@ kubectl -n $TENANT_NS apply -f manifest.yaml
      - テナント名前空間 ( namespace ) 内にetcd-0, apiserver-0, controller-manager-0のPodが起動すること
      - 各PodがReady状態になること
 
-8. テナント に割り当てられた仮想クラスタ 接続テスト (オプション)
+9. テナント に割り当てられた仮想クラスタ 接続テスト (オプション)
    - 目的: 作成したテナント に割り当てられた仮想クラスタ に接続できることを確認します。
    - コマンド:
      ```bash
@@ -1577,7 +1655,7 @@ kubectl -n $TENANT_NS apply -f manifest.yaml
      - admin-kubeconfigに保存されているサーバーアドレスは, テナント に割り当てられた仮想クラスタ 内部用の設定のため, `localhost`に変更する必要があります。
      - 証明書検証をスキップするため, `--insecure-skip-tls-verify`オプションを使用しています。
 
-9. etcd 永続ストレージ動作確認 (オプション, `vcinstances_etcd_storage_enabled: true` の場合)
+10. etcd 永続ストレージ動作確認 (オプション, `vcinstances_etcd_storage_enabled: true` の場合)
    - 目的: テナント に割り当てられた仮想クラスタ の etcd が PV/PVC に正しく接続され, Pod が起動していることを確認します。
    - コマンド:
      ```bash
@@ -1597,6 +1675,61 @@ kubectl -n $TENANT_NS apply -f manifest.yaml
      - `vcinstances_etcd_storage_class` で指定した StorageClass で PVC が作成されること。
      - `data-etcd-0` が `Bound` になり, 対応する PV が `Bound` になること。
      - `etcd-0` が `Running` になり, 併せて `apiserver-0`, `controller-manager-0` も `Running` になること。
+
+11. イメージソース判定の総合検証
+     - 目的: 動作モードの優先順位(`explicit > cache > build` の順位で動作すること)と, 各モードでの動作が実装どおりであることを確認します。
+     - 前提:
+       - 対象ホストは `k8sctrlplane01.local` を例とします。
+       - 以降のコマンドは Ansible の制御ノードで実行します。
+       - 以下を本プレイブックのトップディレクトリで実行することを想定しています。
+     - コマンド:
+       ```bash
+       # 0) 検証前のキャッシュを初期化
+       sudo rm -rf /opt/virtual-cluster/caches/images/latest /opt/virtual-cluster/caches/images/bundles
+
+       # 1) build モード検証 (明示指定なし, キャッシュなし)
+       ansible-playbook -i inventory/hosts k8s-management.yml \
+         -l k8sctrlplane01.local -t k8s-virtual-cluster \
+         -e '{"k8s_virtualcluster_enabled":true,"virtualcluster_build_from_source":true,"virtualcluster_manager_image_tar_path":"","virtualcluster_syncer_image_tar_path":"","virtualcluster_vn_agent_image_tar_path":""}' \
+         -vv | tee /tmp/vc-step1-build.log
+
+       # 2) cache モード検証 (step1で作成された latest を再利用)
+       ansible-playbook -i inventory/hosts k8s-management.yml \
+         -l k8sctrlplane01.local -t k8s-virtual-cluster \
+         -e '{"k8s_virtualcluster_enabled":true,"virtualcluster_build_from_source":false,"virtualcluster_manager_image_tar_path":"","virtualcluster_syncer_image_tar_path":"","virtualcluster_vn_agent_image_tar_path":""}' \
+         -vv | tee /tmp/vc-step2-cache.log
+
+       # 3) cache削除後の build モード再検証
+       sudo rm -rf /opt/virtual-cluster/caches/images/latest
+       ansible-playbook -i inventory/hosts k8s-management.yml \
+         -l k8sctrlplane01.local -t k8s-virtual-cluster \
+         -e '{"k8s_virtualcluster_enabled":true,"virtualcluster_build_from_source":true,"virtualcluster_manager_image_tar_path":"","virtualcluster_syncer_image_tar_path":"","virtualcluster_vn_agent_image_tar_path":""}' \
+         -vv | tee /tmp/vc-step3-rebuild.log
+
+       # 4) explicit モード検証用 tar を準備
+       mkdir -p /tmp/vc-explicit-images
+       cp -f /opt/virtual-cluster/caches/images/latest/images/manager-amd64.tar /tmp/vc-explicit-images/manager-amd64.tar
+       cp -f /opt/virtual-cluster/caches/images/latest/images/syncer-amd64.tar /tmp/vc-explicit-images/syncer-amd64.tar
+       cp -f /opt/virtual-cluster/caches/images/latest/images/vn-agent-amd64.tar /tmp/vc-explicit-images/vn-agent-amd64.tar
+
+       # 5) explicit モード検証
+       ansible-playbook -i inventory/hosts k8s-management.yml \
+         -l k8sctrlplane01.local -t k8s-virtual-cluster \
+         -e '{"k8s_virtualcluster_enabled":true,"virtualcluster_build_from_source":false,"virtualcluster_manager_image_tar_path":"/tmp/vc-explicit-images/manager-amd64.tar","virtualcluster_syncer_image_tar_path":"/tmp/vc-explicit-images/syncer-amd64.tar","virtualcluster_vn_agent_image_tar_path":"/tmp/vc-explicit-images/vn-agent-amd64.tar"}' \
+         -vv | tee /tmp/vc-step4-explicit.log
+       ```
+     - 期待される結果:
+       - step1 のログに `Selected image source mode: build` が出力されること。
+       - step2 のログに `Selected image source mode: cache` が出力されること。
+       - step3 のログに `Selected image source mode: build` が出力されること。
+       - step4 のログに `Selected image source mode: explicit` が出力されること。
+       - `cache` または `explicit` モードでは, `Build image tar files when explicit/cache is unavailable` タスクが `skipping` になること。
+       - `build` モード成功後に以下が存在すること。
+         - `/opt/virtual-cluster/caches/images/latest/images/manager-amd64.tar`
+         - `/opt/virtual-cluster/caches/images/latest/images/syncer-amd64.tar`
+         - `/opt/virtual-cluster/caches/images/latest/images/vn-agent-amd64.tar`
+         - `/opt/virtual-cluster/caches/images/latest/manifests/all-in-one.yaml`
+     - 補足: 本項目の手順は, 入力ソース判定(`explicit > cache > build`)の回帰検証手順としてそのまま再利用できます。
 
 ## トラブルシューティング
 
@@ -2151,7 +2284,7 @@ kubectl get pods
 ## 留意事項
 
 - `k8s_virtualcluster_enabled` が `true` の場合のみロールが実行されます。
-- `virtualcluster_build_from_source: false` を設定すると, ビルド処理をスキップして既存のイメージからの配布のみを実行できます。
+- `virtualcluster_build_from_source: false` を設定すると, `build` モードでの動作を行いません。この場合, `explicit` または `cache` モードで動作可能(明示的なコンテナイメージの指定, または, 過去に構築済みのコンテナイメージとマニュフェストの組(バンドル)が利用可能)である必要があります。
 - `virtualcluster_clean_build` がデフォルトで `true` に設定されており, 既存のVirtualCluster/テナント名前空間 ( namespace ) /ClusterVersion/CRD等を削除してから再構築します。既存リソースを維持したい場合は `virtualcluster_clean_build: false` に設定してください。
 - クリーンビルド時, テナント名前空間 ( namespace ) の消滅を最大 `virtualcluster_tenant_ns_wait_timeout` 秒待機します。大量のテナント が存在する場合や削除に時間がかかる場合は, この値を増やしてください。
 - ワーカノードリストは `kubectl get nodes` から動的に取得されるため, inventory/hosts の設定は不要です。

@@ -1,0 +1,198 @@
+#  -*- mode: yaml; coding: utf-8; line-endings: unix -*-
+#  SPDX-License-Identifier: BSD-2-Clause
+#
+#  Copyright (c) 2025 TAKEHARU KATO
+#  This file is distributed under the two-clause BSD license.
+#  For the full text of the license, see the LICENSE file in the project root directory.
+#  このファイルは2条項BSDライセンスの下で配布されています。
+#  ライセンス全文はプロジェクト直下の LICENSE を参照してください。
+
+#
+#  検証成功後の最新バンドル昇格保存処理
+#
+#  ステージングディレクトリ(コントロールプレインに配布し,
+#  ワーカーノードに展開するコンテナイメージのtarファイルとマニフェストを
+#  キャッシュディレクトリに移動し, 最新バンドルとして昇格し,
+#  以後のコンテナイメージ構築処理をスキップ可能にする
+---
+
+# ステージング用のバンドルが存在することを確認
+- name: "Validate staging facts for bundle promotion"
+  ansible.builtin.assert:
+    that:
+      - virtualcluster_bundle_staging_dir is defined
+      - virtualcluster_bundle_id is defined
+    fail_msg: "Bundle staging facts are missing. Run prepare-image-artifacts.yml before promotion."
+  run_once: true
+
+# ステージング用のバンドルに生成された all-in-one マニフェストを取得
+- name: "Fetch generated all-in-one manifest into staging"
+  ansible.builtin.fetch:
+    src: "{{ virtualcluster_config_dir }}/all-in-one.yaml"
+    dest: "{{ virtualcluster_bundle_staging_dir }}/manifests/all-in-one.yaml"
+    flat: true
+    validate_checksum: false
+  become: true
+  run_once: true
+
+# ステージング用のイメージファイルとマニフェストが存在することを確認
+- name: "Verify staged image tar files and manifest exist"
+  ansible.builtin.stat:
+    path: "{{ item }}"
+  loop:
+    - "{{ virtualcluster_bundle_staging_dir }}/images/manager-amd64.tar"
+    - "{{ virtualcluster_bundle_staging_dir }}/images/syncer-amd64.tar"
+    - "{{ virtualcluster_bundle_staging_dir }}/images/vn-agent-amd64.tar"
+    - "{{ virtualcluster_bundle_staging_dir }}/manifests/all-in-one.yaml"
+  register: virtualcluster_staging_bundle_stat
+  delegate_to: localhost
+  become: false
+  run_once: true
+
+# ステージング用のイメージファイルとマニフェストが全て存在することを確認
+- name: "Fail when staged bundle is incomplete"
+  ansible.builtin.fail:
+    msg: "Staged bundle is incomplete. Expected image tar files and all-in-one manifest are missing."
+  when: not (virtualcluster_staging_bundle_stat.results | map(attribute='stat.exists') | list | min)
+  run_once: true
+
+# ステージング用のバンドルを最新バンドルとして昇格
+- name: "Set bundle destination paths"
+  ansible.builtin.set_fact:
+    virtualcluster_bundle_target_dir: "{{ virtualcluster_image_cache_dir }}/bundles/{{ virtualcluster_bundle_id }}"
+  run_once: true
+
+# バンドルおよび最新ディレクトリの作成
+- name: "Create destination directories for bundle and latest"
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    mode: "0755"
+  loop:
+    - "{{ virtualcluster_image_cache_dir }}"
+    - "{{ virtualcluster_manifest_cache_dir }}"
+    - "{{ virtualcluster_bundle_target_dir }}"
+    - "{{ virtualcluster_bundle_target_dir }}/images"
+    - "{{ virtualcluster_bundle_target_dir }}/manifests"
+    - "{{ virtualcluster_image_cache_dir }}/latest"
+    - "{{ virtualcluster_image_cache_dir }}/latest/images"
+    - "{{ virtualcluster_image_cache_dir }}/latest/manifests"
+  delegate_to: localhost
+  become: true
+  run_once: true
+
+# ステージング用のイメージファイルをバンドル先にコピー
+- name: "Copy staged image tar files to bundle destination"
+  ansible.builtin.copy:
+    src: "{{ virtualcluster_bundle_staging_dir }}/images/{{ item }}-amd64.tar"
+    dest: "{{ virtualcluster_bundle_target_dir }}/images/{{ item }}-amd64.tar"
+    mode: "0644"
+  loop: "{{ virtualcluster_build_components }}"
+  delegate_to: localhost
+  become: true
+  run_once: true
+
+# ステージング用のマニフェストをバンドル先にコピー
+- name: "Copy staged manifest to bundle destination"
+  ansible.builtin.copy:
+    src: "{{ virtualcluster_bundle_staging_dir }}/manifests/all-in-one.yaml"
+    dest: "{{ virtualcluster_bundle_target_dir }}/manifests/all-in-one.yaml"
+    mode: "0644"
+  delegate_to: localhost
+  become: true
+  run_once: true
+
+# ステージング用のメタデータをバンドル先にコピー
+- name: "Copy bundle metadata"
+  ansible.builtin.copy:
+    src: "{{ virtualcluster_bundle_staging_dir }}/metadata.yml"
+    dest: "{{ virtualcluster_bundle_target_dir }}/metadata.yml"
+    mode: "0644"
+  delegate_to: localhost
+  become: true
+  run_once: true
+
+# バンドル先のイメージファイルとマニフェストが存在することを確認
+- name: "Refresh latest image tar files"
+  ansible.builtin.copy:
+    src: "{{ virtualcluster_bundle_target_dir }}/images/{{ item }}-amd64.tar"
+    dest: "{{ virtualcluster_image_cache_dir }}/latest/images/{{ item }}-amd64.tar"
+    mode: "0644"
+  loop: "{{ virtualcluster_build_components }}"
+  delegate_to: localhost
+  become: true
+  run_once: true
+
+# バンドル先のマニフェストを最新マニフェストとしてコピー
+- name: "Refresh latest manifest"
+  ansible.builtin.copy:
+    src: "{{ virtualcluster_bundle_target_dir }}/manifests/all-in-one.yaml"
+    dest: "{{ virtualcluster_image_cache_dir }}/latest/manifests/all-in-one.yaml"
+    mode: "0644"
+  delegate_to: localhost
+  become: true
+  run_once: true
+
+# マニフェストキャッシュを最新に更新
+- name: "Refresh manifest cache latest"
+  ansible.builtin.copy:
+    src: "{{ virtualcluster_bundle_target_dir }}/manifests/all-in-one.yaml"
+    dest: "{{ virtualcluster_manifest_cache_dir }}/latest-all-in-one.yaml"
+    mode: "0644"
+  delegate_to: localhost
+  become: true
+  run_once: true
+
+# 最新バンドルファイルの存在を確認
+- name: "Verify copied latest bundle files"
+  ansible.builtin.stat:
+    path: "{{ item }}"
+  loop:
+    - "{{ virtualcluster_image_cache_dir }}/latest/images/manager-amd64.tar"
+    - "{{ virtualcluster_image_cache_dir }}/latest/images/syncer-amd64.tar"
+    - "{{ virtualcluster_image_cache_dir }}/latest/images/vn-agent-amd64.tar"
+    - "{{ virtualcluster_image_cache_dir }}/latest/manifests/all-in-one.yaml"
+  register: virtualcluster_latest_bundle_stat
+  delegate_to: localhost
+  become: false
+  run_once: true
+
+# 最新バンドルファイルが存在しない場合は失敗として処理
+- name: "Fail when latest bundle copy verification failed"
+  ansible.builtin.fail:
+    msg: "Failed to verify latest bundle files after copy."
+  when: not (virtualcluster_latest_bundle_stat.results | map(attribute='stat.exists') | list | min)
+  run_once: true
+
+# 最新バンドルの昇格が完了したことを表示
+- name: "Remove staging bundle after successful promotion"
+  ansible.builtin.file:
+    path: "{{ virtualcluster_bundle_staging_dir }}"
+    state: absent
+  delegate_to: localhost
+  become: false
+  run_once: true
+
+# 制御ノード上の作業キャッシュを削除する
+# 留意事項:
+#  - 作業キャッシュとは, 制御ノード(localhost)からコントロールプレイン,
+#    ワーカーノードへコンテナイメージを配布するために一時的に制御ノード(localhost)上に
+#    作成されるディレクトリのことを指す
+#  - virtualcluster_keep_image_cache が true の場合は削除しない
+- name: "Cleanup localhost image cache after successful promotion"
+  ansible.builtin.file:
+    path: "{{ virtualcluster_local_cache_dir }}"
+    state: absent
+  delegate_to: localhost
+  become: false
+  when: not (virtualcluster_keep_image_cache | bool)
+  run_once: true
+
+# 昇格保存が完了したことを表示
+- name: "Display bundle promotion result"
+  ansible.builtin.debug:
+    msg: >-
+      Promoted bundle {{ virtualcluster_bundle_id }} to
+      {{ virtualcluster_image_cache_dir }}/latest and
+      {{ virtualcluster_manifest_cache_dir }}/latest-all-in-one.yaml.
+  run_once: true
