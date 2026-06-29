@@ -126,6 +126,4 @@
 # クリーンアップ完了を表示
 - name: "Clean build cleanup completed"
   ansible.builtin.debug:
-    msg: >-
-      クリーンビルド: VirtualClusterインスタンス, テナント名前空間,
-      ClusterVersionインスタンス, {{ virtualcluster_namespace }}名前空間, CRDを削除しました。
+    msg: "Clean Build: Deleted the VirtualCluster instance, tenant namespace,       ClusterVersion instance, {{ virtualcluster_namespace }} namespace, and CRD."
