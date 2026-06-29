@@ -1630,10 +1630,10 @@ kubectl -n $TENANT_NS apply -f manifest.yaml
      # テナント名前空間を取得
      TENANT_NS=$(kubectl get virtualclusters -n vc-manager tenant-test -o jsonpath='{.status.clusterNamespace}')
 
-    # テナント用kube-apiserverのServiceを確認
+     # テナント用kube-apiserverのServiceを確認
      kubectl get service -n $TENANT_NS
 
-    # ポートフォワーディングでテナント用kube-apiserverに接続
+     # ポートフォワーディングでテナント用kube-apiserverに接続
      # 別のターミナルで以下を実行し, 接続を維持
      kubectl port-forward -n $TENANT_NS service/apiserver-svc 6443:6443 &
 
