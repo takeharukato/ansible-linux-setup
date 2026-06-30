@@ -28,7 +28,15 @@
         COMP_DIR="${BUILD_DIR}/${component}"
         mkdir -p "${COMP_DIR}"
 
-        cp "${BINARY_DIR}/${component}" "${COMP_DIR}/app"
+        BIN_PATH="${BINARY_DIR}/${component}"
+        if [ ! -f "${BIN_PATH}" ]; then
+          echo "Missing exact binary for component: ${component} (${BIN_PATH})" >&2
+          echo "Available files in ${BINARY_DIR}:" >&2
+          ls -1 "${BINARY_DIR}" >&2 || true
+          exit 1
+        fi
+
+        cp "${BIN_PATH}" "${COMP_DIR}/app"
 
         cat > "${COMP_DIR}/Dockerfile" << 'DOCKERFILE_END'
       FROM debian:bookworm-slim

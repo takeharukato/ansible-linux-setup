@@ -16,7 +16,7 @@
 set -euo pipefail
 
 readonly SCRIPT_NAME="$(basename "$0")"
-readonly VC_MANAGER_NS="${VC_MANAGER_NS:-vc-manager}"
+VC_MANAGER_NS="${VC_MANAGER_NS:-vc-manager}"
 
 usage() {
   cat <<EOF

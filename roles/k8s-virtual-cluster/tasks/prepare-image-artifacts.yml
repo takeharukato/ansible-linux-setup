@@ -137,6 +137,18 @@
       }}
   run_once: true
 
+# クリーンビルド時にキャッシュモードをスキップするかどうかを判定
+# true の場合, explicit が利用できないときは build を優先して古いキャッシュ再利用を防ぐ
+- name: "Set force-build flag on clean build"
+  ansible.builtin.set_fact:
+    virtualcluster_force_build_mode: >-
+      {{
+        (virtualcluster_clean_build | bool)
+        and (virtualcluster_build_from_source | bool)
+        and (virtualcluster_skip_cache_on_clean_build | default(true) | bool)
+      }}
+  run_once: true
+
 # 明示的指定またはキャッシュのいずれかが利用可能であることを確認し,
 # 動作モード格納変数(virtualcluster_image_source_mode変数)に設定
 #  - virtualcluster_explicit_available が true の場合は 'explicit'
@@ -152,9 +164,13 @@
         'explicit'
         if (virtualcluster_explicit_available | default(false))
         else (
-          'cache'
-          if (virtualcluster_cache_available | default(false))
-          else 'build'
+          'build'
+          if (virtualcluster_force_build_mode | default(false))
+          else (
+            'cache'
+            if (virtualcluster_cache_available | default(false))
+            else 'build'
+          )
         )
       }}
   run_once: true

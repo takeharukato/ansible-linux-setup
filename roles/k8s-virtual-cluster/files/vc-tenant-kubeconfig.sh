@@ -15,7 +15,7 @@
 set -euo pipefail
 
 readonly SCRIPT_NAME="$(basename "$0")"
-readonly VC_MANAGER_NS="${VC_MANAGER_NS:-vc-manager}"
+VC_MANAGER_NS="${VC_MANAGER_NS:-vc-manager}"
 readonly KUBE_VERSION="1.31"
 VERBOSE="${VERBOSE:-0}"  # -o オプション指定時のみ詳細出力
 

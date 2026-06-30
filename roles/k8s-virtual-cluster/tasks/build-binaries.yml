@@ -12,6 +12,26 @@
 #
 ---
 
+# service_mutate.patch が適用済みであることを確認
+- name: "Verify service_mutate patch is applied before build"
+  ansible.builtin.command:
+    cmd: >-
+      grep -q 's.pService.Spec.ClusterIPs = nil'
+      {{ virtualcluster_source_dir }}/virtualcluster/pkg/syncer/conversion/mutate.go
+  delegate_to: "{{ virtualcluster_build_host }}"
+  become: false
+  changed_when: false
+  run_once: true
+
+# 以前の成果物を削除して, 古いバイナリ再利用を防止
+- name: "Clean previous release artifacts before build"
+  ansible.builtin.file:
+    path: "{{ virtualcluster_source_dir }}/virtualcluster/_output/release"
+    state: absent
+  delegate_to: "{{ virtualcluster_build_host }}"
+  become: false
+  run_once: true
+
 # make build-images でバイナリとDockerイメージをビルド
 - name: "Build Virtual Cluster binaries and Docker images"
   ansible.builtin.shell:

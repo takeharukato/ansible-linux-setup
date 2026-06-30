@@ -400,9 +400,11 @@ spec:
           # コンテナ起動コマンド。
           command:
             - syncer
-          # コンテナ起動引数 (feature gate: テナント PVC status 同期有効化)
+{% if (virtualcluster_syncer_feature_gates | default([], true) | length) > 0 %}
+          # コンテナ起動引数 (指定された feature gate を有効化)
           args:
-            - --feature-gates=SyncTenantPVCStatusPhase=true
+            - --feature-gates={{ virtualcluster_syncer_feature_gates | join(',') }}
+{% endif %}
           # 活性確認プローブ定義。
           livenessProbe:
             # 失敗と判定するまでの連続失敗回数。

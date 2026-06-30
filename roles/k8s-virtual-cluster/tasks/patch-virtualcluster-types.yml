@@ -17,3 +17,4 @@
         strip: 1
       delegate_to: "{{ virtualcluster_build_host }}"
       become: false
+      run_once: true

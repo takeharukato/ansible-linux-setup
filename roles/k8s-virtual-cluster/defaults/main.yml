@@ -35,6 +35,12 @@ virtualcluster_build_from_source: true
 # デフォルトは true (毎回クリーンな状態から構築することを推奨)
 virtualcluster_clean_build: true
 
+# クリーンビルド時にキャッシュ済みイメージを使わず, ソースから再ビルドする指示
+# true: virtualcluster_clean_build=true かつ virtualcluster_build_from_source=true の場合に
+#       cache モードを無効化して build モードを優先
+# false: 従来どおり explicit > cache > build の優先順位を使用
+virtualcluster_skip_cache_on_clean_build: false
+
 # テナント名前空間 (vc-manager-*) の消滅を待機する最大時間 (単位: 秒)
 # VirtualCluster 削除後, コントローラがテナント名前空間を後始末するまでの猶予時間
 virtualcluster_tenant_ns_wait_timeout: 60
@@ -134,6 +140,13 @@ virtualcluster_manager_image: "virtualcluster/manager-amd64:latest"
 virtualcluster_syncer_image: "virtualcluster/syncer-amd64:latest"
 # vn-agent image (from Docker Hub official registry)
 virtualcluster_vn_agent_image: "virtualcluster/vn-agent-amd64:latest"
+
+# vc-syncer に渡す feature gate 一覧
+# 既定では空(未指定)。使用するsyncerバージョンで有効なキーのみ指定すること。
+# 例:
+# virtualcluster_syncer_feature_gates:
+#   - "SomeFeature=true"
+virtualcluster_syncer_feature_gates: []
 
 # テナントコントロールプレイン Pod のリソースリクエスト
 virtualcluster_pod_resource_requests:
