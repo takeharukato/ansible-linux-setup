@@ -181,6 +181,25 @@
     msg: "{{ result_vc_syncer_pod_logs.stdout }}"
   when: result_vc_syncer_rollout_status.rc != 0
 
+# vc-syncer Deployment のロールアウトステータスが正常でない場合, 前回のPod logsを取得して診断を支援
+- name: "Get previous vc-syncer Pod logs if not ready"
+  ansible.builtin.shell:
+    cmd: >
+      kubectl --kubeconfig {{ virtualcluster_supercluster_kubeconfig_path }}
+      logs -n {{ virtualcluster_namespace }} -l app=vc-syncer
+      --previous --tail=200 2>&1 || echo 'No previous logs available'
+  register: result_vc_syncer_pod_logs_prev
+  when: result_vc_syncer_rollout_status.rc != 0
+  changed_when: false
+  failed_when: false
+  become: true
+
+# vc-syncer Deployment のロールアウトステータスが正常でない場合, 前回のPod logsを表示して診断を支援
+- name: "Display previous vc-syncer Pod logs"
+  ansible.builtin.debug:
+    msg: "{{ result_vc_syncer_pod_logs_prev.stdout }}"
+  when: result_vc_syncer_rollout_status.rc != 0
+
 # vc-syncer Deployment のロールアウトステータスが正常でない場合, タスクを失敗させて, 診断を促す
 - name: "Fail if vc-syncer Deployment is not ready"
   ansible.builtin.fail:

@@ -17,7 +17,7 @@
 # イメージファイルをlocalhost（Ansibleコントローラー）からワーカーノードへ転送
 - name: "Transfer image to worker node"
   ansible.builtin.copy:
-    src: "/tmp/ansible-vc-images/{{ component_name }}-amd64.tar"
+    src: "{{ virtualcluster_local_distribution_tmp_dir | default('/tmp/ansible-vc-images') }}/{{ component_name }}-amd64.tar"
     dest: "/tmp/{{ component_name }}-amd64.tar"
     mode: "0644"
   delegate_to: "{{ worker_node }}"

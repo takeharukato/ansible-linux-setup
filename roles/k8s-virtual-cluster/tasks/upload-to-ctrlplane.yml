@@ -19,7 +19,7 @@
     state: directory
     mode: "0755"
   become: true
-  run_once: true
+  when: virtualcluster_is_cluster_leader | default(true) | bool
 
 # localhostからコントロールプレーンへtarファイルをコピー
 - name: "Copy image tar files to control plane"
@@ -29,10 +29,29 @@
     mode: "0644"
   loop: "{{ virtualcluster_build_components }}"
   become: true
-  run_once: true
+  when: virtualcluster_is_cluster_leader | default(true) | bool
+
+# コントロールプレーンでもローカルtarからイメージを取り込み
+- name: "Import images on control plane"
+  ansible.builtin.shell: |
+    set -e
+    set -o pipefail
+    # 既存タグ/関連digestを削除してから再取り込み
+    sudo ctr -n k8s.io images rm docker.io/virtualcluster/{{ item }}-amd64:latest 2>/dev/null || true
+    sudo ctr -n k8s.io images rm virtualcluster/{{ item }}-amd64:latest 2>/dev/null || true
+    for digest in $(sudo ctr -n k8s.io images ls -q | grep -F virtualcluster/{{ item }}-amd64); do
+      sudo ctr -n k8s.io images rm "$digest" 2>/dev/null || true
+    done
+    sudo ctr -n k8s.io images import {{ virtualcluster_ctrlplane_cache_dir }}/{{ item }}-amd64.tar
+  args:
+    executable: /bin/bash
+  loop: "{{ virtualcluster_build_components }}"
+  become: true
+  changed_when: true
+  when: virtualcluster_is_cluster_leader | default(true) | bool
 
 # アップロード結果を表示
 - name: "Display upload result"
   ansible.builtin.debug:
     msg: "Image tar files uploaded to control plane at {{ virtualcluster_ctrlplane_cache_dir }}"
-  run_once: true
+  when: virtualcluster_is_cluster_leader | default(true) | bool

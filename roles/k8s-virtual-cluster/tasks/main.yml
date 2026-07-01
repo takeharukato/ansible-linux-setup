@@ -17,6 +17,28 @@
 - name: "Load Params"
   ansible.builtin.include_tasks: load-params.yml
 
+# クラスタ識別キーを算出するタスク
+- name: "Set Virtual Cluster cluster key"
+  ansible.builtin.set_fact:
+    virtualcluster_cluster_key: "{{ k8s_cilium_cm_cluster_name | default(k8s_ctrlplane_endpoint) }}"
+  when: k8s_virtualcluster_enabled | bool
+
+# 同一クラスタのコントロールプレーンノード一覧を算出するタスク
+- name: "Collect control-plane hosts in the same cluster"
+  ansible.builtin.set_fact:
+    virtualcluster_cluster_ctrlplane_hosts: "{{ (virtualcluster_cluster_ctrlplane_hosts | default([])) + [item] }}"
+  loop: "{{ groups['k8s_ctrlplane'] | default([]) }}"
+  when:
+    - k8s_virtualcluster_enabled | bool
+    - item in ansible_play_hosts_all
+    - (hostvars[item].k8s_cilium_cm_cluster_name | default(hostvars[item].k8s_ctrlplane_endpoint | default(''))) == virtualcluster_cluster_key
+
+# 同一クラスタ内で代表ノードかどうかを判定するタスク
+- name: "Set cluster leader flag for Virtual Cluster tasks"
+  ansible.builtin.set_fact:
+    virtualcluster_is_cluster_leader: "{{ inventory_hostname == ((virtualcluster_cluster_ctrlplane_hosts | default([inventory_hostname])) | sort | first) }}"
+  when: k8s_virtualcluster_enabled | bool
+
 # Virtual Cluster を有効にするための前提条件を検証するタスク
 - name: "Validate"
   ansible.builtin.include_tasks: validate.yml

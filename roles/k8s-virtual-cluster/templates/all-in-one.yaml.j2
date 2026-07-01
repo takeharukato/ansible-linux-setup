@@ -136,7 +136,7 @@ spec:
           # コンテナイメージ。
           image: {{ virtualcluster_manager_image }}
           # 取得ポリシー。
-          imagePullPolicy: IfNotPresent
+          imagePullPolicy: {{ virtualcluster_image_pull_policy }}
           # コマンド指定。
           command:
             # 実行バイナリ。
@@ -396,13 +396,12 @@ spec:
           # コンテナイメージ。
           image: {{ virtualcluster_syncer_image }}
           # イメージプルポリシー。
-          imagePullPolicy: Always
-          # コンテナ起動コマンド。
-          command:
+          imagePullPolicy: {{ virtualcluster_image_pull_policy }}
+          # コンテナ起動引数。
+          # /app エントリポイントに syncer サブコマンドを渡して常駐起動する。
+          args:
             - syncer
 {% if (virtualcluster_syncer_feature_gates | default([], true) | length) > 0 %}
-          # コンテナ起動引数 (指定された feature gate を有効化)
-          args:
             - --feature-gates={{ virtualcluster_syncer_feature_gates | join(',') }}
 {% endif %}
           # 活性確認プローブ定義。
@@ -532,7 +531,7 @@ spec:
           # コンテナイメージ。
           image: {{ virtualcluster_vn_agent_image }}
           # 取得ポリシー。
-          imagePullPolicy: IfNotPresent
+          imagePullPolicy: {{ virtualcluster_image_pull_policy }}
           # セキュリティ設定。
           securityContext:
             # 特権モード。

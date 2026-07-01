@@ -141,12 +141,17 @@ virtualcluster_syncer_image: "virtualcluster/syncer-amd64:latest"
 # vn-agent image (from Docker Hub official registry)
 virtualcluster_vn_agent_image: "virtualcluster/vn-agent-amd64:latest"
 
+# Virtual Cluster 管理コンポーネントの imagePullPolicy
+# Never を指定すると外部レジストリからpullせず, 配布済みtarのimport済みイメージのみを使用
+# 実験環境外の外部リポジトリからのpullを避けるため, Never を指定すること
+virtualcluster_image_pull_policy: "Never"
+
 # vc-syncer に渡す feature gate 一覧
-# 既定では空(未指定)。使用するsyncerバージョンで有効なキーのみ指定すること。
+# 使用するsyncerバージョンで有効なキーのみ指定すること。
 # 例:
 # virtualcluster_syncer_feature_gates:
 #   - "SomeFeature=true"
-virtualcluster_syncer_feature_gates: []
+virtualcluster_syncer_feature_gates: ["SyncTenantPVCStatusPhase=true"]
 
 # テナントコントロールプレイン Pod のリソースリクエスト
 virtualcluster_pod_resource_requests:
