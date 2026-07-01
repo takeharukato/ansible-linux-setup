@@ -52,10 +52,9 @@ Kubernetes 仮想クラスタ ) の基盤コンポーネントをデプロイす
     - [スクリプト固有オプション](#スクリプト固有オプション)
     - [実行時の情報表示](#実行時の情報表示)
     - [実行例](#実行例)
-      - [例1: テナント環境へアクセスするための kubeconfig の生成](#例1-テナント環境へアクセスするための-kubeconfig-の生成)
-      - [例2: busybox Pod の配置と確認](#例2-busybox-pod-の配置と確認)
-      - [例3: Deployment の展開と確認](#例3-deployment-の展開と確認)
-      - [例4: 実行中の Pod でコマンド実行](#例4-実行中の-pod-でコマンド実行)
+      - [例1: busybox Pod の配置と確認](#例1-busybox-pod-の配置と確認)
+      - [例2: Deployment の展開と確認](#例2-deployment-の展開と確認)
+      - [例3: 実行中の Pod でコマンド実行](#例3-実行中の-pod-でコマンド実行)
     - [シェル補完機能](#シェル補完機能)
       - [補完機能の有効化設定](#補完機能の有効化設定)
       - [補完ファイル配置先](#補完ファイル配置先)
@@ -97,8 +96,11 @@ Kubernetes 仮想クラスタ ) の基盤コンポーネントをデプロイす
     - [使用方法](#使用方法)
     - [オプション](#オプション)
     - [テナント kubeconfig の使用](#テナント-kubeconfig-の使用)
-      - [方法 1: kubectl port-forward を使用](#方法-1-kubectl-port-forward-を使用)
-      - [方法 2: kubeconfig を動的に編集](#方法-2-kubeconfig-を動的に編集)
+      - [kubectl port-forward を使用したポートフォワーディング](#kubectl-port-forward-を使用したポートフォワーディング)
+      - [テナント操作用kubeconfig の生成](#テナント操作用kubeconfig-の生成)
+      - [実行例](#実行例-1)
+      - [ポートフォワード操作の例](#ポートフォワード操作の例)
+      - [テナント環境へアクセスするためのkubeconfig の生成例](#テナント環境へアクセスするためのkubeconfig-の生成例)
     - [注意事項](#注意事項)
   - [留意事項](#留意事項)
   - [参考リンク](#参考リンク)
@@ -891,404 +893,11 @@ etcd-0                 1/1     Running   0          21m
 
 ### 実行例
 
-本節では, 仮想クラスタ(テナント環境)へのアクセス手順, および, テナント操作補助スクリプトとSuper Clusterを操作するためのkubeconfigを使用して, Podの展開, 削除を行う手順の例を記載します。
+本節では, テナント操作補助スクリプトとSuper Clusterを操作するためのkubeconfigを使用して, Podの展開, 削除を行う手順の例を記載します。
 
 本節では, テナント操作補助スクリプトとSuper Clusterを操作するためのkubeconfigを使用して, テナント環境を操作することを「Super Cluster側で実施」と記載します。
 
-#### 例1: テナント環境へアクセスするための kubeconfig の生成
-
-テナント環境へアクセスするための kubeconfig を生成する手順を例示します。
-本例では, コントロールプレイン上で当該コントロールプレイン上の仮想クラスタを操作することを想定した実行例を記載します。
-
-**ステップA: kubeconfig を標準出力に表示**
-
-```bash
-unset KUBECONFIG
-vc-tenant-kubeconfig.sh tenant-alpha
-```
-
-出力例:
-```yaml
-apiVersion: v1
-kind: Config
-clusters:
-- cluster:
-    certificate-authority-data: LS0tLS1CRUdJTi...
-    server: https://tenant-alpha.vc.local:6443
-  name: virtualcluster-tenant-alpha
-contexts:
-- context:
-    cluster: virtualcluster-tenant-alpha
-    user: virtualcluster-tenant-alpha
-  name: virtualcluster-tenant-alpha
-current-context: virtualcluster-tenant-alpha
-users:
-- name: virtualcluster-tenant-alpha
-  user:
-    token: eyJhbGc...
-```
-
-実行結果の例:
-```shell
-$ unset KUBECONFIG
-$ vc-tenant-kubeconfig.sh tenant-alpha
-[INFO] ====== kubeconfig生成 ======
-[INFO] コンテキスト: cluster1
-[INFO] ユーザ: CLUSTER
-[INFO] テナント情報:
-[INFO]   テナント名: tenant-alpha
-[INFO]   VirtualCluster管理namespace: vc-manager
-[INFO]   実行時namespace: vc-manager-fa7698-tenant-alpha
-[INFO]   クラスタドメイン: tenant-alpha.vc.local
-[INFO] kubeconfig生成開始: tenant-alpha
-[INFO]   実行時namespace: vc-manager-fa7698-tenant-alpha
-[INFO]   クラスタドメイン: tenant-alpha.vc.local
-[INFO]   admin-kubeconfigシークレット: 取得済み
-
-kind: Config
-apiVersion: v1
-users:
-- name: admin
-  user:
-    client-certificate-data: LS0tLS1CRUdJTiBDRVJUSUZJQ0FURS0tLS0tCk1JSURUakNDQWphZ0F3SUJBZ0lJWVUvTlMxZWRiTjB3RFFZSktvWklodmNOQVFFTEJRQXdXekZFTUVJR0ExVUUKQ2hNN2EzVmlaWEp1WlhSbGN5MXphV2N1YTNWaVpYSnVaWFJsY3kxemFXZHpMMjExYkhScExYUmxibUZ1WTNrdQpkbWx5ZEhWaGJHTnNkWE4wWlhJeEV6QVJCZ05WQkFNVENtdDFZbVZ5Ym1WMFpYTXdIaGNOTWpZd05qTXdNRGMxCk1USXdXaGNOTWpjd05qTXdNRGMxTVRJeFdqQXBNUmN3RlFZRFZRUUtFdzV6ZVhOMFpXMDZiV0Z6ZEdWeWN6RU8KTUF3R0ExVUVBeE1GWVdSdGFXNHdnZ0VpTUEwR0NTcUdTSWIzRFFFQkFRVUFBNElCRHdBd2dnRUtBb0lCQVFDcgpNNFRsR3JYTTVlVjg5NFJYWDJaN01LT2ZoTytNeldsemtWNTd4NXVtKy90UldOellQQ2Y5cWp3SGQ5ZTZFNE9wCjBkZmQ0WTFuZmQzZU50amxPQ1p0K0xHRUJXUDIrbjBOUEFRNklySUJkR3Q2bmxkZURFbnh4M25YczhKWlV0eHEKWFMwRDlEWWdHdWhaa01neGR0SWtOMzRnNVRidE1xMkhzRnJkc2ZMdnE1Wi9VZmovTnZRdkhOVzZsOE8zTDRqcQpOakFKemR2c3lvdjZUNFhtK2t2RFNCM3E2SGJvRE9JVDkwMEprVlB2TTRaeEFrV0R1UDgxb2E0ODZPdjFtMFVRCmRjVkQrN0d6TUFveTFEUnBxdGhKd2d3a0dZTmV4K0ltM29pbDArN09xdGMyN29QSC9XL25xeXhiNHBISS9OakgKSmVIVXIzTFNqbnBiVHRZaDVRTzFBZ01CQUFHalNEQkdNQTRHQTFVZER3RUIvd1FFQXdJRm9EQVRCZ05WSFNVRQpEREFLQmdnckJnRUZCUWNEQWpBZkJnTlZIU01FR0RBV2dCVFVGSWZhSUpRRlNlU1NwU2EyWHhuWFVKcU1rREFOCkJna3Foa2lHOXcwQkFRc0ZBQU9DQVFFQUxuOWxPdUlEYkd0RENZR3BFT21QSG52QXYyR3VrRk03QmlxamFTYTIKbm1rdStDM3BYUDZZVzh5bU9wVGt5SlJsdkFyTkhZZ3lBR214bW1md0g2YjVGMi9xdFVGa2FWRGJQejVFMDRBWApHWWV6VFVqb0diWmllSmRFR1lCK25INnJiekcrS0s2VlF6UUNrNzd6NHUzbUNpekYxbXJPVUNMSHNDUkpHK1RMCjhpSHhZd2F6UXZCR1l6bWU0TkxDQWt3YllRZm5razhFWExldEVCWk04NWtEZUdEVk1nbWg2K2NqQlpmTjlCN0kKenlWRU5LOEd6cDRuUXk3bHNxOU00aVlDb1IwM3U3bTZZOCtuSzNKczdiYXBBTno1VHFXeUozQ1FEV3BLZlR4dwpLN2VuN01yckEvZE9iV1VKZ3Q0ZDdoTDlzakdjSnphVWdSNXFZNDNSZk96dURBPT0KLS0tLS1FTkQgQ0VSVElGSUNBVEUtLS0tLQo=
-    client-key-data: LS0tLS1CRUdJTiBSU0EgUFJJVkFURSBLRVktLS0tLQpNSUlFb3dJQkFBS0NBUUVBcXpPRTVScTF6T1hsZlBlRVYxOW1lekNqbjRUdmpNMXBjNUZlZThlYnB2djdVVmpjCjJEd24vYW84QjNmWHVoT0RxZEhYM2VHTlozM2QzamJZNVRnbWJmaXhoQVZqOXZwOURUd0VPaUt5QVhScmVwNVgKWGd4SjhjZDUxN1BDV1ZMY2FsMHRBL1EySUJyb1daRElNWGJTSkRkK0lPVTI3VEt0aDdCYTNiSHk3NnVXZjFINAovemIwTHh6VnVwZkR0eStJNmpZd0NjM2I3TXFMK2srRjV2cEx3MGdkNnVoMjZBemlFL2ROQ1pGVDd6T0djUUpGCmc3ai9OYUd1UE9qcjladEZFSFhGUS91eHN6QUtNdFEwYWFyWVNjSU1KQm1EWHNmaUp0NklwZFB1enFyWE51NkQKeC8xdjU2c3NXK0tSeVB6WXh5WGgxSzl5MG81NlcwN1dJZVVEdFFJREFRQUJBb0lCQUdhUVFNZDRUdjNucEtwUApKcXVwYlozVHI5SzdNei9wTjRtU3gwWGtlVzE2ZkQ5cHV6U1lKV1VrZlQ0RUgrdE1FWTdGTmt1bytxdkxqZ1c0CldneElyVTBvdGtCZmNsbmVDdGpJNGNkcVRiWHRadzVZbWdLdjNnVEkra2V0VzN0ajFzU3ArWFBxOUJvYnhLTVQKeDd0S2NlNWNpR1Z3ckkxQjFRLzdLUlN6ck5URHZpVkI0TnhncW1vQXZqRE9FMHk1VmNLRk1hQW9GZHRZc2daYQp0U0hXVHhiMFFmMGNPOEVTQUJ2Q1lJYUpFWit4MktiN1NzMmdiWFJNMUhzRWczbzB4NVpVdTJrbUJRdzhZNGNoCnh5emJtS2RJQkdqTUJOdjZJOER2d2tZR29XWllLb2RxNGNEZ1JNbUE1dFZ1RlJqdmx4VlJjYzMzN1paRFYydU4KWTVIa0M4RUNnWUVBMmVZNzJpVy9nTzJSclVlOFVad3BuQlJqQmNXT3ZyV2oxV25KQ3ZJcVY0U3VMTlpyRzJaSQphamZPR0Vwb1Rqc3FYTEFHeG5zaWRyQjZjdm1TNmZiVHBKWlg0ejYrVklaaUZiTzIwTVZWVUlmL3hIbFNUYzg5CnU4MDR5a1M4a2lJN0JUWlRJdW1WZkFmd2IvbkdheXBGdVZqQjdqVTFvYkRRRHJHWDBsL1pwbDBDZ1lFQXlTTHoKa3orSjJHaFlTUTJZWUpMallKK3BPY0FBOHhKcGlZcWpwSFlDV1paOGRyeTg4QkhvSTd5V0pUV2NVNEwwVmNLdApsSDRNdWVuRnpOSzhxUUJoMGZ3a2VGY1phT1dYN2UxZFUwV1cwSkhoNnlBdURMUmNHdTdCdnpweU1ZcStJdTlmCkFYM05HUVBhbXRxTUJkRDB6Zi95TjU3V3JwS3VzaGJpc1lDcFRUa0NnWUJ1eFNBQUVkaDhqa2pVTWZlRjlVRWgKMnl0THI5YVZGSG1vOEJJSHdudkw2ZU14WC84cStxQXRmeGtDT0RFMk05V2hNTXNBODIvZHJuRlJLWmFKNGJSTgpvekFpa2E3b0FUaXpsNXlFSFF6MTEyMHFVQktMQTZONmFTVkpqZy9lcWhBZTRqTDVPSTJKYysvQ3ZOTWxmMlBhCmlVaHM5QmZEanNMMTlVb2M1Q1VjOFFLQmdIcE1kMEI4Yk91YUhyeGt1TmRYMlV2Q0tScUZSYzZHem9ja05uWmsKanU4OFVuZThNVUhrRVh2UlNwWmJiNjlUdkE5OWJTQVNPTmkrYlZncWR5NW5uaE1aTm0rNXZpaUxHZ05BeGZOQgpKLyt3QkdkOFRLUEs4d29wVE1OaTNWYUVYekpNekQ3UzZHZWljVVNoU0d5czduMW5lRGNickx1L1V0dlVrSWlQCmkrSDVBb0dCQUxsc01vTXlFL2FKeFV0a3Y0OFhYdUlyNHA1ejZVUkEveDVHMzBYVUN6Y3QwWk5MRGJJaW55ZzUKNFREREpLUDc0WjJpUW45TWt2eVBpVG5KOXNPcS9STm5Xc216VkFxQ1ZMSFNyWUMyTTF1TVVxTkZTN05XdHpNdwpBa2F1djF2K3dGODdMVndFMEhHUEgwRWQzNU1ObXlJWjkxaS9mVGRPRWJ3d3d2bHpaNndJCi0tLS0tRU5EIFJTQSBQUklWQVRFIEtFWS0tLS0tCg==
-clusters:
-- name: tenant-alpha
-  cluster:
-    certificate-authority-data: LS0tLS1CRUdJTiBDRVJUSUZJQ0FURS0tLS0tCk1JSURjekNDQWx1Z0F3SUJBZ0lCQURBTkJna3Foa2lHOXcwQkFRc0ZBREJiTVVRd1FnWURWUVFLRXp0cmRXSmwKY201bGRHVnpMWE5wWnk1cmRXSmxjbTVsZEdWekxYTnBaM012YlhWc2RHa3RkR1Z1WVc1amVTNTJhWEowZFdGcwpZMngxYzNSbGNqRVRNQkVHQTFVRUF4TUthM1ZpWlhKdVpYUmxjekFlRncweU5qQTJNekF3TnpVeE1qQmFGdzB6Ck5qQTJNamN3TnpVeE1qQmFNRnN4UkRCQ0JnTlZCQW9UTzJ0MVltVnlibVYwWlhNdGMybG5MbXQxWW1WeWJtVjAKWlhNdGMybG5jeTl0ZFd4MGFTMTBaVzVoYm1ONUxuWnBjblIxWVd4amJIVnpkR1Z5TVJNd0VRWURWUVFERXdwcgpkV0psY201bGRHVnpNSUlCSWpBTkJna3Foa2lHOXcwQkFRRUZBQU9DQVE4QU1JSUJDZ0tDQVFFQTB0TEhuZTVuCi8yWlR4N0t1MGlHUjIzSEsyeUF3YXhGWWYvNzFXdDVIMnNlK1FuQXRxRHRQeTk1RUNPeHFXY0NEakhGN0tZL3EKWWFKSlZPem5aRDdKT0lXVDk1ZS9OWGJUeVBSbGRWOThhbHgxWmhEQTZUMmtadzMxbWFvVW1HZG1yazl3YWhNRgozQ3J4VFRLd3FDNC9qOVB6TXF1Qi9yS0VQU0FoTW9nMUpHY0xWcnZwYm1ISzAzWXhqNXFwSG5zeHY1b2NnVjdBCjB1MU1WWHNMRU42NElSYU5XR2dCbmgwVkFIQ2htNFdGUXQ0NW5saHVJM0tyb3JFUktMcVd5eHZyVmFNbzdIWi8KTDltR09UTk83T3MrNXNhTzZKSyttdnVlNE5CaU1ETVNZWFFzRnUwNVhJMElPZTJzVklTUWJCdTFvb050NFBrNQpTVUNJWlF0S1dVaU9Ud0lEQVFBQm8wSXdRREFPQmdOVkhROEJBZjhFQkFNQ0FxUXdEd1lEVlIwVEFRSC9CQVV3CkF3RUIvekFkQmdOVkhRNEVGZ1FVMUJTSDJpQ1VCVW5ra3FVbXRsOFoxMUNhakpBd0RRWUpLb1pJaHZjTkFRRUwKQlFBRGdnRUJBSXI1dGdRaHd4ekdZcktaa0ZhdW13aUFncE9WMnJ6V1Q5UTF3eXJsbnVxc3R5eEF4NTdiYjhHcwpiVTJQdm4vS2ZqUFV5MXQ5NjNwMU5UUkZBVmN0Y1crYnBnNVp6NGcxeHMzaXBWNnhiMVhxZW9hczNEdXlYWXY2Ckw2dkJROVZFTjNOZmRwR0owdzIwZUx1UGcwUEw2ZVN3K01XYzBLTnhXU0dvanFTcmR1akRiT1FTNTQrRWw4MTcKLzZqbHE1d0VXT21nZm5EYkY4RklHSkFValhuMXNGM0FHbE5HVysvRklzMk1USmRPa3ZWZ0JSTk5XNDFZdmI3VQpZcitrcnZRSmRhRDRiVmlPS2R0VFZLUER4WTRUK0pRY2ltMFVnNjhFTCt5NitoNmo0aVpqc0wzaWVvZlRpeHV6CkhwaFhiaFlFVDdFa1FEYnRsNlpMRXB2OWZtWEMxVE09Ci0tLS0tRU5EIENFUlRJRklDQVRFLS0tLS0K
-    server: https://apiserver-svc.vc-manager-fa7698-tenant-alpha:6443
-contexts:
-- context:
-    cluster: tenant-alpha
-    user: admin
-  name: default
-current-context: default
-preferences: {}
-[INFO] kubeconfig生成完了
-[INFO] ====== 完了 ======
-```
-
-**ステップB: kubeconfig をファイルに保存**
-
-本節では, テナント環境へアクセスするための kubeconfig をファイルに保存する手順を例示します。
-本例では, コントロールプレイン上で当該コントロールプレイン上の仮想クラスタを操作することを想定した実行例を記載します。
-
-```bash
-# 接続先ポートをLOCAL_PORT変数に設定
-LOCAL_PORT=16443
-# 環境変数をクリア
-unset KUBECONFIG
-# kubeconfig をファイルに保存
-vc-tenant-kubeconfig.sh tenant-alpha -o ~/.kube/tenant-alpha.conf
-# kubeconfigのサーバーアドレスをlocalhostに変更
-sed -i "s|server: https://.*:6443|server: https://localhost:${LOCAL_PORT}|" ~/.kube/tenant-alpha.conf
-# パーミッション確認
-ls -la ~/.kube/tenant-alpha.conf
-```
-
-実行結果の例:
-```shell
-$ LOCAL_PORT=16443
-$ unset KUBECONFIG
-$ vc-tenant-kubeconfig.sh tenant-alpha -o ~/.kube/tenant-alpha.conf
-[INFO] ====== kubeconfig生成 ======
-[INFO] コンテキスト: cluster1
-[INFO] ユーザ: CLUSTER
-[INFO] テナント情報:
-[INFO]   テナント名: tenant-alpha
-[INFO]   VirtualCluster管理namespace: vc-manager
-[INFO]   実行時namespace: vc-manager-fa7698-tenant-alpha
-[INFO]   クラスタドメイン: tenant-alpha.vc.local
-[INFO] kubeconfig生成開始: tenant-alpha
-[INFO]   実行時namespace: vc-manager-fa7698-tenant-alpha
-[INFO]   クラスタドメイン: tenant-alpha.vc.local
-[INFO]   admin-kubeconfigシークレット: 取得済み
-[INFO] kubeconfig を出力: /home/tkato/.kube/tenant-alpha.conf
-[INFO] kubeconfig生成完了
-[INFO] ====== 完了 ======
-$ sed -i "s|server: https://.*:6443|server: https://localhost:${LOCAL_PORT}|" ~/.kube/tenant-alpha.conf
-$ ls -la ~/.kube/tenant-alpha.conf
--rw------- 1 kube kube 5899  6月 30 15:40 /home/kube/.kube/tenant-alpha.conf
-```
-
-**ステップC: テナント環境で kubectl を実行**
-
-本例では, コントロールプレイン上で当該コントロールプレイン上の仮想クラスタを操作することを想定した実行例を記載します。
-
-テナントのAPI サーバはスーパークラスタ内部の Pod として実行されているため, 以下のように, スーパークラスタ内部のAPIサーバにアクセスするようにport-forwardを設定する必要があります:
-
-```bash
-# 別のターミナルで kubectl port-forward を開始
-LOCAL_PORT=16443
-kubectl port-forward -n <テナント実行namespace> svc/apiserver-svc ${LOCAL_PORT}:6443
-```
-
-テナント実行namespace は通常, `vc-manager-<ハッシュ>-<テナント名>` の形式です。例えば, ハッシュが, `fa7698`で, テナント名が, `tenant-alpha` の場合,
-
-```bash
-LOCAL_PORT=16443
-kubectl port-forward -n vc-manager-fa7698-tenant-alpha svc/apiserver-svc ${LOCAL_PORT}:6443
-```
-
-のようにport-forwardを設定します。
-
-実行結果の例:
-```shell
-$ LOCAL_PORT=16443
-$ kubectl port-forward -n vc-manager-fa7698-tenant-alpha svc/apiserver-svc ${LOCAL_PORT}:6443
-Forwarding from 127.0.0.1:16443 -> 6443
-Forwarding from [::1]:16443 -> 6443
-```
-
-ポートフォワーディングが確立されたら, 別のターミナルで以下を実行します:
-
-```bash
-LOCAL_PORT=16443
-# 環境変数KUBECONFIGを指定してテナント環境にアクセス
-export KUBECONFIG=~/.kube/tenant-alpha.conf
-
-# 実験環境向け: TLS証明書の厳密検証を無効化
-CLUSTER_NAME=$(kubectl config get-clusters | sed -n '2p')
-kubectl config set-cluster "${CLUSTER_NAME}" \
-  --server=https://localhost:${LOCAL_PORT} \
-  --insecure-skip-tls-verify=true
-
-# テナント内のリソースを確認
-kubectl get nodes
-kubectl get pods
-kubectl get svc
-
-# または, --kubeconfig オプションで指定
-kubectl --kubeconfig ~/.kube/tenant-alpha.conf get pods
-```
-
-実行結果の例:
-```shell
-$ export KUBECONFIG=~/.kube/tenant-alpha.conf
-$ kubectl config set-cluster tenant-alpha \
-  --server=https://localhost:${LOCAL_PORT} \
-  --insecure-skip-tls-verify=true
-Cluster "tenant-alpha" set.
-$ kubectl get nodes
-No resources found
-$ kubectl get pods
-No resources found in default namespace.
-$ kubectl get svc
-NAME         TYPE        CLUSTER-IP   EXTERNAL-IP   PORT(S)   AGE
-kubernetes   ClusterIP   10.32.0.1    <none>        443/TCP   3h26m
-```
-
-上記の例では, podを展開する前の状態のため, 仮想クラスタ内にpodなどのリソースが割り当てられていない状態として表示されます。
-
-**認証証明書の検証エラーについて**
-
-kubeconfig の server エンドポイントを `localhost` に変更すると, 証明書のホスト名検証で以下のエラーが発生することがあります:
-
-```
-x509: certificate is valid for kubernetes, kubernetes.default, ..., apiserver-svc.vc-manager-fa7698-tenant-alpha, ..., not localhost
-```
-
-この場合は, kubeconfig で以下のいずれかの対応を実施してください:
-
-1. **証明書検証をスキップ**:
-```bash
-# kubeconfig を編集
-kubectl config set-cluster virtualcluster-tenant-alpha --insecure-skip-tls-verify=true \
-  --kubeconfig ~/.kube/tenant-alpha.conf
-```
-
-本稿では, 実験環境向けにTLS証明書の厳密検証を無効化することを前提とした検証手順を記載しています。
-
-2. **API サーバーの FQDN で接続**:
-   - port-forward で localhost:6443 にフォワードしているので, kubeconfig はそのまま `apiserver-svc.vc-manager-fa7698-tenant-alpha:6443` で保持
-   - ローカルマシンの `/etc/hosts` に以下を追加:
-   ```
-   127.0.0.1 apiserver-svc.vc-manager-fa7698-tenant-alpha
-   ```
-   これにより DNS 解決が localhost に向きます
-
-3. **別マシンからのアクセス**:
-   - スーパークラスタのロードバランサーまたはゲートウェイ経由でアクセス
-   - kubeconfig の server を `https://<loadbalancer-ip>:6443` に変更
-
-**ステップD: Kubernetesクラスタ情報を確認**
-
-本例では, コントロールプレイン上で当該コントロールプレイン上の仮想クラスタを操作することを想定した実行例を記載します。
-
-```bash
-# kubeconfigファイルを設定
-export KUBECONFIG=~/.kube/tenant-alpha.conf
-# 接続中のKubernetesクラスタを確認
-kubectl --insecure-skip-tls-verify=true cluster-info dump
-```
-
-上記の `kubectl port-forward` は同一マシンからのアクセスのみを想定しているため, リモートマシンからアクセスする場合は別途設定が必要です。
-
-実行結果の例:
-```shell
-$ export KUBECONFIG=~/.kube/tenant-alpha.conf
-$ kubectl --insecure-skip-tls-verify=true cluster-info dump
-{
-    "kind": "NodeList",
-    "apiVersion": "v1",
-    "metadata": {
-        "resourceVersion": "2994"
-    },
-    "items": []
-}
-{
-    "kind": "EventList",
-    "apiVersion": "v1",
-    "metadata": {
-        "resourceVersion": "2994"
-    },
-    "items": []
-}
-{
-    "kind": "ReplicationControllerList",
-    "apiVersion": "v1",
-    "metadata": {
-        "resourceVersion": "2994"
-    },
-    "items": []
-}
-{
-    "kind": "ServiceList",
-    "apiVersion": "v1",
-    "metadata": {
-        "resourceVersion": "2994"
-    },
-    "items": []
-}
-{
-    "kind": "DaemonSetList",
-    "apiVersion": "apps/v1",
-    "metadata": {
-        "resourceVersion": "2994"
-    },
-    "items": []
-}
-{
-    "kind": "DeploymentList",
-    "apiVersion": "apps/v1",
-    "metadata": {
-        "resourceVersion": "2994"
-    },
-    "items": []
-}
-{
-    "kind": "ReplicaSetList",
-    "apiVersion": "apps/v1",
-    "metadata": {
-        "resourceVersion": "2994"
-    },
-    "items": []
-}
-{
-    "kind": "PodList",
-    "apiVersion": "v1",
-    "metadata": {
-        "resourceVersion": "2994"
-    },
-    "items": []
-}
-{
-    "kind": "EventList",
-    "apiVersion": "v1",
-    "metadata": {
-        "resourceVersion": "2994"
-    },
-    "items": []
-}
-{
-    "kind": "ReplicationControllerList",
-    "apiVersion": "v1",
-    "metadata": {
-        "resourceVersion": "2994"
-    },
-    "items": []
-}
-{
-    "kind": "ServiceList",
-    "apiVersion": "v1",
-    "metadata": {
-        "resourceVersion": "2994"
-    },
-    "items": [
-        {
-            "metadata": {
-                "name": "kubernetes",
-                "namespace": "default",
-                "uid": "cd976215-ee00-4ca0-a7f5-1abca17526db",
-                "resourceVersion": "203",
-                "creationTimestamp": "2026-06-30T06:35:11Z",
-                "labels": {
-                    "component": "apiserver",
-                    "provider": "kubernetes"
-                }
-            },
-            "spec": {
-                "ports": [
-                    {
-                        "name": "https",
-                        "protocol": "TCP",
-                        "port": 443,
-                        "targetPort": 6443
-                    }
-                ],
-                "clusterIP": "10.32.0.1",
-                "clusterIPs": [
-                    "10.32.0.1"
-                ],
-                "type": "ClusterIP",
-                "sessionAffinity": "None",
-                "ipFamilies": [
-                    "IPv4"
-                ],
-                "ipFamilyPolicy": "SingleStack",
-                "internalTrafficPolicy": "Cluster"
-            },
-            "status": {
-                "loadBalancer": {}
-            }
-        }
-    ]
-}
-{
-    "kind": "DaemonSetList",
-    "apiVersion": "apps/v1",
-    "metadata": {
-        "resourceVersion": "2994"
-    },
-    "items": []
-}
-{
-    "kind": "DeploymentList",
-    "apiVersion": "apps/v1",
-    "metadata": {
-        "resourceVersion": "2994"
-    },
-    "items": []
-}
-{
-    "kind": "ReplicaSetList",
-    "apiVersion": "apps/v1",
-    "metadata": {
-        "resourceVersion": "2994"
-    },
-    "items": []
-}
-{
-    "kind": "PodList",
-    "apiVersion": "v1",
-    "metadata": {
-        "resourceVersion": "2994"
-    },
-    "items": []
-}
-```
-
-#### 例2: busybox Pod の配置と確認
+#### 例1: busybox Pod の配置と確認
 
 本節では,テナント(tenant-alpha)へ簡単なbusybox Podをデプロイし, 状態確認やログ取得,削除までの一連の操作フローを示します。
 
@@ -1513,7 +1122,7 @@ $ vc-tenant-delete.sh tenant-alpha pod busybox-demo
 pod "busybox-demo" deleted
 ```
 
-#### 例3: Deployment の展開と確認
+#### 例2: Deployment の展開と確認
 
 本節では,テナント(tenant-alpha)へnginx Deploymentを展開し,スケールアウト状態の確認,削除までの操作フローを示します。
 
@@ -1733,7 +1342,7 @@ etcd-0                 1/1     Running   0          153m
 
 上記の実行結果では, `vc-tenant-get.sh tenant-alpha pods`実行時に, `test-webserver`関連のDeploymentが削除されていることが確認できます。
 
-#### 例4: 実行中の Pod でコマンド実行
+#### 例3: 実行中の Pod でコマンド実行
 
 本節では,テナント内の実行中のPod に対してリモートコマンドを実行する方法を示します。
 
@@ -2324,7 +1933,7 @@ kubectl -n $TENANT_NS apply -f manifest.yaml
      ```
    - 期待される結果: テナント に割り当てられた仮想クラスタ 内の仮想ノード一覧が表示されること。
    - 注意:
-    - テナント用kube-apiserverは, スーパークラスタ 内のServiceとして動作しているため, 外部から直接アクセスするにはポートフォワーディングが必要です。
+     - テナント用kube-apiserverは, スーパークラスタ 内のServiceとして動作しているため, 外部から直接アクセスするにはポートフォワーディングが必要です。
      - admin-kubeconfigに保存されているサーバーアドレスは, テナント に割り当てられた仮想クラスタ 内部用の設定のため, `localhost`に変更する必要があります。
      - 本READMEは実験環境向け手順のため, kubeconfig に `insecure-skip-tls-verify=true` を設定しています。
 
@@ -2358,7 +1967,7 @@ kubectl -n $TENANT_NS apply -f manifest.yaml
       vc-manager-8e5a66-tenant-alpha   controller-manager-0                                       1/1     Running   0             2m54s
       vc-manager-8e5a66-tenant-alpha   etcd-0                                                     1/1     Running   0             3m
      ```
-11. イメージソース判定の総合検証
+11. イメージソース判定の総合検証 (オプション)
      - 目的: 動作モードの優先順位(`explicit > cache > build` の順位で動作すること)と, 各モードでの動作が実装どおりであることを確認します。
      - 前提:
        - 対象ホストは `k8sctrlplane01.local` を例とします。
@@ -2932,63 +2541,405 @@ vc-tenant-kubeconfig.sh -o ~/.kube/config --vc-manager-ns vc-manager tenant-alph
 
 ### テナント kubeconfig の使用
 
+本節では, テナント用のkubeconfigを使用してテナントごとに独立した仮想クラスタを操作する方法について説明します。
+
+本節の説明では, コントロールプレインノード上でテナント/仮想クラスタ環境を操作することを前提にしています。
+
+#### kubectl port-forward を使用したポートフォワーディング
+
 生成された kubeconfig でテナント側の Kubernetes クラスタにアクセスするには, **ポートフォワーディングが必要です**。これは, テナント用 API サーバーが VirtualCluster スーパークラスタ内部の Pod として実行されているためです。
 
-#### 方法 1: kubectl port-forward を使用
+スーパークラスタ内部のAPIサーバにアクセスするようにport-forwardを設定する際のkubectlコマンドの書式は以下の通りです:
 
 ```bash
-# 別のターミナルで port-forward を開始
-LOCAL_PORT=16443
-kubectl port-forward -n vc-manager-fa7698-tenant-alpha svc/apiserver-svc ${LOCAL_PORT}:6443
-
-# 生成された kubeconfig を編集して server エンドポイントを変更
-# 変更前: https://apiserver-svc.vc-manager-fa7698-tenant-alpha:6443
-# 変更後: https://localhost:${LOCAL_PORT}
-
-# 実験環境向け: TLS証明書の厳密検証を無効化
-CLUSTER_NAME=$(kubectl config get-clusters | sed -n '2p')
-kubectl config set-cluster "${CLUSTER_NAME}" \
-  --server=https://localhost:${LOCAL_PORT} \
-  --insecure-skip-tls-verify=true
-
-# テナント kubeconfig を使用
-export KUBECONFIG=~/.kube/tenant-alpha.conf
-kubectl get nodes
-kubectl get pods -A
+# 別のターミナルで kubectl port-forward を開始
+LOCAL_PORT=<ローカルポート番号>
+kubectl port-forward -n <テナント実行namespace> svc/apiserver-svc ${LOCAL_PORT}:6443
 ```
 
-または, 直接 port-forward オプションを指定:
+- ローカルポート番号は, 仮想クラスタ内のK8s APIサーバにつなぐためのポート番号(コントロールプレインノード上のポート番号)です。
+- テナント実行namespace は通常, `vc-manager-<ハッシュ>-<テナント名>` の形式です。
+
+例えば, ローカルポート番号16433から仮想クラスタ内のAPIサーバに接続し, ハッシュが, `fa7698`で, テナント名が, `tenant-alpha` の場合, 以下のようにコマンドを実行します:
 
 ```bash
-kubectl --kubeconfig ~/.kube/tenant-alpha.conf \
-  port-forward -n vc-manager-fa7698-tenant-alpha svc/apiserver-svc 16443:6443 &
-
-# ポートフォワーディングが確立されたら
-export KUBECONFIG=~/.kube/tenant-alpha.conf
-kubectl get pods
+kubectl port-forward -n vc-manager-fa7698-tenant-alpha svc/apiserver-svc 16443:6443
 ```
 
-#### 方法 2: kubeconfig を動的に編集
+#### テナント操作用kubeconfig の生成
 
-生成時に API サーバーのエンドポイントを localhost に置き換えることも可能です:
+ポートフォワードを実施したターミナルとは, 別のターミナルで以下のコマンドを実行し, テナント操作用のkubeconfigファイルを作成します。
 
 ```bash
-# kubeconfig を生成してから sed で localhost に置き換え
+# 環境変数をクリア
+unset KUBECONFIG
+# kubeconfig を生成
 LOCAL_PORT=16443
-vc-tenant-kubeconfig.sh tenant-alpha > ~/.kube/tenant-alpha.conf
+vc-tenant-kubeconfig.sh tenant-alpha -o ~/.kube/tenant-alpha.conf
+# sed で localhost に置き換え
 sed -i "s|server: https://.*:6443|server: https://localhost:${LOCAL_PORT}|" ~/.kube/tenant-alpha.conf
-CLUSTER_NAME=$(kubectl config get-clusters --kubeconfig ~/.kube/tenant-alpha.conf | sed -n '2p')
-kubectl config set-cluster "${CLUSTER_NAME}" \
-  --insecure-skip-tls-verify=true \
-  --kubeconfig ~/.kube/tenant-alpha.conf
-
-# ポートフォワーディングを開始
-kubectl port-forward -n vc-manager-fa7698-tenant-alpha svc/apiserver-svc ${LOCAL_PORT}:6443 &
-
-# テナント API にアクセス
-export KUBECONFIG=~/.kube/tenant-alpha.conf
-kubectl get pods
+# パーミッション確認
+ls -la ~/.kube/tenant-alpha.conf
 ```
+
+#### 実行例
+
+#### ポートフォワード操作の例
+
+ローカルポート番号16433から仮想クラスタ内のAPIサーバに接続し, ハッシュが, `fa7698`で, テナント名が, `tenant-alpha` の場合のポートフォワード設定作業の実行結果例を以下に示します:
+
+```shell
+$ LOCAL_PORT=16443
+$ kubectl port-forward -n vc-manager-fa7698-tenant-alpha svc/apiserver-svc 16443:6443
+Forwarding from 127.0.0.1:16443 -> 6443
+Forwarding from [::1]:16443 -> 6443
+```
+
+上記の `kubectl port-forward` は同一マシンからのアクセスのみを想定しているため, リモートマシンからアクセスする場合は別途設定が必要です。
+
+#### テナント環境へアクセスするためのkubeconfig の生成例
+
+テナント環境へアクセスするための kubeconfig を生成する手順を例示します。
+
+**ステップA: kubeconfig を標準出力に表示**
+
+kubeconfig を標準出力に表示して確認する作業を例示します。
+
+実行するコマンドは以下の通りです:
+
+```bash
+unset KUBECONFIG
+vc-tenant-kubeconfig.sh tenant-alpha
+```
+
+以下のような出力がコンソール上に得られます:
+
+```yaml
+apiVersion: v1
+kind: Config
+clusters:
+- cluster:
+    certificate-authority-data: LS0tLS1CRUdJTi...
+    server: https://tenant-alpha.vc.local:6443
+  name: virtualcluster-tenant-alpha
+contexts:
+- context:
+    cluster: virtualcluster-tenant-alpha
+    user: virtualcluster-tenant-alpha
+  name: virtualcluster-tenant-alpha
+current-context: virtualcluster-tenant-alpha
+users:
+- name: virtualcluster-tenant-alpha
+  user:
+    token: eyJhbGc...
+```
+
+実行結果の例を以下に示します:
+```shell
+$ unset KUBECONFIG
+$ vc-tenant-kubeconfig.sh tenant-alpha
+[INFO] ====== kubeconfig生成 ======
+[INFO] コンテキスト: cluster1
+[INFO] ユーザ: CLUSTER
+[INFO] テナント情報:
+[INFO]   テナント名: tenant-alpha
+[INFO]   VirtualCluster管理namespace: vc-manager
+[INFO]   実行時namespace: vc-manager-fa7698-tenant-alpha
+[INFO]   クラスタドメイン: tenant-alpha.vc.local
+[INFO] kubeconfig生成開始: tenant-alpha
+[INFO]   実行時namespace: vc-manager-fa7698-tenant-alpha
+[INFO]   クラスタドメイン: tenant-alpha.vc.local
+[INFO]   admin-kubeconfigシークレット: 取得済み
+
+kind: Config
+apiVersion: v1
+users:
+- name: admin
+  user:
+    client-certificate-data: LS0tLS1CRUdJTiBDRVJUSUZJQ0FURS0tLS0tCk1JSURUakNDQWphZ0F3SUJBZ0lJWVUvTlMxZWRiTjB3RFFZSktvWklodmNOQVFFTEJRQXdXekZFTUVJR0ExVUUKQ2hNN2EzVmlaWEp1WlhSbGN5MXphV2N1YTNWaVpYSnVaWFJsY3kxemFXZHpMMjExYkhScExYUmxibUZ1WTNrdQpkbWx5ZEhWaGJHTnNkWE4wWlhJeEV6QVJCZ05WQkFNVENtdDFZbVZ5Ym1WMFpYTXdIaGNOTWpZd05qTXdNRGMxCk1USXdXaGNOTWpjd05qTXdNRGMxTVRJeFdqQXBNUmN3RlFZRFZRUUtFdzV6ZVhOMFpXMDZiV0Z6ZEdWeWN6RU8KTUF3R0ExVUVBeE1GWVdSdGFXNHdnZ0VpTUEwR0NTcUdTSWIzRFFFQkFRVUFBNElCRHdBd2dnRUtBb0lCQVFDcgpNNFRsR3JYTTVlVjg5NFJYWDJaN01LT2ZoTytNeldsemtWNTd4NXVtKy90UldOellQQ2Y5cWp3SGQ5ZTZFNE9wCjBkZmQ0WTFuZmQzZU50amxPQ1p0K0xHRUJXUDIrbjBOUEFRNklySUJkR3Q2bmxkZURFbnh4M25YczhKWlV0eHEKWFMwRDlEWWdHdWhaa01neGR0SWtOMzRnNVRidE1xMkhzRnJkc2ZMdnE1Wi9VZmovTnZRdkhOVzZsOE8zTDRqcQpOakFKemR2c3lvdjZUNFhtK2t2RFNCM3E2SGJvRE9JVDkwMEprVlB2TTRaeEFrV0R1UDgxb2E0ODZPdjFtMFVRCmRjVkQrN0d6TUFveTFEUnBxdGhKd2d3a0dZTmV4K0ltM29pbDArN09xdGMyN29QSC9XL25xeXhiNHBISS9OakgKSmVIVXIzTFNqbnBiVHRZaDVRTzFBZ01CQUFHalNEQkdNQTRHQTFVZER3RUIvd1FFQXdJRm9EQVRCZ05WSFNVRQpEREFLQmdnckJnRUZCUWNEQWpBZkJnTlZIU01FR0RBV2dCVFVGSWZhSUpRRlNlU1NwU2EyWHhuWFVKcU1rREFOCkJna3Foa2lHOXcwQkFRc0ZBQU9DQVFFQUxuOWxPdUlEYkd0RENZR3BFT21QSG52QXYyR3VrRk03QmlxamFTYTIKbm1rdStDM3BYUDZZVzh5bU9wVGt5SlJsdkFyTkhZZ3lBR214bW1md0g2YjVGMi9xdFVGa2FWRGJQejVFMDRBWApHWWV6VFVqb0diWmllSmRFR1lCK25INnJiekcrS0s2VlF6UUNrNzd6NHUzbUNpekYxbXJPVUNMSHNDUkpHK1RMCjhpSHhZd2F6UXZCR1l6bWU0TkxDQWt3YllRZm5razhFWExldEVCWk04NWtEZUdEVk1nbWg2K2NqQlpmTjlCN0kKenlWRU5LOEd6cDRuUXk3bHNxOU00aVlDb1IwM3U3bTZZOCtuSzNKczdiYXBBTno1VHFXeUozQ1FEV3BLZlR4dwpLN2VuN01yckEvZE9iV1VKZ3Q0ZDdoTDlzakdjSnphVWdSNXFZNDNSZk96dURBPT0KLS0tLS1FTkQgQ0VSVElGSUNBVEUtLS0tLQo=
+    client-key-data: LS0tLS1CRUdJTiBSU0EgUFJJVkFURSBLRVktLS0tLQpNSUlFb3dJQkFBS0NBUUVBcXpPRTVScTF6T1hsZlBlRVYxOW1lekNqbjRUdmpNMXBjNUZlZThlYnB2djdVVmpjCjJEd24vYW84QjNmWHVoT0RxZEhYM2VHTlozM2QzamJZNVRnbWJmaXhoQVZqOXZwOURUd0VPaUt5QVhScmVwNVgKWGd4SjhjZDUxN1BDV1ZMY2FsMHRBL1EySUJyb1daRElNWGJTSkRkK0lPVTI3VEt0aDdCYTNiSHk3NnVXZjFINAovemIwTHh6VnVwZkR0eStJNmpZd0NjM2I3TXFMK2srRjV2cEx3MGdkNnVoMjZBemlFL2ROQ1pGVDd6T0djUUpGCmc3ai9OYUd1UE9qcjladEZFSFhGUS91eHN6QUtNdFEwYWFyWVNjSU1KQm1EWHNmaUp0NklwZFB1enFyWE51NkQKeC8xdjU2c3NXK0tSeVB6WXh5WGgxSzl5MG81NlcwN1dJZVVEdFFJREFRQUJBb0lCQUdhUVFNZDRUdjNucEtwUApKcXVwYlozVHI5SzdNei9wTjRtU3gwWGtlVzE2ZkQ5cHV6U1lKV1VrZlQ0RUgrdE1FWTdGTmt1bytxdkxqZ1c0CldneElyVTBvdGtCZmNsbmVDdGpJNGNkcVRiWHRadzVZbWdLdjNnVEkra2V0VzN0ajFzU3ArWFBxOUJvYnhLTVQKeDd0S2NlNWNpR1Z3ckkxQjFRLzdLUlN6ck5URHZpVkI0TnhncW1vQXZqRE9FMHk1VmNLRk1hQW9GZHRZc2daYQp0U0hXVHhiMFFmMGNPOEVTQUJ2Q1lJYUpFWit4MktiN1NzMmdiWFJNMUhzRWczbzB4NVpVdTJrbUJRdzhZNGNoCnh5emJtS2RJQkdqTUJOdjZJOER2d2tZR29XWllLb2RxNGNEZ1JNbUE1dFZ1RlJqdmx4VlJjYzMzN1paRFYydU4KWTVIa0M4RUNnWUVBMmVZNzJpVy9nTzJSclVlOFVad3BuQlJqQmNXT3ZyV2oxV25KQ3ZJcVY0U3VMTlpyRzJaSQphamZPR0Vwb1Rqc3FYTEFHeG5zaWRyQjZjdm1TNmZiVHBKWlg0ejYrVklaaUZiTzIwTVZWVUlmL3hIbFNUYzg5CnU4MDR5a1M4a2lJN0JUWlRJdW1WZkFmd2IvbkdheXBGdVZqQjdqVTFvYkRRRHJHWDBsL1pwbDBDZ1lFQXlTTHoKa3orSjJHaFlTUTJZWUpMallKK3BPY0FBOHhKcGlZcWpwSFlDV1paOGRyeTg4QkhvSTd5V0pUV2NVNEwwVmNLdApsSDRNdWVuRnpOSzhxUUJoMGZ3a2VGY1phT1dYN2UxZFUwV1cwSkhoNnlBdURMUmNHdTdCdnpweU1ZcStJdTlmCkFYM05HUVBhbXRxTUJkRDB6Zi95TjU3V3JwS3VzaGJpc1lDcFRUa0NnWUJ1eFNBQUVkaDhqa2pVTWZlRjlVRWgKMnl0THI5YVZGSG1vOEJJSHdudkw2ZU14WC84cStxQXRmeGtDT0RFMk05V2hNTXNBODIvZHJuRlJLWmFKNGJSTgpvekFpa2E3b0FUaXpsNXlFSFF6MTEyMHFVQktMQTZONmFTVkpqZy9lcWhBZTRqTDVPSTJKYysvQ3ZOTWxmMlBhCmlVaHM5QmZEanNMMTlVb2M1Q1VjOFFLQmdIcE1kMEI4Yk91YUhyeGt1TmRYMlV2Q0tScUZSYzZHem9ja05uWmsKanU4OFVuZThNVUhrRVh2UlNwWmJiNjlUdkE5OWJTQVNPTmkrYlZncWR5NW5uaE1aTm0rNXZpaUxHZ05BeGZOQgpKLyt3QkdkOFRLUEs4d29wVE1OaTNWYUVYekpNekQ3UzZHZWljVVNoU0d5czduMW5lRGNickx1L1V0dlVrSWlQCmkrSDVBb0dCQUxsc01vTXlFL2FKeFV0a3Y0OFhYdUlyNHA1ejZVUkEveDVHMzBYVUN6Y3QwWk5MRGJJaW55ZzUKNFREREpLUDc0WjJpUW45TWt2eVBpVG5KOXNPcS9STm5Xc216VkFxQ1ZMSFNyWUMyTTF1TVVxTkZTN05XdHpNdwpBa2F1djF2K3dGODdMVndFMEhHUEgwRWQzNU1ObXlJWjkxaS9mVGRPRWJ3d3d2bHpaNndJCi0tLS0tRU5EIFJTQSBQUklWQVRFIEtFWS0tLS0tCg==
+clusters:
+- name: tenant-alpha
+  cluster:
+    certificate-authority-data: LS0tLS1CRUdJTiBDRVJUSUZJQ0FURS0tLS0tCk1JSURjekNDQWx1Z0F3SUJBZ0lCQURBTkJna3Foa2lHOXcwQkFRc0ZBREJiTVVRd1FnWURWUVFLRXp0cmRXSmwKY201bGRHVnpMWE5wWnk1cmRXSmxjbTVsZEdWekxYTnBaM012YlhWc2RHa3RkR1Z1WVc1amVTNTJhWEowZFdGcwpZMngxYzNSbGNqRVRNQkVHQTFVRUF4TUthM1ZpWlhKdVpYUmxjekFlRncweU5qQTJNekF3TnpVeE1qQmFGdzB6Ck5qQTJNamN3TnpVeE1qQmFNRnN4UkRCQ0JnTlZCQW9UTzJ0MVltVnlibVYwWlhNdGMybG5MbXQxWW1WeWJtVjAKWlhNdGMybG5jeTl0ZFd4MGFTMTBaVzVoYm1ONUxuWnBjblIxWVd4amJIVnpkR1Z5TVJNd0VRWURWUVFERXdwcgpkV0psY201bGRHVnpNSUlCSWpBTkJna3Foa2lHOXcwQkFRRUZBQU9DQVE4QU1JSUJDZ0tDQVFFQTB0TEhuZTVuCi8yWlR4N0t1MGlHUjIzSEsyeUF3YXhGWWYvNzFXdDVIMnNlK1FuQXRxRHRQeTk1RUNPeHFXY0NEakhGN0tZL3EKWWFKSlZPem5aRDdKT0lXVDk1ZS9OWGJUeVBSbGRWOThhbHgxWmhEQTZUMmtadzMxbWFvVW1HZG1yazl3YWhNRgozQ3J4VFRLd3FDNC9qOVB6TXF1Qi9yS0VQU0FoTW9nMUpHY0xWcnZwYm1ISzAzWXhqNXFwSG5zeHY1b2NnVjdBCjB1MU1WWHNMRU42NElSYU5XR2dCbmgwVkFIQ2htNFdGUXQ0NW5saHVJM0tyb3JFUktMcVd5eHZyVmFNbzdIWi8KTDltR09UTk83T3MrNXNhTzZKSyttdnVlNE5CaU1ETVNZWFFzRnUwNVhJMElPZTJzVklTUWJCdTFvb050NFBrNQpTVUNJWlF0S1dVaU9Ud0lEQVFBQm8wSXdRREFPQmdOVkhROEJBZjhFQkFNQ0FxUXdEd1lEVlIwVEFRSC9CQVV3CkF3RUIvekFkQmdOVkhRNEVGZ1FVMUJTSDJpQ1VCVW5ra3FVbXRsOFoxMUNhakpBd0RRWUpLb1pJaHZjTkFRRUwKQlFBRGdnRUJBSXI1dGdRaHd4ekdZcktaa0ZhdW13aUFncE9WMnJ6V1Q5UTF3eXJsbnVxc3R5eEF4NTdiYjhHcwpiVTJQdm4vS2ZqUFV5MXQ5NjNwMU5UUkZBVmN0Y1crYnBnNVp6NGcxeHMzaXBWNnhiMVhxZW9hczNEdXlYWXY2Ckw2dkJROVZFTjNOZmRwR0owdzIwZUx1UGcwUEw2ZVN3K01XYzBLTnhXU0dvanFTcmR1akRiT1FTNTQrRWw4MTcKLzZqbHE1d0VXT21nZm5EYkY4RklHSkFValhuMXNGM0FHbE5HVysvRklzMk1USmRPa3ZWZ0JSTk5XNDFZdmI3VQpZcitrcnZRSmRhRDRiVmlPS2R0VFZLUER4WTRUK0pRY2ltMFVnNjhFTCt5NitoNmo0aVpqc0wzaWVvZlRpeHV6CkhwaFhiaFlFVDdFa1FEYnRsNlpMRXB2OWZtWEMxVE09Ci0tLS0tRU5EIENFUlRJRklDQVRFLS0tLS0K
+    server: https://apiserver-svc.vc-manager-fa7698-tenant-alpha:6443
+contexts:
+- context:
+    cluster: tenant-alpha
+    user: admin
+  name: default
+current-context: default
+preferences: {}
+[INFO] kubeconfig生成完了
+[INFO] ====== 完了 ======
+```
+
+**ステップB: kubeconfig をファイルに保存**
+
+本節では, テナント環境へアクセスするための kubeconfig をファイルに保存する手順を例示します。
+
+```bash
+# 接続先ポートをLOCAL_PORT変数に設定
+LOCAL_PORT=16443
+# 環境変数をクリア
+unset KUBECONFIG
+# kubeconfig をファイルに保存
+vc-tenant-kubeconfig.sh tenant-alpha -o ~/.kube/tenant-alpha.conf
+# kubeconfigのサーバーアドレスをlocalhostに変更
+sed -i "s|server: https://.*:6443|server: https://localhost:${LOCAL_PORT}|" ~/.kube/tenant-alpha.conf
+```
+
+実行結果の例を以下に示します:
+```shell
+$ LOCAL_PORT=16443
+$ unset KUBECONFIG
+$ vc-tenant-kubeconfig.sh tenant-alpha -o ~/.kube/tenant-alpha.conf
+[INFO] ====== kubeconfig生成 ======
+[INFO] コンテキスト: cluster1
+[INFO] ユーザ: CLUSTER
+[INFO] テナント情報:
+[INFO]   テナント名: tenant-alpha
+[INFO]   VirtualCluster管理namespace: vc-manager
+[INFO]   実行時namespace: vc-manager-fa7698-tenant-alpha
+[INFO]   クラスタドメイン: tenant-alpha.vc.local
+[INFO] kubeconfig生成開始: tenant-alpha
+[INFO]   実行時namespace: vc-manager-fa7698-tenant-alpha
+[INFO]   クラスタドメイン: tenant-alpha.vc.local
+[INFO]   admin-kubeconfigシークレット: 取得済み
+[INFO] kubeconfig を出力: /home/tkato/.kube/tenant-alpha.conf
+[INFO] kubeconfig生成完了
+[INFO] ====== 完了 ======
+$ sed -i "s|server: https://.*:6443|server: https://localhost:${LOCAL_PORT}|" ~/.kube/tenant-alpha.conf
+$ ls -la ~/.kube/tenant-alpha.conf
+-rw------- 1 kube kube 5899  6月 30 15:40 /home/kube/.kube/tenant-alpha.conf
+```
+
+**ステップC: テナント環境で kubectl を実行**
+
+ポートフォワーディングが確立後, ポートフォワーディングを実施したターミナルとは, 別のターミナルで以下を実行します:
+
+```bash
+LOCAL_PORT=16443
+# 環境変数KUBECONFIGを指定してテナント環境にアクセス
+export KUBECONFIG=~/.kube/tenant-alpha.conf
+
+# クラスタ名を設定
+CLUSTER_NAME=$(kubectl config get-clusters | sed -n '2p')
+# 操作対象クラスタを設定
+kubectl --insecure-skip-tls-verify=true config set-cluster "${CLUSTER_NAME}" \
+
+# テナント内のリソースを確認
+kubectl --insecure-skip-tls-verify=true  get nodes
+kubectl --insecure-skip-tls-verify=true  get pods
+kubectl --insecure-skip-tls-verify=true  get svc
+kubectl --insecure-skip-tls-verify=true cluster-info dump
+```
+
+実行結果の例:
+```shell
+$ export KUBECONFIG=~/.kube/tenant-alpha.conf
+$ CLUSTER_NAME=$(kubectl config get-clusters | sed -n '2p')
+$ kubectl --insecure-skip-tls-verify=true config set-cluster "${CLUSTER_NAME}"
+Cluster "tenant-alpha" set.
+$ kubectl get nodes
+No resources found
+$ kubectl get pods
+No resources found in default namespace.
+$ kubectl get svc
+NAME         TYPE        CLUSTER-IP   EXTERNAL-IP   PORT(S)   AGE
+kubernetes   ClusterIP   10.32.0.1    <none>        443/TCP   3h26m
+{
+    "kind": "NodeList",
+    "apiVersion": "v1",
+    "metadata": {
+        "resourceVersion": "2994"
+    },
+    "items": []
+}
+{
+    "kind": "EventList",
+    "apiVersion": "v1",
+    "metadata": {
+        "resourceVersion": "2994"
+    },
+    "items": []
+}
+{
+    "kind": "ReplicationControllerList",
+    "apiVersion": "v1",
+    "metadata": {
+        "resourceVersion": "2994"
+    },
+    "items": []
+}
+{
+    "kind": "ServiceList",
+    "apiVersion": "v1",
+    "metadata": {
+        "resourceVersion": "2994"
+    },
+    "items": []
+}
+{
+    "kind": "DaemonSetList",
+    "apiVersion": "apps/v1",
+    "metadata": {
+        "resourceVersion": "2994"
+    },
+    "items": []
+}
+{
+    "kind": "DeploymentList",
+    "apiVersion": "apps/v1",
+    "metadata": {
+        "resourceVersion": "2994"
+    },
+    "items": []
+}
+{
+    "kind": "ReplicaSetList",
+    "apiVersion": "apps/v1",
+    "metadata": {
+        "resourceVersion": "2994"
+    },
+    "items": []
+}
+{
+    "kind": "PodList",
+    "apiVersion": "v1",
+    "metadata": {
+        "resourceVersion": "2994"
+    },
+    "items": []
+}
+{
+    "kind": "EventList",
+    "apiVersion": "v1",
+    "metadata": {
+        "resourceVersion": "2994"
+    },
+    "items": []
+}
+{
+    "kind": "ReplicationControllerList",
+    "apiVersion": "v1",
+    "metadata": {
+        "resourceVersion": "2994"
+    },
+    "items": []
+}
+{
+    "kind": "ServiceList",
+    "apiVersion": "v1",
+    "metadata": {
+        "resourceVersion": "2994"
+    },
+    "items": [
+        {
+            "metadata": {
+                "name": "kubernetes",
+                "namespace": "default",
+                "uid": "cd976215-ee00-4ca0-a7f5-1abca17526db",
+                "resourceVersion": "203",
+                "creationTimestamp": "2026-06-30T06:35:11Z",
+                "labels": {
+                    "component": "apiserver",
+                    "provider": "kubernetes"
+                }
+            },
+            "spec": {
+                "ports": [
+                    {
+                        "name": "https",
+                        "protocol": "TCP",
+                        "port": 443,
+                        "targetPort": 6443
+                    }
+                ],
+                "clusterIP": "10.32.0.1",
+                "clusterIPs": [
+                    "10.32.0.1"
+                ],
+                "type": "ClusterIP",
+                "sessionAffinity": "None",
+                "ipFamilies": [
+                    "IPv4"
+                ],
+                "ipFamilyPolicy": "SingleStack",
+                "internalTrafficPolicy": "Cluster"
+            },
+            "status": {
+                "loadBalancer": {}
+            }
+        }
+    ]
+}
+{
+    "kind": "DaemonSetList",
+    "apiVersion": "apps/v1",
+    "metadata": {
+        "resourceVersion": "2994"
+    },
+    "items": []
+}
+{
+    "kind": "DeploymentList",
+    "apiVersion": "apps/v1",
+    "metadata": {
+        "resourceVersion": "2994"
+    },
+    "items": []
+}
+{
+    "kind": "ReplicaSetList",
+    "apiVersion": "apps/v1",
+    "metadata": {
+        "resourceVersion": "2994"
+    },
+    "items": []
+}
+{
+    "kind": "PodList",
+    "apiVersion": "v1",
+    "metadata": {
+        "resourceVersion": "2994"
+    },
+    "items": []
+}
+```
+
+上記の例では, podを展開する前の状態のため, 仮想クラスタ内にpodなどのリソースが割り当てられていない状態として表示されます。
+
+**認証証明書の検証エラーについて**
+
+kubeconfig の server エンドポイントを `localhost` に変更すると, 証明書のホスト名検証で以下のエラーが発生することがあります:
+
+```
+x509: certificate is valid for kubernetes, kubernetes.default, ..., apiserver-svc.vc-manager-fa7698-tenant-alpha, ..., not localhost
+```
+
+この場合は, kubeconfig で以下のいずれかの対応を実施してください:
+
+1. **証明書検証をスキップ**:
+```bash
+# kubeconfig を編集
+kubectl config set-cluster virtualcluster-tenant-alpha --insecure-skip-tls-verify=true \
+  --kubeconfig ~/.kube/tenant-alpha.conf
+```
+
+本稿では, 実験環境向けにTLS証明書の厳密検証を無効化することを前提とした検証手順を記載しています。
+
+2. **API サーバーの FQDN で接続**:
+
+本手順では, port-forward で localhost:6443 にフォワードしているので, APIサーバのFQDNにより接続したい場合は, kubeconfig はそのまま `apiserver-svc.vc-manager-fa7698-tenant-alpha:6443` で保持し, ローカルマシンの `/etc/hosts` に以下を追加することで, DNS 解決を localhost に向けるようにしてください:
+
+```
+127.0.0.1 apiserver-svc.vc-manager-fa7698-tenant-alpha
+```
+
+3. **別マシンからのアクセス**:
+
+`kubectl port-forward` は同一マシンからのアクセスのみを想定しているため, リモートマシンからアクセスする場合は, スーパークラスタのロードバランサーまたはゲートウェイ経由でアクセスするように, kubeconfig の server を `https://<loadbalancer-ip>:6443` に変更するなどの対処を行ってください。
 
 ### 注意事項
 
