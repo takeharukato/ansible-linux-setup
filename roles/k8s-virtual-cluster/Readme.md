@@ -55,14 +55,14 @@ Kubernetes 仮想クラスタ ) の基盤コンポーネントをデプロイす
       - [例1: busybox Pod の配置と確認](#例1-busybox-pod-の配置と確認)
       - [例2: Deployment の展開と確認](#例2-deployment-の展開と確認)
       - [例3: 実行中の Pod でコマンド実行](#例3-実行中の-pod-でコマンド実行)
+      - [例4: PersistentVolumeClaim の確認](#例4-persistentvolumeclaim-の確認)
+      - [例5: カスタム管理 名前空間 ( namespace ) の指定](#例5-カスタム管理-名前空間--namespace--の指定)
     - [シェル補完機能](#シェル補完機能)
       - [補完機能の有効化設定](#補完機能の有効化設定)
       - [補完ファイル配置先](#補完ファイル配置先)
       - [補完機能の使用方法](#補完機能の使用方法)
       - [補完の動作](#補完の動作)
       - [補完機能のトラブルシューティング](#補完機能のトラブルシューティング)
-      - [例5: PersistentVolumeClaim の確認](#例5-persistentvolumeclaim-の確認)
-      - [例6: カスタム管理 名前空間 ( namespace ) の指定](#例6-カスタム管理-名前空間--namespace--の指定)
     - [トラブルシューティング](#トラブルシューティング-1)
   - [検証ポイント](#検証ポイント)
   - [トラブルシューティング](#トラブルシューティング-2)
@@ -1540,6 +1540,83 @@ $ vc-tenant-delete.sh tenant-alpha pod nginx-demo
 pod "nginx-demo" deleted
 ```
 
+#### 例4: PersistentVolumeClaim の確認
+
+テナント内でストレージを使用している場合,PVC(PersistentVolumeClaim)の状態を確認する方法を示します。以下の操作は, Super Cluster側で実施します:
+
+```bash
+vc-tenant-get.sh tenant-alpha pvc
+```
+
+出力結果:
+
+```
+コンテキスト: cluster1
+ユーザ: admin-cluster1
+テナント: tenant-alpha
+名前空間: vc-manager-fa7698-tenant-alpha
+NAME          STATUS   VOLUME                   CAPACITY   ACCESS MODES   STORAGECLASS   VOLUMEATTRIBUTESCLASS   AGE
+data-etcd-0   Bound    pv-etcd-tenant-alpha-0   10Gi       RWO            default-sc     <unset>                 117s
+```
+
+出力結果のSTATUSが「Bound」であることを確認して, PVC が正常に PersistentVolume にバインド(結合)されていることを確認してください。
+
+実行結果の例:
+```shell
+$ vc-tenant-get.sh tenant-alpha pvc
+コンテキスト: cluster1
+ユーザ: admin-cluster1
+テナント: tenant-alpha
+名前空間: vc-manager-fa7698-tenant-alpha
+NAME          STATUS   VOLUME                   CAPACITY   ACCESS MODES   STORAGECLASS   VOLUMEATTRIBUTESCLASS   AGE
+data-etcd-0   Bound    pv-etcd-tenant-alpha-0   10Gi       RWO            default-sc     <unset>                 165m
+```
+
+#### 例5: カスタム管理 名前空間 ( namespace ) の指定
+
+デフォルトでは `vc-manager` 名前空間 ( namespace ) を使用してテナント情報を取得します。環境によって異なる 名前空間 ( namespace ) を使用する場合は, `--vc-manager-ns` オプションで明示的に指定します。
+
+```bash
+vc-tenant-get.sh tenant-alpha pods --vc-manager-ns custom-vc-manager
+```
+
+出力結果:
+
+```
+コンテキスト: cluster1
+ユーザ: admin-cluster1
+テナント: tenant-alpha
+名前空間: custom-vc-manager-xxxxxx-tenant-alpha
+NAME                   READY   STATUS    RESTARTS   AGE
+apiserver-0            1/1     Running   0          21m
+controller-manager-0   1/1     Running   0          21m
+etcd-0                 1/1     Running   0          21m
+```
+
+出力結果のPodリストが表示されていることを確認して, カスタム名前空間 ( namespace ) 内のテナント情報が正常に取得されていることを確認してください。
+
+以下の実行結果では, デフォルトの仮想クラスタ名前空間である`vc-manager`を明示的に指定して実行しています:
+
+```shell
+$ vc-tenant-get.sh tenant-alpha pods --vc-manager-ns vc-manager
+コンテキスト: cluster1
+ユーザ: admin-cluster1
+テナント: tenant-alpha
+名前空間: vc-manager-fa7698-tenant-alpha
+NAME                   READY   STATUS    RESTARTS   AGE
+apiserver-0            1/1     Running   0          174m
+controller-manager-0   1/1     Running   0          174m
+etcd-0                 1/1     Running   0          174m
+```
+
+指定した名前空間が存在しない場合は, 以下のようなエラーメッセージが表示されます:
+```shell
+$ vc-tenant-get.sh tenant-alpha pods --vc-manager-ns custom-vc-manager
+エラー: テナント 'tenant-alpha' が見つかりません
+以下のコマンドで利用可能なテナントを確認してください:
+  kubectl get virtualclusters.tenancy.x-k8s.io -n custom-vc-manager
+```
+
 ### シェル補完機能
 
 テナント操作補助スクリプトには, bash および zsh 用のシェル補完機能が提供されています。補完機能を使用することで, テナント名, リソース型, リソース名, Pod 名, コンテナ名などをタブキーで補完できます。
@@ -1623,83 +1700,6 @@ zshの場合は, 新しいターミナルセッションを開始しなおして
    ```bash
    # bash/zsh ともに新しいターミナルセッションで自動的に有効化されます
    ```
-
-#### 例5: PersistentVolumeClaim の確認
-
-テナント内でストレージを使用している場合,PVC(PersistentVolumeClaim)の状態を確認する方法を示します。以下の操作は, Super Cluster側で実施します:
-
-```bash
-vc-tenant-get.sh tenant-alpha pvc
-```
-
-出力結果:
-
-```
-コンテキスト: cluster1
-ユーザ: admin-cluster1
-テナント: tenant-alpha
-名前空間: vc-manager-fa7698-tenant-alpha
-NAME          STATUS   VOLUME                   CAPACITY   ACCESS MODES   STORAGECLASS   VOLUMEATTRIBUTESCLASS   AGE
-data-etcd-0   Bound    pv-etcd-tenant-alpha-0   10Gi       RWO            default-sc     <unset>                 117s
-```
-
-出力結果のSTATUSが「Bound」であることを確認して, PVC が正常に PersistentVolume にバインド(結合)されていることを確認してください。
-
-実行結果の例:
-```shell
-$ vc-tenant-get.sh tenant-alpha pvc
-コンテキスト: cluster1
-ユーザ: admin-cluster1
-テナント: tenant-alpha
-名前空間: vc-manager-fa7698-tenant-alpha
-NAME          STATUS   VOLUME                   CAPACITY   ACCESS MODES   STORAGECLASS   VOLUMEATTRIBUTESCLASS   AGE
-data-etcd-0   Bound    pv-etcd-tenant-alpha-0   10Gi       RWO            default-sc     <unset>                 165m
-```
-
-#### 例6: カスタム管理 名前空間 ( namespace ) の指定
-
-デフォルトでは `vc-manager` 名前空間 ( namespace ) を使用してテナント情報を取得します。環境によって異なる 名前空間 ( namespace ) を使用する場合は, `--vc-manager-ns` オプションで明示的に指定します。
-
-```bash
-vc-tenant-get.sh tenant-alpha pods --vc-manager-ns custom-vc-manager
-```
-
-出力結果:
-
-```
-コンテキスト: cluster1
-ユーザ: admin-cluster1
-テナント: tenant-alpha
-名前空間: custom-vc-manager-xxxxxx-tenant-alpha
-NAME                   READY   STATUS    RESTARTS   AGE
-apiserver-0            1/1     Running   0          21m
-controller-manager-0   1/1     Running   0          21m
-etcd-0                 1/1     Running   0          21m
-```
-
-出力結果のPodリストが表示されていることを確認して, カスタム名前空間 ( namespace ) 内のテナント情報が正常に取得されていることを確認してください。
-
-以下の実行結果では, デフォルトの仮想クラスタ名前空間である`vc-manager`を明示的に指定して実行しています:
-
-```shell
-$ vc-tenant-get.sh tenant-alpha pods --vc-manager-ns vc-manager
-コンテキスト: cluster1
-ユーザ: admin-cluster1
-テナント: tenant-alpha
-名前空間: vc-manager-fa7698-tenant-alpha
-NAME                   READY   STATUS    RESTARTS   AGE
-apiserver-0            1/1     Running   0          174m
-controller-manager-0   1/1     Running   0          174m
-etcd-0                 1/1     Running   0          174m
-```
-
-指定した名前空間が存在しない場合は, 以下のようなエラーメッセージが表示されます:
-```shell
-$ vc-tenant-get.sh tenant-alpha pods --vc-manager-ns custom-vc-manager
-エラー: テナント 'tenant-alpha' が見つかりません
-以下のコマンドで利用可能なテナントを確認してください:
-  kubectl get virtualclusters.tenancy.x-k8s.io -n custom-vc-manager
-```
 
 ### トラブルシューティング
 
