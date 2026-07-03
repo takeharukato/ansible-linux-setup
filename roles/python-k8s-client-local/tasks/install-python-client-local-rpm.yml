@@ -84,6 +84,13 @@
         | list
       }}
 
+# 同一NEVRAの再配布でも内容差分を確実に反映するため, 既存パッケージを一度削除する
+- name: Remove installed local python k8s client rpm package before reinstall
+  ansible.builtin.dnf:
+    name: "{{ python_k8s_client_rpm_package_name }}"
+    state: absent
+  become: true
+
 # Python 言語版 Kubernetes client の rpmパッケージを
 # インストールする
 - name: Install local python k8s client rpm packages in one transaction
@@ -116,12 +123,41 @@
       Local python k8s client rpm package is not installed.
       package={{ python_k8s_client_rpm_package_name }}
 
-# 期待した版数がインストールされていることをvenv環境内のPythonから確認するために, Pythonで
+# 期待した版数がインストールされていることをsystem Pythonから確認するために, Pythonで
 # kubernetesモジュールをimportし, バージョンを取得する
-- name: Query installed kubernetes python client version from local venv on RedHat family
+- name: Select target python interpreter for verification on RedHat family
+  ansible.builtin.set_fact:
+    python_k8s_client_rpm_target_python_cmd: >-
+      {{
+        (
+          '/usr/bin/python' ~ (k8s_python_packages_version | string | trim)
+        )
+        if (
+          (k8s_python_packages_version is defined)
+          and
+          ((k8s_python_packages_version | string | trim | length) > 0)
+        )
+        else '/usr/bin/python3'
+      }}
+
+- name: Check target python interpreter exists on RedHat family
+  ansible.builtin.stat:
+    path: "{{ python_k8s_client_rpm_target_python_cmd }}"
+  register: python_k8s_client_rpm_target_python_stat
+
+- name: Assert target python interpreter exists on RedHat family
+  ansible.builtin.assert:
+    that:
+      - python_k8s_client_rpm_target_python_stat.stat.exists
+      - python_k8s_client_rpm_target_python_stat.stat.executable
+    fail_msg: >-
+      Target python interpreter not found for kubernetes client verification.
+      path={{ python_k8s_client_rpm_target_python_cmd }}
+
+- name: Query installed kubernetes python client version from target python on RedHat family
   ansible.builtin.command:
     argv:
-      - "{{ python_k8s_client_install_dir }}/venv/bin/python"
+      - "{{ python_k8s_client_rpm_target_python_cmd }}"
       - -c
       - >-
         import kubernetes; print(kubernetes.__version__)
@@ -130,18 +166,18 @@
   become: true
 
 # インストールされた版数が要求された版数と異なる場合は処理を中断する
+- name: Deploy version spec verifier script on RedHat family
+  ansible.builtin.copy:
+    src: verify_python_version_spec.py
+    dest: /tmp/verify_python_version_spec.py
+    mode: "0755"
+  become: true
+
 - name: Assert installed kubernetes python client satisfies requested spec on RedHat family
   ansible.builtin.command:
     argv:
-      - "{{ python_k8s_client_install_dir }}/venv/bin/python"
-      - -c
-      - >-
-        import sys;
-        from packaging.specifiers import SpecifierSet;
-        spec = sys.argv[1];
-        ver = sys.argv[2].strip();
-        s = SpecifierSet(spec);
-        raise SystemExit(0 if s.contains(ver, prereleases=True) else 1)
+      - "{{ python_k8s_client_rpm_target_python_cmd }}"
+      - /tmp/verify_python_version_spec.py
       - "{{ python_k8s_client_version_spec }}"
       - "{{ python_k8s_client_rpm_installed_version_cmd.stdout | trim }}"
   register: python_k8s_client_rpm_spec_assert_cmd

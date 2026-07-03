@@ -123,13 +123,51 @@
       Local python k8s client deb package is not installed.
       package={{ python_k8s_client_deb_package_name }}
 
+#
 # Python 言語版 Kubernetes client の debパッケージが
-# 正しく導入されたことをvenv環境内のPythonから確認するために,
-# Pythonでkubernetesモジュールをimportし, バージョンを取得する
-- name: Query installed kubernetes python client version from local venv on Debian family
+# 正しく導入されたことを確認するために,Pythonでkubernetesモジュールを
+# importし, バージョンを取得する
+#
+
+# 検証に使用するpythonインタプリタを確認する
+# - k8s_python_packages_versionが指定されている場合は, `python{{k8s_python_packages_version}}`コマンドが存在することを確認する
+# - k8s_python_packages_versionが指定されていない場合は, ディストリビューション標準のパッケージから導入されたpythonを使用する
+- name: Select target python interpreter for verification on Debian family
+  ansible.builtin.set_fact:
+    python_k8s_client_deb_target_python_cmd: >-
+      {{
+        (
+          '/usr/bin/python' ~ (k8s_python_packages_version | string | trim)
+        )
+        if (
+          (k8s_python_packages_version is defined)
+          and
+          ((k8s_python_packages_version | string | trim | length) > 0)
+        )
+        else '/usr/bin/python3'
+      }}
+
+# pythonインタプリタのコマンド名を確認する
+- name: Check target python interpreter exists on Debian family
+  ansible.builtin.stat:
+    path: "{{ python_k8s_client_deb_target_python_cmd }}"
+  register: python_k8s_client_deb_target_python_stat
+
+# pythonインタプリタがパス上に存在することを確認する
+- name: Assert target python interpreter exists on Debian family
+  ansible.builtin.assert:
+    that:
+      - python_k8s_client_deb_target_python_stat.stat.exists
+      - python_k8s_client_deb_target_python_stat.stat.executable
+    fail_msg: >-
+      Target python interpreter not found for kubernetes client verification.
+      path={{ python_k8s_client_deb_target_python_cmd }}
+
+# python版 kubernetes clientの版数を取得する
+- name: Query installed kubernetes python client version from target python on Debian family
   ansible.builtin.command:
     argv:
-      - "{{ python_k8s_client_install_dir }}/venv/bin/python"
+      - "{{ python_k8s_client_deb_target_python_cmd }}"
       - -c
       - >-
         import kubernetes; print(kubernetes.__version__)
@@ -139,18 +177,18 @@
 
 # Python 言語版 Kubernetes client の debパッケージが指定版数と異なる場合は
 # 処理を中断する
+- name: Deploy version spec verifier script on Debian family
+  ansible.builtin.copy:
+    src: verify_python_version_spec.py
+    dest: /tmp/verify_python_version_spec.py
+    mode: "0755"
+  become: true
+
 - name: Assert installed kubernetes python client satisfies requested spec on Debian family
   ansible.builtin.command:
     argv:
-      - "{{ python_k8s_client_install_dir }}/venv/bin/python"
-      - -c
-      - >-
-        import sys;
-        from packaging.specifiers import SpecifierSet;
-        spec = sys.argv[1];
-        ver = sys.argv[2].strip();
-        s = SpecifierSet(spec);
-        raise SystemExit(0 if s.contains(ver, prereleases=True) else 1)
+      - "{{ python_k8s_client_deb_target_python_cmd }}"
+      - /tmp/verify_python_version_spec.py
       - "{{ python_k8s_client_version_spec }}"
       - "{{ python_k8s_client_deb_installed_version_cmd.stdout | trim }}"
   register: python_k8s_client_deb_spec_assert_cmd

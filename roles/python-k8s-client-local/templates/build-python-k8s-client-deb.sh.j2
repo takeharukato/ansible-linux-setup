@@ -12,9 +12,13 @@ set -euo pipefail
 #
 # 環境変数設定
 #
+# - K8S_PY_CLIENT_VERSION_SPEC PEP440 形式のpythonバージョン指定
+# - K8S_PY_CLIENT_RPM_PACKAGE_NAME Python 言語版 Kubernetes client のrpmパッケージ名
+# - K8S_PY_CLIENT_PYTHON_VERSION 開発用Pythonの版数
+#
 : "${K8S_PY_CLIENT_VERSION_SPEC:?K8S_PY_CLIENT_VERSION_SPEC is required}"
 : "${K8S_PY_CLIENT_DEB_PACKAGE_NAME:?K8S_PY_CLIENT_DEB_PACKAGE_NAME is required}"
-: "${K8S_PY_CLIENT_INSTALL_DIR:?K8S_PY_CLIENT_INSTALL_DIR is required}"
+: "${K8S_PY_CLIENT_PYTHON_VERSION:=}"
 
 #
 # 作業ディレクトリの設定
@@ -24,7 +28,10 @@ outdir="${workdir}/output"
 stage_dir="${workdir}/python-k8s-client-deb-stage"
 pkgroot="${stage_dir}/root"
 control_dir="${pkgroot}/DEBIAN"
-venv_dir="${workdir}/venv"
+control_template_path="${workdir}/python-k8s-client.control"
+stage_vendor_dir="${pkgroot}/usr/share/python-k8s-client/vendor"
+target_python_cmd=""
+stage_sitelib_dir=""
 package_version=""
 
 #
@@ -32,6 +39,35 @@ package_version=""
 #
 build_python_client(){
     local dir
+    local target_sitelib
+
+    #
+    # 開発用のpython版数をk8s_python_packages_versionで指定している場合は
+    # 指定された版数のpythonインタプリタを用いる
+    #
+    if [[ -n "${K8S_PY_CLIENT_PYTHON_VERSION}" ]]; then
+        target_python_cmd="/usr/bin/python${K8S_PY_CLIENT_PYTHON_VERSION}"
+    else
+        target_python_cmd="/usr/bin/python3"
+    fi
+
+    # pythonインタプリタの存在を確認
+    if [[ ! -x "${target_python_cmd}" ]]; then
+        echo "target python not found: ${target_python_cmd}" >&2
+        return 1
+    fi
+
+    if ! "${target_python_cmd}" -m pip --version >/dev/null 2>&1; then
+        "${target_python_cmd}" -m ensurepip --upgrade
+    fi
+
+    # pythonインタプリタのsite libディレクトリのパスを取得
+    target_sitelib="$("${target_python_cmd}" -c 'import sysconfig; print(sysconfig.get_path("purelib"))')"
+    if [[ -z "${target_sitelib}" ]]; then
+        echo "failed to detect target python purelib path" >&2
+        return 1
+    fi
+    stage_sitelib_dir="${pkgroot}${target_sitelib}"
 
     #
     # ステージングディレクトリの初期化
@@ -43,23 +79,44 @@ build_python_client(){
     #
     for dir in "${outdir}" \
                 "${control_dir}" \
-                "${pkgroot}${K8S_PY_CLIENT_INSTALL_DIR}"; do
+                "${stage_sitelib_dir}" \
+                "${stage_vendor_dir}"; do
         mkdir -p "${dir}"
     done
 
     #
-    # Python仮想環境を作成し, Kubernetes clientをインストールする
+    # Kubernetes client本体をsystem Python向けsite-packages相当の配置先へ導入する
     #
-    venv_dir="${pkgroot}${K8S_PY_CLIENT_INSTALL_DIR}/venv"
-    python3 -m venv --copies "${venv_dir}"
-    "${venv_dir}/bin/pip" install --upgrade pip
-    "${venv_dir}/bin/pip" install "kubernetes${K8S_PY_CLIENT_VERSION_SPEC}" packaging
+    "${target_python_cmd}" -m pip install --no-cache-dir --no-compile --target "${stage_sitelib_dir}" --no-deps \
+        "kubernetes${K8S_PY_CLIENT_VERSION_SPEC}"
 
     #
-    # Kubernetes clientのバージョンを取得し, VERSIONファイルに書き込む
+    # 外部依存をvendorディレクトリへ同梱し, system側依存と混在しないようにする
     #
-    package_version="$("${venv_dir}/bin/python" -c 'import kubernetes; print(kubernetes.__version__)')"
-    echo "${package_version}" > "${pkgroot}${K8S_PY_CLIENT_INSTALL_DIR}/VERSION"
+    "${target_python_cmd}" -m pip install --no-cache-dir --no-compile --target "${stage_vendor_dir}" \
+        "packaging" \
+        "certifi" \
+        "six" \
+        "python-dateutil" \
+        "urllib3" \
+        "PyYAML" \
+        "google-auth" \
+        "websocket-client" \
+        "requests" \
+        "requests-oauthlib==1.3.1" \
+        "oauthlib==3.2.2" \
+        "durationpy>=0.7"
+
+    #
+    # vendor依存を探索パスの先頭に追加する
+    #
+    echo "import sys; sys.path.insert(0, '/usr/share/python-k8s-client/vendor')" > \
+        "${stage_sitelib_dir}/python_k8s_client_vendor.pth"
+
+    #
+    # Kubernetes clientのバージョンを取得する
+    #
+    package_version="$(PYTHONPATH="${stage_vendor_dir}:${stage_sitelib_dir}" "${target_python_cmd}" -c 'import kubernetes; print(kubernetes.__version__)')"
 }
 
 #
@@ -67,25 +124,25 @@ build_python_client(){
 #
 build_package(){
     local installed_size
+    local control_path
 
     #
     # インストールサイズを取得
     #
     installed_size="$(du -ks "${pkgroot}" | awk '{print $1}')"
+    control_path="${control_dir}/control"
+
+    if [[ ! -f "${control_template_path}" ]]; then
+        echo "control template not found: ${control_template_path}" >&2
+        return 1
+    fi
 
     #
-    # debパッケージの制御ファイルを作成
+    # debパッケージの制御ファイルをテンプレートから作成
     #
-    cat > "${control_dir}/control" <<EOF
-Package: ${K8S_PY_CLIENT_DEB_PACKAGE_NAME}
-Version: ${package_version}-1
-Section: devel
-Priority: optional
-Architecture: all
-Maintainer: python-k8s-client-local builder <root@localhost>
-Installed-Size: ${installed_size}
-Description: Offline Python Kubernetes client ${package_version}
-EOF
+    cp -f "${control_template_path}" "${control_path}"
+    sed -i "s|@K8S_PACKAGE_VERSION@|${package_version}|g" "${control_path}"
+    sed -i "s|@K8S_INSTALLED_SIZE@|${installed_size}|g" "${control_path}"
 
     #
     # debパッケージを生成する

@@ -1,0 +1,14 @@
+Package: {{ python_k8s_client_deb_package_name }}
+Version: @K8S_PACKAGE_VERSION@-1
+Section: python
+Priority: optional
+Architecture: all
+Maintainer: python-k8s-client-local builder <root@localhost>
+Homepage: https://github.com/kubernetes-client/python
+Depends: python3, ca-certificates
+Installed-Size: @K8S_INSTALLED_SIZE@
+Description: Kubernetes Python client - local offline bundle
+ This package provides a Python client for Kubernetes.
+ .
+ This package contains a local offline bundle built in a container,
+ including vendored dependencies for offline deployment hosts.

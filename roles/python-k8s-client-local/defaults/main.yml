@@ -11,11 +11,8 @@
 python_k8s_client_version_spec: ""
 
 # Python 言語版 Kubernetes client ローカルパッケージ名
-python_k8s_client_deb_package_name: "python-k8s-client"
-python_k8s_client_rpm_package_name: "python-k8s-client"
-
-# Python 言語版 Kubernetes client 導入先ディレクトリ
-python_k8s_client_install_dir: "/opt/k8s-devel/python-client"
+python_k8s_client_deb_package_name: "python3-k8s-client"
+python_k8s_client_rpm_package_name: "python3-k8s-client"
 
 # パッケージ構築ホストとワークスペース
 python_k8s_client_build_host: "localhost"

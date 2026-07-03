@@ -12,11 +12,21 @@ FROM ubuntu:24.04
 # apt-getコマンド実行時に対話的な入力を求められることを防ぐ
 ENV DEBIAN_FRONTEND=noninteractive
 
+#
+# 開発環境の導入
+# 開発用のpython版数をk8s_python_packages_versionで指定している場合は,
+# 当該版数のpythonインタプリタ, venvを合わせて導入する
+#
+
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
       python3 \
       python3-venv \
       python3-pip \
+{% if (k8s_python_packages_version is defined) and ((k8s_python_packages_version | string | trim | length) > 0) %}
+  python{{ k8s_python_packages_version }} \
+  python{{ k8s_python_packages_version }}-venv \
+{% endif %}
       dpkg-dev \
       ca-certificates \
       tar && \

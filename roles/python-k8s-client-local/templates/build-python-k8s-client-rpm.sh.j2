@@ -12,10 +12,13 @@ set -euo pipefail
 #
 # 環境変数設定
 #
+# - K8S_PY_CLIENT_VERSION_SPEC PEP440 形式のpythonバージョン指定
+# - K8S_PY_CLIENT_RPM_PACKAGE_NAME Python 言語版 Kubernetes client のrpmパッケージ名
+# - K8S_PY_CLIENT_PYTHON_VERSION 開発用Pythonの版数
+#
 : "${K8S_PY_CLIENT_VERSION_SPEC:?K8S_PY_CLIENT_VERSION_SPEC is required}"
 : "${K8S_PY_CLIENT_RPM_PACKAGE_NAME:?K8S_PY_CLIENT_RPM_PACKAGE_NAME is required}"
-: "${K8S_PY_CLIENT_INSTALL_DIR:?K8S_PY_CLIENT_INSTALL_DIR is required}"
-: "${K8S_PY_CLIENT_RPM_ARCH:?K8S_PY_CLIENT_RPM_ARCH is required}"
+: "${K8S_PY_CLIENT_PYTHON_VERSION:=}"
 
 #
 # 作業ディレクトリの設定
@@ -24,25 +27,58 @@ workdir="{{ python_k8s_client_build_container_workdir }}"
 outdir="${workdir}/output"
 rpmbuild_dir="${workdir}/rpmbuild"
 venv_dir="${workdir}/venv-resolve"
+spec_template_path="${workdir}/python-k8s-client.spec"
+source_tarball_path=""
 package_version=""
+# pythonコマンドのパス
+target_python_cmd=""
+# pythonのmajor, minor版数
+target_python_mm=""
 
 #
 # Python言語版 Kubernetes クライアントのオフラインキット構築処理
 #
 build_python_client(){
 
+    # python版数を環境変数で指定している場合は, 指定された版数のpythonインタプリタを使用する
+    if [[ -n "${K8S_PY_CLIENT_PYTHON_VERSION}" ]]; then
+        target_python_cmd="/usr/bin/python${K8S_PY_CLIENT_PYTHON_VERSION}"
+    else
+        target_python_cmd="/usr/bin/python3"
+    fi
+
+    # pythonコマンドが見つからなければエラーにする
+    if [[ ! -x "${target_python_cmd}" ]]; then
+        echo "target python not found: ${target_python_cmd}" >&2
+        return 1
+    fi
+
+    # python版数を取得する
+    target_python_mm="$("${target_python_cmd}" -c 'import sys; print(f"{sys.version_info[0]}.{sys.version_info[1]}")')"
+    if [[ -z "${target_python_mm}" ]]; then
+        echo "failed to detect target python major.minor" >&2
+        return 1
+    fi
+
     #
     # venvディレクトリの初期化
     #
     rm -rf "${venv_dir}"
-    python3 -m venv --copies "${venv_dir}"
+    "${target_python_cmd}" -m venv --copies "${venv_dir}"
+
+    #
+    # vent環境を用いて, ホスト環境に影響されないようにして,
+    # python 版 kubernetes clientの版数を取得する
+    #
 
     # venv内のpipをアップグレード
     "${venv_dir}/bin/pip" install --upgrade pip
     # pipを用いてKubernetes clientをインストール
     "${venv_dir}/bin/pip" install "kubernetes${K8S_PY_CLIENT_VERSION_SPEC}" packaging
+
     # Kubernetes clientのバージョンを取得し, package_version変数に格納する
     package_version="$("${venv_dir}/bin/python" -c 'import kubernetes; print(kubernetes.__version__)')"
+    source_tarball_path="${rpmbuild_dir}/SOURCES/v${package_version}.tar.gz"
 }
 
 #
@@ -50,6 +86,8 @@ build_python_client(){
 #
 build_rpm(){
     local dir
+    local spec_path
+    local source_url
 
     #
     # ステージングディレクトリの初期化
@@ -69,49 +107,26 @@ build_rpm(){
         mkdir -p "${dir}"
     done
 
-    # rpmパッケージのspecファイルを作成する
-    cat > "${rpmbuild_dir}/SPECS/${K8S_PY_CLIENT_RPM_PACKAGE_NAME}.spec" <<EOF
-Name:           ${K8S_PY_CLIENT_RPM_PACKAGE_NAME}
-Version:        ${package_version}
-Release:        1%{?dist}
-Summary:        Offline Python Kubernetes client
-License:        Apache-2.0
-BuildArch:      ${K8S_PY_CLIENT_RPM_ARCH}
-# venv includes arch-dependent binary wheels and must not be stripped/debuginfo processed.
-%global debug_package %{nil}
-%global __strip /bin/true
+    # specテンプレートをSPECSディレクトリに配置する
+    if [[ ! -f "${spec_template_path}" ]]; then
+        echo "spec template not found: ${spec_template_path}" >&2
+        return 1
+    fi
+    spec_path="${rpmbuild_dir}/SPECS/${K8S_PY_CLIENT_RPM_PACKAGE_NAME}.spec"
+    cp -f "${spec_template_path}" "${spec_path}"
 
-%description
-Offline Python Kubernetes client ${package_version}
-
-%prep
-
-
-%build
-
-%install
-rm -rf %{buildroot}
-mkdir -p %{buildroot}${K8S_PY_CLIENT_INSTALL_DIR}
-python3 -m venv --copies %{buildroot}${K8S_PY_CLIENT_INSTALL_DIR}/venv
-%{buildroot}${K8S_PY_CLIENT_INSTALL_DIR}/venv/bin/pip install --upgrade pip
-%{buildroot}${K8S_PY_CLIENT_INSTALL_DIR}/venv/bin/pip install kubernetes==${package_version} packaging
-# Remove temporary buildroot prefix from generated script shebangs/activate files.
-buildroot_path="%{buildroot}"
-if grep -RIl "\${buildroot_path}" %{buildroot}${K8S_PY_CLIENT_INSTALL_DIR}/venv >/dev/null 2>&1; then
-    grep -RIl "\${buildroot_path}" %{buildroot}${K8S_PY_CLIENT_INSTALL_DIR}/venv \
-        | xargs sed -i "s#\${buildroot_path}##g"
-fi
-echo ${package_version} > %{buildroot}${K8S_PY_CLIENT_INSTALL_DIR}/VERSION
-
-%files
-${K8S_PY_CLIENT_INSTALL_DIR}/venv
-${K8S_PY_CLIENT_INSTALL_DIR}/VERSION
-EOF
+    # ソースアーカイブをSOURCESに取得する
+    source_url="https://github.com/kubernetes-client/python/archive/v${package_version}.tar.gz"
+    curl -fL "${source_url}" -o "${source_tarball_path}"
 
     #
     # rpmパッケージを作成する
     #
-    rpmbuild -bb "${rpmbuild_dir}/SPECS/${K8S_PY_CLIENT_RPM_PACKAGE_NAME}.spec" --define "_topdir ${rpmbuild_dir}"
+    rpmbuild -bb "${spec_path}" \
+        --define "_topdir ${rpmbuild_dir}" \
+        --define "k8s_py_client_pkg_name ${K8S_PY_CLIENT_RPM_PACKAGE_NAME}" \
+        --define "k8s_py_client_version ${package_version}" \
+        --define "k8s_py_client_python_mm ${target_python_mm}"
 
     # ビルドされたrpmパッケージを /work/output にコピーする
     find "${rpmbuild_dir}/RPMS" -type f -name '*.rpm' -exec cp -f {} "${outdir}/" \;

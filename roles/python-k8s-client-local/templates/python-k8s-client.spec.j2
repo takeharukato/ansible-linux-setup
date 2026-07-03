@@ -1,0 +1,68 @@
+%global py3 python3
+%global py3dev python3
+%global library kubernetes
+%global k8s_vendor_dir %{_datadir}/python-k8s-client/vendor
+%global k8s_py_client_python_mm %{?k8s_py_client_python_mm}
+%global k8s_py_client_python_cmd /usr/bin/python%{k8s_py_client_python_mm}
+%global k8s_py_client_sitelib /usr/lib/python%{k8s_py_client_python_mm}/site-packages
+# vendorに事前ビルドwheel由来のバイナリを同梱するため, debuginfo/debugsource生成を無効化する
+%global debug_package %{nil}
+%global _debugsource_packages 0
+
+Name:       python-%{library}
+Version:    %{k8s_py_client_version}
+Release:    1%{?dist}
+Summary:    Python client for the kubernetes API.
+License:    Apache-2.0
+URL:        https://pypi.python.org/pypi/kubernetes
+Source0:    https://github.com/kubernetes-client/python/archive/v%{version}.tar.gz
+# ビルド環境のリポジトリに存在しないPython依存は同梱するため, 自動依存生成を無効化する
+AutoReqProv: no
+
+%package -n %{k8s_py_client_pkg_name}
+Summary:    Kubernetes Python Client
+AutoReqProv: no
+BuildRequires:  git-core
+BuildRequires:  pyproject-rpm-macros
+
+%description -n %{k8s_py_client_pkg_name}
+Python client for the kubernetes API.
+
+%description
+Python client for the kubernetes API.
+
+%prep
+%autosetup -n python-%{version} -S git
+
+sed -i 's/^mock.*//g' test-requirements.txt
+sed -i 's/^nose.*//g' test-requirements.txt
+sed -i 's/^py>.*//g' test-requirements.txt
+
+%build
+%pyproject_wheel
+
+%install
+%{k8s_py_client_python_cmd} -m pip install --root %{buildroot} --prefix /usr --no-deps --disable-pip-version-check --progress-bar off --no-index --find-links %{_builddir}/python-%{version}/pyproject-wheeldir kubernetes==%{version}
+# EL9系で未提供の依存を同梱し, オフライン導入時のdepsolveエラーを回避する
+%{k8s_py_client_python_cmd} -m pip install --no-cache-dir --no-compile --target %{buildroot}%{k8s_vendor_dir} \
+    "certifi" \
+    "six" \
+    "python-dateutil" \
+    "urllib3" \
+    "PyYAML" \
+    "google-auth" \
+    "websocket-client" \
+    "requests" \
+    "requests-oauthlib==1.3.1" \
+    "oauthlib==3.2.2" \
+    "durationpy>=0.7"
+# vendor依存をpythonの探索パス先頭へ追加し, system site-packagesとの混在を回避する
+echo "import sys; sys.path.insert(0, '%{k8s_vendor_dir}')" > %{buildroot}%{k8s_py_client_sitelib}/python_k8s_client_vendor.pth
+
+%files -n %{k8s_py_client_pkg_name}
+%license LICENSE
+%doc README.md
+%{k8s_py_client_sitelib}/%{library}
+%{k8s_py_client_sitelib}/%{library}-*.dist-info
+%{k8s_py_client_sitelib}/python_k8s_client_vendor.pth
+%{k8s_vendor_dir}

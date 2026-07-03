@@ -30,6 +30,16 @@
   run_once: true
 
 # Python 言語版 Kubernetes client の rpmパッケージを
+# 構築するためのspecファイルを生成する
+- name: Render python k8s client rpm spec template on build host
+  ansible.builtin.template:
+    src: python-k8s-client.spec.j2
+    dest: "{{ python_k8s_client_build_workspace }}/python-k8s-client.spec"
+    mode: "0644"
+  delegate_to: "{{ python_k8s_client_build_host }}"
+  run_once: true
+
+# Python 言語版 Kubernetes client の rpmパッケージを
 # 構築するためのDockerfileを生成する
 - name: Render python k8s client rpm Dockerfile on build host
   ansible.builtin.template:
@@ -87,9 +97,7 @@
       - -e
       - "K8S_PY_CLIENT_RPM_PACKAGE_NAME={{ python_k8s_client_rpm_package_name }}"
       - -e
-      - "K8S_PY_CLIENT_RPM_ARCH={{ ansible_facts.architecture }}"
-      - -e
-      - "K8S_PY_CLIENT_INSTALL_DIR={{ python_k8s_client_install_dir }}"
+      - "K8S_PY_CLIENT_PYTHON_VERSION={{ (k8s_python_packages_version | default('', true) | string | trim) }}"
       - -v
       - "{{ python_k8s_client_build_workspace }}:/work"
       - -w

@@ -8,15 +8,32 @@
 
 FROM almalinux:9.6
 
+#
+# 開発環境の導入
+# 開発用のpython版数をk8s_python_packages_versionで指定している場合は,
+# 当該版数のpythonインタプリタ, 開発パッケージ, pipも導入する
+#
 RUN dnf -y install --setopt=install_weak_deps=False \
-      python3 \
-      python3-pip \
-      rpm-build \
-      tar \
-      gzip \
-      shadow-utils \
-      bash && \
-    python3 -m pip install --no-cache-dir virtualenv && \
+    curl-minimal \
+    python3 \
+    python3-devel \
+    python3-pip \
+{% if (k8s_python_packages_version is defined) and ((k8s_python_packages_version | string | trim | length) > 0) %}
+    python{{ k8s_python_packages_version }} \
+    python{{ k8s_python_packages_version }}-devel \
+    python{{ k8s_python_packages_version }}-pip \
+{% endif %}
+    python3-setuptools \
+    python3-wheel \
+    pyproject-rpm-macros \
+    python3-rpm-macros \
+    git-core \
+    rpm-build \
+    redhat-rpm-config \
+    tar \
+    gzip \
+    shadow-utils \
+    bash && \
     dnf clean all && \
     rm -rf /var/cache/dnf
 

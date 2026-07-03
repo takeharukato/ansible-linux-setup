@@ -14,9 +14,10 @@
 ## 概要
 
 - 他のロールからの入力として python_k8s_client_version_spec (例: ~=31.0, ==31.0.0) を受け取り, ローカルパッケージを作成する。
-- 導入物には kubernetes パッケージと packaging パッケージを含む仮想環境 (venv) が含まれる。
+- 導入物は Debian系/RHEL系ともに導入対象Python向け site-packages と vendor依存を含むローカルパッケージである。
 - ローカルパッケージの転送経路は, 構築ホスト -> 制御ノード -> 対象ホストである。
-- 導入後に, venv 内 Python で kubernetes 版数が要求 spec を満たすことを検証する。
+- k8s_python_packages_version が定義され, かつ空文字列でない場合は, /usr/bin/python{{ k8s_python_packages_version }} 向けにパッケージを構築し, 同じPythonで導入確認する。
+- k8s_python_packages_version が未定義または空文字列の場合は, /usr/bin/python3 向けにパッケージを構築し, /usr/bin/python3 で導入確認する。
 
 ## 前提条件
 
@@ -31,16 +32,24 @@
 2. package.yml で, check mode 以外の場合にパッケージ構築/導入を実行する。
 3. Debian系では build-python-client-source-deb.yml でコンテナ内ビルドを行い, install-python-client-local-deb.yml で導入する。
 4. RHEL系では build-python-client-source-rpm.yml でコンテナ内ビルドを行い, install-python-client-local-rpm.yml で導入する。
-5. 導入後に venv 内 Python で kubernetes を import し, 版数が python_k8s_client_version_spec を満たすことを確認する。
+5. k8s_python_packages_version が定義され, かつ空文字列でない場合は, /usr/bin/python{{ k8s_python_packages_version }} を導入対象Pythonとしてビルド/導入を実行する。
+6. k8s_python_packages_version が未定義または空文字列の場合は, /usr/bin/python3 を導入対象Pythonとしてビルド/導入を実行する。
+7. 導入後に, 選択された導入対象Pythonで kubernetes を import し, 版数が python_k8s_client_version_spec を満たすことを確認する。
+
+playbook中で実施する導入確認の要点:
+
+- k8s_python_packages_version変数の定義に基づいて, パッケージ導入検証に用いるPythonインタプリタ(以下, 導入対象Pythonと記載)を決定の上, パッケージの導入, 指定された版数のpython版 Kubernetes クライアントライブラリが導入されていることを確認する:
+  - k8s_python_packages_version が定義され, かつ, 空文字列でない場合は, 指定された版数のpythonインタプリタ ( /usr/bin/python{{ k8s_python_packages_version }} )を用いて, kubernetes の import と版数制約検証を実行する。
+  - k8s_python_packages_version が未定義または空文字列の場合は, /usr/bin/python3 を用いて, kubernetes の import と版数制約検証を実行する。
+
 
 ## 主要変数
 
 | 変数名 | 既定値 | 説明 |
 | --- | --- | --- |
 | python_k8s_client_version_spec | "" | kubernetes の版数指定。例: ~=31.0, ==31.0.0。通常は呼び出し元ロールから渡されるため, `vars/all-config.yml`や`host_vars`内の設定ファイルから設定する変数ではない。 |
-| python_k8s_client_deb_package_name | "python-k8s-client" | Debian系ローカルパッケージ名。 |
-| python_k8s_client_rpm_package_name | "python-k8s-client" | RHEL系ローカルパッケージ名。 |
-| python_k8s_client_install_dir | "/opt/k8s-devel/python-client" | venv 導入先ディレクトリ。 |
+| python_k8s_client_deb_package_name | "python3-k8s-client" | Debian系ローカルパッケージ名。 |
+| python_k8s_client_rpm_package_name | "python3-k8s-client" | RHEL系ローカルパッケージ名。 |
 | python_k8s_client_build_host | "localhost" | 構築ホスト。 |
 | python_k8s_client_build_workspace | "/tmp/python-k8s-client-build" | 構築ワークスペース。 |
 | python_k8s_client_build_output_dir | "{{ python_k8s_client_build_workspace }}/output" | 成果物出力先。 |
@@ -55,17 +64,29 @@
 python版 kubernetes clientが導入されていることを確認するためのコマンドは以下の通り:
 
 ```shell
-# venv で版数確認
-/opt/k8s-devel/python-client/venv/bin/python -c 'import kubernetes; print(kubernetes.__version__)'
+# Debian系: system python で版数確認
+/usr/bin/python3 -c 'import kubernetes; print(kubernetes.__version__)'
+
+# RHEL系: system python で版数確認
+/usr/bin/python3 -c 'import kubernetes; print(kubernetes.__version__)'
 
 # Debian系: パッケージ導入確認
-dpkg --list|egrep python-k8s-client
+dpkg --list|egrep python3-k8s-client
 
 # RHEL系: パッケージ導入確認
-rpm -q python-k8s-client
+rpm -q python3-k8s-client
 ```
 
-`/opt/k8s-devel/python-client/venv/bin/python -c 'import kubernetes; print(kubernetes.__version__)'`の出力中で返される版数と導入されているパッケージの版数とが一致することを確認する。
+Debian系/RHEL系ともに`/usr/bin/python3 -c 'import kubernetes; print(kubernetes.__version__)'`の出力中で返される版数と導入されているパッケージの版数とが一致することを確認する。
+
+k8s_python_packages_version が定義され, かつ空文字列でない場合は, `/usr/bin/python<k8s_python_packages_version> -c 'import kubernetes; print(kubernetes.__version__)'` を実行して同様の版数確認を行う。
+
+k8s_python_packages_version=3.12 指定時の確認手順の例:
+
+```shell
+/usr/bin/python3.12 -c 'import kubernetes; print(kubernetes.__version__)'
+```
+
 
 
 ### Debian/Ubuntu環境での実行例
@@ -73,10 +94,19 @@ rpm -q python-k8s-client
 Debian/Ubuntu環境での実行例を以下に示す:
 
 ```shell
-$ /opt/k8s-devel/python-client/venv/bin/python -c 'import kubernetes; print(kubernetes.__version__)'
+$ /usr/bin/python3 -c 'import kubernetes; print(kubernetes.__version__)'
 31.0.0
-$ dpkg --list|egrep python-k8s-client
-ii  python-k8s-client                     31.0.0-1                                all          Offline Python Kubernetes client 31.0.0
+$ dpkg --list|egrep python3-k8s-client
+ii  python3-k8s-client                    31.0.0-1                                all          Kubernetes Python client - local offline bundle
+```
+
+k8s_python_packages_version=3.12 指定時の実行例を以下に示す:
+
+```shell
+$ /usr/bin/python3.12 -c 'import kubernetes; print(kubernetes.__version__)'
+31.0.0
+$ dpkg --list|egrep python3-k8s-client
+ii  python3-k8s-client                    31.0.0-1                                all          Kubernetes Python client - local offline bundle
 ```
 
 ### RedHat/AlmaLinux環境での実行例
@@ -84,13 +114,19 @@ ii  python-k8s-client                     31.0.0-1                              
 Redhat/AlmaLinux環境での実行例を以下に示す:
 
 ```shell
-$ /opt/k8s-devel/python-client/venv/bin/python -c 'import kubernetes; print(kubernetes.__version__)'
- rpm -q  python-k8s-client
-python-k8s-client-31.0.0-1.el9.x86_64
-[kube@k8sworker0201 ~]$ /opt/k8s-devel/python-client/venv/bin/python -c 'import kubernetes; print(kubernetes.__version__)'
+$ /usr/bin/python3 -c 'import kubernetes; print(kubernetes.__version__)'
 31.0.0
-$ rpm -q python-k8s-client
-python-k8s-client-31.0.0-1.el9.x86_64
+$ rpm -q python3-k8s-client
+python3-k8s-client-31.0.0-1.el9.x86_64
+```
+
+k8s_python_packages_version=3.12 指定時の実行例を以下に示す:
+
+```shell
+$ /usr/bin/python3.12 -c 'import kubernetes; print(kubernetes.__version__)'
+31.0.0
+$ rpm -q python3-k8s-client
+python3-k8s-client-31.0.0-1.el9.x86_64
 ```
 
 
