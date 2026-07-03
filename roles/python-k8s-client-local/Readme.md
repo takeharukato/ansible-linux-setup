@@ -87,8 +87,6 @@ k8s_python_packages_version=3.12 指定時の確認手順の例:
 /usr/bin/python3.12 -c 'import kubernetes; print(kubernetes.__version__)'
 ```
 
-
-
 ### Debian/Ubuntu環境での実行例
 
 Debian/Ubuntu環境での実行例を以下に示す:
@@ -128,7 +126,6 @@ $ /usr/bin/python3.12 -c 'import kubernetes; print(kubernetes.__version__)'
 $ rpm -q python3-k8s-client
 python3-k8s-client-31.0.0-1.el9.x86_64
 ```
-
 
 ## 注意事項
 
