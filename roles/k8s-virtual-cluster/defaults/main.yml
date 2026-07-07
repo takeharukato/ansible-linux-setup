@@ -143,6 +143,11 @@ virtualcluster_syncer_image: "virtualcluster/syncer-amd64:latest"
 # vn-agent image (from Docker Hub official registry)
 virtualcluster_vn_agent_image: "virtualcluster/vn-agent-amd64:latest"
 
+# 未修飾イメージ名 (例: virtualcluster/manager-amd64:latest) の場合に
+# CRIが内部解決する既定レジストリ名
+# 例: docker.io, registry.example.local
+virtualcluster_unqualified_image_registry: "docker.io"
+
 # Virtual Cluster 管理コンポーネントの imagePullPolicy (内部変数)
 # Never を指定すると外部レジストリからpullせず, 配布済みtarのimport済みイメージのみを使用
 # 実験環境外の外部リポジトリからのpullを避けるため, Never を指定すること

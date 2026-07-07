@@ -1,0 +1,84 @@
+#  -*- mode: yaml; coding: utf-8; line-endings: unix -*-
+#  SPDX-License-Identifier: BSD-2-Clause
+#
+#  Copyright (c) 2025 TAKEHARU KATO
+#  This file is distributed under the two-clause BSD license.
+#  For the full text of the license, see the LICENSE file in the project root directory.
+#  このファイルは2条項BSDライセンスの下で配布されています。
+#  ライセンス全文はプロジェクト直下の LICENSE を参照してください。
+
+#
+#  explicitイメージtarの利用可否を早期判定
+#
+---
+
+# 明示的に指定されたtarパスをコンポーネント名でマップした辞書を作成
+# キー: コンポーネント名 (manager, syncer, vn-agent)
+# 値: 明示的に指定されたtarパス (未指定の場合は空文字列)
+- name: "Build explicit image tar path map (early detection)"
+  ansible.builtin.set_fact:
+    virtualcluster_explicit_image_tar_paths:
+      manager: "{{ virtualcluster_manager_image_tar_path | default('', true) | trim }}"
+      syncer: "{{ virtualcluster_syncer_image_tar_path | default('', true) | trim }}"
+      vn-agent: "{{ virtualcluster_vn_agent_image_tar_path | default('', true) | trim }}"
+  run_once: true
+
+# 3コンポーネントすべてのパス指定有無を判定
+# 処理ロジック: ビルド対象コンポーネントを格納した変数 virtualcluster_build_components
+# に対して, 以下の処理を実施
+#  1. map('extract', virtualcluster_explicit_image_tar_paths) で明示的に指定されたtarパスを
+#     取り出し, trim() で空白除去,
+#  2. reject('equalto', '') で空文字列を除外して長さを比較
+#  3. 長さが3 (ビルド対象コンポーネント数) と一致すれば, すべてのコンポーネントに対して
+#     明示的tarパスが指定されていると判定し, virtualcluster_explicit_image_tar_paths_complete を true に設定
+- name: "Check whether all explicit image tar paths are provided (early detection)"
+  ansible.builtin.set_fact:
+    virtualcluster_explicit_image_tar_paths_complete: >-
+      {{
+        (
+          virtualcluster_build_components
+          | map('extract', virtualcluster_explicit_image_tar_paths)
+          | map('trim')
+          | reject('equalto', '')
+          | list
+          | length
+        ) == (virtualcluster_build_components | length)
+      }}
+  run_once: true
+
+# localhost上でtar実在を確認
+# virtualcluster_explicit_image_tar_pathsに格納されたtarパスを順に確認し,
+# virtualcluster_explict_tar_stat.results に格納する
+- name: "Verify explicit image tar files exist on localhost (early detection)"
+  ansible.builtin.stat:
+    path: "{{ virtualcluster_explicit_image_tar_paths[item] }}"
+  loop: "{{ virtualcluster_build_components }}"
+  register: virtualcluster_explicit_tar_stat
+  delegate_to: localhost
+  become: false
+  run_once: true
+  when:
+    - virtualcluster_explicit_image_tar_paths_complete
+
+# explicit利用可能フラグを設定
+# (virtualcluster_explicit_image_tar_paths_complete | default(false))
+# で必要なtarパスがすべて指定されていることを確認し,
+# さらに virtualcluster_explict_tar_stat.results のすべての要素の stat.exists
+# を昇順にソートして最小値を取得し, 先頭が0でなければ, すべてのtarが存在する
+# とみなして, true を返す
+- name: "Set explicit image availability flag (early detection)"
+  ansible.builtin.set_fact:
+    virtualcluster_explicit_available: >-
+      {{
+        (virtualcluster_explicit_image_tar_paths_complete | default(false))
+        and
+        (
+          virtualcluster_explicit_tar_stat.results
+          | default([])
+          | map(attribute='stat.exists')
+          | list
+          | min
+          | default(false)
+        )
+      }}
+  run_once: true

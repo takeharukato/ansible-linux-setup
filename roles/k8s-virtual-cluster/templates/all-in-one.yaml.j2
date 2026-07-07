@@ -152,7 +152,7 @@ spec:
           imagePullPolicy: {{ virtualcluster_image_pull_policy | default("Never", true) }}
           # コマンド指定。
           command:
-            - {{ virtualcluster_manager_cmd_path |default("/app",true) | to_json }}
+            - {{ virtualcluster_manager_cmd_path | default("/app", true) | trim | to_json }}
           # 引数指定。
           args:
 {% for vc_manager_arg in (virtualcluster_vc_manager_args | default([], true)) %}
@@ -467,7 +467,7 @@ spec:
           imagePullPolicy: {{ virtualcluster_image_pull_policy | default("Never", true) }}
           command:
             # 実行バイナリ。
-            - {{ virtualcluster_syncer_cmd_path |default("/app",true) | to_json }}
+            - {{ virtualcluster_syncer_cmd_path | default("/app", true) | trim | to_json }}
           # コンテナ起動引数。
           args:
 {% for vc_syncer_arg in (virtualcluster_vc_syncer_args | default([], true)) %}
@@ -677,7 +677,7 @@ spec:
           imagePullPolicy: {{ virtualcluster_image_pull_policy | default("Never", true) }}
           # コマンド指定と引数
           command:
-            - {{ virtualcluster_vn_agent_cmd_path |default("/app",true) | to_json }}
+            - {{ virtualcluster_vn_agent_cmd_path | default("/app", true) | trim | to_json }}
 {% set vc_vn_agent_cert_dir = virtualcluster_vn_agent_cert_dir | default('', true) %}
 {% set vc_vn_agent_pki_dir = virtualcluster_vn_agent_pki_dir | default(vc_vn_agent_cert_dir ~ '/pki', true) %}
 {% set vc_vn_agent_has_cert_dir = (vc_vn_agent_cert_dir | length) > 0 %}

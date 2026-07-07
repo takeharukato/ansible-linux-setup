@@ -75,12 +75,18 @@
     - k8s_virtualcluster_enabled | default(false) | bool
     - (virtualcluster_persistent_volumes | default([], true) | length) > 0
 
+# explicitイメージtarの利用可否を早期判定するタスク
+- name: "Detect explicit image tar availability"
+  ansible.builtin.include_tasks: detect-explicit-availability.yml
+  when: k8s_virtualcluster_enabled | bool
+
 # Virtual Cluster のソースをダウンロードするタスク
 - name: "Download Source"
   ansible.builtin.include_tasks: download-source.yml
   when:
     - k8s_virtualcluster_enabled | bool
     - virtualcluster_build_from_source | bool
+    - not (virtualcluster_explicit_available | default(false))
 
 # etcdスキーム制御用のパッチを適用するタスク
 - name: "Patch Provisioner for etcd scheme control"
@@ -88,6 +94,7 @@
   when:
     - k8s_virtualcluster_enabled | bool
     - virtualcluster_build_from_source | bool
+    - not (virtualcluster_explicit_available | default(false))
 
 # ClusterPhase "Error" → "Failed" の不一致修正パッチを適用するタスク
 - name: "Patch VirtualCluster types for ClusterError phase value"
@@ -95,6 +102,7 @@
   when:
     - k8s_virtualcluster_enabled | bool
     - virtualcluster_build_from_source | bool
+    - not (virtualcluster_explicit_available | default(false))
 
 # kubeconfigのドメイン名URLバグ修正パッチを適用するタスク
 - name: "Patch kubeconfig generation to correctly handle hostname-based server URLs"
@@ -102,6 +110,7 @@
   when:
     - k8s_virtualcluster_enabled | bool
     - virtualcluster_build_from_source | bool
+    - not (virtualcluster_explicit_available | default(false))
 
 # Service同期時のClusterIPs問題修正パッチを適用するタスク
 - name: "Patch Service mutate to fix ClusterIPs sync issue"
@@ -109,6 +118,7 @@
   when:
     - k8s_virtualcluster_enabled | bool
     - virtualcluster_build_from_source | bool
+    - not (virtualcluster_explicit_available | default(false))
 
 # vn-agent の証明書ファイル存在確認で nil 参照を防ぐパッチを適用するタスク
 - name: "Patch vn-agent options to safely handle missing kubelet client cert files"
@@ -116,6 +126,7 @@
   when:
     - k8s_virtualcluster_enabled | bool
     - virtualcluster_build_from_source | bool
+    - not (virtualcluster_explicit_available | default(false))
 
 # Virtual Cluster のソースをビルドするタスク
 - name: "Build Binaries"
@@ -123,6 +134,7 @@
   when:
     - k8s_virtualcluster_enabled | bool
     - virtualcluster_build_from_source | bool
+    - not (virtualcluster_explicit_available | default(false))
 
 # kubectl-vc プラグインをビルドするタスク
 - name: "Build kubectl-vc Plugin"
@@ -131,6 +143,7 @@
     - k8s_virtualcluster_enabled | bool
     - virtualcluster_build_from_source | bool
     - virtualcluster_build_kubectl_vc | bool
+    - not (virtualcluster_explicit_available | default(false))
 
 # Virtual Cluster のコンテナイメージ成果物を準備するタスク
 - name: "Prepare Image Artifacts"
