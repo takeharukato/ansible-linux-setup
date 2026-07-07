@@ -82,6 +82,8 @@ virtualcluster_manager_image_tar_path: ""
 virtualcluster_syncer_image_tar_path: ""
 # vn-agentのイメージtarファイルパス
 virtualcluster_vn_agent_image_tar_path: ""
+# vc-manager, syncer, vn-agentを投入するマニュフェストのファイルパス
+virtualcluster_all_in_one_manifest_path: ""
 
 # 成功した最新バンドル(コンテナイメージtarとマニフェスト)の永続保存先
 # 補足事項
@@ -115,7 +117,7 @@ k8s_kubeadm_config_store: "{{ ansible_home_dir }}/kubeadm"
 # K8sクラスタ(スーパークラスタ)操作に使用するkubeconfigのパス
 virtualcluster_supercluster_kubeconfig_path: "/etc/kubernetes/admin.conf"
 
-# Virtual Cluster 管理コンポーネント用 namespace
+# Virtual Cluster 管理コンポーネント用 namespace (内部変数)
 virtualcluster_namespace: "vc-manager"
 
 # Virtual Cluster 設定ファイル格納ディレクトリパス
@@ -141,27 +143,10 @@ virtualcluster_syncer_image: "virtualcluster/syncer-amd64:latest"
 # vn-agent image (from Docker Hub official registry)
 virtualcluster_vn_agent_image: "virtualcluster/vn-agent-amd64:latest"
 
-# Virtual Cluster 管理コンポーネントの imagePullPolicy
+# Virtual Cluster 管理コンポーネントの imagePullPolicy (内部変数)
 # Never を指定すると外部レジストリからpullせず, 配布済みtarのimport済みイメージのみを使用
 # 実験環境外の外部リポジトリからのpullを避けるため, Never を指定すること
 virtualcluster_image_pull_policy: "Never"
-
-# vc-syncer に渡す feature gate 一覧
-# 使用するsyncerバージョンで有効なキーのみ指定すること。
-# 例:
-# virtualcluster_syncer_feature_gates:
-#   - "SomeFeature=true"
-virtualcluster_syncer_feature_gates: ["SyncTenantPVCStatusPhase=true"]
-
-# テナントコントロールプレイン Pod のリソースリクエスト
-virtualcluster_pod_resource_requests:
-  cpu: "500m"
-  memory: "512Mi"
-
-# テナントコントロールプレイン Pod のリソースリミット
-virtualcluster_pod_resource_limits:
-  cpu: "1000m"
-  memory: "1Gi"
 
 # virtual cluster etcd StatefulSet のレプリカ数
 virtualcluster_etcd_replicas: 1
@@ -189,7 +174,7 @@ k8s_api_wait_sleep: 1
 k8s_api_wait_delegate_to: "localhost"
 
 #
-# kubectl-vc plugin settings
+# kubectl-vc plugin 設定
 #
 # kubectl-vcプラグインのインストール先ディレクトリ
 virtualcluster_kubectl_vc_install_dir: "/usr/local/bin"
@@ -213,6 +198,77 @@ virtualcluster_tenant_tools_bash_completion_enabled: true
 # zsh補完の有効化フラグ
 # true: zsh補完を配置, false: スキップ
 virtualcluster_tenant_tools_zsh_completion_enabled: true
+
+
+#
+# vn-agent 証明書/PKI格納先ディレクトリ
+#
+# virtual cluster のvn-agentの証明書格納先ディレクトリ(内部変数)
+virtualcluster_vn_agent_cert_dir: "/etc/vn-agent"
+# virtual cluster のvn-agentのPKI(Public Key Infrastructure)格納先ディレクトリ(内部変数)
+virtualcluster_vn_agent_pki_dir: "{{ virtualcluster_vn_agent_cert_dir }}/pki"
+
+
+#
+# virtual cluster のvc-manager, syncer, vn-agentのコマンド名, 起動引数
+#
+
+# virtual cluster のvc-managerのコマンド名
+virtualcluster_manager_cmd_path: "/app"
+# vc-managerの起動引数
+virtualcluster_vc_manager_args:
+  - "--enable-webhook=true"
+  - "--leader-election=true"
+
+# vc-manager Pod のリソース要求量
+virtualcluster_manager_resource_requests:
+  cpu: "500m"
+  memory: "512Mi"
+# vc-manager Pod のリソース制限量
+virtualcluster_manager_resource_limits:
+  cpu: "1000m"
+  memory: "1Gi"
+
+# virtual cluster のvc-syncerのコマンド名
+virtualcluster_syncer_cmd_path: "/app"
+# virtual cluster のvc-syncerの起動引数
+virtualcluster_vc_syncer_args:
+  - "syncer"
+  - "--leader-elect-resource-lock=leases"
+
+# vc-syncer Pod のリソース要求量
+virtualcluster_syncer_resource_requests: {}
+# vc-syncer Pod のリソース制限量
+virtualcluster_syncer_resource_limits: {}
+
+# vc-syncer に渡す feature gate 一覧
+# 使用するsyncerバージョンで有効なキーのみ指定すること。
+# 例:
+# virtualcluster_syncer_feature_gates:
+#   - "SomeFeature=true"
+virtualcluster_syncer_feature_gates: ["SyncTenantPVCStatusPhase=true"]
+
+
+# virtual cluster のvn-agentのコマンド名
+virtualcluster_vn_agent_cmd_path: "/app"
+# virtual cluster のvn-agentの起動引数
+virtualcluster_vn_agent_args:
+  - "vn-agent"
+  - "--metrics-addr=:9111"
+  - "--cert-dir={{ virtualcluster_vn_agent_cert_dir }}"
+  - "--kubelet-client-certificate={{ virtualcluster_vn_agent_pki_dir }}/client.crt"
+  - "--kubelet-client-key={{ virtualcluster_vn_agent_pki_dir }}/client.key"
+
+# vn-agent Pod のリソース要求量
+virtualcluster_vn_agent_resource_requests:
+  cpu: "100m"
+  memory: "128Mi"
+
+# vn-agent Pod のリソース制限量
+virtualcluster_vn_agent_resource_limits:
+  cpu: "500m"
+  memory: "512Mi"
+
 
 #
 # PersistentVolume 設定 (オプション)

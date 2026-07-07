@@ -26,6 +26,17 @@
     src: "all-in-one.yaml.j2"
     dest: "{{ virtualcluster_config_dir }}/all-in-one.yaml"
     mode: "0644"
+  when:
+    - (virtualcluster_all_in_one_manifest_path|default("",true)|length) == 0
+
+# 指定されたall-in-one.yaml マニフェストをターゲットホストに転送
+- name: "Use {{virtualcluster_all_in_one_manifest_path}} as all-in-one.yaml manifest to deploy vc-manager, syncer, vn-agent"
+  ansible.builtin.copy:
+    src: "{{ virtualcluster_all_in_one_manifest_path }}"
+    dest: "{{ virtualcluster_config_dir }}/all-in-one.yaml"
+    mode: "0644"
+  when:
+    - (virtualcluster_all_in_one_manifest_path|default("",true)|length) > 0
 
 # kubectl apply でマニフェストを適用してコンポーネントをデプロイ
 - name: "Apply all-in-one.yaml manifest"

@@ -188,9 +188,11 @@
 # vc-syncerで既知のService同期エラー(clusterIPs)が継続していないことを検証
 - name: "Check vc-syncer logs for clusterIPs service sync errors"
   ansible.builtin.shell:
-    cmd: >-
-      kubectl --kubeconfig {{ virtualcluster_supercluster_kubeconfig_path }}
-      -n {{ virtualcluster_namespace }} logs -l app=vc-syncer --tail=300
+    cmd: |
+      set -eu
+      set -o pipefail
+      kubectl --kubeconfig {{ virtualcluster_supercluster_kubeconfig_path }} \
+      -n {{ virtualcluster_namespace }} logs -l app=vc-syncer --tail=300 \
       | grep -E 'clusterIPs|failed reconcile service default/kubernetes' || true
     executable: /bin/bash
   register: result_vc_syncer_clusterip_errors

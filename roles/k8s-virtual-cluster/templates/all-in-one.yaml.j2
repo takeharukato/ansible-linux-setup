@@ -17,7 +17,7 @@ metadata:
   # ServiceAccount名。
   name: vc-manager
   # Namespace名。
-  namespace: {{ virtualcluster_namespace }}
+  namespace: {{ virtualcluster_namespace|default("vc-manager", true) }}
 ---
 # APIバージョン。
 apiVersion: rbac.authorization.k8s.io/v1
@@ -89,7 +89,7 @@ subjects:
     # ServiceAccount名。
     name: vc-manager
     # Namespace名。
-    namespace: {{ virtualcluster_namespace }}
+    namespace: {{ virtualcluster_namespace|default("vc-manager", true) }}
 ---
 # APIバージョン。
 apiVersion: apps/v1
@@ -100,21 +100,36 @@ metadata:
   # Deployment名。
   name: vc-manager
   # Namespace名。
-  namespace: {{ virtualcluster_namespace }}
+  namespace: {{ virtualcluster_namespace|default("vc-manager", true) }}
   # ラベル定義。
   labels:
     # appラベル。
     app: vc-manager
 # Deployment仕様。
 spec:
+  # Deploymentのロールアウト状態変化最大待機時間(秒), 600秒(10分)に設定。
+  # これを超えると失敗とみなす。
+  progressDeadlineSeconds: 600
   # レプリカ数。
   replicas: 1
+  # 過去のReplicaSet (生成するPodの組)の保持世代数を10世代に設定
+  revisionHistoryLimit: 10
   # セレクタ定義。
   selector:
     # マッチ条件。
     matchLabels:
       # appラベル。
       app: vc-manager
+  # Deploymentのロールアウト戦略。
+  strategy:
+    # ロールアウト戦略の種類: RollingUpdate (Podを順次更新する)。
+    rollingUpdate:
+      # ロールアウト時の最大追加Pod数。replica数の25%を超えないように設定, replica数が1の場合は1Podまで追加可能(小数点以下切り上げ)。
+      maxSurge: 25%
+      # ロールアウト時の最大停止Pod数。replica数の25%を超えないように設定, replica数が1の場合は0Podまで停止可能(小数点以下切り捨て)。
+      maxUnavailable: 25%
+    # RollingUpdate戦略では, 一度に全停止して置き換えるのではなく, 新旧Podを共存させながら置き換える。
+    type: RollingUpdate
   # Podテンプレート。
   template:
     # メタデータ定義。
@@ -127,32 +142,26 @@ spec:
         virtualcluster-webhook: "true"
     # Pod仕様。
     spec:
-      # ServiceAccount名。
-      serviceAccountName: vc-manager
       # コンテナ定義。
       containers:
         # コンテナの指定。
         - name: vc-manager
           # コンテナイメージ。
-          image: {{ virtualcluster_manager_image }}
+          image: {{ virtualcluster_manager_image|default("virtualcluster/manager-amd64:latest", true) }}
           # 取得ポリシー。
-          imagePullPolicy: {{ virtualcluster_image_pull_policy }}
+          imagePullPolicy: {{ virtualcluster_image_pull_policy | default("Never", true) }}
           # コマンド指定。
           command:
-            # 実行バイナリ。
-            - "/app"
+            - {{ virtualcluster_manager_cmd_path |default("/app",true) | to_json }}
           # 引数指定。
           args:
-            # Webhook有効化。
-            - "-enable-webhook=true"
-            # ヘルスエンドポイント。
-            - "-health-addr=:8080"
-            # メトリクスエンドポイント。
-            - "-metrics-addr=:8000"
-            # Leader Election有効化。
-            - "-leader-election=true"
-            # プロビジョナ指定。
-            - "-provisioner=native"
+{% for vc_manager_arg in (virtualcluster_vc_manager_args | default([], true)) %}
+            - {{ vc_manager_arg |default([],true) | to_json }}
+{% endfor %}
+          # Podの終了時にコンテナの標準出力に書き込まれたログを取得するための設定(デフォルト値を明示)。
+          terminationMessagePath: /dev/termination-log
+          # Podの終了時にコンテナの標準出力に書き込まれたログを取得するための設定(デフォルト値を明示)。
+          terminationMessagePolicy: File
           # ポート定義。
           ports:
             # Webhookポート。
@@ -173,20 +182,40 @@ spec:
             - name: VIRTUALCLUSTER_ETCD_SCHEME
               # 値指定。
               value: "http"
+{% set vc_pod_requests = virtualcluster_manager_resource_requests | default({}, true) %}
+{% set vc_pod_limits = virtualcluster_manager_resource_limits | default({}, true) %}
+{% set vc_has_request_cpu = vc_pod_requests.cpu is defined %}
+{% set vc_has_request_memory = vc_pod_requests.memory is defined %}
+{% set vc_has_limit_cpu = vc_pod_limits.cpu is defined %}
+{% set vc_has_limit_memory = vc_pod_limits.memory is defined %}
+{% if vc_has_request_cpu or vc_has_request_memory or vc_has_limit_cpu or vc_has_limit_memory %}
           # リソース設定。
           resources:
+{% if vc_has_request_cpu or vc_has_request_memory %}
             # リクエスト設定。
             requests:
+{% if vc_has_request_cpu %}
               # CPUリクエスト。
-              cpu: {{ virtualcluster_pod_resource_requests.cpu }}
+              cpu: {{ vc_pod_requests.cpu }}
+{% endif %}
+{% if vc_has_request_memory %}
               # メモリリクエスト。
-              memory: {{ virtualcluster_pod_resource_requests.memory }}
+              memory: {{ vc_pod_requests.memory }}
+{% endif %}
+{% endif %}
+{% if vc_has_limit_cpu or vc_has_limit_memory %}
             # リミット設定。
             limits:
+{% if vc_has_limit_cpu %}
               # CPUリミット。
-              cpu: {{ virtualcluster_pod_resource_limits.cpu }}
+              cpu: {{ vc_pod_limits.cpu }}
+{% endif %}
+{% if vc_has_limit_memory %}
               # メモリリミット。
-              memory: {{ virtualcluster_pod_resource_limits.memory }}
+              memory: {{ vc_pod_limits.memory }}
+{% endif %}
+{% endif %}
+{% endif %}
           # ボリュームマウント。
           volumeMounts:
             # Webhook証明書。
@@ -201,6 +230,18 @@ spec:
         - name: webhook-certs
           # emptyDir指定。
           emptyDir: {}
+      # K8sクラスタのDNSサービスを優先的に使用(デフォルト値を明示)。
+      dnsPolicy: ClusterFirst
+      # Podの再起動ポリシー。停止したら自動的に起動(デフォルト値を明示)。
+      restartPolicy: Always
+      # スケジューラ名(デフォルト値を明示)。
+      schedulerName: default-scheduler
+      # セキュリティコンテキスト(デフォルト値を明示)。
+      securityContext: {}
+      # サービスアカウント名 (デフォルト値:defaultから変更)。
+      serviceAccountName: vc-manager
+      # Podの終了猶予時間(デフォルト値を明示)。
+      terminationGracePeriodSeconds: 30
 ---
 # APIバージョン。
 apiVersion: v1
@@ -211,7 +252,7 @@ metadata:
   # ServiceAccount名。
   name: vc-syncer
   # Namespace名。
-  namespace: {{ virtualcluster_namespace }}
+  namespace: {{ virtualcluster_namespace|default("vc-manager", true) }}
 ---
 # APIバージョン。
 apiVersion: rbac.authorization.k8s.io/v1
@@ -310,7 +351,7 @@ rules:
     verbs:
       - get
   # Virtual Cluster APIの参照権限。
-  - apiGroups: ["{{ virtualcluster_api_group }}"]
+  - apiGroups: ["{{ virtualcluster_api_group|default("tenancy.x-k8s.io", true) }}"]
     # 対象リソース。
     resources:
       - virtualclusters
@@ -320,13 +361,27 @@ rules:
       - list
       - watch
   # Virtual Cluster ステータス参照権限。
-  - apiGroups: ["{{ virtualcluster_api_group }}"]
+  - apiGroups: ["{{ virtualcluster_api_group|default("tenancy.x-k8s.io", true) }}"]
     # 対象リソース。
     resources:
       - virtualclusters/status
     # 許可動作。
     verbs:
       - get
+  # Leader Election APIの管理権限。
+  - apiGroups: ["coordination.k8s.io"]
+    # 対象リソース。
+    resources:
+      - leases
+    # 許可動作。
+    verbs:
+      - get
+      - list
+      - watch
+      - create
+      - update
+      - patch
+      - delete
 ---
 # APIバージョン。
 apiVersion: rbac.authorization.k8s.io/v1
@@ -351,7 +406,7 @@ subjects:
     # ServiceAccount名。
     name: vc-syncer
     # Namespace名。
-    namespace: {{ virtualcluster_namespace }}
+    namespace: {{ virtualcluster_namespace|default("vc-manager", true) }}
 ---
 # APIバージョン。
 apiVersion: apps/v1
@@ -362,21 +417,36 @@ metadata:
   # Deployment名。
   name: vc-syncer
   # Namespace名。
-  namespace: {{ virtualcluster_namespace }}
+  namespace: {{ virtualcluster_namespace|default("vc-manager", true) }}
   # ラベル定義。
   labels:
     # アプリケーション識別ラベル。
     app: vc-syncer
 # Deploymentの仕様定義。
 spec:
+  # Deploymentのロールアウト状態変化最大待機時間(秒), 600秒(10分)に設定。
+  # これを超えると失敗とみなす。
+  progressDeadlineSeconds: 600
   # レプリカ数。
   replicas: 1
+  # 過去のReplicaSet (生成するPodの組)の保持世代数を10世代に設定
+  revisionHistoryLimit: 10
   # Pod選択条件。
   selector:
     # マッチするラベル条件。
     matchLabels:
       # アプリケーション識別ラベル。
       app: vc-syncer
+  # Deploymentのロールアウト戦略。
+  strategy:
+    # ロールアウト戦略の種類: RollingUpdate (Podを順次更新する)。
+    rollingUpdate:
+      # ロールアウト時の最大追加Pod数。replica数の25%を超えないように設定, replica数が1の場合は1Podまで追加可能(小数点以下切り上げ)。
+      maxSurge: 25%
+      # ロールアウト時の最大停止Pod数。replica数の25%を超えないように設定, replica数が1の場合は0Podまで停止可能(小数点以下切り捨て)。
+      maxUnavailable: 25%
+    # RollingUpdate戦略では, 一度に全停止して置き換えるのではなく, 新旧Podを共存させながら置き換える。
+    type: RollingUpdate
   # Podテンプレート定義。
   template:
     # メタデータ定義。
@@ -387,32 +457,68 @@ spec:
         app: vc-syncer
     # Pod仕様定義。
     spec:
-      # ServiceAccount名。
-      serviceAccountName: vc-syncer
       # コンテナ定義。
       containers:
         # コンテナ名。
         - name: vc-syncer
           # コンテナイメージ。
-          image: {{ virtualcluster_syncer_image }}
+          image: {{ virtualcluster_syncer_image|default("virtualcluster/syncer-amd64:latest", true) }}
           # イメージプルポリシー。
-          imagePullPolicy: {{ virtualcluster_image_pull_policy }}
+          imagePullPolicy: {{ virtualcluster_image_pull_policy | default("Never", true) }}
+          command:
+            # 実行バイナリ。
+            - {{ virtualcluster_syncer_cmd_path |default("/app",true) | to_json }}
           # コンテナ起動引数。
-          # /app エントリポイントに syncer サブコマンドを渡して常駐起動する。
           args:
-            - syncer
+{% for vc_syncer_arg in (virtualcluster_vc_syncer_args | default([], true)) %}
+            - {{ vc_syncer_arg |default([],true) | to_json }}
+{% endfor %}
 {% if (virtualcluster_syncer_feature_gates | default([], true) | length) > 0 %}
-            - --feature-gates={{ virtualcluster_syncer_feature_gates | join(',') }}
+            - {{ ('--feature-gates=' ~ (virtualcluster_syncer_feature_gates | join(','))) | to_json }}
+{% endif %}
+{% set vc_syncer_requests = virtualcluster_syncer_resource_requests | default({}, true) %}
+{% set vc_syncer_limits = virtualcluster_syncer_resource_limits | default({}, true) %}
+{% set vc_syncer_has_request_cpu = vc_syncer_requests.cpu is defined %}
+{% set vc_syncer_has_request_memory = vc_syncer_requests.memory is defined %}
+{% set vc_syncer_has_limit_cpu = vc_syncer_limits.cpu is defined %}
+{% set vc_syncer_has_limit_memory = vc_syncer_limits.memory is defined %}
+{% if vc_syncer_has_request_cpu or vc_syncer_has_request_memory or vc_syncer_has_limit_cpu or vc_syncer_has_limit_memory %}
+          # リソース設定。
+          resources:
+{% if vc_syncer_has_request_cpu or vc_syncer_has_request_memory %}
+            # リクエスト設定。
+            requests:
+{% if vc_syncer_has_request_cpu %}
+              # CPUリクエスト。
+              cpu: {{ vc_syncer_requests.cpu }}
+{% endif %}
+{% if vc_syncer_has_request_memory %}
+              # メモリリクエスト。
+              memory: {{ vc_syncer_requests.memory }}
+{% endif %}
+{% endif %}
+{% if vc_syncer_has_limit_cpu or vc_syncer_has_limit_memory %}
+            # リミット設定。
+            limits:
+{% if vc_syncer_has_limit_cpu %}
+              # CPUリミット。
+              cpu: {{ vc_syncer_limits.cpu }}
+{% endif %}
+{% if vc_syncer_has_limit_memory %}
+              # メモリリミット。
+              memory: {{ vc_syncer_limits.memory }}
+{% endif %}
+{% endif %}
 {% endif %}
           # 活性確認プローブ定義。
           livenessProbe:
-            # 失敗と判定するまでの連続失敗回数。
+            # 失敗と判定するまでの連続失敗回数(単位: 回)。
             failureThreshold: 3
             # 初回プローブまでの遅延時間 (単位: 秒)。
             initialDelaySeconds: 30
             # プローブ実行間隔 (単位: 秒)。
             periodSeconds: 20
-            # 成功と判定するまでの連続成功回数。
+            # 成功と判定するまでの連続成功回数(単位: 回)。
             successThreshold: 1
             # TCPソケット接続プローブ設定。
             tcpSocket:
@@ -420,6 +526,22 @@ spec:
               port: 8080
             # プローブタイムアウト時間 (単位: 秒)。
             timeoutSeconds: 1
+          # Podの終了時にコンテナの標準出力に書き込まれたログを取得するための設定(デフォルト値を明示)。
+          terminationMessagePath: /dev/termination-log
+          # Podの終了時にコンテナの標準出力に書き込まれたログを取得するための設定(デフォルト値を明示)。
+          terminationMessagePolicy: File
+      # K8sクラスタのDNSサービスを優先的に使用(デフォルト値を明示)。
+      dnsPolicy: ClusterFirst
+      # Podの再起動ポリシー。停止したら自動的に起動(デフォルト値を明示)。
+      restartPolicy: Always
+      # スケジューラ名(デフォルト値を明示)。
+      schedulerName: default-scheduler
+      # セキュリティコンテキスト(デフォルト値を明示)。
+      securityContext: {}
+      # サービスアカウント名 (デフォルト値:defaultから変更)。
+      serviceAccountName: vc-syncer
+      # Podの終了猶予時間(デフォルト値を明示)。
+      terminationGracePeriodSeconds: 30
 ---
 # APIバージョン。
 apiVersion: v1
@@ -430,7 +552,7 @@ metadata:
   # ServiceAccount名。
   name: vn-agent
   # Namespace名。
-  namespace: {{ virtualcluster_namespace }}
+  namespace: {{ virtualcluster_namespace|default("vc-manager", true) }}
 ---
 # APIバージョン。
 apiVersion: rbac.authorization.k8s.io/v1
@@ -445,9 +567,17 @@ rules:
   # Core APIの参照権限。
   - apiGroups: [""]
     # 対象リソース。
-    resources: ["pods", "nodes"]
+    resources:
+      - pods
+      - pods/log
+      - pods/exec
+      - pods/portforward
+      - nodes/proxy
     # 許可動作。
-    verbs: ["get", "list", "watch"]
+    verbs:
+      - get
+      - list
+      - create
 ---
 # APIバージョン。
 apiVersion: rbac.authorization.k8s.io/v1
@@ -472,7 +602,24 @@ subjects:
     # ServiceAccount名。
     name: vn-agent
     # Namespace名。
-    namespace: {{ virtualcluster_namespace }}
+    namespace: {{ virtualcluster_namespace|default("vc-manager", true) }}
+---
+# APIバージョン。
+apiVersion: v1
+# リソース種別。
+kind: Secret
+# メタデータ定義。
+metadata:
+  # Secret名。
+  name: empty-kubelet-client
+  # Namespace名。
+  namespace: {{ virtualcluster_namespace|default("vc-manager", true) }}
+# Secret種別。
+type: Opaque
+# 空の kubelet client 証明書。
+data:
+  client.crt: ""
+  client.key: ""
 ---
 # APIバージョン。
 apiVersion: apps/v1
@@ -483,7 +630,7 @@ metadata:
   # DaemonSet名。
   name: vn-agent
   # Namespace名。
-  namespace: {{ virtualcluster_namespace }}
+  namespace: {{ virtualcluster_namespace|default("vc-manager", true) }}
   # ラベル定義。
   labels:
     # appラベル。
@@ -506,10 +653,6 @@ spec:
         app: vn-agent
     # Pod仕様。
     spec:
-      # ServiceAccount名。
-      serviceAccountName: vn-agent
-      # ホストネットワーク使用。
-      hostNetwork: true
       # ノードアフィニティ。
       affinity:
         # ノードアフィニティ設定。
@@ -529,33 +672,76 @@ spec:
         # コンテナの指定。
         - name: vn-agent
           # コンテナイメージ。
-          image: {{ virtualcluster_vn_agent_image }}
+          image: {{ virtualcluster_vn_agent_image|default("virtualcluster/vn-agent-amd64:latest", true) }}
           # 取得ポリシー。
-          imagePullPolicy: {{ virtualcluster_image_pull_policy }}
+          imagePullPolicy: {{ virtualcluster_image_pull_policy | default("Never", true) }}
+          # コマンド指定と引数
+          command:
+            - {{ virtualcluster_vn_agent_cmd_path |default("/app",true) | to_json }}
+{% set vc_vn_agent_cert_dir = virtualcluster_vn_agent_cert_dir | default('', true) %}
+{% set vc_vn_agent_pki_dir = virtualcluster_vn_agent_pki_dir | default(vc_vn_agent_cert_dir ~ '/pki', true) %}
+{% set vc_vn_agent_has_cert_dir = (vc_vn_agent_cert_dir | length) > 0 %}
+          args:
+{% for vn_agent_arg in (virtualcluster_vn_agent_args | default([], true)) %}
+{% set vc_is_cert_related_arg = ('--cert-dir=' in vn_agent_arg) or ('--kubelet-client-certificate=' in vn_agent_arg) or ('--kubelet-client-key=' in vn_agent_arg) %}
+{% if vc_vn_agent_has_cert_dir or (not vc_is_cert_related_arg) %}
+            - {{ vn_agent_arg |default([],true) | to_json }}
+{% endif %}
+{% endfor %}
           # セキュリティ設定。
           securityContext:
             # 特権モード。
             privileged: true
+{% set vc_vn_agent_requests = virtualcluster_vn_agent_resource_requests | default({}, true) %}
+{% set vc_vn_agent_limits = virtualcluster_vn_agent_resource_limits | default({}, true) %}
+{% set vc_vn_agent_has_request_cpu = vc_vn_agent_requests.cpu is defined %}
+{% set vc_vn_agent_has_request_memory = vc_vn_agent_requests.memory is defined %}
+{% set vc_vn_agent_has_limit_cpu = vc_vn_agent_limits.cpu is defined %}
+{% set vc_vn_agent_has_limit_memory = vc_vn_agent_limits.memory is defined %}
+{% if vc_vn_agent_has_request_cpu or vc_vn_agent_has_request_memory or vc_vn_agent_has_limit_cpu or vc_vn_agent_has_limit_memory %}
           # リソース設定。
           resources:
+{% if vc_vn_agent_has_request_cpu or vc_vn_agent_has_request_memory %}
             # リクエスト設定。
             requests:
+{% if vc_vn_agent_has_request_cpu %}
               # CPUリクエスト。
-              cpu: "100m"
+              cpu: {{ vc_vn_agent_requests.cpu }}
+{% endif %}
+{% if vc_vn_agent_has_request_memory %}
               # メモリリクエスト。
-              memory: "128Mi"
+              memory: {{ vc_vn_agent_requests.memory }}
+{% endif %}
+{% endif %}
+{% if vc_vn_agent_has_limit_cpu or vc_vn_agent_has_limit_memory %}
             # リミット設定。
             limits:
+{% if vc_vn_agent_has_limit_cpu %}
               # CPUリミット。
-              cpu: "500m"
+              cpu: {{ vc_vn_agent_limits.cpu }}
+{% endif %}
+{% if vc_vn_agent_has_limit_memory %}
               # メモリリミット。
-              memory: "512Mi"
+              memory: {{ vc_vn_agent_limits.memory }}
+{% endif %}
+{% endif %}
+{% endif %}
+          # Podの終了時にコンテナの標準出力に書き込まれたログを取得するための設定(デフォルト値を明示)。
+          terminationMessagePath: /dev/termination-log
+          # Podの終了時にコンテナの標準出力に書き込まれたログを取得するための設定(デフォルト値を明示)。
+          terminationMessagePolicy: File
           # ボリュームマウント。
           volumeMounts:
             # kubelet設定。
             - name: kubelet-config
               # マウントパス。
               mountPath: /etc/kubernetes
+              # 読み取り専用フラグ。
+              readOnly: true
+            # kubeletクライアント証明書。
+            - name: kubelet-client-cert
+              # マウントパス。
+              mountPath: {{ vc_vn_agent_pki_dir|default('/etc/vn-agent/pki', true) }}
               # 読み取り専用フラグ。
               readOnly: true
       # ボリューム定義。
@@ -568,7 +754,39 @@ spec:
             path: /etc/kubernetes
             # パスタイプ。
             type: Directory
-      # 許容条件。
+        - name: kubelet-client-cert
+          # Secret指定。
+          secret:
+            # Secretのデフォルトモード(8進数:0644,オーナー:読み書き可能, グループ/その他:読み取り可能)。
+            defaultMode: 420
+            # Secret名。
+            secretName: empty-kubelet-client
+            # Secret未作成でもPod起動可能にする。
+            optional: true
+      # K8sクラスタのDNSサービスを優先的に使用(デフォルト値を明示)。
+      dnsPolicy: ClusterFirst
+      # ホストネットワーク使用。
+      hostNetwork: true
+      # Podの再起動ポリシー。停止したら自動的に起動(デフォルト値を明示)。
+      restartPolicy: Always
+      # スケジューラ名(デフォルト値を明示)。
+      schedulerName: default-scheduler
+      # セキュリティコンテキスト(デフォルト値を明示)。
+      securityContext: {}
+      # サービスアカウント名 (デフォルト値:defaultから変更)。
+      serviceAccountName: vn-agent
+      # Podの終了猶予時間(デフォルト値を明示)。
+      terminationGracePeriodSeconds: 30
+      # 許容条件
       tolerations:
         # 許容設定。
         - operator: "Exists"
+  # DaemonSetのロールアウト戦略。
+  updateStrategy:
+    rollingUpdate:
+      # ロールアウト時の最大追加Pod数。新規にPodを増やさずに既存Podを置き換えるよう設定。
+      maxSurge: 0
+      # ロールアウト時の最大停止Pod数。更新中に利用不可となることを許容するPod数の最大値。1Podまで許容する設定。
+      maxUnavailable: 1
+    # RollingUpdate戦略では, 一度に全停止して置き換えるのではなく, 新旧Podを共存させながら置き換える。
+    type: RollingUpdate

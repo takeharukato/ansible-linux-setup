@@ -110,6 +110,13 @@
     - k8s_virtualcluster_enabled | bool
     - virtualcluster_build_from_source | bool
 
+# vn-agent の証明書ファイル存在確認で nil 参照を防ぐパッチを適用するタスク
+- name: "Patch vn-agent options to safely handle missing kubelet client cert files"
+  ansible.builtin.include_tasks: patch-vn-agent-options.yml
+  when:
+    - k8s_virtualcluster_enabled | bool
+    - virtualcluster_build_from_source | bool
+
 # Virtual Cluster のソースをビルドするタスク
 - name: "Build Binaries"
   ansible.builtin.include_tasks: build-binaries.yml

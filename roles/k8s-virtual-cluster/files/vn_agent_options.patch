@@ -1,0 +1,18 @@
+diff --git a/virtualcluster/cmd/vn-agent/app/options/options.go b/virtualcluster/cmd/vn-agent/app/options/options.go
+index 5e090ef..8a90964 100644
+--- a/virtualcluster/cmd/vn-agent/app/options/options.go
++++ b/virtualcluster/cmd/vn-agent/app/options/options.go
+@@ -109,8 +109,11 @@ func fileNotExistOrEmpty(fn string) bool {
+ 	if fn == "" {
+ 		return true
+ 	}
+-	fi, _ := os.Stat(fn)
+-	return fi.Size() == 0
++	fi, err := os.Stat(fn)
++	if err != nil {
++		return true
++	}
++	return fi.Size() == 0
+ }
+
+ // Config is the config to create a vn-agent server handler.
