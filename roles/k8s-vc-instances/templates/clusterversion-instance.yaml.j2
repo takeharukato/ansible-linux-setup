@@ -293,6 +293,7 @@ spec:
               secret:
                 defaultMode: 420
                 secretName: controller-manager-kubeconfig
+{% if vcinstances_controller_manager_service_enabled | default(false) | bool %}
     service:
       apiVersion: v1
       kind: Service
@@ -306,3 +307,4 @@ spec:
         - port: 10257
           protocol: TCP
           targetPort: metrics
+{% endif %}

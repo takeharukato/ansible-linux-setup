@@ -21,6 +21,13 @@ vcinstances_clusterversions: []
 # VirtualCluster インスタンスリスト
 vcinstances_virtualclusters: []
 
+# ClusterVersion Custom Resource Definition の
+# controller-manager Service の生成有効化フラグ (内部変数)
+# Service の namespace 補完が行われずcreate/update 時に
+# "the server could not find the requested resource"
+# が発生することがあるため, 既定無効化している。
+vcinstances_controller_manager_service_enabled: false
+
 #
 # k8s-virtual-cluster ロール由来の変数 (既定値)
 #
