@@ -15,16 +15,37 @@
 # ( VirtualCluster instance: {{ item.name }} )
 #
 ---
+{% set has_clusterVersionName = ( item.clusterVersionName | default('', true) | length ) > 0 %}
+{% set has_apiVersion = ( virtualcluster_api_group | default('', true) | length ) > 0 and ( virtualcluster_api_version | default('', true) | length ) > 0 %}
+{% set namespace = item.namespace | default(virtualcluster_namespace|default('vc-manager', true), true) %}
+{% if has_clusterVersionName and has_apiVersion %}
 apiVersion: {{ virtualcluster_api_group }}/{{ virtualcluster_api_version }}
 kind: VirtualCluster
 metadata:
   name: {{ item.name }}
-  namespace: {{ item.namespace | default(virtualcluster_namespace, true) }}
+  namespace: {{ namespace }}
 spec:
   clusterVersionName: {{ item.clusterVersionName }}
+{# clusterDomainが指定されていた場合は, clusterDomainの設定値を展開 #}
 {% if item.clusterDomain is defined %}
   clusterDomain: {{ item.clusterDomain }}
 {% endif %}
+{# kubeConfigSecretNameが指定されていた場合は, kubeConfigSecretNameの設定値を展開 #}
 {% if item.kubeConfigSecretName is defined %}
   kubeConfigSecretName: {{ item.kubeConfigSecretName }}
+{% endif %}
+{# transparentMetaPrefixesが指定されていた場合は, transparentMetaPrefixesの設定値を展開 #}
+{% if (item.transparentMetaPrefixes | default([], true) | length > 0) %}
+  transparentMetaPrefixes:
+{% for prefix in item.transparentMetaPrefixes %}
+    - {{ prefix }}
+{% endfor %}
+{% endif %}
+{# opaqueMetaPrefixesが指定されていた場合は, opaqueMetaPrefixesの設定値を展開 #}
+{% if (item.opaqueMetaPrefixes | default([], true) | length > 0) %}
+  opaqueMetaPrefixes:
+{% for prefix in item.opaqueMetaPrefixes %}
+    - {{ prefix }}
+{% endfor %}
+{% endif %}
 {% endif %}

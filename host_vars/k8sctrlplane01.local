@@ -154,9 +154,15 @@ vcinstances_virtualclusters:
     clusterVersionName: "cv-k8s-1-31-tenant-alpha"
     clusterDomain: "tenant-alpha.vc.local"
     kubeConfigSecretName: "tenant-alpha-kubeconfig"
+    transparentMetaPrefixes:
+      - "k8s.v1.cni.cncf.io"
+    opaqueMetaPrefixes: []
 
   - name: "tenant-beta"
     namespace: "vc-manager"
     clusterVersionName: "cv-k8s-1-31-tenant-beta"
     clusterDomain: "tenant-beta.vc.local"
     kubeConfigSecretName: "tenant-beta-kubeconfig"
+    transparentMetaPrefixes:
+      - "k8s.v1.cni.cncf.io"
+    opaqueMetaPrefixes: []
