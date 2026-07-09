@@ -98,7 +98,8 @@
 
 # FRR debパッケージをターゲットホストに導入するための
 # コマンド引数を構築する
-# - apt-get -y install に加えて, dpkg のロック待機時間と設定ファイル競合時の挙動を指定
+# - env DEBIAN_FRONTEND=noninteractive apt-get -y install に加えて,
+#   dpkg のロック待機時間と設定ファイル競合時の挙動を指定
 # - DPkg::Lock::Timeout={{ frr_install_deb_lock_wait_seconds }} でロック取得待機時間を指定(単位:秒)
 #   defaults/main.yml で frr_install_deb_lock_wait_seconds を定義している
 # - `--force-confdef` と `--force-confold` は, 設定ファイルが競合した場合に既定動作を使いつつ,
@@ -114,6 +115,8 @@
     frr_deb_install_argv: >-
       {{
         [
+          'env',
+          'DEBIAN_FRONTEND=noninteractive',
           'apt-get',
           '-y',
           '-o',
@@ -165,9 +168,12 @@
 #     b. frr_libyang_symbol_check.rc が 0以外 の場合はシンボルが存在しないため, libyangの先行導入が必要
 - name: Check whether installed libyang provides lyd_parent symbol
   ansible.builtin.shell: >-
+    set -o pipefail;
     libyang_so="$(ldconfig -p | awk '/libyang\.so\.2/{print $4; exit}')";
     test -n "${libyang_so}";
     nm -D "${libyang_so}" 2>/dev/null | grep -qE 'lyd_parent$'
+  args:
+    executable: /bin/bash
   register: frr_libyang_symbol_check
   changed_when: false
   failed_when: false
@@ -201,7 +207,6 @@
       ansible.builtin.command:
         argv: "{{ frr_deb_install_argv }}"
       environment:
-        DEBIAN_FRONTEND: noninteractive
         APT_LISTCHANGES_FRONTEND: none
         NEEDRESTART_MODE: a
       async: "{{ frr_build_timeout_seconds }}"
@@ -236,9 +241,12 @@
 # FRR導入後にlibyangが再上書きされるケースに備え, 再度シンボル整合性を確認する
 - name: Re-check whether installed libyang provides lyd_parent symbol after FRR install
   ansible.builtin.shell: >-
+    set -o pipefail;
     libyang_so="$(ldconfig -p | awk '/libyang\.so\.2/{print $4; exit}')";
     test -n "${libyang_so}";
     nm -D "${libyang_so}" 2>/dev/null | grep -qE 'lyd_parent$'
+  args:
+    executable: /bin/bash
   register: frr_libyang_symbol_check_after_install
   changed_when: false
   failed_when: false

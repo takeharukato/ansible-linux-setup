@@ -15,9 +15,10 @@ APT_PACKAGES := cloud-image-utils gettext-base genisoimage whois
 SNAP_PACKAGES := yq
 # インストーラコマンド (apt から apt-getの変更やフラグ追加などを容易にするため集中管理)
 APT_GET := apt-get
+DEBIAN_FRONTEND := noninteractive
 SNAP := snap
-APT_UPDATE  := sudo ${APT_GET} update
-APT_INSTALL := sudo ${APT_GET} install -y
+APT_UPDATE  := sudo DEBIAN_FRONTEND=${DEBIAN_FRONTEND} ${APT_GET} update
+APT_INSTALL := sudo DEBIAN_FRONTEND=${DEBIAN_FRONTEND} ${APT_GET} install -y
 SNAP_LIST   := ${SNAP} list
 SNAP_INSTALL:= sudo ${SNAP} install
 # ---------------------------------------------------------------------------

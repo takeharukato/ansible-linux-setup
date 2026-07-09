@@ -59,4 +59,6 @@
 # パッケージの更新情報を取得する
 - name: "APT Update Forcefully"  # noqa command-instead-of-module
   ansible.builtin.command: apt-get update -o Acquire::https::Verify-Peer={{ 'true' if apt_sslverify else 'false' }}
+  environment:
+    DEBIAN_FRONTEND: noninteractive
   changed_when: true

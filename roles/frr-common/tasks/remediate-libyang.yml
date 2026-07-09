@@ -53,6 +53,8 @@
           - /tmp/install-libyang.sh
       delegate_to: "{{ frr_build_host }}"
       run_once: true
+      register: frr_libyang_build_cmd
+      changed_when: frr_libyang_build_cmd.rc == 0
 
     # libyang deb パッケージの成果物を構築ホストから取得する
     - name: Discover rebuilt libyang deb packages on build host ({{ frr_libyang_phase_label }})
@@ -146,7 +148,9 @@
         shopt -s nullglob;
         debs=(/tmp/libyang2_{{ frr_libyang_version }}-1_*.deb /tmp/libyang2t64_{{ frr_libyang_version }}-1_*.deb /tmp/libyang2-dev_{{ frr_libyang_version }}-1_*.deb);
         test -n "${debs[*]:-}";
-        apt-get -y --allow-downgrades install "${debs[@]}";
+        DEBIAN_FRONTEND=noninteractive apt-get -y --allow-downgrades install "${debs[@]}";
         ldconfig
       args:
         executable: /bin/bash
+      register: frr_libyang_install_cmd
+      changed_when: frr_libyang_install_cmd.rc == 0

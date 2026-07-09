@@ -74,6 +74,8 @@
     python_k8s_client_deb_install_argv: >-
       {{
         [
+          'env',
+          'DEBIAN_FRONTEND=noninteractive',
           'apt-get',
           '-y',
           '-o',
@@ -96,6 +98,8 @@
 - name: Install local python k8s client deb packages in one transaction
   ansible.builtin.command:
     argv: "{{ python_k8s_client_deb_install_argv }}"
+  register: python_k8s_client_deb_install_cmd
+  changed_when: python_k8s_client_deb_install_cmd.rc == 0
   become: true
 
 # Python 言語版 Kubernetes client の debパッケージが

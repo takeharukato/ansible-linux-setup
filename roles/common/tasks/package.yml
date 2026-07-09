@@ -42,7 +42,7 @@
     set -e
     if [ "{{ ansible_facts.os_family }}" = "Debian" ]; then
       curl -fsSL -o /tmp/xe-guest-utilities.deb "{{ xcpng_xe_guest_utilities_deb_url }}"
-      dpkg -i /tmp/xe-guest-utilities.deb || apt-get -f install -y
+      dpkg -i /tmp/xe-guest-utilities.deb || DEBIAN_FRONTEND=noninteractive apt-get -f install -y
     else
       curl -fsSL -o /tmp/xe-guest-utilities.rpm "{{ xcpng_xe_guest_utilities_rpm_url }}"
       curl -fsSL -o /tmp/xe-guest-utilities-xenstore.rpm "{{ xcpng_xen_store_rpm_url }}"

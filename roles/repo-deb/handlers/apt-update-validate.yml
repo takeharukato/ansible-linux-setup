@@ -22,7 +22,7 @@
     for p in "${pkgs[@]}"; do
       apt-cache policy "$p" >/dev/null
     done
-    apt-get -s install "${pkgs[@]}" >/dev/null
+    DEBIAN_FRONTEND=noninteractive apt-get -s install "${pkgs[@]}" >/dev/null
   args:
     executable: /bin/bash
   changed_when: false

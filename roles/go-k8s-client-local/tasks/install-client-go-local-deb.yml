@@ -87,6 +87,8 @@
     go_k8s_client_deb_install_argv: >-
       {{
         [
+          'env',
+          'DEBIAN_FRONTEND=noninteractive',
           'apt-get',
           '-y',
           '-o',
@@ -112,6 +114,8 @@
 - name: Install local go k8s client deb packages in one transaction
   ansible.builtin.command:
     argv: "{{ go_k8s_client_deb_install_argv }}"
+  register: go_k8s_client_deb_install_cmd
+  changed_when: go_k8s_client_deb_install_cmd.rc == 0
   become: true
 
 # Go 言語版 Kubernetes client debパッケージが導入済みであることを確認する

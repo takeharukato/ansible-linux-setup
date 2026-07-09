@@ -9,6 +9,9 @@
 
 set -euo pipefail
 
+# debパッケージビルド時に対話的な質問を抑制する
+export DEBIAN_FRONTEND=noninteractive
+
 # ランタイムパッケージ名の候補2
 RUNTIME_PKG_NAME2="libyang2t64"
 
