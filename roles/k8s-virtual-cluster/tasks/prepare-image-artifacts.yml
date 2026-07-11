@@ -145,7 +145,7 @@
       {{
         (virtualcluster_clean_build | bool)
         and (virtualcluster_build_from_source | bool)
-        and (virtualcluster_skip_cache_on_clean_build | default(true) | bool)
+        and (virtualcluster_skip_cache_on_clean_build | default(false) | bool)
       }}
   run_once: true
 

@@ -264,6 +264,9 @@ virtualcluster_vn_agent_args:
   - "--kubelet-client-certificate={{ virtualcluster_vn_agent_pki_dir }}/client.crt"
   - "--kubelet-client-key={{ virtualcluster_vn_agent_pki_dir }}/client.key"
 
+# control plane 自動解決時に参照するインベントリグループ名。
+k8s_register_image_control_plane_group_name: "k8s_ctrlplane"
+
 # vn-agent Pod のリソース要求量
 virtualcluster_vn_agent_resource_requests:
   cpu: "100m"

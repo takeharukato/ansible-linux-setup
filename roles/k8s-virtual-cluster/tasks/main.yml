@@ -17,28 +17,6 @@
 - name: "Load Params"
   ansible.builtin.include_tasks: load-params.yml
 
-# クラスタ識別キーを算出するタスク
-- name: "Set Virtual Cluster cluster key"
-  ansible.builtin.set_fact:
-    virtualcluster_cluster_key: "{{ k8s_cilium_cm_cluster_name | default(k8s_ctrlplane_endpoint) }}"
-  when: k8s_virtualcluster_enabled | bool
-
-# 同一クラスタのコントロールプレーンノード一覧を算出するタスク
-- name: "Collect control-plane hosts in the same cluster"
-  ansible.builtin.set_fact:
-    virtualcluster_cluster_ctrlplane_hosts: "{{ (virtualcluster_cluster_ctrlplane_hosts | default([])) + [item] }}"
-  loop: "{{ groups['k8s_ctrlplane'] | default([]) }}"
-  when:
-    - k8s_virtualcluster_enabled | bool
-    - item in ansible_play_hosts_all
-    - (hostvars[item].k8s_cilium_cm_cluster_name | default(hostvars[item].k8s_ctrlplane_endpoint | default(''))) == virtualcluster_cluster_key
-
-# 同一クラスタ内で代表ノードかどうかを判定するタスク
-- name: "Set cluster leader flag for Virtual Cluster tasks"
-  ansible.builtin.set_fact:
-    virtualcluster_is_cluster_leader: "{{ inventory_hostname == ((virtualcluster_cluster_ctrlplane_hosts | default([inventory_hostname])) | sort | first) }}"
-  when: k8s_virtualcluster_enabled | bool
-
 # Virtual Cluster を有効にするための前提条件を検証するタスク
 - name: "Validate"
   ansible.builtin.include_tasks: validate.yml
@@ -86,7 +64,7 @@
   when:
     - k8s_virtualcluster_enabled | bool
     - virtualcluster_build_from_source | bool
-    - not (virtualcluster_explicit_available | default(false))
+    - (virtualcluster_image_source_mode | default('build')) == 'build'
 
 # etcdスキーム制御用のパッチを適用するタスク
 - name: "Patch Provisioner for etcd scheme control"
@@ -94,7 +72,7 @@
   when:
     - k8s_virtualcluster_enabled | bool
     - virtualcluster_build_from_source | bool
-    - not (virtualcluster_explicit_available | default(false))
+    - (virtualcluster_image_source_mode | default('build')) == 'build'
 
 # ClusterPhase "Error" → "Failed" の不一致修正パッチを適用するタスク
 - name: "Patch VirtualCluster types for ClusterError phase value"
@@ -102,7 +80,7 @@
   when:
     - k8s_virtualcluster_enabled | bool
     - virtualcluster_build_from_source | bool
-    - not (virtualcluster_explicit_available | default(false))
+    - (virtualcluster_image_source_mode | default('build')) == 'build'
 
 # kubeconfigのドメイン名URLバグ修正パッチを適用するタスク
 - name: "Patch kubeconfig generation to correctly handle hostname-based server URLs"
@@ -110,7 +88,7 @@
   when:
     - k8s_virtualcluster_enabled | bool
     - virtualcluster_build_from_source | bool
-    - not (virtualcluster_explicit_available | default(false))
+    - (virtualcluster_image_source_mode | default('build')) == 'build'
 
 # Service同期時のClusterIPs問題修正パッチを適用するタスク
 - name: "Patch Service mutate to fix ClusterIPs sync issue"
@@ -118,7 +96,7 @@
   when:
     - k8s_virtualcluster_enabled | bool
     - virtualcluster_build_from_source | bool
-    - not (virtualcluster_explicit_available | default(false))
+    - (virtualcluster_image_source_mode | default('build')) == 'build'
 
 # vn-agent の証明書ファイル存在確認で nil 参照を防ぐパッチを適用するタスク
 - name: "Patch vn-agent options to safely handle missing kubelet client cert files"
@@ -126,7 +104,7 @@
   when:
     - k8s_virtualcluster_enabled | bool
     - virtualcluster_build_from_source | bool
-    - not (virtualcluster_explicit_available | default(false))
+    - (virtualcluster_image_source_mode | default('build')) == 'build'
 
 # Virtual Cluster のソースをビルドするタスク
 - name: "Build Binaries"
@@ -134,7 +112,7 @@
   when:
     - k8s_virtualcluster_enabled | bool
     - virtualcluster_build_from_source | bool
-    - not (virtualcluster_explicit_available | default(false))
+    - (virtualcluster_image_source_mode | default('build')) == 'build'
 
 # kubectl-vc プラグインをビルドするタスク
 - name: "Build kubectl-vc Plugin"
@@ -143,7 +121,7 @@
     - k8s_virtualcluster_enabled | bool
     - virtualcluster_build_from_source | bool
     - virtualcluster_build_kubectl_vc | bool
-    - not (virtualcluster_explicit_available | default(false))
+    - (virtualcluster_image_source_mode | default('build')) == 'build'
 
 # Virtual Cluster のコンテナイメージ成果物を準備するタスク
 - name: "Prepare Image Artifacts"

@@ -12,55 +12,22 @@
 #
 ---
 
-# localhost上の一時配布ディレクトリをクラスタ単位で分離
-- name: "Set local temporary distribution directory path"
-  ansible.builtin.set_fact:
-    virtualcluster_local_distribution_tmp_dir: >-
-      /tmp/ansible-vc-images-{{ (virtualcluster_cluster_key | default(inventory_hostname)) | regex_replace('[^A-Za-z0-9_.-]', '_') }}
-  when: virtualcluster_is_cluster_leader | default(true) | bool
-
-# ワーカーノードリストを取得
-- name: "Get worker node list from Kubernetes cluster"
-  ansible.builtin.command:
-    cmd: >-
-      kubectl --kubeconfig {{ virtualcluster_supercluster_kubeconfig_path }}
-      get nodes --selector='!node-role.kubernetes.io/control-plane'
-      -o jsonpath='{.items[*].metadata.name}'
-  register: worker_nodes_result
-  changed_when: false
-  become: true
-  when: virtualcluster_is_cluster_leader | default(true) | bool
-
-# ワーカーノードリストを変数に格納
-- name: "Set worker nodes list"
-  ansible.builtin.set_fact:
-    worker_nodes: "{{ worker_nodes_result.stdout.split() }}"
-  when: virtualcluster_is_cluster_leader | default(true) | bool
-
-# ワーカーノードが見つからない場合はエラー
-- name: "Verify that worker nodes exist"
-  ansible.builtin.fail:
-    msg: "ERROR: No worker nodes found in the cluster"
-  when:
-    - virtualcluster_is_cluster_leader | default(true) | bool
-    - worker_nodes | length == 0
+# 対象ホスト構成を k8s-register-image ロール側で解決する
+- name: "Discover target hosts via k8s-register-image"
+  ansible.builtin.include_role:
+    name: k8s-register-image
+    tasks_from: discover-target-hosts.yml
+  vars:
+    k8s_register_image_auto_discover_control_plane_hosts: true
+    k8s_register_image_auto_discover_worker_hosts: true
+    k8s_register_image_cluster_key: "{{ k8s_ctrlplane_endpoint }}"
+    k8s_kubeconfig_to_discover_workers_path: "{{ virtualcluster_supercluster_kubeconfig_path }}"
 
 # ワーカーノード情報の表示
 - name: "Display worker node list"
   ansible.builtin.debug:
-    msg: "Worker nodes found: {{ worker_nodes | join(', ') }}"
-  when: virtualcluster_is_cluster_leader | default(true) | bool
-
-# ワーカーノードを動的インベントリに追加
-# inventory/hostsの[k8s_worker]がコメントアウトされている場合に必要
-- name: "Add worker nodes to dynamic inventory"
-  ansible.builtin.add_host:
-    name: "{{ item }}"
-    groups: k8s_worker_dynamic
-    ansible_user: "{{ ansible_user }}"
-    ansible_become: true
-  loop: "{{ worker_nodes }}"
-  when: virtualcluster_is_cluster_leader | default(true) | bool
+    msg: "Worker nodes found: {{ k8s_register_image_worker_hosts | join(', ') }}"
+  when: k8s_register_image_is_cluster_leader | default(true) | bool
 
 # コントロールプレーン上のイメージファイルを読み取り可能にする
 # 留意事項:
@@ -72,7 +39,7 @@
     mode: "0644"
   loop: "{{ virtualcluster_build_components }}"
   become: true
-  when: virtualcluster_is_cluster_leader | default(true) | bool
+  when: k8s_register_image_is_cluster_leader | default(true) | bool
 
 # イメージファイルをコントロールプレーンからlocalhostへ取得
 # 留意事項:
@@ -82,20 +49,32 @@
 - name: "Fetch images from control plane to localhost"
   ansible.builtin.fetch:
     src: "{{ virtualcluster_ctrlplane_cache_dir }}/{{ item }}-amd64.tar"
-    dest: "{{ virtualcluster_local_distribution_tmp_dir }}/"
+    dest: "{{ virtualcluster_local_cache_dir }}/"
     flat: true
     validate_checksum: false
   loop: "{{ virtualcluster_build_components }}"
   become: false
-  when: virtualcluster_is_cluster_leader | default(true) | bool
+  when: k8s_register_image_is_cluster_leader | default(true) | bool
 
-# 各ワーカーノードにイメージを配布
-- name: "Distribute images to worker nodes"
-  ansible.builtin.include_tasks: distribute-to-single-worker.yml
-  loop: "{{ worker_nodes }}"
-  loop_control:
-    loop_var: worker_node
-  when: virtualcluster_is_cluster_leader | default(true) | bool
+# localhost 上の tar を k8s-register-image ロールで worker に登録する
+- name: "Register images on worker nodes via k8s-register-image"
+  ansible.builtin.include_role:
+    name: k8s-register-image
+    tasks_from: register-workers.yml
+  vars:
+    k8s_register_image_components:
+      manager: "{{ virtualcluster_local_cache_dir }}/manager-amd64.tar"
+      syncer: "{{ virtualcluster_local_cache_dir }}/syncer-amd64.tar"
+      vn-agent: "{{ virtualcluster_local_cache_dir }}/vn-agent-amd64.tar"
+    k8s_register_image_expected_images:
+      manager: "{{ virtualcluster_manager_image | default('virtualcluster/manager-amd64:latest', true) }}"
+      syncer: "{{ virtualcluster_syncer_image | default('virtualcluster/syncer-amd64:latest', true) }}"
+      vn-agent: "{{ virtualcluster_vn_agent_image | default('virtualcluster/vn-agent-amd64:latest', true) }}"
+    k8s_register_image_remote_cache_dir: "/tmp"
+    k8s_register_image_unqualified_image_registry: "{{ virtualcluster_unqualified_image_registry }}"
+    k8s_register_image_auto_discover_worker_hosts: false
+    k8s_register_image_auto_discover_control_plane_hosts: false
+    k8s_register_image_skip_discovery: true
 
 # コントロールプレーン上のイメージキャッシュを削除
 - name: "Cleanup image cache on control plane"
@@ -103,7 +82,7 @@
     path: "{{ virtualcluster_ctrlplane_cache_dir }}"
     state: absent
   become: true
-  when: virtualcluster_is_cluster_leader | default(true) | bool
+  when: k8s_register_image_is_cluster_leader | default(true) | bool
 
 # localhost上のイメージキャッシュを削除
 - name: "Cleanup image cache on localhost"
@@ -113,20 +92,12 @@
   delegate_to: localhost
   run_once: true
   when:
-    - virtualcluster_is_cluster_leader | default(true) | bool
+    - k8s_register_image_is_cluster_leader | default(true) | bool
     - not (virtualcluster_keep_image_cache | bool)
     - (virtualcluster_image_source_mode | default('')) != 'build'
-
-# localhost上の一時配布ディレクトリを削除
-- name: "Cleanup temporary distribution directory on localhost"
-  ansible.builtin.file:
-    path: "{{ virtualcluster_local_distribution_tmp_dir }}"
-    state: absent
-  delegate_to: localhost
-  when: virtualcluster_is_cluster_leader | default(true) | bool
 
 # 配布完了メッセージ
 - name: "Image distribution completed"
   ansible.builtin.debug:
     msg: "Virtual Cluster images have been successfully distributed to all worker nodes"
-  when: virtualcluster_is_cluster_leader | default(true) | bool
+  when: k8s_register_image_is_cluster_leader | default(true) | bool

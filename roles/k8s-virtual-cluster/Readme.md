@@ -2459,12 +2459,13 @@ $
 
 [roles/k8s-virtual-cluster/tasks/distribute-to-workers.yml](tasks/distribute-to-workers.yml)の動作状況を, ansibleの実行ログから確認し, 適切にコンテナイメージの配布が行えていることを確認してください。
 
-配布処理は以下のタスクファイルで実行されます:
-- [distribute-to-workers.yml](tasks/distribute-to-workers.yml): ワーカノードリスト取得, イメージfetch, 配布オーケストレーション
-- [distribute-to-single-worker.yml](tasks/distribute-to-single-worker.yml): 単一ワーカノードへの配布ループ
-- [distribute-single-image.yml](tasks/distribute-single-image.yml): 単一イメージの転送とインポート
+配布処理は以下のタスク/ロールで実行されます:
+- [distribute-to-workers.yml](tasks/distribute-to-workers.yml): ワーカノードリスト取得, control plane から localhost へのイメージ取得, worker 配布オーケストレーション
+- [register-workers.yml](../k8s-register-image/tasks/register-workers.yml): worker ノード単位での登録ループ
+- [register-single-node.yml](../k8s-register-image/tasks/register-single-node.yml): 単一ノードへの tar 転送, import, 後始末
+- [import-image-on-cri.sh](../k8s-register-image/files/import-image-on-cri.sh): containerd への import とタグ整合処理
 
-正常に成功した場合, 各ワーカノードへのイメージ転送とインポートが順次実行され, 処理完了メッセージ(`Completed: <component> on <worker>`)が表示されます。
+正常に成功した場合, `Register images on worker nodes via k8s-register-image` 配下で各 worker ノードへの転送と import が順次実行されます。
 
 ```plaintext
   Transferring vn-agent-amd64.tar to k8sworker0101...,

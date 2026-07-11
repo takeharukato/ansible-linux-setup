@@ -82,3 +82,59 @@
         )
       }}
   run_once: true
+
+# localhost上でキャッシュtarの存在を確認
+- name: "Verify cached image tar files exist (early detection)"
+  ansible.builtin.stat:
+    path: "{{ virtualcluster_image_cache_dir }}/latest/images/{{ item }}-amd64.tar"
+  loop: "{{ virtualcluster_build_components }}"
+  register: virtualcluster_cached_tar_stat
+  delegate_to: localhost
+  become: false
+  run_once: true
+
+# キャッシュ利用可否フラグを設定
+- name: "Set cache availability flag (early detection)"
+  ansible.builtin.set_fact:
+    virtualcluster_cache_available: >-
+      {{
+        (
+          virtualcluster_cached_tar_stat.results
+          | default([])
+          | map(attribute='stat.exists')
+          | list
+          | min
+          | default(false)
+        )
+      }}
+  run_once: true
+
+# クリーンビルド時にキャッシュを無効化するフラグを算出
+- name: "Set force-build flag on clean build (early detection)"
+  ansible.builtin.set_fact:
+    virtualcluster_force_build_mode: >-
+      {{
+        (virtualcluster_clean_build | bool)
+        and (virtualcluster_build_from_source | bool)
+        and (virtualcluster_skip_cache_on_clean_build | default(false) | bool)
+      }}
+  run_once: true
+
+# 早期に動作モードを確定
+- name: "Select image source mode (early detection)"
+  ansible.builtin.set_fact:
+    virtualcluster_image_source_mode: >-
+      {{
+        'explicit'
+        if (virtualcluster_explicit_available | default(false))
+        else (
+          'build'
+          if (virtualcluster_force_build_mode | default(false))
+          else (
+            'cache'
+            if (virtualcluster_cache_available | default(false))
+            else 'build'
+          )
+        )
+      }}
+  run_once: true

@@ -12,110 +12,28 @@
 #
 ---
 
-# コントロールプレーン上にキャッシュディレクトリを作成
-- name: "Create cache directory on control plane"
-  ansible.builtin.file:
-    path: "{{ virtualcluster_ctrlplane_cache_dir }}"
-    state: directory
-    mode: "0755"
-  become: true
-  when: virtualcluster_is_cluster_leader | default(true) | bool
-
-# localhostからコントロールプレーンへtarファイルをコピー
-- name: "Copy image tar files to control plane"
-  ansible.builtin.copy:
-    src: "{{ virtualcluster_local_cache_dir }}/{{ item }}-amd64.tar"
-    dest: "{{ virtualcluster_ctrlplane_cache_dir }}/{{ item }}-amd64.tar"
-    mode: "0644"
-  loop: "{{ virtualcluster_build_components }}"
-  become: true
-  when: virtualcluster_is_cluster_leader | default(true) | bool
-
-# コントロールプレーンでもローカルtarからイメージを取り込み
-- name: "Import images on control plane"
-  ansible.builtin.shell: |
-    set -e
-    set -o pipefail
-    # 各コンポーネントの期待タグを取得
-    expected_tag="{{ virtualcluster_expected_images[item] }}"
-    # / より前の先頭要素だけを取り出す。
-    # 例: registry.example.com/ns/img:tag の場合,
-    #     registry.example.com を取り出す。
-    first_component="${expected_tag%%/*}"
-
-    # expected_tag_primary は, ctr import でインポートする際のタグとして使用する
-    # expected_tag_alias は, 未修飾名を使う場合に, CRIの既定レジストリ解決差異を吸収するための別名として使用する
-    #
-    # 先頭要素が localhost, ドメイン名, ポート番号を含む場合は, そのまま expected_tag_primary に設定する
-    # それ以外の場合は, expected_tag_primary に設定し, expected_tag_alias に
-    # virtualcluster_unqualified_image_registry を付与した別名を設定する
-    if [[ "$first_component" == "localhost" || "$first_component" == *.* || "$first_component" == *:* ]]; then
-      expected_tag_primary="$expected_tag"
-      expected_tag_alias=""
-    else
-      expected_tag_primary="$expected_tag"
-      expected_tag_alias="{{ virtualcluster_unqualified_image_registry }}/${expected_tag}"
-    fi
-
-    # 既存タグ/関連digestを削除してから再取り込み
-    sudo ctr -n k8s.io images rm "${expected_tag_primary}" 2>/dev/null || true
-    if [ -n "$expected_tag_alias" ]; then
-      sudo ctr -n k8s.io images rm "${expected_tag_alias}" 2>/dev/null || true
-    fi
-    for digest in $(sudo ctr -n k8s.io images ls -q | grep -F "${expected_tag_primary%%:*}"); do
-      sudo ctr -n k8s.io images rm "$digest" 2>/dev/null || true
-    done
-    import_out="$(sudo ctr -n k8s.io images import {{ virtualcluster_ctrlplane_cache_dir }}/{{ item }}-amd64.tar)"
-    printf '%s\n' "$import_out"
-
-    # explicitモードでは, import結果のdigestを使って期待タグへ正規化する
-    if ! sudo ctr -n k8s.io images ls -q | grep -Fx "$expected_tag_primary" >/dev/null \
-      && ( [ -z "$expected_tag_alias" ] || ! sudo ctr -n k8s.io images ls -q | grep -Fx "$expected_tag_alias" >/dev/null ); then
-      if [ "{{ virtualcluster_image_source_mode | default('') }}" = "explicit" ]; then
-        import_digest="$(printf '%s\n' "$import_out" | grep -Eo 'sha256:[0-9a-f]{64}' | head -n1 || true)"
-        if [ -z "$import_digest" ]; then
-          echo "ERROR: Failed to detect imported digest for {{ item }} in explicit mode" >&2
-          exit 1
-        fi
-
-        source_ref="$(sudo ctr -n k8s.io images ls | grep -F "$import_digest" | awk '{print $1}' | head -n1 || true)"
-        if [ -z "$source_ref" ]; then
-          echo "ERROR: Failed to detect imported source ref for {{ item }} digest $import_digest" >&2
-          exit 1
-        fi
-
-        sudo ctr -n k8s.io images tag "$source_ref" "$expected_tag_primary"
-      fi
-    fi
-
-    # 未修飾名を使う場合のみ, CRIの既定レジストリ解決差異を吸収するため別名を保証
-    if [ -n "$expected_tag_alias" ]; then
-      if sudo ctr -n k8s.io images ls -q | grep -Fx "$expected_tag_primary" >/dev/null; then
-        sudo ctr -n k8s.io images tag "$expected_tag_primary" "$expected_tag_alias" 2>/dev/null || true
-      elif sudo ctr -n k8s.io images ls -q | grep -Fx "$expected_tag_alias" >/dev/null; then
-        sudo ctr -n k8s.io images tag "$expected_tag_alias" "$expected_tag_primary" 2>/dev/null || true
-      fi
-    fi
-
-    # 期待タグが見えない場合は, タグ不整合として失敗させる
-    sudo ctr -n k8s.io images ls -q | grep -Fx "$expected_tag_primary" >/dev/null
-    if [ -n "$expected_tag_alias" ]; then
-      sudo ctr -n k8s.io images ls -q | grep -Fx "$expected_tag_alias" >/dev/null
-    fi
-  args:
-    executable: /bin/bash
-  loop: "{{ virtualcluster_build_components }}"
+# localhost 上の tar を k8s-register-image ロールで control plane に登録する
+- name: "Register images on control-plane nodes via k8s-register-image"
+  ansible.builtin.include_role:
+    name: k8s-register-image
+    tasks_from: register-control-plane.yml
   vars:
-    virtualcluster_expected_images:
+    k8s_register_image_components:
+      manager: "{{ virtualcluster_local_cache_dir }}/manager-amd64.tar"
+      syncer: "{{ virtualcluster_local_cache_dir }}/syncer-amd64.tar"
+      vn-agent: "{{ virtualcluster_local_cache_dir }}/vn-agent-amd64.tar"
+    k8s_register_image_expected_images:
       manager: "{{ virtualcluster_manager_image | default('virtualcluster/manager-amd64:latest', true) }}"
       syncer: "{{ virtualcluster_syncer_image | default('virtualcluster/syncer-amd64:latest', true) }}"
       vn-agent: "{{ virtualcluster_vn_agent_image | default('virtualcluster/vn-agent-amd64:latest', true) }}"
-  become: true
-  changed_when: true
-  when: virtualcluster_is_cluster_leader | default(true) | bool
+    k8s_register_image_auto_discover_control_plane_hosts: true
+    k8s_register_image_cluster_key: "{{ k8s_ctrlplane_endpoint }}"
+    k8s_register_image_remote_cache_dir: "{{ virtualcluster_ctrlplane_cache_dir }}"
+    k8s_register_image_unqualified_image_registry: "{{ virtualcluster_unqualified_image_registry }}"
+    k8s_register_image_cleanup_remote_tar: false
 
 # アップロード結果を表示
 - name: "Display upload result"
   ansible.builtin.debug:
     msg: "Image tar files uploaded to control plane at {{ virtualcluster_ctrlplane_cache_dir }}"
-  when: virtualcluster_is_cluster_leader | default(true) | bool
+  when: k8s_register_image_is_cluster_leader | default(true) | bool
