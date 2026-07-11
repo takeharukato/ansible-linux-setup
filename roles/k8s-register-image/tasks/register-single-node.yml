@@ -1,0 +1,54 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  単一ノード登録タスク
+#
+---
+
+# 対象ノード上の一時 tar 配置先ディレクトリを作成する。
+- name: "Create remote cache directory on target node"
+  ansible.builtin.file:
+    path: "{{ k8s_register_image_remote_cache_dir }}"
+    state: directory
+    mode: "0755"
+  delegate_to: "{{ target_host }}"
+  become: true
+
+# 制御ノード上の tar 配置先ディレクトリから, 対象ノード上の一時 tar 配置先に
+# tar ファイルを転送する。
+- name: "Transfer image tar files to target node"
+  ansible.builtin.copy:
+    src: "{{ item.value }}"
+    dest: "{{ k8s_register_image_remote_cache_dir }}/{{ item.value | basename }}"
+    mode: "0644"
+  loop: "{{ k8s_register_image_components | dict2items }}"
+  delegate_to: "{{ target_host }}"
+  become: true
+
+# 対象ノード上の一時 tar 配置先に転送した tar ファイルを,
+# 対象ノード上の Container Runtime Interface (CRI, containerd)
+# にインポートする。
+- name: "Import images on target node"
+  ansible.builtin.script: >-
+    {{ role_path }}/files/import-image-on-cri.sh
+    {{ item.key }}
+    {{ k8s_register_image_expected_images[item.key] | quote }}
+    {{ (k8s_register_image_remote_cache_dir ~ '/' ~ (item.value | basename)) | quote }}
+    {{ k8s_register_image_unqualified_image_registry | quote }}
+  args:
+    executable: /bin/bash
+  loop: "{{ k8s_register_image_components | dict2items }}"
+  delegate_to: "{{ target_host }}"
+  become: true
+  changed_when: true
+
+# 対象ノード上の一時 tar 配置先に転送した tar ファイルを削除する。
+- name: "Cleanup temporary image files on target node"
+  ansible.builtin.file:
+    path: "{{ k8s_register_image_remote_cache_dir }}/{{ item.value | basename }}"
+    state: absent
+  loop: "{{ k8s_register_image_components | dict2items }}"
+  delegate_to: "{{ target_host }}"
+  become: true
+  when: k8s_register_image_cleanup_remote_tar | bool

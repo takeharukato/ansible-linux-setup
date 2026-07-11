@@ -1,0 +1,86 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  登録対象ホスト自動解決タスク
+#
+---
+
+# control plane ホスト一覧を自動解決する場合は, 事前に空配列へ初期化する。
+- name: "Reset control-plane hosts for auto-discovery"
+  ansible.builtin.set_fact:
+    k8s_register_image_control_plane_hosts: []
+  when: k8s_register_image_auto_discover_control_plane_hosts | bool
+
+# control plane 自動解決を行う場合は, 呼び出し元がクラスタ識別キーを渡していることを検証する。
+- name: "Verify cluster key for auto-discovery"
+  ansible.builtin.assert:
+    that:
+      - (k8s_register_image_cluster_key | default('', true) | trim | length) > 0
+    fail_msg: "ERROR: k8s_register_image_cluster_key must be set when control-plane auto-discovery is enabled"
+  when: k8s_register_image_auto_discover_control_plane_hosts | bool
+
+# 同一クラスタの control plane ホスト一覧を収集する。
+- name: "Collect control-plane hosts in same cluster"
+  ansible.builtin.set_fact:
+    k8s_register_image_control_plane_hosts: "{{ (k8s_register_image_control_plane_hosts | default([])) + [item] }}"
+  loop: "{{ groups[k8s_register_image_control_plane_group_name] | default([]) }}"
+  when:
+    - k8s_register_image_auto_discover_control_plane_hosts | bool
+    - item in ansible_play_hosts_all
+
+# 指定グループに該当 host が無い場合は, 現在ホストを control plane として補完する。
+- name: "Fallback control-plane hosts to current host"
+  ansible.builtin.set_fact:
+    k8s_register_image_control_plane_hosts: ["{{ inventory_hostname }}"]
+  when:
+    - k8s_register_image_auto_discover_control_plane_hosts | bool
+    - (k8s_register_image_control_plane_hosts | default([], true) | length) == 0
+
+# 現在ホストが同一クラスタ内の代表ノードかどうかを判定する。
+- name: "Set cluster leader flag"
+  ansible.builtin.set_fact:
+    k8s_register_image_is_cluster_leader: "{{ inventory_hostname == ((k8s_register_image_control_plane_hosts | default([inventory_hostname], true)) | sort | first) }}"
+
+# worker ホスト一覧を自動解決する場合は, 代表ノード上でノード一覧を取得する。
+- name: "Get worker node list from Kubernetes cluster"
+  ansible.builtin.command:
+    cmd: >-
+      kubectl --kubeconfig {{ k8s_kubeconfig_to_discover_workers_path }}
+      get nodes --selector='!node-role.kubernetes.io/control-plane'
+      -o jsonpath='{.items[*].metadata.name}'
+  register: k8s_register_image_worker_nodes_result
+  changed_when: false
+  become: true
+  when:
+    - k8s_register_image_auto_discover_worker_hosts | bool
+    - k8s_register_image_is_cluster_leader | bool
+
+# worker ホスト一覧を変数に格納する。
+- name: "Set worker hosts"
+  ansible.builtin.set_fact:
+    k8s_register_image_worker_hosts: "{{ k8s_register_image_worker_nodes_result.stdout.split() }}"
+  when:
+    - k8s_register_image_auto_discover_worker_hosts | bool
+    - k8s_register_image_is_cluster_leader | bool
+
+# worker が存在しない場合は明示的に失敗させる。
+- name: "Verify that worker hosts exist"
+  ansible.builtin.fail:
+    msg: "ERROR: No worker nodes found in the cluster"
+  when:
+    - k8s_register_image_auto_discover_worker_hosts | bool
+    - k8s_register_image_is_cluster_leader | bool
+    - (k8s_register_image_worker_hosts | default([], true) | length) == 0
+
+# inventory/hosts の [k8s_worker] が無効な場合に備えて動的インベントリへ追加する。
+- name: "Add worker nodes to dynamic inventory"
+  ansible.builtin.add_host:
+    name: "{{ item }}"
+    groups: k8s_worker_dynamic
+    ansible_user: "{{ ansible_user }}"
+    ansible_become: true
+  loop: "{{ k8s_register_image_worker_hosts | default([], true) }}"
+  when:
+    - k8s_register_image_auto_discover_worker_hosts | bool
+    - k8s_register_image_is_cluster_leader | bool

@@ -1,0 +1,39 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  入力検証タスク
+#
+---
+
+# 入力パラメタがそろっていることを確認する
+# 必須パラメタ:
+#   - k8s_register_image_components          コンポーネント名 -> tar パス の対応表
+#   - k8s_register_image_expected_images     コンポーネント名 -> 期待タグ の対応表
+#   - k8s_register_image_control_plane_hosts 登録対象 control plane ホスト一覧
+#   - k8s_register_image_worker_hosts        登録対象 worker ホスト一覧
+#
+- name: "Validate required inputs"
+  ansible.builtin.assert:
+    that:
+      - k8s_register_image_components is mapping
+      - (k8s_register_image_components | default({}, true) | length) > 0
+      - (k8s_register_image_expected_images | default({}, true) | length) > 0
+      - (k8s_register_image_control_plane_hosts | default([], true) | length) >= 0
+      - (k8s_register_image_worker_hosts | default([], true) | length) >= 0
+    fail_msg: >-
+      k8s_register_image_components, k8s_register_image_expected_images,
+      k8s_register_image_control_plane_hosts,
+      k8s_register_image_worker_hosts should be defined and not empty.
+      Please check your input parameters.
+
+# 各コンポーネントに対して, 期待タグと tar パスが定義されていることを確認する
+- name: "Validate expected image mapping"
+  ansible.builtin.assert:
+    that:
+      - item.key in k8s_register_image_expected_images
+      - (k8s_register_image_expected_images[item.key] | string | length) > 0
+      - (item.value | string | length) > 0
+      - item.value is match('^/')
+    fail_msg: "Missing image tar path or expected image tag for component {{ item.key }}"
+  loop: "{{ k8s_register_image_components | default({}, true) | dict2items }}"

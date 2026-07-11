@@ -1,0 +1,25 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  worker 登録タスク
+#
+---
+
+# 登録対象ホストを自動解決し, 代表ノード判定を行う。
+- name: "Discover target hosts"
+  ansible.builtin.include_tasks: discover-target-hosts.yml
+  when: not (k8s_register_image_skip_discovery | bool)
+
+# k8s_register_image_target_kind を worker に設定の上,
+# worker 登録対象ホストに対して, register-single-node.yml を呼び出し,
+# worker ホストに対してイメージ登録を行う。
+- name: "Register images on each worker host"
+  ansible.builtin.include_tasks: register-single-node.yml
+  loop: "{{ k8s_register_image_worker_hosts }}"
+  loop_control:
+    loop_var: target_host
+    label: "{{ target_host }}"
+  vars:
+    k8s_register_image_target_kind: "worker"
+  when: k8s_register_image_is_cluster_leader | default(true) | bool

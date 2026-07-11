@@ -1,0 +1,49 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  ロール固有変数のデフォルト値
+#  group_vars/all/all.yml やhost_varsで上書き可能とするため,
+#  ロール名/defaults/main.yml に定義している
+#  本ロールは他のロールから呼び出されることを想定しているため,
+#  defaults/main.yml に定義する値はすべて空定義である。
+---
+
+# 登録対象コンポーネント名と tar パスの対応表
+k8s_register_image_components: {}
+
+# コンポーネント名 -> 期待タグ の対応表
+k8s_register_image_expected_images: {}
+
+# 登録対象 control plane ホスト一覧
+k8s_register_image_control_plane_hosts: []
+
+# 登録対象 worker ホスト一覧
+k8s_register_image_worker_hosts: []
+
+# control plane ホスト一覧を自動解決するかどうか
+k8s_register_image_auto_discover_control_plane_hosts: false
+
+# worker ホスト一覧を自動解決するかどうか
+k8s_register_image_auto_discover_worker_hosts: false
+
+# control plane 自動解決時に参照するインベントリグループ名
+k8s_register_image_control_plane_group_name: "k8s_ctrlplane"
+
+# 呼び出し元が渡すクラスタ識別キー
+k8s_register_image_cluster_key: ""
+
+# worker 自動解決時に kubectl で参照する kubeconfig パス
+k8s_kubeconfig_to_discover_workers_path: ""
+
+# register-* タスクで discover-target-hosts.yml の再実行を抑止するかどうか
+k8s_register_image_skip_discovery: false
+
+# 対象ノード上の一時 tar 配置先
+k8s_register_image_remote_cache_dir: "/tmp/k8s-register-image"
+
+# 未修飾名に付与する既定レジストリ名
+k8s_register_image_unqualified_image_registry: "docker.io"
+
+# 対象ノード上の一時 tar を削除するかどうか
+k8s_register_image_cleanup_remote_tar: true

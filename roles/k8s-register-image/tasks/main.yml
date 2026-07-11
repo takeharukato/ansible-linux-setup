@@ -1,0 +1,38 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  タスクメイン部
+#
+#  include_tasksで他のタスクを読み込む
+#
+---
+
+# 最初に変数設定を読み直す
+- name: "Load Params"
+  ansible.builtin.include_tasks: load-params.yml
+
+# ロール単独でも失敗理由を明確にするため, 先に入力を検証する。
+- name: "Validate inputs"
+  ansible.builtin.include_tasks: validate.yml
+
+# control plane へ登録する。
+- name: "Register images on control plane"
+  ansible.builtin.include_tasks: register-control-plane.yml
+  when: k8s_register_image_control_plane_hosts | length > 0
+
+# worker へ登録する。
+- name: "Register images on workers"
+  ansible.builtin.include_tasks: register-workers.yml
+  when: k8s_register_image_worker_hosts | length > 0
+
+- name: "Package"
+  ansible.builtin.include_tasks: package.yml
+- name: "Directory"
+  ansible.builtin.include_tasks: directory.yml
+- name: "User Group"
+  ansible.builtin.include_tasks: user_group.yml
+- name: "Service"
+  ansible.builtin.include_tasks: service.yml
+- name: "Config"
+  ansible.builtin.include_tasks: config.yml
