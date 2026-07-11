@@ -145,6 +145,23 @@ else
 fi
 echo "" | tee -a "$LOG_FILE"
 
+# Step 6: registry VMsの移行
+echo "=== Step 7: Migrating registry VMs ===" | tee -a "$LOG_FILE"
+if [ "$DRY_RUN" = true ]; then
+  bash "$SCRIPT_DIR/migrate-state-registry.sh" --dry-run 2>&1 | tee -a "$LOG_FILE"
+else
+  bash "$SCRIPT_DIR/migrate-state-registry.sh" 2>&1 | tee -a "$LOG_FILE"
+  echo "Verifying registry migration..." | tee -a "$LOG_FILE"
+  terraform plan -target='module.vms' -detailed-exitcode > /dev/null 2>&1 || {
+    EXIT_CODE=$?
+    if [ $EXIT_CODE -eq 2 ]; then
+      echo "[WARNING] Warning: Changes detected after migration" | tee -a "$LOG_FILE"
+      echo "Review the plan carefully" | tee -a "$LOG_FILE"
+    fi
+  }
+fi
+echo "" | tee -a "$LOG_FILE"
+
 # 最終確認
 if [ "$DRY_RUN" = false ]; then
   echo "=== Step 7: Final Verification ===" | tee -a "$LOG_FILE"

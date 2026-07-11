@@ -86,6 +86,8 @@ xcp-ng-base-servers/
 |Infrastructure VM|rhel-server|`rhel-server`|RHELベースの管理サーバー検証用VM|
 |Infrastructure VM|ubuntu-server|`ubuntu-server`|Ubuntuベースの管理サーバー検証用VM|
 |Infrastructure VM|devserver|`devserver`|管理サーバー動作確認用予備VM ( 通常作成不要 ) |
+|registry VM|registry1|`registry1`|コンテナレジストリ用VM ( Ubuntu ) |
+|registry VM|registry2|`registry2`|コンテナレジストリ用VM ( RHEL ) |
 |pool-wide network接続開発用VM|vmlinux1|`vmlinux1`|外部ネットワーク接続開発VM ( Ubuntu ) |
 |pool-wide network接続開発用VM|vmlinux2|`vmlinux2`|外部ネットワーク接続開発VM ( Ubuntu ) |
 |pool-wide network接続開発用VM|vmlinux3|`vmlinux3`|外部ネットワーク接続開発VM ( Ubuntu ) |
@@ -118,6 +120,14 @@ xcp-ng-base-servers/
 - ubuntu-server Ubuntuベースの管理サーバー(管理サーバ構築テスト用)
 
 上記の他に, `devserver`というVMが定義されている。`devserver`は, 管理サーバーの動作確認用の予備として定義しているが通常作成する必要はない。
+
+### registry VM (registry) ( 2台 )
+
+コンテナレジストリサービスを提供するVM群を`registry VM`と呼ぶ。
+
+- registry1 pool-wide networkと内部プライベートネットワーク向けのUbuntu版コンテナレジストリサービス
+- registry2 pool-wide networkと内部プライベートネットワーク向けのRHEL版コンテナレジストリサービス
+
 
 ### pool-wide network接続開発用VM(vmlinux) ( 5台 )
 
@@ -372,6 +382,7 @@ make cluster01        # K8s cluster01全体
 ./scripts/migrate-state-vmlinux.sh --dry-run
 ./scripts/migrate-state-devlinux.sh --dry-run
 ./scripts/migrate-state-k8s.sh --dry-run
+./scripts/migrate-state-registry.sh --dry-run
 ```
 
 ##### ステップ2: 実際の移行
@@ -393,6 +404,9 @@ make migrate-devlinux
 terraform plan -target='module.vms'  # 差分ゼロ確認
 
 make migrate-k8s
+terraform plan -target='module.vms'  # 差分ゼロ確認
+
+make migrate-registry
 terraform plan -target='module.vms'  # 差分ゼロ確認
 ```
 
@@ -457,6 +471,10 @@ make rhel-server
 make ubuntu-server
 make mgmt-server
 
+# registry
+make registry1
+make registry2
+
 # Devlinux
 make devlinux1      # 個別
 make devlinux       # 全体
@@ -517,6 +535,7 @@ make migrate-infrastructure     # Infrastructure VMのみ
 make migrate-vmlinux            # Vmlinux VMのみ
 make migrate-devlinux           # Devlinux VMのみ
 make migrate-k8s                # K8s VMのみ
+make migrate-registry           # registry VMのみ
 ```
 
 ### クリーンアップターゲット

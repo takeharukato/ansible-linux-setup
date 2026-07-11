@@ -1,19 +1,19 @@
 # VM/Cluster operation rules
 
 .PHONY: apply-vms destroy-vms apply-vm destroy-vm apply-cluster destroy-cluster
-.PHONY: router devserver rhel-server ubuntu-server mgmt-server
+.PHONY: router devserver rhel-server ubuntu-server mgmt-server registry1 registry2
 .PHONY: devlinux1 devlinux2 devlinux3 devlinux4 devlinux5
 .PHONY: vmlinux1 vmlinux2 vmlinux3 vmlinux4 vmlinux5
 .PHONY: k8sctrlplane01 k8sworker0101 k8sworker0102 frr01
 .PHONY: k8sctrlplane02 k8sworker0201 k8sworker0202 frr02
 .PHONY: extgw cluster01 cluster02 gateways frr
-.PHONY: destroy-router destroy-devserver destroy-rhel-server destroy-ubuntu-server destroy-mgmt-server
+.PHONY: destroy-router destroy-devserver destroy-rhel-server destroy-ubuntu-server destroy-mgmt-server destroy-registry1 destroy-registry2
 .PHONY: destroy-devlinux1 destroy-devlinux2 destroy-devlinux3 destroy-devlinux4 destroy-devlinux5
 .PHONY: destroy-vmlinux1 destroy-vmlinux2 destroy-vmlinux3 destroy-vmlinux4 destroy-vmlinux5
 .PHONY: destroy-k8sctrlplane01 destroy-k8sworker0101 destroy-k8sworker0102 destroy-frr01
 .PHONY: destroy-k8sctrlplane02 destroy-k8sworker0201 destroy-k8sworker0202 destroy-frr02
 .PHONY: destroy-extgw destroy-cluster01 destroy-cluster02
-.PHONY: infrastructure devlinux vmlinux k8s destroy-infrastructure destroy-devlinux destroy-vmlinux destroy-k8s
+.PHONY: infrastructure devlinux vmlinux k8s registry destroy-infrastructure destroy-devlinux destroy-vmlinux destroy-k8s destroy-registry
 
 # destroy後にunused network pruneを実行するか
 DESTROY_PRUNE ?= false
@@ -45,31 +45,100 @@ destroy-vm: prepare
 
 # Group operations
 infrastructure: networks
-	${TERRAFORM} apply ${TERRAFORM_FLAGS} -target='module.vms' 2>&1 | tee $@.log
+	${TERRAFORM} apply ${TERRAFORM_FLAGS} \
+		-target='module.vms["infrastructure/router"]' \
+		-target='module.vms["infrastructure/devserver"]' \
+		-target='module.vms["infrastructure/rhel-server"]' \
+		-target='module.vms["infrastructure/ubuntu-server"]' \
+		-target='module.vms["infrastructure/mgmt-server"]' \
+		2>&1 | tee $@.log
 
 devlinux: networks
-	${TERRAFORM} apply ${TERRAFORM_FLAGS} -target='module.vms' 2>&1 | tee $@.log
+	${TERRAFORM} apply ${TERRAFORM_FLAGS} \
+		-target='module.vms["devlinux/devlinux1"]' \
+		-target='module.vms["devlinux/devlinux2"]' \
+		-target='module.vms["devlinux/devlinux3"]' \
+		-target='module.vms["devlinux/devlinux4"]' \
+		-target='module.vms["devlinux/devlinux5"]' \
+		2>&1 | tee $@.log
 
 vmlinux: networks
-	${TERRAFORM} apply ${TERRAFORM_FLAGS} -target='module.vms' 2>&1 | tee $@.log
+	${TERRAFORM} apply ${TERRAFORM_FLAGS} \
+		-target='module.vms["vmlinux/vmlinux1"]' \
+		-target='module.vms["vmlinux/vmlinux2"]' \
+		-target='module.vms["vmlinux/vmlinux3"]' \
+		-target='module.vms["vmlinux/vmlinux4"]' \
+		-target='module.vms["vmlinux/vmlinux5"]' \
+		2>&1 | tee $@.log
 
 k8s: networks
-	${TERRAFORM} apply ${TERRAFORM_FLAGS} -target='module.vms' 2>&1 | tee $@.log
+	${TERRAFORM} apply ${TERRAFORM_FLAGS} \
+		-target='module.vms["k8s/k8sctrlplane01"]' \
+		-target='module.vms["k8s/k8sworker0101"]' \
+		-target='module.vms["k8s/k8sworker0102"]' \
+		-target='module.vms["k8s/frr01"]' \
+		-target='module.vms["k8s/k8sctrlplane02"]' \
+		-target='module.vms["k8s/k8sworker0201"]' \
+		-target='module.vms["k8s/k8sworker0202"]' \
+		-target='module.vms["k8s/frr02"]' \
+		-target='module.vms["k8s/extgw"]' \
+		2>&1 | tee $@.log
+
+registry: networks
+	${TERRAFORM} apply ${TERRAFORM_FLAGS} \
+		-target='module.vms["registry/registry1"]' \
+		-target='module.vms["registry/registry2"]' \
+		2>&1 | tee $@.log
 
 destroy-infrastructure: prepare
-	${TERRAFORM} destroy ${TERRAFORM_FLAGS} -target='module.vms' 2>&1 | tee $@.log
+	${TERRAFORM} destroy ${TERRAFORM_FLAGS} \
+		-target='module.vms["infrastructure/router"]' \
+		-target='module.vms["infrastructure/devserver"]' \
+		-target='module.vms["infrastructure/rhel-server"]' \
+		-target='module.vms["infrastructure/ubuntu-server"]' \
+		-target='module.vms["infrastructure/mgmt-server"]' \
+		2>&1 | tee $@.log
 	$(RUN_PRUNE_AFTER_DESTROY)
 
 destroy-devlinux: prepare
-	${TERRAFORM} destroy ${TERRAFORM_FLAGS} -target='module.vms' 2>&1 | tee $@.log
+	${TERRAFORM} destroy ${TERRAFORM_FLAGS} \
+		-target='module.vms["devlinux/devlinux1"]' \
+		-target='module.vms["devlinux/devlinux2"]' \
+		-target='module.vms["devlinux/devlinux3"]' \
+		-target='module.vms["devlinux/devlinux4"]' \
+		-target='module.vms["devlinux/devlinux5"]' \
+		2>&1 | tee $@.log
 	$(RUN_PRUNE_AFTER_DESTROY)
 
 destroy-vmlinux: prepare
-	${TERRAFORM} destroy ${TERRAFORM_FLAGS} -target='module.vms' 2>&1 | tee $@.log
+	${TERRAFORM} destroy ${TERRAFORM_FLAGS} \
+		-target='module.vms["vmlinux/vmlinux1"]' \
+		-target='module.vms["vmlinux/vmlinux2"]' \
+		-target='module.vms["vmlinux/vmlinux3"]' \
+		-target='module.vms["vmlinux/vmlinux4"]' \
+		-target='module.vms["vmlinux/vmlinux5"]' \
+		2>&1 | tee $@.log
 	$(RUN_PRUNE_AFTER_DESTROY)
 
 destroy-k8s: prepare
-	${TERRAFORM} destroy ${TERRAFORM_FLAGS} -target='module.vms' 2>&1 | tee $@.log
+	${TERRAFORM} destroy ${TERRAFORM_FLAGS} \
+		-target='module.vms["k8s/k8sctrlplane01"]' \
+		-target='module.vms["k8s/k8sworker0101"]' \
+		-target='module.vms["k8s/k8sworker0102"]' \
+		-target='module.vms["k8s/frr01"]' \
+		-target='module.vms["k8s/k8sctrlplane02"]' \
+		-target='module.vms["k8s/k8sworker0201"]' \
+		-target='module.vms["k8s/k8sworker0202"]' \
+		-target='module.vms["k8s/frr02"]' \
+		-target='module.vms["k8s/extgw"]' \
+		2>&1 | tee $@.log
+	$(RUN_PRUNE_AFTER_DESTROY)
+
+destroy-registry: prepare
+	${TERRAFORM} destroy ${TERRAFORM_FLAGS} \
+		-target='module.vms["registry/registry1"]' \
+		-target='module.vms["registry/registry2"]' \
+		2>&1 | tee $@.log
 	$(RUN_PRUNE_AFTER_DESTROY)
 
 # Legacy single-node wrappers using new group/vm keys
@@ -87,6 +156,14 @@ ubuntu-server: networks
 
 mgmt-server: networks
 	${TERRAFORM} apply ${TERRAFORM_FLAGS} -target='module.vms["infrastructure/mgmt-server"]' 2>&1 | tee $@.log
+
+registry1: prepare
+	${TERRAFORM} apply ${TERRAFORM_FLAGS} -target='module.vms["registry/registry1"]' 2>&1 | tee $@.log
+	$(RUN_PRUNE_AFTER_DESTROY)
+
+registry2: prepare
+	${TERRAFORM} apply ${TERRAFORM_FLAGS} -target='module.vms["registry/registry2"]' 2>&1 | tee $@.log
+	$(RUN_PRUNE_AFTER_DESTROY)
 
 devlinux1: networks
 	${TERRAFORM} apply ${TERRAFORM_FLAGS} -target='module.vms["devlinux/devlinux1"]' 2>&1 | tee $@.log
@@ -168,6 +245,14 @@ destroy-ubuntu-server: prepare
 
 destroy-mgmt-server: prepare
 	${TERRAFORM} destroy ${TERRAFORM_FLAGS} -target='module.vms["infrastructure/mgmt-server"]' 2>&1 | tee $@.log
+	$(RUN_PRUNE_AFTER_DESTROY)
+
+destroy-registry1: prepare
+	${TERRAFORM} destroy ${TERRAFORM_FLAGS} -target='module.vms["registry/registry1"]' 2>&1 | tee $@.log
+	$(RUN_PRUNE_AFTER_DESTROY)
+
+destroy-registry2: prepare
+	${TERRAFORM} destroy ${TERRAFORM_FLAGS} -target='module.vms["registry/registry2"]' 2>&1 | tee $@.log
 	$(RUN_PRUNE_AFTER_DESTROY)
 
 destroy-devlinux1: prepare

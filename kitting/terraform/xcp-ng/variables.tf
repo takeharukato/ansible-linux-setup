@@ -449,12 +449,12 @@ variable "vm_groups" {
     condition = alltrue(flatten([
       for group_name, vm_map in var.vm_groups : [
         for _, vm in vm_map : contains(
-          ["infrastructure", "vmlinux", "devlinux", "k8s_ctrlplane", "k8s_worker", "frr", "extgw"],
+          ["infrastructure", "vmlinux", "devlinux", "registry", "k8s_ctrlplane", "k8s_worker", "frr", "extgw"],
           coalesce(vm.resource_profile, try(var.vm_group_defaults[group_name].default_resource_profile, null), "")
         )
       ]
     ]))
-    error_message = "resource_profile は定義済みプロファイル(infrastructure, vmlinux, devlinux, k8s_ctrlplane, k8s_worker, frr, extgw)を指定してください。"
+    error_message = "resource_profile は定義済みプロファイル(infrastructure, vmlinux, devlinux, registry, k8s_ctrlplane, k8s_worker, frr, extgw)を指定してください。"
   }
 
   validation {

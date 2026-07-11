@@ -11,6 +11,7 @@
 .PHONY: networks destroy-networks
 .PHONY: prune-unused-networks prune-unused-networks-dry-run
 .PHONY: migrate migrate-infrastructure migrate-vmlinux migrate-devlinux migrate-k8s
+.PHONY: migrate-registry
 
 TERRAFORM ?= terraform
 TERRAFORM_FLAGS ?= -auto-approve
@@ -66,6 +67,9 @@ migrate-devlinux: prepare
 
 migrate-k8s: prepare
 	bash ./scripts/migrate-state-k8s.sh
+
+migrate-registry: prepare
+	bash ./scripts/migrate-state-registry.sh
 
 ############################################
 # Build and Destroy

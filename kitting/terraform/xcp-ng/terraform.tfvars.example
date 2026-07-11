@@ -151,6 +151,11 @@ vm_group_defaults = {
     default_resource_profile = "devlinux"
   }
   k8s = {}
+  registry = {
+    default_firmware = "uefi"
+    default_resource_profile = "registry"
+    default_template_type = "ubuntu"
+  }
 }
 
 ####################################################
@@ -363,6 +368,26 @@ vm_groups = {
       networks = [
         { network_key = "gpn_mgmt", mac_address = "00:50:56:00:b8:e1" },
         { network_key = "core_net", mac_address = "00:50:56:00:b8:eb" }
+      ]
+    }
+  }
+  registry ={
+    registry1 = {
+      template_type = "ubuntu"
+      firmware = "uefi"
+      resource_profile = "registry"
+      networks = [
+        { network_key = "ext_mgmt", mac_address = "00:50:56:00:de:71" },
+        { network_key = "gpn_mgmt", mac_address = "00:50:56:00:de:7b" }
+      ]
+    }
+    registry2 = {
+      template_type = "rhel"
+      firmware = "bios"
+      resource_profile = "registry"
+      networks = [
+        { network_key = "ext_mgmt", mac_address = "00:50:56:00:ce:71" },
+        { network_key = "gpn_mgmt", mac_address = "00:50:56:00:ce:7b" }
       ]
     }
   }

@@ -20,6 +20,13 @@ locals {
       disk_gb   = 128
     }
 
+    # コンテナレジストリ
+    registry = {
+      vcpus     = 4
+      memory_mb = 8192
+      disk_gb   = 256
+    }
+
     # 外部ネットワーク(pool-wide network)接続開発用VM
     vmlinux = {
       vcpus     = 4
