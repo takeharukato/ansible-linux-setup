@@ -8,6 +8,9 @@
 # devserver.local
 [router]
 # router.local
+[registry]
+# registry1.local
+# registry2.local
 [devel]
 # vmlinux1.local
 # vmlinux2.local

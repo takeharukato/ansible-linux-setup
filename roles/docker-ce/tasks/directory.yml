@@ -20,3 +20,14 @@
     owner: "root"
     group: "root"
     mode: "755"
+
+# ローカルレジストリの永続データ格納先を作成
+- name: "Create {{ docker_ce_registry_data_dir }}"
+  ansible.builtin.file:
+    path: "{{ docker_ce_registry_data_dir }}"
+    state: directory
+    owner: "root"
+    group: "root"
+    mode: "0755"
+  when:
+    - docker_ce_registry_enabled|default(false)|bool

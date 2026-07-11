@@ -107,7 +107,67 @@
     line: 'SystemdCgroup = true'
   become: true
 
-# containerd config
+# Containerd 側のコンテナレジストリ設定
+# config_path = "..."形式の既存行が存在する場合は置換, 存在しない場合は追加する
+# 既存行がある場合は, その行を"/etc/containerd/certs.d"に置換する
+# 既存行がない場合は, [plugins."io.containerd.grpc.v1.cri".registry]の直後に
+# config_path = "/etc/containerd/certs.d"
+# を追加する
+- name: "Set containerd registry config path"
+  ansible.builtin.lineinfile:
+    path: /etc/containerd/config.toml
+    state: "present"
+    insertafter: '^\s*\[plugins\."io\.containerd\.grpc\.v1\.cri"\.registry\]\s*$'
+    regexp: '^\s*config_path\s*=\s*".*"\s*$'
+    line: '      config_path = "/etc/containerd/certs.d"'
+  become: true
+
+# /etc/containerd/certs.dを作成
+- name: "Create /etc/containerd/certs.d"
+  ansible.builtin.file:
+    path: "/etc/containerd/certs.d"
+    state: directory
+    owner: "root"
+    group: "root"
+    mode: "0755"
+  become: true
+
+# コンテナレジストリのエンドポイント設定を検証する
+- name: "Validate containerd registry endpoint entries"
+  ansible.builtin.assert:
+    that:
+      - item is mapping
+      - item.endpoint is defined
+      - (item.endpoint | string | length) > 0
+      - (item.scheme | default('', true) | lower) in ['', 'http', 'https']
+    fail_msg: "Specify each element of `k8s_containerd_registry_endpoints` as a dictionary containing `endpoint`, an optional `scheme` (http/https), and `skip_verify`."
+  loop: "{{ k8s_containerd_registry_endpoints | default([], true) }}"
+
+# /etc/containerd/certs.d/<endpoint>ディレクトリを作成する
+# 留意事項: <endpoint>は, コンテナレジストリのエンドポイント(<ホスト名またはIPアドレス>:<ポート>)
+- name: "Create containerd registry endpoint directories"
+  ansible.builtin.file:
+    path: "/etc/containerd/certs.d/{{ item.endpoint }}"
+    state: directory
+    owner: "root"
+    group: "root"
+    mode: "0755"
+  loop: "{{ k8s_containerd_registry_endpoints | default([], true) }}"
+  become: true
+
+# containerd registry endpointごとにhosts.tomlを作成する
+- name: "Configure containerd registry hosts.toml"
+  ansible.builtin.template:
+    src: containerd-registry-hosts.toml.j2
+    dest: "/etc/containerd/certs.d/{{ item.endpoint }}/hosts.toml"
+    owner: root
+    group: root
+    mode: '0644'
+    backup: false
+  loop: "{{ k8s_containerd_registry_endpoints | default([], true) }}"
+  become: true
+
+# containerdのsystemd override.conf (ホスト固有設定値定義) を作成する
 - name: Setup containerd service
   ansible.builtin.template:
     src: containerd-override.conf.j2
@@ -117,7 +177,7 @@
     mode: '0644'
     backup: false
 
-# restart containerd
+# 設定を反映するためにcontainerdを再起動する
 - name: Restart containerd immediately
   ansible.builtin.systemd:
     name: containerd

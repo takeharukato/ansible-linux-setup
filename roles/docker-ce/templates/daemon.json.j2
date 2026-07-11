@@ -1,0 +1,23 @@
+{
+{% set registry_ns = namespace(insecure=[]) %}
+{% for registry in (docker_ce_insecure_registries | default([], true)) %}
+{% set endpoint = (registry.endpoint | default('', true)) %}
+{% set scheme = (registry.scheme | default('http', true) | lower) %}
+{% set skip_verify = (registry.skip_verify | default((scheme != 'https'), true)) %}
+{% if (endpoint | string | length) > 0 and (scheme != 'https' or (skip_verify | bool)) %}
+{% set _ = registry_ns.insecure.append(endpoint) %}
+{% endif %}
+{% endfor %}
+  "ipv6": true,
+  "iptables": false,
+  "ip6tables": false,
+  "ip-forward": false,
+  "ip-masq": false,
+  "userland-proxy": true,
+  "log-driver": "{{ docker_ce_log_driver }}",
+  "log-opts": {
+    "max-size": "{{ docker_ce_log_opts['max-size'] }}",
+    "max-file": "{{ docker_ce_log_opts['max-file'] }}"
+  }{% if (registry_ns.insecure | unique | list | length) > 0 %},
+  "insecure-registries": {{ (registry_ns.insecure | unique | list) | to_json }}{% endif %}
+}

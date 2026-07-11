@@ -28,6 +28,10 @@ services:
         gitlab_rails['registry_enabled'] = true
         # GitLab Container Registryの外部URLを設定
         registry_external_url 'https://{{ gitlab_hostname }}:{{ gitlab_registry_port }}'
+      {% if not (gitlab_registry_require_auth | default(false) | bool) %}
+        # ローカル利用向けにContainer Registry認証を無効化
+        registry['token_realm'] = nil
+      {% endif %}
         # logrotate設定
         logging['logrotate_frequency'] = '{{ gitlab_logrotate_frequency|default("daily", true) }}'
         logging['logrotate_maxsize'] = '{{ gitlab_logrotate_maxsize|default("10M", true) }}'

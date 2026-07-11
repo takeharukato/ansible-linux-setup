@@ -19,6 +19,7 @@
       - [プロキシ設定](#プロキシ設定)
       - [Rancher 関連設定](#rancher-関連設定)
       - [Docker Community Edition関連設定](#docker-community-edition関連設定)
+        - [ローカルコンテナレジストリ設定](#ローカルコンテナレジストリ設定)
         - [コンテナイメージのバックアップ設定](#コンテナイメージのバックアップ設定)
       - [ユーザ設定ファイルスケルトンの生成](#ユーザ設定ファイルスケルトンの生成)
       - [ホームディレクトリのバックアップ](#ホームディレクトリのバックアップ)
@@ -27,6 +28,7 @@
       - [Redmine関連設定](#redmine関連設定)
       - [Gitlab関連設定](#gitlab関連設定)
       - [Kubernetes関連設定](#kubernetes関連設定)
+        - [Kubernetesからローカルコンテナレジストリを使用するための設定](#kubernetesからローカルコンテナレジストリを使用するための設定)
         - [K8sクラスタ間の接続設定](#k8sクラスタ間の接続設定)
         - [FRRoutingの設定](#frroutingの設定)
         - [Cilium CNI](#cilium-cni)
@@ -398,6 +400,40 @@ docker_ce_users:
   - user1
 ```
 
+##### ローカルコンテナレジストリ設定
+
+DockerクライアントやKubernetesノード(Kubernetesノード上のContainer Runtime Interface (CRI) (containerd)から利用するローカルコンテナレジストリ関連の設定を以下に記載する。
+
+`container_registry_endpoints` はDocker クライアントの設定(`docker_ce_insecure_registries`) とKubernetesのContainer Runtime Interface (CRI) (containerd)の設定 (`k8s_containerd_registry_endpoints`) の両方から参照する共有のendpointリストである。
+
+|変数名|意味|設定値の例|
+|---|---|---|
+|container_registry_endpoints|docker-ce/k8sで共通利用するレジストリエンドポイントの辞書のリスト。各要素は `endpoint`, `scheme`, `skip_verify` を持つ辞書で指定する。既定値は空リスト。|[{ endpoint: 'local-registry.local:5000', scheme: 'http', skip_verify: true }]|
+|docker_ce_registry_enabled|docker-ceロール適用ホストでローカルレジストリコンテナを起動する場合はtrueを指定|true|
+|docker_ce_registry_port|ローカルレジストリの待受ポート|5000|
+
+- `container_registry_endpoints` は, `vars/all-config.yml` で管理することを推奨する。必要な場合は, `vars/all-config.yml`内での記述を削除の上, `host_vars` で設定する(`vars/all-config.yml`の設定値の方が優先されるため, `host_vars` で設定する場合は, `vars/all-config.yml`内での記述を削除する必要がある)。
+- `docker_ce_registry_enabled` は, `host_vars` で管理し, 必要時のみ `vars/all-config.yml` で上書きすることを推奨する。
+
+記載例:
+
+```yaml
+# ローカルコンテナレジストリのリスト
+# 辞書形式
+container_registry_endpoints:
+  - endpoint: "local-registry.local:5000"
+    scheme: "http"
+    skip_verify: true
+  - endpoint: "devserver.example.org:5050"
+    scheme: "https"
+    skip_verify: true
+
+# Docker Community Editionでコンテナレジストリ機能を提供する場合は, trueに設定する
+docker_ce_registry_enabled: true
+# Docker Community Editionでコンテナレジストリの待ち受けポート
+docker_ce_registry_port: 5000
+```
+
 ##### コンテナイメージのバックアップ設定
 
 `build_docker_ce_backup_container_image`変数を`true`に設定し, かつ`docker_ce_enable_backup_script`変数を`true`に設定した場合, 手動リストア用のスクリプト(/usr/local/bin/restore-container)とDocker backupイメージ生成用のテンプレートが配置されます。さらに`docker_ce_backup_nfs_server`と`docker_ce_backup_nfs_dir`が定義されている場合に, 定期バックアップ用のスクリプト(/usr/local/bin/backup-containers)が配置されます。
@@ -579,6 +615,7 @@ Gitlabの公開URL, イメージファイル関連の設定を記載する。
 | gitlab_https_port | GitLab Web UI (HTTPS) 公開ポート。 | 9443 |
 | gitlab_ssh_port | GitLab SSH (リポジトリ操作用) 公開ポート。 | 2224 |
 | gitlab_registry_port | コンテナレジストリ公開ポート。 | 5050 |
+| gitlab_registry_require_auth | GitLab Container Registry の認証を必須にする場合は true を指定。false の場合は認証不要で利用する。 | false |
 | gitlab_docker_image | GitLab Omnibus Docker イメージ。公式の推奨に従って, バージョン名を明示してイメージを指定。 | "gitlab/gitlab-ce:18.6.2-ce.0" |
 | gitlab_runner_docker_image | GitLab Runner Docker イメージ。GitLab 本体とメジャーバージョン, マイナーバージョンを合わせること。 | "gitlab/gitlab-runner:ubuntu-v18.6.6" |
 | gitlab_enable_backup_script | バックアップスクリプト生成有効化フラグ。`true`に設定した場合にバックアップ・リストアスクリプト(gitlab-backup.py, gitlab-restore.py)が配置される。デイリーバックアップスクリプト(daily-backup-gitlab.sh)の配置には, 加えて`gitlab_backup_nfs_server`, `gitlab_backup_mount_point`, `gitlab_backup_output_dir`が非空で, かつ`gitlab_backup_rotation`が正の整数である必要がある。規定値は`false`。 | "true" または "false" |
@@ -656,6 +693,32 @@ k8s_operator_github_key_list:
 
 その他, Cilium CNI, Multus メタCNI, Whereabouts IPアドレスマネージャの
 バージョン, Helmのチャートバージョン, イメージバージョンなどを指定できる。
+
+##### Kubernetesからローカルコンテナレジストリを使用するための設定
+
+Kubernetesノードから使用可能なローカルコンテナレジストリを
+`container_registry_endpoints`変数(辞書のリスト)に設定する。
+
+`container_registry_endpoints` はDocker クライアントの設定(`docker_ce_insecure_registries`) とKubernetesのContainer Runtime Interface (CRI) (containerd)の設定 (`k8s_containerd_registry_endpoints`) の両方から参照する共有のendpointリストである。
+
+`container_registry_endpoints` は, `vars/all-config.yml` で管理することを推奨する。必要な場合は, `vars/all-config.yml`内での記述を削除の上, `host_vars` で設定する(`vars/all-config.yml`の設定値の方が優先されるため, `host_vars` で設定する場合は, `vars/all-config.yml`内での記述を削除する必要がある)。
+
+|変数名|意味|設定値の例|
+|---|---|---|
+|container_registry_endpoints|docker-ce/k8sで共通利用するレジストリエンドポイントの辞書のリスト。各要素は `endpoint`, `scheme`, `skip_verify` を持つ辞書で指定する。既定値は空リスト。|[{ endpoint: 'local-registry.local:5000', scheme: 'http', skip_verify: true }]|
+
+記載例:
+
+```yaml
+# 辞書形式
+container_registry_endpoints:
+  - endpoint: "local-registry.local:5000"
+    scheme: "http"
+    skip_verify: true
+  - endpoint: "devserver.example.org:5050"
+    scheme: "https"
+    skip_verify: true
+```
 
 ##### K8sクラスタ間の接続設定
 

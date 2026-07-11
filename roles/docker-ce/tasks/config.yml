@@ -6,27 +6,36 @@
 
 ---
 
+# Docker daemon.jsonのinsecure-registriesへ追加するエンドポイント設定リストの健全性を確認する
+# 辞書形式:
+#   - endpoint: "registry.local:5000"
+#     scheme: "http"
+#     skip_verify: true
+#   - endpoint: "devserver.example.org:5050"
+#     scheme: "https"
+#     skip_verify: true
+# 処理ロジック
+#   1. docker_ce_insecure_registries の各要素が辞書であることを確認する
+#   2. endpoint が定義されていることを確認する
+#   3. endpoint が空文字列でないことを確認する
+#   4. scheme が http または https であることを確認する
+- name: "Validate docker insecure registry entries"
+  ansible.builtin.assert:
+    that:
+      - item is mapping
+      - (item.endpoint | default('', true) |string | length) > 0
+      - (item.scheme | default('', true) | string | lower) in ['', 'http', 'https']
+    fail_msg: "Specify each element of `docker_ce_insecure_registries` as a dictionary containing `endpoint`, an optional `scheme` (http/https), and `skip_verify`."
+  loop: "{{ docker_ce_insecure_registries | default([], true) }}"
+
 # Docker daemon.json を作成し、iptables管理を無効化
 # 留意事項: router-config ロールが独自にiptablesルールを管理するため
 # Dockerのiptables管理を無効化する
 # ただし、userland-proxyは有効化してポートフォワーディングを機能させる
 - name: "Configure Docker daemon.json with iptables disabled"
-  ansible.builtin.copy:
+  ansible.builtin.template:
+    src: daemon.json.j2
     dest: /etc/docker/daemon.json
-    content: |
-      {
-        "ipv6": true,
-        "iptables": false,
-        "ip6tables": false,
-        "ip-forward": false,
-        "ip-masq": false,
-        "userland-proxy": true,
-        "log-driver": "{{ docker_ce_log_driver }}",
-        "log-opts": {
-          "max-size": "{{ docker_ce_log_opts['max-size'] }}",
-          "max-file": "{{ docker_ce_log_opts['max-file'] }}"
-        }
-      }
     owner: root
     group: root
     mode: '0644'

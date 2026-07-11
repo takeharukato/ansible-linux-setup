@@ -28,3 +28,5 @@
   import_playbook: k8s-management.yml
 - name: Configure development hosts on privite networks
   import_playbook: internal-devel.yml
+- name: Configure container registry hosts
+  import_playbook: registry.yml

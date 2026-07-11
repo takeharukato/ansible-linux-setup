@@ -33,6 +33,31 @@ docker_ce_backup_container_image: "{{ docker_ce_backup_container_image_name }}:l
 docker_ce_backup_dockerfile_dir: "/usr/local/share/docker-backup"
 # dockerグループ追加対象ユーザ定義
 users_list: []
+# Kubernetesノードから利用するローカルレジストリ機能の有効化フラグ
+docker_ce_registry_enabled: false
+# レジストリコンテナ名
+docker_ce_registry_container_name: "local-registry"
+# レジストリコンテナイメージ
+# Docker Distribution (Docker Registry v2) のローカルコンテナレジストリ
+# 公式コンテナイメージ (動作実績のあるv2を使用)
+# 参考URL: https://hub.docker.com/_/registry
+docker_ce_registry_image: "registry:2"
+# レジストリ待ち受けアドレス
+docker_ce_registry_bind_address: "0.0.0.0"
+# レジストリ待ち受けポート
+docker_ce_registry_port: 5000
+# レジストリデータ保存先
+docker_ce_registry_data_dir: "/var/lib/local-registry"
+# Docker daemon.jsonのinsecure-registriesへ追加するエンドポイント設定リスト
+# 辞書形式:
+#   - endpoint: "registry.local:5000"
+#     scheme: "http"
+#     skip_verify: true
+#   - endpoint: "devserver.example.org:5050"
+#     scheme: "https"
+#     skip_verify: true
+# 既定では共有変数 container_registry_endpoints を参照する
+docker_ce_insecure_registries: "{{ container_registry_endpoints | default([], true) }}"
 # コンテナイメージバックアップを作成する場合はtrueに設定する
 build_docker_ce_backup_container_image: false
 # バックアップスクリプト生成有効化フラグ

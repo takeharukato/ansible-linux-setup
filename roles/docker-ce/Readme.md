@@ -2,6 +2,44 @@
 
 Docker Community Edition (Docker CE) を導入し, サービス初期化, sysctl の調整, 利用ユーザのグループ設定, およびコンテナボリュームのバックアップ環境を一括で整備するロールです。Debian 系と RHEL 系の差異は `ansible_facts.os_family` を基準に変数を切り替えることで吸収しています。
 
+- [docker-ce ロール](#docker-ce-ロール)
+  - [用語](#用語)
+  - [前提条件](#前提条件)
+  - [実行方法](#実行方法)
+    - [make ターゲット](#make-ターゲット)
+    - [ansible-playbook](#ansible-playbook)
+  - [実行フロー](#実行フロー)
+  - [主要変数](#主要変数)
+    - [ロール固有変数 (defaults/main.yml)](#ロール固有変数-defaultsmainyml)
+    - [その他](#その他)
+  - [デフォルト動作](#デフォルト動作)
+  - [テンプレート・ファイル](#テンプレートファイル)
+  - [OS 差異](#os-差異)
+  - [設定例](#設定例)
+    - [基本設定](#基本設定)
+    - [Docker ログ設定](#docker-ログ設定)
+    - [バックアップ設定](#バックアップ設定)
+    - [ローカルレジストリ設定](#ローカルレジストリ設定)
+  - [バックアップ/復旧フロー](#バックアップ復旧フロー)
+    - [backup-containers の流れ](#backup-containers-の流れ)
+    - [restore-container の流れ](#restore-container-の流れ)
+  - [検証ポイント](#検証ポイント)
+    - [前提条件](#前提条件-1)
+    - [手順1: Docker バージョン確認](#手順1-docker-バージョン確認)
+    - [手順2: Docker サービス状態](#手順2-docker-サービス状態)
+    - [手順3: sysctl 設定確認](#手順3-sysctl-設定確認)
+    - [手順4: daemon.json 設定確認](#手順4-daemonjson-設定確認)
+    - [手順5: docker グループ確認](#手順5-docker-グループ確認)
+    - [手順6: バックアップ用スクリプトとイメージ確認](#手順6-バックアップ用スクリプトとイメージ確認)
+    - [手順7: バックアップ実行確認](#手順7-バックアップ実行確認)
+    - [手順8: ローカルレジストリ確認](#手順8-ローカルレジストリ確認)
+  - [トラブルシューティング](#トラブルシューティング)
+    - [1. Docker サービスが起動しない](#1-docker-サービスが起動しない)
+    - [2. sysctl が反映されない](#2-sysctl-が反映されない)
+    - [3. バックアップが失敗する](#3-バックアップが失敗する)
+    - [4. docker グループ権限が反映されない](#4-docker-グループ権限が反映されない)
+  - [留意事項](#留意事項)
+
 ## 用語
 
 | 正式名称 | 略称 | 意味 |
@@ -49,10 +87,11 @@ ansible-playbook -i inventory/hosts site.yml --tags docker-ce
 1. **パラメータ読み込み** (`load-params.yml`): OS 別パッケージ定義と共通変数を読み込みます。
 2. **パッケージ操作** (`package.yml`): 旧パッケージ削除, 前提パッケージ導入, Docker CE パッケージ導入を行います。
 3. **サービス設定** (`service.yml`): sysctl 設定ファイルを配置し, `sysctl --system` を実行後に docker サービスを再起動します。
-4. **ディレクトリ作成** (`directory.yml`): `/usr/local/bin` と `/usr/local/share` を作成します。
-5. **バックアップ用ファイル配置とイメージ作成** (`docker-backup-image.yml`): `build_docker_ce_backup_container_image` が `true` の場合のみ, バックアップ・復旧スクリプトと Dockerfile を配置します。`docker_ce_enable_backup_script` が有効な場合, restore-container.j2, Dockerfile.j2, backup.sh.j2 を配置し, さらに `docker_ce_backup_nfs_server` と `docker_ce_backup_nfs_dir` が非空の場合にのみ backup-containers.j2 を配置します。その後, バックアップ用イメージをビルドします。
-6. **ユーザとグループ設定** (`user_group.yml`): docker グループを作成し, `ansible_user`, `docker_ce_users`, `users_list` のユーザを追加します。
-7. **Docker 設定** (`config.yml`): `/etc/docker/daemon.json` を作成し, iptables 管理の無効化などを設定します。
+4. **ディレクトリ作成** (`directory.yml`): `/usr/local/bin` と `/usr/local/share` を作成します。`docker_ce_registry_enabled: true` の場合はレジストリデータ用ディレクトリ (`docker_ce_registry_data_dir`) も作成します。
+5. **ローカルレジストリ設定** (`registry.yml`): `docker_ce_registry_enabled` が `true` の場合, レジストリコンテナを起動または再作成します。
+6. **バックアップ用ファイル配置とイメージ作成** (`docker-backup-image.yml`): `build_docker_ce_backup_container_image` が `true` の場合のみ, バックアップ・復旧スクリプトと Dockerfile を配置します。`docker_ce_enable_backup_script` が有効な場合, restore-container.j2, Dockerfile.j2, backup.sh.j2 を配置し, さらに `docker_ce_backup_nfs_server` と `docker_ce_backup_nfs_dir` が非空の場合にのみ backup-containers.j2 を配置します。その後, バックアップ用イメージをビルドします。
+7. **ユーザとグループ設定** (`user_group.yml`): docker グループを作成し, `ansible_user`, `docker_ce_users`, `users_list` のユーザを追加します。
+8. **Docker 設定** (`config.yml`): `/etc/docker/daemon.json` を作成し, iptables 管理の無効化などを設定します。`docker_ce_insecure_registries` が非空の場合のみ `insecure-registries` を設定します。既定では共有変数 `container_registry_endpoints` を参照します。
 
 ## 主要変数
 
@@ -73,6 +112,13 @@ ansible-playbook -i inventory/hosts site.yml --tags docker-ce
 | `docker_ce_backup_container_image` | `"local-boombatower-docker-backup:latest"` | defaults/main.yml | バックアップ用コンテナイメージ。 |
 | `docker_ce_backup_dockerfile_dir` | `"/usr/local/share/docker-backup"` | defaults/main.yml | Dockerfile 配置先。 |
 | `users_list` | `[]` | defaults/main.yml | 追加で docker グループへ所属させるユーザ定義。`host_vars`や`vars/all-config.yml`で定義されることを想定し, 本ロールでは, 空リストで規定値を定義している。 |
+| `docker_ce_registry_enabled` | `false` | defaults/main.yml | ローカルコンテナレジストリ機能を有効化するフラグ。 |
+| `docker_ce_registry_container_name` | `"local-registry"` | defaults/main.yml | ローカルレジストリのコンテナ名。 |
+| `docker_ce_registry_image` | `"registry:2"` | defaults/main.yml | ローカルレジストリで使用するコンテナイメージ。 |
+| `docker_ce_registry_bind_address` | `"0.0.0.0"` | defaults/main.yml | ローカルレジストリの待ち受けアドレス。 |
+| `docker_ce_registry_port` | `5000` | defaults/main.yml | ローカルレジストリの待ち受けポート。 |
+| `docker_ce_registry_data_dir` | `"/var/lib/local-registry"` | defaults/main.yml | ローカルレジストリのデータ保存先ディレクトリ。 |
+| `docker_ce_insecure_registries` | `{{ container_registry_endpoints | default([], true) }}` | defaults/main.yml | dockerクライアントからpush/pull/search可能にする対象のコンテナレジストリ設定。各要素は辞書 (`endpoint`, 任意で `scheme`, `skip_verify`) で指定します。`scheme != https` または `skip_verify: true` のエントリを `/etc/docker/daemon.json` の `insecure-registries` に設定します。既定では共有変数 `container_registry_endpoints` を参照します。 |
 | `build_docker_ce_backup_container_image` | `false` | defaults/main.yml | バックアップ用コンテナイメージを作成する場合は `true`。 |
 | `docker_ce_enable_backup_script` | `false` | defaults/main.yml | バックアップスクリプト生成有効化フラグ。`docker_ce_enable_backup_script` が `true` の場合, restore-container.j2, Dockerfile.j2, backup.sh.j2 が配置されます。さらに `docker_ce_backup_nfs_server` と `docker_ce_backup_nfs_dir` が非空の場合にのみ, backup-containers.j2 が配置されます。不要な環境では `false` に設定するとテンプレート生成をスキップできます。 |
 
@@ -85,8 +131,10 @@ ansible-playbook -i inventory/hosts site.yml --tags docker-ce
 ## デフォルト動作
 
 - `build_docker_ce_backup_container_image: false` のため, バックアップ/復旧スクリプトとバックアップ用イメージは既定では作成されません。
+- `docker_ce_registry_enabled: false` のため, ローカルレジストリコンテナは既定では作成されません。
 - `docker` サービスは `enabled: true`, `state: restarted` で起動します。
 - `/etc/docker/daemon.json` は iptables 管理の無効化と IPv6 有効化を含む設定で生成されます。
+- `docker_ce_insecure_registries` が空または未定義の場合, `/etc/docker/daemon.json` に `insecure-registries` は出力されません。
 - `docker_ce_backup_output_dir` は `docker_ce_backup_mount_point` と `docker_ce_backup_dir_on_nfs` の結合値になります。既定では `/mnt/containers/docker-ce/daily-backup` です。
 - sysctl は `/etc/modules-load.d/99-docker-bridge.conf` を通じて反映されます。設定内容には `net.bridge.bridge-nf-call-iptables`, `net.bridge.bridge-nf-call-ip6tables`, `net.ipv4.ip_forward`, `net.ipv6.conf.all.forwarding`, `net.ipv6.conf.default.forwarding`, `net.ipv6.bindv6only`, `net.ipv6.conf.<mgmt_nic>.accept_ra`, `net.ipv4.conf.*.rp_filter` が含まれます。
 
@@ -101,6 +149,7 @@ ansible-playbook -i inventory/hosts site.yml --tags docker-ce
 | `restore-container.j2` | `/usr/local/bin/restore-container` | `build_docker_ce_backup_container_image: true` かつ `docker_ce_enable_backup_script: true` | コンテナ復旧スクリプト。 |
 | `Dockerfile.j2` | `/usr/local/share/docker-backup/Dockerfile` | `build_docker_ce_backup_container_image: true` かつ `docker_ce_enable_backup_script: true` | `opensuse/leap:15.6` をベースに boombatower/docker-backup 互換のイメージを作成。 |
 | `backup.sh.j2` | `/usr/local/share/docker-backup/backup.sh` | `build_docker_ce_backup_container_image: true` かつ `docker_ce_enable_backup_script: true` | バックアップ用イメージのエントリスクリプト。 |
+| `daemon.json.j2` | `/etc/docker/daemon.json` | 常に実行 | Docker の動作設定ファイルテンプレート。`docker_ce_insecure_registries` が非空の場合は `insecure-registries` を追加します。 |
 | `/etc/docker/daemon.json` | `/etc/docker/daemon.json` | 常に実行 | Docker の動作設定ファイル。 |
 
 ## OS 差異
@@ -148,6 +197,26 @@ docker_ce_backup_dir_on_nfs: "/Linux/containers"
 
 ```yaml
 build_docker_ce_backup_container_image: true
+```
+
+### ローカルレジストリ設定
+
+`vars/all-config.yml`:
+```yaml
+container_registry_endpoints:
+  - endpoint: "local-registry.local:5000"
+    scheme: "http"
+    skip_verify: true
+  - endpoint: "devserver.example.org:5050"
+    scheme: "https"
+    skip_verify: true
+```
+
+`host_vars/<hostname>/main.yml`
+```yaml
+docker_ce_registry_enabled: true
+docker_ce_registry_port: 5000
+docker_ce_insecure_registries: "{{ container_registry_endpoints }}"
 ```
 
 ## バックアップ/復旧フロー
@@ -330,6 +399,49 @@ Unmount ...
 **確認ポイント**:
 
 - NFS がマウントされ, tar.xz が生成されること
+
+### 手順8: ローカルレジストリ確認
+
+ローカルコンテナレジストリホスト上で以下を実行する:
+
+```bash
+docker ps --filter name=local-registry
+ss -lntp | grep :5000
+curl http://127.0.0.1:5000/v2/
+```
+
+他のホスト上で以下を実行する(`<endpoint>`には, `<ローカルコンテナレジストリのホスト名, または, IPアドレス>:<ポート番号>`を指定する):
+
+```bash
+curl http://<endpoint>/v2/
+```
+
+**期待出力**:
+
+ローカルコンテナレジストリホスト上の実行例:
+```bash
+$ docker ps --filter name=local-registry
+CONTAINER ID   IMAGE        COMMAND                   CREATED             STATUS          PORTS                    NAMES
+6f2ad5277dbb   registry:2   "/entrypoint.sh /etc…"   About an hour ago   Up 17 minutes   0.0.0.0:5000->5000/tcp   local-registry
+$ ss -lntp | grep :5000
+
+LISTEN 0      4096         0.0.0.0:5000      0.0.0.0:*
+$ curl http://127.0.0.1:5000/v2/
+
+{}
+```
+
+他のホスト上の実行例:
+```bash
+$ curl http://registry1.local:5000/v2/
+{}
+```
+
+**確認ポイント**:
+
+- `docker_ce_registry_enabled: true` の場合に local-registry コンテナが稼働していること。
+- レジストリポートが待ち受けていること。
+- `/v2/` エンドポイントへ HTTP でアクセスできること。
 
 ## トラブルシューティング
 

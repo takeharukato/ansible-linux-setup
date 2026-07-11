@@ -1,0 +1,76 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  ローカルコンテナレジストリ設定
+#
+
+- name: "Check registry container status"
+  ansible.builtin.command:
+    argv:
+      - docker
+      - inspect
+      - "{{ docker_ce_registry_container_name }}"
+  become: true
+  register: _docker_ce_registry_inspect
+  changed_when: false
+  failed_when: false
+
+- name: "Recreate registry container when configuration is not matched"
+  ansible.builtin.shell: |
+    set -o pipefail
+
+    # 差分があればコンテナを再作成する。
+    recreate=0
+    desired_host_binding="{{ docker_ce_registry_bind_address }}:{{ docker_ce_registry_port }}"
+    desired_data_dir="{{ docker_ce_registry_data_dir }}"
+    desired_image="{{ docker_ce_registry_image }}"
+
+    # コンテナが無い場合は再作成対象にする。
+    if ! docker inspect "{{ docker_ce_registry_container_name }}" >/dev/null 2>&1; then
+      recreate=1
+    else
+      # 現在の設定を取得し, 期待値と比較する。
+      current_image="$(docker inspect -f '{{"{{"}} .Config.Image {{"}}"}}' "{{ docker_ce_registry_container_name }}")"
+      current_restart="$(docker inspect -f '{{"{{"}} .HostConfig.RestartPolicy.Name {{"}}"}}' "{{ docker_ce_registry_container_name }}")"
+      current_binding="$(docker inspect -f '{{"{{"}} (index (index .HostConfig.PortBindings "5000/tcp") 0).HostIp {{"}}"}}:{{"{{"}} (index (index .HostConfig.PortBindings "5000/tcp") 0).HostPort {{"}}"}}' "{{ docker_ce_registry_container_name }}" 2>/dev/null || true)"
+      current_mount="$(docker inspect -f '{{"{{"}} (index .Mounts 0).Source {{"}}"}}' "{{ docker_ce_registry_container_name }}" 2>/dev/null || true)"
+
+      if [[ "${current_image}" != "${desired_image}" ]]; then
+        recreate=1
+      fi
+      if [[ "${current_restart}" != "always" ]]; then
+        recreate=1
+      fi
+      if [[ "${current_binding}" != "${desired_host_binding}" ]]; then
+        recreate=1
+      fi
+      if [[ "${current_mount}" != "${desired_data_dir}" ]]; then
+        recreate=1
+      fi
+    fi
+
+    # 再作成が必要な場合のみ置き換え, 設定一致時は起動状態だけを補正する。
+    if [[ "${recreate}" == "1" ]]; then
+      docker rm -f "{{ docker_ce_registry_container_name }}" >/dev/null 2>&1 || true
+      docker run -d \
+        --name "{{ docker_ce_registry_container_name }}" \
+        --restart always \
+        -p "{{ docker_ce_registry_bind_address }}:{{ docker_ce_registry_port }}:5000" \
+        -v "{{ docker_ce_registry_data_dir }}:/var/lib/registry" \
+        "{{ docker_ce_registry_image }}" >/dev/null
+      echo "changed"
+    else
+      running_state="$(docker inspect -f '{{"{{"}} .State.Running {{"}}"}}' "{{ docker_ce_registry_container_name }}")"
+      if [[ "${running_state}" != "true" ]]; then
+        docker start "{{ docker_ce_registry_container_name }}" >/dev/null
+        echo "changed"
+      else
+        echo "ok"
+      fi
+    fi
+  args:
+    executable: /bin/bash
+  become: true
+  register: _docker_ce_registry_result
+  changed_when: "'changed' in _docker_ce_registry_result.stdout"

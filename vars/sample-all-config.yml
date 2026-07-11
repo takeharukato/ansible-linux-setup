@@ -357,6 +357,29 @@ common_selinux_state: "permissive"
 # rancher_cert_subject_org: "MyOrganization"
 
 # ======================================================
+# ローカルコンテナレジストリ設定 (条件的必須: docker-ce/k8s利用時)
+# ======================================================
+#
+# docker-ce/k8s で共有するレジストリエンドポイント一覧
+#
+# 書式: 辞書のリスト
+#   - endpoint: "<ホスト名, または, IPアドレス>:<ポート番号>"
+#     scheme: "http" または "https"
+#     skip_verify: true または false
+#
+# 例:
+# container_registry_endpoints:
+#   - endpoint: "registry1.local:5000"
+#     scheme: "http"
+#     skip_verify: true
+#   - endpoint: "registry2.local:5000"
+#     scheme: "http"
+#     skip_verify: true
+#   - endpoint: "mgmt-server.example.org:5050"
+#     scheme: "https"
+#     skip_verify: true
+
+# ======================================================
 # Docker Community Edition (オプション)
 # ======================================================
 
@@ -368,6 +391,10 @@ common_selinux_state: "permissive"
 # docker_ce_users:
 #   - user1
 #   - user2
+#
+# Docker Community Editionでコンテナレジストリ機能を提供する場合は, trueに設定する
+# host_vars側で設定する場合は, vars/all-config.ymlには設定しないこと
+# docker_ce_registry_enabled: true
 #
 # Docker コンテナバックアップ設定
 #
@@ -542,6 +569,10 @@ common_selinux_state: "permissive"
 # GitLab (バージョン管理システムとDevOpsプラットフォーム) バックアップスクリプトを生成する場合は true を指定する
 # gitlab_enable_backup_script: false
 #
+# GitLab Container Registry の認証を必須にする場合は true を指定する
+# false の場合は認証不要で利用する
+# gitlab_registry_require_auth: false
+#
 # バックアップ世代数 (日数)
 # gitlab_backup_rotation: 7
 #
@@ -588,6 +619,9 @@ common_selinux_state: "permissive"
 
 # Kubernetes (コンテナオーケストレーションプラットフォーム) のメジャー.マイナーバージョン (例: "1.31")
 # k8s_major_minor: "1.31"
+#
+# containerdがレジストリへplain HTTPで接続する場合は true を指定する
+# k8s_containerd_registry_plain_http: true
 #
 # Kubernetes 共通 CA (証明書管理局) を作成する場合は true を指定する
 #   true: ロールが共通CAを生成/再利用する (k8s_common_ca 未指定時)

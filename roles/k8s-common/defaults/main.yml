@@ -88,3 +88,18 @@ k8s_use_kubepods_cpuset: false
 k8s_python_packages_enabled: true
 # Kubernetes開発関連Pythonパッケージインストール有無n
 k8s_python_devel_packages_enabled: false
+
+# containerdで利用するレジストリエンドポイント設定のリスト
+# 辞書形式:
+# k8s_containerd_registry_endpoints:
+#   - endpoint: "registry.local:5000"
+#     scheme: "http"
+#     skip_verify: true
+#   - endpoint: "devserver.example.org:5050"
+#     scheme: "https"
+#     skip_verify: true
+# 既定では共有変数 container_registry_endpoints を参照する
+k8s_containerd_registry_endpoints: "{{ container_registry_endpoints | default([], true) }}"
+
+# containerdでscheme未指定時の既定プロトコルを指定するフラグ
+k8s_containerd_registry_plain_http: true

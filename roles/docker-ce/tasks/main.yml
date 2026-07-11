@@ -14,6 +14,10 @@
   ansible.builtin.include_tasks: service.yml
 - name: "Directory"
   ansible.builtin.include_tasks: directory.yml
+- name: "Registry"
+  ansible.builtin.include_tasks: registry.yml
+  when:
+    - docker_ce_registry_enabled|default(false)|bool
 - name: "Docker Backup Image"
   ansible.builtin.include_tasks: docker-backup-image.yml
   when:

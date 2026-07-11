@@ -41,6 +41,9 @@ gitlab_wait_delegate_to: "localhost"
 gitlab_external_url: "https://{{ gitlab_hostname }}:{{ gitlab_https_port }}"
 # GitLab Container Registry外部URL設定
 gitlab_registry_external_url: "https://{{ gitlab_hostname }}:{{ gitlab_registry_port }}"
+# GitLab Container Registry認証を必須にする場合はtrue
+# false の場合は token realm を無効化して認証不要で利用する
+gitlab_registry_require_auth: false
 
 # -----------------------------------------------------------
 # GitLabサーバDockerイメージ設定
