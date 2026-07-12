@@ -8,7 +8,7 @@ top=.
 	run_docker_ce run_ntp_server run_ntp_client run_nfs_server \
 	run_ldap_server run_redmine_server \
 	run_k8s_common run_k8s_ctrl_plane run_k8s_multus run_k8s_whereabouts \
-	run_k8s_worker run_k8s_devel run_netgauge \
+	run_k8s_worker run_k8s_devel run_netgauge run_netshoot_no_portscan \
 	run_k8s_worker_frr run_k8s_hubble_ui run_k8s_virtual_cluster run_k8s_vc_instances \
 	run_dns_server run_selinux update-ctrlplane-kubeconfig update-worker-kubeconfig \
 	run_terraform run_kea_dhcp run_radvd run_router_config run_router_clear_rules \
@@ -233,6 +233,9 @@ run_router_config:
 
 run_router_clear_rules:
 	ansible-playbook ${VERBOSE} -i ${INVENTORY} router-clear-rules.yml 2>&1 |tee build-router-clear-rules.log
+
+run_netshoot_no_portscan:
+	ansible-playbook --tags "netshoot-no-portscan" ${OPT_COMMON} 2>&1 |tee build-netshoot-no-portscan.log
 
 update-ctrlplane-kubeconfig:
 	ansible-playbook -i inventory/hosts k8s-ctrl-plane.yml --tags k8s-kubeconfig 2>&1 |tee build-update-ctrlplane-kubeconfig.log

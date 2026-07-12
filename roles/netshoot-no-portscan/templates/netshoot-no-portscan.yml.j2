@@ -1,0 +1,69 @@
+{# netshootのKubernetesマニフェストテンプレート                                 #}
+{#                                                                              #}
+{# 変数:                                                                        #}
+{#   netshoot_image_registry - ローカルレジストリのイメージURL         #}
+{#     設定例: "registry1.local:5000/netshoot:v0.16"                           #}
+{#     未設定または空文字の場合は, containerd に直接登録されたイメージを使用   #}
+{#   netshoot_no_portscan_image       - containerd 直接登録時のイメージ名       #}
+{#   netshoot_k8s_namespace           - 展開先 Namespace                        #}
+{#   netshoot_k8s_pod_name            - Pod 名                                  #}
+{# --- #}
+{# イメージ参照先とpullポリシーをローカルレジストリ有無で切り替える            #}
+{# ローカルレジストリが設定されている場合はそちらを使用し,                     #}
+{# pullポリシーをAlwaysにする。                                                 #}
+{# containerd 直接登録の場合はノード上に既存のイメージを使用するため          #}
+{# pullポリシーをNeverにする。                                                  #}
+{% if netshoot_image_registry | default('') | length > 0 %}
+{% set _image = netshoot_image_registry + ":" + netshoot_no_portscan_version %}
+{% set _pull_policy = "IfNotPresent" %}
+{% else %}
+{% set _image = netshoot_no_portscan_image %}
+{% set _pull_policy = "Never" %}
+{% endif %}
+---
+# -*- mode: yaml; coding: utf-8; -*-
+#
+# SPDX-License-Identifier: BSD-2-Clause
+#
+# Copyright (c) 2025 TAKEHARU KATO
+# This file is distributed under the two-clause BSD license.
+# For the full text of the license, see the LICENSE file in the project root directory.
+# このファイルは2条項BSDライセンスの下で配布されています。
+# ライセンス全文はプロジェクト直下の LICENSE を参照してください。
+#
+# netshoot (ポートスキャナ削除版) Pod マニフェスト
+#
+# イメージ: {{ _image }}
+# pullポリシー: {{ _pull_policy }}
+#
+apiVersion: v1
+kind: Pod
+metadata:
+  name: {{ netshoot_k8s_pod_name }}
+  namespace: {{ netshoot_k8s_namespace }}
+  labels:
+    app: {{ netshoot_k8s_pod_name }}
+spec:
+  containers:
+    - name: netshoot
+      image: {{ _image }}
+      imagePullPolicy: {{ _pull_policy }}
+      command:
+        - /bin/bash
+        - -c
+        - "trap : TERM INT; sleep infinity & wait"
+      securityContext:
+        capabilities:
+          add:
+            - NET_ADMIN
+            - NET_RAW
+      resources:
+        requests:
+          cpu: "100m"
+          memory: "128Mi"
+        limits:
+          cpu: "500m"
+          memory: "512Mi"
+  restartPolicy: Never
+  hostNetwork: false
+  dnsPolicy: ClusterFirst

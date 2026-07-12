@@ -1,0 +1,61 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  設定関連タスク
+#
+---
+
+# tarファイルからDockerイメージをロードする
+# 留意事項:
+#   制御ホスト (localhost) 上でDockerコマンドを実行するため delegate_to: localhost を指定する
+#   netshoot_output_dir_on_control_host: 制御ホスト上のnetshootイメージtarファイルの保存先ディレクトリ
+#   netshoot_no_portscan_image_file: 制御ホスト上のnetshootイメージtarファイル名
+- name: "Load netshoot image from tar file"
+  ansible.builtin.command:
+    argv:
+      - docker
+      - load
+      - -i
+      - "{{ netshoot_output_dir_on_control_host }}/{{ netshoot_no_portscan_image_file }}"
+  delegate_to: localhost
+  run_once: true
+  changed_when: true
+
+# ローカルレジストリ用にイメージにタグを付ける
+# 留意事項:
+#   netshoot_no_portscan_image: ロード後のイメージ名 (例: nicolaka/netshoot:v0.16)
+#   netshoot_image_registry: 登録先レジストリURL (例: registry1.local:5000/netshoot)
+#   バージョンタグを付与して登録する
+- name: "Tag netshoot image for local registry"
+  ansible.builtin.command:
+    argv:
+      - docker
+      - tag
+      - "{{ netshoot_no_portscan_image }}"
+      - "{{ netshoot_image_registry }}:{{ netshoot_no_portscan_version }}"
+  delegate_to: localhost
+  run_once: true
+  changed_when: true
+
+# ローカルレジストリにイメージをプッシュする
+- name: "Push netshoot image to local registry"
+  ansible.builtin.command:
+    argv:
+      - docker
+      - push
+      - "{{ netshoot_image_registry }}:{{ netshoot_no_portscan_version }}"
+  delegate_to: localhost
+  run_once: true
+  changed_when: true
+
+# ローカルレジストリにイメージが登録されていることを確認する
+- name: "Check netshoot image in local registry"
+  ansible.builtin.command:
+    argv:
+      - docker
+      - images
+      - "{{ netshoot_image_registry }}:{{ netshoot_no_portscan_version }}"
+  delegate_to: localhost
+  run_once: true
+  changed_when: false

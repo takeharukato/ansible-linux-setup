@@ -1,0 +1,67 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  ロール固有変数のデフォルト値
+#  group_vars/all/all.yml やhost_varsで上書き可能とするため,
+#  ロール名/defaults/main.yml に定義している
+
+# nicolaka/netshootを構築する場合は, trueに設定する。
+netshoot_no_portscan_enabled: false
+# netshootのバージョン
+netshoot_no_portscan_version: "v0.16"
+# nicolaka/netshootのイメージ名 (内部変数)
+netshoot_no_portscan_image: "nicolaka/netshoot:{{ netshoot_no_portscan_version }}"
+# nicolaka/netshootのコンテナイメージファイル名 (内部変数)
+netshoot_no_portscan_image_file: "nicolaka-netshoot-{{ netshoot_no_portscan_version }}.tar"
+# netshootのURL
+netshoot_src_url: "https://github.com/nicolaka/netshoot"
+# netshootの構築ホスト (制御ホスト上で構築する場合はlocalhost)
+netshoot_build_host: "localhost"
+# netshootの構築作業ディレクトリ (構築ホスト上の一時ディレクトリ)
+netshoot_work_dir: "/tmp/netshoot-work"
+# netshootの構築ディレクトリ (構築ホスト上の一時ディレクトリ)
+netshoot_build_dir: "{{ netshoot_work_dir }}/build"
+# netshootのコンテナイメージの出力先ディレクトリ (構築ホスト上の一時ディレクトリ)
+netshoot_output_dir: "{{ netshoot_work_dir }}/output"
+# netshootのコンテナイメージの出力先ディレクトリ (制御ホスト上の一時ディレクトリ)
+netshoot_output_dir_on_control_host: "{{ netshoot_work_dir }}/artifacts"
+# docker build 時のネットワークモード
+# host を指定するとビルドコンテナがホストのDNS設定を引き継ぐ
+# apk/apt の名前解決に失敗する場合は host を指定する
+netshoot_docker_build_network: "host"
+# 未修飾名イメージ記述時に補完するレジストリ名
+netshoot_unqualified_image_registry: "registry1.local"
+# k8sノード上のイメージ配置先一時ディレクトリ
+netshoot_remote_cache_dir: "/tmp/netshoot-register"
+# ワーカーノード自動検出時に参照する kubeconfig のパス
+netshoot_kubeconfig_path: "/etc/kubernetes/admin.conf"
+# k8sノードへの登録後に一時tarファイルを削除するかどうか
+netshoot_cleanup_remote_tar: true
+
+#
+# Kubernetes関連設定
+#
+
+# manifestファイルの格納先ディレクトリ
+netshoot_k8s_manifest_dir: "/opt/maintenance/netshoot/manifests"
+# manifestファイルパス
+netshoot_manifest_file_path: "{{ netshoot_k8s_manifest_dir }}/netshoot-no-portscan.yml"
+# Kubernetesクラスタのコントロールプレイン/ワーカーノードの
+# Container Runtime Interface (CRI)にnetshootイメージを
+# 登録する場合はtrueに設定する
+netshoot_register_to_k8s_nodes_enabled: true
+
+# 登録先ローカルレジストリのURL
+# 未定義, または, 空の場合はローカルレジストリへの登録は行わない
+netshoot_register_to_local_registry_urls: ""
+
+# マニフェストで使用するイメージ参照先
+# 設定した場合はローカルレジストリを参照する。未設定の場合は containerd に
+# 直接登録したイメージ名 (netshoot_no_portscan_image) を使用する
+netshoot_image_registry: ""
+
+# netshootを展開するNamespace
+netshoot_k8s_namespace: "default"
+# netshootのPod名
+netshoot_k8s_pod_name: "netshoot"

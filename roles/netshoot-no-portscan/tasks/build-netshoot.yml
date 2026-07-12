@@ -1,0 +1,137 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  netshootのコンテナイメージファイルを構築する
+#
+---
+
+# 作業ディレクトリを一旦削除する
+- name: "Remove temporary work directory for netshoot"
+  ansible.builtin.file:
+    path: "{{ netshoot_work_dir }}"
+    state: absent
+  become: true
+  delegate_to: "{{ netshoot_build_host }}"
+
+# 作業用の一時ディレクトリを作成する
+- name: "Create temporary work directory for netshoot"
+  ansible.builtin.file:
+    path: "{{ netshoot_work_dir }}"
+    state: directory
+    mode: "755"
+  delegate_to: "{{ netshoot_build_host }}"
+
+# 構築作業用の一時ディレクトリを作成する
+- name: "Create temporary build directory for netshoot"
+  ansible.builtin.file:
+    path: "{{ netshoot_build_dir }}"
+    state: directory
+    owner: "root"
+    group: "root"
+    mode: "755"
+  delegate_to: "{{ netshoot_build_host }}"
+
+# コンテナイメージ出力用の一時ディレクトリを作成する
+- name: "Create temporary output directory for netshoot"
+  ansible.builtin.file:
+    path: "{{ netshoot_output_dir }}"
+    state: directory
+    mode: "755"
+  delegate_to: "{{ netshoot_build_host }}"
+
+# netshootのソースコードを取得する
+# 留意事項:
+#   force: trueを指定することで, 既にディレクトリが存在していても上書きする
+- name: "Obtain netshoot source code"
+  ansible.builtin.git:
+    repo: "{{ netshoot_src_url }}"
+    dest: "{{ netshoot_build_dir }}"
+    version: "{{ netshoot_no_portscan_version }}"
+    force: true
+  delegate_to: "{{ netshoot_build_host }}"
+
+# netshootのDockerfileにportscanを無効化するパッチを適用する
+- name: "Apply patch to Dockerfile to disable portscan functions"
+  ansible.builtin.patch:
+    src: "{{ role_path }}/files/netshoot-no-portscan.patch"
+    dest: "{{ netshoot_build_dir }}/Dockerfile"
+    strip: 0
+  delegate_to: "{{ netshoot_build_host }}"
+
+# netshootのDockerイメージを構築するシェルスクリプトを展開する
+- name: "Render netshoot image build script"
+  ansible.builtin.template:
+    src: build-netshoot.sh.j2
+    dest: "{{ netshoot_build_dir }}/build-netshoot.sh"
+    owner: "root"
+    group: "root"
+    mode: "0755"
+  delegate_to: "{{ netshoot_build_host }}"
+
+# netshootのDockerイメージを構築する
+- name: "Build netshoot Docker image"
+  ansible.builtin.command:
+    argv:
+      - "{{ netshoot_build_dir }}/build-netshoot.sh"
+  delegate_to: "{{ netshoot_build_host }}"
+  changed_when: true
+
+# 構築ホスト上のnetshootのDockerイメージtarファイルの読み取り権を確保する
+# 留意事項:
+#   後続の fetch タスクで, ビルドホスト側から制御ホストへファイルを転送する際に
+#   読み取り権が必要となるため, ビルドホスト上でファイルのパーミッションを
+#   0644 に変更しておく
+- name: "Make netshoot image tar file readable on build host"
+  ansible.builtin.file:
+    path: "{{ netshoot_output_dir }}/{{ netshoot_no_portscan_image_file }}"
+    owner: "root"
+    group: "root"
+    mode: "0644"
+  delegate_to: "{{ netshoot_build_host }}"
+
+# 制御ホスト上にnetshootのコンテナイメージファイル保存先ディレクトリを作成する
+# 留意事項:
+#   fetch タスクが書き込み可能なように, ディレクトリのパーミッションを 0777 に設定する
+- name: "Create output directory for netshoot image tar file on control host"
+  ansible.builtin.file:
+    path: "{{ netshoot_output_dir_on_control_host }}"
+    state: directory
+    mode: "0777"
+  delegate_to: "localhost"
+  become: true
+
+# 制御ホスト上の既存のtarファイルを削除する
+- name: "Remove existing netshoot image tar file on control host"
+  ansible.builtin.file:
+    path: "{{ netshoot_output_dir_on_control_host }}/{{ netshoot_no_portscan_image_file }}"
+    state: absent
+  delegate_to: "localhost"
+  become: true
+
+# netshootのDockerイメージtarファイルを制御ホスト上にコピーする
+# 留意事項:
+#   既存ファイルが削除されているため, ファイル書き込みはdelegated hostで実行される
+#   ディレクトリが root 所有のため, fetch は become: true で実行する
+#   validate_checksum: false を指定することで, slurp処理によるログ汚染を避ける
+- name: "Copy netshoot image tar file to control host"
+  ansible.builtin.fetch:
+    src: "{{ netshoot_output_dir }}/{{ netshoot_no_portscan_image_file }}"
+    dest: "{{ netshoot_output_dir_on_control_host }}/"
+    flat: true
+    validate_checksum: false
+  delegate_to: "{{ netshoot_build_host }}"
+  become: true
+
+# 制御ホスト上のnetshootのDockerイメージtarファイルのアクセス権を変更する
+# 留意事項:
+#   制御ホスト上のtarファイルを root 所有に変更し,
+#   後続の k8s_register_image ロール側でノード上に配置できるようにする
+- name: "Change access permission of netshoot image tar file on control host"
+  ansible.builtin.file:
+    path: "{{ netshoot_output_dir_on_control_host }}/{{ netshoot_no_portscan_image_file }}"
+    owner: "root"
+    group: "root"
+    mode: "0644"
+  delegate_to: "localhost"
+  become: true

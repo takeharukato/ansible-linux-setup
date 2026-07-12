@@ -1,0 +1,19 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  Kubernetesクラスタにnetshootを展開するためのマニフェストを作成する
+---
+# マニュフェスト格納先ディレクトリを作成する
+- name: "Create directory for netshoot manifest"
+  ansible.builtin.file:
+    path: "{{ netshoot_k8s_manifest_dir }}"
+    state: directory
+    mode: "755"
+
+# templateモジュールを使用して, netshootのマニフェストファイルを作成する
+- name: "Create manifest for netshoot"
+  ansible.builtin.template:
+    src: netshoot-no-portscan.yml.j2
+    dest: "{{ netshoot_manifest_file_path }}"
+    mode: "0644"

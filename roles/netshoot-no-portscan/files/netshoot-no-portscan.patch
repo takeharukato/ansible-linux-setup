@@ -1,0 +1,12 @@
+--- Dockerfile	2026-07-12 00:36:12.607656301 +0900
++++ Dockerfile-no-portscan	2026-07-12 00:37:16.686227459 +0900
+@@ -48,9 +48,6 @@
+     netcat-openbsd \
+     nftables \
+     ngrep \
+-    nmap \
+-    nmap-nping \
+-    nmap-scripts \
+     openssl \
+     py3-pip \
+     py3-setuptools \

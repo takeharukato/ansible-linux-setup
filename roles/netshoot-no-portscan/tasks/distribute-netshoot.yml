@@ -1,0 +1,60 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  netshootのコンテナイメージファイルを配布する
+#
+---
+
+# コントロールプレーンノードのcontainerdにnetshootイメージを登録する
+# 留意事項:
+#   k8s_register_image_auto_discover_control_plane_hosts: true を指定することで
+#   インベントリの k8s_ctrlplane グループからコントロールプレーンホスト一覧を自動解決する。
+- name: "Register netshoot image on control-plane nodes"
+  ansible.builtin.include_role:
+    name: k8s-register-image
+    tasks_from: register-control-plane.yml
+  vars:
+    k8s_register_image_components:
+      netshoot: "{{ netshoot_output_dir_on_control_host }}/{{ netshoot_no_portscan_image_file }}"
+    k8s_register_image_expected_images:
+      netshoot: "{{ netshoot_no_portscan_image }}"
+    k8s_register_image_auto_discover_control_plane_hosts: true
+    k8s_register_image_cluster_key: "{{ k8s_ctrlplane_endpoint }}"
+    k8s_register_image_remote_cache_dir: "{{ netshoot_remote_cache_dir }}"
+    k8s_register_image_unqualified_image_registry: "{{ netshoot_unqualified_image_registry }}"
+    k8s_register_image_cleanup_remote_tar: "{{ netshoot_cleanup_remote_tar }}"
+
+# ワーカーノードへの配布に必要なホスト情報を解決する
+# 留意事項:
+#   k8s_register_image_auto_discover_worker_hosts: true を指定することで
+#   kubeconfig を参照してワーカーノード一覧を kubectl で自動解決する。
+- name: "Discover target hosts for worker distribution"
+  ansible.builtin.include_role:
+    name: k8s-register-image
+    tasks_from: discover-target-hosts.yml
+  vars:
+    k8s_register_image_auto_discover_control_plane_hosts: true
+    k8s_register_image_auto_discover_worker_hosts: true
+    k8s_register_image_cluster_key: "{{ k8s_ctrlplane_endpoint }}"
+    k8s_kubeconfig_to_discover_workers_path: "{{ netshoot_kubeconfig_path }}"
+
+# ワーカーノードのcontainerdにnetshootイメージを登録する
+# 留意事項:
+#   直前の discover-target-hosts.yml でホスト一覧を解決済みのため
+#   k8s_register_image_skip_discovery: true を指定して再解決をスキップする。
+- name: "Register netshoot image on worker nodes"
+  ansible.builtin.include_role:
+    name: k8s-register-image
+    tasks_from: register-workers.yml
+  vars:
+    k8s_register_image_components:
+      netshoot: "{{ netshoot_output_dir_on_control_host }}/{{ netshoot_no_portscan_image_file }}"
+    k8s_register_image_expected_images:
+      netshoot: "{{ netshoot_no_portscan_image }}"
+    k8s_register_image_remote_cache_dir: "{{ netshoot_remote_cache_dir }}"
+    k8s_register_image_unqualified_image_registry: "{{ netshoot_unqualified_image_registry }}"
+    k8s_register_image_cleanup_remote_tar: "{{ netshoot_cleanup_remote_tar }}"
+    k8s_register_image_auto_discover_control_plane_hosts: false
+    k8s_register_image_auto_discover_worker_hosts: false
+    k8s_register_image_skip_discovery: true

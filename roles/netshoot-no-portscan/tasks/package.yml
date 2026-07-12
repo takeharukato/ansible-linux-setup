@@ -1,0 +1,38 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  パッケージ関連処理
+---
+
+#
+# コンテナイメージファイルを作成する
+# nmapなどのポートスキャン系のツールを削除し,
+# ネットワーク検証用のツールとしての安全化を図り
+# netshootのコンテナイメージファイルを作成する
+# 留意事項:
+#   run_once: true を指定することで, 複数ホストへの並列実行時でも
+#   localhost 上でのビルドが1回だけ実行されることを保証する。
+- name: "Build netshoot image"
+  ansible.builtin.include_tasks: build-netshoot.yml
+  run_once: true
+
+# Kubernetesクラスタのノードにnetshootイメージを配布する
+# 留意事項:
+#   netshoot_image_registry が設定されていない場合のみ実行する
+- name : "Distribute netshoot image to kubernetes cluster nodes"
+  ansible.builtin.include_tasks: distribute-netshoot.yml
+  when:
+    - (netshoot_image_registry | default('', true) | length) == 0
+
+# レジストリにnetshootイメージを登録する
+# 留意事項:
+#   netshoot_image_registry が設定されている場合のみ実行する
+- name: "Register netshoot image to container registry"
+  ansible.builtin.include_tasks: register-netshoot.yml
+  when:
+    - (netshoot_image_registry | default('', true) | length) > 0
+
+# マニュフェストを作成する
+- name: "Create manifest for netshoot"
+  ansible.builtin.include_tasks: create-manifest.yml

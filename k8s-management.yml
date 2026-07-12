@@ -20,3 +20,5 @@
     - role: k8s-vc-instances
       tags: k8s-vc-instances
       when: k8s_vcinstances_enabled | default(false) | bool
+    - role: netshoot-no-portscan
+      tags: netshoot-no-portscan
