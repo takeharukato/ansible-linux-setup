@@ -108,19 +108,54 @@
   become: true
 
 # Containerd 側のコンテナレジストリ設定
-# config_path = "..."形式の既存行が存在する場合は置換, 存在しない場合は追加する
-# 既存行がある場合は, その行を"/etc/containerd/certs.d"に置換する
-# 既存行がない場合は, [plugins."io.containerd.grpc.v1.cri".registry]の直後に
-# config_path = "/etc/containerd/certs.d"
-# を追加する
+# containerd のデフォルト設定には複数の config_path が存在するため,
+# sed の範囲指定で .registry セクション配下の config_path のみを置換する
+#
+# 留意事項:
+#   lineinfile では最後にマッチした行が置換されるため正確なセクション指定ができない。
+#   sed の範囲指定機能 (/pattern1/,/pattern2/) を使用して .registry セクション内のみを対象にする
+#
+#   sed の正規表現の意味は以下の通り:
+#
+#   [pattern1(開始パターン)]
+#                  \[plugins\.[^]]*\.registry\] は,
+#                  plugins.<任意の文字列>.registry のセクションを正規表現で指定する
+#                  補足: [^]]* は, ] 以外の任意の文字列へのマッチを意味する。
+#                         \[plugins\.[^]]*\.registry\] は,
+#                            - '[plugins.' で始まり,
+#                            - ']' 以外の任意の文字列が続き,
+#                            - '.registry]' で終わる
+#                         にマッチする正規表現である。
+#                  例: [plugins.cri.registry] や [plugins."io.containerd.grpc.v1.cri".registry] にマッチする
+#
+#   [pattern2(終了パターン)]
+#                  /^\s*\[/ は, 次のセクションの開始行 (行頭にゼロ個以上の空白があり, [で始まる行) を指定する
+#                  例: [plugins.cri.containerd.runtimes.runc] のような行にマッチする
+#
+#   [置換コマンド]
+#                  s|^\(\s*\)config_path\s*=.*|\1config_path = "/etc/containerd/certs.d"|
+#                  - ^(\s*) は, 行頭のゼロ個以上の空白をキャプチャする(後続の \1 で参照するため)
+#                  - config_path\s*=.* は, config_path = 以降の文字列
+#                  - \1config_path = "/etc/containerd/certs.d" は,
+#                    キャプチャした空白を保持しつつ置換後の文字列である"/etc/containerd/certs.d"を指定する
+#                  - 置換後の文字列に'/'が含まれるため, sed の区切り文字を '/' ではなく '|' に変更している
+#
 - name: "Set containerd registry config path"
-  ansible.builtin.lineinfile:
-    path: /etc/containerd/config.toml
-    state: "present"
-    insertafter: '^\s*\[plugins\."io\.containerd\.grpc\.v1\.cri"\.registry\]\s*$'
-    regexp: '^\s*config_path\s*=\s*".*"\s*$'
-    line: '      config_path = "/etc/containerd/certs.d"'
+  ansible.builtin.shell: |
+    set -euo pipefail
+    # 修正対象ファイル
+    target='/etc/containerd/config.toml'
+    # 置換後の行
+    new_line='      config_path = "/etc/containerd/certs.d"'
+    # .registry セクション内の config_path を置換 (次のセクション [] までの範囲)
+    sed -i "/\[plugins\.[^]]*\.registry\]/,/^\s*\[/{
+      s|^\(\s*\)config_path\s*=.*|\1config_path = \"/etc/containerd/certs.d\"|
+    }" "${target}"
+  args:
+    executable: /bin/bash
   become: true
+  register: _result
+  changed_when: _result.rc == 0
 
 # /etc/containerd/certs.dを作成
 - name: "Create /etc/containerd/certs.d"
