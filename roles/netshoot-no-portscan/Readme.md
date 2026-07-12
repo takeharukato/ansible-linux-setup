@@ -1,6 +1,6 @@
 # netshoot-no-portscan ロール
 
-[nicolaka/netshoot](https://github.com/nicolaka/netshoot) をベースに, ポートスキャンツール (nmap, nmap-nping, nmap-scripts) を除去した安全なネットワーク診断用コンテナイメージを構築し, Kubernetes クラスタに配布するロールです。このロールは, セキュリティポリシー上 nmap 等のポートスキャンツールを搭載できない環境においても, tcpdump, ping, curl 等のネットワーク検証ツールを Pod として使用可能にします。
+[nicolaka/netshoot](https://github.com/nicolaka/netshoot) をベースに, ポートスキャンツール などの悪用される恐れのあるツール群を除去したネットワーク診断用コンテナイメージを構築し, Kubernetes クラスタに配布するロールです。本ロールは, セキュリティポリシー上 nmap 等のポートスキャンツールを搭載できない環境においても, tcpdump, ping, curl 等のネットワーク検証ツールを Pod として使用可能にします。
 
 本ロールは, `inventory/hosts`内の`k8s_management`グループに記載されたノード(Kubernetesコントロールプレインノード)の構築処理の一環として実行されます。
 
@@ -9,6 +9,7 @@
   - [用語](#用語)
   - [前提条件](#前提条件)
   - [概要](#概要)
+    - [標準のnicolaka/netshootとの相違](#標準のnicolakanetshootとの相違)
     - [ポートスキャンツール除去の仕組み](#ポートスキャンツール除去の仕組み)
   - [実行フロー](#実行フロー)
     - [コンテナイメージの構築と配布の流れ](#コンテナイメージの構築と配布の流れ)
@@ -42,6 +43,9 @@
 
 | 正式名称 | 略称 | 意味 |
 | --- | --- | --- |
+|ポートスキャン (port scan)|-|ネットワーク上のサーバなどの機器の各ポート(通信端点)にデータを送り, その応答から​​開いているポートや稼働しているサービスを調べること。悪意を持ったポートスキャンを避ける目的から, 本ロールでは, ポートスキャンツール(nmap関連ツール, スクリプト)を除去している。|
+|Denial of Service 攻撃 ( Denial of Service Attack )|DoS攻撃|大量のリクエストを標的のサーバに送り付け、Webサイトやサービスを機能停止に追い込む攻撃方法。|
+|フラッディング攻撃 (Flooding Attack) |-|大量の送信データを一気に送ることにより洪水(flood)を起こさせる攻撃。DoS攻撃の一種。本攻撃用途に使用されることを避ける目的から本ロールでは, 任意パケット生成に使用されるツール(scapy)などを除去している。|
 | Kubernetes | K8s | コンテナを管理する基盤ソフトウエア。 |
 | Container Runtime Interface | CRI | Kubernetes がコンテナランタイムと通信するための標準インタフェース。 |
 | containerd | - | Kubernetes が使用する標準コンテナランタイム。CRI を実装し, コンテナイメージの管理と実行を担う。 |
@@ -79,15 +83,34 @@
    - ローカルレジストリ登録モード: Docker でローカルレジストリへ push する
 5. Kubernetes 向けのデバッグ用 Pod マニフェストファイルを生成する
 
+### 標準のnicolaka/netshootとの相違
+
+ポートスキャン, フラッディング攻撃, DoS攻撃などに悪用される恐れがある以下のツール群を除去しています。
+
+|ツール|機能概要|参考サイト|
+|---|---|---|
+|nmap,nmap-nping,nmap-scripts|ポートスキャンツール|[nmap公式サイト](https://nmap.org/)|
+|bird|BGP/OSPF routing デーモン|[The BIRD Internet Routing Daemon](https://bird.network.cz/)|
+|fping|並列ping|[fping公式サイト](https://fping.org/)|
+|scapy|パケット生成ライブラリ|[scapy公式サイト](https://scapy.net/)|
+|swaks|SMTPテストツール|[Swaks - Swiss Army Knife for SMTP](https://github.com/jetmore/swaks)|
+|fortio|マイクロサービス(HTTP,gRPC)用ロードテストツール|[Fortio公式サイト](https://fortio.org/)|
+
 ### ポートスキャンツール除去の仕組み
 
-`files/netshoot-no-portscan.patch` を [nicolaka/netshoot](https://github.com/nicolaka/netshoot) の Dockerfile に適用することで, 以下の3パッケージの Alpine Linux `apk` インストール行を削除します。
+`files/netshoot-no-portscan.patch` を [nicolaka/netshoot](https://github.com/nicolaka/netshoot) の Dockerfile に適用することで, 以下のパッケージの Alpine Linux `apk` インストール行を削除します。
 
 ```
 - nmap
 - nmap-nping
 - nmap-scripts
+- bird
+- fping
+- scapy
+- swaks
 ```
+
+また, コンテナ生成時の, `fortio`の導入処理を削除しています。
 
 ## 実行フロー
 

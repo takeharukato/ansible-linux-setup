@@ -1,6 +1,22 @@
 --- Dockerfile	2026-07-12 00:36:12.607656301 +0900
-+++ Dockerfile-no-portscan	2026-07-12 00:37:16.686227459 +0900
-@@ -48,9 +48,6 @@
++++ Dockerfile-no-portscan	2026-07-13 03:24:00.214651079 +0900
+@@ -19,7 +19,6 @@
+     apache2-utils \
+     bash \
+     bind-tools \
+-    bird \
+     bridge-utils \
+     busybox-extras \
+     conntrack-tools \
+@@ -28,7 +27,6 @@
+     drill \
+     ethtool \
+     file\
+-    fping \
+     iftop \
+     iperf \
+     iperf3 \
+@@ -48,13 +46,9 @@
      netcat-openbsd \
      nftables \
      ngrep \
@@ -10,3 +26,25 @@
      openssl \
      py3-pip \
      py3-setuptools \
+-    scapy \
+     socat \
+     speedtest-cli \
+     openssh \
+@@ -69,7 +63,6 @@
+     git \
+     zsh \
+     websocat \
+-    swaks \
+     perl-crypt-ssleay \
+     perl-net-ssleay
+ 
+@@ -85,9 +78,6 @@
+ # Installing grpcurl
+ COPY --from=fetcher /tmp/grpcurl /usr/local/bin/grpcurl
+ 
+-# Installing fortio
+-COPY --from=fetcher /tmp/fortio /usr/local/bin/fortio
+-
+ # Setting User and Home
+ USER root
+ WORKDIR /root
