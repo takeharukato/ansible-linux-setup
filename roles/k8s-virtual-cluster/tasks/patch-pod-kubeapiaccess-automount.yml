@@ -1,0 +1,26 @@
+# -*- mode: yaml; coding: utf-8; line-endings: unix -*-
+#  SPDX-License-Identifier: BSD-2-Clause
+#
+#  Copyright (c) 2025 TAKEHARU KATO
+#  This file is distributed under the two-clause BSD license.
+#  For the full text of the license, see the LICENSE file in the project root directory.
+#  このファイルは2条項BSDライセンスの下で配布されています。
+#  ライセンス全文はプロジェクト直下の LICENSE を参照してください。
+#
+# podkubeapiaccessmutator.go の automountServiceAccountToken 判定と
+# disable-service-account-token の適用を修正するパッチを適用する。
+# 併せて, 関連ユニットテストを追加する。
+#
+---
+
+# Pod kube-api-access token 注入制御の修正パッチを適用
+- name: "Patch podkubeapiaccessmutator.go to honor automount settings and disable flag"
+  block:
+    - name: "Apply automount and disable flag fix patch to pod kube-api-access mutator"
+      ansible.posix.patch:
+        src: "pod_kubeapiaccess_automount.patch"
+        basedir: "{{ virtualcluster_source_dir }}"
+        strip: 1
+      delegate_to: "{{ virtualcluster_build_host }}"
+      become: false
+      run_once: true

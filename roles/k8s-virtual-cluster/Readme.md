@@ -105,9 +105,18 @@ Kubernetes 仮想クラスタ ) の基盤コンポーネントをデプロイす
       - [実行例](#実行例-1)
       - [ポートフォワード操作の例](#ポートフォワード操作の例)
       - [テナント環境へアクセスするためのkubeconfig の生成例](#テナント環境へアクセスするためのkubeconfig-の生成例)
-    - [注意事項](#注意事項)
+    - [automountServiceAccountToken 優先順位の検証手順](#automountserviceaccounttoken-優先順位の検証手順)
+  - [注意事項](#注意事項)
   - [留意事項](#留意事項)
   - [参考リンク](#参考リンク)
+  - [付録](#付録)
+    - [files/pod\_kubeapiaccess\_automount.patchの障害修正内容](#filespod_kubeapiaccess_automountpatchの障害修正内容)
+      - [現象](#現象)
+      - [条件](#条件)
+      - [原因概要](#原因概要)
+      - [処置概要](#処置概要)
+      - [原因詳細](#原因詳細)
+      - [処置詳細](#処置詳細)
 
 
 ## 用語
@@ -158,6 +167,7 @@ Kubernetes 仮想クラスタ ) の基盤コンポーネントをデプロイす
 | ラベル ( label ) | - | リソースに対する付加情報の一種で, key=value 形式で指定される。典型的には, リソースの検索, 選別 ( selector ) のために用いられる。 |
 | アノテーション ( annotation ) | - | リソースに対する付加情報の一種で, key: value 形式で指定される。リソースの検索, 選別 ( selector ) を目的としない用途の付加情報を指定するために用いられる。 |
 | セレクタ ( selector ) | - | Kubernetes において, ラベル ( label ) に基づいてリソースを識別, 選択するための仕組み。たとえば, Service が特定のラベルを持つ Pod を選択して通信電文を転送する際に使用される。 |
+| サービスアカウント (Service Account)| - | 人間以外の実体をKubernetesクラスタ内で一意に識別するために提供されるアカウントの一種。 アプリケーションPod, システムコンポーネント, および, Kubernetesクラスター内外の実体に紐づけられたServiceAccountの認証情報を通して, これらの実体を互いに識別することが可能である。|
 
 ## 前提条件
 
@@ -241,7 +251,7 @@ etcd の永続ストレージを有効にする場合 (`vcinstances_etcd_storage
   - ただし, `virtualcluster_clean_build: true` かつ `virtualcluster_build_from_source: true` かつ `virtualcluster_skip_cache_on_clean_build: true` の場合は, 古いキャッシュ再利用を避けるため `cache` をスキップして `build` を優先します。
 7. `virtualcluster_build_from_source: true` の場合:
    - `download-source.yml` でソースリポジトリをクローン/更新します ( `virtualcluster_clean_build: true` の場合は `force: true` でローカル変更を破棄 ) 。
-  - `patch-provisioner.yml`, `patch-virtualcluster-types.yml`, `patch-kubeconfig.yml`, `patch-service-mutate.yml`, `patch-vn-agent-options.yml` で5つのunified diff形式パッチを適用します。
+  - `patch-provisioner.yml`, `patch-virtualcluster-types.yml`, `patch-kubeconfig.yml`, `patch-service-mutate.yml`, `patch-vn-agent-options.yml`, `patch-pod-kubeapiaccess-automount.yml` で6つのunified diff形式パッチを適用します。
    - `build-binaries.yml` で `make build-images` を実行してバイナリをビルドします。
    - `build-kubectl-vc.yml` でkubectl-vcプラグインをビルドします ( `virtualcluster_build_kubectl_vc: true` の場合 ) 。
   - `build-docker-images.yml` でDockerイメージをビルドしてtarファイルに保存します。
@@ -794,7 +804,7 @@ ansible-playbook k8s-management.yml -t k8s-virtual-cluster
 
 ### パッチ適用詳細
 
-本ロールでは, cluster-api-provider-nestedのソースコードに対して以下の5つのパッチを適用します。パッチ適用には `ansible.posix.patch` モジュール(unified diff形式)を使用します。
+本ロールでは, cluster-api-provider-nestedのソースコードに対して以下の6つのパッチを適用します。パッチ適用には `ansible.posix.patch` モジュール(unified diff形式)を使用します。
 
 | パッチファイル | 対象ファイル | 修正内容 |
 |--------------|------------|----------|
@@ -803,6 +813,7 @@ ansible-playbook k8s-management.yml -t k8s-virtual-cluster
 | `kubeconfig.patch` | `virtualcluster/pkg/controller/kubeconfig/kubeconfig.go` | `generateKubeconfigUseCertAndKey`関数で`net.ParseIP`が`nil`を返す場合 (=ドメイン名) の処理を追加<br>IPv6形式の`[domain]:6443`ではなく通常の`https://domain:6443`形式を使用するように修正 |
 | `service_mutate.patch` | `virtualcluster/pkg/syncer/conversion/mutate.go` | `serviceMutator.Mutate`メソッドで`ClusterIP`を空にする際に`ClusterIPs`を空配列`[]string{}`に設定していた問題を修正<br>Kubernetes v1.20以降の検証ルール("clusterIPが未設定の場合clusterIPsもnil"の要求)に準拠するため`ClusterIPs = nil`に変更<br>これによりテナント ( Tenant ) に割り当てられた仮想クラスタ ( Virtual Cluster ) の`default/kubernetes` Serviceの同期エラーを解消 |
 | `vn_agent_options.patch` | `virtualcluster/cmd/vn-agent/app/options/options.go` | `fileNotExistOrEmpty`で`os.Stat`のエラーを無視して`fi.Size()`を参照していた問題を修正<br>証明書ファイル未配置時にnil参照でpanicする不具合を防ぐため, `os.Stat`が失敗した場合は`true` (未存在または空) を返すように変更 |
+| `pod_kubeapiaccess_automount.patch` | `virtualcluster/pkg/syncer/resources/pod/mutatorplugin/podkubeapiaccessmutator.go`<br>`virtualcluster/pkg/syncer/resources/pod/mutatorplugin/podkubeapiaccessmutator_test.go` | `shouldAutomount`が常に`true`を返していた実装を修正し, Pod設定, ServiceAccount設定, 既定値の優先順で判定するように変更<br>`--disable-service-account-token`有効時はkube-api-access token注入処理をスキップするように変更<br>回帰防止のためautomount判定とdisable時no-opのユニットテストを追加 |
 
 **パッチ適用パラメータ**:
 - `strip: 1`: unified diffの`a/`, `b/`プレフィックスを除去
@@ -2530,6 +2541,7 @@ ssh {{ virtualcluster_build_host }} "ls -la {{ virtualcluster_source_dir }}/virt
 cat roles/k8s-virtual-cluster/files/provisioner_native.patch
 cat roles/k8s-virtual-cluster/files/virtualcluster_types.patch
 cat roles/k8s-virtual-cluster/files/kubeconfig.patch
+cat roles/k8s-virtual-cluster/files/pod_kubeapiaccess_automount.patch
 ```
 
 パッチファイルがunified diff形式 (`--- a/...`, `+++ b/...`) であることを確認してください。
@@ -2987,7 +2999,162 @@ kubectl config set-cluster virtualcluster-tenant-alpha --insecure-skip-tls-verif
 
 `kubectl port-forward` は同一マシンからのアクセスのみを想定しているため, リモートマシンからアクセスする場合は, スーパークラスタのロードバランサーまたはゲートウェイ経由でアクセスするように, kubeconfig の server を `https://<loadbalancer-ip>:6443` に変更するなどの対処を行ってください。
 
-### 注意事項
+### automountServiceAccountToken 優先順位の検証手順
+
+本節では, 仮想クラスタ側に対して `automountServiceAccountToken` の優先順位を4パターンで検証する手順を示します。
+本検証では, 本ロールの`test-programs/vc_verify_automount_precedence.sh`に配置されている検証スクリプトを用いて, 以下の検証を行います:
+
+|ServiceAccountの有無|Pod展開用マニュフェスト中のautomountServiceAccountTokenの指定|ServiceAccount アクセス用ボリューム|
+|---|---|---|
+|false|指定なし|割り当てられない|
+|true|指定なし|割り当てられる|
+|false|指定あり(true)|割り当てられる(Podでの指定を優先する)|
+|true|指定あり(false)|割り当てられない(Podでの指定を優先する)|
+
+実行手順:
+
+1. スーパークラスタ側で, テナントの名前空間 (namespace) を確認します。
+
+```bash
+SUPER_KUBECONFIG=~/.kube/config
+TENANT_NAME=tenant-alpha
+
+kubectl --kubeconfig "${SUPER_KUBECONFIG}" get ns | \
+  grep -E "vc-manager-.*-${TENANT_NAME}"
+```
+
+実行結果の例:
+```bash
+$ SUPER_KUBECONFIG=~/.kube/config
+$ TENANT_NAME=tenant-alpha
+$ kubectl --kubeconfig "${SUPER_KUBECONFIG}" get ns | \
+  grep -E "vc-manager-.*-${TENANT_NAME}"
+vc-manager-225f59-tenant-alpha                   Active   82m
+vc-manager-225f59-tenant-alpha-default           Active   82m
+vc-manager-225f59-tenant-alpha-kube-node-lease   Active   82m
+vc-manager-225f59-tenant-alpha-kube-public       Active   82m
+vc-manager-225f59-tenant-alpha-kube-system       Active   82m
+```
+
+2. テナント kubeconfig を生成し, `localhost` に向けます。
+
+```bash
+LOCAL_PORT=16443
+vc-tenant-kubeconfig.sh "${TENANT_NAME}" -o ~/.kube/${TENANT_NAME}.conf --vc-manager-ns vc-manager
+sed -i "s|server: https://.*:6443|server: https://localhost:${LOCAL_PORT}|" ~/.kube/${TENANT_NAME}.conf
+```
+
+実行結果の例:
+```bash
+$ vc-tenant-kubeconfig.sh "${TENANT_NAME}" -o ~/.kube/${TENANT_NAME}.conf --vc-manager-ns vc-manager
+[INFO] ====== kubeconfig生成 ======
+[INFO] コンテキスト: cluster1
+[INFO] ユーザ: CLUSTER
+[INFO] テナント情報:
+[INFO]   テナント名: tenant-alpha
+[INFO]   VirtualCluster管理namespace: vc-manager
+[INFO]   実行時namespace: vc-manager-225f59-tenant-alpha
+[INFO]   クラスタドメイン: tenant-alpha.vc.local
+[INFO] kubeconfig生成開始: tenant-alpha
+[INFO]   実行時namespace: vc-manager-225f59-tenant-alpha
+[INFO]   クラスタドメイン: tenant-alpha.vc.local
+[INFO]   admin-kubeconfigシークレット: 取得済み
+[INFO] kubeconfig を出力: /home/kube/.kube/tenant-alpha.conf
+[INFO] kubeconfig生成完了
+[INFO] ====== 完了 ======
+$ sed -i "s|server: https://.*:6443|server: https://localhost:${LOCAL_PORT}|" ~/.kube/${TENANT_NAME}.conf
+```
+
+3. 別ターミナルで port-forward を開始します。
+
+```bash
+SUPER_KUBECONFIG=~/.kube/config
+TENANT_NAME=tenant-alpha
+LOCAL_PORT=16443
+TENANT_NS=$(kubectl --kubeconfig "${SUPER_KUBECONFIG}" get virtualclusters.tenancy.x-k8s.io -n vc-manager "${TENANT_NAME}" \
+  -o jsonpath='{.status.clusterNamespace}')
+
+kubectl --kubeconfig "${SUPER_KUBECONFIG}" \
+  port-forward -n "${TENANT_NS}" svc/apiserver-svc ${LOCAL_PORT}:6443
+```
+
+実行結果の例:
+```bash
+$ SUPER_KUBECONFIG=~/.kube/config
+$ TENANT_NAME=tenant-alpha
+$ LOCAL_PORT=16443
+$ TENANT_NS=$(kubectl --kubeconfig "${SUPER_KUBECONFIG}" get \
+ virtualclusters.tenancy.x-k8s.io -n vc-manager "${TENANT_NAME}" \
+ -o jsonpath='{.status.clusterNamespace}')
+$ kubectl --kubeconfig "${SUPER_KUBECONFIG}" \
+  port-forward -n "${TENANT_NS}" svc/apiserver-svc ${LOCAL_PORT}:6443
+Forwarding from 127.0.0.1:16443 -> 6443
+Forwarding from [::1]:16443 -> 6443
+```
+
+4. 証明書名不一致を回避するため, TLS 検証を無効化します。
+
+元のターミナルに戻り, 以下を実行します:
+
+```bash
+KUBECONFIG=~/.kube/${TENANT_NAME}.conf
+CTX=$(kubectl --kubeconfig "${KUBECONFIG}" config current-context)
+CLUSTER_NAME=$(kubectl --kubeconfig "${KUBECONFIG}" config view -o jsonpath="{.contexts[?(@.name=='${CTX}')].context.cluster}")
+kubectl --kubeconfig "${KUBECONFIG}" config set-cluster "${CLUSTER_NAME}" \
+  --server="https://localhost:${LOCAL_PORT}" --insecure-skip-tls-verify=true
+```
+
+実行結果の例:
+```bash
+$ KUBECONFIG=~/.kube/${TENANT_NAME}.conf
+$ CTX=$(kubectl --kubeconfig "${KUBECONFIG}" config current-context)
+$ CLUSTER_NAME=$(kubectl --kubeconfig "${KUBECONFIG}" config view -o jsonpath="{.contexts[?(@.name=='${CTX}')].context.cluster}")
+$ kubectl --kubeconfig "${KUBECONFIG}" config set-cluster "${CLUSTER_NAME}" \
+  --server="https://localhost:${LOCAL_PORT}" --insecure-skip-tls-verify=true
+Cluster "tenant-alpha" set.
+```
+
+5. 検証スクリプトを実行します。
+
+本リポジトリの `roles/k8s-virtual-cluster/test-programs/vc_verify_automount_precedence.sh` をカレントディレクトリに
+転送したうえで以下のように実行します:
+
+```bash
+/bin/bash ./vc_verify_automount_precedence.sh \
+  --kubeconfig ~/.kube/${TENANT_NAME}.conf
+```
+
+成功すると以下の行が出力されます:
+
+```text
+[PASS] pod-sa-false-pod-unset expected=absent actual=absent
+[PASS] pod-sa-true-pod-unset expected=present actual=present
+[PASS] pod-sa-false-pod-true expected=present actual=present
+[PASS] pod-sa-true-pod-false expected=absent actual=absent
+[RESULT] OK: automountServiceAccountToken precedence is as expected.
+```
+
+実行結果の例:
+```bash
+$ /bin/bash ./vc_verify_automount_precedence.sh \
+  --kubeconfig ~/.kube/${TENANT_NAME}.conf
+[INFO] Create namespace: automount-test-1783940564
+[INFO] Wait Ready: pod-sa-false-pod-unset
+[INFO] Wait Ready: pod-sa-true-pod-unset
+[INFO] Wait Ready: pod-sa-false-pod-true
+[INFO] Wait Ready: pod-sa-true-pod-false
+[PASS] pod-sa-false-pod-unset: expected=absent, actual=absent
+[PASS] pod-sa-true-pod-unset: expected=present, actual=present
+[PASS] pod-sa-false-pod-true: expected=present, actual=present
+[PASS] pod-sa-true-pod-false: expected=absent, actual=absent
+[RESULT] OK: automountServiceAccountToken precedence is as expected.
+
+$
+```
+
+上記手順で, `x509: certificate is valid for ... not localhost` というメッセージが出力された場合は, 手順4の設定を確認してください。
+
+## 注意事項
 
 - Apache License 2.0 で保護された kubeconfig には, テナント管理者用の認証情報(証明書とキー)が含まれます。安全に保管, 配布してください。
 - テナント API サーバーへのアクセスには port-forward やロードバランサーなど, 別途ネットワーク経路の確立が必要です。スーパークラスタの外部からのダイレクトアクセスはサポートされていません。
@@ -3008,3 +3175,50 @@ kubectl config set-cluster virtualcluster-tenant-alpha --insecure-skip-tls-verif
 ## 参考リンク
 
 - [VirtualCluster - Enabling Kubernetes Hard Multi-tenancy](https://github.com/kubernetes-retired/cluster-api-provider-nested/tree/main/virtualcluster)
+
+## 付録
+
+### files/pod_kubeapiaccess_automount.patchの障害修正内容
+
+#### 現象
+
+[VirtualCluster - Enabling Kubernetes Hard Multi-tenancy](https://github.com/kubernetes-retired/cluster-api-provider-nested/tree/main/virtualcluster) の実装の問題により, 仮想クラスタ側の Pod で, ServiceAccount と Pod展開時のマニフェスト中の automountServiceAccountToken の指定どおりに Pod に自動で追加されるべき ServiceAccount アクセス用のボリューム ([kube-api-access](https://kubernetes.io/docs/reference/access-authn-authz/service-accounts-admin/#bound-service-account-token-volume)) が適切にマウントされない場合がありました。
+
+具体的には, Pod 側で無効化したいケースでもトークン用のボリュームが作られる可能性があり, 逆に有効化したいケースでも期待どおりの優先順位で反映されない場合がありました。
+また, vc-syncer の `--disable-service-account-token` オプション(スーパークラスタの[Service Account Token](https://kubernetes.io/docs/concepts/security/service-accounts/#get-a-token)を仮想クラスタ内で動作するPod内に自動マウントする動作を無効化するオプション)による設定が反映されないことがあります。
+
+#### 条件
+
+[VirtualCluster - Enabling Kubernetes Hard Multi-tenancy](https://github.com/kubernetes-retired/cluster-api-provider-nested/tree/main/virtualcluster) コミットID [4d19ac600cbb70ed9b6e1712b2cbad104f3ca115](https://github.com/kubernetes-retired/cluster-api-provider-nested/commit/4d19ac600cbb70ed9b6e1712b2cbad104f3ca115)以前の版を使用した場合
+
+#### 原因概要
+
+本障害の原因概要は以下の通りです:
+
+- Pod展開時のマニフェスト中の[automountServiceAccountToken](https://kubernetes.io/docs/tasks/configure-pod-container/configure-service-account/#opt-out-of-api-credential-automounting) と ServiceAccount の [automountServiceAccountToken](https://kubernetes.io/docs/reference/access-authn-authz/service-accounts-admin/#bound-service-account-token-volume) を Pod展開時のマニフェスト内の指示 に応じて有効化または無効化すべきところを, 常に有効としてしまっていました。
+- vc-syncer の `--disable-service-account-token` オプションによる設定を ServiceAccount アクセス用のボリューム (kube-api-access) 側の設定に反映すべきところを, 反映できていませんでした。
+#### 処置概要
+
+本修正の処置概要は以下の通りです:
+
+- Pod展開時のマニフェスト中のautomountServiceAccountTokenと ServiceAccount の automountServiceAccountToken を Pod展開時のマニフェスト内の指示, ServiceAccount による指定, Kubernetes の既定値の順で優先して反映するよう修正しました。
+- vc-syncer の `--disable-service-account-token` オプションによる設定を反映するよう修正しました。
+
+#### 原因詳細
+
+本障害の原因詳細は以下の通りです:
+
+- ServiceAccount アクセス用のボリューム (kube-api-access) 設定実施処理中の Pod展開時のマニフェスト内の指示 と ServiceAccount の automount 設定の優先順位判定処理に誤りがありました。
+  そのため, Pod展開時のマニフェスト中のautomountServiceAccountTokenの項目を`automountServiceAccountToken: false` に指定しても反映されず, トークン用のボリュームが付与されうる状態でした。
+- vc-syncer 内の ServiceAccount アクセス用のボリューム (kube-api-access) を扱う処理で, --disable-service-account-token オプションの状態を見て処理を中止する分岐判定を実施すべきところを, 無条件に処理を継続してしまっていました。
+
+#### 処置詳細
+
+本修正の処置詳細は以下の通りです:
+
+- vc-syncer の `--disable-service-account-token` オプション指定を反映し, 当該オプション指定時は ServiceAccount アクセス用のボリュームに関する処理を実施しないよう修正しました。
+- ServiceAccount アクセス用のボリューム (kube-api-access) 設定実施処理を, Pod展開時のマニフェスト内の指示 を優先し, 次に ServiceAccount による指定, 最後に Kubernetes の既定値を使用するよう修正しました。
+- 修正を検証するためのユニットテストをソース中に追加する修正 (pod_kubeapiaccessmutator_test.go にテストを追加) を実施しました。
+- 仮想クラスタ側で, Pod展開時のマニフェストでの設定と ServiceAccount の設定の組み合わせと優先順位を確認する検証シェルスクリプトを追加しました。
+  追加したスクリプト: vc_verify_automount_precedence.sh
+  検証パターン: (無効/未指定), (有効/未指定), (無効/有効), (有効/無効)。

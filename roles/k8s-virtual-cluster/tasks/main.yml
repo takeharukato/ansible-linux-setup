@@ -106,6 +106,14 @@
     - virtualcluster_build_from_source | bool
     - (virtualcluster_image_source_mode | default('build')) == 'build'
 
+# Pod の automountServiceAccountToken 判定と disable-service-account-token の整合性を修正するパッチを適用するタスク
+- name: "Patch pod kube-api-access mutator to honor automount and disable token settings"
+  ansible.builtin.include_tasks: patch-pod-kubeapiaccess-automount.yml
+  when:
+    - k8s_virtualcluster_enabled | bool
+    - virtualcluster_build_from_source | bool
+    - (virtualcluster_image_source_mode | default('build')) == 'build'
+
 # Virtual Cluster のソースをビルドするタスク
 - name: "Build Binaries"
   ansible.builtin.include_tasks: build-binaries.yml

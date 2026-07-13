@@ -1,0 +1,194 @@
+diff --git a/virtualcluster/pkg/syncer/resources/pod/mutatorplugin/podkubeapiaccessmutator.go b/virtualcluster/pkg/syncer/resources/pod/mutatorplugin/podkubeapiaccessmutator.go
+index f174dfe..f1fd104 100644
+--- a/virtualcluster/pkg/syncer/resources/pod/mutatorplugin/podkubeapiaccessmutator.go
++++ b/virtualcluster/pkg/syncer/resources/pod/mutatorplugin/podkubeapiaccessmutator.go
+@@ -28,6 +28,7 @@ import (
+ 	"k8s.io/client-go/kubernetes"
+ 	"k8s.io/klog/v2"
+ 
++	"sigs.k8s.io/cluster-api-provider-nested/virtualcluster/pkg/syncer/apis/config"
+ 	"sigs.k8s.io/cluster-api-provider-nested/virtualcluster/pkg/syncer/constants"
+ 	"sigs.k8s.io/cluster-api-provider-nested/virtualcluster/pkg/syncer/conversion"
+ 	"sigs.k8s.io/cluster-api-provider-nested/virtualcluster/pkg/syncer/util/featuregate"
+@@ -50,7 +51,20 @@ func init() {
+ 	MutatorRegister.Register(&uplugin.Registration{
+ 		ID: "00_PodKubeAPIAccessMutator",
+ 		InitFn: func(ctx *uplugin.InitContext) (interface{}, error) {
+-			return NewPodKubeAPIAccessMutatorPlugin(ctx)
++
++			plugin, err := NewPodKubeAPIAccessMutatorPlugin(ctx)
++			if err != nil {
++
++				// If the plugin fails to initialize, we return nil and the error.
++				// This will cause the syncer to fail to start.
++				return nil, err
++			}
++
++			// Set the disable field of the plugin based on the DisableServiceAccountToken configuration option.
++			// If DisableServiceAccountToken is true, the plugin will not mutate pods to mount service account tokens.
++			// If DisableServiceAccountToken is false, the plugin will mutate pods to mount service account tokens.
++			plugin.disable = ctx.Config.(*config.SyncerConfiguration).DisableServiceAccountToken
++			return plugin, nil
+ 		},
+ 	})
+ }
+@@ -58,6 +72,7 @@ func init() {
+ type PodKubeAPIAccessMutatorPlugin struct {
+ 	client       kubernetes.Interface
+ 	generateName func(string) string
++	disable      bool  // disable is set to true if the plugin should not mutate pods to mount service account tokens
+ }
+ 
+ func NewPodKubeAPIAccessMutatorPlugin(ctx *uplugin.InitContext) (*PodKubeAPIAccessMutatorPlugin, error) {
+@@ -70,6 +85,13 @@ func NewPodKubeAPIAccessMutatorPlugin(ctx *uplugin.InitContext) (*PodKubeAPIAcce
+ 
+ func (pl *PodKubeAPIAccessMutatorPlugin) Mutator() conversion.PodMutator {
+ 	return func(p *conversion.PodMutateCtx) error {
++
++		// We should cancel ServiceAccount handling when `--disable-service-account-token` is given to the syncer
++		// because we should respect this decision and not mutate the pod to mount the token.
++		if pl.disable {
++			return nil
++		}
++
+ 		if !featuregate.DefaultFeatureGate.Enabled(featuregate.KubeAPIAccessSupport) {
+ 			return nil
+ 		}
+@@ -212,8 +234,20 @@ func (pl *PodKubeAPIAccessMutatorPlugin) MutateAutoKubeAPIAccessVolumeMounts(old
+ }
+ 
+ func shouldAutomount(sa *corev1.ServiceAccount, pod *corev1.Pod) bool {
+-	// Fixme: Now we will always return true.
+-	// Perhaps in the future, some distinction between pods needs to be made here.
++
++	// First, if the Pod specifies automountServiceAccountToken, respect that preference
++	if pod.Spec.AutomountServiceAccountToken != nil {
++
++		return *pod.Spec.AutomountServiceAccountToken
++	}
++
++	// Second, the Pod doesn't give preference, respect the service account's preference
++	if sa.AutomountServiceAccountToken != nil {
++
++		return *sa.AutomountServiceAccountToken
++	}
++
++	// Kubernetes default behavior when neither Pod nor ServiceAccount specifies it.
+ 	return true
+ }
+ 
+diff --git a/virtualcluster/pkg/syncer/resources/pod/mutatorplugin/podkubeapiaccessmutator_test.go b/virtualcluster/pkg/syncer/resources/pod/mutatorplugin/podkubeapiaccessmutator_test.go
+index 0962476..36ba530 100644
+--- a/virtualcluster/pkg/syncer/resources/pod/mutatorplugin/podkubeapiaccessmutator_test.go
++++ b/virtualcluster/pkg/syncer/resources/pod/mutatorplugin/podkubeapiaccessmutator_test.go
+@@ -24,6 +24,7 @@ import (
+ 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+ 	"k8s.io/apimachinery/pkg/runtime"
+ 	"k8s.io/apimachinery/pkg/types"
++	"k8s.io/utils/pointer"
+ 	"k8s.io/client-go/informers"
+ 	"k8s.io/client-go/kubernetes/fake"
+ 
+@@ -108,6 +109,102 @@ func tenantKubeAPIAccessPod(name, namespace, uid string) *corev1.Pod {
+ 	return p
+ }
+ 
++func TestShouldAutomount(t *testing.T) {
++	tests := []struct {
++		name      string
++		saValue   *bool
++		podValue  *bool
++		expected  bool
++	}{
++		{
++			name:     "pod explicitly false overrides serviceaccount true",
++			saValue:  pointer.BoolPtr(true),
++			podValue: pointer.BoolPtr(false),
++			expected: false,
++		},
++		{
++			name:     "pod explicitly true overrides serviceaccount false",
++			saValue:  pointer.BoolPtr(false),
++			podValue: pointer.BoolPtr(true),
++			expected: true,
++		},
++		{
++			name:     "serviceaccount false when pod unset",
++			saValue:  pointer.BoolPtr(false),
++			podValue: nil,
++			expected: false,
++		},
++		{
++			name:     "default true when both unset",
++			saValue:  nil,
++			podValue: nil,
++			expected: true,
++		},
++	}
++
++	for _, tt := range tests {
++		t.Run(tt.name, func(t *testing.T) {
++			sa := &corev1.ServiceAccount{AutomountServiceAccountToken: tt.saValue}
++			pod := &corev1.Pod{Spec: corev1.PodSpec{AutomountServiceAccountToken: tt.podValue}}
++			if got := shouldAutomount(sa, pod); got != tt.expected {
++				t.Fatalf("shouldAutomount() = %v, want %v", got, tt.expected)
++			}
++		})
++	}
++}
++
++func TestPodKubeAPIAccessMutatorPlugin_Disabled(t *testing.T) {
++	defer util.SetFeatureGateDuringTest(t, featuregate.DefaultFeatureGate, featuregate.KubeAPIAccessSupport, true)()
++
++	pPod := tenantKubeAPIAccessPod("test", "cluster1-default", "123-456-789")
++	vPod := tenantKubeAPIAccessPod("test", "default", "000-456-789")
++
++	client := fake.NewSimpleClientset(
++		&corev1.Secret{
++			ObjectMeta: metav1.ObjectMeta{
++				Name:      "default-token-pkm85",
++				Namespace: "cluster1-default",
++				Annotations: map[string]string{
++					constants.LabelCluster:       "cluster1",
++					corev1.ServiceAccountNameKey: "default",
++					corev1.ServiceAccountUIDKey:  "7374a172-c35d-45b1-9c8e-bf5c5b614937",
++				},
++			},
++			Type: corev1.SecretTypeOpaque,
++		},
++		&corev1.ServiceAccount{
++			ObjectMeta: metav1.ObjectMeta{
++				Name:      "default",
++				Namespace: "cluster1-default",
++				UID:       "7374a172-c35d-45b1-9c8e-bf5c5b614937",
++			},
++		},
++	)
++
++	pl := &PodKubeAPIAccessMutatorPlugin{
++		client:       client,
++		generateName: func(prefix string) string { return prefix + "fixed" },
++		disable:      true,
++	}
++
++	beforeVolumeName := pPod.Spec.Volumes[0].Name
++	beforeSourceCount := len(pPod.Spec.Volumes[0].Projected.Sources)
++
++	if err := pl.Mutator()(&conversion.PodMutateCtx{ClusterName: "cluster1", PPod: pPod, VPod: vPod}); err != nil {
++		t.Fatalf("mutator failed: %v", err)
++	}
++
++	if pPod.Spec.Volumes[0].Name != beforeVolumeName {
++		t.Fatalf("volume name changed while disabled: got %q, want %q", pPod.Spec.Volumes[0].Name, beforeVolumeName)
++	}
++	if len(pPod.Spec.Volumes[0].Projected.Sources) != beforeSourceCount {
++		t.Fatalf("volume sources changed while disabled: got %d, want %d", len(pPod.Spec.Volumes[0].Projected.Sources), beforeSourceCount)
++	}
++	if pPod.Spec.Volumes[0].Projected.Sources[0].Secret != nil {
++		t.Fatalf("service account token projection unexpectedly replaced while disabled")
++	}
++}
++
+ func TestPodKubeAPIAccessMutatorPlugin_Mutator(t *testing.T) {
+ 	defer util.SetFeatureGateDuringTest(t, featuregate.DefaultFeatureGate, featuregate.KubeAPIAccessSupport, true)()
+ 
