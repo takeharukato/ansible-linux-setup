@@ -6,18 +6,42 @@
 #  For the full text of the license, see the LICENSE file in the project root directory.
 #  このファイルは2条項BSDライセンスの下で配布されています。
 #  ライセンス全文はプロジェクト直下の LICENSE を参照してください。
-
+#
 #
 #  クリーンビルド用の既存リソース削除タスク
 #  virtualcluster_clean_build が true の場合に実行される。
 #  削除順序:
-#    1. VirtualCluster インスタンス (テナント削除, コントローラが後処理を実行)
-#    2. テナント名前空間 (vc-manager-* パターン, 削除完了まで待機)
-#    3. ClusterVersion インスタンス
-#    4. vc-manager 名前空間 (vc-manager/syncer/vn-agent Pod群ごと削除)
-#    5. VirtualCluster / ClusterVersion CRD
+#    1. 古い webhook (stale webhook) 設定を削除
+#    2. VirtualCluster インスタンス finalizer (K8sのリソース削除時に実行されるリソース後処理機構) を除去
+#    3. VirtualCluster インスタンスを削除 (コントローラによる後処理を待機)
+#    4. テナント名前空間 (vc-manager-* パターン) の削除完了を待機し, 残存時は強制削除
+#    5. ClusterVersion インスタンスを削除
+#    6. vc-manager 名前空間を削除し, 終了処理中 (Terminating) な名前空間 ( namespace )が残存している場合は finalize API を用いた強制削除を実施
+#    7. VirtualCluster / ClusterVersion Custom Resource Definition (CRD) を削除
 #
 ---
+
+# 古い webhook (stale webhook) 設定が残ると VirtualCluster 削除時に 名前空間 (namespace) 終了処理が停止するため, 先に削除する
+- name: "Delete stale VirtualCluster webhook configurations before cleanup"
+  ansible.builtin.script:
+    cmd: >-
+      {{ role_path }}/files/vc_delete_stale_webhooks.sh
+      {{ virtualcluster_supercluster_kubeconfig_path }}
+  become: true
+  changed_when: false
+  failed_when: false
+
+# VirtualCluster インスタンスの finalizer (K8sのリソース削除時に実行されるリソース後処理機構) が残っていると削除できないため, 強制的に削除する
+- name: "Force remove finalizers from VirtualCluster instances before deletion"
+  ansible.builtin.script:
+    cmd: >-
+      {{ role_path }}/files/vc_remove_virtualcluster_finalizers.sh
+      {{ virtualcluster_supercluster_kubeconfig_path }}
+      {{ virtualcluster_namespace }}
+      {{ virtualcluster_api_group }}
+  become: true
+  changed_when: false
+  failed_when: false
 
 # VirtualCluster インスタンスをvc-manager名前空間全体から一括削除
 # コントローラがテナント名前空間の後始末を実行するため, --wait=true で完了を待つ
@@ -43,13 +67,11 @@
 # 待機上限: virtualcluster_tenant_ns_wait_timeout 秒 (デフォルト: 60秒)
 # ポーリング間隔: virtualcluster_tenant_ns_wait_delay 秒 (デフォルト: 5秒)
 - name: "Wait for tenant namespaces to terminate"
-  ansible.builtin.shell:
-    cmd: |
-      set -o pipefail
-      kubectl --kubeconfig {{ virtualcluster_supercluster_kubeconfig_path }} \
-        get ns -o name 2>/dev/null \
-        | grep "namespace/{{ virtualcluster_namespace }}-" | wc -l
-    executable: /bin/bash
+  ansible.builtin.script:
+    cmd: >-
+      {{ role_path }}/files/vc_count_tenant_namespaces.sh
+      {{ virtualcluster_supercluster_kubeconfig_path }}
+      {{ virtualcluster_namespace }}
   register: result_tenant_ns_count
   until: (result_tenant_ns_count.stdout | trim | int) == 0
   retries: "{{ (virtualcluster_tenant_ns_wait_timeout / virtualcluster_tenant_ns_wait_delay) | int }}"
@@ -60,18 +82,11 @@
 
 # タイムアウト後も残存しているテナント名前空間を強制削除
 - name: "Force delete any remaining tenant namespaces"
-  ansible.builtin.shell:
-    cmd: |
-      set -o pipefail
-      for ns in $(kubectl --kubeconfig {{ virtualcluster_supercluster_kubeconfig_path }} \
-        get ns -o name 2>/dev/null \
-        | grep "namespace/{{ virtualcluster_namespace }}-" \
-        | sed 's|namespace/||'); do
-        echo "Force deleting namespace: $ns"
-        kubectl --kubeconfig {{ virtualcluster_supercluster_kubeconfig_path }} \
-          delete namespace "$ns" --ignore-not-found --timeout=30s 2>&1 || true
-      done
-    executable: /bin/bash
+  ansible.builtin.script:
+    cmd: >-
+      {{ role_path }}/files/vc_force_delete_tenant_namespaces.sh
+      {{ virtualcluster_supercluster_kubeconfig_path }}
+      {{ virtualcluster_namespace }}
   become: true
   changed_when: false
   failed_when: false
@@ -101,29 +116,20 @@
   register: result_delete_ns
   failed_when: false
 
-# namespace が Terminating 状態で残っている場合は強制削除
+# 名前空間 (namespace) が 終了処理中 (Terminating) 状態で残っている場合は強制削除
 - name: "Force delete vc-manager namespace if it is still terminating"
-  ansible.builtin.shell:
-    cmd: |
-      set -o pipefail
-      NS_PHASE="$(kubectl --kubeconfig {{ virtualcluster_supercluster_kubeconfig_path }} \
-        get namespace {{ virtualcluster_namespace }} -o jsonpath='{.status.phase}' 2>/dev/null || echo 'NotFound')"
-      if [[ "$NS_PHASE" == "Terminating" ]]; then
-        echo "Force deleting Terminating namespace: {{ virtualcluster_namespace }}"
-        kubectl --kubeconfig {{ virtualcluster_supercluster_kubeconfig_path }} \
-          patch namespace {{ virtualcluster_namespace }} \
-          -p '{"metadata":{"finalizers":[]}}' \
-          --type=merge 2>&1 || true
-        kubectl --kubeconfig {{ virtualcluster_supercluster_kubeconfig_path }} \
-          delete namespace {{ virtualcluster_namespace }} \
-          --grace-period=0 --force --timeout=30s --ignore-not-found 2>&1 || true
-      fi
-    executable: /bin/bash
+  ansible.builtin.script:
+    cmd: >-
+      {{ role_path }}/files/vc_force_delete_terminating_namespace.sh
+      {{ virtualcluster_supercluster_kubeconfig_path }}
+      {{ virtualcluster_namespace }}
+      {{ virtualcluster_api_group }}
+      false
   become: true
   changed_when: false
   failed_when: false
 
-# namespace が完全に削除されるまで待機
+# 名前空間 (namespace) が完全に削除されるまで待機
 - name: "Wait for vc-manager namespace deletion to complete"
   ansible.builtin.shell:
     cmd: "kubectl --kubeconfig {{ virtualcluster_supercluster_kubeconfig_path }} get namespace {{ virtualcluster_namespace }} 2>/dev/null"
@@ -135,6 +141,51 @@
   become: true
   changed_when: false
   failed_when: false
+
+# 名前空間 (namespace) が 終了処理中 (Terminating) 状態で残っている場合は
+# finalize API を用いた強制削除を試みる
+- name: "Aggressively finalize vc-manager namespace if it still exists"
+  ansible.builtin.script:
+    cmd: >-
+      {{ role_path }}/files/vc_finalize_namespace_if_terminating.sh
+      {{ virtualcluster_supercluster_kubeconfig_path }}
+      {{ virtualcluster_namespace }}
+  become: true
+  changed_when: false
+  failed_when: false
+
+# 名前空間 (namespace) が完全に削除されるまで待機する (強制削除後)
+- name: "Wait again for vc-manager namespace deletion after aggressive finalize"
+  ansible.builtin.shell:
+    cmd: "kubectl --kubeconfig {{ virtualcluster_supercluster_kubeconfig_path }} get namespace {{ virtualcluster_namespace }} 2>/dev/null"
+    executable: /bin/bash
+  register: result_ns_deleted_after_finalize
+  until: result_ns_deleted_after_finalize.rc != 0
+  retries: 10
+  delay: 2
+  become: true
+  changed_when: false
+  failed_when: false
+
+# 強制削除後も, 対象の名前空間 (namespace) が
+# 終了処理中 (Terminating) 状態で残っていることを確認する
+- name: "Check vc-manager namespace phase after clean build deletion"
+  ansible.builtin.shell:
+    cmd: "kubectl --kubeconfig {{ virtualcluster_supercluster_kubeconfig_path }} get namespace {{ virtualcluster_namespace }} -o jsonpath='{.status.phase}' 2>/dev/null || echo 'NotFound'"
+    executable: /bin/bash
+  register: result_ns_phase_after_cleanup
+  become: true
+  changed_when: false
+  failed_when: false
+
+# 強制削除後も, 対象の名前空間 (namespace) が
+# 終了処理中 (Terminating) 状態で残っている場合はエラーとして処理する
+- name: "Fail clean build if vc-manager namespace is still terminating"
+  ansible.builtin.fail:
+    msg: >-
+      Namespace {{ virtualcluster_namespace }} is still in Terminating phase after cleanup.
+      Remove blocking resources/finalizers and rerun clean build.
+  when: (result_ns_phase_after_cleanup.stdout | trim) == 'Terminating'
 
 # VirtualCluster CRD を削除 (次のビルドで再登録される)
 - name: "Delete VirtualCluster CRD for clean build"
@@ -154,6 +205,34 @@
       kubectl --kubeconfig {{ virtualcluster_supercluster_kubeconfig_path }}
       delete crd clusterversions.{{ virtualcluster_api_group }}
       --wait=true --timeout=60s --ignore-not-found
+  become: true
+  changed_when: false
+  failed_when: false
+
+# VirtualCluster CRD が削除されるまで待機
+- name: "Wait for VirtualCluster CRD deletion to complete"
+  ansible.builtin.command:
+    cmd: >
+      kubectl --kubeconfig {{ virtualcluster_supercluster_kubeconfig_path }}
+      get crd virtualclusters.{{ virtualcluster_api_group }}
+  register: result_virtualcluster_crd_deleted
+  until: result_virtualcluster_crd_deleted.rc != 0
+  retries: 30
+  delay: 2
+  become: true
+  changed_when: false
+  failed_when: false
+
+# ClusterVersion CRD が削除されるまで待機
+- name: "Wait for ClusterVersion CRD deletion to complete"
+  ansible.builtin.command:
+    cmd: >
+      kubectl --kubeconfig {{ virtualcluster_supercluster_kubeconfig_path }}
+      get crd clusterversions.{{ virtualcluster_api_group }}
+  register: result_clusterversion_crd_deleted
+  until: result_clusterversion_crd_deleted.rc != 0
+  retries: 30
+  delay: 2
   become: true
   changed_when: false
   failed_when: false
