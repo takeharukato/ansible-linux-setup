@@ -193,15 +193,15 @@ flowchart TD
 | `k8s_vc_tenant_dns_image_file` | `vc-tenant-dns-{{ k8s_vc_tenant_dns_version }}.tar` | tar 形式で保存するコンテナイメージファイル名。 |
 | `k8s_vc_tenant_dns_build_host` | `localhost` | コンテナイメージをビルドするホスト。 |
 | `k8s_vc_tenant_dns_go_version` | `1.22` | CoreDNS v1.11.3 のビルドに使う Go バージョン。 |
-| `k8s_vc_tenant_dns_alpine_version` | `{{ alpine_version|default('3.20', true) }}` | Dockerfile のベースに使う Alpine Linux のバージョン。 |
+| `k8s_vc_tenant_dns_alpine_version` | `{{ alpine_version\|default('3.20', true) }}` | Dockerfile のベースに使う Alpine Linux のバージョン。 |
 | `k8s_vc_tenant_dns_docker_build_network` | `host` | Docker build 時のネットワークモード。 |
 | `k8s_vc_tenant_dns_image_registry` | `""` | ローカルレジストリ登録時のイメージ参照先。 |
-| `k8s_vc_tenant_dns_register_to_k8s_nodes_enabled` | `{{ (k8s_vc_tenant_dns_image_registry | default('', true) | trim | length) == 0 }}` | 既定値では `k8s_vc_tenant_dns_image_registry` が空なら `true`, 値ありなら `false` になる。必要なら明示上書きも可能。 |
+| `k8s_vc_tenant_dns_register_to_k8s_nodes_enabled` | `{{ (k8s_vc_tenant_dns_image_registry \| default('', true) \| trim \| length) == 0 }}` | 既定値では `k8s_vc_tenant_dns_image_registry` が空なら `true`, 値ありなら `false` になる。必要なら明示上書きも可能。 |
 | `k8s_vc_tenant_dns_kubeconfig_path` | `/etc/kubernetes/admin.conf` | ワーカノード自動検出時に参照する kubeconfig パス。 |
 | `k8s_vc_tenant_dns_remote_cache_dir` | `/tmp/k8s-vc-tenant-dns-register` | K8s ノード上の一時 tar 配置先。 |
 | `k8s_vc_tenant_dns_k8s_manifest_dir` | `{{ k8s_vc_tenant_dns_k8s_manifest_dir_prefix }}/vc-tenant-dns/manifests` | テナント別マニフェストの出力先ディレクトリ。`vc-tenant-dns-<tenant-name>.yml` を生成する。 |
-| `k8s_vc_tenant_dns_virtualcluster_namespace` | `{{ virtualcluster_namespace | default('vc-manager', true) }}` | VirtualCluster カスタムリソースを参照する管理 名前空間 ( namespace )。 |
-| `k8s_vc_tenant_dns_supercluster_kubeconfig_path` | `{{ virtualcluster_supercluster_kubeconfig_path | default('/etc/kubernetes/admin.conf', true) }}` | super cluster 側で VirtualCluster と Secret を参照するための kubeconfig パス。 |
+| `k8s_vc_tenant_dns_virtualcluster_namespace` | `{{ virtualcluster_namespace \| default('vc-manager', true) }}` | VirtualCluster カスタムリソースを参照する管理 名前空間 ( namespace )。 |
+| `k8s_vc_tenant_dns_supercluster_kubeconfig_path` | `{{ virtualcluster_supercluster_kubeconfig_path \| default('/etc/kubernetes/admin.conf', true) }}` | super cluster 側で VirtualCluster と Secret を参照するための kubeconfig パス。 |
 
 ## テンプレートと生成ファイル
 

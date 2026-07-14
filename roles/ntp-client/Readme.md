@@ -117,7 +117,7 @@
 
 | 変数名 | 既定値 | 説明 |
 | --- | --- | --- |
-| `ntp_client_packages_debian` | `{{ ntp_client_is_chrony | ternary(['chrony'], ['systemd-timesyncd']) }}` | Debian系で導入するパッケージ一覧です。 |
+| `ntp_client_packages_debian` | `{{ ntp_client_is_chrony \| ternary(['chrony'], ['systemd-timesyncd']) }}` | Debian系で導入するパッケージ一覧です。 |
 | `ntp_client_packages_rhel` | `['chrony']` | RHEL系で導入するパッケージ一覧です。 |
 | `ntp_client_packages` | OS依存 | 実際に導入するパッケージ一覧です。 |
 | `ntp_client_chrony_service_debian` | `chrony` | Debian系のchronyサービス名です。 |

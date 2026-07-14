@@ -249,7 +249,7 @@ ansible-playbook -i inventory/hosts k8s-base.yml --limit <hostname>
 
 | 変数名 | 既定値 | 説明 |
 | --- | --- | --- |
-| `k8s_containerd_registry_endpoints` | `{{ container_registry_endpoints | default([], true) }}` | containerd が参照するレジストリエンドポイント設定のリスト。各要素は辞書 (`endpoint`, 任意で `scheme`, `skip_verify`) で指定します。既定では共有変数 `container_registry_endpoints` に設定された値を参照し, `config.yml` に `/etc/containerd/config.toml` の コンテナレジストリ設定ファイルの格納先ディレクトリ指定 (`config_path`) を追加し, コンテナレジストリ単位での設定ファイル (`/etc/containerd/certs.d/<endpoint>/hosts.toml`)を生成します。 |
+| `k8s_containerd_registry_endpoints` | `{{ container_registry_endpoints \| default([], true) }}` | containerd が参照するレジストリエンドポイント設定のリスト。各要素は辞書 (`endpoint`, 任意で `scheme`, `skip_verify`) で指定します。既定では共有変数 `container_registry_endpoints` に設定された値を参照し, `config.yml` に `/etc/containerd/config.toml` の コンテナレジストリ設定ファイルの格納先ディレクトリ指定 (`config_path`) を追加し, コンテナレジストリ単位での設定ファイル (`/etc/containerd/certs.d/<endpoint>/hosts.toml`)を生成します。 |
 | `k8s_containerd_registry_plain_http` | `true` | `scheme` 未指定時の既定プロトコルを指定します。`true` の場合は plain HTTP, `false` の場合は HTTPS を使用します。 |
 
 `container_registry_endpoints` は, `vars/all-config.yml` で管理することを推奨する。必要な場合は, `vars/all-config.yml`内での記述を削除の上, `host_vars` で設定する(`vars/all-config.yml`の設定値の方が優先されるため, `host_vars` で設定する場合は, `vars/all-config.yml`内での記述を削除する必要がある)。
@@ -282,7 +282,7 @@ ansible-playbook -i inventory/hosts k8s-base.yml --limit <hostname>
 | `k8s_python_packages_enabled: true` | Python ランタイムパッケージを導入します。|
 | `k8s_python_devel_packages_enabled: true` | Python 開発環境パッケージ (ヘッダ, gcc 等) も併せて導入します。|
 | `kubectl_completion_enabled: false` | bash/zsh 補完ファイルの生成, 配置をスキップします。|
-| `k8s_containerd_registry_endpoints: {{ container_registry_endpoints | default([], true) }}` | 共有変数`container_registry_endpoints` (辞書のリスト)の内容を設定します。`container_registry_endpoints`が未定義, または, 空リストの場合, containerd のレジストリエンドポイント設定は生成されません。 |
+| `k8s_containerd_registry_endpoints: {{ container_registry_endpoints \| default([], true) }}` | 共有変数`container_registry_endpoints` (辞書のリスト)の内容を設定します。`container_registry_endpoints`が未定義, または, 空リストの場合, containerd のレジストリエンドポイント設定は生成されません。 |
 | `k8s_containerd_registry_endpoints` が非空 | endpoint ごとに `/etc/containerd/certs.d/<endpoint>/hosts.toml` を生成します。 `<endpoint>`は, `<ホスト名, または, IPアドレス>:<ポート>`形式の文字列です。|
 | `k8s_bgp` が未定義 | Cilium BGP Control Plane 設定をスキップします。本ロールはテンプレートファイル `templates/cilium-bgp-resources.yml.j2` のみを提供し, マニフェスト生成処理は実施されません。|
 | host_vars で `k8s_bgp.enabled: true` を定義した場合 | k8s-ctrlplane/k8s-worker ロール側で Cilium BGP Control Plane リソース を生成, 適用します。本ロールはテンプレートファイル `templates/cilium-bgp-resources.yml.j2` を提供します。|

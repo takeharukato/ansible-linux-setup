@@ -118,7 +118,7 @@ ansible-playbook -i inventory/hosts site.yml --tags docker-ce
 | `docker_ce_registry_bind_address` | `"0.0.0.0"` | defaults/main.yml | ローカルレジストリの待ち受けアドレス。 |
 | `docker_ce_registry_port` | `5000` | defaults/main.yml | ローカルレジストリの待ち受けポート。 |
 | `docker_ce_registry_data_dir` | `"/var/lib/local-registry"` | defaults/main.yml | ローカルレジストリのデータ保存先ディレクトリ。 |
-| `docker_ce_insecure_registries` | `{{ container_registry_endpoints | default([], true) }}` | defaults/main.yml | dockerクライアントからpush/pull/search可能にする対象のコンテナレジストリ設定。各要素は辞書 (`endpoint`, 任意で `scheme`, `skip_verify`) で指定します。`scheme != https` または `skip_verify: true` のエントリを `/etc/docker/daemon.json` の `insecure-registries` に設定します。既定では共有変数 `container_registry_endpoints` を参照します。 |
+| `docker_ce_insecure_registries` | `{{ container_registry_endpoints \| default([], true) }}` | defaults/main.yml | dockerクライアントからpush/pull/search可能にする対象のコンテナレジストリ設定。各要素は辞書 (`endpoint`, 任意で `scheme`, `skip_verify`) で指定します。`scheme != https` または `skip_verify: true` のエントリを `/etc/docker/daemon.json` の `insecure-registries` に設定します。既定では共有変数 `container_registry_endpoints` を参照します。 |
 | `build_docker_ce_backup_container_image` | `false` | defaults/main.yml | バックアップ用コンテナイメージを作成する場合は `true`。 |
 | `docker_ce_enable_backup_script` | `false` | defaults/main.yml | バックアップスクリプト生成有効化フラグ。`docker_ce_enable_backup_script` が `true` の場合, restore-container.j2, Dockerfile.j2, backup.sh.j2 が配置されます。さらに `docker_ce_backup_nfs_server` と `docker_ce_backup_nfs_dir` が非空の場合にのみ, backup-containers.j2 が配置されます。不要な環境では `false` に設定するとテンプレート生成をスキップできます。 |
 
