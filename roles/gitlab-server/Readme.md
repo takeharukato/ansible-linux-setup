@@ -1,6 +1,7 @@
 # gitlab-server ロール
 
 - [gitlab-server ロール](#gitlab-server-ロール)
+  - [用語](#用語)
   - [変数一覧](#変数一覧)
   - [ロール内の動作](#ロール内の動作)
   - [Gitlabコンテナの構成](#gitlabコンテナの構成)
@@ -28,12 +29,12 @@
 
 | 正式名称 | 略称 | 意味 |
 | --- | --- | --- |
-| - | GitLab | Git リポジトリ管理とCI/CD機能を統合した開発プラットフォーム |
-| - | Docker | コンテナ仮想化技術を用いたアプリケーション実行環境 |
+| GitLab | - | Git リポジトリ管理とCI/CD機能を統合した開発プラットフォーム |
+| Docker | - | コンテナ仮想化技術を用いたアプリケーション実行環境 |
 | Secure Shell | SSH | 暗号化されたネットワークプロトコル, リモート操作やGit通信で使用 |
 | Hypertext Transfer Protocol Secure | HTTPS | TLS/SSLで暗号化されたHTTP通信プロトコル |
-| - | PostgreSQL | オープンソースのリレーショナルデータベース管理システム, GitLabのデータ保存に使用 |
-| - | Git | 分散型バージョン管理システム, ソースコード管理の基盤 |
+| PostgreSQL | - | オープンソースのリレーショナルデータベース管理システム, GitLabのデータ保存に使用 |
+| Git | - | 分散型バージョン管理システム, ソースコード管理の基盤 |
 | Continuous Integration/Continuous Delivery | CI/CD | ソフトウェア開発における継続的な統合と継続的な配信の自動化プロセス |
 | Secure Sockets Layer/Transport Layer Security | SSL/TLS | ネットワーク通信を暗号化するセキュリティプロトコル |
 | Router Advertisement | RA | IPv6ネットワークでルータが配布するネットワーク設定情報 |
