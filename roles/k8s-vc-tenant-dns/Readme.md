@@ -1076,8 +1076,6 @@ kubectl --kubeconfig ~/.kube/${TENANT_NAME}.conf -n kube-system get configmap co
   - 82-88行目の `users` には, `system:kube-controller-manager` の client certificate, client key が入っています。
   - 89-100行目の `clusters` と `server: https://kubernetes.default.svc:443` は, テナントの 名前空間 ( namespace ) 内の Pod から到達可能な API サーバ接続先を示します。
 
-この ConfigMap が, 前回までの `x509`, `Unauthorized`, `no such host` の切り分けで中心になった設定です。
-
 ### 5. Service 定義 (102-125行)
 
 ```yaml
