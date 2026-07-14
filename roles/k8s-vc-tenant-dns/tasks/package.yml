@@ -1,0 +1,68 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  パッケージ関連処理
+---
+
+# ローカルレジストリ登録先を決定する
+- name: "Resolve target local registry"
+  ansible.builtin.set_fact:
+    k8s_vc_tenant_dns_registry_target: "{{ k8s_vc_tenant_dns_image_registry | default('', true) | trim }}"
+
+# run_once のビルド失敗状態を localhost に保持する
+- name: "Initialize vc-tenant-dns build status"
+  ansible.builtin.set_fact:
+    k8s_vc_tenant_dns_build_failed: false
+  delegate_to: localhost
+  delegate_facts: true
+  run_once: true
+
+# コンテナイメージファイルを作成する
+- name: "Build CoreDNS image for virtual cluster tenants"
+  block:
+    - name: "Include CoreDNS image build tasks"
+      ansible.builtin.include_tasks: build-vc-tenant-dns.yml
+      run_once: true
+  rescue:
+    - name: "Mark vc-tenant-dns build as failed"
+      ansible.builtin.set_fact:
+        k8s_vc_tenant_dns_build_failed: true
+      delegate_to: localhost
+      delegate_facts: true
+      run_once: true
+
+# run_once のビルド失敗時は他ホストもここで停止する
+- name: "Fail if vc-tenant-dns image build failed"
+  ansible.builtin.fail:
+    msg: >-
+      CoreDNS image build failed on build host {{ k8s_vc_tenant_dns_build_host }}.
+      Check the previous build-vc-tenant-dns task output before retrying.
+  when: hostvars['localhost'].k8s_vc_tenant_dns_build_failed | default(false)
+
+# KubernetesクラスタのノードにCoreDNSイメージを配布する
+- name: "Distribute CoreDNS image to kubernetes cluster nodes"
+  ansible.builtin.include_tasks: distribute-vc-tenant-dns.yml
+  when:
+    - k8s_vc_tenant_dns_register_to_k8s_nodes_enabled | bool
+
+# ローカルレジストリにCoreDNSイメージを登録する
+- name: "Register CoreDNS image to local registry"
+  ansible.builtin.include_tasks: register-vc-tenant-dns.yml
+  when:
+    - not (k8s_vc_tenant_dns_register_to_k8s_nodes_enabled | bool)
+    - (k8s_vc_tenant_dns_registry_target | default('', true) | length) > 0
+
+# 配布方法が指定されていない場合は失敗する
+- name: "Fail if no image distribution target is configured"
+  ansible.builtin.fail:
+    msg: >-
+      k8s_vc_tenant_dns_register_to_k8s_nodes_enabled is false, but
+      k8s_vc_tenant_dns_image_registry is not configured.
+  when:
+    - not (k8s_vc_tenant_dns_register_to_k8s_nodes_enabled | bool)
+    - (k8s_vc_tenant_dns_registry_target | default('', true) | length) == 0
+
+# マニフェストを作成する
+- name: "Create manifest for vc-tenant-dns"
+  ansible.builtin.include_tasks: create-manifest.yml

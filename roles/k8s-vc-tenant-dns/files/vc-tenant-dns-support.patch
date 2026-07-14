@@ -1,0 +1,50 @@
+diff --git a/plugin/kubernetes/object/service.go b/plugin/kubernetes/object/service.go
+index c07f89c29..65f4efbf2 100644
+--- a/plugin/kubernetes/object/service.go
++++ b/plugin/kubernetes/object/service.go
+@@ -53,6 +53,45 @@ func ToService(obj meta.Object) (meta.Object, error) {
+ 		s.ClusterIPs = []string{svc.Spec.ClusterIP}
+ 	}
+ 
++	// The limitations section in the [VirtualCluster - Enabling Kubernetes Hard Multi-tenancy](https://github.com/kubernetes-retired/cluster-api-provider-nested/tree/main/virtualcluster) document describes the following things:
++	//
++	//
++	// The cluster IP field in the tenant service spec is a bogus value.
++	// If any tenant controller requires the actual cluster IP that takes effect in the super cluster nodes,
++	// a special handling is required.
++	// The syncer will backpopulate the cluster IP used in the super cluster in the annotations of
++	// the tenant service object using "transparency.tenancy.x-k8s.io/clusterIP" as the key.
++	//
++	//
++	// Thus, we should return the super cluster's cluster IP that is obtained from the syncer via "transparency.tenancy.x-k8s.io/clusterIP."
++	superClusterIP := svc.Annotations["transparency.tenancy.x-k8s.io/clusterIP"]
++
++	// Remark: The following code is based on the Kubernetes specification for the ServiceSpec.ClusterIPs field.
++	// The description of the clusterIPs field in the ServiceSpec in the Kubernetes API Reference describes
++	// " If this field is specified, clients must ensure that clusterIPs[0] and clusterIP have the same value. "
++	// See: https://kubernetes.io/docs/reference/kubernetes-api/core/service-v1/#ServiceSpec
++	//
++	// According to this Kubernetes specification, the first element ([0]) of `Service.ClusterIPs` must be the “primary IP” and match the value in the "spec.clusterIP" field.
++	// Since the purpose of this code is to override the dummy values on the tenant side using `superClusterIP`, this code should update the existing 0th element of the ClusterIPs array.
++	// In addition, some code, such as the Headless() function, assumes s.ClusterIPs[0] equals clusterIP.
++	// This is why we should update the existing 0th element of the ClusterIPs array rather than append a new element to the head of the array.
++	if superClusterIP != "" {
++
++		// If the super cluster IP is available,
++		// we should update the existing 0th element of the ClusterIPs array rather than append a new element to the head of the array.
++		if len(s.ClusterIPs) == 0 {
++
++			// If the ClusterIPs array is empty, we should initialize it with the superClusterIP.
++			s.ClusterIPs = []string{superClusterIP}
++		} else {
++
++			// If the ClusterIPs array is not empty,
++			// we should update the existing 0th element with
++			// the superClusterIP.
++			s.ClusterIPs[0] = superClusterIP
++		}
++	}
++
+ 	if len(svc.Spec.Ports) == 0 {
+ 		// Add sentinel if there are no ports.
+ 		s.Ports = []api.ServicePort{{Port: -1}}

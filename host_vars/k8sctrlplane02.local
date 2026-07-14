@@ -166,3 +166,10 @@ vcinstances_virtualclusters:
     transparentMetaPrefixes:
       - "k8s.v1.cni.cncf.io"
     opaqueMetaPrefixes: []
+
+# virtual cluster用CoreDNSを構築する場合は, trueに設定する。
+# k8s_vc_tenant_dns_enabledがtrue, かつ, vcinstances_virtualclusters変数が空でない場合のみ
+# テナント内用CoreDNSコンテナイメージ, マニュフェストファイルが生成される
+k8s_vc_tenant_dns_enabled: true
+# テナント内用CoreDNSイメージの登録先ローカルレジストリ
+k8s_vc_tenant_dns_image_registry: "registry1.local:5000/vc-tenant-dns"

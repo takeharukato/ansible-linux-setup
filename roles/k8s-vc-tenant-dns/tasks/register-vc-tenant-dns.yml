@@ -1,0 +1,49 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  virtual cluster tenant用CoreDNSコンテナイメージをローカルレジストリへ登録する
+#
+---
+
+- name: "Load vc-tenant-dns image from tar file"
+  ansible.builtin.command:
+    argv:
+      - docker
+      - load
+      - -i
+      - "{{ k8s_vc_tenant_dns_output_dir_on_control_host }}/{{ k8s_vc_tenant_dns_image_file }}"
+  delegate_to: localhost
+  run_once: true
+  changed_when: true
+
+- name: "Tag vc-tenant-dns image for local registry"
+  ansible.builtin.command:
+    argv:
+      - docker
+      - tag
+      - "{{ k8s_vc_tenant_dns_image }}"
+      - "{{ k8s_vc_tenant_dns_registry_target }}:{{ k8s_vc_tenant_dns_version }}"
+  delegate_to: localhost
+  run_once: true
+  changed_when: true
+
+- name: "Push vc-tenant-dns image to local registry"
+  ansible.builtin.command:
+    argv:
+      - docker
+      - push
+      - "{{ k8s_vc_tenant_dns_registry_target }}:{{ k8s_vc_tenant_dns_version }}"
+  delegate_to: localhost
+  run_once: true
+  changed_when: true
+
+- name: "Check vc-tenant-dns image in local registry"
+  ansible.builtin.command:
+    argv:
+      - docker
+      - images
+      - "{{ k8s_vc_tenant_dns_registry_target }}:{{ k8s_vc_tenant_dns_version }}"
+  delegate_to: localhost
+  run_once: true
+  changed_when: false

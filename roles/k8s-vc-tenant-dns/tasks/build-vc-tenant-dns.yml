@@ -1,0 +1,117 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  virtual cluster tenant用CoreDNSのコンテナイメージファイルを構築する
+#
+---
+
+# 以前の実行結果が残っているとビルド成果物が混在するため, 作業ディレクトリを一度削除する
+- name: "Remove temporary work directory for vc-tenant-dns"
+  ansible.builtin.file:
+    path: "{{ k8s_vc_tenant_dns_work_dir }}"
+    state: absent
+  delegate_to: "{{ k8s_vc_tenant_dns_build_host }}"
+
+# ビルド処理全体の親ディレクトリを作成し, 以降の一時ファイル配置先を初期化する
+- name: "Create temporary work directory for vc-tenant-dns"
+  ansible.builtin.file:
+    path: "{{ k8s_vc_tenant_dns_work_dir }}"
+    state: directory
+    mode: "0755"
+  delegate_to: "{{ k8s_vc_tenant_dns_build_host }}"
+
+# CoreDNS のソース展開, Dockerfile, スクリプトを配置するビルド専用ディレクトリを作成する
+- name: "Create temporary build directory for vc-tenant-dns"
+  ansible.builtin.file:
+    path: "{{ k8s_vc_tenant_dns_build_dir }}"
+    state: directory
+    mode: "0755"
+  delegate_to: "{{ k8s_vc_tenant_dns_build_host }}"
+
+# docker save の出力先となるディレクトリを事前作成し, tar ファイル書き込み先を確保する
+- name: "Create temporary output directory for vc-tenant-dns"
+  ansible.builtin.file:
+    path: "{{ k8s_vc_tenant_dns_output_dir }}"
+    state: directory
+    mode: "0755"
+  delegate_to: "{{ k8s_vc_tenant_dns_build_host }}"
+
+# 指定バージョンの CoreDNS ソースコードを取得し, ビルド対象のソースツリーを準備する
+- name: "Obtain CoreDNS source code"
+  ansible.builtin.git:
+    repo: "{{ k8s_vc_tenant_dns_coredns_source_url }}"
+    dest: "{{ k8s_vc_tenant_dns_build_dir }}/src"
+    version: "{{ k8s_vc_tenant_dns_version }}"
+    force: true
+  delegate_to: "{{ k8s_vc_tenant_dns_build_host }}"
+
+# VirtualCluster テナント対応の差分を適用するため, パッチファイルをビルドディレクトリへ配置する
+- name: "Copy tenant dns support patch into build directory"
+  ansible.builtin.copy:
+    src: "{{ role_path }}/files/vc-tenant-dns-support.patch"
+    dest: "{{ k8s_vc_tenant_dns_build_dir }}/vc-tenant-dns-support.patch"
+    mode: "0644"
+  delegate_to: "{{ k8s_vc_tenant_dns_build_host }}"
+
+# 変数値を反映した Dockerfile を生成し, 再現可能なビルド定義を確定する
+- name: "Render vc-tenant-dns Dockerfile"
+  ansible.builtin.template:
+    src: Dockerfile.j2
+    dest: "{{ k8s_vc_tenant_dns_build_dir }}/Dockerfile"
+    mode: "0644"
+  delegate_to: "{{ k8s_vc_tenant_dns_build_host }}"
+
+# docker build と docker save を実行するラッパースクリプトを生成してビルド手順を固定化する
+- name: "Render vc-tenant-dns image build script"
+  ansible.builtin.template:
+    src: build-vc-tenant-dns.sh.j2
+    dest: "{{ k8s_vc_tenant_dns_build_dir }}/build-vc-tenant-dns.sh"
+    mode: "0755"
+  delegate_to: "{{ k8s_vc_tenant_dns_build_host }}"
+
+# 生成したスクリプトを実行してコンテナイメージを構築し, tar ファイルを出力する
+- name: "Build vc-tenant-dns Docker image"
+  ansible.builtin.command:
+    argv:
+      - "{{ k8s_vc_tenant_dns_build_dir }}/build-vc-tenant-dns.sh"
+  delegate_to: "{{ k8s_vc_tenant_dns_build_host }}"
+  changed_when: true
+
+# 後続の fetch で読み取れるように, ビルドホスト上の tar ファイル権限を明示的に設定する
+- name: "Make vc-tenant-dns image tar file readable on build host"
+  ansible.builtin.file:
+    path: "{{ k8s_vc_tenant_dns_output_dir }}/{{ k8s_vc_tenant_dns_image_file }}"
+    mode: "0644"
+  delegate_to: "{{ k8s_vc_tenant_dns_build_host }}"
+
+# 制御ホスト側に成果物を受け取るディレクトリを作成し, 配布処理の入力を準備する
+- name: "Create output directory for vc-tenant-dns image tar file on control host"
+  ansible.builtin.file:
+    path: "{{ k8s_vc_tenant_dns_output_dir_on_control_host }}"
+    state: directory
+    mode: "0777"
+  delegate_to: localhost
+
+# 古い tar が残っていると誤った成果物を再利用するため, 同名ファイルを事前に削除する
+- name: "Remove existing vc-tenant-dns image tar file on control host"
+  ansible.builtin.file:
+    path: "{{ k8s_vc_tenant_dns_output_dir_on_control_host }}/{{ k8s_vc_tenant_dns_image_file }}"
+    state: absent
+  delegate_to: localhost
+
+# ビルドホストから制御ホストへ tar 成果物を転送し, 以降の配布/登録タスクで利用可能にする
+- name: "Copy vc-tenant-dns image tar file to control host"
+  ansible.builtin.fetch:
+    src: "{{ k8s_vc_tenant_dns_output_dir }}/{{ k8s_vc_tenant_dns_image_file }}"
+    dest: "{{ k8s_vc_tenant_dns_output_dir_on_control_host }}/"
+    flat: true
+    validate_checksum: false
+  delegate_to: "{{ k8s_vc_tenant_dns_build_host }}"
+
+# 制御ホスト上でも tar ファイルの参照権限を明示し, 後続ロールから確実に読み取れる状態にする
+- name: "Change access permission of vc-tenant-dns image tar file on control host"
+  ansible.builtin.file:
+    path: "{{ k8s_vc_tenant_dns_output_dir_on_control_host }}/{{ k8s_vc_tenant_dns_image_file }}"
+    mode: "0644"
+  delegate_to: localhost

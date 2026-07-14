@@ -770,3 +770,87 @@ common_selinux_state: "permissive"
 # Netgauge の configure (ビルド設定スクリプト) オプション
 # MPI (Message Passing Interface, 並列計算用メッセージパッシングインターフェース) を使用しない設定でインストール先を /opt/netgauge に指定
 # netgauge_configure: "--with-mpi=no --prefix={{ netgauge_dir }}"
+
+# ======================================================================================================================================================
+# VirtualCluster設定 (Kubernetes利用時のオプション)
+# [VirtualCluster - Enabling Kubernetes Hard Multi-tenancy](https://github.com/kubernetes-retired/cluster-api-provider-nested/tree/main/virtualcluster)
+# を用いた仮想クラスタの設定
+# 各ホストごとに指示を変えたい場合は, host_vars側で設定し, vars/all-config.ymlには設定しないこと
+# ======================================================================================================================================================
+
+# Virtual Cluster機能を導入する場合は, trueに設定する
+# k8s_virtualcluster_enabled: true
+
+# vc-managerのイメージtarファイルパス
+# virtualcluster_manager_image_tar_path: "/opt/virtual-cluster/binary/manager-amd64.tar"
+# syncerのイメージtarファイルパス
+# virtualcluster_syncer_image_tar_path: "/opt/virtual-cluster/binary/syncer-amd64.tar"
+# vn-agentのイメージtarファイルパス
+# virtualcluster_vn_agent_image_tar_path: "/opt/virtual-cluster/binary/vn-agent-amd64.tar"
+
+# vc-managerのコマンド実行パス
+# virtualcluster_manager_cmd_path: "/app"
+# syncerのコマンド実行パス
+# virtualcluster_syncer_cmd_path: "/app"
+# vn-agentのコマンド実行パス
+# virtualcluster_vn_agent_cmd_path: "/app"
+
+# ======================================================================================================================================================
+# Virtual Cluster インスタンスの設定 (Kubernetes利用時のオプション)
+# [VirtualCluster - Enabling Kubernetes Hard Multi-tenancy](https://github.com/kubernetes-retired/cluster-api-provider-nested/tree/main/virtualcluster)
+# を用いた仮想クラスタの設定
+# 各ホストごとに指示を変えたい場合は, host_vars側で設定し, vars/all-config.ymlには設定しないこと
+# ======================================================================================================================================================
+
+# Virtual Cluster インスタンス機能を導入する場合は, trueに設定する
+# k8s_vcinstances_enabled: true
+
+#
+# etcd 永続ストレージ設定
+#
+
+# 各仮想クラスタ(テナント)ごとに動作するetcdの記憶領域を
+# 永続ストレージ上に作成する場合は, trueに設定する
+# vcinstances_etcd_storage_enabled: true
+
+# PersistentVolumeClaim の要求ストレージサイズ (例: "10Gi", "100Mi")
+# vcinstances_etcd_storage_size: "10Gi"
+# StorageClass 名
+# vcinstances_etcd_storage_class: "default-sc"
+
+# Virtual ClusterのClusterVersion 定義
+# vcinstances_clusterversions:
+#  - name: "cv-k8s-1-31-tenant-alpha"
+#  - name: "cv-k8s-1-31-tenant-beta"
+
+# VirtualCluster インスタンス定義
+# vcinstances_virtualclusters:
+#  - name: "tenant-alpha"
+#    namespace: "vc-manager"
+#    clusterVersionName: "cv-k8s-1-31-tenant-alpha"
+#    clusterDomain: "tenant-alpha.vc.local"
+#    kubeConfigSecretName: "tenant-alpha-kubeconfig"
+#    transparentMetaPrefixes:
+#      - "k8s.v1.cni.cncf.io"
+#    opaqueMetaPrefixes: []
+#  - name: "tenant-beta"
+#    namespace: "vc-manager"
+#    clusterVersionName: "cv-k8s-1-31-tenant-beta"
+#    clusterDomain: "tenant-beta.vc.local"
+#    kubeConfigSecretName: "tenant-beta-kubeconfig"
+#    transparentMetaPrefixes:
+#      - "k8s.v1.cni.cncf.io"
+#    opaqueMetaPrefixes: []
+
+#
+# virtual cluster用CoreDNSコンテナイメージ/マニュフェストファイルの生成
+#
+
+# virtual cluster用CoreDNSを構築する場合は, k8s_vc_tenant_dns_enabledをtrueに設定する。
+# k8s_vc_tenant_dns_enabledがtrueの場合, かつ,
+# VirtualCluster インスタンス定義(vcinstances_virtualclusters変数(リスト))が空でない場合に,
+# テナント用CoreDNSコンテナイメージ/マニュフェストファイルの生成処理を実施する
+# k8s_vc_tenant_dns_enabled: true
+
+# テナント内用CoreDNSイメージの登録先ローカルレジストリ
+# k8s_vc_tenant_dns_image_registry: "registry1.local:5000/vc-tenant-dns"

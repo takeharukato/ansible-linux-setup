@@ -22,3 +22,6 @@
       when: k8s_vcinstances_enabled | default(false) | bool
     - role: netshoot-no-portscan
       tags: netshoot-no-portscan
+    - role: k8s-vc-tenant-dns
+      tags: k8s-vc-tenant-dns
+      when: k8s_vc_tenant_dns_enabled | default(false) | bool

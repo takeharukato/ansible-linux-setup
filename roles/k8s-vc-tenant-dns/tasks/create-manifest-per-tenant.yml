@@ -1,0 +1,73 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  テナント単位で vc-tenant-dns マニフェストを生成する
+---
+
+# VirtualCluster リソースから対象テナントの実体 namespace(clusterNamespace) を取得する
+- name: "Get tenant cluster namespace for vc-tenant-dns"
+  ansible.builtin.command:
+    argv:
+      - kubectl
+      - --kubeconfig
+      - "{{ k8s_vc_tenant_dns_supercluster_kubeconfig_path }}"
+      - get
+      - virtualclusters.tenancy.x-k8s.io
+      - -n
+      - "{{ k8s_vc_tenant_dns_virtualcluster_namespace }}"
+      - "{{ k8s_vc_tenant_dns_effective_tenant_name }}"
+      - -o
+      - jsonpath={.status.clusterNamespace}
+  register: k8s_vc_tenant_dns_cluster_namespace_cmd
+  changed_when: false
+
+# 取得した clusterNamespace を後続タスクで再利用できるよう fact に保存する
+- name: "Set tenant cluster namespace for vc-tenant-dns"
+  ansible.builtin.set_fact:
+    k8s_vc_tenant_dns_cluster_namespace: "{{ k8s_vc_tenant_dns_cluster_namespace_cmd.stdout | trim }}"
+
+# clusterNamespace が空の場合は対象テナントを特定できていないため, マニフェスト生成前に停止する
+- name: "Fail if tenant cluster namespace is empty"
+  ansible.builtin.fail:
+    msg: >-
+      Failed to resolve clusterNamespace for tenant {{ k8s_vc_tenant_dns_effective_tenant_name }}
+      in namespace {{ k8s_vc_tenant_dns_virtualcluster_namespace }}.
+  when:
+    - (k8s_vc_tenant_dns_cluster_namespace | default('', true) | length) == 0
+
+# テナント実体 namespace 内の controller-manager-kubeconfig secret から kubeconfig 本文を復号して取得する
+- name: "Fetch tenant controller-manager kubeconfig for vc-tenant-dns"
+  ansible.builtin.shell: >-
+    kubectl --kubeconfig {{ k8s_vc_tenant_dns_supercluster_kubeconfig_path | quote }}
+    -n {{ k8s_vc_tenant_dns_cluster_namespace | quote }}
+    get secret controller-manager-kubeconfig -o jsonpath='{.data.controller-manager-kubeconfig}' | base64 -d
+  register: k8s_vc_tenant_dns_admin_kubeconfig_cmd
+  changed_when: false
+
+# 取得した kubeconfig の API サーバ接続先を, backing pod から解決可能な kubernetes.default.svc:443 へ置換する
+- name: "Set tenant admin kubeconfig for vc-tenant-dns"
+  ansible.builtin.set_fact:
+    k8s_vc_tenant_dns_admin_kubeconfig: >-
+      {{
+        k8s_vc_tenant_dns_admin_kubeconfig_cmd.stdout
+        | replace(
+          'server: https://apiserver-svc.' ~ k8s_vc_tenant_dns_cluster_namespace ~ ':6443',
+          'server: https://kubernetes.default.svc:443'
+        )
+      }}
+
+# kubeconfig が空の場合は ConfigMap に不正データが入るため, マニフェスト生成前に停止する
+- name: "Fail if tenant controller-manager kubeconfig is empty"
+  ansible.builtin.fail:
+    msg: >-
+      Secret controller-manager-kubeconfig in namespace {{ k8s_vc_tenant_dns_cluster_namespace }} is empty.
+  when:
+    - (k8s_vc_tenant_dns_admin_kubeconfig | default('', true) | trim | length) == 0
+
+# 収集した tenant 名, namespace, kubeconfig をテンプレートへ埋め込み, 最終マニフェストを出力する
+- name: "Create manifest for vc-tenant-dns"
+  ansible.builtin.template:
+    src: vc-tenant-dns.yml.j2
+    dest: "{{ k8s_vc_tenant_dns_effective_manifest_file_path }}"
+    mode: "0644"

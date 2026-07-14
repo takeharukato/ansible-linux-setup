@@ -1,0 +1,47 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  Kubernetesクラスタにvc-tenant-dnsを展開するためのマニフェストを作成する
+---
+
+# マニフェスト格納先ディレクトリを作成する
+- name: "Create directory for vc-tenant-dns manifest"
+  ansible.builtin.file:
+    path: "{{ k8s_vc_tenant_dns_k8s_manifest_dir }}"
+    state: directory
+    mode: "0755"
+
+# vcinstances_virtualclusters から全テナント名を収集し, 対象一覧を作成する
+- name: "Build tenant list from vcinstances_virtualclusters"
+  ansible.builtin.set_fact:
+    k8s_vc_tenant_dns_target_tenants: >-
+      {{
+        vcinstances_virtualclusters
+        | map(attribute='name')
+        | map('trim')
+        | reject('equalto', '')
+        | list
+      }}
+  when: vcinstances_virtualclusters is defined
+
+# 対象テナントを1件も決定できない場合は, 以降の kubectl 実行を避けるため明示的に停止する
+- name: "Fail when target tenant list cannot be determined"
+  ansible.builtin.fail:
+    msg: >-
+      No tenant is selected for vc-tenant-dns manifest generation.
+      Define vcinstances_virtualclusters with non-empty name entries.
+  when:
+    - (k8s_vc_tenant_dns_target_tenants | default([], true) | length) == 0
+
+# 各テナントごとに kubeconfig を解決し, テナント別マニフェストを生成する
+- name: "Create vc-tenant-dns manifests for each target tenant"
+  ansible.builtin.include_tasks: create-manifest-per-tenant.yml
+  loop: "{{ k8s_vc_tenant_dns_target_tenants }}"
+  loop_control:
+    loop_var: k8s_vc_tenant_dns_loop_tenant
+    label: "{{ k8s_vc_tenant_dns_loop_tenant }}"
+  vars:
+    k8s_vc_tenant_dns_effective_tenant_name: "{{ k8s_vc_tenant_dns_loop_tenant }}"
+    k8s_vc_tenant_dns_effective_manifest_file_path: >-
+      {{ k8s_vc_tenant_dns_k8s_manifest_dir ~ '/vc-tenant-dns-' ~ k8s_vc_tenant_dns_loop_tenant ~ '.yml' }}
