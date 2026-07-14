@@ -47,14 +47,6 @@ netshoot_cleanup_remote_tar: true
 netshoot_k8s_manifest_dir: "/opt/maintenance/netshoot/manifests"
 # manifestファイルパス
 netshoot_manifest_file_path: "{{ netshoot_k8s_manifest_dir }}/netshoot-no-portscan.yml"
-# Kubernetesクラスタのコントロールプレイン/ワーカーノードの
-# Container Runtime Interface (CRI)にnetshootイメージを
-# 登録する場合はtrueに設定する
-netshoot_register_to_k8s_nodes_enabled: true
-
-# 登録先ローカルレジストリのURL
-# 未定義, または, 空の場合はローカルレジストリへの登録は行わない
-netshoot_register_to_local_registry_urls: ""
 
 # マニフェストで使用するイメージ参照先
 # 設定した場合はローカルレジストリを参照する。未設定の場合は containerd に
