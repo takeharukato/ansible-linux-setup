@@ -20,6 +20,7 @@
       - [Rancher 関連設定](#rancher-関連設定)
       - [Docker Community Edition関連設定](#docker-community-edition関連設定)
         - [ローカルコンテナレジストリ設定](#ローカルコンテナレジストリ設定)
+        - [ローカルコンテナレジストリ設定時のansible 制御ノード側の設定について](#ローカルコンテナレジストリ設定時のansible-制御ノード側の設定について)
         - [コンテナイメージのバックアップ設定](#コンテナイメージのバックアップ設定)
       - [ユーザ設定ファイルスケルトンの生成](#ユーザ設定ファイルスケルトンの生成)
       - [ホームディレクトリのバックアップ](#ホームディレクトリのバックアップ)
@@ -433,6 +434,41 @@ docker_ce_registry_enabled: true
 # Docker Community Editionでコンテナレジストリの待ち受けポート
 docker_ce_registry_port: 5000
 ```
+
+##### ローカルコンテナレジストリ設定時のansible 制御ノード側の設定について
+
+本playbookでは, コンテナイメージをローカルコンテナレジストリに登録する際に制御ノード上のDockerクライアントを使用する。
+ローカルコンテナレジストリの接続スキームが`http`の場合, 制御ノード上の`/etc/docker/daemon.json`ファイルに以下の項目を追加し, 登録対象レジストリ(`container_registry_endpoints`変数の`endpoint`の項目に記載されたレジストリ)に対するアクセスを許可するよう設定する。
+
+```json
+{
+  "insecure-registries": ["<レジストリのエンドポイント>"]
+}
+```
+
+例えば, `container_registry_endpoints`変数を以下に用に設定している場合:
+
+```yaml
+container_registry_endpoints:
+  - endpoint: "registry1.local:5000"
+    scheme: "http"
+    skip_verify: true
+  - endpoint: "registry2.local:5000"
+    scheme: "http"
+    skip_verify: true
+```
+
+`/etc/docker/daemon.json`ファイルには, 以下の項目を記載する。
+
+```json
+{
+  "insecure-registries": ["registry1.local:5000", "registry2.local:5000"]
+}
+```
+
+本playbookのdocker-ce ロールが適用されたホストの場合は, 上記の設定を自動的に実施する。ただし, `container_registry_endpoints`が空の場合や, `scheme`が, `https`, かつ,`skip_verify=false`と定義されたエントリのみの場合は, `/etc/docker/daemon.json`に`insecure-registries`項目を出力しない。
+
+また, Ansible制御ノード自体に docker-ce ロールを適用していない場合, 制御ノードの daemon.json は変更されない。
 
 ##### コンテナイメージのバックアップ設定
 

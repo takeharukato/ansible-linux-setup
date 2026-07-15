@@ -39,6 +39,7 @@ Docker Community Edition (Docker CE) を導入し, サービス初期化, sysctl
     - [3. バックアップが失敗する](#3-バックアップが失敗する)
     - [4. docker グループ権限が反映されない](#4-docker-グループ権限が反映されない)
   - [留意事項](#留意事項)
+    - [ローカルコンテナレジストリ設定時のansible 制御ノード側の設定について](#ローカルコンテナレジストリ設定時のansible-制御ノード側の設定について)
 
 ## 用語
 
@@ -495,3 +496,39 @@ $ curl http://registry1.local:5000/v2/
 - `backup-containers` は稼働中コンテナを対象にするため, 一貫性が必要なアプリケーションでは停止手順と組み合わせて運用してください。
 - `templates/docker-bridge.conf.j2` は IPv4/IPv6 フォワーディングを有効化し, 管理インターフェースで RA を受け入れる設定と `rp_filter` 無効化を含みます。セキュリティポリシー上問題となる場合は値を見直してください。
 - `/etc/docker/daemon.json` では Docker の iptables 管理を無効化しています。router-config ロールで独自に iptables を管理する前提のためです。
+
+### ローカルコンテナレジストリ設定時のansible 制御ノード側の設定について
+
+本playbookでは, コンテナイメージをローカルコンテナレジストリに登録する際に制御ノード上のDockerクライアントを使用します。
+
+ローカルコンテナレジストリの接続スキームが`http`の場合, 制御ノード上の`/etc/docker/daemon.json`ファイルに以下の項目を追加し, 登録対象レジストリ(`container_registry_endpoints`変数の`endpoint`の項目に記載されたレジストリ)に対するアクセスを許可するよう設定してください。
+
+```json
+{
+  "insecure-registries": ["<レジストリのエンドポイント>"]
+}
+```
+
+例えば, `container_registry_endpoints`変数を以下に用に設定している場合:
+
+```yaml
+container_registry_endpoints:
+  - endpoint: "registry1.local:5000"
+    scheme: "http"
+    skip_verify: true
+  - endpoint: "registry2.local:5000"
+    scheme: "http"
+    skip_verify: true
+```
+
+`/etc/docker/daemon.json`ファイルには, 以下の項目を記載します。
+
+```json
+{
+  "insecure-registries": ["registry1.local:5000", "registry2.local:5000"]
+}
+```
+
+本playbookのdocker-ce ロールが適用されたホストの場合は, 上記の設定を自動的に実施します。ただし, `container_registry_endpoints`が空の場合や, `scheme`が, `https`, かつ,`skip_verify=false`と定義されたエントリのみの場合は, `/etc/docker/daemon.json`に`insecure-registries`項目を出力しません。
+
+また, Ansible制御ノード自体に docker-ce ロールを適用していない場合, 制御ノードの daemon.json は変更されません。
