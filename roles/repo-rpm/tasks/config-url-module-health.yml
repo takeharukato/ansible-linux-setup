@@ -1,0 +1,62 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  Ansible URLモジュール経路HTTPS健全性チェック
+#
+
+# ansible URIモジュールのHTTPS経路健全性チェックを行い,
+# 必要に応じてcurl経由でのダウンロードに切り替えるための
+# フラグを設定する。
+#
+# 補足事項:
+#   一部環境では ansible uri/get_url モジュールの HTTPS 経路チェックが
+#   失敗する事例がある。
+#
+#   失敗時のメッセージ例:
+#     "Connection failure: [ASN1: NOT_ENOUGH_DATA] not enough data (_ssl.c:4192)"
+#
+#   そのため本タスクでは実行時に uri モジュールでプローブし,
+#   失敗を検出した環境のみ curl 経由ダウンロードへ切り替えるため,
+#   フラグ変数`ansible_url_module_https_workaround_enabled`を
+#   有効化し, 以降のタスクで本変数に基づいて切り替えを可能にする。
+#
+- name: Probe HTTPS fetch by ansible uri module
+  ansible.builtin.uri:
+    url: "{{ ansible_url_module_probe_url }}"
+    method: GET
+    return_content: false
+    validate_certs: true
+    timeout: "{{ ansible_url_module_probe_timeout }}"
+  register: repo_rpm_url_module_probe_result
+  failed_when: false
+  changed_when: false
+  when: ansible_url_module_health_probe_enabled | default(true)
+
+# 上記の判定結果に基づいて, 以降のタスクでcurl経由での
+# ダウンロード要否を表すfact変数`ansible_url_module_https_workaround_enabled`を
+# 設定する。
+- name: Set shared URL module HTTPS health facts
+  ansible.builtin.set_fact:
+    ansible_url_module_https_workaround_enabled: >-
+      {{
+        (repo_rpm_url_module_probe_result is defined) and
+        (
+          (repo_rpm_url_module_probe_result.status | default(200, true) | int) == -1 or
+          ('NOT_ENOUGH_DATA' in (repo_rpm_url_module_probe_result.msg | default('', true)))
+        )
+      }}
+    ansible_url_module_https_probe_status: "{{ repo_rpm_url_module_probe_result.status | default(200, true) | int }}"
+    ansible_url_module_https_probe_msg: "{{ repo_rpm_url_module_probe_result.msg | default('', true) }}"
+    ansible_url_module_https_probe_run_by_repo_rpm: true
+    cacheable: true
+  changed_when: false
+  when: ansible_url_module_health_probe_enabled | default(true)
+
+# Curl経由でのダウンロードに切り替える旨メッセージを出力する
+- name: Warn when URL module HTTPS workaround is enabled
+  ansible.builtin.debug:
+    msg: "Enable curl workaround for URL download tasks because ansible uri/get_url probe failed: {{ ansible_url_module_https_probe_msg | default('unknown error', true) }}"
+  when:
+    - ansible_url_module_health_probe_enabled | default(true)
+    - ansible_url_module_https_workaround_enabled | default(false)

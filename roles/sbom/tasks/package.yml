@@ -28,5 +28,33 @@
     dest: "{{ sbom_tool_bin_path }}"
     mode: '0755'
     checksum: "{{ sbom_tool_checksum | default(omit, true) }}"
+  when: not (ansible_url_module_https_workaround_enabled | default(false))
+  become: true
+
+- name: Install sbom-tool binary (curl workaround)  # noqa command-instead-of-module
+  ansible.builtin.command:
+    argv:
+      - curl
+      - -fsSL
+      - --retry
+      - '5'
+      - --retry-delay
+      - '2'
+      - --connect-timeout
+      - '10'
+      - --max-time
+      - '120'
+      - --output
+      - "{{ sbom_tool_bin_path }}"
+      - "{{ sbom_tool_download_url }}"
+  register: sbom_tool_download_curl_result
+  changed_when: sbom_tool_download_curl_result.rc == 0
+  when: ansible_url_module_https_workaround_enabled | default(false)
+
+- name: Ensure sbom-tool binary mode
+  ansible.builtin.file:
+    path: "{{ sbom_tool_bin_path }}"
+    mode: '0755'
+  when: ansible_url_module_https_workaround_enabled | default(false)
   become: true
 # EOF

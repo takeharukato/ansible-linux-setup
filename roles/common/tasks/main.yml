@@ -15,6 +15,10 @@
   ansible.builtin.include_tasks: load-params.yml
 - name: "Config Pre Check"
   ansible.builtin.include_tasks: config-pre-check.yml
+- name: "Config URL Module Health"
+  ansible.builtin.include_role:
+    name: repo-rpm
+    tasks_from: config-url-module-health.yml
 - name: "Config Timezone"
   ansible.builtin.include_tasks: config-timezone.yml
 - name: "Config Disable Firewall"

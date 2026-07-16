@@ -15,6 +15,13 @@
     group: root
     mode: "0755"
 
+# URLモジュール健全性チェックを実行して, workaround要否を判定する
+- name: Run URL module HTTPS health check (repo-rpm)
+  ansible.builtin.include_tasks: config-url-module-health.yml
+  when:
+    - ansible_url_module_health_probe_enabled | default(true)
+    - not (ansible_url_module_https_probe_run_by_repo_rpm | default(false))
+
 # --- Kubernetes (pkgs.k8s.io) ---
 
 # Kubernetes GPG keyを配置・登録する
@@ -54,13 +61,37 @@
 
 # Google Chrome GPG key を取得する
 - name: Fetch Google RPM GPG key
-  when: repo_enable_chrome
   ansible.builtin.get_url:
     url: "{{ chrome_keyring_url }}"
     dest: "{{ chrome_rpm_gpg_file }}"
     mode: "0644"
     force: true
     validate_certs: true
+  when:
+    - repo_enable_chrome
+    - not (ansible_url_module_https_workaround_enabled | default(false))
+
+- name: Fetch Google RPM GPG key (curl workaround)  # noqa command-instead-of-module
+  ansible.builtin.command:
+    argv:
+      - curl
+      - -fsSL
+      - --retry
+      - '5'
+      - --retry-delay
+      - '2'
+      - --connect-timeout
+      - '10'
+      - --max-time
+      - '120'
+      - --output
+      - "{{ chrome_rpm_gpg_file }}"
+      - "{{ chrome_keyring_url }}"
+  register: repo_rpm_google_key_curl_result
+  changed_when: repo_rpm_google_key_curl_result.rc == 0
+  when:
+    - repo_enable_chrome
+    - ansible_url_module_https_workaround_enabled | default(false)
 
 # Google Chrome GPG key をインポートする
 - name: Import Google RPM GPG key
@@ -89,13 +120,37 @@
 
 # Docker CE GPG keyを配置・登録する
 - name: Fetch Docker CE RPM GPG key
-  when: repo_enable_docker
   ansible.builtin.get_url:
     url: "{{ docker_ce_keyring_url }}"
     dest: "{{ docker_ce_rpm_gpg_file }}"
     mode: "0644"
     force: true
     validate_certs: true
+  when:
+    - repo_enable_docker
+    - not (ansible_url_module_https_workaround_enabled | default(false))
+
+- name: Fetch Docker CE RPM GPG key (curl workaround)  # noqa command-instead-of-module
+  ansible.builtin.command:
+    argv:
+      - curl
+      - -fsSL
+      - --retry
+      - '5'
+      - --retry-delay
+      - '2'
+      - --connect-timeout
+      - '10'
+      - --max-time
+      - '120'
+      - --output
+      - "{{ docker_ce_rpm_gpg_file }}"
+      - "{{ docker_ce_keyring_url }}"
+  register: repo_rpm_docker_key_curl_result
+  changed_when: repo_rpm_docker_key_curl_result.rc == 0
+  when:
+    - repo_enable_docker
+    - ansible_url_module_https_workaround_enabled | default(false)
 
 # Docker CE GPG keyをインポートする
 - name: Import Docker RPM GPG key

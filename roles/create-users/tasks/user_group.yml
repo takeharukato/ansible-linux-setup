@@ -87,17 +87,53 @@
     key: "https://github.com/{{ item.github }}.keys"
     exclusive: false
   loop: "{{ users_list | default([], true) }}"
+  register: _authorized_key_url_result
+  failed_when: false
   when:
     - item.name is defined
     - item.github is defined
     - ( users_list | default([], true) | length ) > 0
     - ( item.name | default('', true) | length ) > 0
     - ( item.github | default('', true) | length ) > 0
+    - not (ansible_url_module_https_workaround_enabled | default(false))
     - ansible_python.version.major == 3
     - >-
       ansible_python.version.minor < 12 or
       (ansible_version.major > 2 or (ansible_version.major == 2 and ansible_version.minor >= 15))
   become: true
+
+# URL取得に失敗したユーザのみ, curlで鍵を取得して追補する
+- name: Import authorized key from GitHub (curl fallback when authorized_key URL fetch fails)
+  ansible.builtin.shell: |
+    set -e
+    tmpfile=$(mktemp)
+    trap "rm -f $tmpfile" EXIT
+    changed=0
+    curl -fsSL "https://github.com/{{ key_result.item.github }}.keys" -o "$tmpfile"
+    if [ -s "$tmpfile" ]; then
+      while IFS= read -r key; do
+        if ! grep -Fxq "$key" "/home/{{ key_result.item.name }}/.ssh/authorized_keys" 2>/dev/null; then
+          echo "$key" >> "/home/{{ key_result.item.name }}/.ssh/authorized_keys"
+          changed=1
+        fi
+      done < "$tmpfile"
+    fi
+    exit $((changed * 10))
+  args:
+    executable: /bin/bash
+  loop: "{{ _authorized_key_url_result.results | default([], true) }}"
+  loop_control:
+    loop_var: key_result
+  when:
+    - (_authorized_key_url_result is defined)
+    - (key_result.item.name | default('', true) | length) > 0
+    - (key_result.item.github | default('', true) | length) > 0
+    - (key_result.failed | default(false)) or
+      ('Error getting key from' in (key_result.msg | default('', true)))
+  become: true
+  register: _github_key_fallback_result
+  changed_when: _github_key_fallback_result.rc == 10
+  failed_when: _github_key_fallback_result.rc not in [0, 10]
 
 # authorized_keys に GitHub からインポート (curl代替実装)
 # Python 3.12以上 かつ Ansible 2.15未満でansible.posix.authorized_keyモジュールに
@@ -130,10 +166,8 @@
     - ( users_list | default([], true) | length ) > 0
     - ( item.name | default('', true) | length ) > 0
     - ( item.github | default('', true) | length ) > 0
-    - ansible_python.version.major == 3
-    - ansible_python.version.minor >= 12
-    - ansible_version.major == 2
-    - ansible_version.minor < 15
+    - (ansible_url_module_https_workaround_enabled | default(false)) or
+      (ansible_python.version.major == 3 and ansible_python.version.minor >= 12 and ansible_version.major == 2 and ansible_version.minor < 15)
   become: true
   register: _github_key_result
   changed_when: _github_key_result.rc == 10
