@@ -13,6 +13,7 @@ common_vmware_packages:
 
 common_packages:
   - dnf-plugins-core
+  - dpkg  # dpkg-debコマンドを提供
   - bash
   - bash-completion
   - ksh
