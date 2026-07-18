@@ -25,6 +25,7 @@
     enabled: false
     masked: true
   become: true
+  failed_when: false
   when: ansible_facts.os_family == "Debian"
 
 # rpfilter-bypass.service 無効化

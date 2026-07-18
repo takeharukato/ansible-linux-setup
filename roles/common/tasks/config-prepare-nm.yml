@@ -6,11 +6,18 @@
 #  ネットワーク設定 (NetworkManager 導入と有効化)
 #
 
+# 初回起動直後は unattended-upgrades が再度ロックを保持し得るため,
+# NetworkManager 導入直前にも frontend lock の解放を待つ
+- name: Wait frontend lockfile before NetworkManager install (Debian/Ubuntu)
+  ansible.builtin.include_tasks: config-wait-frontend-lock.yml
+  when: ansible_facts.os_family == "Debian"
+
 # NetworkManagerのインストール
 - name: Ensure NetworkManager installed (Debian/Ubuntu)
-  ansible.builtin.package:
+  ansible.builtin.apt:
     name: network-manager
     state: present
+    lock_timeout: "{{ apt_lock_wait_timeout | int }}"
   when: ansible_facts.os_family == "Debian"
 
 # NetworkManagerの有効化と起動
