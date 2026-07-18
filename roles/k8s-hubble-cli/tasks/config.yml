@@ -6,17 +6,39 @@
 #
 ---
 
-- name: Download hubble-cli archive (using get_url)
-  ansible.builtin.get_url:
-    url: "{{ hubble_cli_download_url }}"
-    dest: "{{ hubble_cli_temp_archive }}"
-    mode: "0644"
+- name: Download hubble-cli archive (using get_url with curl fallback)
   when:
     - not (ansible_url_module_https_workaround_enabled | default(false))
     - ansible_python.version.major == 3
     - >-
       ansible_python.version.minor < 12 or
       (ansible_version.major > 2 or (ansible_version.major == 2 and ansible_version.minor >= 15))
+  block:
+
+    # hubble-cli アーカイブをダウンロード (get_url)
+    - name: Download hubble-cli archive (using get_url)
+      ansible.builtin.get_url:
+        url: "{{ hubble_cli_download_url }}"
+        dest: "{{ hubble_cli_temp_archive }}"
+        mode: "0644"
+  rescue:
+    # hubble-cli アーカイブをダウンロード (curl)
+    - name: Download hubble-cli archive (curl fallback when get_url fails)
+      ansible.builtin.shell: |
+        set -e
+        tmpfile=$(mktemp)
+        trap "rm -f $tmpfile" EXIT
+        curl -fsSL --retry 5 --retry-delay 2 --connect-timeout 10 --max-time 120 "{{ hubble_cli_download_url }}" -o "$tmpfile"
+        if [ -f "{{ hubble_cli_temp_archive }}" ] && cmp -s "$tmpfile" "{{ hubble_cli_temp_archive }}"; then
+          exit 0
+        fi
+        install -m 0644 "$tmpfile" "{{ hubble_cli_temp_archive }}"
+        exit 10
+      args:
+        executable: /bin/bash
+      register: _hubble_cli_download_get_url_fallback_result
+      changed_when: _hubble_cli_download_get_url_fallback_result.rc == 10
+      failed_when: _hubble_cli_download_get_url_fallback_result.rc not in [0, 10]
 
 - name: Download hubble-cli archive (curl workaround for URL module HTTPS issue)  # noqa command-instead-of-module
   ansible.builtin.shell: |

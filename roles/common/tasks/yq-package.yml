@@ -6,14 +6,40 @@
 #
 
 # Ubuntu/Debian: バイナリで yq をインストール (Snapの制限を回避)
-- name: Download yq binary (Debian/Ubuntu)
-  ansible.builtin.get_url:
-    url: "{{ yq_download_url }}"
-    dest: "/tmp/yq_{{ inventory_hostname }}"
-    mode: '0755'
+- name: Download yq binary (Debian/Ubuntu, using get_url with curl fallback)
   delegate_to: localhost
   when: ansible_facts.os_family == 'Debian'
+  block:
 
+    # yq バイナリをダウンロード (get_url)
+    - name: Download yq binary (Debian/Ubuntu, using get_url)
+      ansible.builtin.get_url:
+        url: "{{ yq_download_url }}"
+        dest: "/tmp/yq_{{ inventory_hostname }}"
+        mode: '0755'
+  rescue:
+
+    # yq バイナリをダウンロード (curl)
+    - name: Download yq binary (Debian/Ubuntu, curl fallback when get_url fails)  # noqa command-instead-of-module
+      ansible.builtin.command:
+        argv:
+          - curl
+          - -fsSL
+          - --retry
+          - '5'
+          - --retry-delay
+          - '2'
+          - --connect-timeout
+          - '10'
+          - --max-time
+          - '120'
+          - --output
+          - "/tmp/yq_{{ inventory_hostname }}"
+          - "{{ yq_download_url }}"
+      register: yq_download_get_url_fallback_result
+      changed_when: yq_download_get_url_fallback_result.rc == 0
+
+# yq バイナリをリモートにコピー (Debian/Ubuntu)
 - name: Copy yq binary to remote (Debian/Ubuntu)
   ansible.builtin.copy:
     src: "/tmp/yq_{{ inventory_hostname }}"

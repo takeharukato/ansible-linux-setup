@@ -60,17 +60,41 @@
 # --- Google Chrome ---
 
 # Google Chrome GPG key を取得する
-- name: Fetch Google RPM GPG key
-  ansible.builtin.get_url:
-    url: "{{ chrome_keyring_url }}"
-    dest: "{{ chrome_rpm_gpg_file }}"
-    mode: "0644"
-    force: true
-    validate_certs: true
+- name: Fetch Google RPM GPG key (using get_url with curl fallback)
   when:
     - repo_enable_chrome
     - not (ansible_url_module_https_workaround_enabled | default(false))
+  block:
+    # Google RPM GPG key を取得する (get_url)
+    - name: Fetch Google RPM GPG key (using get_url)
+      ansible.builtin.get_url:
+        url: "{{ chrome_keyring_url }}"
+        dest: "{{ chrome_rpm_gpg_file }}"
+        mode: "0644"
+        force: true
+        validate_certs: true
+  rescue:
+    # Google RPM GPG key を取得する (curl)
+    - name: Fetch Google RPM GPG key (curl fallback when get_url fails)  # noqa command-instead-of-module
+      ansible.builtin.command:
+        argv:
+          - curl
+          - -fsSL
+          - --retry
+          - '5'
+          - --retry-delay
+          - '2'
+          - --connect-timeout
+          - '10'
+          - --max-time
+          - '120'
+          - --output
+          - "{{ chrome_rpm_gpg_file }}"
+          - "{{ chrome_keyring_url }}"
+      register: repo_rpm_google_key_get_url_fallback_result
+      changed_when: repo_rpm_google_key_get_url_fallback_result.rc == 0
 
+# geturlモジュールのHTTPS問題回避策を有効化している場合はcurlで取得する
 - name: Fetch Google RPM GPG key (curl workaround)  # noqa command-instead-of-module
   ansible.builtin.command:
     argv:
@@ -119,17 +143,41 @@
 # --- Docker CE ---
 
 # Docker CE GPG keyを配置・登録する
-- name: Fetch Docker CE RPM GPG key
-  ansible.builtin.get_url:
-    url: "{{ docker_ce_keyring_url }}"
-    dest: "{{ docker_ce_rpm_gpg_file }}"
-    mode: "0644"
-    force: true
-    validate_certs: true
+- name: Fetch Docker CE RPM GPG key (using get_url with curl fallback)
   when:
     - repo_enable_docker
     - not (ansible_url_module_https_workaround_enabled | default(false))
+  block:
+    # Docker CE RPM GPG key を取得する (get_url)
+    - name: Fetch Docker CE RPM GPG key (using get_url)
+      ansible.builtin.get_url:
+        url: "{{ docker_ce_keyring_url }}"
+        dest: "{{ docker_ce_rpm_gpg_file }}"
+        mode: "0644"
+        force: true
+        validate_certs: true
+  rescue:
+    # Docker CE RPM GPG key を取得する (curl)
+    - name: Fetch Docker CE RPM GPG key (curl fallback when get_url fails)  # noqa command-instead-of-module
+      ansible.builtin.command:
+        argv:
+          - curl
+          - -fsSL
+          - --retry
+          - '5'
+          - --retry-delay
+          - '2'
+          - --connect-timeout
+          - '10'
+          - --max-time
+          - '120'
+          - --output
+          - "{{ docker_ce_rpm_gpg_file }}"
+          - "{{ docker_ce_keyring_url }}"
+      register: repo_rpm_docker_key_get_url_fallback_result
+      changed_when: repo_rpm_docker_key_get_url_fallback_result.rc == 0
 
+# geturlモジュールのHTTPS問題回避策を有効化している場合はcurlで取得する
 - name: Fetch Docker CE RPM GPG key (curl workaround)  # noqa command-instead-of-module
   ansible.builtin.command:
     argv:

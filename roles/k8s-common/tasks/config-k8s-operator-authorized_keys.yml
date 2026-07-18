@@ -43,6 +43,8 @@
         exclusive: false
         path: "{{ k8s_operator_home }}/.ssh/authorized_keys"
       loop: "{{ k8s_operator_github_key_list | default([], true) }}"
+      register: _k8s_operator_github_key_module_result
+      ignore_errors: true
       when:
         - k8s_operator_user is defined
         - k8s_operator_home is defined
@@ -59,11 +61,20 @@
 
     # k8s_operator_github_key_listに設定されたGitHubアカウントを元に公開鍵を取得し
     # authorized_keyに追加する(curl代替実装)
-    # Python 3.12以上 かつ Ansible 2.15未満でansible.posix.authorized_keyモジュールに
-    # 互換性問題があるため代替実装を使用
+    # Python 3.12以上 かつ Ansible 2.15未満の互換性問題、または
+    # authorized_keyモジュールでの取得失敗時に代替実装を使用
+    # 1. 一時ファイルにGitHubの公開鍵を取得する
+    # 2. 一時ファイルの内容を1行ずつ読み込み,
+    #    authorized_keysに登録されていない場合は追記する
     - name: Import authorized key from GitHub to operate K8s nodes (curl workaround for Python 3.12+ with Ansible < 2.15)
       ansible.builtin.shell: |
-        set -e
+        set -euo pipefail
+        if command -v curl >/dev/null 2>&1; then
+          :
+        else
+          echo "curl command not found" >&2
+          exit 1
+        fi
         tmpfile=$(mktemp)
         trap "rm -f $tmpfile" EXIT
         changed=0
@@ -89,9 +100,23 @@
         - ( k8s_operator_user | default('', true) | length ) > 0
         - ( k8s_operator_home | default('', true) | length ) > 0
         - ansible_python.version.major == 3
-        - ansible_python.version.minor >= 12
-        - ansible_version.major == 2
-        - ansible_version.minor < 15
+        - >-
+          (
+            ansible_python.version.minor >= 12 and
+            ansible_version.major == 2 and
+            ansible_version.minor < 15
+          ) or
+          (
+            (_k8s_operator_github_key_module_result is defined) and
+            (
+              _k8s_operator_github_key_module_result.results | default([]) |
+              selectattr('item.github', 'defined') |
+              selectattr('item.github', 'equalto', item.github) |
+              selectattr('failed', 'defined') |
+              selectattr('failed') |
+              list | length
+            ) > 0
+          )
       become: true
       register: _k8s_operator_github_key_result
       changed_when: _k8s_operator_github_key_result.rc == 10
