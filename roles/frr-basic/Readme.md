@@ -1,6 +1,6 @@
 # frr-basic ロール
 
-このロールは FRRouting (FRR) をインストールし, ルーティング機能を提供するホストで最低限必要となるシステム設定と FRR 本体の初期構成を適用します。Debian/Ubuntu 系ディストリビューションを対象としており, `ansible-playbook` を実行する制御ノードから対象ホストへ以下の作業を行います。
+このロールは FRRouting (FRR) をインストールし, ルーティング機能を提供するホストで最低限必要となるシステム設定と FRR 本体の初期構成を適用します。Debian/Ubuntu 系および RedHat 系ディストリビューションを対象としており, `ansible-playbook` を実行する制御ノードから対象ホストへ以下の作業を行います。
 
 - FRR 関連パッケージ (`frr`, `frr-pythontools` など) の導入
 - FRR サービスの有効化と起動 (`systemd`)

@@ -12,15 +12,69 @@ set -euo pipefail
 # debパッケージビルド時に対話的な質問を抑制する
 export DEBIAN_FRONTEND=noninteractive
 
-# ランタイムパッケージ名の候補2
-RUNTIME_PKG_NAME2="libyang2t64"
+install_build_dependencies(){
+
+    # apt-get が利用可能な場合は apt-get を使用してビルドに必要なパッケージを導入する
+    if command -v apt-get >/dev/null 2>&1; then
+        apt-get update
+        apt-get -y --no-install-recommends install git cmake pkg-config libpcre2-dev dpkg-dev build-essential
+        return 0
+    fi
+
+    # dnf が利用可能な場合は dnf を使用してビルドに必要なパッケージを導入する
+    if command -v dnf >/dev/null 2>&1; then
+        dnf -y install git cmake pkgconf-pkg-config pcre2-devel gcc gcc-c++ make dpkg dpkg-devel
+        return 0
+    fi
+
+    echo "Unsupported build host: neither apt-get nor dnf is available" >&2
+    return 1
+}
+
+detect_deb_arch(){
+
+    # dpkg が利用可能な場合は dpkg を使用してアーキテクチャを取得する
+    if command -v dpkg >/dev/null 2>&1; then
+        dpkg --print-architecture
+        return 0
+    fi
+
+    case "$(uname -m)" in
+        x86_64) echo "amd64" ;;
+        aarch64) echo "arm64" ;;
+        *)
+            echo "Unsupported architecture for deb packaging: $(uname -m)" >&2
+            return 1
+            ;;
+    esac
+}
+
+detect_deb_multiarch(){
+
+    # dpkg-architecture が利用可能な場合は dpkg-architecture を使用して multiarch パスを取得する
+    if command -v dpkg-architecture >/dev/null 2>&1; then
+        dpkg-architecture -qDEB_HOST_MULTIARCH
+        return 0
+    fi
+
+    case "$(uname -m)" in
+        x86_64) echo "x86_64-linux-gnu" ;;
+        aarch64) echo "aarch64-linux-gnu" ;;
+        *)
+            echo "Unsupported architecture for multiarch path: $(uname -m)" >&2
+            return 1
+            ;;
+    esac
+}
 
 build_libyang(){
     local libyang_version
+    local libyang_deb_revision
     local srcdir
     local pkgroot
     local runtime_stage
     local runtime_pkg
+    local alt_runtime_pkg
     local dev_stage
     local arch
     local runtime_deb
@@ -29,9 +83,12 @@ build_libyang(){
     local dev_control_template
     local runtime_control
     local dev_control
+    local multiarch
 
     # libyangのバージョン
     libyang_version="{{ frr_libyang_version }}"
+    # debパッケージのリビジョン
+    libyang_deb_revision="{{ frr_libyang_deb_revision }}"
     # ソース展開先ディレクトリ
     srcdir="/tmp/libyang-src-${libyang_version}"
     # debパッケージの作業ディレクトリ
@@ -39,23 +96,9 @@ build_libyang(){
     # debパッケージの作業ディレクトリの下に, ランタイム用と開発用の2つのステージングディレクトリを作成する
     runtime_stage="${pkgroot}/runtime"
     dev_stage="${pkgroot}/dev"
-    # debパッケージのアーキテクチャ
-    arch="$(dpkg --print-architecture)"
     # debパッケージのランタイムパッケージ名
-    runtime_pkg="libyang2"
-
-    #
-    # libyang2t64 パッケージが既にインストールされている場合は,
-    # ランタイムパッケージ名を libyang2t64 に変更する
-    #
-    if dpkg-query -W -f='${Status}' "${RUNTIME_PKG_NAME2}" 2>/dev/null | grep -q 'install ok installed'; then
-    	runtime_pkg="${RUNTIME_PKG_NAME2}"
-    fi
-
-    # debパッケージのファイルパス
-    runtime_deb="/tmp/${runtime_pkg}_${libyang_version}-1_${arch}.deb"
-    # 開発用パッケージのファイルパス
-    dev_deb="/tmp/libyang2-dev_${libyang_version}-1_${arch}.deb"
+    # playbookから渡された実行時指定を優先する
+    runtime_pkg="${LIBYANG_RUNTIME_PKG:-{{ frr_libyang_runtime_pkg_name | default('libyang2') }}}"
 
     # debパッケージのコントロールファイルのテンプレート
     runtime_control_template="/tmp/install-libyang-runtime.control.in"
@@ -73,9 +116,34 @@ build_libyang(){
     #
     # 開発環境を導入する
     #
-    apt-get update
-    apt-get -y --no-install-recommends install git cmake pkg-config libpcre2-dev dpkg-dev build-essential
-    multiarch="$(dpkg-architecture -qDEB_HOST_MULTIARCH)"
+    install_build_dependencies
+
+    # debパッケージ関連コマンドが利用可能であることを確認する
+    command -v dpkg >/dev/null 2>&1
+    command -v dpkg-deb >/dev/null 2>&1
+
+    # debパッケージのアーキテクチャを取得する
+    arch="$(detect_deb_arch)"
+    multiarch="$(detect_deb_multiarch)"
+
+    # 互換ランタイムパッケージ名を判定する
+    case "${runtime_pkg}" in
+        libyang2t64)
+            alt_runtime_pkg="libyang2"
+            ;;
+        libyang2)
+            alt_runtime_pkg="libyang2t64"
+            ;;
+        *)
+            echo "Unsupported runtime package name: ${runtime_pkg}" >&2
+            return 1
+            ;;
+    esac
+
+    # debパッケージのファイルパス
+    runtime_deb="/tmp/${runtime_pkg}_${libyang_version}-${libyang_deb_revision}_${arch}.deb"
+    # 開発用パッケージのファイルパス
+    dev_deb="/tmp/libyang2-dev_${libyang_version}-${libyang_deb_revision}_${arch}.deb"
 
     #
     # ソースコード格納先ディレクトリ, debパッケージ作業ディレクトリを作成する
@@ -92,7 +160,11 @@ build_libyang(){
     git checkout "{{ frr_libyang_git_ref_prefix }}{{ frr_libyang_version }}"
 
     # libyangのソースコードをビルドする
-    cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr -DENABLE_TESTS=OFF
+    cmake -S . -B build \
+        -DCMAKE_BUILD_TYPE=Release \
+        -DCMAKE_INSTALL_PREFIX=/usr \
+        -DCMAKE_INSTALL_LIBDIR="lib/${multiarch}" \
+        -DENABLE_TESTS=OFF
     cmake --build build -j"$(nproc)"
 
     # libyangのソースコードをruntime_stageディレクトリ配下にインストールする
@@ -139,7 +211,9 @@ build_libyang(){
     # コントロールファイルの変数を置換する
     sed -i \
         -e "s|@RUNTIME_PKG@|${runtime_pkg}|g" \
+        -e "s|@ALT_RUNTIME_PKG@|${alt_runtime_pkg}|g" \
         -e "s|@LIBYANG_VERSION@|${libyang_version}|g" \
+        -e "s|@LIBYANG_DEB_REVISION@|${libyang_deb_revision}|g" \
         -e "s|@ARCH@|${arch}|g" \
         "${runtime_control}" "${dev_control}"
 

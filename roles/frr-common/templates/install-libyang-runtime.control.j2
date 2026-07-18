@@ -1,7 +1,9 @@
 Package: @RUNTIME_PKG@
-Version: @LIBYANG_VERSION@-1
+Version: @LIBYANG_VERSION@-@LIBYANG_DEB_REVISION@
 Section: libs
 Priority: optional
 Architecture: @ARCH@
+Provides: @ALT_RUNTIME_PKG@ (= @LIBYANG_VERSION@-@LIBYANG_DEB_REVISION@)
+Replaces: @ALT_RUNTIME_PKG@
 Maintainer: frr-common <root@localhost>
 Description: libyang runtime library built from source for FRR compatibility

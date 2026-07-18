@@ -104,6 +104,7 @@
 #   defaults/main.yml で frr_install_deb_lock_wait_seconds を定義している
 # - `--force-confdef` と `--force-confold` は, 設定ファイルが競合した場合に既定動作を使いつつ,
 #    既存設定を優先して保持しやすくするための指定
+# - `--allow-change-held-packages` は, 保持されているパッケージの更新を許可するための指定
 # - frr_deb_files からインストール対象の.debファイルパスを作成
 #   1. default([]) で未定義時の安全性を確保
 #   2. map(attribute='path') で各要素のpathだけ抽出
@@ -119,6 +120,7 @@
           'DEBIAN_FRONTEND=noninteractive',
           'apt-get',
           '-y',
+          '--allow-change-held-packages',
           '-o',
           'DPkg::Lock::Timeout=' ~ (frr_install_deb_lock_wait_seconds | string),
           '-o',
@@ -183,10 +185,12 @@
 #
 
 # FRR実行時に必要なlibyangシンボルが不足する場合は, 構築ホスト上でlibyangをビルドして導入する
+# frr_libyang_force_remediate が true の場合は, シンボル不足の有無に関わらず強制的にlibyangを再導入する
 - name: Remediate libyang packages before FRR install when symbol is missing
   ansible.builtin.include_tasks: remediate-libyang.yml
   vars:
     frr_libyang_symbol_check_rc: "{{ frr_libyang_symbol_check.rc | default(0) }}"
+    frr_libyang_force_remediate: true
     frr_libyang_phase_label: "before FRR install"
     frr_libyang_fetch_prefix: "libyang-fetch-before-"
 
@@ -235,6 +239,7 @@
     msg: >-
       Local FRR deb installation failed.
       rc={{ frr_local_deb_install_cmd.rc | default('unknown') }}
+      stdout={{ frr_local_deb_install_cmd.stdout | default('') }}
       stderr={{ frr_local_deb_install_cmd.stderr | default('') }}
   when: (frr_local_deb_install_cmd.rc | default(0)) != 0
 

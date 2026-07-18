@@ -50,3 +50,6 @@ frr_source_git_ref_prefix: "frr-"
 frr_libyang_git_url: "https://github.com/CESNET/libyang.git"
 frr_libyang_version: "2.1.148"
 frr_libyang_git_ref_prefix: "v"
+# ローカルビルドlibyang debのリビジョン
+# 同一 upstream version の再導入時に apt が更新を判断できるようにする
+frr_libyang_deb_revision: "1+frr2"

@@ -111,25 +111,11 @@
       - /bin/bash
       - /work/build-frr-deb.sh
   async: "{{ frr_build_timeout_seconds }}"
-  poll: 0
-  register: frr_deb_package_build_job
+  poll: "{{ frr_build_loop_delay_seconds }}"
+  register: frr_deb_package_build_cmd
   delegate_to: "{{ frr_build_host }}"
   run_once: true
   changed_when: true
-
-# FRR debビルド処理が完了するまで待機する
-# - 必要に応じて中途経過状態を表示するタスクを用意することが可能なように
-#   非同期実行タスクを監視する仕組みにしている。
-- name: Wait FRR deb package build with progress polling
-  ansible.builtin.async_status:
-    jid: "{{ frr_deb_package_build_job.ansible_job_id }}"
-  register: frr_deb_package_build_cmd
-  until: frr_deb_package_build_cmd.finished
-  retries: "{{ (frr_build_timeout_seconds // frr_build_loop_delay_seconds) | int }}"
-  delay: "{{ frr_build_loop_delay_seconds }}"
-  failed_when: (frr_deb_package_build_cmd.rc | default(0)) != 0
-  delegate_to: "{{ frr_build_host }}"
-  run_once: true
 
 # FRR debパッケージビルド処理の標準出力を表示する
 - name: Show FRR deb package build stdout lines
@@ -152,12 +138,13 @@
 
 # FRR debファイルのみを選択する
 # - ビルド依存関係のdebファイルが混在する可能性があるため,
-#   ファイル名にfrrが含まれるdebファイルのみを選択する
+#   ファイル名が frr_*.deb または frr-*.deb のもののみを選択する
 - name: Select FRR deb files only
   ansible.builtin.set_fact:
     frr_deb_files: >-
       {{
         frr_deb_files_discovered.files
+        | selectattr('path', 'search', '/frr(-[^/]+)?_[^/]+\.deb$')
         | rejectattr('path', 'search', '/frr-build-deps_[^/]+\.deb$')
         | list
       }}
