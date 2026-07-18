@@ -55,16 +55,26 @@
 #
 # リポジトリの追加
 #
+
+# 既存のリポジトリのリストを取得する
+- name: List repositories before clear
+  ansible.builtin.command: helm repo list -o yaml
+  register: _helm_repo_list
+  changed_when: false
+
+# 既存のリポジトリを全て削除する
 - name: Clear all repositories
   ansible.builtin.shell: |
     set -o pipefail
-    helm repo list -o yaml | yq '.[].name' | xargs -n1 helm repo remove
+    echo '{{ _helm_repo_list.stdout }}' | yq '.[].name' | xargs -r -n1 helm repo remove
   args:
     executable: /bin/bash
   ignore_errors: true
   register: _result
   changed_when: _result.rc == 0
+  when: (_helm_repo_list.stdout | from_yaml | length) > 0
 
+# Ciliumリポジトリの追加
 - name: Add Cilium Repository
   ansible.builtin.shell: |
     helm repo add cilium {{ k8s_cilium_helm_repo_url }}
@@ -72,6 +82,7 @@
   register: _result
   changed_when: _result.rc == 0
 
+# Ciliumリポジトリの追加（k8s_operator_user権限で実行）
 - name: Add Cilium Repository for "{{ k8s_operator_user }}"
   ansible.builtin.shell: |
     sudo -u "{{ k8s_operator_user }}" helm repo add cilium {{ k8s_cilium_helm_repo_url }}
