@@ -1,0 +1,14 @@
+#compdef opengrok-source-sync
+# opengrok-source-sync の zsh 補完スクリプト
+_opengrok_source_sync() {
+  # _arguments でオプション説明と値補完ルールを定義する。
+  _arguments \
+    '--config[Path to source URL YAML file]:config file:_files' \
+    '--src-root[Root directory to store synchronized sources]:directory:_files -/' \
+    '*--only-title[Sync only repositories with this title]:title:' \
+    '--dry-run[Print commands without executing]' \
+    '--verbose[Enable verbose logging]' \
+    '--help[Show help message]'
+}
+
+_opengrok_source_sync "$@"

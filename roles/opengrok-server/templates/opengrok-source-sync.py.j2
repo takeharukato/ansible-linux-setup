@@ -1,0 +1,577 @@
+#!/usr/bin/env python3
+# -*- mode: python; coding: utf-8; line-endings: unix -*-
+# SPDX-License-Identifier: BSD-2-Clause
+#
+# Copyright (c) 2025 TAKEHARU KATO
+# This file is distributed under the two-clause BSD license.
+# For the full text of the license, see the LICENSE file in the project root directory.
+# このファイルは2条項BSDライセンスの下で配布されています。
+# ライセンス全文はプロジェクト直下の LICENSE を参照してください。
+#
+# OpenAI's ChatGPT partially generated this code.
+# Author has modified some parts.
+# OpenAIのChatGPTがこのコードの一部を生成しました。
+# 著者が修正している部分があります。
+"""OpenGrok向けソース同期処理を提供するモジュールである。
+
+本モジュールは, YAML設定ファイルで定義されたGitリポジトリ群を
+ローカルディレクトリへ同期する。tag指定ありの場合は指定tagへ固定し,
+tag未指定の場合はdefault branchを追従する。
+"""
+
+from __future__ import annotations
+
+import argparse
+import base64
+from dataclasses import dataclass
+import logging
+from pathlib import Path
+import re
+import subprocess
+import sys
+from typing import Any
+from urllib.parse import urlparse
+
+import yaml
+
+# ロガーを初期化する。
+LOGGER: logging.Logger = logging.getLogger("opengrok-source-sync")
+
+# title はディレクトリ名として利用するため, 安全な文字のみ許可する。
+TITLE_PATTERN: re.Pattern[str] = re.compile(r"^[A-Za-z0-9._-]+$")
+
+
+@dataclass(frozen=True)
+class SourceSpec:
+    """同期対象リポジトリ定義を表すデータクラスである。
+
+    Attributes:
+        title (str): 同期先ディレクトリ名として使う識別子。
+        url (str): clone/fetch対象のリポジトリURL。
+        tag (str | None): 同期対象tag。未指定時はdefault branchを同期する。
+        token (str | None): エントリ個別に使用するアクセストークン。
+
+    Examples:
+        >>> spec = SourceSpec(title="linux", url="https://github.com/torvalds/linux.git", tag=None, token=None)
+        >>> spec.title
+        'linux'
+    """
+
+    title: str
+    url: str
+    tag: str | None
+    token: str | None
+
+
+def parse_args() -> argparse.Namespace:
+    """コマンドライン引数を解析する。
+
+    Args:
+        なし。
+
+    Returns:
+        argparse.Namespace: 解析済み引数。
+
+    Examples:
+        >>> import sys
+        >>> old_argv = sys.argv[:]
+        >>> sys.argv = ["opengrok-source-sync", "--dry-run"]
+        >>> args = parse_args()
+        >>> args.dry_run
+        True
+        >>> sys.argv = old_argv
+    """
+
+    parser: argparse.ArgumentParser = argparse.ArgumentParser(
+        description="Sync OpenGrok source repositories from YAML config"
+    )
+
+    # 設定ファイルへのパスを指定するオプション
+    parser.add_argument(
+        "--config",
+        default="/opt/opengrok/etc/source-urls.yml",
+        help="Path to source URL YAML file",
+    )
+
+    # 同期先ルートディレクトリを指定するオプション
+    parser.add_argument(
+        "--src-root",
+        default="/opt/opengrok/src",
+        help="Root directory for cloned repositories",
+    )
+
+    # 同期対象を title で絞り込むオプション
+    parser.add_argument(
+        "--only-title",
+        action="append",
+        default=[],
+        help="Synchronize only entries whose title matches this option",
+    )
+
+    # dry-run モードを有効化するオプション
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Print commands without executing",
+    )
+
+    # 冗長ログを有効化するオプション
+    parser.add_argument(
+        "--verbose",
+        action="store_true",
+        help="Enable verbose logs",
+    )
+
+    return parser.parse_args()
+
+
+def configure_logging(verbose: bool) -> None:
+    """ロギング設定を初期化する。
+
+    Args:
+        verbose (bool): 詳細ログを有効化するかどうか。
+
+    Returns:
+        None: 戻り値なし。
+
+    Examples:
+        >>> configure_logging(verbose=False)
+        >>> isinstance(LOGGER.name, str)
+        True
+    """
+
+    # ログレベルを設定する。verbose=True の場合は DEBUG, それ以外は INFO。
+    level: int = logging.DEBUG if verbose else logging.INFO
+    # ログフォーマットを設定する。
+    # format: [YYYY-MM-DD HH:MM:SS] [LEVEL] message
+    # datefmt: YYYY-MM-DD HH:MM:SS
+    logging.basicConfig(
+        level=level,
+        format="%(asctime)s %(levelname)s %(message)s",
+        datefmt="%Y-%m-%d %H:%M:%S",
+    )
+
+
+def parse_source_entries(config_path: Path) -> list[SourceSpec]:
+    """YAML設定ファイルを読み込み, 同期対象定義を検証して返す。
+
+    Args:
+        config_path (Path): source-urls.ymlのパス。
+
+    Returns:
+        list[SourceSpec]: 検証済みの同期対象定義一覧。
+
+    Raises:
+        FileNotFoundError: 設定ファイルが存在しない場合。
+        ValueError: 設定形式または必須項目が不正な場合。
+        yaml.YAMLError: YAML構文が不正で読み込めない場合。
+
+    Examples:
+        >>> from pathlib import Path
+        >>> import tempfile
+        >>> tmpdir = tempfile.TemporaryDirectory()
+        >>> cfg = Path(tmpdir.name) / "source-urls.yml"
+        >>> _ = cfg.write_text("sources:\n  - title: linux\n    url: https://github.com/torvalds/linux.git\n", encoding="utf-8")
+        >>> specs = parse_source_entries(cfg)
+        >>> specs[0].title
+        'linux'
+        >>> tmpdir.cleanup()
+    """
+
+    # YAML設定ファイルが存在するか確認する。
+    if not config_path.exists():
+        # YAML設定ファイルが存在しない場合はFileNotFoundError例外を発生させる。
+        raise FileNotFoundError(f"Config file not found: {config_path}")
+
+    # YAML設定ファイルを読み込み, sources キー配下のリストを取得する。
+    raw_data: Any
+    with config_path.open("r", encoding="utf-8") as file_pointer:
+        raw_data = yaml.safe_load(file_pointer) or {}
+
+    # トップレベルは辞書形式のみ受け付け, sources キー配下から定義を取得する。
+    entries_raw: Any
+    if not isinstance(raw_data, dict):
+        raise ValueError("Config must be a mapping with 'sources' key")
+
+    # sources キーが存在しない場合は空リストを返す。
+    entries_raw = raw_data.get("sources", [])
+
+    # sources キー配下はリスト形式であることを検証する。
+    if not isinstance(entries_raw, list):
+        # sources キー配下がリスト形式でない場合は ValueError 例外を発生させる。
+        raise ValueError("sources must be a list")
+
+    #
+    # 各エントリの title, url, tag, token を検証し, SourceSpec インスタンスを生成する。
+    #
+    entries: list[SourceSpec] = []
+    for item in entries_raw:
+        if not isinstance(item, dict):
+            # 各エントリが辞書形式でない場合は ValueError 例外を発生させる。
+            raise ValueError("Each source entry must be a mapping")
+
+        #
+        # title, url, tag, token を取得し, 空白を除去する。
+        # tagとtokenについて, 未指定時はNoneに変換する。
+
+        # title
+        title_value: str = str(item.get("title", "")).strip()
+        # url
+        url_value: str = str(item.get("url", "")).strip()
+
+        # tag
+        tag_raw: Any = item.get("tag")
+        tag_value: str | None = None
+        if tag_raw is not None:
+            tag_text: str = str(tag_raw).strip()
+            tag_value = tag_text if tag_text else None
+
+        # token
+        token_raw: Any = item.get("token")
+        token_value: str | None = None
+        if token_raw is not None:
+            token_text: str = str(token_raw).strip()
+            token_value = token_text if token_text else None
+
+        # title はローカルディレクトリ名として使用するため, 厳密に検証する。
+        if not title_value: # title が空文字列の場合は ValueError 例外を発生させる。
+            raise ValueError("title is required for each source entry")
+        if not TITLE_PATTERN.match(title_value):
+            # title が安全なディレクトリ名として使用不可能な場合は ValueError 例外を発生させる。
+            raise ValueError(
+                "title must match [A-Za-z0-9._-]+ for safe directory names: "
+                f"{title_value}"
+            )
+
+        if not url_value: # url が空文字列の場合は ValueError 例外を発生させる。
+            raise ValueError(f"url is required for source: {title_value}")
+
+        # 検証が完了したエントリを SourceSpec インスタンスに変換して追加する。
+        entries.append(
+            SourceSpec(
+                title=title_value,
+                url=url_value,
+                tag=tag_value,
+                token=token_value,
+            )
+        )
+
+    return entries
+
+
+def build_auth_git_options(spec: SourceSpec) -> list[str]:
+    """privateリポジトリ向け認証オプションを生成する。
+
+    エントリに `token` が指定されている場合のみ認証ヘッダを付与する。
+
+    Args:
+        spec (SourceSpec): 認証情報を含む同期対象定義。
+
+    Returns:
+        list[str]: `git` コマンドに付与する追加オプション。不要時は空リスト。
+
+    Examples:
+        >>> spec = SourceSpec(title="repo", url="https://github.com/example/repo.git", tag=None, token=None)
+        >>> isinstance(build_auth_git_options(spec), list)
+        True
+    """
+
+    parsed = urlparse(spec.url)
+    host: str = (parsed.hostname or "").lower()
+
+    username: str | None = None
+    token: str = (spec.token or "").strip()
+
+    if "github.com" in host: # GitHubの場合は x-access-token 形式で認証する。
+        username = "x-access-token"
+    elif "gitlab" in host: # GitLabの場合は oauth2 形式で認証する。
+        username = "oauth2"
+
+    # トークン未設定時は認証ヘッダなしでアクセスする。
+    if not username or not token:
+        return []
+
+    basic_plain: str = f"{username}:{token}"
+    basic_encoded: str = base64.b64encode(basic_plain.encode("utf-8")).decode("ascii")
+    return ["-c", f"http.extraHeader=Authorization: Basic {basic_encoded}"]
+
+
+def run_git(
+    args: list[str],
+    spec: SourceSpec,
+    dry_run: bool,
+    cwd: Path | None = None,
+) -> subprocess.CompletedProcess[str]:
+    """認証ヘッダ付与を含めてgitコマンドを実行する。
+
+    Args:
+        args (list[str]): `git` に渡すサブコマンド引数。
+        spec (SourceSpec): 認証方式判定用の同期対象定義。
+        dry_run (bool): True の場合は実行せず成功結果を返す。
+        cwd (Path | None): 実行ディレクトリ。未指定時は現在ディレクトリ。
+
+    Returns:
+        subprocess.CompletedProcess[str]: 実行結果。
+
+    Raises:
+        FileNotFoundError: `git` 実行ファイルが存在しない場合。
+        OSError: プロセス起動に失敗した場合。
+
+    Examples:
+        >>> spec = SourceSpec(title="repo", url="https://github.com/example/repo.git", tag=None, token=None)
+        >>> result = run_git(["--version"], spec=spec, dry_run=True)
+        >>> result.returncode
+        0
+    """
+
+    command: list[str] = ["git"] + build_auth_git_options(spec) + args
+    command_text: str = " ".join(command)
+    LOGGER.debug("git command: %s", command_text)
+
+    # dry-run では実行せず成功扱いの結果を返す。
+    if dry_run:
+        return subprocess.CompletedProcess(args=command, returncode=0, stdout="", stderr="")
+
+    # subprocess.run を使って git コマンドを実行する。
+    #
+    # - cwd が指定されていれば指定されたディレクトリで実行する。
+    # - capture_output=True: 標準出力/標準エラーをキャプチャする。
+    # - text=True: 標準出力/標準エラーを文字列として取得する。
+    # - check=False: 例外を発生させず, returncode を返す。
+    #
+    result: subprocess.CompletedProcess[str] = subprocess.run(
+        command,
+        cwd=str(cwd) if cwd else None,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    return result
+
+
+def get_default_branch(repo_dir: Path, spec: SourceSpec, dry_run: bool) -> str:
+    """origin/default branch 名を取得する。
+
+    Args:
+        repo_dir (Path): 対象リポジトリのローカルパス。
+        spec (SourceSpec): 認証方式判定用の同期対象定義。
+        dry_run (bool): True の場合は代表値として `main` を返す。
+
+    Returns:
+        str: default branch 名。
+
+    Raises:
+        RuntimeError: default branch 名が取得できない場合。
+
+    Examples:
+        >>> spec = SourceSpec(title="repo", url="https://github.com/example/repo.git", tag=None, token=None)
+        >>> get_default_branch(Path("/tmp/nonexistent"), spec, dry_run=True)
+        'main'
+    """
+
+    # dry-run では問い合わせを行わず, 代表値を返す。
+    if dry_run:
+        return "main"
+
+    #
+    # git -C 対象リポジトリのローカルパス symbolic-ref --short refs/remotes/origin/HEAD を実行し, default branch を取得する。
+    #
+    result: subprocess.CompletedProcess[str] = run_git(
+        ["-C", str(repo_dir), "symbolic-ref", "--short", "refs/remotes/origin/HEAD"],
+        spec=spec,
+        dry_run=dry_run,
+    )
+    if result.returncode != 0: # symbolic-ref が失敗した場合は RuntimeError 例外を発生させる。
+        stderr_text: str = result.stderr.strip()
+        raise RuntimeError(f"Failed to resolve default branch: {stderr_text}")
+
+    #
+    # 出力結果を解析する
+    #
+    ref_name: str = result.stdout.strip()
+    if not ref_name or "/" not in ref_name:
+        # symbolic-ref の出力が不正な場合は RuntimeError 例外を発生させる。
+        raise RuntimeError(f"Unexpected default branch ref: {ref_name}")
+
+    # ref_name は refs/remotes/origin/<branch> の形式で返るため, "/" で分割して branch 名を取得する。
+    branch_name: str = ref_name.split("/", 1)[1]
+
+    # ブランチ名を返す。
+    return branch_name
+
+
+def sync_repository(spec: SourceSpec, src_root: Path, dry_run: bool) -> tuple[bool, str]:
+    """単一リポジトリを同期する。
+
+    Args:
+        spec (SourceSpec): 同期対象定義。
+        src_root (Path): 同期先ルートディレクトリ。
+        dry_run (bool): True の場合は実際の変更を行わない。
+
+    Returns:
+        tuple[bool, str]: `(成功可否, 結果メッセージ)`。
+
+    Examples:
+        >>> spec = SourceSpec(title="repo", url="https://github.com/example/repo.git", tag=None, token=None)
+        >>> ok, message = sync_repository(spec, Path("/tmp"), dry_run=True)
+        >>> isinstance(ok, bool) and isinstance(message, str)
+        True
+    """
+
+    # 同期先ディレクトリのフルパス名を生成する。
+    repo_dir: Path = src_root / spec.title
+
+    if repo_dir.exists() and not repo_dir.is_dir(): # 同期先が存在するがディレクトリでない場合は失敗扱いとして終了する。
+        return False, f"Target path exists and is not a directory: {repo_dir}"
+
+    # 初回は clone, 既存は origin URL を更新して再利用する。
+    if not repo_dir.exists():
+
+        # 初回処理の場合
+        #   git clone URL 出力先ディレクトリ
+        # を実行する。
+        clone_result: subprocess.CompletedProcess[str] = run_git(
+            ["clone", spec.url, str(repo_dir)],
+            spec=spec,
+            dry_run=dry_run,
+        )
+        if clone_result.returncode != 0: # clone が失敗した場合は失敗扱いとして終了する。
+            return False, f"clone failed: {clone_result.stderr.strip()}"
+    else:
+
+        # 既存処理の場合
+        #   git -C 出力先ディレクトリ remote set-url origin URL
+        # を実行する。
+        set_url_result: subprocess.CompletedProcess[str] = run_git(
+            ["-C", str(repo_dir), "remote", "set-url", "origin", spec.url],
+            spec=spec,
+            dry_run=dry_run,
+        )
+        if set_url_result.returncode != 0: # set-url が失敗した場合は失敗扱いとして終了する。
+            return False, f"remote set-url failed: {set_url_result.stderr.strip()}"
+
+    #
+    # fetch を実行して origin の最新情報を取得する。
+    #
+    fetch_result: subprocess.CompletedProcess[str] = run_git(
+        ["-C", str(repo_dir), "fetch", "--prune", "--tags", "origin"],
+        spec=spec,
+        dry_run=dry_run,
+    )
+    if fetch_result.returncode != 0: # 最新情報取得に失敗した場合は失敗扱いとして終了する。
+        return False, f"fetch failed: {fetch_result.stderr.strip()}"
+
+    # tag 指定時は指定された版数を checkout する。
+    if spec.tag:
+
+        # git -C 出力先ディレクトリ checkout --force <指定tag> を実行する。
+        checkout_tag_result: subprocess.CompletedProcess[str] = run_git(
+            ["-C", str(repo_dir), "checkout", "--force", spec.tag],
+            spec=spec,
+            dry_run=dry_run,
+        )
+        if checkout_tag_result.returncode != 0: # checkout が失敗した場合は失敗扱いとして終了する。
+            return False, f"checkout tag failed: {checkout_tag_result.stderr.strip()}"
+        return True, f"synchronized tag={spec.tag}"
+
+    #
+    # tag 未指定時は default branch を取得し, origin へ強制同期する。
+    #
+    try:
+        branch_name: str = get_default_branch(repo_dir=repo_dir, spec=spec, dry_run=dry_run)
+    except RuntimeError as error: # default branch 取得に失敗した場合は失敗扱いとして終了する。
+        return False, str(error)
+
+    # tag 未指定時は default branch を origin へ強制同期する。
+    # git -C 出力先ディレクトリ checkout --force <default branch> を実行する。
+    checkout_branch_result: subprocess.CompletedProcess[str] = run_git(
+        ["-C", str(repo_dir), "checkout", "--force", branch_name],
+        spec=spec,
+        dry_run=dry_run,
+    )
+    if checkout_branch_result.returncode != 0: # checkout が失敗した場合は失敗扱いとして終了する。
+        return False, f"checkout default branch failed: {checkout_branch_result.stderr.strip()}"
+
+    # git -C 出力先ディレクトリ reset --hard origin/<default branch> を実行して,
+    # origin の最新状態へ強制同期する。
+    reset_result: subprocess.CompletedProcess[str] = run_git(
+        ["-C", str(repo_dir), "reset", "--hard", f"origin/{branch_name}"],
+        spec=spec,
+        dry_run=dry_run,
+    )
+    if reset_result.returncode != 0: # reset が失敗した場合は失敗扱いとして終了する。
+        return False, f"reset to origin failed: {reset_result.stderr.strip()}"
+
+    # 同期成功時は True と同期結果メッセージを返す。
+    return True, f"synchronized default branch={branch_name}"
+
+
+def main() -> int:
+    """プログラムのエントリポイント
+
+    Args:
+        なし。
+
+    Returns:
+        int: 終了コード。成功時0, 失敗時1。
+
+    Examples:
+        >>> isinstance(main(), int)
+        True
+    """
+
+    # コマンドライン引数を解析し, ロギング設定を初期化する。
+    args: argparse.Namespace = parse_args()
+
+    # ロギング設定を初期化する。
+    configure_logging(verbose=args.verbose)
+
+    #
+    # YAML設定ファイルを読み込み, 同期対象定義を取得する。
+    #
+    config_path: Path = Path(args.config)
+    src_root: Path = Path(args.src_root)
+    selected_titles: set[str] = set(args.only_title)
+
+    try:
+        entries: list[SourceSpec] = parse_source_entries(config_path=config_path)
+    except (FileNotFoundError, ValueError) as error:
+        # 設定ファイルの読み込みまたは検証に失敗した場合はエラーログを出力して終了する。
+        LOGGER.error("Failed to load config: %s", error)
+        return 1
+
+    # 同期先ルートディレクトリを作成する。存在する場合は何もしない。
+    src_root.mkdir(parents=True, exist_ok=True)
+
+    # 個別リポジトリ単位で失敗を蓄積し, 最後に終了コードへ反映する。
+    failures: list[str] = []
+    for entry in entries:
+        # 同期対象を title で絞り込む。--only-title オプションが指定されている場合は,
+        # 指定された title のみを同期対象とする。
+        if selected_titles and entry.title not in selected_titles:
+            LOGGER.debug("Skipped title=%s by --only-title", entry.title)
+            continue
+
+        #
+        # 個々のリポジトリを同期する。失敗した場合はエラーログを出力し, 失敗リストに追加する。
+        #
+        success: bool
+        message: str
+        success, message = sync_repository(spec=entry, src_root=src_root, dry_run=args.dry_run)
+        if success: # 同期成功時は情報ログを出力する。
+            LOGGER.info("[%s] %s", entry.title, message)
+        else:
+            LOGGER.error("[%s] %s", entry.title, message) # 同期失敗時はエラーログを出力する。
+            failures.append(entry.title) # 失敗したエントリのタイトルを蓄積する。
+
+    if failures: # 失敗したエントリが存在する場合はエラーログを出力して終了コード1を返す。
+        LOGGER.error("Synchronization finished with failures: %s", ", ".join(failures))
+        return 1
+
+    # 正常終了
+    LOGGER.info("Synchronization completed successfully")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

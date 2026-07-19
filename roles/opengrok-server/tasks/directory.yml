@@ -1,0 +1,131 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  ファイル・ディレクトリ作成関連タスク
+#
+---
+
+# OpenGrok の永続データを保持する外部ボリュームを事前に用意する。
+- name: Ensure OpenGrok data volume exists
+  become: true
+  ansible.builtin.command: >
+    sh -c "docker volume inspect {{ opengrok_data_volume }} >/dev/null 2>&1
+    || docker volume create --label managed_by=ansible {{ opengrok_data_volume }}"
+  changed_when: false
+
+# OpenGrok関連ディレクトリを作成する
+# - opengrok_root_dir: ルートディレクトリ("/opt/opengrok")
+# - opengrok_docker_dir: Docker composeファイル格納先ディレクトリ ("/opt/opengrok/docker")
+# - opengrok_etc_dir: 設定ファイル格納先ディレクトリ ("/opt/opengrok/etc")
+# - opengrok_scripts_dir: スクリプト格納先ディレクトリ ("/opt/opengrok/scripts")
+# - opengrok_source_dir: ソースコード格納先ディレクトリ ("/opt/opengrok/src")
+- name: Create OpenGrok directories
+  become: true
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+  loop:
+    - "{{ opengrok_root_dir }}"
+    - "{{ opengrok_docker_dir }}"
+    - "{{ opengrok_etc_dir }}"
+    - "{{ opengrok_scripts_dir }}"
+    - "{{ opengrok_source_dir }}"
+
+# コンテナ起動定義を配置する。
+- name: Deploy OpenGrok docker compose file
+  become: true
+  ansible.builtin.template:
+    src: docker-compose.yml.j2
+    dest: "{{ opengrok_docker_dir }}/docker-compose.yml"
+    owner: root
+    group: root
+    mode: "0644"
+    backup: false
+
+# 利用者が未編集の場合のみ, サンプル定義を初期配置する。
+- name: Deploy default source URL config if not exists
+  become: true
+  ansible.builtin.template:
+    src: source-urls.yml.j2
+    dest: "{{ opengrok_source_urls_file }}"
+    owner: root
+    group: root
+    mode: "0644"
+    force: false
+    backup: false
+
+# source-urls.yml を解釈し clone/pull する本体スクリプトを配置する。
+- name: Deploy OpenGrok source sync Python script
+  become: true
+  ansible.builtin.template:
+    src: opengrok-source-sync.py.j2
+    dest: "{{ opengrok_sync_script_path }}"
+    owner: root
+    group: root
+    mode: "0755"
+    backup: false
+
+# ソース更新処理呼び出し用ラッパスクリプトを配置する。
+- name: Deploy OpenGrok source sync wrapper script
+  become: true
+  ansible.builtin.template:
+    src: opengrok-source-sync.sh.j2
+    dest: "{{ opengrok_sync_wrapper_path }}"
+    owner: root
+    group: root
+    mode: "0755"
+    backup: false
+
+# cron から呼び出す日次実行用ラッパーを配置する。
+- name: Deploy daily OpenGrok source sync script
+  become: true
+  ansible.builtin.template:
+    src: daily-sync-opengrok-sources.sh.j2
+    dest: "{{ opengrok_daily_sync_script_path }}"
+    owner: root
+    group: root
+    mode: "0755"
+    backup: false
+
+# 手動再インデクス実行用ラッパーを配置する。
+- name: Deploy OpenGrok reindex trigger script
+  become: true
+  ansible.builtin.template:
+    src: opengrok-reindex.sh.j2
+    dest: "{{ opengrok_reindex_script_path }}"
+    owner: root
+    group: root
+    mode: "0755"
+    backup: false
+
+# cronから呼べるようシンボリックリンクを張る。
+- name: Install OpenGrok source sync command symlink
+  become: true
+  ansible.builtin.file:
+    src: "{{ opengrok_sync_wrapper_path }}"
+    dest: "{{ opengrok_sync_command_path }}"
+    state: link
+    force: true
+
+# 手動再インデクスを実行するためのシンボリックリンクを張る。
+- name: Install OpenGrok reindex command symlink
+  become: true
+  ansible.builtin.file:
+    src: "{{ opengrok_reindex_script_path }}"
+    dest: "{{ opengrok_reindex_command_path }}"
+    state: link
+    force: true
+
+# ログファイルを作成しておく。
+- name: Ensure source sync log file exists
+  become: true
+  ansible.builtin.file:
+    path: "{{ opengrok_sync_log_file }}"
+    state: touch
+    owner: root
+    group: root
+    mode: "0644"

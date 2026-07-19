@@ -1,0 +1,20 @@
+# bash completion for opengrok-source-sync
+# opengrok-source-sync の bash 補完スクリプト
+_opengrok_source_sync_completion() {
+  local cur prev
+  cur="${COMP_WORDS[COMP_CWORD]}"
+  prev="${COMP_WORDS[COMP_CWORD-1]}"
+
+  case "${prev}" in
+    # パス引数はファイル補完を使う。
+    --config|--src-root)
+      COMPREPLY=( $(compgen -f -- "${cur}") )
+      return 0
+      ;;
+  esac
+
+  # それ以外はオプション候補を提示する。
+  COMPREPLY=( $(compgen -W "--config --src-root --only-title --dry-run --verbose --help" -- "${cur}") )
+}
+
+complete -F _opengrok_source_sync_completion opengrok-source-sync

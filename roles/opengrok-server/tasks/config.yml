@@ -1,0 +1,61 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  設定関連タスク
+#
+---
+
+# 補完ファイル配置先ディレクトリを先に作成する。
+- name: Ensure bash completion directory exists
+  become: true
+  ansible.builtin.file:
+    path: "{{ opengrok_sync_bash_completion_path | dirname }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+  when:
+    - opengrok_completion_enabled | default(false) | bool
+    - (opengrok_sync_bash_completion_path | default('', true) | length) > 0
+
+# Bash 用補完を導入する。
+- name: Install bash completion script for opengrok-source-sync
+  become: true
+  ansible.builtin.template:
+    src: opengrok-source-sync.bash-completion.j2
+    dest: "{{ opengrok_sync_bash_completion_path }}"
+    owner: root
+    group: root
+    mode: "0644"
+    backup: false
+  when:
+    - opengrok_completion_enabled | default(false) | bool
+    - (opengrok_sync_bash_completion_path | default('', true) | length) > 0
+
+# ディストリビューション差分を吸収した zsh 補完配置先を作成する。
+- name: Ensure zsh completion directory exists
+  become: true
+  ansible.builtin.file:
+    path: "{{ opengrok_sync_zsh_completion_path | dirname }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+  when:
+    - opengrok_completion_enabled | default(false) | bool
+    - (opengrok_sync_zsh_completion_path | default('', true) | length) > 0
+
+# Zsh 用補完を導入する。
+- name: Install zsh completion script for opengrok-source-sync
+  become: true
+  ansible.builtin.template:
+    src: _opengrok-source-sync.zsh-completion.j2
+    dest: "{{ opengrok_sync_zsh_completion_path }}"
+    owner: root
+    group: root
+    mode: "0644"
+    backup: false
+  when:
+    - opengrok_completion_enabled | default(false) | bool
+    - (opengrok_sync_zsh_completion_path | default('', true) | length) > 0

@@ -38,6 +38,8 @@
       tags: redmine-server
     - role: gitlab-server
       tags: gitlab-server
+    - role: opengrok-server
+      tags: opengrok-server
     - role: sbom
       tags: sbom
       when:

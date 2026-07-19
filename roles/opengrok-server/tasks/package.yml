@@ -1,0 +1,16 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  パッケージ関連処理
+---
+
+# source-urls.yml の読込と git 操作に必要な最小依存を導入する。
+- name: Install prerequisite packages for OpenGrok source sync
+  become: true
+  ansible.builtin.package:
+    name:
+      - git
+      - python3
+      - "{{ opengrok_python_yaml_package }}"
+    state: present

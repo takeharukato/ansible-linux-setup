@@ -1,0 +1,24 @@
+#!/usr/bin/env bash
+# -*- mode: shell-script; coding: utf-8; line-endings: unix -*-
+# SPDX-License-Identifier: BSD-2-Clause
+#
+# Copyright (c) 2025 TAKEHARU KATO
+# This file is distributed under the two-clause BSD license.
+# For the full text of the license, see the LICENSE file in the project root directory.
+# このファイルは2条項BSDライセンスの下で配布されています。
+# ライセンス全文はプロジェクト直下の LICENSE を参照してください。
+#
+# OpenAI's ChatGPT partially generated this code.
+# Author has modified some parts.
+# OpenAIのChatGPTがこのコードの一部を生成しました。
+# 著者が修正している部分があります。
+#
+# Daily OpenGrok source synchronization helper script
+# OpenGrokのソース同期を日次で実行するための補助スクリプト
+set -eu
+
+# crontab からこのスクリプトを呼び出す運用を想定する。
+{{ opengrok_sync_command_path }} \
+  --config {{ opengrok_source_urls_file }} \
+  --src-root {{ opengrok_source_dir }} \
+  {{ opengrok_daily_sync_extra_args }}

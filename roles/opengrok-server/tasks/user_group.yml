@@ -1,0 +1,105 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  ユーザ・グループ作成関連タスク
+#
+---
+
+# 指定GIDの既存グループ有無を確認する。
+- name: Lookup group for container runtime GID
+  become: true
+  ansible.builtin.command:
+    cmd: getent group {{ opengrok_container_run_gid }}
+  register: _opengrok_gid_lookup
+  changed_when: false
+  failed_when: false
+
+# 指定UIDの既存ユーザ有無を確認する。
+- name: Lookup user for container runtime UID
+  become: true
+  ansible.builtin.command:
+    cmd: getent passwd {{ opengrok_container_run_uid }}
+  register: _opengrok_uid_lookup
+  changed_when: false
+  failed_when: false
+
+# UID/GID 競合時は既存アカウントを優先利用する。
+- name: Resolve effective sync user/group names
+  ansible.builtin.set_fact:
+    _opengrok_effective_sync_group_name: >-
+      {{
+        (_opengrok_gid_lookup.stdout.split(':')[0])
+        if (_opengrok_gid_lookup.rc == 0 and (_opengrok_gid_lookup.stdout | length) > 0)
+        else opengrok_sync_group_name
+      }}
+    _opengrok_effective_sync_user_name: >-
+      {{
+        (_opengrok_uid_lookup.stdout.split(':')[0])
+        if (_opengrok_uid_lookup.rc == 0 and (_opengrok_uid_lookup.stdout | length) > 0)
+        else opengrok_sync_user_name
+      }}
+
+# ソース同期およびコンテナ書き込み用グループを作成する。
+- name: Ensure OpenGrok sync group exists
+  become: true
+  ansible.builtin.group:
+    name: "{{ _opengrok_effective_sync_group_name }}"
+    gid: "{{ opengrok_container_run_gid }}"
+    state: present
+  when:
+    - _opengrok_gid_lookup.rc != 0
+
+# 指定GIDが既存利用されている場合, 既存グループを利用する。
+- name: Ensure existing group for container runtime GID exists
+  become: true
+  ansible.builtin.group:
+    name: "{{ _opengrok_effective_sync_group_name }}"
+    state: present
+  when:
+    - _opengrok_gid_lookup.rc == 0
+
+# コンテナ実行IDに合わせたローカルユーザを作成する。
+- name: Ensure OpenGrok sync user exists
+  become: true
+  ansible.builtin.user:
+    name: "{{ _opengrok_effective_sync_user_name }}"
+    uid: "{{ opengrok_container_run_uid }}"
+    group: "{{ _opengrok_effective_sync_group_name }}"
+    shell: /usr/sbin/nologin
+    create_home: false
+    system: true
+    state: present
+  when:
+    - _opengrok_uid_lookup.rc != 0
+
+# 指定UIDが既存利用されている場合, 既存ユーザを同期グループへ所属させる。
+- name: Ensure existing container runtime user is in sync group
+  become: true
+  ansible.builtin.user:
+    name: "{{ _opengrok_effective_sync_user_name }}"
+    groups: "{{ _opengrok_effective_sync_group_name }}"
+    append: true
+  when:
+    - _opengrok_uid_lookup.rc == 0
+
+# 同期実行ユーザを OpenGrok 同期グループへ追加する。
+- name: Add sync users to OpenGrok sync group
+  become: true
+  ansible.builtin.user:
+    name: "{{ item }}"
+    groups: "{{ _opengrok_effective_sync_group_name }}"
+    append: true
+  loop: "{{ opengrok_sync_user_list }}"
+  when:
+    - (opengrok_sync_user_list | default([], true) | length) > 0
+
+# ソースディレクトリを OpenGrok 同期グループに所属させる。
+- name: Ensure OpenGrok source directory group ownership
+  become: true
+  ansible.builtin.file:
+    path: "{{ opengrok_source_dir }}"
+    state: directory
+    owner: root
+    group: "{{ _opengrok_effective_sync_group_name }}"
+    mode: "2775"

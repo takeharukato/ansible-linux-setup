@@ -1,0 +1,89 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  サービス関連処理
+#
+---
+
+# compose プラグイン未導入環境を早期検知する。
+- name: Verify docker compose is available
+  ansible.builtin.command:
+    cmd: docker compose version
+  changed_when: false
+
+# 既存コンテナを停止して設定差分を確実に反映する。
+- name: Stop OpenGrok container
+  ansible.builtin.shell: |
+    cd "{{ opengrok_docker_dir }}"
+    docker compose down
+  ignore_errors: true
+  register: _opengrok_stop_result
+  changed_when: _opengrok_stop_result.rc == 0
+
+# 前回インスタンスのポート解放完了を待って競合を避ける。
+- name: Wait for OpenGrok container stop
+  ansible.builtin.wait_for:
+    port: "{{ opengrok_service_port }}"
+    state: stopped
+    timeout: "{{ opengrok_wait_timeout }}"
+    delay: "{{ opengrok_wait_delay }}"
+    sleep: "{{ opengrok_wait_sleep }}"
+
+# 新しい Docker compose 定義で起動する。
+- name: Start OpenGrok container
+  ansible.builtin.shell: |
+    cd "{{ opengrok_docker_dir }}"
+    docker compose up -d
+  register: _opengrok_start_result
+  changed_when: _opengrok_start_result.rc == 0
+
+# 対象ホスト内で Web ポート待ちを行い, コンテナ起動完了を確認する。
+- name: Wait for OpenGrok container start on target host
+  ansible.builtin.wait_for:
+    port: "{{ opengrok_service_port }}"
+    state: started
+    timeout: "{{ opengrok_wait_timeout }}"
+    delay: "{{ opengrok_wait_delay }}"
+    sleep: "{{ opengrok_wait_sleep }}"
+
+# curlコマンドが存在することを保証する
+- name: Ensure curl command is available
+  become: true
+  ansible.builtin.package:
+    name: curl
+    state: present
+
+# 対象ホスト外 (ansible 制御ノード) から 対象ノード (inventory ホスト名)への疎通を確認する。
+- name: "Wait for OpenGrok port reachability from control node to http://{{ inventory_hostname }}:{{ opengrok_service_port }}"
+  ansible.builtin.uri:
+    url: "http://{{ inventory_hostname }}:{{ opengrok_service_port }}/"
+    method: GET
+    return_content: false
+    status_code:
+      - 200
+      - 301
+      - 302
+      - 303
+  register: _opengrok_port_check_result
+  until: (_opengrok_port_check_result.status | default(0)) in [200, 301, 302, 303]
+  retries: 30
+  delay: 2
+  delegate_to: "{{ opengrok_wait_delegate_to_waitnode }}"
+
+# Web UI 応答内容に OpenGrok 識別文字列が含まれることを確認する。
+- name: "Check OpenGrok web interface content"
+  ansible.builtin.uri:
+    url: "http://{{ inventory_hostname }}:{{ opengrok_service_port }}/"
+    method: GET
+    return_content: true
+    status_code:
+      - 200
+      - 301
+      - 302
+      - 303
+  register: _opengrok_web_check_result
+  until: "'OpenGrok' in (_opengrok_web_check_result.content | default(''))"
+  retries: 30
+  delay: 2
+  delegate_to: "{{ opengrok_wait_delegate_to_waitnode }}"

@@ -1,0 +1,111 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  ロール固有変数のデフォルト値
+#  group_vars/all/all.yml やhost_varsで上書き可能とするため,
+#  ロール名/defaults/main.yml に定義している
+---
+
+# opengrok-server ロールの有効化フラグ
+# opengrok_enabled が true の場合のみ, OpenGrok サーバを構築する。
+opengrok_enabled: false
+
+#
+# OpenGrok コンテナ設定
+#
+# OpenGrok コンテナイメージのベース名 (内部変数)
+opengrok_image_base: "opengrok/docker"
+# OpenGrok コンテナイメージのバージョン
+opengrok_image_version: "1.14"
+# OpenGrok コンテナイメージ名 (内部変数)
+opengrok_image: "{{ opengrok_image_base }}:{{ opengrok_image_version }}"
+# OpenGrok サービス名
+opengrok_service: "opengrok"
+# OpenGrok サービスポート(公開ポート)
+opengrok_service_port: 28080
+# 手動再インデクスRESTポート(ホスト公開側)
+opengrok_reindex_service_port: 25000
+# OpenGrok データ永続化用ボリューム名
+opengrok_data_volume: "opengrok_data"
+# OpenGrok Java オプション
+opengrok_java_opts: "-Xms512m -Xmx2g"
+# OpenGrok のインデックス更新周期(分)
+opengrok_sync_period_minutes: 10
+# コンテナイメージ内で固定されている実行ユーザ(appuser)に合わせるUID (内部変数)
+opengrok_container_run_uid: 1111
+# コンテナイメージ内で固定されている実行グループ(appgroup)に合わせるGID  (内部変数)
+opengrok_container_run_gid: 1111
+
+#
+# OpenGrok 関連ディレクトリ
+#
+# ルートディレクトリ
+opengrok_root_dir: "/opt/opengrok"
+# Docker compose ファイル格納先ディレクトリ
+opengrok_docker_dir: "{{ opengrok_root_dir }}/docker"
+# 設定ファイル格納先ディレクトリ
+opengrok_etc_dir: "{{ opengrok_root_dir }}/etc"
+# スクリプト格納先ディレクトリ
+opengrok_scripts_dir: "{{ opengrok_root_dir }}/scripts"
+# ソースコード格納先ディレクトリ
+opengrok_source_dir: "{{ opengrok_root_dir }}/src"
+# ソースコード同期用のローカルグループ名
+opengrok_sync_group_name: "opengrok"
+# ソースコード同期用のローカルユーザ名
+opengrok_sync_user_name: "opengrok"
+# ソースコード同期処理の実行ユーザリスト
+opengrok_sync_user_list: []
+
+#
+# playbook内で使用する変数
+#
+# OpenGrok サービス待機設定
+# サービス待機処理のタイムアウト時間(秒)
+opengrok_wait_timeout: 300
+# サービス待機処理の開始までの遅延時間(秒)
+opengrok_wait_delay: 5
+# サービス待機処理のポーリング周期(秒)
+opengrok_wait_sleep: 2
+# サービス待機処理を実行するホスト名 (対象ホスト外)
+opengrok_wait_delegate_to_waitnode: "localhost"
+
+# ソース同期対象URL設定ファイル
+opengrok_source_urls_file: "{{ opengrok_etc_dir }}/source-urls.yml"
+# ソース同期処理スクリプトのパス(python実装本体)
+opengrok_sync_script_path: "{{ opengrok_scripts_dir }}/opengrok-source-sync.py"
+# ソース同期処理ラッパシェルスクリプトのパス
+opengrok_sync_wrapper_path: "{{ opengrok_scripts_dir }}/opengrok-source-sync.sh"
+# 日時でソース同期処理を行うためのシェルスクリプトのパス
+opengrok_daily_sync_script_path: "{{ opengrok_scripts_dir }}/daily-sync-opengrok-sources.sh"
+# 手動で再インデクスを実行するためのシェルスクリプトのパス
+opengrok_reindex_script_path: "{{ opengrok_scripts_dir }}/opengrok-reindex.sh"
+# cron から呼び出すための固定パスのコマンド
+opengrok_sync_command_path: "/usr/local/bin/opengrok-source-sync"
+# 手動再インデクス実行コマンドの固定パス
+opengrok_reindex_command_path: "/usr/local/bin/opengrok-reindex"
+# ログファイル
+opengrok_sync_log_file: "/var/log/opengrok-source-sync.log"
+# Python 実行コマンド
+# 留意事項: 環境変数PATHに依存しないように, 絶対パスで指定する。
+#           変更が必要な場合は, host_varsやvars/all-config.yml で上書きすること。
+opengrok_python_command: "/usr/bin/python3"
+
+# ソース更新実行スクリプト追加引数
+opengrok_daily_sync_extra_args: ""
+
+# Python 依存パッケージ (内部変数)
+opengrok_python_yaml_package_debian: "python3-yaml"
+opengrok_python_yaml_package_rhel: "python3-pyyaml"
+opengrok_python_yaml_package: "{{ (ansible_facts.os_family == 'Debian') | ternary(opengrok_python_yaml_package_debian, opengrok_python_yaml_package_rhel) }}"
+
+#
+# シェル補完ファイル
+#
+# bash/zsh 補完を有効化する場合は, true に設定する。無効化する場合は false に設定する。
+opengrok_completion_enabled: true
+# bash/zsh 補完スクリプトの配置先パス (内部変数)
+opengrok_sync_bash_completion_path: "/etc/bash_completion.d/opengrok-source-sync"
+opengrok_sync_zsh_completion_path_debian: "/usr/share/zsh/vendor-completions/_opengrok-source-sync"
+opengrok_sync_zsh_completion_path_rhel: "/usr/share/zsh/site-functions/_opengrok-source-sync"
+opengrok_sync_zsh_completion_path: "{{ (ansible_facts.os_family == 'Debian') | ternary(opengrok_sync_zsh_completion_path_debian, opengrok_sync_zsh_completion_path_rhel) }}"

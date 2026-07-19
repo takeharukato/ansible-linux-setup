@@ -1,0 +1,30 @@
+# OpenGrok コンテナ定義
+services:
+  {{ opengrok_service }}:
+    image: {{ opengrok_image }}
+    container_name: {{ opengrok_service }}
+    # コンテナのポート公開設定:
+    #   Web UI は 8080, 手動再インデクスRESTは 5000 を公開する。
+    ports:
+      - "{{ opengrok_service_port }}:8080"
+      - "{{ opengrok_reindex_service_port }}:5000"
+    environment:
+      # JVM ヒープなどを外部変数で調整可能にする。
+      JAVA_OPTS: "{{ opengrok_java_opts }}"
+      # OpenGrok のインデックス更新周期(分)を指定する。
+      SYNC_PERIOD_MINUTES: "{{ opengrok_sync_period_minutes }}"
+    volumes:
+      # OpenGrok 起動時に所有者調整が走るため, src は書き込み可能でマウントする。
+      - "{{ opengrok_source_dir }}:/opengrok/src"
+      - "{{ opengrok_data_volume }}:/opengrok/data"
+    # コンテナが異常終了した場合, Dockerデーモン再起動時に再起動する
+    # docker stop で停止した場合は再起動しない。
+    restart: unless-stopped
+
+# OpenGrok インデックス/設定などの永続データ。
+volumes:
+  opengrok_data:
+    # ホスト上の既存のボリュームを使用する
+    external: true
+    # ボリューム名を指定する
+    name: {{ opengrok_data_volume }}

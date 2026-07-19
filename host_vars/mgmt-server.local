@@ -60,3 +60,11 @@ netif_list:
 #
 # GitLabサーバのWEB UI公開URLのホスト名
 gitlab_hostname: "mgmt-server.example.org"
+
+#
+# OpenGrok
+#
+# opengrok_enabled が true の場合, OpenGrok サーバを構築する
+opengrok_enabled: true
+# ソース同期処理ユーザ
+opengrok_sync_user_list: []
