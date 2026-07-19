@@ -10,6 +10,15 @@
 # タイムゾーン設定
 #
 
+# hwclock コマンドが利用可能でない場合は, util-linux パッケージを導入する。
+- name: Ensure hwclock command is available
+  become: true
+  ansible.builtin.package:
+    name: util-linux
+    state: present
+  when: common_timezone is defined and ((common_timezone | default('', true) | length) > 0)
+
+# タイムゾーン設定を反映する。
 - name: "Setup time zone {{ common_timezone }}"
   community.general.timezone:
     name: "{{ common_timezone }}"
