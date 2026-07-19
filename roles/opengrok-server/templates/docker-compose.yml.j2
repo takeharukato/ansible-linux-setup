@@ -10,13 +10,17 @@ services:
       - "{{ opengrok_reindex_service_port }}:5000"
     environment:
       # JVM ヒープなどを外部変数で調整可能にする。
-      JAVA_OPTS: "{{ opengrok_java_opts }}"
+      JAVA_OPTS: "{{ opengrok_java_opts }} {{ opengrok_java_module_opts }}"
       # OpenGrok のインデックス更新周期(分)を指定する。
       SYNC_PERIOD_MINUTES: "{{ opengrok_sync_period_minutes }}"
+      # ホスト側同期スクリプトと二重にリポジトリ同期しないようにする。
+      NOMIRROR: "1"
     volumes:
       # OpenGrok 起動時に所有者調整が走るため, src は書き込み可能でマウントする。
       - "{{ opengrok_source_dir }}:/opengrok/src"
       - "{{ opengrok_data_volume }}:/opengrok/data"
+      # reindex 中に起動される Git が bind mount 済みの作業ツリーを拒否しないようにする。
+      - "{{ opengrok_gitconfig_file }}:/etc/gitconfig:ro"
     # コンテナが異常終了した場合, Dockerデーモン再起動時に再起動する
     # docker stop で停止した場合は再起動しない。
     restart: unless-stopped

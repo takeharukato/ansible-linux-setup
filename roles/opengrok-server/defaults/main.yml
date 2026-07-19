@@ -30,6 +30,17 @@ opengrok_reindex_service_port: 25000
 opengrok_data_volume: "opengrok_data"
 # OpenGrok Java オプション
 opengrok_java_opts: "-Xms512m -Xmx2g"
+# OpenGrok suggester が ChronicleMap を利用するために必要な Java module オプション
+opengrok_java_module_opts: >-
+  --add-exports java.base/jdk.internal.ref=ALL-UNNAMED
+  --add-exports java.base/sun.nio.ch=ALL-UNNAMED
+  --add-exports jdk.unsupported/sun.misc=ALL-UNNAMED
+  --add-exports jdk.compiler/com.sun.tools.javac.file=ALL-UNNAMED
+  --add-opens jdk.compiler/com.sun.tools.javac=ALL-UNNAMED
+  --add-opens java.base/java.lang=ALL-UNNAMED
+  --add-opens java.base/java.lang.reflect=ALL-UNNAMED
+  --add-opens java.base/java.io=ALL-UNNAMED
+  --add-opens java.base/java.util=ALL-UNNAMED
 # OpenGrok のインデックス更新周期(分)
 opengrok_sync_period_minutes: 10
 # コンテナイメージ内で固定されている実行ユーザ(appuser)に合わせるUID (内部変数)
@@ -72,6 +83,8 @@ opengrok_wait_delegate_to_waitnode: "localhost"
 
 # ソース同期対象URL設定ファイル
 opengrok_source_urls_file: "{{ opengrok_etc_dir }}/source-urls.yml"
+# コンテナ内 Git system config 配置元ファイル
+opengrok_gitconfig_file: "{{ opengrok_etc_dir }}/gitconfig"
 # ソース同期処理スクリプトのパス(python実装本体)
 opengrok_sync_script_path: "{{ opengrok_scripts_dir }}/opengrok-source-sync.py"
 # ソース同期処理ラッパシェルスクリプトのパス

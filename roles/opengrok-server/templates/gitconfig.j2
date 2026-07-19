@@ -1,0 +1,9 @@
+# OpenGrok container system gitconfig
+#
+# Gitを実行しているユーザーIDとリポジトリフォルダ(.git)の所有者(UID)が一致しない場合,
+# Gitは安全ではない（dubious ownership）と判断し操作を拒否するため, コンテナ内から,
+# bind mount された /opengrok/src 配下のリポジトリをgitで操作した場合に, 安全なディレクトリ
+# として許可する設定を追加
+[safe]
+	directory = /opengrok/src
+	directory = /opengrok/src/*

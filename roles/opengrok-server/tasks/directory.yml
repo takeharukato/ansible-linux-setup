@@ -58,6 +58,17 @@
     force: false
     backup: false
 
+# reindex 時にコンテナ内 Git が bind mount 済みのリポジトリを扱えるようにする。
+- name: Deploy Git system config for OpenGrok container
+  become: true
+  ansible.builtin.template:
+    src: gitconfig.j2
+    dest: "{{ opengrok_gitconfig_file }}"
+    owner: root
+    group: root
+    mode: "0644"
+    backup: false
+
 # source-urls.yml を解釈し clone/pull する本体スクリプトを配置する。
 - name: Deploy OpenGrok source sync Python script
   become: true

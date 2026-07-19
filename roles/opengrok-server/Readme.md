@@ -82,12 +82,14 @@ ansible-playbook --tags "opengrok-server" -i inventory/hosts site.yml
 | `opengrok_reindex_service_port` | `25000` | 手動再インデクスREST公開ポート (ホスト側)。 |
 | `opengrok_data_volume` | `opengrok_data` | OpenGrok データ用 Docker ボリューム名。 |
 | `opengrok_java_opts` | `-Xms512m -Xmx2g` | Java オプション。 |
+| `opengrok_java_module_opts` | `--add-exports ... --add-opens ...` | Java 21 で OpenGrok suggester の ChronicleMap が必要とする module export/open 設定。 |
 | `opengrok_sync_period_minutes` | `10` | OpenGrok のインデックス更新周期(分)。 |
 | `opengrok_wait_timeout` | `300` | サービス待ち合わせ時間(秒)。 |
 | `opengrok_wait_delay` | `5` | サービス待ち合わせ開始遅延(秒)。 |
 | `opengrok_wait_sleep` | `2` | サービス待ち合わせ間隔(秒)。 |
 | `opengrok_wait_delegate_to_waitnode` | `localhost` | サービス待ち合わせ実行元ホスト(対象ホスト外, 制御ノード側)。 |
 | `opengrok_source_urls_file` | `{{ opengrok_etc_dir }}/source-urls.yml` | 同期対象リポジトリ定義ファイル。 |
+| `opengrok_gitconfig_file` | `{{ opengrok_etc_dir }}/gitconfig` | OpenGrok コンテナへ mount する Git system config。reindex 時の `opengrok-mirror` が bind mount 済みリポジトリを扱えるようにする。 |
 | `opengrok_sync_script_path` | `{{ opengrok_scripts_dir }}/opengrok-source-sync.py` | Python 同期スクリプト配置先。 |
 | `opengrok_sync_wrapper_path` | `{{ opengrok_scripts_dir }}/opengrok-source-sync.sh` | 同期処理用シェルスクリプト(Python 同期スクリプトを呼び出すラッパシェルスクリプト)配置先。 |
 | `opengrok_daily_sync_script_path` | `{{ opengrok_scripts_dir }}/daily-sync-opengrok-sources.sh` | 日次同期処理用シェルスクリプト配置先。 |
@@ -103,7 +105,7 @@ ansible-playbook --tags "opengrok-server" -i inventory/hosts site.yml
 
 1. [tasks/load-params.yml](tasks/load-params.yml) で OS 別パッケージ名や共通変数を読み込む。
 2. [tasks/package.yml](tasks/package.yml) で Python 依存を含む前提パッケージを導入する。
-3. [tasks/directory.yml](tasks/directory.yml) で Docker ボリューム作成, 主要ディレクトリ作成, [templates/docker-compose.yml.j2](templates/docker-compose.yml.j2) を配置する。あわせて [templates/source-urls.yml.j2](templates/source-urls.yml.j2), [templates/opengrok-source-sync.py.j2](templates/opengrok-source-sync.py.j2), [templates/opengrok-source-sync.sh.j2](templates/opengrok-source-sync.sh.j2), [templates/daily-sync-opengrok-sources.sh.j2](templates/daily-sync-opengrok-sources.sh.j2), [templates/opengrok-reindex.sh.j2](templates/opengrok-reindex.sh.j2) を配置する。
+3. [tasks/directory.yml](tasks/directory.yml) で Docker ボリューム作成, 主要ディレクトリ作成, [templates/docker-compose.yml.j2](templates/docker-compose.yml.j2) を配置する。あわせて [templates/source-urls.yml.j2](templates/source-urls.yml.j2), [templates/gitconfig.j2](templates/gitconfig.j2), [templates/opengrok-source-sync.py.j2](templates/opengrok-source-sync.py.j2), [templates/opengrok-source-sync.sh.j2](templates/opengrok-source-sync.sh.j2), [templates/daily-sync-opengrok-sources.sh.j2](templates/daily-sync-opengrok-sources.sh.j2), [templates/opengrok-reindex.sh.j2](templates/opengrok-reindex.sh.j2) を配置する。
 4. [tasks/user_group.yml](tasks/user_group.yml) で 以下の処理を実施する:
    1. OpenGrok公式コンテナイメージ内で設定されているグループIDを基準に, 対象ホスト側で使用するグループを決定する(競合時は既存アカウントを優先利用)。
    2. `{{ opengrok_source_dir }}` の所有者は `root` のまま, グループを OpenGrok公式コンテナイメージ内で設定されているグループIDに対応するグループID(`1111`)に設定する。
@@ -112,7 +114,7 @@ ansible-playbook --tags "opengrok-server" -i inventory/hosts site.yml
       2. 所有者/所有グループに対して, 読み書き実行可能
       3. その他に対して読み取りと実行可能
    4. `opengrok_sync_user_list` に列挙されたユーザを当該グループに追加する。
-5. [tasks/service.yml](tasks/service.yml) で `docker compose down` / `docker compose up -d` を実行し, `{{ opengrok_service_port }}` の起動待ち合わせを2段階で実施する。第1段階で対象ホスト内 (localhost) の待受を確認し, 第2段階で制御ノードから inventory ホスト名への到達性を確認する。
+5. [tasks/service.yml](tasks/service.yml) で `docker compose down` / `docker compose up -d` を実行し, `{{ opengrok_service_port }}` の起動待ち合わせを2段階で実施する。第1段階で対象ホスト内 (localhost) の待受を確認し, 第2段階で制御ノードから inventory ホスト名への到達性を確認する。コンテナ内で自動的にリポジトリを同期する処理(コンテナ内で Git リポジトリに対して `git pull --ff-only` を実行して更新を取り込む処理)は, [templates/docker-compose.yml.j2](templates/docker-compose.yml.j2) で `NOMIRROR=1` を設定することで常に無効化する。
 6. [tasks/config.yml](tasks/config.yml) で bash/zsh 補完を導入する。
 
 ## 導入されるファイル
@@ -123,6 +125,7 @@ ansible-playbook --tags "opengrok-server" -i inventory/hosts site.yml
   - docker-compose.yml OpenGrok サーバを起動するための docker compose ファイル。
 - etc ディレクトリ
   - source-urls.yml 同期対象リポジトリ定義ファイル。
+  - gitconfig OpenGrok コンテナに mount する Git system config。
 - scripts ディレクトリ
   - opengrok-source-sync.py リポジトリ同期を実行する Python スクリプト。
   - opengrok-source-sync.sh Python スクリプト呼び出し用ラッパシェルスクリプト。
@@ -135,8 +138,9 @@ ansible-playbook --tags "opengrok-server" -i inventory/hosts site.yml
 
 | テンプレート名 | 出力先ファイル (既定値) | 説明 |
 | --- | --- | --- |
-| `docker-compose.yml.j2` | `/opt/opengrok/docker/docker-compose.yml` | OpenGrok の Docker Compose 定義ファイル。コンテナ実行ユーザはOpenGrok公式コンテナイメージの既定値(ユーザID/グループID共に1111)を使用する。 |
+| `docker-compose.yml.j2` | `/opt/opengrok/docker/docker-compose.yml` | OpenGrok の Docker Compose 定義ファイル。コンテナ実行ユーザはOpenGrok公式コンテナイメージの既定値(ユーザID/グループID共に1111)を使用する。`NOMIRROR=1` を設定し, 自動的にリポジトリを同期する処理(コンテナ内で Git リポジトリに対して `git pull --ff-only` を実行して更新を取り込む処理)を常に無効化する。 |
 | `source-urls.yml.j2` | `/opt/opengrok/etc/source-urls.yml` | 同期対象リポジトリ定義ファイル。 |
+| `gitconfig.j2` | `{{ opengrok_gitconfig_file }}` | OpenGrok コンテナへ mount する Git system config。reindex 時に `opengrok-mirror` が bind mount 済みリポジトリで `dubious ownership` エラーにならないよう `safe.directory` を設定する。 |
 | `opengrok-source-sync.py.j2` | `/opt/opengrok/scripts/opengrok-source-sync.py` | source-urls.yml を読み取り clone/pull を行うスクリプト。 |
 | `opengrok-source-sync.sh.j2` | `/opt/opengrok/scripts/opengrok-source-sync.sh` | Python 同期スクリプトを呼び出すラッパシェルスクリプト。 |
 | `daily-sync-opengrok-sources.sh.j2` | `/opt/opengrok/scripts/daily-sync-opengrok-sources.sh` | 日次同期実行用ラッパシェルスクリプト。 |
@@ -157,7 +161,7 @@ ansible-playbook --tags "opengrok-server" -i inventory/hosts site.yml
 
 | 変数名 | 値 | 意味 |
 |---|---|---|
-| `JAVA_OPTS` | `{{ opengrok_java_opts }}` | OpenGrok コンテナ JVM オプション。 |
+| `JAVA_OPTS` | `{{ opengrok_java_opts }} {{ opengrok_java_module_opts }}` | OpenGrok コンテナ JVM オプション。既定では suggester 用 ChronicleMap の Java module export/open 設定を含む。 |
 | `SYNC_PERIOD_MINUTES` | `{{ opengrok_sync_period_minutes }}` | OpenGrok コンテナ内でのインデックス更新周期(分)。 |
 
 ## ボリューム実体パスについて
@@ -242,6 +246,8 @@ sources:
 ```
 
 なお, 本ロールは crontab エントリを自動作成しない。
+
+本ロールでは, 自動的にリポジトリを同期する処理(コンテナ内で Git リポジトリに対して `git pull --ff-only` を実行して更新を取り込む処理)を常に無効化している。したがって, Git リポジトリの clone/fetch/pull はホスト側の `opengrok-source-sync` が唯一の同期経路となる。これにより, コンテナ内の `git pull` が bind mount 済みリポジトリに対して SSH や認証情報の差異で失敗する事態を避ける。
 
 ## 手動でのインデクス更新手順
 
