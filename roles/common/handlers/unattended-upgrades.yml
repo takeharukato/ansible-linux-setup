@@ -6,7 +6,7 @@
 #
 
 # notify の unattended_upgrades_restarted_and_enabled に対応するハンドラ
-- name: "unattended upgrades restarted and enabled"
+- name: "Unattended upgrades restarted and enabled"
   listen: unattended_upgrades_restarted_and_enabled
   ansible.builtin.systemd:
     name: unattended-upgrades
