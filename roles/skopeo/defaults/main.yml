@@ -79,7 +79,7 @@ skopeo_restore_python_script_path: "{{ skopeo_scripts_dir }}/restore-skopeo-imag
 # リストア先コンテナレジストリの既定値
 # 引数省略時に使用される設定ファイルへの書き込み値
 # 空文字列に設定すると, 引数省略時に restore スクリプトの
-# 引数に明示するよう旨エラーメッセージが表示される
+# 引数に明示する旨エラーメッセージが表示される
 # 記載例:
 # skopeo_restore_default_destination_registry: "registry1.local:5000"
 skopeo_restore_default_destination_registry: ""
