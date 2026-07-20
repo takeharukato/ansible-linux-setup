@@ -156,6 +156,10 @@ virtualcluster_image_pull_policy: "Never"
 # virtual cluster etcd StatefulSet のレプリカ数
 virtualcluster_etcd_replicas: 1
 
+# virtual cluster の etcd URL スキーム
+# k8s-vc-instances と k8s-vc-tenant-dns でも共通利用する
+k8s_virtualcluster_vc_etcd_scheme: "https"
+
 # virtual cluster apiserver StatefulSet のレプリカ数
 virtualcluster_apiserver_replicas: 1
 

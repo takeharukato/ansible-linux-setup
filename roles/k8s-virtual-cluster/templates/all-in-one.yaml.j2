@@ -181,7 +181,7 @@ spec:
             # etcdスキーム制御。
             - name: VIRTUALCLUSTER_ETCD_SCHEME
               # 値指定。
-              value: "http"
+              value: "{{ k8s_virtualcluster_vc_etcd_scheme | default('https', true) | string | trim }}"
 {% set vc_pod_requests = virtualcluster_manager_resource_requests | default({}, true) %}
 {% set vc_pod_limits = virtualcluster_manager_resource_limits | default({}, true) %}
 {% set vc_has_request_cpu = vc_pod_requests.cpu is defined %}
