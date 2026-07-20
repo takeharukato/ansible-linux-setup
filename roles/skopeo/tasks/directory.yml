@@ -1,0 +1,166 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  ファイル・ディレクトリ作成関連タスク
+#
+---
+
+- name: "Create {{ skopeo_scripts_dir }}"
+  become: true
+  ansible.builtin.file:
+    path: "{{ skopeo_scripts_dir }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+  when: skopeo_enabled | default(false) | bool
+
+- name: "Create {{ skopeo_backup_dir }}"
+  become: true
+  ansible.builtin.file:
+    path: "{{ skopeo_backup_dir }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "1777"
+  when: skopeo_enabled | default(false) | bool
+
+- name: "Create {{ skopeo_backup_work_dir }}"
+  become: true
+  ansible.builtin.file:
+    path: "{{ skopeo_backup_work_dir }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "1777"
+  when: skopeo_enabled | default(false) | bool
+
+- name: "Create {{ skopeo_config_dir }}"
+  become: true
+  ansible.builtin.file:
+    path: "{{ skopeo_config_dir }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+  when: skopeo_enabled | default(false) | bool
+
+# 初回のみ設定ファイルを作成し, 以降はユーザ編集を保持する。
+- name: "Create {{ skopeo_backup_restore_config_path }}"
+  become: true
+  ansible.builtin.template:
+    src: skopeo-backup-restore-config.yml.j2
+    dest: "{{ skopeo_backup_restore_config_path }}"
+    owner: root
+    group: root
+    mode: "0644"
+    force: false
+    backup: false
+  when:
+    - skopeo_enabled | default(false) | bool
+    - skopeo_enable_backup_script | default(false) | bool
+
+- name: "Create {{ skopeo_backup_python_script_path }}"
+  become: true
+  ansible.builtin.template:
+    src: backup-skopeo-images.py.j2
+    dest: "{{ skopeo_backup_python_script_path }}"
+    owner: root
+    group: root
+    mode: "0755"
+    backup: false
+  when:
+    - skopeo_enabled | default(false) | bool
+    - skopeo_enable_backup_script | default(false) | bool
+
+- name: "Create {{ skopeo_restore_python_script_path }}"
+  become: true
+  ansible.builtin.template:
+    src: restore-skopeo-images.py.j2
+    dest: "{{ skopeo_restore_python_script_path }}"
+    owner: root
+    group: root
+    mode: "0755"
+    backup: false
+  when:
+    - skopeo_enabled | default(false) | bool
+    - skopeo_enable_backup_script | default(false) | bool
+
+# バックアップスクリプトを配置する。
+- name: "Create {{ skopeo_backup_script_path }}"
+  become: true
+  ansible.builtin.template:
+    src: backup-skopeo-images.sh.j2
+    dest: "{{ skopeo_backup_script_path }}"
+    owner: root
+    group: root
+    mode: "0755"
+    backup: false
+  when:
+    - skopeo_enabled | default(false) | bool
+    - skopeo_enable_backup_script | default(false) | bool
+
+# リストアスクリプトを配置する。
+- name: "Create {{ skopeo_restore_script_path }}"
+  become: true
+  ansible.builtin.template:
+    src: restore-skopeo-images.sh.j2
+    dest: "{{ skopeo_restore_script_path }}"
+    owner: root
+    group: root
+    mode: "0755"
+    backup: false
+  when:
+    - skopeo_enabled | default(false) | bool
+    - skopeo_enable_backup_script | default(false) | bool
+
+# 日次バックアップスクリプトを配置する。
+- name: "Create {{ skopeo_daily_backup_script_path }}"
+  become: true
+  ansible.builtin.template:
+    src: daily-backup-skopeo-images.sh.j2
+    dest: "{{ skopeo_daily_backup_script_path }}"
+    owner: root
+    group: root
+    mode: "0755"
+    backup: false
+  when:
+    - skopeo_enabled | default(false) | bool
+    - skopeo_enable_backup_script | default(false) | bool
+
+# バックアップ実行コマンド用のシンボリックリンクを作成する。
+- name: "Install skopeo backup command symlink"
+  become: true
+  ansible.builtin.file:
+    src: "{{ skopeo_backup_script_path }}"
+    dest: "{{ skopeo_backup_command_path }}"
+    state: link
+    force: true
+  when:
+    - skopeo_enabled | default(false) | bool
+    - skopeo_enable_backup_script | default(false) | bool
+
+# リストア実行コマンド用のシンボリックリンクを作成する。
+- name: "Install skopeo restore command symlink"
+  become: true
+  ansible.builtin.file:
+    src: "{{ skopeo_restore_script_path }}"
+    dest: "{{ skopeo_restore_command_path }}"
+    state: link
+    force: true
+  when:
+    - skopeo_enabled | default(false) | bool
+    - skopeo_enable_backup_script | default(false) | bool
+
+# 日次バックアップ実行コマンド用のシンボリックリンクを作成する。
+- name: "Install skopeo daily backup command symlink"
+  become: true
+  ansible.builtin.file:
+    src: "{{ skopeo_daily_backup_script_path }}"
+    dest: "{{ skopeo_daily_backup_command_path }}"
+    state: link
+    force: true
+  when:
+    - skopeo_enabled | default(false) | bool
+    - skopeo_enable_backup_script | default(false) | bool

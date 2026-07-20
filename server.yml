@@ -40,6 +40,8 @@
       tags: gitlab-server
     - role: opengrok-server
       tags: opengrok-server
+    - role: skopeo
+      tags: skopeo
     - role: sbom
       tags: sbom
       when:

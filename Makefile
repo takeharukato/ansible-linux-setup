@@ -14,7 +14,7 @@ top=.
 	run_k8s_vc_instances \
 	run_dns_server run_selinux update-ctrlplane-kubeconfig update-worker-kubeconfig \
 	run_terraform run_kea_dhcp run_radvd run_router_config run_router_clear_rules \
-	run_aide run_frr_basic run_gitlab_server run_opengrok_server \
+	run_aide run_frr_basic run_gitlab_server run_opengrok_server run_skopeo \
 	run_sbom
 
 # ansibleのログ表示レベル
@@ -214,10 +214,15 @@ run_frr_basic:
 
 run_gitlab_server:
 	ansible-playbook --tags "gitlab-server" ${OPT_COMMON} 2>&1 |tee build-gitlab-server.log
+
 run_opengrok_server:
 	ansible-playbook --tags "opengrok-server" ${OPT_COMMON} 2>&1 |tee build-opengrok-server.log
+
 run_aide:
 	ansible-playbook --tags "aide" ${OPT_COMMON} 2>&1 |tee build-aide.log
+
+run_skopeo:
+	ansible-playbook --tags "skopeo" ${OPT_COMMON} 2>&1 |tee build-skopeo.log
 
 run_sbom:
 	ansible-playbook --tags "sbom" ${OPT_COMMON} --extra-vars=sbom_enabled=true 2>&1 |tee build-sbom.log

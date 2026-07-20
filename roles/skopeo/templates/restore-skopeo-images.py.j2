@@ -1,0 +1,490 @@
+#!/usr/bin/env python3
+# -*- mode: python; coding: utf-8; line-endings: unix -*-
+# SPDX-License-Identifier: BSD-2-Clause
+#
+# Copyright (c) 2025 TAKEHARU KATO
+# This file is distributed under the two-clause BSD license.
+# For the full text of the license, see the LICENSE file in the project root directory.
+# このファイルは2条項BSDライセンスの下で配布されています。
+# ライセンス全文はプロジェクト直下の LICENSE を参照してください。
+#
+# OpenAI's ChatGPT partially generated this code.
+# Author has modified some parts.
+# OpenAIのChatGPTがこのコードの一部を生成しました。
+# 著者が修正している部分があります。
+"""skopeo レジストリリストアスクリプト。
+
+引数で指定された復元先レジストリ/アーカイブを優先し,
+未指定時は YAML 設定ファイルの既定値を使用して復元する。
+
+Examples:
+    >>> # 実行例 (復元先とアーカイブを明示指定)
+    >>> # python3 restore-skopeo-images.py registry.example.local:5000 /path/to/archive.tar.gz
+    ...
+"""
+
+from __future__ import annotations
+
+import argparse
+import shutil
+import subprocess
+import sys
+import tarfile
+import tempfile
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Any
+
+import yaml
+
+
+@dataclass(frozen=True)
+class RestoreSettings:
+    """リストア設定を保持するデータクラスである。
+
+    Attributes:
+        work_dir (Path): リストア時の一時作業ディレクトリである。
+        backup_dir (Path): 引数未指定時に最新アーカイブを探索するディレクトリである。
+        default_destination_registry (str): 引数未指定時の復元先レジストリ既定値である。
+        endpoint_options (dict[str, RegistryEndpointOptions]): endpoint 単位の接続設定である。
+
+    Examples:
+        >>> settings = RestoreSettings(
+        ...     work_dir=Path('/tmp/work'),
+        ...     backup_dir=Path('/tmp/backup'),
+        ...     default_destination_registry='registry.local:5000',
+        ...     endpoint_options={},
+        ... )
+        >>> settings.default_destination_registry
+        'registry.local:5000'
+    """
+
+    work_dir: Path
+    backup_dir: Path
+    default_destination_registry: str
+    endpoint_options: dict[str, "RegistryEndpointOptions"]
+
+
+@dataclass(frozen=True)
+class RegistryEndpointOptions:
+    """レジストリエンドポイント設定を保持するデータクラスである。
+
+    Attributes:
+        scheme (str): 接続スキームである。`http` または `https`。
+        skip_verify (bool): TLS 検証を無効化するかどうか。
+
+    Examples:
+        >>> option = RegistryEndpointOptions(scheme='http', skip_verify=True)
+        >>> option.skip_verify
+        True
+    """
+
+    scheme: str
+    skip_verify: bool
+
+
+def run_command(args: list[str]) -> None:
+    """コマンドを実行し, 失敗時に例外を送出する関数である。
+
+    Args:
+        args (list[str]): 実行コマンド引数である。
+
+    Returns:
+        None: 返り値はない。
+
+    Raises:
+        RuntimeError: コマンド実行が失敗した場合に送出する。
+
+    Examples:
+        >>> run_command(["true"])
+    """
+
+    # 指定されたコマンドを実行し, 終了コードと標準エラーを検査する
+    # - check=False を指定して, 自前で終了コードを判定する
+    # - capture_output=True を指定して標準出力/標準エラーを取得する
+    # - text=True を指定して文字列として扱う
+    result = subprocess.run(args, check=False, capture_output=True, text=True)
+    if result.returncode != 0:  # コマンド失敗時は RuntimeError 例外を送出する
+        stderr_text = result.stderr.strip()  # 例外メッセージに標準エラーを埋め込む
+        raise RuntimeError(f"command failed: {' '.join(args)}: {stderr_text}")
+
+
+def load_settings(config_path: Path) -> RestoreSettings:
+    """YAML設定ファイルを読み込み, リストア設定を返す関数である。
+
+    Args:
+        config_path (Path): 設定ファイルのパスである。
+
+    Returns:
+        RestoreSettings: 検証済みのリストア設定である。
+
+    Raises:
+        FileNotFoundError: 設定ファイルが存在しない場合に送出する。
+        ValueError: 設定値の型や内容が不正な場合に送出する。
+
+    Examples:
+        >>> Path('/tmp/non-existent.yml').exists()
+        False
+    """
+
+    if not config_path.exists():
+        # 設定ファイルが存在しない場合は FileNotFoundError 例外を送出する
+        raise FileNotFoundError(f"config file not found: {config_path}")
+
+    with config_path.open("r", encoding="utf-8") as file_obj:
+        # YAML 設定ファイルを読み込み, 未定義時は空辞書で補完する
+        raw_data: Any = yaml.safe_load(file_obj) or {}
+
+    # backup セクションを取得し, 型を検証する
+    backup_data = raw_data.get("backup", {})
+    if not isinstance(backup_data, dict):  # backup_data が辞書でない場合は ValueError 例外を送出する
+        raise ValueError("backup must be a mapping")
+
+    # 共通バックアップディレクトリ設定を取得し, 空文字を拒否する
+    backup_dir_text = str(raw_data.get("backup_dir", "")).strip()
+    if not backup_dir_text:
+        raise ValueError("backup_dir must be set")
+
+    # 作業ディレクトリ設定を取得し, 空文字を拒否する
+    work_dir_text = str(backup_data.get("work_dir", "")).strip()
+    if not work_dir_text:
+        raise ValueError("backup.work_dir must be set")
+
+    # restore セクションを取得し, 型を検証する
+    restore_data = raw_data.get("restore", {})
+    if not isinstance(restore_data, dict):  # restore_data が辞書でない場合は ValueError 例外を送出する
+        raise ValueError("restore must be a mapping")
+
+    # 引数省略時に利用する既定値を取得する
+    default_destination_registry = str(restore_data.get("default_destination_registry", "")).strip()
+
+    # docker-ce/k8s 共有形式のレジストリエンドポイント設定を取得する
+    endpoint_options = parse_endpoint_options(raw_data=raw_data)
+
+    # 検証済みの設定をデータクラスとして返す
+    return RestoreSettings(
+        work_dir=Path(work_dir_text),
+        backup_dir=Path(backup_dir_text),
+        default_destination_registry=default_destination_registry,
+        endpoint_options=endpoint_options,
+    )
+
+
+def find_latest_backup_archive(backup_dir: Path) -> Path:
+    """指定ディレクトリ内の最新バックアップアーカイブを返す関数である。
+
+    Args:
+        backup_dir (Path): バックアップアーカイブ探索対象ディレクトリである。
+
+    Returns:
+        Path: 更新時刻が最も新しい `.tar.gz` アーカイブのパスである。
+
+    Raises:
+        FileNotFoundError: ディレクトリが存在しない場合, またはアーカイブが見つからない場合に送出する。
+
+    Examples:
+        >>> isinstance(find_latest_backup_archive.__name__, str)
+        True
+    """
+
+    # バックアップディレクトリの確認
+    if not backup_dir.is_dir(): # バックアップディレクトリが存在しない場合は FileNotFoundError 例外を送出する
+        raise FileNotFoundError(f"backup archive directory was not found: {backup_dir}")
+
+    # バックアップディレクトリ内の .tar.gz アーカイブを更新時刻順にソートして取得する
+    archives = sorted(
+        backup_dir.glob("*.tar.gz"),
+        key=lambda path_obj: path_obj.stat().st_mtime,
+        reverse=True,
+    )
+    if not archives: # バックアップディレクトリ内にアーカイブが存在しない場合は FileNotFoundError 例外を送出する
+        raise FileNotFoundError(f"backup archive was not found in directory: {backup_dir}")
+
+    # 更新時刻が最も新しいアーカイブを返す
+    return archives[0]
+
+
+def parse_endpoint_options(raw_data: dict[str, Any]) -> dict[str, RegistryEndpointOptions]:
+    """レジストリエンドポイント設定を読み込む関数である。
+
+    Args:
+        raw_data (dict[str, Any]): YAML 読み込み済みデータである。
+
+    Returns:
+        dict[str, RegistryEndpointOptions]: endpoint をキーにした設定辞書である。
+
+    Raises:
+        ValueError: 設定形式が不正な場合に送出する。
+
+    Examples:
+        >>> parse_endpoint_options({
+        ...     'registry_endpoints': [
+        ...         {'endpoint': 'registry.local:5000', 'scheme': 'http', 'skip_verify': True},
+        ...     ],
+        ... })['registry.local:5000'].scheme
+        'http'
+    """
+
+    # registry_endpoints 設定を取得し, 型を検証する
+    endpoint_entries_raw = raw_data.get("registry_endpoints", [])
+    if not isinstance(endpoint_entries_raw, list):
+        # registry_endpoints がリストでない場合は ValueError 例外を送出する
+        raise ValueError("registry_endpoints must be a list")
+
+    #
+    # registry_endpoints の各要素を検証し,
+    # endpoint をキーにした設定辞書を構築する
+    #
+    endpoint_options: dict[str, RegistryEndpointOptions] = {}
+    validation_errors: list[str] = []
+    for index, entry_raw in enumerate(endpoint_entries_raw, start=1):
+
+        #
+        # 各要素の型と必須項目を検証する
+        # エラーエントリは読み飛ばし, 検証エラーを収集しておき,
+        # ループ後にまとめて標準エラーへ表示する
+        #
+        if not isinstance(entry_raw, dict): # entry_raw が辞書でない場合は検証エラーとして収集する
+            validation_errors.append(f"entry[{index}]: element must be a mapping")
+            continue
+
+        endpoint = str(entry_raw.get("endpoint", "")).strip()
+        if not endpoint: # endpoint が空文字の場合は検証エラーとして収集する
+            validation_errors.append(f"entry[{index}]: registry_endpoints.endpoint must not be empty")
+            continue
+
+        scheme_raw = str(entry_raw.get("scheme", "https")).strip().lower()
+        if scheme_raw not in ("http", "https"): # scheme が http/https 以外の場合は検証エラーとして収集する
+            validation_errors.append(f"entry[{index}]({endpoint}): registry_endpoints.scheme must be one of http/https")
+            continue
+
+        skip_verify_raw = entry_raw.get("skip_verify")
+        # scheme が https 以外の場合は skip_verify を True に強制する
+        skip_verify = (scheme_raw != "https") if skip_verify_raw is None else bool(skip_verify_raw)
+        endpoint_options[endpoint] = RegistryEndpointOptions(scheme=scheme_raw, skip_verify=skip_verify)
+
+    # ループ中に収集した検証エラーをまとめて標準エラーへ表示する
+    if validation_errors:
+        print(
+            "WARNING: invalid registry_endpoints entries were skipped: " + "; ".join(validation_errors),
+            file=sys.stderr,
+        )
+
+    # 有効なエントリが1件もない場合は例外を送出する
+    if not endpoint_options:
+        raise ValueError("no valid entries found in registry_endpoints")
+
+    # 有効な endpoint 設定を返す
+    return endpoint_options
+
+
+def parse_args() -> argparse.Namespace:
+    """コマンドライン引数を解析する関数である。
+
+    Args:
+        なし。
+
+    Returns:
+        argparse.Namespace: 解析済み引数である。
+
+    Examples:
+        >>> isinstance(parse_args.__name__, str)
+        True
+    """
+    parser = argparse.ArgumentParser(description="skopeo registry image restore")
+
+    # 第1位置引数: 復元先レジストリ (未指定時は設定ファイル既定値を使用)
+    parser.add_argument("destination_registry", nargs="?", default="", help="destination registry URL without scheme")
+
+    # 第2位置引数: 復元対象アーカイブ (未指定時は backup_dir から最新アーカイブを選択)
+    parser.add_argument("backup_archive", nargs="?", default="", help="backup archive path")
+
+    # --config: backup/restore 共通設定ファイル
+    parser.add_argument(
+        "--config",
+        default="{{ skopeo_backup_restore_config_path }}",
+        help="Path to backup/restore YAML config",
+    )
+    return parser.parse_args()
+
+
+def resolve_parameters(args: argparse.Namespace, settings: RestoreSettings) -> tuple[str, Path, bool]:
+    """引数優先で復元先/アーカイブを確定する関数である。
+
+    Args:
+        args (argparse.Namespace): コマンドライン引数である。
+        settings (RestoreSettings): 設定ファイルから読み込んだ既定値である。
+
+    Returns:
+        tuple[str, Path, bool]: 復元先レジストリ, アーカイブパス, TLS検証無効化フラグである。
+
+    Raises:
+        ValueError: 復元先またはアーカイブ引数を確定できない場合に送出する。
+        FileNotFoundError: アーカイブファイルが存在しない場合に送出する。
+
+    Examples:
+        >>> isinstance(resolve_parameters.__name__, str)
+        True
+    """
+    # 引数を優先し, 未指定なら設定ファイルのバックアップディレクトリから最新を探索する
+    destination_registry = args.destination_registry.strip() or settings.default_destination_registry
+    archive_path_text = args.backup_archive.strip()
+
+    # 復元先レジストリが確定できない場合は例外を送出する
+    if not destination_registry:
+        raise ValueError("destination registry is empty. Pass it as argument or set restore.default_destination_registry")
+
+    # アーカイブ引数が未指定の場合は, 設定ディレクトリ内の最新アーカイブを採用する
+    if archive_path_text:
+        archive_path = Path(archive_path_text)
+        if not archive_path.is_file():
+            raise FileNotFoundError(f"backup archive was not found: {archive_path}")
+    else:
+        archive_path = find_latest_backup_archive(backup_dir=settings.backup_dir)
+
+    # endpoint 設定がある場合は endpoint 側設定を優先する
+    endpoint_option = settings.endpoint_options.get(destination_registry)
+    if endpoint_option is not None:
+        destination_skip_verify = bool(endpoint_option.skip_verify or endpoint_option.scheme != "https")
+    else:
+        destination_skip_verify = False
+
+    # 確定した復元先レジストリ, アーカイブパス, TLS検証無効化フラグを返す
+    return destination_registry, archive_path, destination_skip_verify
+
+
+def restore_archive(destination_registry: str, archive_path: Path, work_dir: Path, destination_skip_verify: bool) -> int:
+    """バックアップアーカイブを復元し, push 件数を返す関数である。
+
+    Args:
+        destination_registry (str): 復元先レジストリURLである。
+        archive_path (Path): 復元対象アーカイブパスである。
+        work_dir (Path): 一時展開ディレクトリである。
+        destination_skip_verify (bool): 復元先レジストリへの TLS 検証を無効化するかどうか。
+
+    Returns:
+        int: 復元に成功したイメージ件数である。
+
+    Raises:
+        RuntimeError: skopeo copy の実行に失敗した場合に送出する。
+
+    Examples:
+        >>> isinstance(restore_archive.__name__, str)
+        True
+    """
+    # 一時展開ディレクトリの親となる作業ディレクトリを作成する
+    work_dir.mkdir(parents=True, exist_ok=True)
+
+    # TemporaryDirectory を使って, 処理終了時に展開ディレクトリを自動削除する
+    with tempfile.TemporaryDirectory(prefix="skopeo-restore-", dir=str(work_dir)) as temp_dir:
+        restore_root = Path(temp_dir)
+
+        # tar.gz アーカイブを一時ディレクトリへ展開する
+        with tarfile.open(archive_path, "r:gz") as tar_obj:
+            tar_obj.extractall(path=restore_root)
+
+        # 展開結果から image.tar を全件収集し, 安定順序で処理する
+        image_tar_files = sorted(restore_root.glob("**/image.tar"))
+        restored_count = 0
+
+        for image_tar_file in image_tar_files:
+            # 展開ルートからの相対パスを取得して repository/tag を復元する
+            rel_path = image_tar_file.relative_to(restore_root)
+            rel_parts = rel_path.parts
+
+            # 期待形式: <top-dir>/<repository>/<tag>/image.tar
+            if len(rel_parts) < 4:
+                print(f"WARNING: skip invalid archive path: {image_tar_file}", file=sys.stderr)
+                continue
+
+            # 先頭はアーカイブルート名なので除外し, 中間を repository として再構成する
+            repository_parts = rel_parts[1:-2]
+            tag = rel_parts[-2]
+            repository = "/".join(repository_parts).strip()
+
+            # repository/tag のどちらかが欠損している場合はスキップする
+            if not repository or not tag:
+                print(f"WARNING: skip invalid repository/tag path: {image_tar_file}", file=sys.stderr)
+                continue
+
+            # docker-archive から指定レジストリへ push する
+            skopeo_args = ["skopeo", "copy"]
+            if destination_skip_verify:
+
+                # 復元先レジストリへの TLS 検証を無効化する場合は
+                # --dest-tls-verify=false を追加する
+                skopeo_args.append("--dest-tls-verify=false")
+
+            # skopeo copy コマンドの引数に
+            # - docker-archive
+            # - docker://<registry>/<repository>:<tag>
+            # を追加する
+            skopeo_args.extend(
+                [
+                    f"docker-archive:{image_tar_file}",
+                    f"docker://{destination_registry}/{repository}:{tag}",
+                ]
+            )
+
+            # skopeo copy コマンドを実行する
+            run_command(skopeo_args)
+            restored_count += 1
+
+    # 復元成功件数を返す
+    return restored_count
+
+
+def main() -> int:
+    """エントリポイント関数である。
+
+    Args:
+        なし。
+
+    Returns:
+        int: 正常終了時は0を返す。
+
+    Raises:
+        RuntimeError: 復元件数が0件の場合に送出する。
+        ValueError: 引数や設定値が不正な場合に送出する。
+        FileNotFoundError: 設定ファイルやアーカイブが存在しない場合に送出する。
+
+    Examples:
+        >>> isinstance(main.__name__, str)
+        True
+    """
+    # 引数解析と設定読込を実行する
+    args = parse_args()
+    settings = load_settings(config_path=Path(args.config))
+
+    # 引数優先で復元先レジストリとアーカイブパスを確定する
+    destination_registry, archive_path, destination_skip_verify = resolve_parameters(args=args, settings=settings)
+
+    # リストア処理を実行し, 復元件数を取得する
+    restored_count = restore_archive(
+        destination_registry=destination_registry,
+        archive_path=archive_path,
+        work_dir=settings.work_dir,
+        destination_skip_verify=destination_skip_verify,
+    )
+
+    # 復元件数が0の場合はRuntimeError例外を送出する
+    if restored_count == 0:
+        raise RuntimeError(f"no images were restored from archive: {archive_path}")
+
+    # 正常完了メッセージを表示して終了コード0を返す
+    print(f"Restore completed to {destination_registry} from: {archive_path}")
+    return 0
+
+
+if __name__ == "__main__":
+    try:
+        # main() の戻り値をプロセス終了コードとして返す
+        # 留意事項:
+        #   SystemExit例外は, BaseException 例外のサブクラスであるため,
+        #   Exception 系の例外では捕捉されない
+        raise SystemExit(main())
+    except Exception as error:  # pylint: disable=broad-except
+        # 想定外例外を捕捉してエラーメッセージを標準エラーへ出力する
+        print(f"ERROR: {error}", file=sys.stderr)
+        # 異常終了コード 1 を返す
+        raise SystemExit(1)

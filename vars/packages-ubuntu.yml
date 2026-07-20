@@ -115,6 +115,10 @@ common_mdns_packages:
   - avahi-daemon
   - avahi-utils
 
+# skopeo ロール用パッケージ
+skopeo_packages:
+  - skopeo
+
 devel_packages:
   - lmod
   - aspell

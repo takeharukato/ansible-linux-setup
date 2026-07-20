@@ -29,6 +29,8 @@
       tags: post-user-create
     - role: docker-ce
       tags: docker-ce
+    - role: skopeo
+      tags: skopeo
     - role: sbom
       tags: sbom
       when:

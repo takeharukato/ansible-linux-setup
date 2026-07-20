@@ -1,0 +1,65 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  設定関連タスク
+#
+---
+
+# 補完ファイル配置先ディレクトリを先に作成する。
+- name: Ensure bash completion directory exists
+  become: true
+  ansible.builtin.file:
+    path: "{{ skopeo_bash_completion_path | dirname }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+  when:
+    - skopeo_enabled | default(false) | bool
+    - skopeo_completion_enabled | default(false) | bool
+    - (skopeo_bash_completion_path | default('', true) | length) > 0
+
+# Bash 用補完を導入する。
+- name: Install bash completion script for skopeo
+  become: true
+  ansible.builtin.template:
+    src: skopeo.bash-completion.j2
+    dest: "{{ skopeo_bash_completion_path }}"
+    owner: root
+    group: root
+    mode: "0644"
+    backup: false
+  when:
+    - skopeo_enabled | default(false) | bool
+    - skopeo_completion_enabled | default(false) | bool
+    - (skopeo_bash_completion_path | default('', true) | length) > 0
+
+# ディストリビューション差分を吸収した zsh 補完配置先を作成する。
+- name: Ensure zsh completion directory exists
+  become: true
+  ansible.builtin.file:
+    path: "{{ skopeo_zsh_completion_path | dirname }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+  when:
+    - skopeo_enabled | default(false) | bool
+    - skopeo_completion_enabled | default(false) | bool
+    - (skopeo_zsh_completion_path | default('', true) | length) > 0
+
+# Zsh 用補完を導入する。
+- name: Install zsh completion script for skopeo
+  become: true
+  ansible.builtin.template:
+    src: _skopeo.zsh-completion.j2
+    dest: "{{ skopeo_zsh_completion_path }}"
+    owner: root
+    group: root
+    mode: "0644"
+    backup: false
+  when:
+    - skopeo_enabled | default(false) | bool
+    - skopeo_completion_enabled | default(false) | bool
+    - (skopeo_zsh_completion_path | default('', true) | length) > 0

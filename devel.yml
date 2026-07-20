@@ -44,6 +44,8 @@
       tags: terraform
       when:
         - terraform_enabled | default(false) | bool
+    - role: skopeo
+      tags: skopeo
     - role: sbom
       tags: sbom
       when:

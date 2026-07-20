@@ -1,0 +1,820 @@
+#!/usr/bin/env python3
+# -*- mode: python; coding: utf-8; line-endings: unix -*-
+# SPDX-License-Identifier: BSD-2-Clause
+#
+# Copyright (c) 2025 TAKEHARU KATO
+# This file is distributed under the two-clause BSD license.
+# For the full text of the license, see the LICENSE file in the project root directory.
+# このファイルは2条項BSDライセンスの下で配布されています。
+# ライセンス全文はプロジェクト直下の LICENSE を参照してください。
+#
+# OpenAI's ChatGPT partially generated this code.
+# Author has modified some parts.
+# OpenAIのChatGPTがこのコードの一部を生成しました。
+# 著者が修正している部分があります。
+"""skopeo レジストリバックアップスクリプト。
+
+設定ファイルを読み込み, 複数レジストリからイメージを収集して,
+レジストリ単位で tar.gz アーカイブを作成する。
+
+Examples:
+    >>> # 実行例 (実環境の設定ファイルを指定)
+    >>> # python3 backup-skopeo-images.py --config /opt/skopeo/etc/registry-backup-restore.yml
+    ...
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import shutil
+import subprocess
+import sys
+from dataclasses import dataclass
+from datetime import datetime
+from pathlib import Path
+from typing import Any
+
+import yaml
+
+
+@dataclass(frozen=True)
+class BackupSettings:
+    """バックアップ設定を保持するデータクラスである。
+
+    Attributes:
+        registry_urls (list[str]): バックアップ対象レジストリURL一覧である。
+        backup_dir (Path): バックアップ成果物の保存先ディレクトリである。
+        work_dir (Path): 一時作業ディレクトリである。
+        archive_prefix (str): バックアップアーカイブ名の接頭辞である。
+        rotation (int): 世代保持数である。
+        image_list (list[str]): バックアップ対象リポジトリ一覧である。
+        endpoint_options (dict[str, RegistryEndpointOptions]): レジストリエンドポイント設定である。
+
+    Examples:
+        >>> settings = BackupSettings(
+        ...     registry_urls=["registry1.example.local:5000"],
+        ...     backup_dir=Path("/opt/skopeo/backup"),
+        ...     work_dir=Path("/opt/skopeo/work"),
+        ...     archive_prefix="skopeo-images",
+        ...     rotation=7,
+        ...     image_list=[],
+        ...     endpoint_options={},
+        ... )
+        >>> settings.rotation
+        7
+    """
+
+    registry_urls: list[str]
+    backup_dir: Path
+    work_dir: Path
+    archive_prefix: str
+    rotation: int
+    image_list: list[str]
+    endpoint_options: dict[str, "RegistryEndpointOptions"]
+
+
+@dataclass(frozen=True)
+class RegistryEndpointOptions:
+    """レジストリエンドポイント設定を保持するデータクラスである。
+
+    Attributes:
+        scheme (str): 接続スキームである。`http` または `https`。
+        skip_verify (bool): TLS 検証を無効化するかどうか。
+    """
+
+    scheme: str
+    skip_verify: bool
+
+
+def run_command(args: list[str]) -> str:
+    """コマンドを実行して標準出力を返す関数である。
+
+    Args:
+        args (list[str]): 実行コマンド引数。
+
+    Returns:
+        str: 実行結果の標準出力文字列である。
+
+    Raises:
+        RuntimeError: コマンド実行に失敗した場合に送出する。
+
+    Examples:
+        >>> run_command(["echo", "ok"]).strip()
+        'ok'
+    """
+
+    # 指定されたコマンドを実行し, 標準出力を取得する
+    # - check=False を指定して, コマンドの終了コードをチェックしない
+    # - capture_output=True を指定して標準出力と標準エラーを取得する
+    # - text=True を指定してバイト列ではなく文字列として取得する
+    result = subprocess.run(args, check=False, capture_output=True, text=True)
+    if result.returncode != 0: # コマンドが失敗した場合はRuntimeError例外を送出する
+        stderr_text = result.stderr.strip() # 標準エラー出力を取得して例外情報のメッセージに追加
+        raise RuntimeError(f"command failed: {' '.join(args)}: {stderr_text}")
+    return result.stdout
+
+
+def load_settings(config_path: Path) -> BackupSettings:
+    """YAML設定ファイルを読み込み, バックアップ設定を構築する関数である。
+
+    Args:
+        config_path (Path): 設定ファイルのパスである。
+
+    Returns:
+        BackupSettings: 検証済みのバックアップ設定である。
+
+    Raises:
+        FileNotFoundError: 設定ファイルが存在しない場合に送出する。
+        ValueError: 設定値の型や内容が不正な場合に送出する。
+
+    Examples:
+        >>> Path('/tmp/non-existent.yml').exists()
+        False
+    """
+
+    if not config_path.exists():
+        # 設定ファイルが存在しない場合はFileNotFoundError例外を送出する
+        raise FileNotFoundError(f"config file not found: {config_path}")
+
+    with config_path.open("r", encoding="utf-8") as file_obj:
+        # YAML設定ファイルを読み込む
+        raw_data: Any = yaml.safe_load(file_obj) or {}
+
+    # docker-ce/k8s 共有形式のレジストリエンドポイント設定を取得する
+    endpoint_options = parse_endpoint_options(raw_data=raw_data)
+    registry_urls = list(endpoint_options.keys())
+    if not registry_urls: # バックアップ対象レジストリが空の場合はValueError例外を送出する
+        raise ValueError("registry_endpoints is empty")
+
+    #
+    # 共通バックアップディレクトリ設定の取得と検証
+    backup_dir_text = str(raw_data.get("backup_dir", "")).strip()
+    if not backup_dir_text: # backup_dir_textが空の場合はValueError例外を送出する
+        raise ValueError("backup_dir must be set")
+
+    # バックアップ設定の取得と検証
+    #
+    backup_data = raw_data.get("backup", {})
+    if not isinstance(backup_data, dict): # backup_dataが辞書でない場合はValueError例外を送出する
+        raise ValueError("backup must be a mapping")
+
+    #
+    # バックアップ設定の各項目を取得する
+    #
+    work_dir_text = str(backup_data.get("work_dir", "")).strip()
+    archive_prefix = str(backup_data.get("archive_prefix", "skopeo-images")).strip()
+    rotation_value = backup_data.get("rotation", 7)
+    image_list_raw = backup_data.get("image_list", [])
+
+    if not work_dir_text: # work_dir_textが空の場合はValueError例外を送出する
+        raise ValueError("backup.work_dir must be set")
+    if not archive_prefix: # archive_prefixが空の場合はValueError例外を送出する
+        raise ValueError("archive_prefix must not be empty")
+
+    if not isinstance(rotation_value, int): # rotation_valueが整数でない場合はValueError例外を送出する
+        raise ValueError("rotation must be an integer")
+    if rotation_value < 0: # rotation_valueが0未満の場合はValueError例外を送出する
+        raise ValueError("rotation must be >= 0")
+
+    if not isinstance(image_list_raw, list): # image_list_rawがリストでない場合はValueError例外を送出する
+        raise ValueError("image_list must be a list")
+    image_list: list[str] = [str(item).strip() for item in image_list_raw if str(item).strip()]
+
+    # バックアップ設定を構築して返す
+    return BackupSettings(
+        registry_urls=registry_urls,
+        backup_dir=Path(backup_dir_text),
+        work_dir=Path(work_dir_text),
+        archive_prefix=archive_prefix,
+        rotation=rotation_value,
+        image_list=image_list,
+        endpoint_options=endpoint_options,
+    )
+
+
+def parse_endpoint_options(raw_data: dict[str, Any]) -> dict[str, RegistryEndpointOptions]:
+    """レジストリエンドポイント設定を読み込む関数である。
+
+    Args:
+        raw_data (dict[str, Any]): YAML 読み込み済みデータである。
+
+    Returns:
+        dict[str, RegistryEndpointOptions]: endpoint をキーにした設定辞書である。
+
+    Raises:
+        ValueError: 設定形式が不正な場合に送出する。
+
+    Examples:
+        >>> parse_endpoint_options({
+        ...     'registry_endpoints': [
+        ...         {'endpoint': 'registry.local:5000', 'scheme': 'http', 'skip_verify': True},
+        ...     ],
+        ... })['registry.local:5000'].scheme
+        'http'
+    """
+
+    # registry_endpoints フィールドを取得し, リストでない場合は ValueError 例外を送出する
+    endpoint_entries_raw = raw_data.get("registry_endpoints", [])
+    if not isinstance(endpoint_entries_raw, list):
+        # registry_endpoints がリストでない場合は ValueError 例外を送出する
+        raise ValueError("registry_endpoints must be a list")
+
+    #
+    # registry_endpoints の各要素を検証し, endpoint をキーにした設定辞書を構築する
+    #
+    endpoint_options: dict[str, RegistryEndpointOptions] = {}
+    validation_errors: list[str] = []
+    for index, entry_raw in enumerate(endpoint_entries_raw, start=1):
+
+        if not isinstance(entry_raw, dict): # entry_raw が辞書でない場合は検証エラーとして収集する
+            validation_errors.append(f"entry[{index}]: element must be a mapping")
+            continue
+
+        endpoint = str(entry_raw.get("endpoint", "")).strip()
+        if not endpoint: # endpoint が空文字の場合は検証エラーとして収集する
+            validation_errors.append(f"entry[{index}]: registry_endpoints.endpoint must not be empty")
+            continue
+
+        scheme_raw = str(entry_raw.get("scheme", "https")).strip().lower()
+        if scheme_raw not in ("http", "https"): # scheme が http/https 以外の場合は検証エラーとして収集する
+            validation_errors.append(f"entry[{index}]({endpoint}): registry_endpoints.scheme must be one of http/https")
+            continue
+
+        # skip_verify_raw を取得し, None の場合は scheme が https でない場合に True とする
+        skip_verify_raw = entry_raw.get("skip_verify")
+        skip_verify = (scheme_raw != "https") if skip_verify_raw is None else bool(skip_verify_raw)
+        endpoint_options[endpoint] = RegistryEndpointOptions(scheme=scheme_raw, skip_verify=skip_verify)
+
+    # ループ中に収集した検証エラーをまとめて標準エラーへ表示する
+    if validation_errors:
+        print(
+            "WARNING: invalid registry_endpoints entries were skipped: " + "; ".join(validation_errors),
+            file=sys.stderr,
+        )
+
+    # 有効なエントリが1件もない場合は例外を送出する
+    if not endpoint_options:
+        raise ValueError("no valid entries found in registry_endpoints")
+
+    return endpoint_options
+
+
+def resolve_registry_candidates(
+    registry_url: str,
+    endpoint_options: dict[str, RegistryEndpointOptions],
+) -> list[RegistryEndpointOptions]:
+    """レジストリアクセス候補を返す関数である。
+
+    Args:
+        registry_url (str): 対象レジストリURLである。
+        endpoint_options (dict[str, RegistryEndpointOptions]): endpoint ごとの接続設定である。
+
+    Returns:
+        list[RegistryEndpointOptions]: 優先順で並んだ接続候補である。
+
+    Examples:
+        >>> candidates = resolve_registry_candidates(
+        ...     'registry.local:5000',
+        ...     {'registry.local:5000': RegistryEndpointOptions(scheme='https', skip_verify=False)},
+        ... )
+        >>> len(candidates) >= 1
+        True
+    """
+
+    # レジストリURLに対する接続候補を格納するリストを初期化する
+    candidates: list[RegistryEndpointOptions] = []
+
+    def append_candidate(option: RegistryEndpointOptions) -> None:
+        """重複を除去してレジストリURLに対する接続候補を追加する内部関数
+
+        Args:
+            option (RegistryEndpointOptions): 追加する接続候補
+        """
+
+        if option not in candidates:
+            # 重複を避けるため, すでに候補リストに存在する場合は追加しない
+            candidates.append(option)
+
+    # 明示設定がある場合はそれを優先する
+    explicit = endpoint_options.get(registry_url)
+    if explicit is not None: # 明示指定がある場合
+
+        # 明示指定の接続候補を追加する
+        append_candidate(explicit)
+        if explicit.scheme == "http": # 接続スキームが http の場合は https での接続候補も追加する
+            append_candidate(RegistryEndpointOptions(scheme="https", skip_verify=True))
+            append_candidate(RegistryEndpointOptions(scheme="https", skip_verify=False))
+        else:
+            if not explicit.skip_verify:
+                # 明示指定が https で skip_verify=False の場合は, skip_verify=True の候補も追加する
+                append_candidate(RegistryEndpointOptions(scheme="https", skip_verify=True))
+            # skip_verify=True 場合, http で接続候補を追加する
+            append_candidate(RegistryEndpointOptions(scheme="http", skip_verify=True))
+        return candidates
+
+    # 明示設定がない場合は, https -> http の順にフォールバックする
+    append_candidate(RegistryEndpointOptions(scheme="https", skip_verify=False))
+    append_candidate(RegistryEndpointOptions(scheme="https", skip_verify=True))
+    append_candidate(RegistryEndpointOptions(scheme="http", skip_verify=True))
+    return candidates
+
+
+def load_registry_json(
+    registry_url: str,
+    api_path: str,
+    endpoint_options: dict[str, RegistryEndpointOptions],
+) -> dict[str, Any]:
+    """レジストリAPIを呼び出して 応答結果のJSON を返す関数である。
+
+    Args:
+        registry_url (str): 対象レジストリURLである。
+        api_path (str): レジストリ API のパスである。
+        endpoint_options (dict[str, RegistryEndpointOptions]): endpoint ごとの接続設定である。
+
+    Returns:
+        dict[str, Any]: API 応答の JSON オブジェクトである。
+
+    Raises:
+        RuntimeError: すべての接続候補で API 呼び出しに失敗した場合に送出する。
+
+    Examples:
+        >>> isinstance(load_registry_json.__name__, str)
+        True
+    """
+
+    errors: list[str] = []
+    # resolve_registry_candidates で取得した接続候補を順に試行する
+    for option in resolve_registry_candidates(registry_url=registry_url, endpoint_options=endpoint_options):
+
+        #
+        # curl コマンドの引数を構築する
+        #
+        curl_args = ["curl", "-fsSL"]
+        if option.skip_verify and option.scheme == "https":
+            curl_args.append("-k") # TLS 検証を無効化する場合は -k オプションを追加する
+        curl_args.append(f"{option.scheme}://{registry_url}{api_path}")
+        try:
+            # curl コマンドを実行して応答結果を取得し, JSON をパースする
+            response_text = run_command(curl_args)
+            data: Any = json.loads(response_text)
+            if not isinstance(data, dict):
+                # 応答結果が JSON オブジェクトでない場合は RuntimeError 例外を送出する
+                raise RuntimeError("registry API returned non-object JSON")
+            return data
+        except Exception as error:  # pylint: disable=broad-except
+            # 接続候補での API 呼び出しに失敗した場合はエラーを収集する
+            errors.append(f"{option.scheme}(skip_verify={option.skip_verify}): {error}")
+
+    # すべての接続候補で API 呼び出しに失敗した場合は RuntimeError 例外を送出する
+    raise RuntimeError(
+        f"failed to access registry API: {registry_url}{api_path}; attempts={'; '.join(errors)}"
+    )
+
+
+def load_repositories(
+    registry_url: str,
+    image_list: list[str],
+    endpoint_options: dict[str, RegistryEndpointOptions],
+) -> list[str]:
+    """バックアップ対象リポジトリ一覧を返す関数である。
+
+    Args:
+        registry_url (str): 対象レジストリURLである。
+        image_list (list[str]): 明示指定されたリポジトリ一覧である。
+
+    Returns:
+        list[str]: バックアップ対象リポジトリ一覧である。
+
+    Raises:
+        RuntimeError: catalog APIの戻り値が不正な場合に送出する。
+
+    Examples:
+        >>> load_repositories("registry.example.local:5000", ["library/alpine"], {})
+        ['library/alpine']
+    """
+
+    if image_list: # 明示指定されたリポジトリ一覧がある場合はそれを返す
+        return image_list
+
+    #
+    # 明示指定がない場合は catalog API を呼び出してリポジトリ一覧を取得する
+    #
+    catalog_errors: list[str] = []
+    catalog_json: dict[str, Any] | None = None
+    for api_path in ("/v2/_catalog?n=10000", "/v2/_catalog"):
+        try:
+            # catalog API を呼び出して結果を取得する
+            catalog_json = load_registry_json(
+                registry_url=registry_url,
+                api_path=api_path,
+                endpoint_options=endpoint_options,
+            )
+            break
+        except Exception as error:  # pylint: disable=broad-except
+            catalog_errors.append(f"{api_path}: {error}")
+
+    if catalog_json is None:
+        # すべての catalog API 呼び出しに失敗した場合は RuntimeError 例外を送出する
+        raise RuntimeError(
+            f"failed to fetch catalog API for {registry_url}; attempts={'; '.join(catalog_errors)}"
+        )
+
+    #
+    # catalog API の戻り値から repositories フィールドを取得し, リストでない場合は RuntimeError 例外を送出する
+    #
+    repositories = catalog_json.get("repositories", [])
+    if not isinstance(repositories, list): # repositories フィールドがリストでない場合は RuntimeError 例外を送出する
+        raise RuntimeError("catalog API returned invalid repositories field")
+
+    # repositories フィールドの各要素を文字列に変換し,
+    # 空文字列を除外したリストを返す
+    return [str(item).strip() for item in repositories if str(item).strip()]
+
+
+def load_tags(
+    registry_url: str,
+    repository: str,
+    endpoint_options: dict[str, RegistryEndpointOptions],
+) -> list[str]:
+    """指定リポジトリのタグ一覧を返す関数である。
+
+    Args:
+        registry_url (str): 対象レジストリURLである。
+        repository (str): タグ一覧を取得するリポジトリ名である。
+
+    Returns:
+        list[str]: 取得したタグ一覧である。
+
+    Examples:
+        >>> isinstance(load_tags.__name__, str)
+        True
+    """
+
+    #
+    # tags API を呼び出してタグ一覧を取得する
+    #
+    tags_json = load_registry_json(
+        registry_url=registry_url,
+        api_path=f"/v2/{repository}/tags/list",
+        endpoint_options=endpoint_options,
+    )
+    raw_tags = tags_json.get("tags") or []
+    if not isinstance(raw_tags, list): # tags フィールドがリストでない場合は空リストを返す
+        return []
+
+    # tags フィールドの各要素を文字列に変換し, 空文字列を除外したリストを返す
+    return [str(item).strip() for item in raw_tags if str(item).strip()]
+
+
+def normalize_registry_key(registry_url: str) -> str:
+    """レジストリURLからアーカイブ名用キーを生成する関数である。
+
+    Args:
+        registry_url (str): レジストリURLである。
+
+    Returns:
+        str: ファイル名に利用できる正規化済みキーである。
+
+    Raises:
+        ValueError: 正規化後の文字列が空になった場合に送出する。
+
+    Examples:
+        >>> normalize_registry_key("registry.example.local:5000")
+        'registry.example.local_5000'
+    """
+
+    # ファイル名に利用できるように, レジストリURLのスラッシュとコロンをアンダースコアに置換し,
+    # 英数字とアンダースコア, ドット, ハイフン以外の文字を除去する
+    replaced = registry_url.replace("/", "_").replace(":", "_")
+    safe = "".join(ch for ch in replaced if ch.isalnum() or ch in "_.-")
+    if not safe: # 正規化後の文字列が空になった場合は ValueError 例外を送出する
+        raise ValueError(f"failed to create registry key from: {registry_url}")
+
+    # 正規化済みキーを返す
+    return safe
+
+
+def rotate_archives(backup_dir: Path, prefix: str, registry_key: str, rotation: int) -> None:
+    """世代保持数を超えた古いアーカイブを削除する関数である。
+
+    Args:
+        backup_dir (Path): アーカイブ保存ディレクトリである。
+        prefix (str): アーカイブ名接頭辞である。
+        registry_key (str): レジストリ識別キーである。
+        rotation (int): 保持する最大世代数である。
+
+    Returns:
+        None: 返り値はない。
+
+    Examples:
+        >>> isinstance(rotate_archives.__name__, str)
+        True
+    """
+
+    # 世代保持数が0以下の場合は削除処理を行わずに終了する
+    if rotation <= 0:
+        return
+
+    # アーカイブ保存ディレクトリ内の対象アーカイブを取得し, 作成時刻順にソートする
+    pattern = f"{prefix}-{registry_key}-*.tar.gz"
+    archives = sorted(backup_dir.glob(pattern), key=lambda path: path.stat().st_mtime, reverse=True)
+
+    # 先頭から rotation 件を残し, それ以降の古いアーカイブを削除する
+    # archives[rotation:]でrotation 件を超えた古いアーカイブのリストを取得し,
+    # unlink()で削除する
+    for old_archive in archives[rotation:]:
+        try:
+            old_archive.unlink(missing_ok=True)
+        except OSError as error:
+            print(
+                f"WARNING: failed to remove old archive {old_archive}: {error}",
+                file=sys.stderr,
+            )
+
+
+def backup_single_registry(settings: BackupSettings, registry_url: str, timestamp: str) -> Path:
+    """単一レジストリのバックアップを実行してアーカイブを返す関数である。
+
+    Args:
+        settings (BackupSettings): バックアップ実行設定である。
+        registry_url (str): バックアップ対象レジストリURLである。
+        timestamp (str): アーカイブ名に埋め込む時刻文字列である。
+
+    Returns:
+        Path: 作成したアーカイブファイルのパスである。
+
+    Raises:
+        RuntimeError: リポジトリやタグを取得できない場合に送出する。
+
+    Examples:
+        >>> isinstance(backup_single_registry.__name__, str)
+        True
+    """
+
+    #
+    # レジストリURLからアーカイブ名用キーを生成,
+    # 一時作業ディレクトリとアーカイブパスを構築する
+    #
+    registry_key = normalize_registry_key(registry_url)
+    stage_dir = settings.work_dir / f"{settings.archive_prefix}-{registry_key}-{timestamp}"
+    archive_path = settings.backup_dir / f"{settings.archive_prefix}-{registry_key}-{timestamp}.tar.gz"
+
+    stage_dir.mkdir(parents=True, exist_ok=True)
+
+    #
+    # バックアップ対象リポジトリ一覧を取得する
+    #
+    repositories = load_repositories(
+        registry_url=registry_url,
+        image_list=settings.image_list,
+        endpoint_options=settings.endpoint_options,
+    )
+    if not repositories:
+        raise RuntimeError(f"no repositories found for {registry_url}")
+
+    #
+    # 各リポジトリのタグ一覧を取得し, skopeo copy で docker-archive形式で保存する
+    #
+    copied_count = 0
+    for repository in repositories:
+
+        #
+        # リポジトリのタグ一覧を取得する
+        #
+        tags = load_tags(
+            registry_url=registry_url,
+            repository=repository,
+            endpoint_options=settings.endpoint_options,
+        )
+        if not tags: # リポジトリにタグが存在しない場合はスキップする
+            continue
+
+        #
+        # 各タグのイメージを docker-archive 形式で保存する
+        #
+        for tag in tags:
+
+            #
+            # 格納先サブディレクトリを作成し,
+            # skopeo copy で docker-archive 形式で保存する
+            #
+            image_dir = stage_dir / repository / tag
+            image_dir.mkdir(parents=True, exist_ok=True)
+            archive_file = image_dir / "image.tar"
+            copy_image_from_registry(
+                registry_url=registry_url,
+                repository=repository,
+                tag=tag,
+                archive_file=archive_file,
+                endpoint_options=settings.endpoint_options,
+            )
+            copied_count += 1
+
+    if copied_count == 0:
+        # skopeo copy で1件もイメージを保存できなかった場合は,
+        # 一時ディレクトリを削除して RuntimeError 例外を送出する
+        shutil.rmtree(stage_dir, ignore_errors=True)
+        raise RuntimeError(f"no image tags found for {registry_url}")
+
+    # 既存のアーカイブが存在する場合は削除する
+    if archive_path.exists():
+        archive_path.unlink()
+
+    # 作成した一時ディレクトリを tar.gz 形式で圧縮し, アーカイブパスに保存する
+    # その後, 一時ディレクトリを削除する
+    archive_name = archive_path.name
+    if archive_name.endswith(".tar.gz"):
+        archive_stem = archive_name[:-7]
+    else:
+        archive_stem = archive_path.stem
+    tar_base = archive_path.with_name(archive_stem)
+
+    # 取得したアーカイブをtar.gz 形式で圧縮する
+    created_tar_path_text = shutil.make_archive(str(tar_base), "gztar", root_dir=settings.work_dir, base_dir=stage_dir.name)
+    # 一時ディレクトリを削除する
+    shutil.rmtree(stage_dir, ignore_errors=True)
+
+    # アーカイブパスを検証し, 世代保持数を超えた古いアーカイブを削除する
+    created_tar_path = Path(created_tar_path_text)
+    rotate_archives(
+        backup_dir=settings.backup_dir,
+        prefix=settings.archive_prefix,
+        registry_key=registry_key,
+        rotation=settings.rotation,
+    )
+
+    # 作成したアーカイブへのパスを返す
+    return created_tar_path
+
+
+def copy_image_from_registry(
+    registry_url: str,
+    repository: str,
+    tag: str,
+    archive_file: Path,
+    endpoint_options: dict[str, RegistryEndpointOptions],
+) -> None:
+    """レジストリからイメージを取得して保存する関数である。
+
+    Args:
+        registry_url (str): 取得元レジストリURLである。
+        repository (str): 取得対象リポジトリ名である。
+        tag (str): 取得対象タグ名である。
+        archive_file (Path): 保存先 docker-archive ファイルである。
+        endpoint_options (dict[str, RegistryEndpointOptions]): endpoint ごとの接続設定である。
+
+    Returns:
+        None: 返り値はない。
+
+    Raises:
+        RuntimeError: すべての接続候補で skopeo copy に失敗した場合に送出する。
+
+    Examples:
+        >>> isinstance(copy_image_from_registry.__name__, str)
+        True
+    """
+
+    errors: list[str] = [] # エラーを記録するリストを初期化する
+
+    #
+    # resolve_registry_candidates で取得した接続候補を順に試行する
+    #
+    for option in resolve_registry_candidates(registry_url=registry_url, endpoint_options=endpoint_options):
+
+        #
+        # skopeo copy コマンドの引数を構築する
+        #
+        args = ["skopeo", "copy"]
+        if option.skip_verify or option.scheme != "https":
+            # TLS 検証を無効化する場合は --src-tls-verify=false オプションを追加する
+            args.append("--src-tls-verify=false")
+
+        # docker://{registry_url}/{repository}:{tag} から
+        # docker-archive:{archive_file}:{repository}:{tag} へコピーするための
+        # 引数を追加する
+        args.extend(
+            [
+                f"docker://{registry_url}/{repository}:{tag}",
+                f"docker-archive:{archive_file}:{repository}:{tag}",
+            ]
+        )
+
+        # skopeo copy コマンドを実行する
+        try:
+            run_command(args)
+            return
+        except Exception as error:  # pylint: disable=broad-except
+            # 接続候補での skopeo copy に失敗した場合はエラーを収集する
+            errors.append(f"{option.scheme}(skip_verify={option.skip_verify}): {error}")
+
+    # すべての接続候補で skopeo copy に失敗した場合は RuntimeError 例外を送出する
+    raise RuntimeError(
+        f"failed to copy image from {registry_url}/{repository}:{tag}; attempts={'; '.join(errors)}"
+    )
+
+
+def parse_args() -> argparse.Namespace:
+    """コマンドライン引数を解析する関数である。
+
+    Args:
+        なし。
+
+    Returns:
+        argparse.Namespace: 解析済み引数である。
+
+    Examples:
+        >>> isinstance(parse_args.__name__, str)
+        True
+    """
+    parser = argparse.ArgumentParser(description="skopeo registry image backup")
+
+    # --config オプションを追加する
+    # --config オプションはバックアップ/復元設定ファイルのパスを指定するためのものである
+    # デフォルト値は Ansible 変数 skopeo_backup_restore_config_path で指定されたパスである
+    parser.add_argument(
+        "--config",
+        default="{{ skopeo_backup_restore_config_path }}",
+        help="Path to backup/restore YAML config",
+    )
+
+    return parser.parse_args()
+
+
+def main() -> int:
+    """エントリポイント関数である。
+
+    Args:
+        なし。
+
+    Returns:
+        int: 正常終了時は0を返す。
+
+    Raises:
+        RuntimeError: バックアップが1件も作成されなかった場合に送出する。
+        RuntimeError: 一部レジストリでバックアップに失敗した場合に送出する。
+        ValueError: 設定値が不正な場合に送出する。
+        FileNotFoundError: 設定ファイルが存在しない場合に送出する。
+
+    Examples:
+        >>> isinstance(main.__name__, str)
+        True
+    """
+
+    # コマンドライン引数を解析する
+    args = parse_args()
+
+    # 設定ファイルを読み込む
+    settings = load_settings(config_path=Path(args.config))
+
+    #
+    # バックアップディレクトリと作業ディレクトリを作成する
+    #
+    settings.backup_dir.mkdir(parents=True, exist_ok=True)
+    settings.work_dir.mkdir(parents=True, exist_ok=True)
+
+    #
+    # タイムスタンプを生成し, バックアップ対象レジストリごとにバックアップを実行する
+    #
+    timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+    created_archives: list[Path] = []
+    failed_registries: list[tuple[str, str]] = []
+    for registry_url in settings.registry_urls:
+        try:
+            # バックアップを実行し, 作成したアーカイブパスを取得する
+            # backup_single_registry 関数内でリポジトリやタグの取得に失敗した場合は RuntimeError 例外が送出されるので,
+            # 例外を捕捉して失敗したレジストリの情報を記録し, エラーメッセージを標準エラー出力に表示する
+            created_archive = backup_single_registry(settings=settings, registry_url=registry_url, timestamp=timestamp)
+        except Exception as error:  # pylint: disable=broad-except
+            failed_registries.append((registry_url, str(error)))
+            print(f"ERROR: backup failed for {registry_url}: {error}", file=sys.stderr)
+            continue
+
+        # バックアップが成功した場合は作成したアーカイブパスを記録し,
+        # 標準出力に表示する
+        created_archives.append(created_archive)
+        print(f"Backup completed for {registry_url}: {created_archive}")
+
+    if not created_archives: # バックアップが1件も作成されなかった場合は RuntimeError 例外を送出する
+        raise RuntimeError("no backup archives were created")
+
+    if failed_registries: # 一部レジストリでバックアップに失敗した場合は警告を表示して継続する
+        failure_summary = "; ".join(
+            f"{registry_url}: {error_text}" for registry_url, error_text in failed_registries
+        )
+        print(f"WARNING: backup completed with partial failures: {failure_summary}", file=sys.stderr)
+
+    print("Backup completed for reachable registries")
+    return 0
+
+
+if __name__ == "__main__":
+    try:
+        # main() の戻り値をプロセス終了コードとして返す
+        # 留意事項:
+        #   SystemExit例外は, BaseException 例外のサブクラスであるため,
+        #   Exception 系の例外では捕捉されない
+        raise SystemExit(main())
+    except Exception as error:  # pylint: disable=broad-except
+        print(f"ERROR: {error}", file=sys.stderr)
+        raise SystemExit(1)

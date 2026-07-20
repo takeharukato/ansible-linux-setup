@@ -1,0 +1,97 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  ロール固有変数のデフォルト値
+#  group_vars/all/all.yml やhost_varsで上書き可能とするため,
+#  ロール名/defaults/main.yml に定義している
+---
+
+# skopeo ロール有効化フラグ
+skopeo_enabled: false
+
+#
+# シェル補完設定
+#
+# bash/zsh 補完を有効化する場合は true
+skopeo_completion_enabled: true
+# bash 補完スクリプト配置先
+skopeo_bash_completion_path: "/etc/bash_completion.d/skopeo"
+# zsh 補完スクリプト配置先
+skopeo_zsh_completion_path_debian: "/usr/share/zsh/vendor-completions/_skopeo"
+skopeo_zsh_completion_path_rhel: "/usr/share/zsh/site-functions/_skopeo"
+skopeo_zsh_completion_path: "{{ (ansible_facts.os_family == 'Debian') | ternary(skopeo_zsh_completion_path_debian, skopeo_zsh_completion_path_rhel) }}"
+
+#
+# レジストリバックアップ/リストア設定
+#
+# バックアップ/リストア用スクリプト生成有効化フラグ
+skopeo_enable_backup_script: false
+# docker-ce/k8s と共通利用するレジストリエンドポイント設定
+# 各要素: { endpoint: "host:port", scheme: "http|https", skip_verify: true|false }
+skopeo_registry_endpoints: "{{ container_registry_endpoints | default([], true) }}"
+# バックアップ対象イメージ一覧。空の場合は /v2/_catalog から自動検出を試行
+skopeo_backup_image_list: []
+# スクリプト配置先ディレクトリ
+skopeo_scripts_dir: "/opt/skopeo/scripts"
+# 設定ファイル配置先ディレクトリ
+skopeo_config_dir: "/opt/skopeo/etc"
+# バックアップ/リストア設定ファイル
+skopeo_backup_restore_config_path: "{{ skopeo_config_dir }}/registry-backup-restore.yml"
+# バックアップ成果物配置先ディレクトリ
+skopeo_backup_dir: "/opt/skopeo/backup"
+# 作業用ディレクトリ
+skopeo_backup_work_dir: "/opt/skopeo/work"
+# バックアップアーカイブ名の接頭辞
+skopeo_backup_archive_prefix: "skopeo-images"
+# バックアップ世代保持数
+skopeo_backup_rotation: 7
+# バックアップスクリプトパス
+skopeo_backup_script_path: "{{ skopeo_scripts_dir }}/backup-skopeo-images.sh"
+# リストアスクリプトパス
+skopeo_restore_script_path: "{{ skopeo_scripts_dir }}/restore-skopeo-images.sh"
+# コマンドシンボリックリンク配置先ディレクトリ
+skopeo_command_dir: "/usr/local/bin"
+# バックアップ実行コマンドの固定パス(.sh なし)
+skopeo_backup_command_path: "{{ skopeo_command_dir }}/backup-skopeo-images"
+# リストア実行コマンドの固定パス(.sh なし)
+skopeo_restore_command_path: "{{ skopeo_command_dir }}/restore-skopeo-images"
+# 定期バックアップスクリプトパス
+skopeo_daily_backup_script_path: "{{ skopeo_scripts_dir }}/daily-backup-skopeo-images.sh"
+# 定期バックアップ実行コマンドの固定パス(.sh なし)
+skopeo_daily_backup_command_path: "{{ skopeo_command_dir }}/daily-backup-skopeo-images"
+
+# デイリーバックアップ時のNFSマウントポイント
+skopeo_backup_mount_point: "/mnt"
+# デイリーバックアップ時のNFSマウントポイント配下のバックアップ配置先ディレクトリ
+skopeo_backup_dir_on_nfs: "/skopeo-backup"
+# デイリーバックアップ時のNFSマウントポイント配下のバックアップ配置先ディレクトリ
+skopeo_backup_output_dir: "{{ skopeo_backup_mount_point }}{{ skopeo_backup_dir_on_nfs }}"
+# デイリーバックアップ用NFSサーバホスト名
+skopeo_backup_nfs_server: ""
+# デイリーバックアップ用NFS共有ディレクトリ
+skopeo_backup_nfs_dir: "/share"
+
+# Python 実装の実体スクリプト
+skopeo_backup_python_script_path: "{{ skopeo_scripts_dir }}/backup-skopeo-images.py"
+skopeo_restore_python_script_path: "{{ skopeo_scripts_dir }}/restore-skopeo-images.py"
+
+# リストア先コンテナレジストリの既定値
+# 引数省略時に使用される設定ファイルへの書き込み値
+# 空文字列に設定すると, 引数省略時に restore スクリプトの
+# 引数に明示するよう旨エラーメッセージが表示される
+# 記載例:
+# skopeo_restore_default_destination_registry: "registry1.local:5000"
+skopeo_restore_default_destination_registry: ""
+
+# Python 実行コマンド
+# PATH環境変数に依存しないように固定パスを指定する。
+skopeo_python_command: "/usr/bin/python3"
+
+#
+# バックアップ/リストアスクリプトの依存パッケージ
+#
+# PyYAML パッケージ名
+skopeo_python_yaml_package_debian: "python3-yaml"
+skopeo_python_yaml_package_rhel: "python3-pyyaml"
+skopeo_python_yaml_package: "{{ (ansible_facts.os_family == 'Debian') | ternary(skopeo_python_yaml_package_debian, skopeo_python_yaml_package_rhel) }}"

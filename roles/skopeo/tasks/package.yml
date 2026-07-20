@@ -1,0 +1,85 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  パッケージ関連処理
+---
+
+# Debian/Ubuntu で skopeo を導入する。
+- name: Install skopeo package on Debian family
+  become: true
+  ansible.builtin.apt:
+    name: "{{ skopeo_packages }}"
+    state: present
+    update_cache: true
+  when:
+    - skopeo_enabled | default(false) | bool
+    - ansible_facts.os_family == 'Debian'
+
+# RHEL 系で skopeo 導入を試行する。
+- name: Install skopeo package on RHEL family
+  become: true
+  ansible.builtin.dnf:
+    name: "{{ skopeo_packages }}"
+    state: present
+  register: skopeo_rhel_install_result
+  failed_when: false
+  when:
+    - skopeo_enabled | default(false) | bool
+    - ansible_facts.os_family == 'RedHat'
+
+# RHEL 系で skopeo が解決できない場合のみ EPEL を導入する。
+- name: Install epel-release when skopeo package resolution failed
+  become: true
+  ansible.builtin.dnf:
+    name: epel-release
+    state: present
+  when:
+    - skopeo_enabled | default(false) | bool
+    - ansible_facts.os_family == 'RedHat'
+    - skopeo_rhel_install_result is defined
+    - (skopeo_rhel_install_result.rc | default(0)) != 0
+
+# EPEL 導入後に skopeo パッケージ導入を再試行する。
+- name: Retry skopeo package installation after enabling EPEL
+  become: true
+  ansible.builtin.dnf:
+    name: "{{ skopeo_packages }}"
+    state: present
+  when:
+    - skopeo_enabled | default(false) | bool
+    - ansible_facts.os_family == 'RedHat'
+    - skopeo_rhel_install_result is defined
+    - (skopeo_rhel_install_result.rc | default(0)) != 0
+
+# バックアップ/リストア処理で利用する curl を導入する。
+- name: Install curl package for backup/restore scripts
+  become: true
+  ansible.builtin.package:
+    name: curl
+    state: present
+  when:
+    - skopeo_enabled | default(false) | bool
+    - skopeo_enable_backup_script | default(false) | bool
+
+# Python版スクリプトで利用するYAMLパーサーを導入する。
+- name: Install Python YAML package on Debian family
+  become: true
+  ansible.builtin.apt:
+    name: "{{ skopeo_python_yaml_package_debian }}"
+    state: present
+    update_cache: true
+  when:
+    - skopeo_enabled | default(false) | bool
+    - skopeo_enable_backup_script | default(false) | bool
+    - ansible_facts.os_family == 'Debian'
+
+- name: Install Python YAML package on RHEL family
+  become: true
+  ansible.builtin.dnf:
+    name: "{{ skopeo_python_yaml_package_rhel }}"
+    state: present
+  when:
+    - skopeo_enabled | default(false) | bool
+    - skopeo_enable_backup_script | default(false) | bool
+    - ansible_facts.os_family == 'RedHat'

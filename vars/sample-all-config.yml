@@ -379,6 +379,42 @@ common_selinux_state: "permissive"
 #     scheme: "https"
 #     skip_verify: true
 
+# ======================================================================================================================================================
+# skopeo (コンテナイメージのコピー・検証・署名ツール) 設定 (条件的必須: skopeo利用時)
+# ======================================================================================================================================================
+# skopeoを導入する場合は true を指定する
+# skopeo_enabled: true
+#
+# skopeoを使用したコンテナイメージのバックアップ/リストア用スクリプトを
+# 生成する場合は true を指定する
+# skopeo_enable_backup_script: true
+#
+# バックアップ対象レジストリURL一覧 (スキームなし, 例: ["registry1.example.local:5000", "registry2.example.local:5000"])
+# 記載例:
+# skopeo_registry_url_list:
+#   - "registry1.local:5000"
+#   - "registry2.local:5000"
+#
+# skopeo_registry_url_list: []
+#
+# リストア先コンテナレジストリの既定値
+# 引数省略時に使用される設定ファイルへの書き込み値
+# 空文字列に設定すると, 引数省略時に restore スクリプトの
+# 引数に明示するよう旨エラーメッセージが表示される
+# 記載例:
+# skopeo_restore_default_destination_registry: "registry1.local:5000"
+#
+# skopeo_restore_default_destination_registry: ""
+#
+# デイリーバックアップ時のNFSマウントポイント
+# skopeo_backup_mount_point: "/mnt"
+# デイリーバックアップ時のNFSマウントポイント配下のバックアップ配置先ディレクトリ
+# skopeo_backup_dir_on_nfs: "/Linux/skopeo-backup"
+# デイリーバックアップ用NFSサーバホスト名
+# skopeo_backup_nfs_server: "nas.example.org"
+# デイリーバックアップ用NFS共有ディレクトリ
+# skopeo_backup_nfs_dir: "/share"
+
 # ======================================================
 # Docker Community Edition (オプション)
 # ======================================================

@@ -109,6 +109,10 @@ common_mdns_packages:
   - avahi-tools
   - nss-mdns
 
+# skopeo ロール用パッケージ
+skopeo_packages:
+  - skopeo
+
 devel_packages:
   - Lmod
   - aspell
