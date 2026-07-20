@@ -42,32 +42,9 @@
   ansible.builtin.set_fact:
     k8s_register_image_is_cluster_leader: "{{ inventory_hostname == ((k8s_register_image_control_plane_hosts | default([inventory_hostname], true)) | sort | first) }}"
 
-# worker ホスト一覧を自動解決する場合は, 代表ノード上でノード一覧を取得する。
-- name: "Get worker node list from Kubernetes cluster"
-  ansible.builtin.command:
-    cmd: >-
-      kubectl --kubeconfig {{ k8s_kubeconfig_to_discover_workers_path }}
-      get nodes --selector='!node-role.kubernetes.io/control-plane'
-      -o jsonpath='{.items[*].metadata.name}'
-  register: k8s_register_image_worker_nodes_result
-  changed_when: false
-  become: true
-  when:
-    - k8s_register_image_auto_discover_worker_hosts | bool
-    - k8s_register_image_is_cluster_leader | bool
-
-# worker ホスト一覧を変数に格納する。
-- name: "Set worker hosts"
-  ansible.builtin.set_fact:
-    k8s_register_image_worker_hosts: "{{ k8s_register_image_worker_nodes_result.stdout.split() }}"
-  when:
-    - k8s_register_image_auto_discover_worker_hosts | bool
-    - k8s_register_image_is_cluster_leader | bool
-
-# worker が存在しない場合は明示的に失敗させる。
-- name: "Verify that worker hosts exist"
-  ansible.builtin.fail:
-    msg: "ERROR: No worker nodes found in the cluster"
+# worker ホスト一覧を自動解決する場合は, 共通タスクでノード一覧を取得する。
+- name: "Discover worker hosts from Kubernetes cluster"
+  ansible.builtin.include_tasks: discover-worker-hosts.yml
   when:
     - k8s_register_image_auto_discover_worker_hosts | bool
     - k8s_register_image_is_cluster_leader | bool
@@ -78,6 +55,7 @@
   ansible.builtin.add_host:
     name: "{{ item }}"
     groups: k8s_worker_dynamic
+    ansible_host: "{{ k8s_register_image_worker_node_internal_ip_map.get(item, item) }}"
     ansible_user: "{{ ansible_user }}"
     ansible_become: true
   loop: "{{ k8s_register_image_worker_hosts | default([], true) }}"

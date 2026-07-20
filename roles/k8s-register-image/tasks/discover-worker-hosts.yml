@@ -1,0 +1,90 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  worker ノード自動検出タスク
+#
+---
+
+# worker ノード一覧と InternalIP 一覧を取得する。
+# 1. kubeconfig は次の優先順位で決定する。
+#    a. k8s_register_image_kubeconfig_to_discover_workers_path
+#    b. k8s_kubeconfig_to_discover_workers_path
+#    c. k8s_supercluster_kubeconfig_path
+#    d. /etc/kubernetes/admin.conf
+# 2. ラベル "!node-role.kubernetes.io/control-plane" で control-plane を除外する。
+# 3. 出力形式は custom-columns を使用し, ノード名 (.metadata.name) と
+#    InternalIP(.status.addresses中のtypeが"InternalIP"の項目) を取得し,
+#    --no-headers によりヘッダ行は除外する。
+- name: "Get worker node list and InternalIP from Kubernetes cluster"
+  ansible.builtin.command:
+    argv:
+      - kubectl
+      - --kubeconfig
+      - "{{ k8s_register_image_kubeconfig_to_discover_workers_path | default(k8s_kubeconfig_to_discover_workers_path, true) | default(k8s_supercluster_kubeconfig_path, true) | default('/etc/kubernetes/admin.conf', true) }}"
+      - get
+      - nodes
+      - --selector=!node-role.kubernetes.io/control-plane
+      - -o
+      - custom-columns=NAME:.metadata.name,INTERNAL_IPS:.status.addresses[?(@.type=="InternalIP")].address
+      - --no-headers
+  register: k8s_register_image_worker_nodes_result
+  changed_when: false
+  become: true
+
+# worker ノード名と接続先InternalIPの対応表を初期化する。
+- name: "Initialize worker node InternalIP map"
+  ansible.builtin.set_fact:
+    k8s_register_image_worker_node_internal_ip_map: {}
+
+# worker ノード名と接続先InternalIPの対応表を作成する。
+# _worker_node_ips_raw に含まれるカンマ区切りの候補から, 接続先として使用する
+# 代表アドレスを 1 つ選択する。
+#
+# 処理ロジック:
+# 1. _worker_node_name: "{{ item | regex_replace('\\s+.*$', '') | trim }}"
+#    行頭のノード名だけを抽出する。
+# 2. _worker_node_ips_raw: "{{ item | regex_replace('^\\S+\\s*', '') | trim }}"
+#    ノード名以降の IP 候補文字列を抽出する。
+# 3. split(',') -> map('trim') -> reject('equalto', '') -> first
+#    最初の非空要素を代表アドレスとして採用する。
+# 4. 候補がない場合はノード名にフォールバックする。
+- name: "Build worker node InternalIP map"
+  ansible.builtin.set_fact:
+    k8s_register_image_worker_node_internal_ip_map: >-
+      {{
+        (k8s_register_image_worker_node_internal_ip_map | default({}))
+        | combine(
+          {
+            _worker_node_name: _worker_delegate_host
+          }
+        )
+      }}
+  vars:
+    _worker_node_name: "{{ item | regex_replace('\\s+.*$', '') | trim }}"
+    _worker_node_ips_raw: "{{ item | regex_replace('^\\S+\\s*', '') | trim }}"
+    _worker_delegate_host: >-
+      {{
+        (
+          _worker_node_ips_raw
+          | default('', true)
+          | split(',')
+          | map('trim')
+          | reject('equalto', '')
+          | first
+          | default(_worker_node_name, true)
+        )
+      }}
+  loop: "{{ k8s_register_image_worker_nodes_result.stdout_lines | default([], true) }}"
+  when: (item | trim | length) > 0
+
+# worker ホスト一覧を変数に格納する。
+- name: "Set worker hosts"
+  ansible.builtin.set_fact:
+    k8s_register_image_worker_hosts: "{{ k8s_register_image_worker_node_internal_ip_map.keys() | list }}"
+
+# worker が存在しない場合は明示的に失敗させる。
+- name: "Verify that worker hosts exist"
+  ansible.builtin.fail:
+    msg: "ERROR: No worker nodes found in the cluster"
+  when: (k8s_register_image_worker_hosts | default([], true) | length) == 0

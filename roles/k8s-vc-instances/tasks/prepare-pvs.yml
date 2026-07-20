@@ -14,16 +14,11 @@
 #
 ---
 
-# worker ノードのリストを取得
-- name: "Get worker nodes list"
-  ansible.builtin.command:
-    cmd: >-
-      kubectl --kubeconfig {{ k8s_supercluster_kubeconfig_path }}
-      get nodes -l '!node-role.kubernetes.io/control-plane'
-      -o jsonpath='{.items[*].metadata.name}'
-  register: _worker_nodes_raw
-  become: true
-  changed_when: false
+# worker ノード情報の取得は k8s-register-image の共通タスクを利用する。
+- name: "Discover worker hosts"
+  ansible.builtin.include_role:
+    name: k8s-register-image
+    tasks_from: discover-worker-hosts.yml
   when:
     - vcinstances_etcd_storage_enabled | default(false) | bool
     - vcinstances_auto_create_pv | default(true) | bool
@@ -31,11 +26,11 @@
 # worker ノードのリストを解析して fact としてセット
 - name: "Parse worker nodes"
   ansible.builtin.set_fact:
-    _worker_nodes: "{{ _worker_nodes_raw.stdout.split() }}"
+    _worker_nodes: "{{ k8s_register_image_worker_hosts | default([], true) }}"
+    _worker_node_internal_ip_map: "{{ k8s_register_image_worker_node_internal_ip_map | default({}, true) }}"
   when:
     - vcinstances_etcd_storage_enabled | default(false) | bool
     - vcinstances_auto_create_pv | default(true) | bool
-    - _worker_nodes_raw.stdout | length > 0
 
 # 必要なPersistentVolumeの数を計算
 - name: "Calculate required PV count"
@@ -47,6 +42,13 @@
 
 # PersistentVolumeの自動作成が有効な場合、PV作成のための計画を立てる
 # テナントとレプリカのネストループ: 各テナントごとにvcinstances_etcd_replicas個のPVを作成
+# 処理ロジック:
+# pv_nameとhost_pathは, テナント名 (item[0].name) とレプリカ番号 (item[1]) を組み合わせて生成
+# pv_nameは, "pv-etcd-" + テナント名 + "-" + レプリカ番号 形式となる
+# host_pathは, vcinstances_pv_base_path + "/" + テナント名 + "-" + レプリカ番号 形式となる
+#  1. vcinstances_pv_base_pathが定義されていれば, それを使用
+#  2. vcinstances_pv_base_pathが定義されていなければ, デフォルト値の /mnt/etcd-data を使用
+#
 - name: "Generate PV distribution plan"
   ansible.builtin.set_fact:
     _pv_plan: >-
@@ -56,6 +58,10 @@
           'pv_name': 'pv-etcd-' + item[0].name + '-' + (item[1] | string),
           'tenant_name': item[0].name,
           'node_name': _worker_nodes[loop_index % (_worker_nodes | length)],
+          'delegate_host': _worker_node_internal_ip_map.get(
+            _worker_nodes[loop_index % (_worker_nodes | length)],
+            _worker_nodes[loop_index % (_worker_nodes | length)]
+          ),
           'host_path': (vcinstances_pv_base_path | default('/mnt/etcd-data', true)) + '/' + item[0].name + '-' + (item[1] | string)
         }]
       }}
@@ -73,6 +79,7 @@
     msg: |
       Required PV count: {{ _required_pv_count | default(0) }}
       Worker nodes: {{ _worker_nodes | default([]) }}
+      Worker node InternalIP map: {{ _worker_node_internal_ip_map | default({}) | to_nice_json }}
       PV plan: {{ _pv_plan | default([]) | to_nice_json }}
   when:
     - vcinstances_etcd_storage_enabled | default(false) | bool
@@ -90,10 +97,10 @@
     mode: "0755"
     owner: root
     group: root
-  delegate_to: "{{ item.node_name }}"
+  delegate_to: "{{ item.delegate_host }}"
   loop: "{{ _pv_plan | default([]) }}"
   loop_control:
-    label: "{{ item.node_name }}:{{ item.host_path }}"
+    label: "{{ item.node_name }}({{ item.delegate_host }}):{{ item.host_path }}"
   become: true
   when:
     - vcinstances_etcd_storage_enabled | default(false) | bool
