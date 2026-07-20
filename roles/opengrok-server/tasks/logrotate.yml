@@ -1,0 +1,18 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  OpenGrok 同期ログのローテーション設定
+#
+---
+
+# 同期ログの肥大化を防ぐため, logrotate 設定を配備する。
+- name: Install logrotate policy for opengrok-source-sync log
+  become: true
+  ansible.builtin.template:
+    src: opengrok-source-sync.logrotate.j2
+    dest: "{{ opengrok_logrotate_config_path }}"
+    owner: root
+    group: root
+    mode: "0644"
+    backup: false

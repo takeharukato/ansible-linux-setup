@@ -99,6 +99,33 @@ opengrok_sync_command_path: "/usr/local/bin/opengrok-source-sync"
 opengrok_reindex_command_path: "/usr/local/bin/opengrok-reindex"
 # ログファイル
 opengrok_sync_log_file: "/var/log/opengrok-source-sync.log"
+# ログローテーション設定を導入するかどうか
+opengrok_logrotate_enabled: true
+# logrotate 設定ファイルの配置先
+opengrok_logrotate_config_path: "/etc/logrotate.d/opengrok-source-sync"
+# ローテーション周期
+opengrok_logrotate_frequency: "daily"
+# ログサイズがこの値を超えたら周期を待たずにローテーションする
+opengrok_logrotate_maxsize: "50M"
+# 保持世代数
+opengrok_logrotate_rotate: 2
+# ローテーション後ファイル名に日付を付与する
+opengrok_logrotate_dateext: true
+# gzip 圧縮を有効化する
+opengrok_logrotate_compress: true
+# 1世代遅らせて圧縮する
+opengrok_logrotate_delaycompress: true
+# ログファイルが存在しない場合にエラーとしない
+opengrok_logrotate_missingok: true
+# 空ファイルはローテーションしない
+opengrok_logrotate_notifempty: true
+# ローテーション後の新規ログファイル属性
+opengrok_logrotate_create_mode: "0640"
+opengrok_logrotate_create_owner: "root"
+opengrok_logrotate_create_group: "root"
+# logrotate 実行時の権限
+opengrok_logrotate_su_user: "root"
+opengrok_logrotate_su_group: "root"
 # Python 実行コマンド
 # 留意事項: 環境変数PATHに依存しないように, 絶対パスで指定する。
 #           変更が必要な場合は, host_varsやvars/all-config.yml で上書きすること。

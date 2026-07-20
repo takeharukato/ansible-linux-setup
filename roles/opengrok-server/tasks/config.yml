@@ -6,6 +6,12 @@
 #
 ---
 
+# 同期ログ向け logrotate 設定を配置する。
+- name: Deploy logrotate config for opengrok-source-sync log
+  ansible.builtin.include_tasks: logrotate.yml
+  when:
+    - opengrok_logrotate_enabled | default(false) | bool
+
 # 補完ファイル配置先ディレクトリを先に作成する。
 - name: Ensure bash completion directory exists
   become: true

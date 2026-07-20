@@ -11,6 +11,7 @@
   ansible.builtin.package:
     name:
       - git
+      - logrotate
       - python3
       - "{{ opengrok_python_yaml_package }}"
     state: present

@@ -29,6 +29,8 @@ http://ホスト名:28080/
     - [ソース同期スクリプト(`opengrok-source-sync`)のコマンドラインオプション](#ソース同期スクリプトopengrok-source-syncのコマンドラインオプション)
     - [同期対象リポジトリ定義ファイル(`source-urls.yml`)](#同期対象リポジトリ定義ファイルsource-urlsyml)
   - [ソース同期処理の定期実行手順](#ソース同期処理の定期実行手順)
+    - [ソース同期処理の定期実行ログのローテーション設定](#ソース同期処理の定期実行ログのローテーション設定)
+    - [ソース同期処理の定期実行に関する留意事項](#ソース同期処理の定期実行に関する留意事項)
   - [手動でのインデクス更新手順](#手動でのインデクス更新手順)
     - [手動でのインデクス更新処理用のREST API(`/reindex` エンドポイント)に関する留意事項:](#手動でのインデクス更新処理用のrest-apireindex-エンドポイントに関する留意事項)
   - [検証ポイント](#検証ポイント)
@@ -97,6 +99,21 @@ ansible-playbook --tags "opengrok-server" -i inventory/hosts site.yml
 | `opengrok_sync_command_path` | `/usr/local/bin/opengrok-source-sync` | 同期処理用シェルスクリプト(Python 同期スクリプトを呼び出すラッパシェルスクリプト)への実行コマンドシンボリックリンク先。 |
 | `opengrok_reindex_command_path` | `/usr/local/bin/opengrok-reindex` | 手動再インデクス実行用シェルスクリプトへの実行コマンドシンボリックリンク先。 |
 | `opengrok_sync_log_file` | `/var/log/opengrok-source-sync.log` | 同期ログ出力先。 |
+| `opengrok_logrotate_enabled` | `true` | 同期ログ向け logrotate 設定の導入有効化フラグ。 |
+| `opengrok_logrotate_config_path` | `/etc/logrotate.d/opengrok-source-sync` | logrotate 設定ファイル配置先。 |
+| `opengrok_logrotate_frequency` | `daily` | ログローテーション周期。 |
+| `opengrok_logrotate_maxsize` | `50M` | このサイズを超えた場合に周期を待たずローテーションする閾値。 |
+| `opengrok_logrotate_rotate` | `2` | 保持世代数。 |
+| `opengrok_logrotate_dateext` | `true` | ローテーション後ファイル名への日付付与設定。 |
+| `opengrok_logrotate_compress` | `true` | ローテーション済みログ圧縮設定。 |
+| `opengrok_logrotate_delaycompress` | `true` | 最新世代の圧縮を1回遅延させる設定。 |
+| `opengrok_logrotate_missingok` | `true` | ログファイル未作成時にエラー扱いしない設定。 |
+| `opengrok_logrotate_notifempty` | `true` | 空ログをローテーションしない設定。 |
+| `opengrok_logrotate_create_mode` | `0640` | ローテーション後に作成するログファイルのパーミッション。 |
+| `opengrok_logrotate_create_owner` | `root` | ローテーション後に作成するログファイルのオーナ。 |
+| `opengrok_logrotate_create_group` | `root` | ローテーション後に作成するログファイルのグループ。 |
+| `opengrok_logrotate_su_user` | `root` | logrotate 実行時に使用するユーザ。 |
+| `opengrok_logrotate_su_group` | `root` | logrotate 実行時に使用するグループ。 |
 | `opengrok_python_command` | `/usr/bin/python3` | Python 実行コマンド。環境変数PATHに依存しないよう, 絶対パスで指定する。 |
 | `opengrok_daily_sync_extra_args` | `""` | 日次同期スクリプトへ渡す追加引数。 |
 | `opengrok_completion_enabled` | `true` | bash/zsh 補完導入有効化フラグ。 |
@@ -115,7 +132,8 @@ ansible-playbook --tags "opengrok-server" -i inventory/hosts site.yml
       3. その他に対して読み取りと実行可能
    4. `opengrok_sync_user_list` に列挙されたユーザを当該グループに追加する。
 5. [tasks/service.yml](tasks/service.yml) で `docker compose down` / `docker compose up -d` を実行し, `{{ opengrok_service_port }}` の起動待ち合わせを2段階で実施する。第1段階で対象ホスト内 (localhost) の待受を確認し, 第2段階で制御ノードから inventory ホスト名への到達性を確認する。コンテナ内で自動的にリポジトリを同期する処理(コンテナ内で Git リポジトリに対して `git pull --ff-only` を実行して更新を取り込む処理)は, [templates/docker-compose.yml.j2](templates/docker-compose.yml.j2) で `NOMIRROR=1` を設定することで常に無効化する。
-6. [tasks/config.yml](tasks/config.yml) で bash/zsh 補完を導入する。
+6. [tasks/logrotate.yml](tasks/logrotate.yml) で 同期ログ向け logrotate 設定を配備する。
+7. [tasks/config.yml](tasks/config.yml) で bash/zsh 補完を導入する。
 
 ## 導入されるファイル
 
@@ -145,6 +163,7 @@ ansible-playbook --tags "opengrok-server" -i inventory/hosts site.yml
 | `opengrok-source-sync.sh.j2` | `/opt/opengrok/scripts/opengrok-source-sync.sh` | Python 同期スクリプトを呼び出すラッパシェルスクリプト。 |
 | `daily-sync-opengrok-sources.sh.j2` | `/opt/opengrok/scripts/daily-sync-opengrok-sources.sh` | 日次同期実行用ラッパシェルスクリプト。 |
 | `opengrok-reindex.sh.j2` | `/opt/opengrok/scripts/opengrok-reindex.sh` | 手動再インデクス実行用 処理用スクリプト。 |
+| `opengrok-source-sync.logrotate.j2` | `/etc/logrotate.d/opengrok-source-sync` | 同期ログ(`/var/log/opengrok-source-sync.log`)のローテーション設定。 |
 | `opengrok-source-sync.bash-completion.j2` | `/etc/bash_completion.d/opengrok-source-sync` | bash 補完定義。 |
 | `_opengrok-source-sync.zsh-completion.j2` | `{{ opengrok_sync_zsh_completion_path }}` | zsh 補完定義。 |
 
@@ -245,7 +264,23 @@ sources:
 0 3 * * * /opt/opengrok/scripts/daily-sync-opengrok-sources.sh >> /var/log/opengrok-source-sync.log 2>&1
 ```
 
-なお, 本ロールは crontab エントリを自動作成しない。
+### ソース同期処理の定期実行ログのローテーション設定
+
+本稿の手順でcronによるソース同期処理の定期を実施した場合, `/var/log/opengrok-source-sync.log`ファイルにログが格納される。
+
+本ロールは, `opengrok_logrotate_enabled` が `true` の場合に, 本ログの肥大化を抑止するための`logrotate`設定ファイルである, `/etc/logrotate.d/opengrok-source-sync` を配備する。
+
+規定値では, `opengrok_sync_log_file` (`/var/log/opengrok-source-sync.log`) に対して以下の方針でローテーションする。
+
+- 周期: `daily`
+- サイズ閾値: `50M` (`maxsize`)
+- 保持世代数: `2`
+- 圧縮: `compress`, `delaycompress`
+- 属性: `create 0640 root root`
+
+### ソース同期処理の定期実行に関する留意事項
+
+本ロールは crontab エントリを自動作成しない。
 
 本ロールでは, 自動的にリポジトリを同期する処理(コンテナ内で Git リポジトリに対して `git pull --ff-only` を実行して更新を取り込む処理)を常に無効化している。したがって, Git リポジトリの clone/fetch/pull はホスト側の `opengrok-source-sync` が唯一の同期経路となる。これにより, コンテナ内の `git pull` が bind mount 済みリポジトリに対して SSH や認証情報の差異で失敗する事態を避ける。
 
@@ -286,6 +321,7 @@ curl -H "Authorization: Bearer trigger" http://127.0.0.1:25000/reindex
 - OpenGrok サービスが `http://ホスト名:28080/` でアクセス可能なこと。
 - `/usr/local/bin/opengrok-source-sync --dry-run` が正常終了すること。
 - `crontab -l` に手動登録したエントリが反映されていること。
+- `logrotate -d /etc/logrotate.conf` で `/etc/logrotate.d/opengrok-source-sync` の設定が解釈されること。
 
 ### `/opt/opengrok` 以下に docker, etc, scripts, src ディレクトリが作成されていることの確認
 
