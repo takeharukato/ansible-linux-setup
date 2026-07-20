@@ -40,6 +40,10 @@ virtualcluster_namespace: "vc-manager"
 # スーパークラスタの kubeconfig パス
 virtualcluster_supercluster_kubeconfig_path: "/etc/kubernetes/admin.conf"
 
+# virtual cluster の etcd URL スキーム
+# k8s-virtual-cluster でも共通利用する
+k8s_virtualcluster_vc_etcd_scheme: "https"
+
 #
 # etcd 永続ストレージ設定
 #
