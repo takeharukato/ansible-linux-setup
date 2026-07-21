@@ -1,0 +1,25 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#
+#  RHEL系 local rpm install
+#
+
+---
+
+- name: Build local rpm install path list
+  ansible.builtin.set_fact:
+    pkgbld_rpm_install_paths: >-
+      {{
+        (pkgbld_source_files | default([]))
+        | map(attribute='path')
+        | map('basename')
+        | map('regex_replace', '^', pkgbld_install_dest_dir ~ '/')
+        | list
+      }}
+
+- name: Install local rpm packages in one transaction
+  ansible.builtin.dnf:
+    name: "{{ pkgbld_rpm_install_paths }}"
+    state: present
+    disable_gpg_check: "{{ pkgbld_disable_gpg_check | bool }}"
+  become: true

@@ -1,0 +1,28 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#
+#  build用作業ディレクトリ準備
+#
+
+---
+
+# 構築ホスト上に作業ディレクトリと成果物出力ディレクトリを作成する
+- name: Ensure build workspace directories exist on build host
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    mode: "0755"
+  loop:
+    - "{{ package_build_workspace }}"
+    - "{{ package_build_output_dir }}"
+  delegate_to: "{{ package_build_host }}"
+  run_once: true
+
+# 制御ホスト上の build スクリプトを構築ホストの作業ディレクトリへ配置する
+- name: Copy build script to build host workspace
+  ansible.builtin.copy:
+    src: "{{ pkgbld_build_script_src }}"
+    dest: "{{ package_build_workspace }}/{{ pkgbld_build_script_name }}"
+    mode: "{{ pkgbld_build_script_mode }}"
+  delegate_to: "{{ package_build_host }}"
+  run_once: true

@@ -1,0 +1,80 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#
+#  入力検証
+#
+
+---
+
+# 共通ロール実行に必要な入力変数を検証する
+- name: Validate required variables for pkgbld-common
+  ansible.builtin.assert:
+    that:
+      - package_build_host is string
+      - package_build_host | length > 0
+      - package_build_workspace is string
+      - package_build_workspace | length > 0
+      - package_build_output_dir is string
+      - package_build_output_dir | length > 0
+      - pkgbld_build_script_src is string
+      - pkgbld_build_script_src | length > 0
+      - pkgbld_build_script_name is string
+      - pkgbld_build_script_name | length > 0
+      - pkgbld_package_type in ['deb', 'rpm']
+      - pkgbld_package_name is string
+      - pkgbld_package_name | length > 0
+      - package_targets is sequence
+      - package_targets | length > 0
+    fail_msg: "pkgbld-common required variables are missing or invalid."
+
+# Debian 系ノード向けのビルダーイメージ指定を検証する
+- name: Validate builder image for Debian family
+  ansible.builtin.assert:
+    that:
+      - pkgbld_builder_image_debian is string
+      - pkgbld_builder_image_debian | length > 0
+    fail_msg: "pkgbld_builder_image_debian is required for Debian family builds."
+  when: ansible_facts.os_family == 'Debian'
+
+# RedHat 系ノード向けのビルダーイメージ指定を検証する
+- name: Validate builder image for RedHat family
+  ansible.builtin.assert:
+    that:
+      - pkgbld_builder_image_rhel is string
+      - pkgbld_builder_image_rhel | length > 0
+    fail_msg: "pkgbld_builder_image_rhel is required for RedHat family builds."
+  when: ansible_facts.os_family == 'RedHat'
+
+# Debian 系成果物の探索パターン指定を検証する
+- name: Validate package file patterns for Debian family
+  ansible.builtin.assert:
+    that:
+      - pkgbld_package_file_patterns_debian is sequence
+      - pkgbld_package_file_patterns_debian | length > 0
+    fail_msg: "pkgbld_package_file_patterns_debian must be non-empty for Debian family."
+  when: ansible_facts.os_family == 'Debian'
+
+# RedHat 系成果物の探索パターン指定を検証する
+- name: Validate package file patterns for RedHat family
+  ansible.builtin.assert:
+    that:
+      - pkgbld_package_file_patterns_rhel is sequence
+      - pkgbld_package_file_patterns_rhel | length > 0
+    fail_msg: "pkgbld_package_file_patterns_rhel must be non-empty for RedHat family."
+  when: ansible_facts.os_family == 'RedHat'
+
+# build スクリプトの元ファイルが制御ホスト上に存在するかを確認する
+- name: Validate build script exists on controller
+  ansible.builtin.stat:
+    path: "{{ pkgbld_build_script_src }}"
+  register: pkgbld_build_script_src_stat
+  delegate_to: localhost
+  become: false
+  run_once: true
+
+# build スクリプト元ファイルが存在しない場合は早期に停止する
+- name: Fail when build script source file does not exist on controller
+  ansible.builtin.fail:
+    msg: "Build script source does not exist on controller: {{ pkgbld_build_script_src }}"
+  when: not (pkgbld_build_script_src_stat.stat.exists | default(false))
+  run_once: true

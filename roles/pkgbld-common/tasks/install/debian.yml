@@ -1,0 +1,42 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#
+#  Debian系 local deb install
+#
+
+---
+
+- name: Build local deb install argv
+  ansible.builtin.set_fact:
+    pkgbld_deb_install_argv: >-
+      {{
+        [
+          'env',
+          'DEBIAN_FRONTEND=noninteractive',
+          'apt-get',
+          '-y',
+          '-o',
+          'DPkg::Lock::Timeout=' ~ (pkgbld_install_deb_lock_wait_seconds | string),
+          '-o',
+          'Dpkg::Options::=--force-confdef',
+          '-o',
+          'Dpkg::Options::=--force-confold',
+          'install'
+        ]
+        +
+        (
+          pkgbld_source_files
+          | default([])
+          | map(attribute='path')
+          | map('basename')
+          | map('regex_replace', '^', pkgbld_install_dest_dir ~ '/')
+          | list
+        )
+      }}
+
+- name: Install local deb packages in one transaction
+  ansible.builtin.command:
+    argv: "{{ pkgbld_deb_install_argv }}"
+  register: pkgbld_deb_install_cmd
+  changed_when: pkgbld_deb_install_cmd.rc == 0
+  become: true

@@ -1,0 +1,89 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#
+#  導入確認
+#
+
+---
+
+# Debian 系で対象パッケージの導入状態を確認する
+- name: Query installed package status on Debian family
+  ansible.builtin.command:
+    argv:
+      - dpkg-query
+      - -W
+      - -f=${Status}
+      - "{{ pkgbld_package_name }}"
+  register: pkgbld_deb_pkg_status_cmd
+  changed_when: false
+  become: true
+  when: ansible_facts.os_family == 'Debian'
+
+# Debian 系で対象パッケージが導入済みであることを検証する
+- name: Assert package is installed on Debian family
+  ansible.builtin.assert:
+    that:
+      - "'install ok installed' in (pkgbld_deb_pkg_status_cmd.stdout | lower)"
+    fail_msg: >-
+      Local deb package is not installed.
+      package={{ pkgbld_package_name }}, status={{ pkgbld_deb_pkg_status_cmd.stdout | trim }}
+  when: ansible_facts.os_family == 'Debian'
+
+# RedHat 系で対象パッケージの導入状態を確認する
+- name: Query installed package status on RedHat family
+  ansible.builtin.command:
+    argv:
+      - rpm
+      - -q
+      - "{{ pkgbld_package_name }}"
+  register: pkgbld_rpm_pkg_query_cmd
+  changed_when: false
+  become: true
+  when: ansible_facts.os_family == 'RedHat'
+
+# RedHat 系で対象パッケージが導入済みであることを検証する
+- name: Assert package is installed on RedHat family
+  ansible.builtin.assert:
+    that:
+      - pkgbld_rpm_pkg_query_cmd.rc == 0
+    fail_msg: >-
+      Local rpm package is not installed.
+      package={{ pkgbld_package_name }}
+  when: ansible_facts.os_family == 'RedHat'
+
+# オプション指定時のみ, カスタム版数検証コマンドを実行する
+- name: Run custom version verify command when enabled
+  ansible.builtin.command:
+    argv: "{{ pkgbld_verify_version_command }}"
+  register: pkgbld_verify_version_cmd
+  changed_when: false
+  become: true
+  when:
+    - pkgbld_verify_version_enabled | bool
+    - pkgbld_verify_version_command | length > 0
+
+# カスタム版数検証コマンドの結果が期待値と一致することを確認する
+- name: Assert custom version output matches expected pattern
+  ansible.builtin.assert:
+    that:
+      - >-
+        (
+          (
+            (
+              pkgbld_verify_version_cmd.stdout
+              | regex_replace('-.*$', '')
+            )
+            if (pkgbld_verify_strip_after_hyphen | default(false) | bool)
+            else pkgbld_verify_version_cmd.stdout
+          )
+          | regex_findall(pkgbld_verify_version_regex)
+          | first
+          | default('')
+        ) == (pkgbld_verify_version_expected | trim)
+    fail_msg: >-
+      Installed package version mismatch.
+      expected={{ pkgbld_verify_version_expected | trim }},
+      output={{ pkgbld_verify_version_cmd.stdout | trim }}
+  when:
+    - pkgbld_verify_version_enabled | bool
+    - pkgbld_verify_version_regex | length > 0

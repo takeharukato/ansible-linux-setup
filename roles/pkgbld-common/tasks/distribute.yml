@@ -1,0 +1,15 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#
+#  controller -> target 配布
+#
+
+---
+
+# 制御ホストに回収した成果物を対象ホストへ配布する
+- name: Copy built packages from controller to target host
+  ansible.builtin.copy:
+    src: "{{ pkgbld_fetch_tmpdir.path }}/{{ item.path | basename }}"
+    dest: "{{ pkgbld_install_dest_dir }}/{{ item.path | basename }}"
+    mode: "0644"
+  loop: "{{ pkgbld_source_files | default([]) }}"

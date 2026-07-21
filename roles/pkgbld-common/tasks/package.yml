@@ -1,0 +1,38 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  パッケージ関連処理
+---
+
+# 本ロール実行に必要な入力変数を検証する
+- name: Validate
+  ansible.builtin.include_tasks: validate.yml
+
+# 構築ホストでパッケージビルド用の作業ディレクトリを準備する
+- name: Prepare build workdir
+  ansible.builtin.include_tasks: prepare-build-workdir.yml
+
+# 構築ホストでビルド用コンテナを起動する
+- name: Run build container
+  ansible.builtin.include_tasks: run-build-container.yml
+
+# 成果物を制御ホストに収集する
+- name: Collect artifacts
+  ansible.builtin.include_tasks: collect.yml
+
+# 成果物を対象ホストに配布する
+- name: Distribute artifacts
+  ansible.builtin.include_tasks: distribute.yml
+
+# 配布した成果物を対象ホストに導入する
+- name: Install local packages
+  ansible.builtin.include_tasks: install.yml
+
+# 導入した成果物の版数が期待した版数であることを確認する
+- name: Verify installation
+  ansible.builtin.include_tasks: verify.yml
+
+# パッケージビルド用の作業ディレクトリを削除する
+- name: Cleanup build workspace
+  ansible.builtin.include_tasks: cleanup-build-workdir.yml

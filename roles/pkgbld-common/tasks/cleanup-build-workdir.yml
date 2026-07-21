@@ -1,0 +1,16 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#
+#  build作業ディレクトリ後始末
+#
+
+---
+
+# 構築ホスト上の作業ディレクトリを削除して一時ファイルを掃除する
+- name: Remove build workspace on build host when cleanup is enabled
+  ansible.builtin.file:
+    path: "{{ package_build_workspace }}"
+    state: absent
+  delegate_to: "{{ package_build_host }}"
+  run_once: true
+  when: pkgbld_cleanup_build_workspace | bool

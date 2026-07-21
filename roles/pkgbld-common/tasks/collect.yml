@@ -1,0 +1,70 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#
+#  build host -> controller 回収
+#
+
+---
+
+# 構築ホストに記録した成果物一覧を現在ホストの変数へ取り込む
+- name: Resolve artifact files from build host delegated facts
+  ansible.builtin.set_fact:
+    pkgbld_source_files: >-
+      {{
+        (hostvars[package_build_host].pkgbld_artifact_files | default([]))
+        if ((hostvars[package_build_host].pkgbld_artifact_files | default([]) | length) > 0)
+        else []
+      }}
+
+# 取り込み結果が空の場合は収集処理を中断する
+- name: Fail when no source artifact file found on build host facts
+  ansible.builtin.fail:
+    msg: "No built package artifact found from build host facts."
+  when: (pkgbld_source_files | default([]) | length) == 0
+
+# 構築ホスト上の成果物を fetch 可能な権限へ調整する
+- name: Ensure built package permissions are readable on build host
+  ansible.builtin.file:
+    path: "{{ item.path }}"
+    mode: "0644"
+  loop: "{{ pkgbld_source_files | default([]) }}"
+  delegate_to: "{{ package_build_host }}"
+  run_once: true
+
+# 制御ホスト上に成果物回収用の一時ディレクトリを作成する
+- name: Ensure local staging directory exists for fetched packages
+  ansible.builtin.tempfile:
+    state: directory
+    path: "{{ lookup('env', 'HOME') }}/.ansible/tmp"
+    prefix: pkgbld-fetch-
+  register: pkgbld_fetch_tmpdir
+  delegate_to: localhost
+  become: false
+  run_once: true
+
+# 構築ホストから制御ホストへ成果物を回収する
+- name: Fetch built packages from build host to controller
+  ansible.builtin.fetch:
+    src: "{{ item.path }}"
+    dest: "{{ pkgbld_fetch_tmpdir.path }}/{{ item.path | basename }}"
+    flat: true
+  loop: "{{ pkgbld_source_files | default([]) }}"
+  delegate_to: "{{ package_build_host }}"
+  run_once: true
+
+# 制御ホスト上の回収結果を検証する
+- name: Check fetched package files exist on controller
+  ansible.builtin.stat:
+    path: "{{ pkgbld_fetch_tmpdir.path }}/{{ item.path | basename }}"
+  loop: "{{ pkgbld_source_files | default([]) }}"
+  register: pkgbld_fetch_stat
+  delegate_to: localhost
+  become: false
+  run_once: true
+
+# 回収漏れがある場合は後続配布を止める
+- name: Fail when fetched package file is missing on controller
+  ansible.builtin.fail:
+    msg: "Fetched package is missing on controller: {{ item.item.path | basename }}"
+  loop: "{{ pkgbld_fetch_stat.results | default([]) }}"
+  when: not (item.stat.exists | default(false))

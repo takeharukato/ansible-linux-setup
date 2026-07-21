@@ -1,0 +1,95 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#
+#  buildコンテナ実行
+#
+
+---
+
+# build コンテナを実行し, 失敗時は全ホストへ伝搬する
+# 留意事項:
+#   run_once: true により, 複数ホスト対象の play でも build 実行は1回のみとする。
+- name: Run package build in container with failure propagation
+  run_once: true
+  block:
+    # Debian 系向けビルダーコンテナで build スクリプトを実行する
+    - name: Run package build in Debian builder container
+      ansible.builtin.include_tasks: build/debian.yml
+      when: ansible_facts.os_family == 'Debian'
+
+    # RedHat 系向けビルダーコンテナで build スクリプトを実行する
+    - name: Run package build in RedHat builder container
+      ansible.builtin.include_tasks: build/rhel.yml
+      when: ansible_facts.os_family == 'RedHat'
+
+    # Debian 系の成果物を構築ホスト上で探索する
+    - name: Discover built package files on build host (Debian)
+      ansible.builtin.find:
+        paths: "{{ package_build_output_dir }}"
+        patterns: "{{ pkgbld_package_file_patterns_debian }}"
+        file_type: file
+      register: pkgbld_artifacts_found_debian
+      delegate_to: "{{ package_build_host }}"
+      when: ansible_facts.os_family == 'Debian'
+
+    # RedHat 系の成果物を構築ホスト上で探索する
+    - name: Discover built package files on build host (RedHat)
+      ansible.builtin.find:
+        paths: "{{ package_build_output_dir }}"
+        patterns: "{{ pkgbld_package_file_patterns_rhel }}"
+        file_type: file
+      register: pkgbld_artifacts_found_rhel
+      delegate_to: "{{ package_build_host }}"
+      when: ansible_facts.os_family == 'RedHat'
+
+    # OS別の探索結果を実効的な成果物一覧へ正規化する
+    - name: Set effective artifact list from OS specific discovery result
+      ansible.builtin.set_fact:
+        pkgbld_artifacts_found_effective: >-
+          {{
+            (
+              pkgbld_artifacts_found_debian.files
+              if ansible_facts.os_family == 'Debian'
+              else pkgbld_artifacts_found_rhel.files
+            )
+            | default([])
+          }}
+      delegate_to: "{{ package_build_host }}"
+
+    # 成果物が見つからない場合は明示的に停止する
+    - name: Fail when no package artifact was generated
+      ansible.builtin.fail:
+        msg: "No package artifact was generated in {{ package_build_output_dir }}"
+      when: (pkgbld_artifacts_found_effective | default([]) | length) == 0
+      delegate_to: "{{ package_build_host }}"
+
+    # 後続タスクから参照できるよう成果物一覧を構築ホストの facts に保存する
+    - name: Save discovered artifacts as delegated facts on build host
+      ansible.builtin.set_fact:
+        pkgbld_artifact_files: "{{ pkgbld_artifacts_found_effective | default([]) }}"
+      delegate_to: "{{ package_build_host }}"
+      delegate_facts: true
+
+    # build 成功状態を localhost facts に記録する
+    - name: Mark build as success on localhost
+      ansible.builtin.set_fact:
+        pkgbld_build_failed: false
+      delegate_to: localhost
+      delegate_facts: true
+
+  rescue:
+    # 失敗時はエラー内容を localhost facts に保存し, 全ホスト停止判定に使う
+    - name: Mark build as failed on localhost with details
+      ansible.builtin.set_fact:
+        pkgbld_build_failed: true
+        pkgbld_build_error: "{{ ansible_failed_result | default({}) }}"
+      delegate_to: localhost
+      delegate_facts: true
+
+    # build 失敗状態が記録されている場合, 全ホストで停止する
+- name: Fail all hosts when build failed on delegated run_once host
+  ansible.builtin.fail:
+    msg: >-
+      Package build failed in pkgbld-common.
+      details={{ hostvars['localhost'].pkgbld_build_error | default({}) }}
+  when: hostvars['localhost'].pkgbld_build_failed | default(false)
