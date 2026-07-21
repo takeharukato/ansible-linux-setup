@@ -15,17 +15,29 @@
 # deb822_repository モジュールは Ansible 2.15 以降で利用可能
 - name: Include package tasks (Ansible >= 2.15)
   ansible.builtin.include_tasks: package.yml
-  when: ansible_version.major > 2 or (ansible_version.major == 2 and ansible_version.minor >= 15)
+  when:
+    - ansible_version.major > 2 or (ansible_version.major == 2 and ansible_version.minor >= 15)
+    - terraform_enabled | default(false) | bool
 
 - name: Include package tasks (Ansible < 2.15)
   ansible.builtin.include_tasks: package-on-rhel9.yml
-  when: ansible_version.major < 2 or (ansible_version.major == 2 and ansible_version.minor < 15)
+  when:
+    - ansible_version.major < 2 or (ansible_version.major == 2 and ansible_version.minor < 15)
+    - terraform_enabled | default(false) | bool
 
 - name: "Directory"
   ansible.builtin.include_tasks: directory.yml
+  when:
+    - terraform_enabled | default(false) | bool
 - name: "User Group"
   ansible.builtin.include_tasks: user_group.yml
+  when:
+    - terraform_enabled | default(false) | bool
 - name: "Service"
   ansible.builtin.include_tasks: service.yml
+  when:
+    - terraform_enabled | default(false) | bool
 - name: "Config"
   ansible.builtin.include_tasks: config.yml
+  when:
+    - terraform_enabled | default(false) | bool

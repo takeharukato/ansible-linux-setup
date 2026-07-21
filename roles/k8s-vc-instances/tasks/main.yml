@@ -14,15 +14,18 @@
 
 - name: "Load Additional Params"
   ansible.builtin.include_tasks: load-additional-params.yml
-  when: k8s_vcinstances_enabled | default(false) | bool
+  when:
+    - k8s_vcinstances_enabled | default(false) | bool
 
 - name: "Validate Prerequisites"
   ansible.builtin.include_tasks: validate.yml
-  when: k8s_vcinstances_enabled | default(false) | bool
+  when:
+    - k8s_vcinstances_enabled | default(false) | bool
 
 - name: "Create Configuration Directory"
   ansible.builtin.include_tasks: directory.yml
-  when: k8s_vcinstances_enabled | default(false) | bool
+  when:
+    - k8s_vcinstances_enabled | default(false) | bool
 
 - name: "Detect Super Cluster Images"
   ansible.builtin.include_tasks: detect-supercluster-images.yml
@@ -38,7 +41,8 @@
 
 - name: "Prepare Storage (Create StorageClass if needed)"
   ansible.builtin.include_tasks: prepare-storage.yml
-  when: k8s_vcinstances_enabled | default(false) | bool
+  when:
+    - k8s_vcinstances_enabled | default(false) | bool
 
 - name: "Force Cleanup Resources (VirtualClusters and etcd PVs)"
   ansible.builtin.include_tasks: force-cleanup-resources.yml
@@ -57,7 +61,8 @@
 
 - name: "Prepare PersistentVolumes (Create etcd PVs if needed)"
   ansible.builtin.include_tasks: prepare-pvs.yml
-  when: k8s_vcinstances_enabled | default(false) | bool
+  when:
+    - k8s_vcinstances_enabled | default(false) | bool
 
 - name: "Create ClusterVersion Instances"
   ansible.builtin.include_tasks: clusterversion-instances.yml
@@ -84,4 +89,5 @@
 
 - name: "Verify Instances"
   ansible.builtin.include_tasks: verify.yml
-  when: k8s_vcinstances_enabled | default(false) | bool
+  when:
+    - k8s_vcinstances_enabled | default(false) | bool

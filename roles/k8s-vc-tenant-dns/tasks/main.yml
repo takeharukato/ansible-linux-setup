@@ -11,21 +11,21 @@
 # 最初に変数設定を読み直す ( role単独で実行可能とするため )
 - name: "Load Params"
   ansible.builtin.include_tasks: load-params.yml
-  when: k8s_vc_tenant_dns_enabled | bool
+
 - name: "Package"
   ansible.builtin.include_tasks: package.yml
   when:
-    - k8s_vc_tenant_dns_enabled | bool
+    - k8s_vc_tenant_dns_enabled | default(false) | bool
     - (vcinstances_virtualclusters | default([], true) | length) > 0
 - name: "Directory"
   ansible.builtin.include_tasks: directory.yml
-  when: k8s_vc_tenant_dns_enabled | bool
+  when: k8s_vc_tenant_dns_enabled | default(false) | bool
 - name: "User Group"
   ansible.builtin.include_tasks: user_group.yml
-  when: k8s_vc_tenant_dns_enabled | bool
+  when: k8s_vc_tenant_dns_enabled | default(false) | bool
 - name: "Service"
   ansible.builtin.include_tasks: service.yml
-  when: k8s_vc_tenant_dns_enabled | bool
+  when: k8s_vc_tenant_dns_enabled | default(false) | bool
 - name: "Config"
   ansible.builtin.include_tasks: config.yml
-  when: k8s_vc_tenant_dns_enabled | bool
+  when: k8s_vc_tenant_dns_enabled | default(false) | bool

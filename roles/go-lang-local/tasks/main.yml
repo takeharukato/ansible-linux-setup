@@ -13,11 +13,21 @@
   ansible.builtin.include_tasks: load-params.yml
 - name: "Package"
   ansible.builtin.include_tasks: package.yml
+  when:
+    -  ( go_lang_version | default('', true) | length ) > 0
 - name: "Directory"
   ansible.builtin.include_tasks: directory.yml
+  when:
+    -  ( go_lang_version | default('', true) | length ) > 0
 - name: "User Group"
   ansible.builtin.include_tasks: user_group.yml
+  when:
+    -  ( go_lang_version | default('', true) | length ) > 0
 - name: "Service"
   ansible.builtin.include_tasks: service.yml
+  when:
+    -  ( go_lang_version | default('', true) | length ) > 0
 - name: "Config"
   ansible.builtin.include_tasks: config.yml
+  when:
+    -  ( go_lang_version | default('', true) | length ) > 0

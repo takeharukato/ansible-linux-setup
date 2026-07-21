@@ -20,31 +20,32 @@
 # Virtual Cluster を有効にするための前提条件を検証するタスク
 - name: "Validate"
   ansible.builtin.include_tasks: validate.yml
-  when: k8s_virtualcluster_enabled | bool
+  when:
+    - k8s_virtualcluster_enabled | default(false) | bool
 
 # Virtual Cluster のイメージ版数などをスーパークラスタから動的に検出するタスク
 - name: "Detect Super Cluster Images"
   ansible.builtin.include_tasks: detect-supercluster-images.yml
   when:
-    - k8s_virtualcluster_enabled | bool
+    - k8s_virtualcluster_enabled | default(false) | bool
     - virtualcluster_auto_detect_supercluster_images | bool
 
 # クリーンビルド用: 既存テナント/CRD/vc-manager名前空間を削除するタスク
 - name: "Clean up existing VirtualCluster resources for clean build"
   ansible.builtin.include_tasks: cleanup.yml
   when:
-    - k8s_virtualcluster_enabled | bool
+    - k8s_virtualcluster_enabled | default(false) | bool
     - virtualcluster_clean_build | bool
 
 # vc-manager の名前空間を作成するタスク
 - name: "Namespace"
   ansible.builtin.include_tasks: namespace.yml
-  when: k8s_virtualcluster_enabled | bool
+  when: k8s_virtualcluster_enabled | default(false) | bool
 
 # Virtual Cluster CRDs (Custom Resource Definitions) をスーパークラスタに登録するタスク
 - name: "Register Custom Resource Definitions (CRDs)"
   ansible.builtin.include_tasks: crd.yml
-  when: k8s_virtualcluster_enabled | bool
+  when: k8s_virtualcluster_enabled | default(false) | bool
 
 # PersistentVolume を host_vars の定義に基づいて作成するタスク (オプション)
 - name: "Prepare PersistentVolumes (if configured)"
@@ -56,13 +57,13 @@
 # explicitイメージtarの利用可否を早期判定するタスク
 - name: "Detect explicit image tar availability"
   ansible.builtin.include_tasks: detect-explicit-availability.yml
-  when: k8s_virtualcluster_enabled | bool
+  when: k8s_virtualcluster_enabled | default(false) | bool
 
 # Virtual Cluster のソースをダウンロードするタスク
 - name: "Download Source"
   ansible.builtin.include_tasks: download-source.yml
   when:
-    - k8s_virtualcluster_enabled | bool
+    - k8s_virtualcluster_enabled | default(false) | bool
     - virtualcluster_build_from_source | bool
     - (virtualcluster_image_source_mode | default('build')) == 'build'
 
@@ -70,7 +71,7 @@
 - name: "Patch Provisioner for etcd scheme control"
   ansible.builtin.include_tasks: patch-provisioner.yml
   when:
-    - k8s_virtualcluster_enabled | bool
+    - k8s_virtualcluster_enabled | default(false) | bool
     - virtualcluster_build_from_source | bool
     - (virtualcluster_image_source_mode | default('build')) == 'build'
 
@@ -78,7 +79,7 @@
 - name: "Patch VirtualCluster types for ClusterError phase value"
   ansible.builtin.include_tasks: patch-virtualcluster-types.yml
   when:
-    - k8s_virtualcluster_enabled | bool
+    - k8s_virtualcluster_enabled | default(false) | bool
     - virtualcluster_build_from_source | bool
     - (virtualcluster_image_source_mode | default('build')) == 'build'
 
@@ -86,7 +87,7 @@
 - name: "Patch kubeconfig generation to correctly handle hostname-based server URLs"
   ansible.builtin.include_tasks: patch-kubeconfig.yml
   when:
-    - k8s_virtualcluster_enabled | bool
+    - k8s_virtualcluster_enabled | default(false) | bool
     - virtualcluster_build_from_source | bool
     - (virtualcluster_image_source_mode | default('build')) == 'build'
 
@@ -94,7 +95,7 @@
 - name: "Patch Service mutate to fix ClusterIPs sync issue"
   ansible.builtin.include_tasks: patch-service-mutate.yml
   when:
-    - k8s_virtualcluster_enabled | bool
+    - k8s_virtualcluster_enabled | default(false) | bool
     - virtualcluster_build_from_source | bool
     - (virtualcluster_image_source_mode | default('build')) == 'build'
 
@@ -102,7 +103,7 @@
 - name: "Patch vn-agent options to safely handle missing kubelet client cert files"
   ansible.builtin.include_tasks: patch-vn-agent-options.yml
   when:
-    - k8s_virtualcluster_enabled | bool
+    - k8s_virtualcluster_enabled | default(false) | bool
     - virtualcluster_build_from_source | bool
     - (virtualcluster_image_source_mode | default('build')) == 'build'
 
@@ -110,7 +111,7 @@
 - name: "Patch pod kube-api-access mutator to honor automount and disable token settings"
   ansible.builtin.include_tasks: patch-pod-kubeapiaccess-automount.yml
   when:
-    - k8s_virtualcluster_enabled | bool
+    - k8s_virtualcluster_enabled | default(false) | bool
     - virtualcluster_build_from_source | bool
     - (virtualcluster_image_source_mode | default('build')) == 'build'
 
@@ -118,7 +119,7 @@
 - name: "Build Binaries"
   ansible.builtin.include_tasks: build-binaries.yml
   when:
-    - k8s_virtualcluster_enabled | bool
+    - k8s_virtualcluster_enabled | default(false) | bool
     - virtualcluster_build_from_source | bool
     - (virtualcluster_image_source_mode | default('build')) == 'build'
 
@@ -126,7 +127,7 @@
 - name: "Build kubectl-vc Plugin"
   ansible.builtin.include_tasks: build-kubectl-vc.yml
   when:
-    - k8s_virtualcluster_enabled | bool
+    - k8s_virtualcluster_enabled | default(false) | bool
     - virtualcluster_build_from_source | bool
     - virtualcluster_build_kubectl_vc | bool
     - (virtualcluster_image_source_mode | default('build')) == 'build'
@@ -134,41 +135,48 @@
 # Virtual Cluster のコンテナイメージ成果物を準備するタスク
 - name: "Prepare Image Artifacts"
   ansible.builtin.include_tasks: prepare-image-artifacts.yml
-  when: k8s_virtualcluster_enabled | bool
+  when:
+    - k8s_virtualcluster_enabled | default(false) | bool
 
 # Virtual Cluster のコンテナイメージをコントロールプレーンノードにアップロードするタスク
 - name: "Upload to Control Plane"
   ansible.builtin.include_tasks: upload-to-ctrlplane.yml
-  when: k8s_virtualcluster_enabled | bool
+  when:
+    - k8s_virtualcluster_enabled | default(false) | bool
 
 # Virtual Cluster のコンテナイメージをワーカーノードに配布するタスク
 - name: "Distribute to Workers"
   ansible.builtin.include_tasks: distribute-to-workers.yml
-  when: k8s_virtualcluster_enabled | bool
+  when:
+    - k8s_virtualcluster_enabled | default(false) | bool
 
 # Virtual Cluster の管理コンポーネント (Pod群) をスーパークラスタにデプロイするタスク
 - name: "Deploy Manager"
   ansible.builtin.include_tasks: deploy-manager.yml
-  when: k8s_virtualcluster_enabled | bool
+  when:
+    - k8s_virtualcluster_enabled | default(false) | bool
 
 # テナント操作補助スクリプトを配置するタスク
 - name: "Deploy Tenant Management Tools"
   ansible.builtin.include_tasks: deploy-tenant-tools.yml
-  when: k8s_virtualcluster_enabled | bool
+  when:
+    - k8s_virtualcluster_enabled | default(false) | bool
 
 # テナント操作補助スクリプト用のシェル補完を配置するタスク
 - name: "Deploy Tenant Management Tools Shell Completion"
   ansible.builtin.include_tasks: deploy-tenant-tools-completion.yml
-  when: k8s_virtualcluster_enabled | bool
+  when:
+    - k8s_virtualcluster_enabled | default(false) | bool
 
 # Virtual Cluster のセットアップ完了後の検証タスク
 - name: "Verify"
   ansible.builtin.include_tasks: verify.yml
-  when: k8s_virtualcluster_enabled | bool
+  when:
+    - k8s_virtualcluster_enabled | default(false) | bool
 
 # 検証成功後に最新バンドル(イメージとマニフェスト)を昇格保存するタスク
 - name: "Promote Latest Image Bundle"
   ansible.builtin.include_tasks: promote-image-bundle.yml
   when:
-    - k8s_virtualcluster_enabled | bool
+    - k8s_virtualcluster_enabled | default(false) | bool
     - (virtualcluster_image_source_mode | default('')) == 'build'

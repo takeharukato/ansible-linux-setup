@@ -44,8 +44,6 @@
       tags: skopeo
     - role: sbom
       tags: sbom
-      when:
-        - sbom_enabled | default(false) | bool
 # 最後に実行するようにすること
     - role: force-reboot
       tags: force-reboot

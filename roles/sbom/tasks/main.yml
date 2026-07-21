@@ -10,29 +10,34 @@
 
 # 最初に変数設定を読み直す ( role単独で実行可能とするため )
 - name: Load parameters
-
   ansible.builtin.include_tasks: load-params.yml
 
 - name: Load sbom parameters
-
   ansible.builtin.include_tasks: sbom-params.yml
+  when:
+    - sbom_enabled | default(false) | bool
 
 - name: Install sbom-tool
-
   ansible.builtin.include_tasks: package.yml
+  when:
+    - sbom_enabled | default(false) | bool
 
 - name: Prepare directories
-
   ansible.builtin.include_tasks: directory.yml
+  when:
+    - sbom_enabled | default(false) | bool
 
 - name: Generate SBOM
-
   ansible.builtin.include_tasks: config.yml
+  when:
+    - sbom_enabled | default(false) | bool
 
 - name: Generate extra SBOMs
-
   ansible.builtin.include_tasks: extra-sboms.yml
+  when:
+    - sbom_enabled | default(false) | bool
 
 - name: Collect SBOM artifacts to controller
-
   ansible.builtin.include_tasks: collect-artifacts.yml
+  when:
+    - sbom_enabled | default(false) | bool

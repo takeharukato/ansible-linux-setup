@@ -12,15 +12,29 @@
   ansible.builtin.include_tasks: load-params.yml
 - name: "Build"
   ansible.builtin.include_tasks: build.yml
+  when:
+    - netgauge_enabled| default(false) | bool
 - name: "Package"
   ansible.builtin.include_tasks: package.yml
+  when:
+    - netgauge_enabled| default(false) | bool
 - name: "Directory"
   ansible.builtin.include_tasks: directory.yml
+  when:
+    - netgauge_enabled| default(false) | bool
 - name: "User Group"
   ansible.builtin.include_tasks: user_group.yml
+  when:
+    - netgauge_enabled| default(false) | bool
 - name: "Service"
   ansible.builtin.include_tasks: service.yml
+  when:
+    - netgauge_enabled| default(false) | bool
 - name: "Config"
   ansible.builtin.include_tasks: config.yml
+  when:
+    - netgauge_enabled| default(false) | bool
 - name: "Tools"
   ansible.builtin.include_tasks: tools.yml
+  when:
+    - netgauge_enabled| default(false) | bool

@@ -13,13 +13,25 @@
   ansible.builtin.include_tasks: load-params.yml
 - name: "Validate"
   ansible.builtin.include_tasks: validate.yml
+  when:
+    - k8s_hubble_ui_enabled | default(false) | bool
 - name: "Package"
   ansible.builtin.include_tasks: package.yml
+  when:
+    - k8s_hubble_ui_enabled | default(false) | bool
 - name: "Directory"
   ansible.builtin.include_tasks: directory.yml
+  when:
+    - k8s_hubble_ui_enabled | default(false) | bool
 - name: "User Group"
   ansible.builtin.include_tasks: user_group.yml
+  when:
+    - k8s_hubble_ui_enabled | default(false) | bool
 - name: "Service"
   ansible.builtin.include_tasks: service.yml
+  when:
+    - k8s_hubble_ui_enabled | default(false) | bool
 - name: "Config"
   ansible.builtin.include_tasks: config.yml
+  when:
+    - k8s_hubble_ui_enabled | default(false) | bool

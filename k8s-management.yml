@@ -13,15 +13,11 @@
   roles:
     - role: k8s-hubble-ui
       tags: k8s-hubble-ui
-      when: k8s_hubble_ui_enabled | default(false)
     - role: k8s-virtual-cluster
       tags: k8s-virtual-cluster
-      when: k8s_virtualcluster_enabled | default(false)
     - role: k8s-vc-instances
       tags: k8s-vc-instances
-      when: k8s_vcinstances_enabled | default(false) | bool
     - role: netshoot-no-portscan
       tags: netshoot-no-portscan
     - role: k8s-vc-tenant-dns
       tags: k8s-vc-tenant-dns
-      when: k8s_vc_tenant_dns_enabled | default(false) | bool
