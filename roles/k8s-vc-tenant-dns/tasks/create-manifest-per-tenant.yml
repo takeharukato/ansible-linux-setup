@@ -39,9 +39,12 @@
 # テナント実体 namespace 内の controller-manager-kubeconfig secret から kubeconfig 本文を復号して取得する
 - name: "Fetch tenant controller-manager kubeconfig for vc-tenant-dns"
   ansible.builtin.shell: >-
+    set -o pipefail &&
     kubectl --kubeconfig {{ k8s_vc_tenant_dns_supercluster_kubeconfig_path | quote }}
     -n {{ k8s_vc_tenant_dns_cluster_namespace | quote }}
     get secret controller-manager-kubeconfig -o jsonpath='{.data.controller-manager-kubeconfig}' | base64 -d
+  args:
+    executable: /bin/bash
   register: k8s_vc_tenant_dns_admin_kubeconfig_cmd
   changed_when: false
 
