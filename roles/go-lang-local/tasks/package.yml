@@ -54,35 +54,145 @@
         - ansible_check_mode | bool
         - not (go_installation_skipped | default(false))
 
-    # Goパッケージを構築ホストで作成して導入する (Debian系)
-    - name: Build go deb package on build host
-      ansible.builtin.include_tasks: build-go-source-deb.yml
+    # 構築ホスト上の作業ディレクトリを先に作成する
+    - name: Ensure go build workspace exists on build host for pkgbld-common
+      ansible.builtin.file:
+        path: "{{ go_build_workspace }}"
+        state: directory
+        mode: "0755"
+      delegate_to: "{{ go_build_host }}"
+      run_once: true
+      when:
+        - not (go_installation_skipped | default(false))
+        - not (ansible_check_mode | bool)
+
+    # 既存テンプレートを生成し, pkgbld-commonへ委譲する
+    - name: Render go deb build script on build host for pkgbld-common
+      ansible.builtin.template:
+        src: build-go-deb.sh.j2
+        dest: "{{ go_build_workspace }}/build-go-deb.sh"
+        mode: "0755"
+      delegate_to: "{{ go_build_host }}"
+      run_once: true
       when:
         - ansible_facts.os_family == 'Debian'
         - not (go_installation_skipped | default(false))
         - not (ansible_check_mode | bool)
 
-    # Goパッケージをターゲットホスト上に導入する (Debian系)
-    - name: Install go deb package on target host
-      ansible.builtin.include_tasks: install-go-local-deb.yml
+    - name: Render go rpm build script on build host for pkgbld-common
+      ansible.builtin.template:
+        src: build-go-rpm.sh.j2
+        dest: "{{ go_build_workspace }}/build-go-rpm.sh"
+        mode: "0755"
+      delegate_to: "{{ go_build_host }}"
+      run_once: true
+      when:
+        - ansible_facts.os_family == 'RedHat'
+        - not (go_installation_skipped | default(false))
+        - not (ansible_check_mode | bool)
+
+    - name: Set pkgbld-common variables for go deb package build/install
+      ansible.builtin.set_fact:
+        package_build_host: "{{ go_build_host }}"
+        package_build_workspace: "{{ go_build_workspace }}"
+        package_build_output_dir: "{{ go_build_output_dir }}"
+        pkgbld_container_runtime: "{{ go_build_container_runtime }}"
+        pkgbld_container_network_mode: "{{ go_build_container_network_mode }}"
+        pkgbld_builder_image_debian: "{{ go_build_container_image_debian }}"
+        pkgbld_builder_image_rhel: "{{ go_build_container_image_rhel }}"
+        pkgbld_container_workdir: "{{ go_build_container_workdir }}"
+        pkgbld_container_output_dir: "{{ go_build_container_workdir }}/output"
+        pkgbld_build_script_src: "{{ go_build_workspace }}/build-go-deb.sh"
+        pkgbld_build_script_name: "build-go-deb.sh"
+        pkgbld_package_type: "deb"
+        pkgbld_package_name: "{{ go_deb_package_name }}"
+        pkgbld_package_file_patterns_debian:
+          - "{{ go_deb_package_name }}_{{ go_resolved_version }}-1_*.deb"
+        pkgbld_package_file_patterns_rhel:
+          - "{{ go_rpm_package_name }}-{{ go_resolved_version }}-1.*.rpm"
+        package_targets: "{{ ansible_play_hosts_all }}"
+        pkgbld_install_deb_lock_wait_seconds: "{{ go_install_deb_lock_wait_seconds }}"
+        pkgbld_build_timeout_seconds: "{{ go_pkg_build_timeout_seconds }}"
+        pkgbld_build_loop_delay_seconds: "{{ go_pkg_build_loop_delay_seconds }}"
+        pkgbld_container_env_args:
+          - "-e"
+          - "GO_VERSION={{ go_resolved_version }}"
+          - "-e"
+          - "GO_BASE_URL={{ go_base_url }}"
+          - "-e"
+          - "GO_ARCH={{ go_arch }}"
+          - "-e"
+          - "GO_DEB_ARCH={{ go_arch }}"
+          - "-e"
+          - "GO_PACKAGE_NAME={{ go_deb_package_name }}"
+          - "-e"
+          - "GO_INSTALL_DIR={{ go_install_dir }}"
+          - "-e"
+          - "GO_PROFILE_SCRIPT={{ go_profile_script }}"
+        pkgbld_verify_version_enabled: true
+        pkgbld_verify_version_command:
+          - "{{ go_command_from_tarball_path }}"
+          - version
+        pkgbld_verify_version_regex: "go([0-9]+\\.[0-9]+\\.[0-9]+)"
+        pkgbld_verify_version_expected: "{{ go_resolved_version | trim }}"
       when:
         - ansible_facts.os_family == 'Debian'
         - not (go_installation_skipped | default(false))
         - not (ansible_check_mode | bool)
 
-    # Goパッケージを構築ホストで構築する (RedHat系)
-    - name: Build go rpm package on build host
-      ansible.builtin.include_tasks: build-go-source-rpm.yml
+    - name: Set pkgbld-common variables for go rpm package build/install
+      ansible.builtin.set_fact:
+        package_build_host: "{{ go_build_host }}"
+        package_build_workspace: "{{ go_build_workspace }}"
+        package_build_output_dir: "{{ go_build_output_dir }}"
+        pkgbld_container_runtime: "{{ go_build_container_runtime }}"
+        pkgbld_container_network_mode: "{{ go_build_container_network_mode }}"
+        pkgbld_builder_image_debian: "{{ go_build_container_image_debian }}"
+        pkgbld_builder_image_rhel: "{{ go_build_container_image_rhel }}"
+        pkgbld_container_workdir: "{{ go_build_container_workdir }}"
+        pkgbld_container_output_dir: "{{ go_build_container_workdir }}/output"
+        pkgbld_build_script_src: "{{ go_build_workspace }}/build-go-rpm.sh"
+        pkgbld_build_script_name: "build-go-rpm.sh"
+        pkgbld_package_type: "rpm"
+        pkgbld_package_name: "{{ go_rpm_package_name }}"
+        pkgbld_package_file_patterns_debian:
+          - "{{ go_deb_package_name }}_{{ go_resolved_version }}-1_*.deb"
+        pkgbld_package_file_patterns_rhel:
+          - "{{ go_rpm_package_name }}-{{ go_resolved_version }}-1.*.rpm"
+        package_targets: "{{ ansible_play_hosts_all }}"
+        pkgbld_install_deb_lock_wait_seconds: "{{ go_install_deb_lock_wait_seconds }}"
+        pkgbld_build_timeout_seconds: "{{ go_pkg_build_timeout_seconds }}"
+        pkgbld_build_loop_delay_seconds: "{{ go_pkg_build_loop_delay_seconds }}"
+        pkgbld_container_env_args:
+          - "-e"
+          - "GO_VERSION={{ go_resolved_version }}"
+          - "-e"
+          - "GO_BASE_URL={{ go_base_url }}"
+          - "-e"
+          - "GO_ARCH={{ go_arch }}"
+          - "-e"
+          - "GO_RPM_ARCH={{ ansible_facts.architecture }}"
+          - "-e"
+          - "GO_PACKAGE_NAME={{ go_rpm_package_name }}"
+          - "-e"
+          - "GO_INSTALL_DIR={{ go_install_dir }}"
+          - "-e"
+          - "GO_PROFILE_SCRIPT={{ go_profile_script }}"
+        pkgbld_verify_version_enabled: true
+        pkgbld_verify_version_command:
+          - "{{ go_command_from_tarball_path }}"
+          - version
+        pkgbld_verify_version_regex: "go([0-9]+\\.[0-9]+\\.[0-9]+)"
+        pkgbld_verify_version_expected: "{{ go_resolved_version | trim }}"
       when:
         - ansible_facts.os_family == 'RedHat'
         - not (go_installation_skipped | default(false))
         - not (ansible_check_mode | bool)
 
-    # Goパッケージをターゲットホスト上に導入する (RedHat系)
-    - name: Install go rpm package on target host
-      ansible.builtin.include_tasks: install-go-local-rpm.yml
+    - name: Build and install go local packages via pkgbld-common
+      ansible.builtin.include_role:
+        name: pkgbld-common
       when:
-        - ansible_facts.os_family == 'RedHat'
         - not (go_installation_skipped | default(false))
         - not (ansible_check_mode | bool)
 

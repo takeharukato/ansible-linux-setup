@@ -25,6 +25,7 @@
     # ターゲットホスト上で使用すべきランタイムパッケージ名を判定する
     - name: Detect libyang runtime package variant on target host ({{ frr_libyang_phase_label }})
       ansible.builtin.shell: >-
+        set -o pipefail;
         if dpkg-query -W -f='${Status}' libyang2t64 2>/dev/null | grep -q 'install ok installed'; then
           echo libyang2t64;
         else

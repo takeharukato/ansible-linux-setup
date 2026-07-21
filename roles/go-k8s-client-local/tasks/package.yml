@@ -29,22 +29,102 @@
   when: not (ansible_check_mode | bool)
   block:
 
-    # Go 言語版 Kubernetes client パッケージを構築ホストで作成して導入する (Debian系)
-    - name: Build go k8s client deb package on build host
-      ansible.builtin.include_tasks: build-client-go-source-deb.yml
+    - name: Ensure go k8s client build workspace exists on build host for pkgbld-common
+      ansible.builtin.file:
+        path: "{{ go_k8s_client_build_workspace }}"
+        state: directory
+        mode: "0755"
+      delegate_to: "{{ go_k8s_client_build_host }}"
+      run_once: true
+
+    - name: Render go k8s client deb build script on build host for pkgbld-common
+      ansible.builtin.template:
+        src: build-k8s-client-go-deb.sh.j2
+        dest: "{{ go_k8s_client_build_workspace }}/build-k8s-client-go-deb.sh"
+        mode: "0755"
+      delegate_to: "{{ go_k8s_client_build_host }}"
+      run_once: true
+      when:
+        - ansible_facts.os_family == 'Debian'
+
+    - name: Render go k8s client rpm build script on build host for pkgbld-common
+      ansible.builtin.template:
+        src: build-k8s-client-go-rpm.sh.j2
+        dest: "{{ go_k8s_client_build_workspace }}/build-k8s-client-go-rpm.sh"
+        mode: "0755"
+      delegate_to: "{{ go_k8s_client_build_host }}"
+      run_once: true
+      when:
+        - ansible_facts.os_family == 'RedHat'
+
+    - name: Set pkgbld-common variables for go k8s client deb build/install
+      ansible.builtin.set_fact:
+        package_build_host: "{{ go_k8s_client_build_host }}"
+        package_build_workspace: "{{ go_k8s_client_build_workspace }}"
+        package_build_output_dir: "{{ go_k8s_client_build_output_dir }}"
+        pkgbld_container_runtime: "{{ go_k8s_client_build_container_runtime }}"
+        pkgbld_container_network_mode: "{{ go_k8s_client_build_container_network_mode }}"
+        pkgbld_builder_image_debian: "{{ go_k8s_client_build_container_image_debian }}"
+        pkgbld_builder_image_rhel: "{{ go_k8s_client_build_container_image_rhel }}"
+        pkgbld_container_workdir: "{{ go_k8s_client_build_container_workdir }}"
+        pkgbld_container_output_dir: "{{ go_k8s_client_build_container_workdir }}/output"
+        pkgbld_build_script_src: "{{ go_k8s_client_build_workspace }}/build-k8s-client-go-deb.sh"
+        pkgbld_build_script_name: "build-k8s-client-go-deb.sh"
+        pkgbld_package_type: "deb"
+        pkgbld_package_name: "{{ go_k8s_client_deb_package_name }}"
+        pkgbld_package_file_patterns_debian:
+          - "{{ go_k8s_client_deb_package_name }}_*.deb"
+        pkgbld_package_file_patterns_rhel:
+          - "{{ go_k8s_client_rpm_package_name }}-*.rpm"
+        package_targets: "{{ ansible_play_hosts_all }}"
+        pkgbld_install_deb_lock_wait_seconds: "{{ go_k8s_client_install_deb_lock_wait_seconds }}"
+        pkgbld_build_timeout_seconds: "{{ go_k8s_client_build_timeout_seconds }}"
+        pkgbld_build_loop_delay_seconds: "{{ go_k8s_client_build_loop_delay_seconds }}"
+        pkgbld_container_env_args:
+          - "-e"
+          - "K8S_CLIENT_GO_VERSION={{ go_k8s_client_version }}"
+          - "-e"
+          - "K8S_CLIENT_MODULE_DOMAIN={{ go_k8s_client_module_domain }}"
+          - "-e"
+          - "K8S_CLIENT_DEB_PACKAGE_NAME={{ go_k8s_client_deb_package_name }}"
+          - "-e"
+          - "K8S_CLIENT_INSTALL_DIR={{ go_k8s_client_install_dir }}"
       when: ansible_facts.os_family == 'Debian'
 
-    # Go 言語版 Kubernetes client パッケージをターゲットホスト上に導入する (Debian系)
-    - name: Install go k8s client deb package on target host
-      ansible.builtin.include_tasks: install-client-go-local-deb.yml
-      when: ansible_facts.os_family == 'Debian'
-
-    # Go 言語版 Kubernetes client パッケージを構築ホストで作成して導入する (RedHat系)
-    - name: Build go k8s client rpm package on build host
-      ansible.builtin.include_tasks: build-client-go-source-rpm.yml
+    - name: Set pkgbld-common variables for go k8s client rpm build/install
+      ansible.builtin.set_fact:
+        package_build_host: "{{ go_k8s_client_build_host }}"
+        package_build_workspace: "{{ go_k8s_client_build_workspace }}"
+        package_build_output_dir: "{{ go_k8s_client_build_output_dir }}"
+        pkgbld_container_runtime: "{{ go_k8s_client_build_container_runtime }}"
+        pkgbld_container_network_mode: "{{ go_k8s_client_build_container_network_mode }}"
+        pkgbld_builder_image_debian: "{{ go_k8s_client_build_container_image_debian }}"
+        pkgbld_builder_image_rhel: "{{ go_k8s_client_build_container_image_rhel }}"
+        pkgbld_container_workdir: "{{ go_k8s_client_build_container_workdir }}"
+        pkgbld_container_output_dir: "{{ go_k8s_client_build_container_workdir }}/output"
+        pkgbld_build_script_src: "{{ go_k8s_client_build_workspace }}/build-k8s-client-go-rpm.sh"
+        pkgbld_build_script_name: "build-k8s-client-go-rpm.sh"
+        pkgbld_package_type: "rpm"
+        pkgbld_package_name: "{{ go_k8s_client_rpm_package_name }}"
+        pkgbld_package_file_patterns_debian:
+          - "{{ go_k8s_client_deb_package_name }}_*.deb"
+        pkgbld_package_file_patterns_rhel:
+          - "{{ go_k8s_client_rpm_package_name }}-*.rpm"
+        package_targets: "{{ ansible_play_hosts_all }}"
+        pkgbld_install_deb_lock_wait_seconds: "{{ go_k8s_client_install_deb_lock_wait_seconds }}"
+        pkgbld_build_timeout_seconds: "{{ go_k8s_client_build_timeout_seconds }}"
+        pkgbld_build_loop_delay_seconds: "{{ go_k8s_client_build_loop_delay_seconds }}"
+        pkgbld_container_env_args:
+          - "-e"
+          - "K8S_CLIENT_GO_VERSION={{ go_k8s_client_version }}"
+          - "-e"
+          - "K8S_CLIENT_MODULE_DOMAIN={{ go_k8s_client_module_domain }}"
+          - "-e"
+          - "K8S_CLIENT_RPM_PACKAGE_NAME={{ go_k8s_client_rpm_package_name }}"
+          - "-e"
+          - "K8S_CLIENT_INSTALL_DIR={{ go_k8s_client_install_dir }}"
       when: ansible_facts.os_family == 'RedHat'
 
-    # Go 言語版 Kubernetes client パッケージをターゲットホスト上に導入する (RedHat系)
-    - name: Install go k8s client rpm package on target host
-      ansible.builtin.include_tasks: install-client-go-local-rpm.yml
-      when: ansible_facts.os_family == 'RedHat'
+    - name: Build and install go k8s client local packages via pkgbld-common
+      ansible.builtin.include_role:
+        name: pkgbld-common

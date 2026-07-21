@@ -17,22 +17,211 @@
     - (frr_version | default('', true) | trim | length) > 0
     - ansible_facts.os_family == 'Debian'
   block:
-    - name: Build FRR deb package from source
-      ansible.builtin.include_tasks: build-source-deb.yml
+    - name: Ensure frr build workspace exists on build host for pkgbld-common
+      ansible.builtin.file:
+        path: "{{ frr_build_workspace }}"
+        state: directory
+        mode: "0755"
+      delegate_to: "{{ frr_build_host }}"
+      run_once: true
 
-    - name: Install built FRR deb package
-      ansible.builtin.include_tasks: install-local-deb.yml
+    - name: Render FRR deb Dockerfile on build host for pkgbld-common
+      ansible.builtin.template:
+        src: Dockerfile.ubuntu.j2
+        dest: "{{ frr_build_workspace }}/Dockerfile.frr-deb"
+        mode: "0644"
+      delegate_to: "{{ frr_build_host }}"
+      run_once: true
+
+    - name: Build FRR deb builder container image for pkgbld-common
+      ansible.builtin.command:
+        argv:
+          - "{{ frr_build_container_runtime }}"
+          - build
+          - --network
+          - "{{ frr_build_container_network_mode }}"
+          - -t
+          - "{{ frr_build_container_image_debian }}"
+          - -f
+          - "{{ frr_build_workspace }}/Dockerfile.frr-deb"
+          - "{{ frr_build_workspace }}"
+      async: "{{ frr_build_timeout_seconds }}"
+      poll: 0
+      register: frr_deb_builder_image_build_job_pkgbld
+      delegate_to: "{{ frr_build_host }}"
+      run_once: true
+      changed_when: true
+
+    - name: Wait FRR deb builder image build for pkgbld-common
+      ansible.builtin.async_status:
+        jid: "{{ frr_deb_builder_image_build_job_pkgbld.ansible_job_id }}"
+      register: frr_deb_builder_image_build_cmd_pkgbld
+      until: frr_deb_builder_image_build_cmd_pkgbld.finished
+      retries: "{{ (frr_build_timeout_seconds // frr_build_loop_delay_seconds) | int }}"
+      delay: "{{ frr_build_loop_delay_seconds }}"
+      failed_when: (frr_deb_builder_image_build_cmd_pkgbld.rc | default(0)) != 0
+      delegate_to: "{{ frr_build_host }}"
+      run_once: true
+
+    - name: Render FRR deb build script on build host for pkgbld-common
+      ansible.builtin.template:
+        src: build-frr-deb.sh.j2
+        dest: "{{ frr_build_workspace }}/build-frr-deb.sh"
+        mode: "0755"
+      delegate_to: "{{ frr_build_host }}"
+      run_once: true
+    - name: Set pkgbld-common variables for FRR deb package build/install
+      ansible.builtin.set_fact:
+        package_build_host: "{{ frr_build_host }}"
+        package_build_workspace: "{{ frr_build_workspace }}"
+        package_build_output_dir: "{{ frr_build_output_dir }}"
+        pkgbld_container_runtime: "{{ frr_build_container_runtime }}"
+        pkgbld_container_network_mode: "{{ frr_build_container_network_mode }}"
+        pkgbld_builder_image_debian: "{{ frr_build_container_image_debian }}"
+        pkgbld_builder_image_rhel: "{{ frr_build_container_image_rhel }}"
+        pkgbld_container_workdir: "{{ frr_build_container_workdir }}"
+        pkgbld_container_output_dir: "{{ frr_build_container_workdir }}/output"
+        pkgbld_build_script_src: "{{ frr_build_workspace }}/build-frr-deb.sh"
+        pkgbld_build_script_name: "build-frr-deb.sh"
+        pkgbld_package_type: "deb"
+        pkgbld_package_name: "frr"
+        pkgbld_package_file_patterns_debian:
+          - "frr*.deb"
+        pkgbld_package_file_patterns_rhel:
+          - "frr*.rpm"
+        package_targets: "{{ ansible_play_hosts_all }}"
+        pkgbld_install_deb_lock_wait_seconds: "{{ frr_install_deb_lock_wait_seconds }}"
+        pkgbld_build_timeout_seconds: "{{ frr_build_timeout_seconds }}"
+        pkgbld_build_loop_delay_seconds: "{{ frr_build_loop_delay_seconds }}"
+        pkgbld_container_env_args:
+          - "-e"
+          - "FRR_VERSION={{ frr_version }}"
+          - "-e"
+          - "FRR_GIT_URL={{ frr_source_git_url }}"
+          - "-e"
+          - "FRR_GIT_REF_PREFIX={{ frr_source_git_ref_prefix }}"
+          - "-e"
+          - "LIBYANG_VERSION={{ frr_libyang_version }}"
+          - "-e"
+          - "LIBYANG_GIT_URL={{ frr_libyang_git_url }}"
+          - "-e"
+          - "LIBYANG_GIT_REF_PREFIX={{ frr_libyang_git_ref_prefix }}"
+        pkgbld_verify_version_enabled: true
+        pkgbld_verify_version_command:
+          - dpkg-query
+          - -W
+          - -f=${Version}
+          - frr
+        pkgbld_verify_version_regex: "([0-9]+\\.[0-9]+\\.[0-9]+(?:[.-][A-Za-z0-9]+)*)"
+        pkgbld_verify_version_expected: "{{ frr_version | trim }}"
+        pkgbld_verify_strip_after_hyphen: true
+
+    - name: Build and install FRR local packages via pkgbld-common
+      ansible.builtin.include_role:
+        name: pkgbld-common
 
 - name: Build and install strict FRR version on RedHat family
   when:
     - (frr_version | default('', true) | trim | length) > 0
     - ansible_facts.os_family == 'RedHat'
   block:
-    - name: Build FRR rpm package from source
-      ansible.builtin.include_tasks: build-source-rpm.yml
+    - name: Ensure frr build workspace exists on build host for pkgbld-common
+      ansible.builtin.file:
+        path: "{{ frr_build_workspace }}"
+        state: directory
+        mode: "0755"
+      delegate_to: "{{ frr_build_host }}"
+      run_once: true
 
-    - name: Install built FRR rpm package
-      ansible.builtin.include_tasks: install-local-rpm.yml
+    - name: Render FRR rpm Dockerfile on build host for pkgbld-common
+      ansible.builtin.template:
+        src: Dockerfile.almalinux.j2
+        dest: "{{ frr_build_workspace }}/Dockerfile.frr-rpm"
+        mode: "0644"
+      delegate_to: "{{ frr_build_host }}"
+      run_once: true
+
+    - name: Build FRR rpm builder container image for pkgbld-common
+      ansible.builtin.command:
+        argv:
+          - "{{ frr_build_container_runtime }}"
+          - build
+          - --network
+          - "{{ frr_build_container_network_mode }}"
+          - -t
+          - "{{ frr_build_container_image_rhel }}"
+          - -f
+          - "{{ frr_build_workspace }}/Dockerfile.frr-rpm"
+          - "{{ frr_build_workspace }}"
+      async: "{{ frr_build_timeout_seconds }}"
+      poll: 0
+      register: frr_rpm_builder_image_build_job_pkgbld
+      delegate_to: "{{ frr_build_host }}"
+      run_once: true
+      changed_when: true
+
+    - name: Wait FRR rpm builder image build for pkgbld-common
+      ansible.builtin.async_status:
+        jid: "{{ frr_rpm_builder_image_build_job_pkgbld.ansible_job_id }}"
+      register: frr_rpm_builder_image_build_cmd_pkgbld
+      until: frr_rpm_builder_image_build_cmd_pkgbld.finished
+      retries: "{{ (frr_build_timeout_seconds // frr_build_loop_delay_seconds) | int }}"
+      delay: "{{ frr_build_loop_delay_seconds }}"
+      failed_when: (frr_rpm_builder_image_build_cmd_pkgbld.rc | default(0)) != 0
+      delegate_to: "{{ frr_build_host }}"
+      run_once: true
+
+    - name: Render FRR rpm build script on build host for pkgbld-common
+      ansible.builtin.template:
+        src: build-frr-rpm.sh.j2
+        dest: "{{ frr_build_workspace }}/build-frr-rpm.sh"
+        mode: "0755"
+      delegate_to: "{{ frr_build_host }}"
+      run_once: true
+    - name: Set pkgbld-common variables for FRR rpm package build/install
+      ansible.builtin.set_fact:
+        package_build_host: "{{ frr_build_host }}"
+        package_build_workspace: "{{ frr_build_workspace }}"
+        package_build_output_dir: "{{ frr_build_output_dir }}"
+        pkgbld_container_runtime: "{{ frr_build_container_runtime }}"
+        pkgbld_container_network_mode: "{{ frr_build_container_network_mode }}"
+        pkgbld_builder_image_debian: "{{ frr_build_container_image_debian }}"
+        pkgbld_builder_image_rhel: "{{ frr_build_container_image_rhel }}"
+        pkgbld_container_workdir: "{{ frr_build_container_workdir }}"
+        pkgbld_container_output_dir: "{{ frr_build_container_workdir }}/output"
+        pkgbld_build_script_src: "{{ frr_build_workspace }}/build-frr-rpm.sh"
+        pkgbld_build_script_name: "build-frr-rpm.sh"
+        pkgbld_package_type: "rpm"
+        pkgbld_package_name: "frr"
+        pkgbld_package_file_patterns_debian:
+          - "frr*.deb"
+        pkgbld_package_file_patterns_rhel:
+          - "frr*.rpm"
+        package_targets: "{{ ansible_play_hosts_all }}"
+        pkgbld_install_deb_lock_wait_seconds: "{{ frr_install_deb_lock_wait_seconds }}"
+        pkgbld_build_timeout_seconds: "{{ frr_build_timeout_seconds }}"
+        pkgbld_build_loop_delay_seconds: "{{ frr_build_loop_delay_seconds }}"
+        pkgbld_container_env_args:
+          - "-e"
+          - "FRR_VERSION={{ frr_version }}"
+          - "-e"
+          - "FRR_GIT_URL={{ frr_source_git_url }}"
+          - "-e"
+          - "FRR_GIT_REF_PREFIX={{ frr_source_git_ref_prefix }}"
+        pkgbld_verify_version_enabled: true
+        pkgbld_verify_version_command:
+          - rpm
+          - -q
+          - --qf
+          - '%{VERSION}'
+          - frr
+        pkgbld_verify_version_regex: "([0-9]+\\.[0-9]+\\.[0-9]+(?:[.-][A-Za-z0-9]+)*)"
+        pkgbld_verify_version_expected: "{{ frr_version | trim }}"
+        pkgbld_verify_strip_after_hyphen: false
+
+    - name: Build and install FRR local packages via pkgbld-common
+      ansible.builtin.include_role:
+        name: pkgbld-common
 
 - name: Fail for unsupported OS family when strict version is requested
   ansible.builtin.fail:
