@@ -38,6 +38,9 @@ log/
 *.patch
 # ロールのfiles/ディレクトリに配置するパッチファイルはgit管理対象とする
 !roles/*/files/*.patch
+
+# ユーザごとのローカル設定ファイル
+/vars/all-config.yml
 *.gcno
 *.gcda
 *.gcov
