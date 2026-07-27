@@ -168,7 +168,7 @@ Helm 方式から kubectl apply 方式への切り替え, またはその逆の�
   - kubectl: Kubernetes クラスタ操作用 (/usr/local/bin/kubectl)
   - helm: Helm Chart 導入用 (Helm 方式使用時, 既定で有効)
 - **kube-apiserver**: 稼働中で応答可能であること
-- **管理者権限**: kubectl 実行に /etc/kubernetes/admin.conf を使用するため root 権限が必要 (sudoコマンドによるコマンド実行が可能であることが必要)
+- **管理者権限**: kubectl 実行に /etc/kubernetes/admin.conf を使用する場合は, root 権限が必要 (sudoコマンドによるコマンド実行が可能であることが必要)
 - **ネットワーク接続**: コンテナイメージ取得のためのインターネット接続 (または内部レジストリへの接続)
 
 ## 実行フロー
@@ -637,7 +637,7 @@ NAD の `master` がノード実IF名と不一致です。`master` を実IF名�
 以下のコマンドを実行し, Pod内のネットワークインターフェース情報を確認します:
 
 ```bash
-kubectl  exec demo-net1 -- ip addr show
+kubectl exec demo-net1 -- ip addr show
 ```
 
 **期待される結果**:
@@ -676,7 +676,7 @@ kubectl  exec demo-net1 -- ip addr show
 **ルーティング確認**:
 
 ```bash
-sudo kubectl  exec demo-net1 -- ip route show
+kubectl exec demo-net1 -- ip route show
 ```
 
 **期待される結果**:
@@ -701,7 +701,7 @@ default via 10.244.2.168 dev eth0
 確認後はテストポッドを削除します:
 
 ```bash
-sudo kubectl  delete -f {{ k8s_multus_config_dir }}/app-pod.yml
+kubectl delete -f {{ k8s_multus_config_dir }}/app-pod.yml
 kubectl delete -f /tmp/ipvlan-wb-nad.yml --ignore-not-found
 ```
 
@@ -710,7 +710,7 @@ kubectl delete -f /tmp/ipvlan-wb-nad.yml --ignore-not-found
 問題が発生した場合は, Multus Pod のログを確認します:
 
 ```bash
-sudo kubectl  logs -n kube-system -l app=multus --tail=50
+kubectl logs -n kube-system -l app=multus --tail=50
 ```
 
 ## トラブルシューティング
@@ -730,9 +730,9 @@ sudo kubectl  logs -n kube-system -l app=multus --tail=50
 
 **対処方法**:
 
-1. コンテナイメージのプルエラーを確認: `sudo kubectl describe pod -n kube-system <POD_NAME>`
+1. コンテナイメージのプルエラーを確認: `kubectl describe pod -n kube-system <POD_NAME>`
 2. ノード上で CNI ディレクトリの存在を確認: `sudo ls -ld /opt/cni/bin /etc/cni/net.d`
-3. ServiceAccount, ClusterRole, ClusterRoleBinding の存在を確認: `sudo kubectl get sa,clusterrole,clusterrolebinding | grep multus`
+3. ServiceAccount, ClusterRole, ClusterRoleBinding の存在を確認: `kubectl get sa,clusterrole,clusterrolebinding | grep multus`
 
 ### 2. NetworkAttachmentDefinition (NAD) が認識されない
 
@@ -748,7 +748,7 @@ sudo kubectl  logs -n kube-system -l app=multus --tail=50
 
 **対処方法**:
 
-1. CRD の存在を確認: `sudo kubectl get crd | grep network-attachment-definitions`
+1. CRD の存在を確認: `kubectl get crd | grep network-attachment-definitions`
 2. CRD が存在しない場合は, Helm 導入または kubectl apply 導入が正常に完了していない可能性があります。ロールを再実行するか, `k8s_multus_cleanup_resources: true` で既存リソースをクリーンアップしてから再導入します。
 3. NAD リソースの作成は 別ロール で行います(例: `k8s-whereabouts`)。**本ロールでは, NAD 自体の作成は行いません**。
 
@@ -767,11 +767,11 @@ sudo kubectl  logs -n kube-system -l app=multus --tail=50
 
 **対処方法**:
 
-1. Annotation の記述を確認: `sudo kubectl get pod <POD_NAME> -o jsonpath='{.metadata.annotations}'`
+1. Annotation の記述を確認: `kubectl get pod <POD_NAME> -o jsonpath='{.metadata.annotations}'`
    - 正しい形式: `k8s.v1.cni.cncf.io/networks: <NAMESPACE>/<NAD_NAME>` または `k8s.v1.cni.cncf.io/networks: <NAD_NAME>` (同一名前空間の場合)
-2. NAD の存在と内容を確認: `sudo kubectl get network-attachment-definitions -n <NAMESPACE> <NAD_NAME> -o yaml`
+2. NAD の存在と内容を確認: `kubectl get network-attachment-definitions -n <NAMESPACE> <NAD_NAME> -o yaml`
 3. CNI プラグインバイナリの存在を確認 (thin モードの場合): `sudo ls -l /opt/cni/bin/` で必要なプラグイン (ipvlan, macvlan, bridge 等) が存在するか確認
-4. Multus Pod のログを確認: `sudo kubectl logs -n kube-system -l app=multus`
+4. Multus Pod のログを確認: `kubectl logs -n kube-system -l app=multus`
 
 ### 4. Helm Release が失敗する
 
@@ -791,7 +791,7 @@ sudo kubectl  logs -n kube-system -l app=multus --tail=50
 1. Helm Release の状態を確認: `helm list -n kube-system | grep multus`
 2. Release の詳細を確認: `helm get all multus -n kube-system`
 3. values ファイルの内容を確認: `cat /tmp/multus-values.yml`
-4. kube-apiserver の応答を確認: `sudo kubectl cluster-info`
+4. kube-apiserver の応答を確認: `kubectl cluster-info`
 5. Helm を使用せず kubectl apply 方式に切り替える: `k8s_multus_use_helm: false`
 
 ### 5. kube-apiserver に接続できない
