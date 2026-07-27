@@ -31,10 +31,10 @@
 | `go_k8s_client_module_domain` | `dns_domain` または `"example.org"` | `go mod init` で使用するドメイン。 |
 | `go_k8s_client_install_dir` | `"/opt/k8s-devel/go-client"` | オフラインキット導入先。 |
 | `go_k8s_client_build_host` | `"localhost"` | 構築ホスト。 |
-| `go_k8s_client_build_workspace` | `"/tmp/go-k8s-client-build"` | 構築ワークスペース。 |
-| `go_k8s_client_build_output_dir` | `"{{ go_k8s_client_build_workspace }}/output"` | 成果物出力先。 |
 | `go_k8s_client_deb_package_name` | `"go-k8s-client"` | Debian系ローカルパッケージ名。 |
 | `go_k8s_client_rpm_package_name` | `"go-k8s-client"` | RHEL系ローカルパッケージ名。 |
+
+構築ワークスペースは入力変数ではなく, タスク内で実行ユーザごとに `/tmp/go-k8s-client-build-<USER>` を自動選択する。
 
 ## 検証例
 

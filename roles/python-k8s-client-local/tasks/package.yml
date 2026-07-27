@@ -18,59 +18,113 @@
           - python_k8s_client_version_spec | default('', true) | string | trim | length > 0
         fail_msg: "python_k8s_client_version_spec is empty. Please specify a version spec for the Kubernetes python client."
 
-    # 構築ホスト上の作業ディレクトリを先に作成する
-    - name: Ensure python k8s client build workspace exists on build host for pkgbld-common
-      ansible.builtin.file:
-        path: "{{ python_k8s_client_build_workspace }}"
-        state: directory
-        mode: "0755"
-      delegate_to: "{{ python_k8s_client_build_host }}"
+    # Python k8s client 構築用の作業ディレクトリパスを実行ユーザごとに初期化する
+    - name: Set effective workspace for python k8s client build
+      ansible.builtin.set_fact:
+        python_k8s_client_build_workspace_effective: >-
+          /tmp/python-k8s-client-build-{{ lookup('env', 'USER') | default('ansible', true) }}
       run_once: true
 
-    # buildスクリプトと制御テンプレートを生成し, pkgbld-commonへ委譲する
-    - name: Render python k8s client deb build script on build host for pkgbld-common
+    # 制御ホスト上に作業ディレクトリを作成し, 書き込み不可の場合は代替へ切り替える
+    - name: Ensure python k8s client build workspace exists on controller for pkgbld-common
+      run_once: true
+      block:
+
+        # 制御ホスト上に作業ディレクトリを作成する
+        - name: Create configured python k8s client build workspace on controller
+          ansible.builtin.file:
+            path: "{{ python_k8s_client_build_workspace_effective }}"
+            state: directory
+            mode: "0755"
+          delegate_to: localhost
+          become: false
+
+        # 作業ディレクトリに書き込み権が設定されていることを確認する
+        - name: Verify configured python k8s client build workspace is writable on controller
+          ansible.builtin.command:
+            argv:
+              - /bin/sh
+              - -c
+              - >-
+                probe="{{ python_k8s_client_build_workspace_effective }}/.ansible-write-probe-$$";
+                touch "$probe" && rm -f "$probe"
+          delegate_to: localhost
+          become: false
+          changed_when: false
+      rescue:
+
+        # 制御ホスト上の作業ディレクトリが書き込み不可の場合は代替パスへ切り替える
+        - name: Switch python k8s client build workspace to per-user fallback path
+          ansible.builtin.set_fact:
+            python_k8s_client_build_workspace_effective: >-
+              /tmp/python-k8s-client-build-fallback-{{ lookup('env', 'USER') | default('ansible', true) }}
+
+        # 制御ホスト上の作業ディレクトリを代替パスに作成する
+        - name: Create fallback python k8s client build workspace on controller
+          ansible.builtin.file:
+            path: "{{ python_k8s_client_build_workspace_effective }}"
+            state: directory
+            mode: "0755"
+          delegate_to: localhost
+          become: false
+
+        # 制御ホスト上の代替作業ディレクトリが書き込み可能であることを確認する
+        - name: Verify fallback python k8s client build workspace is writable on controller
+          ansible.builtin.command:
+            argv:
+              - /bin/sh
+              - -c
+              - >-
+                probe="{{ python_k8s_client_build_workspace_effective }}/.ansible-write-probe-$$";
+                touch "$probe" && rm -f "$probe"
+          delegate_to: localhost
+          become: false
+          changed_when: false
+
+    # buildスクリプトとテンプレートを制御ホスト上で生成し, pkgbld-commonへ委譲する
+    - name: Render python k8s client deb build script on controller for pkgbld-common
       ansible.builtin.template:
         src: build-python-k8s-client-deb.sh.j2
-        dest: "{{ python_k8s_client_build_workspace }}/build-python-k8s-client-deb.sh"
+        dest: "{{ python_k8s_client_build_workspace_effective }}/build-python-k8s-client-deb.sh"
         mode: "0755"
-      delegate_to: "{{ python_k8s_client_build_host }}"
+      delegate_to: localhost
+      become: false
       run_once: true
-      when:
-        - ansible_facts.os_family == 'Debian'
 
-    - name: Render python k8s client deb control template on build host for pkgbld-common
+    # Debian 系パッケージ用 control テンプレートを制御ホスト上に生成する
+    - name: Render python k8s client deb control template on controller for pkgbld-common
       ansible.builtin.template:
         src: python-k8s-client.control.j2
-        dest: "{{ python_k8s_client_build_workspace }}/python-k8s-client.control"
+        dest: "{{ python_k8s_client_build_workspace_effective }}/python-k8s-client.control"
         mode: "0644"
-      delegate_to: "{{ python_k8s_client_build_host }}"
+      delegate_to: localhost
+      become: false
       run_once: true
-      when:
-        - ansible_facts.os_family == 'Debian'
 
-    - name: Render python k8s client rpm build script on build host for pkgbld-common
+    # RHEL 系パッケージ用 build スクリプトを制御ホスト上に生成する
+    - name: Render python k8s client rpm build script on controller for pkgbld-common
       ansible.builtin.template:
         src: build-python-k8s-client-rpm.sh.j2
-        dest: "{{ python_k8s_client_build_workspace }}/build-python-k8s-client-rpm.sh"
+        dest: "{{ python_k8s_client_build_workspace_effective }}/build-python-k8s-client-rpm.sh"
         mode: "0755"
-      delegate_to: "{{ python_k8s_client_build_host }}"
+      delegate_to: localhost
+      become: false
       run_once: true
-      when:
-        - ansible_facts.os_family == 'RedHat'
 
-    - name: Render python k8s client rpm spec template on build host for pkgbld-common
+    # RHEL 系パッケージ用 spec テンプレートを制御ホスト上に生成する
+    - name: Render python k8s client rpm spec template on controller for pkgbld-common
       ansible.builtin.template:
         src: python-k8s-client.spec.j2
-        dest: "{{ python_k8s_client_build_workspace }}/python-k8s-client.spec"
+        dest: "{{ python_k8s_client_build_workspace_effective }}/python-k8s-client.spec"
         mode: "0644"
-      delegate_to: "{{ python_k8s_client_build_host }}"
+      delegate_to: localhost
+      become: false
       run_once: true
-      when:
-        - ansible_facts.os_family == 'RedHat'
 
-    - name: Select target python interpreter for verification on Debian family (pkgbld-common)
+    # 検証コマンドで利用する Python 実行ファイルを対象ホスト条件に応じて決定する
+    - name: Select target python interpreter for verification (pkgbld-common)
       ansible.builtin.set_fact:
-        python_k8s_client_deb_target_python_cmd: >-
+        python_k8s_client_target_python_cmd: >-
           {{
             (
               '/usr/bin/python' ~ (k8s_python_packages_version | string | trim)
@@ -82,26 +136,8 @@
             )
             else '/usr/bin/python3'
           }}
-      when:
-        - ansible_facts.os_family == 'Debian'
 
-    - name: Select target python interpreter for verification on RedHat family (pkgbld-common)
-      ansible.builtin.set_fact:
-        python_k8s_client_rpm_target_python_cmd: >-
-          {{
-            (
-              '/usr/bin/python' ~ (k8s_python_packages_version | string | trim)
-            )
-            if (
-              (k8s_python_packages_version is defined)
-              and
-              ((k8s_python_packages_version | string | trim | length) > 0)
-            )
-            else '/usr/bin/python3'
-          }}
-      when:
-        - ansible_facts.os_family == 'RedHat'
-
+    # 版数指定から実際に導入される kubernetes パッケージ版数を構築ホストで解決する
     - name: Query requested kubernetes python client version from spec on build host for pkgbld-common
       ansible.builtin.command:
         argv:
@@ -114,7 +150,14 @@
           - "K8S_PY_CLIENT_VERSION_SPEC={{ python_k8s_client_version_spec }}"
           - -e
           - "K8S_PY_CLIENT_PYTHON_VERSION={{ (k8s_python_packages_version | default('', true) | string | trim) }}"
-          - "{{ (ansible_facts.os_family == 'Debian') | ternary(python_k8s_client_build_container_image_debian, python_k8s_client_build_container_image_rhel) }}"
+          - >-
+            {{
+              (ansible_facts.os_family == 'Debian')
+              | ternary(
+                python_k8s_client_build_container_image_debian,
+                python_k8s_client_build_container_image_rhel
+              )
+            }}
           - /bin/bash
           - -lc
           - >-
@@ -133,23 +176,31 @@
       run_once: true
       when: true
 
+    # 解決した kubernetes パッケージ版数を後続の検証用期待値として保存する
     - name: Set expected kubernetes python client version for pkgbld-common verification
       ansible.builtin.set_fact:
         python_k8s_client_installed_version_expected: "{{ python_k8s_client_expected_version_cmd.stdout | trim }}"
       when: true
 
-    - name: Set pkgbld-common variables for python k8s client deb build/install
-      ansible.builtin.set_fact:
+    # Python k8s client パッケージ構築処理を pkgbld-common に委譲し, 構築ホストで導入する
+    - name: Build and install python k8s client local packages via pkgbld-common # noqa var-naming[no-role-prefix]
+      ansible.builtin.include_role:
+        name: pkgbld-common
+      vars:
         package_build_host: "{{ python_k8s_client_build_host }}"
-        package_build_workspace: "{{ python_k8s_client_build_workspace }}"
-        package_build_output_dir: "{{ python_k8s_client_build_output_dir }}"
+        package_build_workspace: "{{ python_k8s_client_build_workspace_effective }}"
+        package_build_output_dir: "{{ python_k8s_client_build_workspace_effective }}/output"
         pkgbld_container_runtime: "{{ python_k8s_client_build_container_runtime }}"
         pkgbld_container_network_mode: "{{ python_k8s_client_build_container_network_mode }}"
         pkgbld_builder_image_debian: "{{ python_k8s_client_build_container_image_debian }}"
         pkgbld_builder_image_rhel: "{{ python_k8s_client_build_container_image_rhel }}"
         pkgbld_container_workdir: "{{ python_k8s_client_build_container_workdir }}"
         pkgbld_container_output_dir: "{{ python_k8s_client_build_container_workdir }}/output"
-        pkgbld_build_script_src: "{{ python_k8s_client_build_workspace }}/build-python-k8s-client-deb.sh"
+        pkgbld_build_script_src_debian: "{{ python_k8s_client_build_workspace_effective }}/build-python-k8s-client-deb.sh"
+        pkgbld_build_script_name_debian: "build-python-k8s-client-deb.sh"
+        pkgbld_build_script_src_rhel: "{{ python_k8s_client_build_workspace_effective }}/build-python-k8s-client-rpm.sh"
+        pkgbld_build_script_name_rhel: "build-python-k8s-client-rpm.sh"
+        pkgbld_build_script_src: "{{ python_k8s_client_build_workspace_effective }}/build-python-k8s-client-deb.sh"
         pkgbld_build_script_name: "build-python-k8s-client-deb.sh"
         pkgbld_package_type: "deb"
         pkgbld_package_name: "{{ python_k8s_client_deb_package_name }}"
@@ -167,57 +218,14 @@
           - "-e"
           - "K8S_PY_CLIENT_DEB_PACKAGE_NAME={{ python_k8s_client_deb_package_name }}"
           - "-e"
-          - "K8S_PY_CLIENT_PYTHON_VERSION={{ (k8s_python_packages_version | default('', true) | string | trim) }}"
-        pkgbld_verify_version_enabled: true
-        pkgbld_verify_version_command:
-          - "{{ python_k8s_client_deb_target_python_cmd }}"
-          - -c
-          - >-
-            import kubernetes; print(kubernetes.__version__)
-        pkgbld_verify_version_regex: "([0-9]+\\.[0-9]+\\.[0-9]+(?:[a-z]+[0-9]+)?)"
-        pkgbld_verify_version_expected: "{{ python_k8s_client_installed_version_expected }}"
-      when: ansible_facts.os_family == 'Debian'
-
-    - name: Set pkgbld-common variables for python k8s client rpm build/install
-      ansible.builtin.set_fact:
-        package_build_host: "{{ python_k8s_client_build_host }}"
-        package_build_workspace: "{{ python_k8s_client_build_workspace }}"
-        package_build_output_dir: "{{ python_k8s_client_build_output_dir }}"
-        pkgbld_container_runtime: "{{ python_k8s_client_build_container_runtime }}"
-        pkgbld_container_network_mode: "{{ python_k8s_client_build_container_network_mode }}"
-        pkgbld_builder_image_debian: "{{ python_k8s_client_build_container_image_debian }}"
-        pkgbld_builder_image_rhel: "{{ python_k8s_client_build_container_image_rhel }}"
-        pkgbld_container_workdir: "{{ python_k8s_client_build_container_workdir }}"
-        pkgbld_container_output_dir: "{{ python_k8s_client_build_container_workdir }}/output"
-        pkgbld_build_script_src: "{{ python_k8s_client_build_workspace }}/build-python-k8s-client-rpm.sh"
-        pkgbld_build_script_name: "build-python-k8s-client-rpm.sh"
-        pkgbld_package_type: "rpm"
-        pkgbld_package_name: "{{ python_k8s_client_rpm_package_name }}"
-        pkgbld_package_file_patterns_debian:
-          - "{{ python_k8s_client_deb_package_name }}_*.deb"
-        pkgbld_package_file_patterns_rhel:
-          - "{{ python_k8s_client_rpm_package_name }}-*.rpm"
-        package_targets: "{{ ansible_play_hosts_all }}"
-        pkgbld_install_deb_lock_wait_seconds: "{{ python_k8s_client_install_deb_lock_wait_seconds }}"
-        pkgbld_build_timeout_seconds: "{{ python_k8s_client_build_timeout_seconds }}"
-        pkgbld_build_loop_delay_seconds: "{{ python_k8s_client_build_loop_delay_seconds }}"
-        pkgbld_container_env_args:
-          - "-e"
-          - "K8S_PY_CLIENT_VERSION_SPEC={{ python_k8s_client_version_spec }}"
-          - "-e"
           - "K8S_PY_CLIENT_RPM_PACKAGE_NAME={{ python_k8s_client_rpm_package_name }}"
           - "-e"
           - "K8S_PY_CLIENT_PYTHON_VERSION={{ (k8s_python_packages_version | default('', true) | string | trim) }}"
         pkgbld_verify_version_enabled: true
         pkgbld_verify_version_command:
-          - "{{ python_k8s_client_rpm_target_python_cmd }}"
+          - "{{ python_k8s_client_target_python_cmd }}"
           - -c
           - >-
             import kubernetes; print(kubernetes.__version__)
         pkgbld_verify_version_regex: "([0-9]+\\.[0-9]+\\.[0-9]+(?:[a-z]+[0-9]+)?)"
         pkgbld_verify_version_expected: "{{ python_k8s_client_installed_version_expected }}"
-      when: ansible_facts.os_family == 'RedHat'
-
-    - name: Build and install python k8s client local packages via pkgbld-common
-      ansible.builtin.include_role:
-        name: pkgbld-common

@@ -6,6 +6,15 @@
 #
 ---
 
+# Go k8s client 構築用の作業ディレクトリを実行ユーザごとに決定する
+- name: Set effective workspace variables for go k8s client rpm build
+  ansible.builtin.set_fact:
+    go_k8s_client_build_workspace_effective: >-
+      /tmp/go-k8s-client-build-{{ lookup('env', 'USER') | default('ansible', true) }}
+    go_k8s_client_build_output_dir_effective: >-
+      /tmp/go-k8s-client-build-{{ lookup('env', 'USER') | default('ansible', true) }}/output
+  run_once: true
+
 # Go 言語版 Kubernetes client ソースビルド処理のためのディレクトリを作成する
 - name: Prepare local workspace for go k8s client rpm build
   ansible.builtin.file:
@@ -13,8 +22,8 @@
     state: directory
     mode: "0755"
   loop:
-    - "{{ go_k8s_client_build_workspace }}"
-    - "{{ go_k8s_client_build_output_dir }}"
+    - "{{ go_k8s_client_build_workspace_effective }}"
+    - "{{ go_k8s_client_build_output_dir_effective }}"
   delegate_to: "{{ go_k8s_client_build_host }}"
   run_once: true
 
@@ -22,7 +31,7 @@
 - name: Render go k8s client rpm build script on build host
   ansible.builtin.template:
     src: build-k8s-client-go-rpm.sh.j2
-    dest: "{{ go_k8s_client_build_workspace }}/build-k8s-client-go-rpm.sh"
+    dest: "{{ go_k8s_client_build_workspace_effective }}/build-k8s-client-go-rpm.sh"
     mode: "0755"
   delegate_to: "{{ go_k8s_client_build_host }}"
   run_once: true
@@ -31,7 +40,7 @@
 - name: Render go k8s client rpm Dockerfile on build host
   ansible.builtin.template:
     src: Dockerfile.almalinux.j2
-    dest: "{{ go_k8s_client_build_workspace }}/Dockerfile.go-k8s-client-rpm"
+    dest: "{{ go_k8s_client_build_workspace_effective }}/Dockerfile.go-k8s-client-rpm"
     mode: "0644"
   delegate_to: "{{ go_k8s_client_build_host }}"
   run_once: true
@@ -47,8 +56,8 @@
       - -t
       - "{{ go_k8s_client_build_container_image_rhel }}"
       - -f
-      - "{{ go_k8s_client_build_workspace }}/Dockerfile.go-k8s-client-rpm"
-      - "{{ go_k8s_client_build_workspace }}"
+      - "{{ go_k8s_client_build_workspace_effective }}/Dockerfile.go-k8s-client-rpm"
+      - "{{ go_k8s_client_build_workspace_effective }}"
   async: "{{ go_k8s_client_build_timeout_seconds }}"
   poll: 0
   register: go_k8s_client_rpm_builder_image_build_job
@@ -86,7 +95,7 @@
       - -e
       - "K8S_CLIENT_INSTALL_DIR={{ go_k8s_client_install_dir }}"
       - -v
-      - "{{ go_k8s_client_build_workspace }}:/work"
+      - "{{ go_k8s_client_build_workspace_effective }}:/work"
       - -w
       - /work
       - "{{ go_k8s_client_build_container_image_rhel }}"
@@ -114,7 +123,7 @@
 # Go 言語版 Kubernetes client rpm成果物を探索する
 - name: Discover built go k8s client rpm files
   ansible.builtin.find:
-    paths: "{{ go_k8s_client_build_output_dir }}"
+    paths: "{{ go_k8s_client_build_output_dir_effective }}"
     patterns: "{{ go_k8s_client_rpm_package_name }}-*.rpm"
     file_type: file
   register: go_k8s_client_rpm_files_discovered

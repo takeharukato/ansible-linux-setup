@@ -8,6 +8,10 @@
 
 ---
 
+# Kubernetes Go Clientをインストールする場合は, trueに設定し
+# インストールしない場合は, falseに設定する
+k8s_devel_go_client_enabled: false
+
 # Go 言語版 Kubernetes client 版数
 # 例: v0.31.0
 go_k8s_client_version: ""
@@ -24,12 +28,6 @@ go_k8s_client_rpm_package_name: "go-k8s-client"
 
 # Go 言語版 Kubernetes client パッケージ構築ホスト
 go_k8s_client_build_host: "localhost"
-
-# Go 言語版 Kubernetes client パッケージ構築作業ディレクトリ
-go_k8s_client_build_workspace: "/tmp/go-k8s-client-build"
-
-# Go 言語版 Kubernetes client パッケージ成果物出力ディレクトリ
-go_k8s_client_build_output_dir: "{{ go_k8s_client_build_workspace }}/output"
 
 # Go 言語版 Kubernetes client パッケージ構築タイムアウト(秒)
 go_k8s_client_build_timeout_seconds: 3600

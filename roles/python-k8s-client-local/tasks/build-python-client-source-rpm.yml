@@ -6,6 +6,15 @@
 #
 ---
 
+# Python k8s client 構築用の作業ディレクトリを実行ユーザごとに決定する
+- name: Set effective workspace variables for python k8s client rpm build
+  ansible.builtin.set_fact:
+    python_k8s_client_build_workspace_effective: >-
+      /tmp/python-k8s-client-build-{{ lookup('env', 'USER') | default('ansible', true) }}
+    python_k8s_client_build_output_dir_effective: >-
+      /tmp/python-k8s-client-build-{{ lookup('env', 'USER') | default('ansible', true) }}/output
+  run_once: true
+
 # Python 言語版 Kubernetes client の rpmパッケージを
 # 構築するための作業ディレクトリを作成する
 - name: Prepare local workspace for python k8s client rpm build
@@ -14,8 +23,8 @@
     state: directory
     mode: "0755"
   loop:
-    - "{{ python_k8s_client_build_workspace }}"
-    - "{{ python_k8s_client_build_output_dir }}"
+    - "{{ python_k8s_client_build_workspace_effective }}"
+    - "{{ python_k8s_client_build_output_dir_effective }}"
   delegate_to: "{{ python_k8s_client_build_host }}"
   run_once: true
 
@@ -24,7 +33,7 @@
 - name: Render python k8s client rpm build script on build host
   ansible.builtin.template:
     src: build-python-k8s-client-rpm.sh.j2
-    dest: "{{ python_k8s_client_build_workspace }}/build-python-k8s-client-rpm.sh"
+    dest: "{{ python_k8s_client_build_workspace_effective }}/build-python-k8s-client-rpm.sh"
     mode: "0755"
   delegate_to: "{{ python_k8s_client_build_host }}"
   run_once: true
@@ -34,7 +43,7 @@
 - name: Render python k8s client rpm spec template on build host
   ansible.builtin.template:
     src: python-k8s-client.spec.j2
-    dest: "{{ python_k8s_client_build_workspace }}/python-k8s-client.spec"
+    dest: "{{ python_k8s_client_build_workspace_effective }}/python-k8s-client.spec"
     mode: "0644"
   delegate_to: "{{ python_k8s_client_build_host }}"
   run_once: true
@@ -44,7 +53,7 @@
 - name: Render python k8s client rpm Dockerfile on build host
   ansible.builtin.template:
     src: Dockerfile.almalinux.j2
-    dest: "{{ python_k8s_client_build_workspace }}/Dockerfile.python-k8s-client-rpm"
+    dest: "{{ python_k8s_client_build_workspace_effective }}/Dockerfile.python-k8s-client-rpm"
     mode: "0644"
   delegate_to: "{{ python_k8s_client_build_host }}"
   run_once: true
@@ -61,8 +70,8 @@
       - -t
       - "{{ python_k8s_client_build_container_image_rhel }}"
       - -f
-      - "{{ python_k8s_client_build_workspace }}/Dockerfile.python-k8s-client-rpm"
-      - "{{ python_k8s_client_build_workspace }}"
+      - "{{ python_k8s_client_build_workspace_effective }}/Dockerfile.python-k8s-client-rpm"
+      - "{{ python_k8s_client_build_workspace_effective }}"
   async: "{{ python_k8s_client_build_timeout_seconds }}"
   poll: 0
   register: python_k8s_client_rpm_builder_image_build_job
@@ -99,7 +108,7 @@
       - -e
       - "K8S_PY_CLIENT_PYTHON_VERSION={{ (k8s_python_packages_version | default('', true) | string | trim) }}"
       - -v
-      - "{{ python_k8s_client_build_workspace }}:/work"
+      - "{{ python_k8s_client_build_workspace_effective }}:/work"
       - -w
       - /work
       - "{{ python_k8s_client_build_container_image_rhel }}"
@@ -127,7 +136,7 @@
 # Python 言語版 Kubernetes client の rpmパッケージ成果物の一覧を取得する
 - name: Discover built python k8s client rpm files
   ansible.builtin.find:
-    paths: "{{ python_k8s_client_build_output_dir }}"
+    paths: "{{ python_k8s_client_build_output_dir_effective }}"
     patterns: "{{ python_k8s_client_rpm_package_name }}-*.rpm"
     file_type: file
   register: python_k8s_client_rpm_files_discovered

@@ -51,13 +51,13 @@ playbook中で実施する導入確認の要点:
 | python_k8s_client_deb_package_name | "python3-k8s-client" | Debian系ローカルパッケージ名。 |
 | python_k8s_client_rpm_package_name | "python3-k8s-client" | RHEL系ローカルパッケージ名。 |
 | python_k8s_client_build_host | "localhost" | 構築ホスト。 |
-| python_k8s_client_build_workspace | "/tmp/python-k8s-client-build" | 構築ワークスペース。 |
-| python_k8s_client_build_output_dir | "{{ python_k8s_client_build_workspace }}/output" | 成果物出力先。 |
 | python_k8s_client_install_deb_lock_wait_seconds | 600 | Debian系 apt ロック待機秒数。 |
 | python_k8s_client_build_container_runtime | "docker" | コンテナランタイム。 |
 | python_k8s_client_build_container_network_mode | "host" | コンテナネットワークモード。 |
 | python_k8s_client_build_container_image_debian | "python-k8s-client-build-ubuntu:24.04" | Debian系ビルド用イメージ名。 |
 | python_k8s_client_build_container_image_rhel | "python-k8s-client-build-almalinux:9.6" | RHEL系ビルド用イメージ名。 |
+
+構築ワークスペースは入力変数ではなく, タスク内で実行ユーザごとに `/tmp/python-k8s-client-build-<USER>` を自動選択する。
 
 ## パッケージ導入確認方法
 

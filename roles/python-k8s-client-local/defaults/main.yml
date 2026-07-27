@@ -6,29 +6,45 @@
 #
 ---
 
+# Python 言語版 Kubernetes client を構築するかどうか
+k8s_devel_python_client_enabled: false
+
 # Python 言語版 Kubernetes client 版数指定
 # 例: ~=31.0, ==31.0.0
 python_k8s_client_version_spec: ""
 
+#
 # Python 言語版 Kubernetes client ローカルパッケージ名
+#
+# Debian 系でのローカルパッケージ名
 python_k8s_client_deb_package_name: "python3-k8s-client"
+# RedHat 系でのローカルパッケージ名
 python_k8s_client_rpm_package_name: "python3-k8s-client"
 
-# パッケージ構築ホストとワークスペース
+# パッケージ構築ホスト
 python_k8s_client_build_host: "localhost"
-python_k8s_client_build_workspace: "/tmp/python-k8s-client-build"
-python_k8s_client_build_output_dir: "{{ python_k8s_client_build_workspace }}/output"
 
-# タイムアウト/ポーリング
+#
+# タイムアウト/ポーリング時間(秒)
+#
+# ビルド処理のタイムアウト時間(秒)
 python_k8s_client_build_timeout_seconds: 3600
+# ポーリング間隔(秒)
 python_k8s_client_build_loop_delay_seconds: 5
 
 # Debian系でのaptロック待機時間(秒)
 python_k8s_client_install_deb_lock_wait_seconds: 600
 
+#
 # コンテナビルド実行環境
+#
+# コンテナランタイムコマンド名
 python_k8s_client_build_container_runtime: "docker"
+# コンテナ実行時のネットワーク共有方式
 python_k8s_client_build_container_network_mode: "host"
+# Debian系向けパッケージ作成に使うコンテナイメージ名
 python_k8s_client_build_container_image_debian: "python-k8s-client-build-ubuntu:24.04"
+# RedHat系向けパッケージ作成に使うコンテナイメージ名
 python_k8s_client_build_container_image_rhel: "python-k8s-client-build-almalinux:9.6"
+# コンテナ内で構築作業を行う作業ディレクトリ
 python_k8s_client_build_container_workdir: "/work"
