@@ -16,6 +16,7 @@
       - "{{ pkgbld_package_name }}"
   register: pkgbld_deb_pkg_status_cmd
   changed_when: false
+  failed_when: false
   become: true
   when: ansible_facts.os_family == 'Debian'
 
@@ -38,6 +39,7 @@
       - "{{ pkgbld_package_name }}"
   register: pkgbld_rpm_pkg_query_cmd
   changed_when: false
+  failed_when: false
   become: true
   when: ansible_facts.os_family == 'RedHat'
 
@@ -63,6 +65,17 @@
     - pkgbld_verify_version_command | length > 0
 
 # カスタム版数検証コマンドの結果が期待値と一致することを確認する
+#
+# 処理論理
+#
+# 1. pkgbld_verify_version_cmd.stdoutからリビジョン番号(-以降)を除去する
+#    pkgbld_verify_version_cmd.stdout | regex_replace('-.*$', '')
+# 2. pkgbld_verify_strip_after_hyphenがtrueの場合は, 1.の結果からリビジョン番号(-以降)を除去する
+#    if (pkgbld_verify_strip_after_hyphen | default(false) | bool) else pkgbld_verify_version_cmd.stdout
+# 3. 2.の結果からpkgbld_verify_version_regexに一致する文字列を抽出する
+#    regex_findall(pkgbld_verify_version_regex)|first|default('')
+# 4. 3.の結果がpkgbld_verify_version_expectedと一致することを確認する
+#    == (pkgbld_verify_version_expected | trim)
 - name: Assert custom version output matches expected pattern
   ansible.builtin.assert:
     that:

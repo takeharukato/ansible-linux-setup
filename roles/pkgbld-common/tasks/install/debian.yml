@@ -34,9 +34,33 @@
         )
       }}
 
-- name: Install local deb packages in one transaction
-  ansible.builtin.command:
-    argv: "{{ pkgbld_deb_install_argv }}"
-  register: pkgbld_deb_install_cmd
-  changed_when: pkgbld_deb_install_cmd.rc == 0
+# Debian 系のローカル deb パッケージをautostart抑制下で一括導入する
+#  autostart抑制を実施しない場合, 導入対象の deb パッケージが
+#  サービスを自動起動するため, 導入対象の deb パッケージが
+#  依存するサービスが自動的に起動し, 導入に失敗することがある
+- name: Install local deb packages in one transaction with service autostart suppressed
   become: true
+  block:
+
+    # 一時的に policy-rc.d を作成し, パッケージ導入(入れ替え)中の
+    # サービス自動起動を抑制する
+    - name: Create temporary policy-rc.d to suppress service autostart
+      ansible.builtin.copy:
+        dest: /usr/sbin/policy-rc.d
+        mode: "0755"
+        content: |
+          #!/bin/sh
+          exit 101
+
+    # Debian 系のローカル deb パッケージを一括導入する
+    - name: Install local deb packages in one transaction
+      ansible.builtin.command:
+        argv: "{{ pkgbld_deb_install_argv }}"
+      register: pkgbld_deb_install_cmd
+      changed_when: pkgbld_deb_install_cmd.rc == 0
+  always:
+    # 修復後に一時的に作成した policy-rc.d を削除する
+    - name: Remove temporary policy-rc.d
+      ansible.builtin.file:
+        path: /usr/sbin/policy-rc.d
+        state: absent

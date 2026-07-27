@@ -63,18 +63,103 @@
     fail_msg: "pkgbld_package_file_patterns_rhel must be non-empty for RedHat family."
   when: ansible_facts.os_family == 'RedHat'
 
+# package_targets を基に Debian/RedHat 対象の有無を run_once 用 fact として算出する
+# 処理論理:
+# host_vars のキーからホスト名を取得し, package_targets に含まれるホストのうち
+# Debian 系/RedHat 系のホストを取得し, それぞれの対象が1つ以上存在する場合に true を返す
+# これにより, run_once タスク内で対象 OS ファミリの有無を判定できるようにする
+# value.ansible_facts.os_family, value.ansible_os_family の両方を考慮することで,
+# ansible_facts が未収集のホストでも OS ファミリ判定が可能となる
+- name: Detect target OS families for pkgbld-common run_once tasks
+  ansible.builtin.set_fact:
+    pkgbld_has_debian_targets: >-
+      {{
+        (
+          (
+            hostvars
+            | dict2items
+            | selectattr('key', 'in', package_targets)
+            | selectattr('value.ansible_facts.os_family', 'defined')
+            | selectattr('value.ansible_facts.os_family', 'equalto', 'Debian')
+            | list
+            | length
+          )
+          +
+          (
+            hostvars
+            | dict2items
+            | selectattr('key', 'in', package_targets)
+            | rejectattr('value.ansible_facts.os_family', 'defined')
+            | selectattr('value.ansible_os_family', 'defined')
+            | selectattr('value.ansible_os_family', 'equalto', 'Debian')
+            | list
+            | length
+          )
+        ) > 0
+      }}
+    pkgbld_has_redhat_targets: >-
+      {{
+        (
+          (
+            hostvars
+            | dict2items
+            | selectattr('key', 'in', package_targets)
+            | selectattr('value.ansible_facts.os_family', 'defined')
+            | selectattr('value.ansible_facts.os_family', 'equalto', 'RedHat')
+            | list
+            | length
+          )
+          +
+          (
+            hostvars
+            | dict2items
+            | selectattr('key', 'in', package_targets)
+            | rejectattr('value.ansible_facts.os_family', 'defined')
+            | selectattr('value.ansible_os_family', 'defined')
+            | selectattr('value.ansible_os_family', 'equalto', 'RedHat')
+            | list
+            | length
+          )
+        ) > 0
+      }}
+  delegate_to: localhost
+  delegate_facts: true
+  run_once: true
+
 # build スクリプトの元ファイルが制御ホスト上に存在するかを確認する
 - name: Validate build script exists on controller
   ansible.builtin.stat:
-    path: "{{ pkgbld_build_script_src }}"
-  register: pkgbld_build_script_src_stat
+    path: "{{ pkgbld_build_script_src_debian }}"
+  register: pkgbld_build_script_src_stat_debian
   delegate_to: localhost
   become: false
   run_once: true
+  when: hostvars['localhost'].pkgbld_has_debian_targets | default(false)
+
+# RedHat 向け build スクリプトの元ファイルが制御ホスト上に存在するかを確認する
+- name: Validate RedHat build script exists on controller
+  ansible.builtin.stat:
+    path: "{{ pkgbld_build_script_src_rhel }}"
+  register: pkgbld_build_script_src_stat_rhel
+  delegate_to: localhost
+  become: false
+  run_once: true
+  when: hostvars['localhost'].pkgbld_has_redhat_targets | default(false)
 
 # build スクリプト元ファイルが存在しない場合は早期に停止する
 - name: Fail when build script source file does not exist on controller
   ansible.builtin.fail:
-    msg: "Build script source does not exist on controller: {{ pkgbld_build_script_src }}"
-  when: not (pkgbld_build_script_src_stat.stat.exists | default(false))
+    msg: "Build script source does not exist on controller: {{ pkgbld_build_script_src_debian }}"
+  when:
+    - hostvars['localhost'].pkgbld_has_debian_targets | default(false)
+    - not (pkgbld_build_script_src_stat_debian.stat.exists | default(false))
+  run_once: true
+
+# RedHat 向け build スクリプト元ファイルが存在しない場合は早期に停止する
+- name: Fail when RedHat build script source file does not exist on controller
+  ansible.builtin.fail:
+    msg: "Build script source does not exist on controller: {{ pkgbld_build_script_src_rhel }}"
+  when:
+    - hostvars['localhost'].pkgbld_has_redhat_targets | default(false)
+    - not (pkgbld_build_script_src_stat_rhel.stat.exists | default(false))
   run_once: true

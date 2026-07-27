@@ -11,15 +11,58 @@
   ansible.builtin.set_fact:
     pkgbld_source_files: >-
       {{
-        (hostvars[package_build_host].pkgbld_artifact_files | default([]))
-        if ((hostvars[package_build_host].pkgbld_artifact_files | default([]) | length) > 0)
-        else []
+        (
+          hostvars[package_build_host].pkgbld_artifact_files_debian
+          if ansible_facts.os_family == 'Debian'
+          else hostvars[package_build_host].pkgbld_artifact_files_rhel
+        )
+        | default([])
       }}
 
+# Debian/RPM の両成果物をまとめて扱う(run_once で複数ホスト実行時も一度だけ実施)
+# Debian系とRedHat系で見つかった成果物ファイルの一覧を,
+# 条件付きで結合して 1 つの配列にまとめる。
+# 対象ホスト群に Debian 系が含まれるなら Debian 用成果物一覧を使い,
+# RedHat 系が含まれるなら RedHat 用成果物一覧を使う
+# 最後に両方を `+` で連結し, 1 つの配列にまとめる。
+#
+# [処理内容]
+# 1. Debian系で見つかった成果物ファイルの一覧を取得する処理:
+#          (
+#          (hostvars[package_build_host].pkgbld_artifact_files_debian | default([]))
+#          if (hostvars['localhost'].pkgbld_has_debian_targets | default(false))
+#          else []
+# 2. RedHat系で見つかった成果物ファイルの一覧を取得する処理:
+#          (
+#          (hostvars[package_build_host].pkgbld_artifact_files_rhel | default([]))
+#          if (hostvars['localhost'].pkgbld_has_redhat_targets | default(false))
+#          else []
+# 3. 上記 1. と 2. の結果を `+` で連結し, 1 つの配列にまとめる
+#
+- name: Build unified artifact file list for run_once collection
+  ansible.builtin.set_fact:
+    pkgbld_collect_source_files: >-
+      {{
+        (
+          (hostvars[package_build_host].pkgbld_artifact_files_debian | default([]))
+          if (hostvars['localhost'].pkgbld_has_debian_targets | default(false))
+          else []
+        )
+        +
+        (
+          (hostvars[package_build_host].pkgbld_artifact_files_rhel | default([]))
+          if (hostvars['localhost'].pkgbld_has_redhat_targets | default(false))
+          else []
+        )
+      }}
+  run_once: true
+
 # 取り込み結果が空の場合は収集処理を中断する
+# pkgbld_source_filesには, 双方のOS系統の成果物ファイルの総覧が格納されるため,
+# その配列が空の場合は, いずれの成果物も構築ホスト上に存在しないことを意味する
 - name: Fail when no source artifact file found on build host facts
   ansible.builtin.fail:
-    msg: "No built package artifact found from build host facts."
+    msg: "No built package artifact found on build host."
   when: (pkgbld_source_files | default([]) | length) == 0
 
 # 構築ホスト上の成果物を fetch 可能な権限へ調整する
@@ -27,7 +70,7 @@
   ansible.builtin.file:
     path: "{{ item.path }}"
     mode: "0644"
-  loop: "{{ pkgbld_source_files | default([]) }}"
+  loop: "{{ pkgbld_collect_source_files | default([]) }}"
   delegate_to: "{{ package_build_host }}"
   run_once: true
 
@@ -42,27 +85,35 @@
   become: false
   run_once: true
 
-# 構築ホストから制御ホストへ成果物を回収する
+# 制御ホスト上の一時ディレクトリパスを facts に保存する
+- name: Save fetched package tmpdir path on localhost
+  ansible.builtin.set_fact:
+    pkgbld_fetch_tmpdir_path: "{{ pkgbld_fetch_tmpdir.path }}"
+  delegate_to: localhost
+  delegate_facts: true
+  run_once: true
+
+# 構築ホストから制御ホスト上の一時ディレクトリへ成果物を回収する
 - name: Fetch built packages from build host to controller
   ansible.builtin.fetch:
     src: "{{ item.path }}"
-    dest: "{{ pkgbld_fetch_tmpdir.path }}/{{ item.path | basename }}"
+    dest: "{{ hostvars['localhost'].pkgbld_fetch_tmpdir_path }}/{{ item.path | basename }}"
     flat: true
-  loop: "{{ pkgbld_source_files | default([]) }}"
+  loop: "{{ pkgbld_collect_source_files | default([]) }}"
   delegate_to: "{{ package_build_host }}"
   run_once: true
 
 # 制御ホスト上の回収結果を検証する
 - name: Check fetched package files exist on controller
   ansible.builtin.stat:
-    path: "{{ pkgbld_fetch_tmpdir.path }}/{{ item.path | basename }}"
-  loop: "{{ pkgbld_source_files | default([]) }}"
+    path: "{{ hostvars['localhost'].pkgbld_fetch_tmpdir_path }}/{{ item.path | basename }}"
+  loop: "{{ pkgbld_collect_source_files | default([]) }}"
   register: pkgbld_fetch_stat
   delegate_to: localhost
   become: false
   run_once: true
 
-# 回収漏れがある場合は後続配布を止める
+# 回収漏れがある場合は明示的に停止する
 - name: Fail when fetched package file is missing on controller
   ansible.builtin.fail:
     msg: "Fetched package is missing on controller: {{ item.item.path | basename }}"

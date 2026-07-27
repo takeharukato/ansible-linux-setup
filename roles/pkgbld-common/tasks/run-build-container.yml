@@ -15,12 +15,16 @@
     # Debian 系向けビルダーコンテナで build スクリプトを実行する
     - name: Run package build in Debian builder container
       ansible.builtin.include_tasks: build/debian.yml
-      when: ansible_facts.os_family == 'Debian'
+      vars:
+        pkgbld_effective_build_script_name: "{{ pkgbld_build_script_name_debian }}"
+      when: hostvars['localhost'].pkgbld_has_debian_targets | default(false)
 
     # RedHat 系向けビルダーコンテナで build スクリプトを実行する
     - name: Run package build in RedHat builder container
       ansible.builtin.include_tasks: build/rhel.yml
-      when: ansible_facts.os_family == 'RedHat'
+      vars:
+        pkgbld_effective_build_script_name: "{{ pkgbld_build_script_name_rhel }}"
+      when: hostvars['localhost'].pkgbld_has_redhat_targets | default(false)
 
     # Debian 系の成果物を構築ホスト上で探索する
     - name: Discover built package files on build host (Debian)
@@ -30,7 +34,7 @@
         file_type: file
       register: pkgbld_artifacts_found_debian
       delegate_to: "{{ package_build_host }}"
-      when: ansible_facts.os_family == 'Debian'
+      when: hostvars['localhost'].pkgbld_has_debian_targets | default(false)
 
     # RedHat 系の成果物を構築ホスト上で探索する
     - name: Discover built package files on build host (RedHat)
@@ -40,33 +44,47 @@
         file_type: file
       register: pkgbld_artifacts_found_rhel
       delegate_to: "{{ package_build_host }}"
-      when: ansible_facts.os_family == 'RedHat'
+      when: hostvars['localhost'].pkgbld_has_redhat_targets | default(false)
 
-    # OS別の探索結果を実効的な成果物一覧へ正規化する
-    - name: Set effective artifact list from OS specific discovery result
+    # OS別の探索結果を整形する (Debian系)
+    - name: Set Debian artifact list from discovery result
       ansible.builtin.set_fact:
-        pkgbld_artifacts_found_effective: >-
-          {{
-            (
-              pkgbld_artifacts_found_debian.files
-              if ansible_facts.os_family == 'Debian'
-              else pkgbld_artifacts_found_rhel.files
-            )
-            | default([])
-          }}
+        pkgbld_artifacts_found_effective_debian: "{{ pkgbld_artifacts_found_debian.files | default([]) }}"
       delegate_to: "{{ package_build_host }}"
 
+    # OS別の探索結果を整形する(RedHat系)
+    - name: Set RedHat artifact list from discovery result
+      ansible.builtin.set_fact:
+        pkgbld_artifacts_found_effective_rhel: "{{ pkgbld_artifacts_found_rhel.files | default([]) }}"
+      delegate_to: "{{ package_build_host }}"
+
+    #
     # 成果物が見つからない場合は明示的に停止する
-    - name: Fail when no package artifact was generated
+    #
+
+    # Debian 系の成果物が見つからない場合は明示的に停止する
+    - name: Fail when no Debian package artifact was generated
       ansible.builtin.fail:
-        msg: "No package artifact was generated in {{ package_build_output_dir }}"
-      when: (pkgbld_artifacts_found_effective | default([]) | length) == 0
+        msg: "No Debian package artifact was generated in {{ package_build_output_dir }}"
+      when:
+        - hostvars['localhost'].pkgbld_has_debian_targets | default(false)
+        - (pkgbld_artifacts_found_effective_debian | default([]) | length) == 0
+      delegate_to: "{{ package_build_host }}"
+
+    # RedHat 系の成果物が見つからない場合は明示的に停止する
+    - name: Fail when no RedHat package artifact was generated
+      ansible.builtin.fail:
+        msg: "No RedHat package artifact was generated in {{ package_build_output_dir }}"
+      when:
+        - hostvars['localhost'].pkgbld_has_redhat_targets | default(false)
+        - (pkgbld_artifacts_found_effective_rhel | default([]) | length) == 0
       delegate_to: "{{ package_build_host }}"
 
     # 後続タスクから参照できるよう成果物一覧を構築ホストの facts に保存する
     - name: Save discovered artifacts as delegated facts on build host
       ansible.builtin.set_fact:
-        pkgbld_artifact_files: "{{ pkgbld_artifacts_found_effective | default([]) }}"
+        pkgbld_artifact_files_debian: "{{ pkgbld_artifacts_found_effective_debian | default([]) }}"
+        pkgbld_artifact_files_rhel: "{{ pkgbld_artifacts_found_effective_rhel | default([]) }}"
       delegate_to: "{{ package_build_host }}"
       delegate_facts: true
 
@@ -86,7 +104,7 @@
       delegate_to: localhost
       delegate_facts: true
 
-    # build 失敗状態が記録されている場合, 全ホストで停止する
+# build 失敗状態が記録されている場合, 全ホストで停止する
 - name: Fail all hosts when build failed on delegated run_once host
   ansible.builtin.fail:
     msg: >-

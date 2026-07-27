@@ -8,48 +8,100 @@
 
 ---
 
-# build host / workspace
+#
+# 構築ホスト/ビルド環境関連
+#
+# パッケージ構築処理を実行するホスト名またはIPアドレス。
 package_build_host: "localhost"
+# 構築ホスト上でパッケージ構築作業を行う作業ディレクトリ。
 package_build_workspace: "/tmp/pkgbld-common"
+# 構築ホスト上で生成したパッケージ成果物を出力するディレクトリ。
 package_build_output_dir: "{{ package_build_workspace }}/output"
 
+#
 # コンテナ実行関連
+#
+# コンテナ実行コマンド名。例: docker, podman。
 pkgbld_container_runtime: "docker"
+# コンテナ実行時のネットワーク共有方式。例: host, bridge, none。
 pkgbld_container_network_mode: "host"
+# Debian系統向けパッケージ作成に使うコンテナイメージ名。
 pkgbld_builder_image_debian: ""
+# RedHat系統向けパッケージ作成に使うコンテナイメージ名。
 pkgbld_builder_image_rhel: ""
+# コンテナ内で構築作業を行う作業ディレクトリ。
 pkgbld_container_workdir: "/work"
+# コンテナ内でパッケージ成果物を出力するディレクトリ。
 pkgbld_container_output_dir: "/work/output"
 
-# build script(copyベース)
+#
+# パッケージ生成スクリプト
+#
+# 互換用途の共通スクリプト配置元。OS別未指定時のフォールバック。
 pkgbld_build_script_src: ""
+# 互換用途の共通スクリプト名。OS別未指定時のフォールバック。
 pkgbld_build_script_name: ""
+# Debian系統向け成果物作成用シェルスクリプトの配置元ファイルパス。
+pkgbld_build_script_src_debian: "{{ pkgbld_build_script_src }}"
+# Debian系統向けコンテナ内実行スクリプト名。
+pkgbld_build_script_name_debian: "{{ pkgbld_build_script_name }}"
+# RedHat系統向け成果物作成用シェルスクリプトの配置元ファイルパス。
+pkgbld_build_script_src_rhel: "{{ pkgbld_build_script_src }}"
+# RedHat系統向けコンテナ内実行スクリプト名。
+pkgbld_build_script_name_rhel: "{{ pkgbld_build_script_name }}"
+# 成果物作成用シェルスクリプトに渡す引数配列。
 pkgbld_build_script_args: []
+# 配置した成果物作成用シェルスクリプトに設定するパーミッション。
 pkgbld_build_script_mode: "0755"
+# 成果物作成用シェルスクリプトへ渡す環境変数引数配列。
 pkgbld_container_env_args: []
 
-# package artifact
+#
+# 生成パッケージ関連設定
+#
+# 入力検証用のパッケージ形式。実行時のOS分岐はansible_facts.os_familyで判定。
 pkgbld_package_type: ""
+# 導入対象として扱うパッケージ名。
 pkgbld_package_name: ""
+# Debian系統向けパッケージ成果物探索パターン配列。
 pkgbld_package_file_patterns_debian: []
+# RedHat系統向けパッケージ成果物探索パターン配列。
 pkgbld_package_file_patterns_rhel: []
 
-# target/install
+#
+# 導入対象ホスト/導入処理関連設定
+#
+# 1回だけ実行する処理(run_onceタスク)でOS判定に使うホスト配列。
 package_targets: []
+# Debian系統でapt/dpkgの排他制御を待つ最大秒数。
 pkgbld_install_deb_lock_wait_seconds: 600
+# 導入対象ホストでパッケージを一時配置するディレクトリ。
 pkgbld_install_dest_dir: "/tmp"
+# RedHat系統で署名検証を無効化するかどうかの真偽値。
 pkgbld_disable_gpg_check: true
 
-# verify(第1波は導入確認のみ必須)
+#
+# 検証処理関連設定
+#
+# 導入後の版数照合処理を有効化するかどうかの真偽値。
 pkgbld_verify_version_enabled: false
+# 導入済みパッケージの版数を取得するコマンド配列。
 pkgbld_verify_version_command: []
+# 版数照合コマンド出力から版数文字列を抽出する正規表現。
 pkgbld_verify_version_regex: ""
+# 版数照合で一致を期待する版数文字列。
 pkgbld_verify_version_expected: ""
+# Debian系統で版数末尾の付加版番号を除外して比較するかどうかの真偽値。
 pkgbld_verify_strip_after_hyphen: false
 
 # timeout / polling
+# パッケージ作成処理の完了待機タイムアウト秒数。
 pkgbld_build_timeout_seconds: 3600
+# パッケージ作成処理の状態確認ポーリング間隔(秒)。
 pkgbld_build_loop_delay_seconds: 5
 
 # cleanup
+# 互換用途の後始末フラグ。構築後に作業ディレクトリを削除するかどうか。
 pkgbld_cleanup_build_workspace: true
+# 後始末フラグの正式変数。互換変数pkgbld_cleanup_build_workspaceを参照。
+pkgbld_common_cleanup_build_workspace: "{{ pkgbld_cleanup_build_workspace }}"

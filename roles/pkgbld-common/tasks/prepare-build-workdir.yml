@@ -18,11 +18,22 @@
   delegate_to: "{{ package_build_host }}"
   run_once: true
 
-# 制御ホスト上の build スクリプトを構築ホストの作業ディレクトリへ配置する
-- name: Copy build script to build host workspace
+# 制御ホスト上の Debian build スクリプトを構築ホストへ配置する
+- name: Copy Debian build script to build host workspace
   ansible.builtin.copy:
-    src: "{{ pkgbld_build_script_src }}"
-    dest: "{{ package_build_workspace }}/{{ pkgbld_build_script_name }}"
+    src: "{{ pkgbld_build_script_src_debian }}"
+    dest: "{{ package_build_workspace }}/{{ pkgbld_build_script_name_debian }}"
     mode: "{{ pkgbld_build_script_mode }}"
   delegate_to: "{{ package_build_host }}"
   run_once: true
+  when: hostvars['localhost'].pkgbld_has_debian_targets | default(false)
+
+# 制御ホスト上の RedHat build スクリプトを構築ホストへ配置する
+- name: Copy RedHat build script to build host workspace
+  ansible.builtin.copy:
+    src: "{{ pkgbld_build_script_src_rhel }}"
+    dest: "{{ package_build_workspace }}/{{ pkgbld_build_script_name_rhel }}"
+    mode: "{{ pkgbld_build_script_mode }}"
+  delegate_to: "{{ package_build_host }}"
+  run_once: true
+  when: hostvars['localhost'].pkgbld_has_redhat_targets | default(false)

@@ -13,4 +13,4 @@
     state: absent
   delegate_to: "{{ package_build_host }}"
   run_once: true
-  when: pkgbld_cleanup_build_workspace | bool
+  when: pkgbld_common_cleanup_build_workspace | bool

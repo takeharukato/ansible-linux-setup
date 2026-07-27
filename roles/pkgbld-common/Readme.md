@@ -70,7 +70,7 @@
 - `pkgbld_builder_image_debian` と `pkgbld_builder_image_rhel` には, Dockerfile のパスではなく, 実行時に指定するコンテナイメージ名(例: `example-build-ubuntu:24.04`)を設定する。
 - 本ロールは, 指定されたコンテナイメージ名を `docker run` などのコンテナ実行コマンドへ渡して利用する。コンテナイメージの作成処理やコンテナイメージの読み込み処理は本ロールでは実行しない。
 - 本ロールは, 成果物探索パラメタを使ってパッケージ成果物を特定し, そのパッケージ成果物を構築ホストから制御ホストへ回収する。
-- 本ロールは, 配布/導入パラメタを使ってパッケージ成果物を制御ホストから導入対象ホストへ配布し, OS系統に応じた導入コマンドでそのパッケージ成果物を導入する。
+- 本ロールは, 配布/導入パラメタを使ってパッケージ成果物を制御ホストから play の実行対象ホストへ配布し, OS系統に応じた導入コマンドでそのパッケージ成果物を導入する。
 - 本ロールは, 検証パラメタを使って導入済み状態と版数照合結果を検証する。
 
 ## 呼び出し元ロールからの使用方法
@@ -94,20 +94,24 @@
   6. `pkgbld_container_output_dir` : コンテナ内で生成パッケージを出力するディレクトリ。
    なお, `pkgbld_builder_image_debian` と `pkgbld_builder_image_rhel` には Dockerfile のパスではなくコンテナイメージ名を指定する。
 3. 成果物作成処理に必要な値として以下の変数を設定する:
-  1. `pkgbld_build_script_src` : 成果物作成用シェルスクリプトの配置元ファイルパス
-  2. `pkgbld_build_script_name` : コンテナ内で実行する成果物作成用シェルスクリプト名
-  3. `pkgbld_build_script_args` : 成果物作成用シェルスクリプトに渡す引数配列
-  4. `pkgbld_container_env_args` : 成果物作成用シェルスクリプトへ渡す環境変数引数配列
+  1. `pkgbld_build_script_src_debian` : Debian系統向け成果物作成用シェルスクリプトの配置元ファイルパス
+  2. `pkgbld_build_script_name_debian` : Debian系統向けコンテナ内実行スクリプト名
+  3. `pkgbld_build_script_src_rhel` : RedHat系統向け成果物作成用シェルスクリプトの配置元ファイルパス
+  4. `pkgbld_build_script_name_rhel` : RedHat系統向けコンテナ内実行スクリプト名
+  5. `pkgbld_build_script_src` / `pkgbld_build_script_name` : 互換用途の共通指定値(未指定時のフォールバック)
+  6. `pkgbld_build_script_args` : 成果物作成用シェルスクリプトに渡す引数配列
+  7. `pkgbld_container_env_args` : 成果物作成用シェルスクリプトへ渡す環境変数引数配列
 4. 成果物探索条件として以下の変数を設定する:
-  1. `pkgbld_package_type` : 生成対象パッケージ形式(`deb`または`rpm`)
+  1. `pkgbld_package_type` : 入力検証用のパッケージ形式(`deb`または`rpm`)。実行時のOS分岐は `ansible_facts.os_family` で判定する。
   2. `pkgbld_package_name` : 導入対象として扱うパッケージ名
   3. `pkgbld_package_file_patterns_debian` : Debian系統向け成果物探索パターン配列
   4. `pkgbld_package_file_patterns_rhel` : RedHat系統向け成果物探索パターン配列
 5. 配布/導入条件として以下の変数を設定する:
-  1.  `package_targets` : パッケージを配布/導入する対象ホスト名の配列
+  1.  `package_targets` : 1回だけ実行する処理(run_onceタスク)で Debian 系/RedHat 系ターゲット有無を判定するためのホスト名配列
   2.  `pkgbld_install_dest_dir` : 導入対象ホストでパッケージを一時配置するディレクトリ
   3.  `pkgbld_install_deb_lock_wait_seconds` : Debian系統での排他制御待機時間(秒)
   4.  `pkgbld_disable_gpg_check` : RedHat系統で署名検証を無効化するかどうかの真偽値
+  5.  `pkgbld_common_cleanup_build_workspace` : 構築後に作業ディレクトリを削除するかどうかの真偽値
 6. 版数検証条件として以下の変数を設定する:
   1.  `pkgbld_verify_version_enabled` : 版数照合処理を有効化するかどうかの真偽値
   2.  `pkgbld_verify_version_command` : 導入済みパッケージの版数を取得するコマンド配列
@@ -144,20 +148,22 @@
 11: pkgbld_builder_image_rhel: "example-build-almalinux:9.6"
 12: pkgbld_container_workdir: "/work"
 13: pkgbld_container_output_dir: "/work/output"
-14: pkgbld_build_script_src: "/tmp/example-build/build-example.sh"
-15: pkgbld_build_script_name: "build-example.sh"
-16: pkgbld_build_script_args: []
-17: pkgbld_container_env_args: []
-18: pkgbld_package_type: "deb"
-19: pkgbld_package_name: "example"
-20: pkgbld_package_file_patterns_debian:
-21: - "example_*.deb"
-22: pkgbld_package_file_patterns_rhel:
-23: - "example-*.rpm"
-24: package_targets:
-25: - "target-host-01.example.local"
-26: - "target-host-02.example.local"
-27: pkgbld_install_dest_dir: "/tmp"
+14: pkgbld_build_script_src_debian: "/tmp/example-build/build-example-deb.sh"
+15: pkgbld_build_script_name_debian: "build-example-deb.sh"
+16: pkgbld_build_script_src_rhel: "/tmp/example-build/build-example-rpm.sh"
+17: pkgbld_build_script_name_rhel: "build-example-rpm.sh"
+18: pkgbld_build_script_args: []
+19: pkgbld_container_env_args: []
+20: pkgbld_package_type: "deb"
+21: pkgbld_package_name: "example"
+22: pkgbld_package_file_patterns_debian:
+23: - "example_*.deb"
+24: pkgbld_package_file_patterns_rhel:
+25: - "example-*.rpm"
+26: package_targets:
+27: - "target-host-01.example.local"
+28: - "target-host-02.example.local"
+29: pkgbld_install_dest_dir: "/tmp"
 ```
 
 上記例の各行での記載内容は以下の通り:
@@ -165,9 +171,9 @@
 - 1-3 行目: は, `pkgbld-common` ロール呼び出し処理を実施するための記載である。
 - 5-7 行目: は, 構築ホスト, 作業ディレクトリ, パッケージ成果物出力ディレクトリを指定するための設定である。
 - 8-13 行目: は, コンテナ実行方式, ネットワーク共有方式, パッケージ作成用コンテナイメージ, コンテナ内作業ディレクトリを指定するための設定である。
-- 14-17 行目: は, 成果物作成用シェルスクリプトの配置元, 成果物作成用シェルスクリプト名, 実行引数, 環境変数引数を指定するための設定である。
-- 18-23 行目: は, パッケージ形式, パッケージ名, パッケージ成果物探索パターンを指定するための設定である。
-- 24-27 行目: は, パッケージ成果物配布先ホスト配列と導入先ディレクトリを指定するための設定である。
+- 14-19 行目: は, OS別の成果物作成用シェルスクリプト設定, 実行引数, 環境変数引数を指定するための設定である。
+- 20-25 行目: は, パッケージ形式, パッケージ名, パッケージ成果物探索パターンを指定するための設定である。
+- 26-29 行目: は, OSターゲット有無判定用のホスト配列と導入先ディレクトリを指定するための設定である。
 
 ### 各パラメタ変数に設定する値
 
@@ -176,11 +182,13 @@
 | 構築実行 | package_build_host, package_build_workspace, package_build_output_dir | 構築ホスト, 作業ディレクトリ, パッケージ成果物出力ディレクトリを指定する。 |
 | 構築実行 | pkgbld_container_runtime, pkgbld_container_network_mode | パッケージ作成用コンテナの実行方式とネットワーク共有方式を指定する。 |
 | 構築実行 | pkgbld_builder_image_debian, pkgbld_builder_image_rhel | Debian系統向けパッケージ作成用コンテナイメージ名, RedHat系統向けパッケージ作成用コンテナイメージ名を指定する。本ロールでは, 指定されたイメージを`pkgbld_container_runtime`変数で指定されたコンテナランタイム(`docker`など)を用いて起動し, コンテナ内でパッケージの構築を行う。|
-| 構築実行 | pkgbld_build_script_src, pkgbld_build_script_name | 呼び出し側が生成した成果物作成用シェルスクリプトの配置元とスクリプト名を指定する。 |
+| 構築実行 | pkgbld_build_script_src_debian, pkgbld_build_script_name_debian, pkgbld_build_script_src_rhel, pkgbld_build_script_name_rhel | 呼び出し側が生成したOS別の成果物作成用シェルスクリプトの配置元とスクリプト名を指定する。 |
+| 構築実行 | pkgbld_build_script_src, pkgbld_build_script_name | 互換用途の共通指定値。OS別変数未指定時のフォールバックとして使う。 |
 | 構築実行 | pkgbld_container_env_args | 成果物作成用シェルスクリプトへ渡す環境変数引数を配列で明示する。 |
 | 成果物探索 | pkgbld_package_file_patterns_debian, pkgbld_package_file_patterns_rhel | パッケージ成果物探索パターンを実際の生成ファイル名規則に厳密に合わせる。 |
-| 配布/導入 | package_targets, pkgbld_install_dest_dir | パッケージ成果物の配布先ホストと配置先ディレクトリを明示する。 |
+| 配布/導入 | package_targets, pkgbld_install_dest_dir | `package_targets` は1回だけ実行する処理(run_onceタスク)のOS判定用ホスト配列であり, 配布先の実行制御は play の実行対象ホストに従う。 |
 | 配布/導入 | pkgbld_disable_gpg_check | RedHat系統で配布済み rpm ファイルを導入する場合の署名検証方針を指定する。 |
+| 後始末 | pkgbld_common_cleanup_build_workspace | 構築ホスト上の作業ディレクトリ削除可否を指定する。 |
 | 検証 | pkgbld_package_name | `dpkg-query` または `rpm -q` が参照するパッケージ名を一致させる。 |
 | 検証 | pkgbld_verify_version_enabled, pkgbld_verify_version_command, pkgbld_verify_version_regex, pkgbld_verify_version_expected | 版数照合処理の有効化条件と照合条件を指定する。 |
 | 検証 | pkgbld_verify_strip_after_hyphen | Debian で版数照合時に無視する付加版番号の扱いを指定する。 |
@@ -228,13 +236,13 @@
 | pkgbld_builder_image_debian | go-build-ubuntu:24.04 | Debian系統向けパッケージ作成用コンテナイメージ。 |
 | pkgbld_builder_image_rhel | go-build-almalinux:9.6 | RedHat系統向けパッケージ作成用コンテナイメージ。 |
 | pkgbld_container_workdir | /work | コンテナ内作業ディレクトリ。 |
-| pkgbld_build_script_src | Debian: /tmp/go-build/build-go-deb.sh / RHEL: /tmp/go-build/build-go-rpm.sh | Debian系統とRedHat系統で切り替える。 |
-| pkgbld_build_script_name | Debian: `build-go-deb.sh` / RHEL: `build-go-rpm.sh` | Debian系統とRedHat系統で切り替える。 |
-| pkgbld_package_type | Debian: deb / RHEL: rpm | Debian系統とRedHat系統で切り替える。 |
+| pkgbld_build_script_src_debian / pkgbld_build_script_src_rhel | /tmp/go-build/build-go-deb.sh / /tmp/go-build/build-go-rpm.sh | Debian系統とRedHat系統で切り替える。 |
+| pkgbld_build_script_name_debian / pkgbld_build_script_name_rhel | `build-go-deb.sh` / `build-go-rpm.sh` | Debian系統とRedHat系統で切り替える。 |
+| pkgbld_package_type | Debian: deb / RHEL: rpm | 入力検証用。実行時のOS分岐は `ansible_facts.os_family` を使用する。 |
 | pkgbld_package_name | Debian: go-lang / RHEL: go-lang | Debian系統とRedHat系統で切り替える。 |
 | pkgbld_package_file_patterns_debian | go-lang_<解決済み版数>-1_*.deb | 成果物探索。 |
 | pkgbld_package_file_patterns_rhel | go-lang-<解決済み版数>-1.*.rpm | 成果物探索。 |
-| package_targets | ["target-host-01.example.local", "target-host-02.example.local"] | 配布対象ホスト配列。 |
+| package_targets | ["target-host-01.example.local", "target-host-02.example.local"] | 1回だけ実行する処理(run_onceタスク)でOS判定に使うホスト配列。 |
 | pkgbld_install_deb_lock_wait_seconds | 600 | Debian系統での排他制御待機時間。 |
 | pkgbld_build_timeout_seconds | 3600 | 作成処理の待機上限。 |
 | pkgbld_build_loop_delay_seconds | 5 | 状態確認の間隔。 |
@@ -259,8 +267,10 @@ Debian/Ubuntuホストに対し, 前掲のパラメタで本ロールを呼び�
     pkgbld_builder_image_rhel: "go-build-almalinux:9.6"
     pkgbld_container_workdir: "/work"
     pkgbld_container_output_dir: "/work/output"
-    pkgbld_build_script_src: "/tmp/go-build/build-go-deb.sh"
-    pkgbld_build_script_name: "build-go-deb.sh"
+    pkgbld_build_script_src_debian: "/tmp/go-build/build-go-deb.sh"
+    pkgbld_build_script_name_debian: "build-go-deb.sh"
+    pkgbld_build_script_src_rhel: "/tmp/go-build/build-go-rpm.sh"
+    pkgbld_build_script_name_rhel: "build-go-rpm.sh"
     pkgbld_build_script_args: []
     pkgbld_container_env_args:
       - "-e"
@@ -317,8 +327,10 @@ RHEL(AlmaLinuxなど)ホストに対し, 前掲のパラメタで本ロールを
     pkgbld_builder_image_rhel: "go-build-almalinux:9.6"
     pkgbld_container_workdir: "/work"
     pkgbld_container_output_dir: "/work/output"
-    pkgbld_build_script_src: "/tmp/go-build/build-go-rpm.sh"
-    pkgbld_build_script_name: "build-go-rpm.sh"
+    pkgbld_build_script_src_debian: "/tmp/go-build/build-go-deb.sh"
+    pkgbld_build_script_name_debian: "build-go-deb.sh"
+    pkgbld_build_script_src_rhel: "/tmp/go-build/build-go-rpm.sh"
+    pkgbld_build_script_name_rhel: "build-go-rpm.sh"
     pkgbld_build_script_args: []
     pkgbld_container_env_args:
       - "-e"
@@ -364,8 +376,8 @@ RHEL(AlmaLinuxなど)ホストに対し, 前掲のパラメタで本ロールを
 
 | 症状 | 主な原因 | 確認項目 | 対処 |
 | --- | --- | --- | --- |
-| 必須変数不足で停止する | 必須変数未設定 | package_build_host, pkgbld_build_script_src, package_targets などの必須変数値 | 呼び出し側の必須変数設定値を見直す。実行メッセージ例: Validate required variables。 |
-| 成果物作成用シェルスクリプトが見つからない | スクリプト未生成, パス不整合 | pkgbld_build_script_src が指す成果物作成用シェルスクリプトファイル | 成果物作成用シェルスクリプト生成処理を先に実行し, 成果物作成用シェルスクリプトファイルの絶対パスを統一する。実行メッセージ例: Build script source does not exist。 |
+| 必須変数不足で停止する | 必須変数未設定 | package_build_host, pkgbld_build_script_src_debian/rhel, package_targets などの必須変数値 | 呼び出し側の必須変数設定値を見直す。実行メッセージ例: Validate required variables。 |
+| 成果物作成用シェルスクリプトが見つからない | スクリプト未生成, パス不整合 | pkgbld_build_script_src_debian / pkgbld_build_script_src_rhel が指す成果物作成用シェルスクリプトファイル | 成果物作成用シェルスクリプト生成処理を先に実行し, 成果物作成用シェルスクリプトファイルの絶対パスを統一する。実行メッセージ例: Build script source does not exist。 |
 | パッケージ成果物が見つからない | 成果物パターン不一致 | pkgbld_package_file_patterns_* と実ファイル名 | パッケージ成果物探索パターンを実ファイル名に合わせる。実行メッセージ例: No package artifact was generated。 |
 | 成果物回収で失敗する | 構築ホストの権限不足, パス不整合 | package_build_output_dir と成果物権限 | パッケージ成果物出力先ディレクトリと成果物ファイルの読み取り権限を確認する。実行メッセージ例: Fetch built packages ...。 |
 | Debian系統で待機時間を超過する | 他プロセスがパッケージ管理処理の排他制御を保持 | `apt` / `dpkg` の排他制御状態 | 排他制御待機時間パラメタ `pkgbld_install_deb_lock_wait_seconds` を延長する。実行メッセージ例: lock timeout。 |
@@ -377,7 +389,8 @@ RHEL(AlmaLinuxなど)ホストに対し, 前掲のパラメタで本ロールを
 - パッケージ作成用コンテナイメージ作成処理はロール外で実施する。例えばDockerを使用する場合, パッケージ作成用コンテナイメージ作成処理とは, `Dockerfile`の作成, 構築ホスト上での`docker build`コマンドによるコンテナイメージの構築処理, コンテナイメージの読み込み作業のことを意味する。
 - 成果物作成用シェルスクリプト生成処理はロール外で実施する。
 - `pkgbld_container_env_args` は環境変数引数配列を実行引数へそのまま連結するため, 引数値の引用符付与方針を呼び出し元で統一する。
-- `package_targets` は配布対象ホスト配列として必須であり, 空配列は指定できない。
+- `package_targets` は1回だけ実行する処理(run_onceタスク)でのOS判定用ホスト配列として必須であり, 空配列は指定できない。
+- `pkgbld_package_type` は入力検証に使用する値であり, 実行時のOS分岐は `ansible_facts.os_family` に従う。
 
 ## 検証項目
 
