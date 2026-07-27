@@ -750,7 +750,7 @@ sudo kubectl  logs -n kube-system -l app=multus --tail=50
 
 1. CRD の存在を確認: `sudo kubectl get crd | grep network-attachment-definitions`
 2. CRD が存在しない場合は, Helm 導入または kubectl apply 導入が正常に完了していない可能性があります。ロールを再実行するか, `k8s_multus_cleanup_resources: true` で既存リソースをクリーンアップしてから再導入します。
-3. NAD リソースの作成は **別ロール** (例: `k8s-whereabouts`) で行います。本ロールでは NAD 自体の作成は行いません。
+3. NAD リソースの作成は 別ロール で行います(例: `k8s-whereabouts`)。**本ロールでは, NAD 自体の作成は行いません**。
 
 ### 3. Pod にセカンダリネットワークインターフェースがアタッチされない
 
@@ -1657,14 +1657,17 @@ zsh の場合は, 新しいターミナルセッションを開始しなおし�
 **補完が動作しない場合:**
 
 1. 補完ファイルが配置されていることを確認
+
     a. bashを使用している場合
       ```bash
       ls -l /etc/bash_completion.d/collect-pod-ips
       ```
+
     b. zshを使用している場合(Ubuntu/Debian環境)
       ```
       ls -l /usr/share/zsh/vendor-completions/_collect-pod-ips
       ```
+
     c. zshを使用している場合(RHEL/Alma Linux環境)
       ```
       ls -l /usr/share/zsh/site-functions/_collect-pod-ips
