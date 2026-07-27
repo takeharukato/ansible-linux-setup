@@ -18,12 +18,6 @@ go_package_name: "golang"
 # Go パッケージ構築ホスト
 go_build_host: "localhost"
 
-# Go パッケージ構築作業ディレクトリ
-go_build_workspace: "/tmp/go-build"
-
-# Go パッケージ成果物出力ディレクトリ
-go_build_output_dir: "{{ go_build_workspace }}/output"
-
 # Go パッケージ構築タイムアウト(秒)
 go_pkg_build_timeout_seconds: 3600
 

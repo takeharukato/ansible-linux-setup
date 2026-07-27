@@ -6,6 +6,15 @@
 #
 ---
 
+# Go 構築用の作業ディレクトリと成果物出力先を実行ユーザごとに計算する
+- name: Set effective workspace variables for go rpm build
+  ansible.builtin.set_fact:
+    go_build_workspace_effective: >-
+      /tmp/go-build-{{ lookup('env', 'USER') | default('ansible', true) }}
+    go_build_output_dir_effective: >-
+      /tmp/go-build-{{ lookup('env', 'USER') | default('ansible', true) }}/output
+  run_once: true
+
 # Goソースビルド処理のためのディレクトリを作成する
 - name: Prepare local workspace for go rpm build
   ansible.builtin.file:
@@ -13,8 +22,8 @@
     state: directory
     mode: "0755"
   loop:
-    - "{{ go_build_workspace }}"
-    - "{{ go_build_output_dir }}"
+    - "{{ go_build_workspace_effective }}"
+    - "{{ go_build_output_dir_effective }}"
   delegate_to: "{{ go_build_host }}"
   run_once: true
 
@@ -22,7 +31,7 @@
 - name: Render go rpm build script on build host
   ansible.builtin.template:
     src: build-go-rpm.sh.j2
-    dest: "{{ go_build_workspace }}/build-go-rpm.sh"
+    dest: "{{ go_build_workspace_effective }}/build-go-rpm.sh"
     mode: "0755"
   delegate_to: "{{ go_build_host }}"
   run_once: true
@@ -31,7 +40,7 @@
 - name: Render go rpm Dockerfile on build host
   ansible.builtin.template:
     src: Dockerfile.almalinux.j2
-    dest: "{{ go_build_workspace }}/Dockerfile.go-rpm"
+    dest: "{{ go_build_workspace_effective }}/Dockerfile.go-rpm"
     mode: "0644"
   delegate_to: "{{ go_build_host }}"
   run_once: true
@@ -43,7 +52,7 @@
 # 成果物出力先ディレクトリ内の指定された版数のGo rpmファイル群をリストアップする
 - name: Discover stale go rpm artifacts for current version
   ansible.builtin.find:
-    paths: "{{ go_build_output_dir }}"
+    paths: "{{ go_build_output_dir_effective }}"
     patterns: "{{ go_rpm_package_name }}-{{ go_resolved_version }}-*.rpm"
     file_type: file
   register: go_rpm_stale_files
@@ -71,8 +80,8 @@
       - -t
       - "{{ go_build_container_image_rhel }}"
       - -f
-      - "{{ go_build_workspace }}/Dockerfile.go-rpm"
-      - "{{ go_build_workspace }}"
+      - "{{ go_build_workspace_effective }}/Dockerfile.go-rpm"
+      - "{{ go_build_workspace_effective }}"
   async: "{{ go_pkg_build_timeout_seconds }}"
   poll: 0
   register: go_rpm_builder_image_build_job
@@ -116,7 +125,7 @@
       - -e
       - "GO_PROFILE_SCRIPT={{ go_profile_script }}"
       - -v
-      - "{{ go_build_workspace }}:/work"
+      - "{{ go_build_workspace_effective }}:/work"
       - -w
       - /work
       - "{{ go_build_container_image_rhel }}"
@@ -144,7 +153,7 @@
 # Go rpm成果物を探索する
 - name: Discover built go rpm files
   ansible.builtin.find:
-    paths: "{{ go_build_output_dir }}"
+    paths: "{{ go_build_output_dir_effective }}"
     patterns: "{{ go_rpm_package_name }}-{{ go_resolved_version }}-1.*.rpm"
     file_type: file
   register: go_rpm_files_discovered

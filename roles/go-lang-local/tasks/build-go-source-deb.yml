@@ -6,6 +6,15 @@
 #
 ---
 
+# Go 構築用の作業ディレクトリと成果物出力先を実行ユーザごとに計算する
+- name: Set effective workspace variables for go deb build
+  ansible.builtin.set_fact:
+    go_build_workspace_effective: >-
+      /tmp/go-build-{{ lookup('env', 'USER') | default('ansible', true) }}
+    go_build_output_dir_effective: >-
+      /tmp/go-build-{{ lookup('env', 'USER') | default('ansible', true) }}/output
+  run_once: true
+
 # Goソースビルド処理のためのディレクトリを作成する
 - name: Prepare local workspace for go deb build
   ansible.builtin.file:
@@ -13,8 +22,8 @@
     state: directory
     mode: "0755"
   loop:
-    - "{{ go_build_workspace }}"
-    - "{{ go_build_output_dir }}"
+    - "{{ go_build_workspace_effective }}"
+    - "{{ go_build_output_dir_effective }}"
   delegate_to: "{{ go_build_host }}"
   run_once: true
 
@@ -22,7 +31,7 @@
 - name: Render go deb build script on build host
   ansible.builtin.template:
     src: build-go-deb.sh.j2
-    dest: "{{ go_build_workspace }}/build-go-deb.sh"
+    dest: "{{ go_build_workspace_effective }}/build-go-deb.sh"
     mode: "0755"
   delegate_to: "{{ go_build_host }}"
   run_once: true
@@ -31,7 +40,7 @@
 - name: Render go deb Dockerfile on build host
   ansible.builtin.template:
     src: Dockerfile.ubuntu.j2
-    dest: "{{ go_build_workspace }}/Dockerfile.go-deb"
+    dest: "{{ go_build_workspace_effective }}/Dockerfile.go-deb"
     mode: "0644"
   delegate_to: "{{ go_build_host }}"
   run_once: true
@@ -47,8 +56,8 @@
       - -t
       - "{{ go_build_container_image_debian }}"
       - -f
-      - "{{ go_build_workspace }}/Dockerfile.go-deb"
-      - "{{ go_build_workspace }}"
+      - "{{ go_build_workspace_effective }}/Dockerfile.go-deb"
+      - "{{ go_build_workspace_effective }}"
   async: "{{ go_pkg_build_timeout_seconds }}"
   poll: 0
   register: go_deb_builder_image_build_job
@@ -92,7 +101,7 @@
       - -e
       - "GO_PROFILE_SCRIPT={{ go_profile_script }}"
       - -v
-      - "{{ go_build_workspace }}:/work"
+      - "{{ go_build_workspace_effective }}:/work"
       - -w
       - /work
       - "{{ go_build_container_image_debian }}"
@@ -128,7 +137,7 @@
 # Go deb成果物を探索する
 - name: Discover built go deb files
   ansible.builtin.find:
-    paths: "{{ go_build_output_dir }}"
+    paths: "{{ go_build_output_dir_effective }}"
     patterns: "{{ go_deb_package_name }}_{{ go_resolved_version }}-1_*.deb"
     file_type: file
   register: go_deb_files_discovered
