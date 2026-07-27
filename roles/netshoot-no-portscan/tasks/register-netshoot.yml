@@ -38,6 +38,36 @@
   run_once: true
   changed_when: true
 
+# ローカルレジストリエンドポイント(host:port)を抽出する
+- name: "Extract local registry endpoint"
+  ansible.builtin.set_fact:
+    netshoot_registry_endpoint: "{{ netshoot_image_registry.split('/')[0] }}"
+  delegate_to: localhost
+  run_once: true
+
+# ローカルレジストリのホスト名とポート番号を算出する
+- name: "Compute local registry host and port"
+  ansible.builtin.set_fact:
+    netshoot_registry_host: "{{ netshoot_registry_endpoint.split(':')[0] }}"
+    netshoot_registry_port: >-
+      {{
+        (netshoot_registry_endpoint.split(':') | length > 1)
+        | ternary((netshoot_registry_endpoint.split(':') | last | int), 443)
+      }}
+  delegate_to: localhost
+  run_once: true
+
+# ローカルレジストリへのTCP接続待機
+- name: "Wait for local registry endpoint before push"
+  ansible.builtin.wait_for:
+    host: "{{ netshoot_registry_host }}"
+    port: "{{ netshoot_registry_port }}"
+    state: started
+    timeout: 120
+    connect_timeout: 3
+  delegate_to: localhost
+  run_once: true
+
 # ローカルレジストリにイメージをプッシュする
 - name: "Push netshoot image to local registry"
   ansible.builtin.command:
@@ -45,6 +75,10 @@
       - docker
       - push
       - "{{ netshoot_image_registry }}:{{ netshoot_no_portscan_version }}"
+  register: netshoot_push_result
+  retries: 5
+  delay: 5
+  until: (netshoot_push_result.rc | default(1)) == 0
   delegate_to: localhost
   run_once: true
   changed_when: true
