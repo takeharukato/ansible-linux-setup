@@ -59,3 +59,20 @@ k8s_multus_cleanup_resources: true
 k8s_multus_daemonset_manifest_url: "https://raw.githubusercontent.com/k8snetworkplumbingwg/multus-cni/refs/tags/{{ k8s_multus_version }}/deployments/multus-daemonset.yml"
 # multusをkubectl applyで導入する場合はtrueに設定
 k8s_multus_kubectl_apply_enabled: false
+
+# 環境セットアップ時のスクリプト格納先ディレクトリのプレフィックス
+k8s_node_setup_tools_prefix: "/opt/k8snodes"
+# 環境セットアップ時のスクリプト格納先ディレクトリ
+k8s_node_setup_tools_dir: "{{ k8s_node_setup_tools_prefix }}/sbin"
+
+# multus管理ツールシェル補完設定
+k8s_collect_pod_ips_completion_enabled: true
+
+# Pod アドレス収集ツール配置先
+k8s_collect_pod_ips_script_path: "{{ k8s_node_setup_tools_dir }}/collect-pod-ips.py"
+# bash 補完スクリプト配置先
+k8s_collect_pod_ips_bash_completion_path: "/etc/bash_completion.d/collect-pod-ips"
+# zsh 補完スクリプト配置先
+k8s_collect_pod_ips_zsh_completion_path_debian: "/usr/share/zsh/vendor-completions/_collect-pod-ips"
+k8s_collect_pod_ips_zsh_completion_path_rhel: "/usr/share/zsh/site-functions/_collect-pod-ips"
+k8s_collect_pod_ips_zsh_completion_path: "{{ (ansible_facts.os_family == 'Debian') | ternary(k8s_collect_pod_ips_zsh_completion_path_debian, k8s_collect_pod_ips_zsh_completion_path_rhel) }}"

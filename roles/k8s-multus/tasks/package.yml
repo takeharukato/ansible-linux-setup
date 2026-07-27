@@ -4,3 +4,10 @@
 #
 #  パッケージ関連処理
 #
+---
+
+# Pod アドレス収集ツールを導入する
+- name: Install collect-pod-ips helper tool
+  ansible.builtin.include_tasks: package-collect-pod-ips.yml
+  when:
+    - k8s_multus_enabled | default(false)

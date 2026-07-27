@@ -1,4 +1,75 @@
 # k8s-multus ロール
+本ロールは, Kubernetes (K8s)上で動作するPodから複数のCNIプラグインを同時に使用できるようにするメタCNIプラグインである[Multus](https://github.com/k8snetworkplumbingwg/multus-cni)を導入します。
+
+- [k8s-multus ロール](#k8s-multus-ロール)
+  - [用語](#用語)
+  - [概要](#概要)
+    - [ロールの目的](#ロールの目的)
+    - [前提ロール](#前提ロール)
+    - [基本仕様](#基本仕様)
+    - [実装方針](#実装方針)
+  - [前提条件](#前提条件)
+  - [実行フロー](#実行フロー)
+  - [導入方式](#導入方式)
+    - [Helm 方式 (推奨, 既定)](#helm-方式-推奨-既定)
+    - [kubectl apply 方式](#kubectl-apply-方式)
+    - [導入方式の切り替え](#導入方式の切り替え)
+  - [主要変数](#主要変数)
+    - [基本設定](#基本設定)
+    - [Helm 設定](#helm-設定)
+    - [コンテナイメージ設定](#コンテナイメージ設定)
+    - [CNI 設定](#cni-設定)
+    - [kubectl apply 設定](#kubectl-apply-設定)
+    - [API 待機設定](#api-待機設定)
+    - [オペレータユーザ設定](#オペレータユーザ設定)
+    - [Pod アドレス収集ツール設定](#pod-アドレス収集ツール設定)
+    - [共通変数参照](#共通変数参照)
+  - [テンプレート, ファイル](#テンプレート-ファイル)
+    - [Helm Chart 構成](#helm-chart-構成)
+  - [検証ポイント](#検証ポイント)
+    - [1. kube-apiserver の応答確認](#1-kube-apiserver-の応答確認)
+    - [2. Multus DaemonSet の起動確認](#2-multus-daemonset-の起動確認)
+    - [3. Helm Release の確認 (Helm 方式使用時)](#3-helm-release-の確認-helm-方式使用時)
+    - [4. NetworkAttachmentDefinition CRD の確認](#4-networkattachmentdefinition-crd-の確認)
+    - [5. RBAC リソースの確認](#5-rbac-リソースの確認)
+    - [6. CNI 設定ファイルの確認](#6-cni-設定ファイルの確認)
+    - [7. Multus 動作確認 (テストポッド起動)](#7-multus-動作確認-テストポッド起動)
+      - [7.1. 事前準備 (NetworkAttachmentDefinitionの作成)](#71-事前準備-networkattachmentdefinitionの作成)
+      - [7.2. テストポッドの起動](#72-テストポッドの起動)
+      - [7.3. Pod 内のネットワークインターフェース確認](#73-pod-内のネットワークインターフェース確認)
+    - [8. Multus ログの確認](#8-multus-ログの確認)
+  - [トラブルシューティング](#トラブルシューティング)
+    - [1. Multus DaemonSet が起動しない](#1-multus-daemonset-が起動しない)
+    - [2. NetworkAttachmentDefinition (NAD) が認識されない](#2-networkattachmentdefinition-nad-が認識されない)
+    - [3. Pod にセカンダリネットワークインターフェースがアタッチされない](#3-pod-にセカンダリネットワークインターフェースがアタッチされない)
+    - [4. Helm Release が失敗する](#4-helm-release-が失敗する)
+    - [5. kube-apiserver に接続できない](#5-kube-apiserver-に接続できない)
+  - [補足](#補足)
+    - [thin インストールと thick インストール](#thin-インストールと-thick-インストール)
+    - [Cilium との共存](#cilium-との共存)
+    - [NetworkAttachmentDefinition (NAD) の使用](#networkattachmentdefinition-nad-の使用)
+    - [セカンダリネットワークのルーティング](#セカンダリネットワークのルーティング)
+  - [付録](#付録)
+    - [Pod アドレス収集補助スクリプト](#pod-アドレス収集補助スクリプト)
+    - [スクリプト配置](#スクリプト配置)
+    - [コマンドライン仕様](#コマンドライン仕様)
+    - [共通オプション](#共通オプション)
+    - [実行時の情報表示](#実行時の情報表示)
+    - [実行例](#実行例)
+      - [例1: 全 Pod のアドレス情報を表示](#例1-全-pod-のアドレス情報を表示)
+      - [例2: 特定名前空間だけを対象にする](#例2-特定名前空間だけを対象にする)
+      - [例3: ラベルセレクタで Multus Pod を絞り込む](#例3-ラベルセレクタで-multus-pod-を絞り込む)
+      - [例4: 警告を検知したら失敗させる](#例4-警告を検知したら失敗させる)
+    - [シェル補完機能](#シェル補完機能)
+      - [補完機能の有効化設定](#補完機能の有効化設定)
+      - [補完ファイル配置先](#補完ファイル配置先)
+      - [補完機能の使用方法](#補完機能の使用方法)
+      - [補完の動作](#補完の動作)
+      - [補完機能のトラブルシューティング](#補完機能のトラブルシューティング)
+  - [参考資料](#参考資料)
+    - [公式ドキュメント](#公式ドキュメント)
+    - [関連ロール](#関連ロール)
+
 
 ## 用語
 
@@ -105,7 +176,7 @@ Helm 方式から kubectl apply 方式への切り替え, またはその逆の�
 本ロールは以下の手順で Multus CNI を導入します:
 
 1. **パラメータ読み込み** (`load-params.yml`): `vars/config.yml` から設定を読み込みます (現在は placeholder のみ)。
-2. **パッケージインストール** (`package.yml`): 必要なパッケージをインストールします (現在は処理なし, 将来の拡張用)。
+2. **パッケージインストール** (`package.yml`): Pod アドレス収集ツール `collect-pod-ips.py` を `{{ k8s_node_setup_tools_dir }}` 配下へ配置します。`k8s_collect_pod_ips_completion_enabled: true` の場合は, bash/zsh 補完ファイルもあわせて導入します。
 3. **ディレクトリ作成** (`directory.yml`): Multus 用の設定ディレクトリを作成します。
 4. **ユーザ/グループ作成** (`user_group.yml`): オペレータユーザ (k8s_multus_operator) の設定を行います (既定では作成しない)。
 5. **サービス設定** (`service.yml`): Multus 関連サービスの設定を行います (現在は処理なし, 将来の拡張用)。
@@ -116,7 +187,7 @@ Helm 方式から kubectl apply 方式への切り替え, またはその逆の�
    - **Helm values 生成**: `templates/multus-values.yml.j2` から values ファイルを生成します。
    - **Helm インストール/アップグレード**: `helm upgrade --install` コマンドで Multus をデプロイします。
 8. **Multus 導入 (kubectl apply 方式)** (`config-kubectl-applied-multus.yml`): `k8s_multus_use_helm: false` の場合, 公式マニフェスト ({{ k8s_multus_manifest_thin_install_url }}) を `kubectl apply` で適用します。
-9. **テストポッド用マニフェスト配置** (`test-pod-manifest.yml`): Multus 動作確認用のテストポッド定義 (`templates/app-pod.yml.j2`) を `/tmp/multus-test-app-pod.yml` に配置します。
+9. **テストポッド用マニフェスト配置** (`directory-multus-test-pod.yml`): Multus 動作確認用のテストポッド定義 (`templates/app-pod.yml.j2`) を `{{ k8s_multus_config_dir }}/app-pod.yml` に配置します。
 
 ## 導入方式
 
@@ -139,7 +210,7 @@ k8s_multus_use_helm: true  # 既定値
 **確認方法**:
 
 ```bash
-sudo kubectl get daemonset -n kube-system
+kubectl get daemonset -n kube-system
 helm list -n kube-system
 ```
 
@@ -160,7 +231,7 @@ k8s_multus_use_helm: false
 **確認方法**:
 
 ```bash
-sudo kubectl get daemonset -n kube-system
+kubectl get daemonset -n kube-system
 ```
 
 ### 導入方式の切り替え
@@ -181,6 +252,8 @@ k8s_multus_use_helm: true  # または false
 | `k8s_multus_enabled` | `true` | Multus 導入を有効化するかどうか。`false` にするとロール全体をスキップします。 |
 | `k8s_multus_cleanup_resources` | `false` | 既存の Multus リソースを削除するかどうか。導入方式の切り替え時に使用します。 |
 | `k8s_multus_install_test_pod_manifest` | `true` | テストポッド用マニフェストを配置するかどうか。 |
+| `k8s_node_setup_tools_prefix` | `"/opt/k8snodes"` | ノード向け補助スクリプト格納先ディレクトリのプレフィックス。 |
+| `k8s_node_setup_tools_dir` | `"{{ k8s_node_setup_tools_prefix }}/sbin"` | ノード向け補助スクリプト格納先ディレクトリ。 |
 
 ### Helm 設定
 
@@ -225,6 +298,17 @@ k8s_multus_use_helm: true  # または false
 | `k8s_multus_operator` | `""` | Multus 操作用のユーザ名。空文字列の場合は作成しません (既定)。 |
 | `k8s_multus_operator_group` | `""` | Multus 操作用のグループ名。空文字列の場合は作成しません (既定)。 |
 
+### Pod アドレス収集ツール設定
+
+| 変数名 | 既定値 | 説明 |
+| --- | --- | --- |
+| `k8s_collect_pod_ips_completion_enabled` | `true` | `collect-pod-ips.py` 用の bash/zsh 補完ファイルを配置するかどうか。 |
+| `k8s_collect_pod_ips_script_path` | `"{{ k8s_node_setup_tools_dir }}/collect-pod-ips.py"` | Pod アドレス収集ツール本体の配置先。 |
+| `k8s_collect_pod_ips_bash_completion_path` | `"/etc/bash_completion.d/collect-pod-ips"` | bash 補完ファイルの配置先。 |
+| `k8s_collect_pod_ips_zsh_completion_path_debian` | `"/usr/share/zsh/vendor-completions/_collect-pod-ips"` | Debian/Ubuntu 系での zsh 補完ファイル配置先。 |
+| `k8s_collect_pod_ips_zsh_completion_path_rhel` | `"/usr/share/zsh/site-functions/_collect-pod-ips"` | RHEL 系での zsh 補完ファイル配置先。 |
+| `k8s_collect_pod_ips_zsh_completion_path` | `"{{ (ansible_facts.os_family == 'Debian') | ternary(k8s_collect_pod_ips_zsh_completion_path_debian, k8s_collect_pod_ips_zsh_completion_path_rhel) }}"` | 実行ホストのディストリビューション差異を吸収した zsh 補完ファイル配置先。 |
+
 ### 共通変数参照
 
 以下の変数は `k8s-common` ロールや `group_vars/all/all.yml` で定義されている共通変数を参照します:
@@ -240,6 +324,9 @@ k8s_multus_use_helm: true  # または false
 | --- | --- | --- |
 | `templates/multus-values.yml.j2` | Jinja2 テンプレート | Helm Chart 用の values ファイルを生成するテンプレート。 |
 | `templates/app-pod.yml.j2` | Jinja2 テンプレート | Multus 動作確認用のテストポッド定義。secondary ネットワークインターフェースとして ipvlan を使用する例を含みます。 |
+| `files/collect-pod-ips.py` | Python スクリプト | Pod の `status.podIPs` と Multus の `network-status` 注釈を収集し, YAML 形式で一覧化する補助ツール。 |
+| `templates/collect-pod-ips.bash-completion.j2` | Jinja2 テンプレート | `collect-pod-ips.py` 用 bash 補完ファイルを生成するテンプレート。 |
+| `templates/_collect-pod-ips.zsh-completion.j2` | Jinja2 テンプレート | `collect-pod-ips.py` 用 zsh 補完ファイルを生成するテンプレート。 |
 | `files/multus-chart/` | Helm Chart | ローカル Helm Chart ディレクトリ。公式 Multus Chart を元にカスタマイズしたものです。 |
 
 ### Helm Chart 構成
@@ -277,7 +364,7 @@ Multus CNI が正常に導入されたことを確認するため, 以下の手�
 ### 1. kube-apiserver の応答確認
 
 ```bash
-sudo kubectl --kubeconfig=/etc/kubernetes/admin.conf cluster-info
+kubectl cluster-info
 ```
 
 **期待される結果**:
@@ -295,7 +382,7 @@ CoreDNS is running at https://[fdad:ba50:248b:1::41]:6443/api/v1/namespaces/kube
 ### 2. Multus DaemonSet の起動確認
 
 ```bash
-sudo kubectl --kubeconfig=/etc/kubernetes/admin.conf get daemonset -n kube-system
+kubectl get daemonset -n kube-system
 ```
 
 **期待される結果**:
@@ -310,7 +397,7 @@ kube-multus-ds   3         3         3       3            3           <none>    
 全ノードで Multus Pod が `READY` 状態であることを確認します:
 
 ```bash
-sudo kubectl --kubeconfig=/etc/kubernetes/admin.conf get pods -n kube-system -l app=multus
+kubectl get pods -n kube-system -l app=multus
 ```
 
 **期待される結果**:
@@ -352,7 +439,7 @@ multus-cni  kube-system  1         2026-03-06 02:17:20.715233566 +0900 JST deplo
 ### 4. NetworkAttachmentDefinition CRD の確認
 
 ```bash
-sudo kubectl --kubeconfig=/etc/kubernetes/admin.conf get crd network-attachment-definitions.k8s.cni.cncf.io
+kubectl get crd network-attachment-definitions.k8s.cni.cncf.io
 ```
 
 **期待される結果**:
@@ -370,9 +457,9 @@ network-attachment-definitions.k8s.cni.cncf.io   2026-03-05T17:17:20Z
 ### 5. RBAC リソースの確認
 
 ```bash
-sudo kubectl --kubeconfig=/etc/kubernetes/admin.conf get clusterrole multus
-sudo kubectl --kubeconfig=/etc/kubernetes/admin.conf get clusterrolebinding multus
-sudo kubectl --kubeconfig=/etc/kubernetes/admin.conf get serviceaccount -n kube-system multus
+kubectl get clusterrole multus
+kubectl get clusterrolebinding multus
+kubectl get serviceaccount -n kube-system multus
 ```
 
 **期待される結果**:
@@ -421,17 +508,136 @@ Multus の設定ファイル (`00-multus.conf` または `multus.d/multus.kubeco
 
 ### 7. Multus 動作確認 (テストポッド起動)
 
-テストポッド用マニフェスト (`/tmp/multus-test-app-pod.yml`) を使用して, Multus が正常に secondary ネットワークインターフェースをアタッチできることを確認します:
+本節では, テストポッド投入によるMultusの動作確認手順を説明します。
+
+#### 7.1. 事前準備 (NetworkAttachmentDefinitionの作成)
+
+Podを展開する前に, Pod が参照する NetworkAttachmentDefinition `ipvlan-wb` が `default` 名前空間に存在することを確認します:
 
 ```bash
-sudo kubectl --kubeconfig=/etc/kubernetes/admin.conf apply -f /tmp/multus-test-app-pod.yml
-sudo kubectl --kubeconfig=/etc/kubernetes/admin.conf wait --for=condition=ready pod/demo-net1 --timeout=60s
+kubectl get network-attachment-definition -n default ipvlan-wb
 ```
 
-**Pod 内のネットワークインターフェース確認**:
+`NotFound` になる場合は, 以下の手順でNetworkAttachmentDefinitionを作成します。
+例えば, 上記は, WhereaboutsによるIPアドレスの割当てとipvlan を利用する場合は以下のように, NetworkAttachmentDefinitionを作成するためのマニュフェストを生成します。
+
+`ipvlan` の `master` には, **Pod内の `eth0` ではなく, Podが配置されるノード上の実インターフェース名** を指定します。
+Pod投入先K8sクラスタのワーカノード上で以下のコマンドを実行し, 実インターフェース名を取得します:
 
 ```bash
-sudo kubectl --kubeconfig=/etc/kubernetes/admin.conf exec demo-net1 -- ip addr show
+ip -o route show default | awk '{print $5; exit}'
+```
+
+実行結果の例:
+```bash
+$ ip -o route show default | awk '{print $5; exit}'
+ens160
+```
+
+上記コマンドの出力結果を以下の`<NODE_PRIMARY_IFNAME>`の部分に指定して, 以下のコマンドを実行し, NetworkAttachmentDefinitionを作成するためのマニュフェストを生成します:
+```bash
+cat <<'EOF' >/tmp/ipvlan-wb-nad.yml
+apiVersion: k8s.cni.cncf.io/v1
+kind: NetworkAttachmentDefinition
+metadata:
+  name: ipvlan-wb
+  namespace: default
+spec:
+  config: |
+    {
+      "cniVersion": "0.3.1",
+      "type": "ipvlan",
+      "master": "<NODE_PRIMARY_IFNAME>",
+      "mode": "l2",
+      "ipam": {
+        "type": "whereabouts",
+        "range": "192.168.20.0/24"
+      }
+    }
+EOF
+```
+
+実行例:
+```bash
+$ cat <<'EOF' >/tmp/ipvlan-wb-nad.yml
+apiVersion: k8s.cni.cncf.io/v1
+kind: NetworkAttachmentDefinition
+metadata:
+  name: ipvlan-wb
+  namespace: default
+spec:
+  config: |
+    {
+      "cniVersion": "0.3.1",
+      "type": "ipvlan",
+      "master": "ens160",
+      "mode": "l2",
+      "ipam": {
+        "type": "whereabouts",
+        "range": "192.168.20.0/24"
+      }
+    }
+EOF
+```
+
+以下のコマンドにより, 上記で作成したNetworkAttachmentDefinition作成用マニュフェストを適用します:
+```bash
+kubectl apply -f /tmp/ipvlan-wb-nad.yml
+```
+
+実行例:
+```bash
+$ kubectl apply -f /tmp/ipvlan-wb-nad.yml
+networkattachmentdefinition.k8s.cni.cncf.io/ipvlan-wb created
+```
+
+#### 7.2. テストポッドの起動
+
+本ロールでは, Multusの動作確認用マニフェスト (`{{ k8s_multus_config_dir }}/app-pod.yml`, 既定は, `/home/ansible/kubeadm/multus/app-pod.yml`) をコントロールプレインノード上に導入します。
+
+Multusの動作確認用マニフェストの内容は以下の通りです:
+```yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: demo-net1
+  namespace: default
+  annotations:
+    k8s.v1.cni.cncf.io/networks: |
+      [
+        { "name": "ipvlan-wb" }
+      ]
+spec:
+  containers:
+  - name: app
+    image: busybox:1.36
+    command: ["/bin/sh","-c","ip addr; echo '---'; ip route; sleep 3600"]
+```
+
+以下のコマンドを実行し, 本マニュフェストを適用します:
+```bash
+kubectl apply -f /home/ansible/kubeadm/multus/app-pod.yml
+kubectl wait --for=condition=ready pod/demo-net1 --timeout=60s
+```
+
+実行結果の例:
+```bash
+$ kubectl apply -f app-pod.yml
+pod/demo-net1 created
+$ kubectl wait --for=condition=ready pod/demo-net1 --timeout=60s
+pod/demo-net1 condition met
+```
+
+`kubectl wait` がタイムアウトし, `kubectl describe pod demo-net1` に
+`failed to lookup master "eth0": Link not found` が表示される場合は,
+NAD の `master` がノード実IF名と不一致です。`master` を実IF名へ修正して再適用してください。
+
+#### 7.3. Pod 内のネットワークインターフェース確認
+
+以下のコマンドを実行し, Pod内のネットワークインターフェース情報を確認します:
+
+```bash
+kubectl  exec demo-net1 -- ip addr show
 ```
 
 **期待される結果**:
@@ -470,7 +676,7 @@ sudo kubectl --kubeconfig=/etc/kubernetes/admin.conf exec demo-net1 -- ip addr s
 **ルーティング確認**:
 
 ```bash
-sudo kubectl --kubeconfig=/etc/kubernetes/admin.conf exec demo-net1 -- ip route show
+sudo kubectl  exec demo-net1 -- ip route show
 ```
 
 **期待される結果**:
@@ -495,7 +701,8 @@ default via 10.244.2.168 dev eth0
 確認後はテストポッドを削除します:
 
 ```bash
-sudo kubectl --kubeconfig=/etc/kubernetes/admin.conf delete -f /tmp/multus-test-app-pod.yml
+sudo kubectl  delete -f {{ k8s_multus_config_dir }}/app-pod.yml
+kubectl delete -f /tmp/ipvlan-wb-nad.yml --ignore-not-found
 ```
 
 ### 8. Multus ログの確認
@@ -503,7 +710,7 @@ sudo kubectl --kubeconfig=/etc/kubernetes/admin.conf delete -f /tmp/multus-test-
 問題が発生した場合は, Multus Pod のログを確認します:
 
 ```bash
-sudo kubectl --kubeconfig=/etc/kubernetes/admin.conf logs -n kube-system -l app=multus --tail=50
+sudo kubectl  logs -n kube-system -l app=multus --tail=50
 ```
 
 ## トラブルシューティング
@@ -658,6 +865,814 @@ ip route add <DESTINATION_NETWORK> via <GATEWAY> dev net1 src <NET1_IP>
 
 この設定により, カーネルが送信元 IP アドレスを自動選択する際に `net1` の IP アドレスを使用するようになり, セカンダリネットワーク経由の通信が確実に行われます。
 
+
+## 付録
+
+### Pod アドレス収集補助スクリプト
+
+本ロールでは, `collect-pod-ips.py` をノード上の補助ツールとして配置できます。このスクリプトは, Kubernetes API から Pod 一覧を取得し, `status.podIPs` と Multus の `k8s.v1.cni.cncf.io/network-status` 注釈をもとに, Pod ごとの IP アドレス情報を YAML 形式で一覧化します。
+
+本ツールの動作には, 以下のpythonライブラリが導入されている必要があります:
+
+- [Python版Kubernetes Client Library](https://github.com/kubernetes-client/python)
+- [PyYAML](https://pyyaml.org/wiki/PyYAML)
+
+### スクリプト配置
+
+Ansible ロール実行時に以下のスクリプトと補完ファイルが自動配置されます。
+
+| 変数名 | デフォルト値 | 説明 |
+| --- | --- | --- |
+| `k8s_collect_pod_ips_script_path` | `/opt/k8snodes/sbin/collect-pod-ips.py` | Pod アドレス収集スクリプト本体の配置先 |
+| `k8s_collect_pod_ips_completion_enabled` | `true` | bash/zsh 補完配置の有効/無効切り替え |
+| `k8s_collect_pod_ips_bash_completion_path` | `/etc/bash_completion.d/collect-pod-ips` | bash 補完ファイル配置先 |
+| `k8s_collect_pod_ips_zsh_completion_path` | ディストリビューション依存 | zsh 補完ファイル配置先 |
+
+### コマンドライン仕様
+
+`collect-pod-ips.py` は以下の基本形式で使用します。
+
+```bash
+collect-pod-ips.py [オプション...]
+```
+
+### 共通オプション
+
+| オプション | 説明 |
+| --- | --- |
+| `--namespace NAMESPACE` | 対象の名前空間 ( namespace ) を指定します。省略時は全名前空間が対象です。 |
+| `--label-selector SELECTOR` | Kubernetes のラベルセレクタを指定します。 |
+| `--field-selector SELECTOR` | Kubernetes のフィールドセレクタを指定します。 |
+| `--in-cluster` | Pod 内から実行する前提で, ServiceAccount 認証情報を使用します。 |
+| `--kubeconfig KUBECONFIG` | Kubernetes APIサーバ接続時に使用するkubeconfigファイルを指定します。`--in-cluster`指定時は無視されます。未指定時は, Kubernetes Client Libraryの既定動作に従います。|
+| `--include-empty` | IP アドレスを抽出できなかった Pod も出力対象に含めます。 |
+| `--strict` | 警告または IP 未報告インターフェースがある場合, 終了コード 1 で終了します。 |
+| `--debug` | 詳細ログを有効化します。 |
+| `-h, --help` | ヘルプメッセージを表示して終了します。 |
+
+### 実行時の情報表示
+
+本スクリプトは, 取得結果を以下の YAML 形式で標準出力へ出力します。
+
+- `apiVersion`: 固定値 `pod-network-report.example/v1`
+- `kind`: 固定値 `PodNetworkAddressList`
+- `items`: Pod ごとのアドレス情報一覧
+
+各 Pod エントリには以下の情報が含まれます。
+
+- `namespace`: Pod が属する名前空間
+- `name`: Pod 名
+- `uid`: Pod UID
+- `node_name`: 配置ノード名
+- `phase`: Pod phase
+- `addresses`: 収集したアドレス一覧
+- `interfaces_without_reported_ip`: IP 未報告インターフェース一覧
+- `warnings`: 警告一覧
+
+### 実行例
+
+#### 例1: 全 Pod のアドレス情報を表示
+
+```bash
+/opt/k8snodes/sbin/collect-pod-ips.py
+```
+
+実行例:
+
+```yaml
+$ /opt/k8snodes/sbin/collect-pod-ips.py
+apiVersion: pod-network-report.example/v1
+kind: PodNetworkAddressList
+items:
+- namespace: default
+  name: demo-net1
+  uid: 0cc98742-b28d-4a9a-bd36-1b130982000a
+  node_name: k8sworker0102
+  phase: Running
+  addresses:
+  - address: 10.244.2.92
+    family: IPv4
+    network: cilium
+    interface: eth0
+    mac: 06:da:6e:1e:6a:ab
+    default_network: true
+    source: k8s.v1.cni.cncf.io/network-status
+  - address: fdb6:6e92:3cfb:202::6907
+    family: IPv6
+    network: cilium
+    interface: eth0
+    mac: 06:da:6e:1e:6a:ab
+    default_network: true
+    source: k8s.v1.cni.cncf.io/network-status
+  - address: 192.168.20.1
+    family: IPv4
+    network: default/ipvlan-wb
+    interface: net1
+    mac: 00:50:56:00:bf:71
+    default_network: false
+    source: k8s.v1.cni.cncf.io/network-status
+  interfaces_without_reported_ip: []
+  warnings: []
+略
+```
+
+#### 例2: 特定名前空間だけを対象にする
+
+```bash
+/opt/k8snodes/sbin/collect-pod-ips.py --namespace kube-system
+```
+
+実行例:
+```bash
+$ /opt/k8snodes/sbin/collect-pod-ips.py --namespace kube-system
+apiVersion: pod-network-report.example/v1
+kind: PodNetworkAddressList
+items:
+- namespace: kube-system
+  name: cilium-98mm4
+  uid: 78fabbb1-d795-4591-85b8-e17871eee248
+  node_name: k8sworker0102
+  phase: Running
+  addresses:
+  - address: 192.168.30.43
+    family: IPv4
+    network: null
+    interface: null
+    mac: null
+    default_network: true
+    source: status.podIPs
+  - address: fdad:ba50:248b:1::43
+    family: IPv6
+    network: null
+    interface: null
+    mac: null
+    default_network: true
+    source: status.podIPs
+  interfaces_without_reported_ip: []
+  warnings: []
+- namespace: kube-system
+  name: cilium-envoy-87z7v
+  uid: a08f7a8d-ff1a-487b-8daf-35193bedf0ef
+  node_name: k8sworker0101
+  phase: Running
+  addresses:
+  - address: 192.168.30.42
+    family: IPv4
+    network: null
+    interface: null
+    mac: null
+    default_network: true
+    source: status.podIPs
+  - address: fdad:ba50:248b:1::42
+    family: IPv6
+    network: null
+    interface: null
+    mac: null
+    default_network: true
+    source: status.podIPs
+  interfaces_without_reported_ip: []
+  warnings: []
+- namespace: kube-system
+  name: cilium-envoy-r9kpf
+  uid: 990fed7f-ca3f-423f-bb04-f6fc9a4f6e54
+  node_name: k8sctrlplane01
+  phase: Running
+  addresses:
+  - address: 192.168.30.41
+    family: IPv4
+    network: null
+    interface: null
+    mac: null
+    default_network: true
+    source: status.podIPs
+  - address: fdad:ba50:248b:1::41
+    family: IPv6
+    network: null
+    interface: null
+    mac: null
+    default_network: true
+    source: status.podIPs
+  interfaces_without_reported_ip: []
+  warnings: []
+- namespace: kube-system
+  name: cilium-envoy-xz588
+  uid: 886a5165-855b-42b8-97f7-3a44b0746355
+  node_name: k8sworker0102
+  phase: Running
+  addresses:
+  - address: 192.168.30.43
+    family: IPv4
+    network: null
+    interface: null
+    mac: null
+    default_network: true
+    source: status.podIPs
+  - address: fdad:ba50:248b:1::43
+    family: IPv6
+    network: null
+    interface: null
+    mac: null
+    default_network: true
+    source: status.podIPs
+  interfaces_without_reported_ip: []
+  warnings: []
+- namespace: kube-system
+  name: cilium-operator-7f9b9c849d-5bx9w
+  uid: 19bb7f06-9fc5-43e0-86b8-c96d80277e01
+  node_name: k8sworker0101
+  phase: Running
+  addresses:
+  - address: 192.168.30.42
+    family: IPv4
+    network: null
+    interface: null
+    mac: null
+    default_network: true
+    source: status.podIPs
+  - address: fdad:ba50:248b:1::42
+    family: IPv6
+    network: null
+    interface: null
+    mac: null
+    default_network: true
+    source: status.podIPs
+  interfaces_without_reported_ip: []
+  warnings: []
+- namespace: kube-system
+  name: cilium-operator-7f9b9c849d-9mvj2
+  uid: 4403aff2-7b76-490a-be0f-79ae261de714
+  node_name: k8sctrlplane01
+  phase: Running
+  addresses:
+  - address: 192.168.30.41
+    family: IPv4
+    network: null
+    interface: null
+    mac: null
+    default_network: true
+    source: status.podIPs
+  - address: fdad:ba50:248b:1::41
+    family: IPv6
+    network: null
+    interface: null
+    mac: null
+    default_network: true
+    source: status.podIPs
+  interfaces_without_reported_ip: []
+  warnings: []
+- namespace: kube-system
+  name: cilium-p7jc2
+  uid: e7672dd8-12fc-4fd0-9f0b-1d5464094d49
+  node_name: k8sctrlplane01
+  phase: Running
+  addresses:
+  - address: 192.168.30.41
+    family: IPv4
+    network: null
+    interface: null
+    mac: null
+    default_network: true
+    source: status.podIPs
+  - address: fdad:ba50:248b:1::41
+    family: IPv6
+    network: null
+    interface: null
+    mac: null
+    default_network: true
+    source: status.podIPs
+  interfaces_without_reported_ip: []
+  warnings: []
+- namespace: kube-system
+  name: cilium-vfpz2
+  uid: cdb583a3-d2a7-44e6-9ab7-25ae9858a086
+  node_name: k8sworker0101
+  phase: Running
+  addresses:
+  - address: 192.168.30.42
+    family: IPv4
+    network: null
+    interface: null
+    mac: null
+    default_network: true
+    source: status.podIPs
+  - address: fdad:ba50:248b:1::42
+    family: IPv6
+    network: null
+    interface: null
+    mac: null
+    default_network: true
+    source: status.podIPs
+  interfaces_without_reported_ip: []
+  warnings: []
+- namespace: kube-system
+  name: clustermesh-apiserver-599f5dcb5f-lfgkz
+  uid: a760231e-a466-4b9f-8a59-58ebdbc7844e
+  node_name: k8sworker0101
+  phase: Running
+  addresses:
+  - address: 10.244.1.46
+    family: IPv4
+    network: null
+    interface: null
+    mac: null
+    default_network: true
+    source: status.podIPs
+  - address: fdb6:6e92:3cfb:201::10fc
+    family: IPv6
+    network: null
+    interface: null
+    mac: null
+    default_network: true
+    source: status.podIPs
+  interfaces_without_reported_ip: []
+  warnings: []
+- namespace: kube-system
+  name: coredns-7c65d6cfc9-rt5z7
+  uid: 96f29068-15bc-45a0-ae5e-bd03c5ebdfc0
+  node_name: k8sctrlplane01
+  phase: Running
+  addresses:
+  - address: 10.244.0.140
+    family: IPv4
+    network: null
+    interface: null
+    mac: null
+    default_network: true
+    source: status.podIPs
+  - address: fdb6:6e92:3cfb:200::ad32
+    family: IPv6
+    network: null
+    interface: null
+    mac: null
+    default_network: true
+    source: status.podIPs
+  interfaces_without_reported_ip: []
+  warnings: []
+- namespace: kube-system
+  name: coredns-7c65d6cfc9-t5bh9
+  uid: ab97ad24-e8d9-4616-8a17-49095523dc80
+  node_name: k8sctrlplane01
+  phase: Running
+  addresses:
+  - address: 10.244.0.202
+    family: IPv4
+    network: null
+    interface: null
+    mac: null
+    default_network: true
+    source: status.podIPs
+  - address: fdb6:6e92:3cfb:200::3cdc
+    family: IPv6
+    network: null
+    interface: null
+    mac: null
+    default_network: true
+    source: status.podIPs
+  interfaces_without_reported_ip: []
+  warnings: []
+- namespace: kube-system
+  name: etcd-k8sctrlplane01
+  uid: 6f826f54-8699-4259-b7a9-fcc860447a6f
+  node_name: k8sctrlplane01
+  phase: Running
+  addresses:
+  - address: 192.168.30.41
+    family: IPv4
+    network: null
+    interface: null
+    mac: null
+    default_network: true
+    source: status.podIPs
+  - address: fdad:ba50:248b:1::41
+    family: IPv6
+    network: null
+    interface: null
+    mac: null
+    default_network: true
+    source: status.podIPs
+  interfaces_without_reported_ip: []
+  warnings: []
+- namespace: kube-system
+  name: hubble-relay-6f576c4487-2z55v
+  uid: 32ad1aa1-41d5-4f28-b6a3-12cde597cf70
+  node_name: k8sworker0101
+  phase: Running
+  addresses:
+  - address: 10.244.1.96
+    family: IPv4
+    network: null
+    interface: null
+    mac: null
+    default_network: true
+    source: status.podIPs
+  - address: fdb6:6e92:3cfb:201::a68
+    family: IPv6
+    network: null
+    interface: null
+    mac: null
+    default_network: true
+    source: status.podIPs
+  interfaces_without_reported_ip: []
+  warnings: []
+- namespace: kube-system
+  name: hubble-ui-6b65d5f8f5-lxvxn
+  uid: a3f1247f-a893-428c-8f86-8a13037b1e54
+  node_name: k8sworker0101
+  phase: Running
+  addresses:
+  - address: 10.244.1.101
+    family: IPv4
+    network: cilium
+    interface: eth0
+    mac: 76:ce:b2:49:e6:93
+    default_network: true
+    source: k8s.v1.cni.cncf.io/network-status
+  - address: fdb6:6e92:3cfb:201::13d8
+    family: IPv6
+    network: cilium
+    interface: eth0
+    mac: 76:ce:b2:49:e6:93
+    default_network: true
+    source: k8s.v1.cni.cncf.io/network-status
+  interfaces_without_reported_ip: []
+  warnings: []
+- namespace: kube-system
+  name: kube-apiserver-k8sctrlplane01
+  uid: 78939a41-a73d-4542-90c9-cc113371198f
+  node_name: k8sctrlplane01
+  phase: Running
+  addresses:
+  - address: 192.168.30.41
+    family: IPv4
+    network: null
+    interface: null
+    mac: null
+    default_network: true
+    source: status.podIPs
+  - address: fdad:ba50:248b:1::41
+    family: IPv6
+    network: null
+    interface: null
+    mac: null
+    default_network: true
+    source: status.podIPs
+  interfaces_without_reported_ip: []
+  warnings: []
+- namespace: kube-system
+  name: kube-controller-manager-k8sctrlplane01
+  uid: 8d6b7dea-7659-49f3-95cf-c59bc841cd80
+  node_name: k8sctrlplane01
+  phase: Running
+  addresses:
+  - address: 192.168.30.41
+    family: IPv4
+    network: null
+    interface: null
+    mac: null
+    default_network: true
+    source: status.podIPs
+  - address: fdad:ba50:248b:1::41
+    family: IPv6
+    network: null
+    interface: null
+    mac: null
+    default_network: true
+    source: status.podIPs
+  interfaces_without_reported_ip: []
+  warnings: []
+- namespace: kube-system
+  name: kube-multus-ds-6cn2s
+  uid: b68d280b-9268-4d47-b261-f38cb205c484
+  node_name: k8sctrlplane01
+  phase: Running
+  addresses:
+  - address: 192.168.30.41
+    family: IPv4
+    network: null
+    interface: null
+    mac: null
+    default_network: true
+    source: status.podIPs
+  - address: fdad:ba50:248b:1::41
+    family: IPv6
+    network: null
+    interface: null
+    mac: null
+    default_network: true
+    source: status.podIPs
+  interfaces_without_reported_ip: []
+  warnings: []
+- namespace: kube-system
+  name: kube-multus-ds-9k87r
+  uid: c9051ad8-e25d-4f03-8d95-fa8b4c3d0234
+  node_name: k8sworker0101
+  phase: Running
+  addresses:
+  - address: 192.168.30.42
+    family: IPv4
+    network: null
+    interface: null
+    mac: null
+    default_network: true
+    source: status.podIPs
+  - address: fdad:ba50:248b:1::42
+    family: IPv6
+    network: null
+    interface: null
+    mac: null
+    default_network: true
+    source: status.podIPs
+  interfaces_without_reported_ip: []
+  warnings: []
+- namespace: kube-system
+  name: kube-multus-ds-wfcpq
+  uid: 47812fdf-30d4-4fb3-8531-dfab80b22b8b
+  node_name: k8sworker0102
+  phase: Running
+  addresses:
+  - address: 192.168.30.43
+    family: IPv4
+    network: null
+    interface: null
+    mac: null
+    default_network: true
+    source: status.podIPs
+  - address: fdad:ba50:248b:1::43
+    family: IPv6
+    network: null
+    interface: null
+    mac: null
+    default_network: true
+    source: status.podIPs
+  interfaces_without_reported_ip: []
+  warnings: []
+- namespace: kube-system
+  name: kube-scheduler-k8sctrlplane01
+  uid: 8f25b2ef-bf03-495e-8f1b-0e0f0b10cc22
+  node_name: k8sctrlplane01
+  phase: Running
+  addresses:
+  - address: 192.168.30.41
+    family: IPv4
+    network: null
+    interface: null
+    mac: null
+    default_network: true
+    source: status.podIPs
+  - address: fdad:ba50:248b:1::41
+    family: IPv6
+    network: null
+    interface: null
+    mac: null
+    default_network: true
+    source: status.podIPs
+  interfaces_without_reported_ip: []
+  warnings: []
+- namespace: kube-system
+  name: whereabouts-whereabouts-chart-controller-bd8d4fd75-gzwsz
+  uid: f87fe8b2-8c87-4f2f-8d10-0cb4dbec7c4c
+  node_name: k8sworker0101
+  phase: Running
+  addresses:
+  - address: 10.244.1.193
+    family: IPv4
+    network: null
+    interface: null
+    mac: null
+    default_network: true
+    source: status.podIPs
+  - address: fdb6:6e92:3cfb:201::a67a
+    family: IPv6
+    network: null
+    interface: null
+    mac: null
+    default_network: true
+    source: status.podIPs
+  interfaces_without_reported_ip: []
+  warnings: []
+- namespace: kube-system
+  name: whereabouts-whereabouts-chart-crfzj
+  uid: 5bea06b6-e9b2-4b99-8a08-7efaaaced864
+  node_name: k8sworker0101
+  phase: Running
+  addresses:
+  - address: 192.168.30.42
+    family: IPv4
+    network: null
+    interface: null
+    mac: null
+    default_network: true
+    source: status.podIPs
+  - address: fdad:ba50:248b:1::42
+    family: IPv6
+    network: null
+    interface: null
+    mac: null
+    default_network: true
+    source: status.podIPs
+  interfaces_without_reported_ip: []
+  warnings: []
+- namespace: kube-system
+  name: whereabouts-whereabouts-chart-jq4zq
+  uid: df76db06-515e-4231-9905-9872bf49196e
+  node_name: k8sctrlplane01
+  phase: Running
+  addresses:
+  - address: 192.168.30.41
+    family: IPv4
+    network: null
+    interface: null
+    mac: null
+    default_network: true
+    source: status.podIPs
+  - address: fdad:ba50:248b:1::41
+    family: IPv6
+    network: null
+    interface: null
+    mac: null
+    default_network: true
+    source: status.podIPs
+  interfaces_without_reported_ip: []
+  warnings: []
+- namespace: kube-system
+  name: whereabouts-whereabouts-chart-tm7cw
+  uid: 6596b4bb-a63d-4b99-912d-6332676a492a
+  node_name: k8sworker0102
+  phase: Running
+  addresses:
+  - address: 192.168.30.43
+    family: IPv4
+    network: null
+    interface: null
+    mac: null
+    default_network: true
+    source: status.podIPs
+  - address: fdad:ba50:248b:1::43
+    family: IPv6
+    network: null
+    interface: null
+    mac: null
+    default_network: true
+    source: status.podIPs
+  interfaces_without_reported_ip: []
+  warnings: []
+```
+
+#### 例3: ラベルセレクタで Multus Pod を絞り込む
+
+```bash
+/opt/k8snodes/sbin/collect-pod-ips.py --namespace kube-system --label-selector app=multus
+```
+
+実行例:
+```bash
+$ /opt/k8snodes/sbin/collect-pod-ips.py --namespace kube-system --label-selector app=multus
+apiVersion: pod-network-report.example/v1
+kind: PodNetworkAddressList
+items:
+- namespace: kube-system
+  name: kube-multus-ds-6cn2s
+  uid: b68d280b-9268-4d47-b261-f38cb205c484
+  node_name: k8sctrlplane01
+  phase: Running
+  addresses:
+  - address: 192.168.30.41
+    family: IPv4
+    network: null
+    interface: null
+    mac: null
+    default_network: true
+    source: status.podIPs
+  - address: fdad:ba50:248b:1::41
+    family: IPv6
+    network: null
+    interface: null
+    mac: null
+    default_network: true
+    source: status.podIPs
+  interfaces_without_reported_ip: []
+  warnings: []
+- namespace: kube-system
+  name: kube-multus-ds-9k87r
+  uid: c9051ad8-e25d-4f03-8d95-fa8b4c3d0234
+  node_name: k8sworker0101
+  phase: Running
+  addresses:
+  - address: 192.168.30.42
+    family: IPv4
+    network: null
+    interface: null
+    mac: null
+    default_network: true
+    source: status.podIPs
+  - address: fdad:ba50:248b:1::42
+    family: IPv6
+    network: null
+    interface: null
+    mac: null
+    default_network: true
+    source: status.podIPs
+  interfaces_without_reported_ip: []
+  warnings: []
+- namespace: kube-system
+  name: kube-multus-ds-wfcpq
+  uid: 47812fdf-30d4-4fb3-8531-dfab80b22b8b
+  node_name: k8sworker0102
+  phase: Running
+  addresses:
+  - address: 192.168.30.43
+    family: IPv4
+    network: null
+    interface: null
+    mac: null
+    default_network: true
+    source: status.podIPs
+  - address: fdad:ba50:248b:1::43
+    family: IPv6
+    network: null
+    interface: null
+    mac: null
+    default_network: true
+    source: status.podIPs
+  interfaces_without_reported_ip: []
+  warnings: []
+```
+
+#### 例4: 警告を検知したら失敗させる
+
+以下のように本コマンドを実行することで, 追加ネットワーク要求があるのに `network-status` 注釈から IP アドレスを抽出できない場合や, IP 未報告インターフェースが存在する場合に終了コード 1 で終了させることができます。本機能は, 設定異常を検出することを想定した機能です。
+
+```bash
+/opt/k8snodes/sbin/collect-pod-ips.py --strict --include-empty
+```
+
+### シェル補完機能
+
+`collect-pod-ips.py` には, bash および zsh 用のシェル補完機能が提供されています。補完機能を使用することで, オプション名をタブキーで補完できます。
+
+#### 補完機能の有効化設定
+
+| 変数名 | デフォルト値 | 説明 |
+| --- | --- | --- |
+| `k8s_collect_pod_ips_completion_enabled` | `true` | bash/zsh 補完の有効/無効切り替え |
+
+#### 補完ファイル配置先
+
+| シェル | ディストリビューション | 配置先パス |
+| --- | --- | --- |
+| bash | Debian/Ubuntu | `/etc/bash_completion.d/collect-pod-ips` |
+| bash | RHEL/CentOS | `/etc/bash_completion.d/collect-pod-ips` |
+| zsh | Debian/Ubuntu | `/usr/share/zsh/vendor-completions/_collect-pod-ips` |
+| zsh | RHEL/CentOS | `/usr/share/zsh/site-functions/_collect-pod-ips` |
+
+#### 補完機能の使用方法
+
+新しいシェルセッションを開始すると自動的に補完機能が有効化されます。既存のセッションで有効化する場合は以下を実行します。
+
+**bash の場合:**
+
+```bash
+source /etc/bash_completion.d/collect-pod-ips
+```
+
+**zsh の場合:**
+
+zsh の場合は, 新しいターミナルセッションを開始しなおしてください。
+
+#### 補完の動作
+
+シェル補完では以下のオプション名を補完できます。
+
+- `--namespace`
+- `--label-selector`
+- `--field-selector`
+- `--in-cluster`
+- `--include-empty`
+- `--strict`
+- `--debug`
+- `--help`
+
+#### 補完機能のトラブルシューティング
+
+**補完が動作しない場合:**
+
+1. 補完ファイルが配置されていることを確認
+    a. bashを使用している場合
+      ```bash
+      ls -l /etc/bash_completion.d/collect-pod-ips
+      ```
+    b. zshを使用している場合(Ubuntu/Debian環境)
+      ```
+      ls -l /usr/share/zsh/vendor-completions/_collect-pod-ips
+      ```
+    c. zshを使用している場合(RHEL/Alma Linux環境)
+      ```
+      ls -l /usr/share/zsh/site-functions/_collect-pod-ips
+      ```
+
+2. 新しいシェルセッションを開始
+  bash/zsh ともに新しいターミナルセッションで自動的に有効化されます。
+
 ## 参考資料
 
 ### 公式ドキュメント
@@ -667,9 +1682,12 @@ ip route add <DESTINATION_NETWORK> via <GATEWAY> dev net1 src <NET1_IP>
 - [NetworkAttachmentDefinition 仕様](https://github.com/k8snetworkplumbingwg/network-attachment-definition-client)
 - [CNI 仕様](https://github.com/containernetworking/cni/blob/master/SPEC.md)
 - [Multus Helm Chart](https://github.com/k8snetworkplumbingwg/multus-cni/tree/master/deployments/helm)
+- [Python版Kubernetes Client Library](https://github.com/kubernetes-client/python)
+- [PyYAML](https://pyyaml.org/wiki/PyYAML)
 
 ### 関連ロール
 
 - `k8s-common`: Kubernetes クラスタ共通設定
 - `k8s-ctrlplane`: コントロールプレーンノード構築 (Cilium 導入)
 - `k8s-whereabouts`: Multus セカンダリネットワーク用 IPAM プラグインと NAD 導入例
+- `python-k8s-client-local`: Python版 Kubernetes Clientライブラリ導入ロール

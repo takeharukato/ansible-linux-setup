@@ -1,0 +1,82 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  collect-pod-ips.py 配置関連タスク
+#
+---
+
+# ツール配置先ディレクトリを先に作成する。
+- name: Ensure node setup tools directory exists for collect-pod-ips
+  become: true
+  ansible.builtin.file:
+    path: "{{ k8s_node_setup_tools_dir }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+# Pod アドレス収集ツール本体を配置する。
+- name: Install collect-pod-ips tool
+  become: true
+  ansible.builtin.copy:
+    src: collect-pod-ips.py
+    dest: "{{ k8s_collect_pod_ips_script_path }}"
+    owner: root
+    group: root
+    mode: "0755"
+    backup: false
+
+# bash 補完配置先ディレクトリを作成する。
+- name: Ensure bash completion directory exists for collect-pod-ips
+  become: true
+  ansible.builtin.file:
+    path: "{{ k8s_collect_pod_ips_bash_completion_path | dirname }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+  when:
+    - k8s_collect_pod_ips_completion_enabled | default(false) | bool
+    - (k8s_collect_pod_ips_bash_completion_path | default('', true) | length) > 0
+
+# bash 用補完スクリプトを配置する。
+- name: Install bash completion script for collect-pod-ips
+  become: true
+  ansible.builtin.template:
+    src: collect-pod-ips.bash-completion.j2
+    dest: "{{ k8s_collect_pod_ips_bash_completion_path }}"
+    owner: root
+    group: root
+    mode: "0644"
+    backup: false
+  when:
+    - k8s_collect_pod_ips_completion_enabled | default(false) | bool
+    - (k8s_collect_pod_ips_bash_completion_path | default('', true) | length) > 0
+
+# zsh 補完配置先ディレクトリを作成する。
+- name: Ensure zsh completion directory exists for collect-pod-ips
+  become: true
+  ansible.builtin.file:
+    path: "{{ k8s_collect_pod_ips_zsh_completion_path | dirname }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+  when:
+    - k8s_collect_pod_ips_completion_enabled | default(false) | bool
+    - (k8s_collect_pod_ips_zsh_completion_path | default('', true) | length) > 0
+
+# zsh 用補完スクリプトを配置する。
+- name: Install zsh completion script for collect-pod-ips
+  become: true
+  ansible.builtin.template:
+    src: _collect-pod-ips.zsh-completion.j2
+    dest: "{{ k8s_collect_pod_ips_zsh_completion_path }}"
+    owner: root
+    group: root
+    mode: "0644"
+    backup: false
+  when:
+    - k8s_collect_pod_ips_completion_enabled | default(false) | bool
+    - (k8s_collect_pod_ips_zsh_completion_path | default('', true) | length) > 0
