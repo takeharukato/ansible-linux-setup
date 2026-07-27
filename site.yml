@@ -20,6 +20,8 @@
   import_playbook: rancher.yml
 - name: Configure FRR nodes
   import_playbook: frr.yml
+- name: Configure container registry hosts
+  import_playbook: registry.yml
 - name: Configure control planes
   import_playbook: k8s-ctrl-plane.yml
 - name: Configure k8s worker nodes
@@ -28,5 +30,3 @@
   import_playbook: k8s-management.yml
 - name: Configure development hosts on privite networks
   import_playbook: internal-devel.yml
-- name: Configure container registry hosts
-  import_playbook: registry.yml
