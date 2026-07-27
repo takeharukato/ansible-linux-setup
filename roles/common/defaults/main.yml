@@ -20,6 +20,20 @@ apt_lock_files:
   - "/var/cache/apt/archives/lock"
   - "/var/lib/apt/lists/lock"
 
+# apt lock 回避のために一時停止する unit 一覧
+apt_daily_units_to_stop:
+  - apt-daily.service
+  - apt-daily-upgrade.service
+  - apt-daily.timer
+  - apt-daily-upgrade.timer
+
+# playbook完了時にデフォルト運用へ戻す timer 一覧
+# service 本体 (apt-daily.service, apt-daily-upgrade.service) は
+# timer により必要時起動されるため, timer のみ有効化/起動する
+apt_daily_timers_to_restore:
+  - apt-daily.timer
+  - apt-daily-upgrade.timer
+
 # タイムゾーン
 common_timezone: "Asia/Tokyo"
 
@@ -32,9 +46,36 @@ use_xcpng: false
 xcpng_xe_guest_utilities_version: "8.4.0"
 xcpng_xe_guest_utilities_release: "1"
 xcpng_xe_guest_utilities_url: "https://github.com/xenserver/xe-guest-utilities/releases/tag/v{{ xcpng_xe_guest_utilities_version }}"
-xcpng_xe_guest_utilities_rpm_url: "https://github.com/xenserver/xe-guest-utilities/releases/download/v{{ xcpng_xe_guest_utilities_version }}/xe-guest-utilities-{{ xcpng_xe_guest_utilities_version }}-{{ xcpng_xe_guest_utilities_release }}.x86_64.rpm"
-xcpng_xen_store_rpm_url: "https://github.com/xenserver/xe-guest-utilities/releases/download/v{{ xcpng_xe_guest_utilities_version }}/xe-guest-utilities-xenstore-{{ xcpng_xe_guest_utilities_version }}-{{ xcpng_xe_guest_utilities_release }}.x86_64.rpm"
-xcpng_xe_guest_utilities_deb_url: "https://github.com/xenserver/xe-guest-utilities/releases/download/v{{ xcpng_xe_guest_utilities_version }}/xe-guest-utilities_{{ xcpng_xe_guest_utilities_version }}-{{ xcpng_xe_guest_utilities_release }}_amd64.deb"
+xcpng_xe_guest_utilities_rpm_url: >-
+  {{
+    'https://github.com/xenserver/xe-guest-utilities/releases/download/v'
+    ~ xcpng_xe_guest_utilities_version
+    ~ '/xe-guest-utilities-'
+    ~ xcpng_xe_guest_utilities_version
+    ~ '-'
+    ~ xcpng_xe_guest_utilities_release
+    ~ '.x86_64.rpm'
+  }}
+xcpng_xen_store_rpm_url: >-
+  {{
+    'https://github.com/xenserver/xe-guest-utilities/releases/download/v'
+    ~ xcpng_xe_guest_utilities_version
+    ~ '/xe-guest-utilities-xenstore-'
+    ~ xcpng_xe_guest_utilities_version
+    ~ '-'
+    ~ xcpng_xe_guest_utilities_release
+    ~ '.x86_64.rpm'
+  }}
+xcpng_xe_guest_utilities_deb_url: >-
+  {{
+    'https://github.com/xenserver/xe-guest-utilities/releases/download/v'
+    ~ xcpng_xe_guest_utilities_version
+    ~ '/xe-guest-utilities_'
+    ~ xcpng_xe_guest_utilities_version
+    ~ '-'
+    ~ xcpng_xe_guest_utilities_release
+    ~ '_amd64.deb'
+  }}
 
 # mDNS導入有無
 # AvahiマルチキャストDNSサービスを導入する場合はtrue

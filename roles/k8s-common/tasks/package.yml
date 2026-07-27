@@ -4,24 +4,71 @@
 #
 #  パッケージ関連処理
 #
+
+# Ubuntu/Debian 系 OS では、apt-get install 時に dpkg が中断されていると
+#  dpkg がロックされている状態となり、apt-get install が失敗することがある。
+#  そのため、dpkg が中断されている場合は、dpkg --configure -a を実行して
+#  復旧させる必要がある。
+- name: Recover interrupted dpkg state on Debian before package installs
+  when: ansible_facts.os_family == 'Debian'
+  become: true
+  block:
+
+    # dpkg が中断されていることを確認する
+    - name: Create temporary policy-rc.d to suppress service autostart
+      ansible.builtin.copy:
+        dest: /usr/sbin/policy-rc.d
+        mode: "0755"
+        content: |
+          #!/bin/sh
+          exit 101
+
+    # dpkg が中断されている場合
+    # dpkg --configure -a
+    # を実行して復旧させる
+    - name: Configure all unpacked packages
+      ansible.builtin.command:
+        argv:
+          - env
+          - DEBIAN_FRONTEND=noninteractive
+          - dpkg
+          - --configure
+          - -a
+      register: k8s_common_dpkg_configure
+      changed_when: false
+  always:
+    # 修復後に一時的に作成した policy-rc.d を削除する
+    - name: Remove temporary policy-rc.d
+      ansible.builtin.file:
+        path: /usr/sbin/policy-rc.d
+        state: absent
+
+#
+# Kubernetes OS 共通パッケージ導入処理
+#
+
+# 旧版のcontainerd を削除する
 - name: Remove containerd
   ansible.builtin.package:
     pkg:
       '{{ k8s_containerd_packages }}'
     state: absent
 
+# transport-https, ca-certificates, curl を導入する
 - name: Install transport-https ca-certificates curl
   ansible.builtin.package:
     pkg:
       "{{ k8s_common_prerequisite_packages }}"
     state: latest
 
+# containerd を導入する
 - name: Install containerd
   ansible.builtin.package:
     pkg:
       '{{ k8s_containerd_packages }}'
     state: latest
 
+# Kubernetes 導入作業に必要なkubectl/kubeadm/kubelet を導入する
 - name: Install kubectl/kubeadm/kubelet
   ansible.builtin.package:
     pkg:

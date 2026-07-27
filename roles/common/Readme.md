@@ -48,11 +48,11 @@
 
 本ロールは以下の順序で処理を実行します:
 
-1. **APT Lock 管理** (Debian 系のみ): `apt-get` による自動更新等がロックを保持している場合, 最大 1800 秒 (既定値) 待機して apt frontend lock を取得します。後続の `apt update` 失敗を防止します。
+1. **APT Lock 管理** (Debian 系のみ): `apt-get` による自動更新等がロックを保持している場合, 最大 1800 秒 (既定値) 待機して apt frontend lock を取得します。処理中は `unattended-upgrades` と `apt_daily_units_to_stop` に含まれる unit (`apt-daily.service`, `apt-daily-upgrade.service`, `apt-daily.timer`, `apt-daily-upgrade.timer`) を一時停止します。playbook 完了時に `unattended-upgrades` を再度 started/enabled にし, `apt_daily_timers_to_restore` (`apt-daily.timer`, `apt-daily-upgrade.timer`) を 再起動, 有効化 (started/enabled) します。後続の `apt update` などの`apt`操作の失敗を防止します。
 2. **パラメータ読み込み**: OS 別パッケージ定義 (`vars/packages-ubuntu.yml`, `vars/packages-rhel.yml`) とクラスタ共通変数 (`vars/cross-distro.yml`, `vars/all-config.yml`) を読み込みます。
 3. **設定前チェック**: `mgmt_nic` 変数の正規化と検証を行います。未定義時は `common_default_nic` (既定: `ens160`) で補完します。
 4. **タイムゾーン設定**: `common_timezone` (既定: `Asia/Tokyo`) を設定します。
-5. **ファイアウォール無効化**: `enable_firewall` が `false` (既定) の場合, firewalld (RHEL) または UFW (Debian) を停止, 無効化し, nftables の rpfix テーブルを削除します。
+5. **ファイアウォール無効化**: `enable_firewall` が `false` (既定) の場合, firewalld (RHEL) または UFW (Debian) を停止, 無効化し, nftables の rpfix テーブル( 逆経路フィルタ （Reverse Path Filter） ) を削除します。
 6. **NetworkManager 準備**: NetworkManager をインストール, 有効化し, systemd-networkd を無効化します。
 7. **マルチネットワークインターフェース設定**:
    - `netif_list` 変数から複数ネットワークインターフェースの設定を行います。
@@ -97,6 +97,8 @@
 | `apt_lock_wait_timeout` | `1800` | apt ロック待機の最大時間 (秒)。 |
 | `apt_lock_check_interval` | `5` | apt ロックファイル確認間隔 (秒)。 |
 | `apt_lock_files` | `["/var/lib/dpkg/lock-frontend", "/var/lib/dpkg/lock", "/var/cache/apt/archives/lock", "/var/lib/apt/lists/lock"]` | 監視対象の apt ロックファイルパス。 |
+| `apt_daily_units_to_stop` | `['apt-daily.service', 'apt-daily-upgrade.service', 'apt-daily.timer', 'apt-daily-upgrade.timer']` | aptのロックファイル獲得失敗回避のために一時停止する unit 一覧。 |
+| `apt_daily_timers_to_restore` | `['apt-daily.timer', 'apt-daily-upgrade.timer']` | playbook 完了時にデフォルト運用へ戻す timer系サービス一覧。サービス本体は timer系サービスから起動されるため, playbook 完了時に操作する必要はありません。 |
 
 ### ネットワーク設定
 
@@ -151,7 +153,7 @@
 
 ## 主な処理
 
-- **APT ロック待機**: Debian 系で apt frontend lock を取得できるまで待機し, 後続タスクの失敗を防止します。
+- **APT ロック待機**: Debian 系で apt frontend lock を取得できるまで待機し, 後続タスクの失敗を防止します。`unattended-upgrades`, `apt-daily.service`, `apt-daily-upgrade.service`, `apt-daily.timer`, `apt-daily-upgrade.timer` を一時停止し, 復旧時は `unattended-upgrades` と `unattended-upgrades`, `apt-daily.service`を呼び出す`timer`サービス (`apt-daily.timer`, `apt-daily-upgrade.timer`) を有効化/起動してデフォルト運用に戻します。
 - **ファイアウォール無効化**: firewalld, UFW, nftables の rpfix テーブルを無効化します。Kubernetes の CNI (Container Network Interface) が独自にネットワークポリシーを管理するため, ホストレベルのファイアウォールは無効化します。
 - **NetworkManager 優先設定**: systemd-networkd を無効化し, NetworkManager を有効化します。一貫したネットワーク管理インターフェースを提供します。
 - **マルチネットワークインターフェース設定**: 複数の NIC に対して静的 IP アドレス, ゲートウェイ, DNS サーバを設定します。RHEL 系では NetworkManager keyfiles, Debian 系では netplan を使用します。
