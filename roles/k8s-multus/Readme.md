@@ -37,6 +37,7 @@
       - [7.1. 事前準備 (NetworkAttachmentDefinitionの作成)](#71-事前準備-networkattachmentdefinitionの作成)
       - [7.2. テストポッドの起動](#72-テストポッドの起動)
       - [7.3. Pod 内のネットワークインターフェース確認](#73-pod-内のネットワークインターフェース確認)
+      - [7.4 テストポッドの削除](#74-テストポッドの削除)
     - [8. Multus ログの確認](#8-multus-ログの確認)
   - [トラブルシューティング](#トラブルシューティング)
     - [1. Multus DaemonSet が起動しない](#1-multus-daemonset-が起動しない)
@@ -696,12 +697,12 @@ default via 10.244.2.168 dev eth0
 - セカンダリネットワーク用のルートが `net1` 経由で設定されていること (上記例では `192.168.20.0/24 dev net1 scope link src 192.168.20.50`)
 - セカンダリネットワークのルートに送信元IP (`src`) が指定されていること (これにより通信経路の安定化が図られる)
 
-**テストポッド削除**:
+#### 7.4 テストポッドの削除
 
-確認後はテストポッドを削除します:
+確認後は, 以下のコマンドを実行し, テストポッドを削除します:
 
 ```bash
-kubectl delete -f {{ k8s_multus_config_dir }}/app-pod.yml
+kubectl delete -f /home/ansible/kubeadm/multus/app-pod.yml
 kubectl delete -f /tmp/ipvlan-wb-nad.yml --ignore-not-found
 ```
 
