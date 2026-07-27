@@ -12,16 +12,8 @@
     k8s_register_image_control_plane_hosts: []
   when: k8s_register_image_auto_discover_control_plane_hosts | bool
 
-# control plane 自動解決を行う場合は, 呼び出し元がクラスタ識別キーを渡していることを検証する。
-- name: "Verify cluster key for auto-discovery"
-  ansible.builtin.assert:
-    that:
-      - (k8s_register_image_cluster_key | default('', true) | trim | length) > 0
-    fail_msg: "ERROR: k8s_register_image_cluster_key must be set when control-plane auto-discovery is enabled"
-  when: k8s_register_image_auto_discover_control_plane_hosts | bool
-
-# 同一クラスタの control plane ホスト一覧を収集する。
-- name: "Collect control-plane hosts in same cluster"
+# 対象 control plane ホスト一覧を収集する。
+- name: "Collect control-plane hosts"
   ansible.builtin.set_fact:
     k8s_register_image_control_plane_hosts: "{{ (k8s_register_image_control_plane_hosts | default([])) + [item] }}"
   loop: "{{ groups[k8s_register_image_control_plane_group_name] | default([]) }}"

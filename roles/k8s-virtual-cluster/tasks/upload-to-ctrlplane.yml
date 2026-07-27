@@ -27,7 +27,6 @@
       syncer: "{{ virtualcluster_syncer_image | default('virtualcluster/syncer-amd64:latest', true) }}"
       vn-agent: "{{ virtualcluster_vn_agent_image | default('virtualcluster/vn-agent-amd64:latest', true) }}"
     k8s_register_image_auto_discover_control_plane_hosts: true
-    k8s_register_image_cluster_key: "{{ k8s_ctrlplane_endpoint }}"
     k8s_register_image_remote_cache_dir: "{{ virtualcluster_ctrlplane_cache_dir }}"
     k8s_register_image_unqualified_image_registry: "{{ virtualcluster_unqualified_image_registry }}"
     k8s_register_image_cleanup_remote_tar: false

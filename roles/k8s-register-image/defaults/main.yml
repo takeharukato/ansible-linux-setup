@@ -28,10 +28,7 @@ k8s_register_image_auto_discover_control_plane_hosts: false
 k8s_register_image_auto_discover_worker_hosts: false
 
 # control plane 自動解決時に参照するインベントリグループ名
-k8s_register_image_control_plane_group_name: "k8s_ctrlplane"
-
-# 呼び出し元が渡すクラスタ識別キー
-k8s_register_image_cluster_key: ""
+k8s_register_image_control_plane_group_name: "k8s_ctrl_plane"
 
 # worker 自動解決時に kubectl で参照する kubeconfig パス
 k8s_kubeconfig_to_discover_workers_path: ""

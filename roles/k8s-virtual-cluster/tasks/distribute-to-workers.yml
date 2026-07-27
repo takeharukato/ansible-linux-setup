@@ -20,7 +20,6 @@
   vars:
     k8s_register_image_auto_discover_control_plane_hosts: true
     k8s_register_image_auto_discover_worker_hosts: true
-    k8s_register_image_cluster_key: "{{ k8s_ctrlplane_endpoint }}"
     k8s_kubeconfig_to_discover_workers_path: "{{ virtualcluster_supercluster_kubeconfig_path }}"
 
 # ワーカーノード情報の表示
