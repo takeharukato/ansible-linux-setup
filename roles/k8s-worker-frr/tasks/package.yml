@@ -10,10 +10,3 @@
   ansible.builtin.include_role:
     name: frr-common
     tasks_from: package.yml
-
-# FRRサービスを有効化して起動する
-- name: Enable and start FRR service
-  ansible.builtin.service:
-    name: "{{ frr_svc_name }}"
-    enabled: true
-    state: started

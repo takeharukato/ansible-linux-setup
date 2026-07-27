@@ -11,13 +11,6 @@
     name: frr-common
     tasks_from: package.yml
 
-# FRRサービスを有効化して起動する
-- name: Enable and start FRR service
-  ansible.builtin.service:
-    name: "{{ frr_svc_name }}"
-    enabled: true
-    state: started
-
 # IPv4/IPv6 フォワーディング有効化用 sysctl ドロップイン配置
 - name: Deploy IPv4/IPv6 forwarding sysctl drop-in
   ansible.builtin.template:
@@ -47,3 +40,53 @@
     group: "{{ frr_group | default('frr', true) }}"
     mode: "0640"
   notify: "restart_frr"
+
+# FRRサービスを有効化して起動する
+# 起動失敗時は systemd と journal の要点を採取して原因を可視化する
+- name: Enable and start FRR service
+  block:
+    # FRRサービスを有効化して起動する
+    - name: Start FRR service
+      ansible.builtin.service:
+        name: "{{ frr_svc_name }}"
+        enabled: true
+        state: started
+  rescue:
+    # FRRサービス起動失敗時の systemd 状態を採取する
+    - name: Collect FRR service status details on failure
+      ansible.builtin.command:
+        argv:
+          - systemctl
+          - status
+          - "{{ frr_svc_name }}"
+          - --no-pager
+          - --full
+      register: frr_service_status_on_failure
+      changed_when: false
+      failed_when: false
+
+    # FRRサービス起動失敗時の journal を採取する
+    - name: Collect FRR journal details on failure
+      ansible.builtin.command:
+        argv:
+          - journalctl
+          - -u
+          - "{{ frr_svc_name }}"
+          - -n
+          - "200"
+          - --no-pager
+      register: frr_service_journal_on_failure
+      changed_when: false
+      failed_when: false
+
+    # FRRサービス起動失敗時に systemd と journal の要点を表示して終了する
+    - name: Fail with FRR runtime diagnostics
+      ansible.builtin.fail:
+        msg: |-
+          Failed to start {{ frr_svc_name }}.
+          systemctl status output:
+          {{ frr_service_status_on_failure.stdout | default('') }}
+          {{ frr_service_status_on_failure.stderr | default('') }}
+          journalctl -u {{ frr_svc_name }} -n 200 output:
+          {{ frr_service_journal_on_failure.stdout | default('') }}
+          {{ frr_service_journal_on_failure.stderr | default('') }}

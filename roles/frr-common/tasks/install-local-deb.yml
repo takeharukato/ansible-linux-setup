@@ -163,8 +163,9 @@
 #       見つからなければ空文字列を出力する
 #  2. test -n "${libyang_so}"
 #     libyang.so.2 のパスが空文字列でないことを確認する
-#  3. nm -D "${libyang_so}" 2>/dev/null | grep -qE 'lyd_parent$'
-#     libyang.so.2 のシンボルテーブルを表示し, lyd_parent シンボルが存在することを確認する
+#  3. nm -D "${libyang_so}" 2>/dev/null | awk '$NF ~ /^lyd_parent(@.*)?$/ && $(NF-1) != "U"{found=1} END{exit(found?0:1)}'
+#     libyang.so.2 のシンボルテーブルを表示し, "U lyd_parent" (未定義参照) ではない
+#     version suffix付き(例: lyd_parent@@LIBYANG_2.0.0)を含む定義済みシンボルが存在することを確認する
 #     register で結果を grepの終了コードをfrr_libyang_symbol_check.rc に格納する
 #     a. frr_libyang_symbol_check.rc が 0 の場合はシンボルが存在するため, libyangの先行導入は不要
 #     b. frr_libyang_symbol_check.rc が 0以外 の場合はシンボルが存在しないため, libyangの先行導入が必要
@@ -173,7 +174,7 @@
     set -o pipefail;
     libyang_so="$(ldconfig -p | awk '/libyang\.so\.2/{print $4; exit}')";
     test -n "${libyang_so}";
-    nm -D "${libyang_so}" 2>/dev/null | grep -qE 'lyd_parent$'
+    nm -D "${libyang_so}" 2>/dev/null | awk '$NF ~ /^lyd_parent(@.*)?$/ && $(NF-1) != "U"{found=1} END{exit(found?0:1)}'
   args:
     executable: /bin/bash
   register: frr_libyang_symbol_check

@@ -5,3 +5,51 @@
 #  サービス関連処理
 #
 ---
+
+# FRRサービスを有効化して起動する
+- name: Enable and start FRR service
+  block:
+    - name: Start FRR service
+      ansible.builtin.service:
+        name: "{{ frr_svc_name }}"
+        enabled: true
+        state: started
+  rescue:
+    # FRRサービス起動に失敗した場合の診断情報をsystemctl statusから収集する
+    - name: Collect FRR service status details on failure
+      ansible.builtin.command:
+        argv:
+          - systemctl
+          - status
+          - "{{ frr_svc_name }}"
+          - --no-pager
+          - --full
+      register: frr_service_status_on_failure
+      changed_when: false
+      failed_when: false
+
+    # FRRサービス起動に失敗した場合の診断情報をジャーナルから収集する
+    - name: Collect FRR journal details on failure
+      ansible.builtin.command:
+        argv:
+          - journalctl
+          - -u
+          - "{{ frr_svc_name }}"
+          - -n
+          - "200"
+          - --no-pager
+      register: frr_service_journal_on_failure
+      changed_when: false
+      failed_when: false
+
+    # FRRサービス起動に失敗した場合は、診断情報を表示して明示的に失敗させる
+    - name: Fail with FRR runtime diagnostics
+      ansible.builtin.fail:
+        msg: |-
+          Failed to start {{ frr_svc_name }}.
+          systemctl status output:
+          {{ frr_service_status_on_failure.stdout | default('') }}
+          {{ frr_service_status_on_failure.stderr | default('') }}
+          journalctl -u {{ frr_svc_name }} -n 200 output:
+          {{ frr_service_journal_on_failure.stdout | default('') }}
+          {{ frr_service_journal_on_failure.stderr | default('') }}

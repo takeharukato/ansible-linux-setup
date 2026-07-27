@@ -5,6 +5,7 @@
 #  パッケージ関連処理
 ---
 
+# 版数未指定時は, OSディストリビューション標準のFRRパッケージを導入する
 - name: Install distro default FRR package
   ansible.builtin.package:
     name: "{{ frr_packages }}"
@@ -12,27 +13,212 @@
   when:
     - (frr_version | default('', true) | trim | length) == 0
 
+# 版数未指定でディストリ標準版を導入した場合も, FRR実行時に必要な
+# libyang シンボル(lyd_parent)が未定義参照になっていないことを確認する
+- name: Check whether installed libyang provides defined lyd_parent symbol after distro FRR install
+  ansible.builtin.shell: >-
+    set -o pipefail;
+    libyang_so="$(ldd /usr/lib/x86_64-linux-gnu/frr/libfrr.so.0 | awk '/libyang\.so\.2/ && !found {print $3; found=1} END{if(!found) exit 1}')";
+    test -n "${libyang_so}";
+    nm -D "${libyang_so}" 2>/dev/null | awk '$NF ~ /^lyd_parent(@.*)?$/ && $(NF-1) != "U"{found=1} END{exit(found?0:1)}'
+  args:
+    executable: /bin/bash
+  register: frr_libyang_symbol_check_after_distro_install
+  changed_when: false
+  failed_when: false
+  when:
+    - (frr_version | default('', true) | trim | length) == 0
+    - ansible_facts.os_family == 'Debian'
+
+# 版数未指定でディストリ標準版を導入した場合でも, シンボル不足時は
+# 共通のlibyang再構築処理で修復する
+- name: Remediate libyang packages after distro FRR install when symbol is missing
+  ansible.builtin.include_tasks: remediate-libyang.yml
+  vars:
+    frr_libyang_symbol_check_rc: "{{ frr_libyang_symbol_check_after_distro_install.rc | default(0) }}"
+    frr_libyang_force_remediate: false
+    frr_libyang_phase_label: "after distro FRR install"
+    frr_libyang_fetch_prefix: "libyang-fetch-after-distro-"
+  when:
+    - (frr_version | default('', true) | trim | length) == 0
+    - ansible_facts.os_family == 'Debian'
+
+# 修復後に再検査して, まだ未定義参照が残る場合は明示的に失敗させる
+- name: Re-check whether installed libyang provides defined lyd_parent symbol after distro remediation
+  ansible.builtin.shell: >-
+    set -o pipefail;
+    libyang_so="$(ldd /usr/lib/x86_64-linux-gnu/frr/libfrr.so.0 | awk '/libyang\.so\.2/ && !found {print $3; found=1} END{if(!found) exit 1}')";
+    test -n "${libyang_so}";
+    nm -D "${libyang_so}" 2>/dev/null | awk '$NF ~ /^lyd_parent(@.*)?$/ && $(NF-1) != "U"{found=1} END{exit(found?0:1)}'
+  args:
+    executable: /bin/bash
+  register: frr_libyang_symbol_check_after_distro_remediation
+  changed_when: false
+  when:
+    - (frr_version | default('', true) | trim | length) == 0
+    - ansible_facts.os_family == 'Debian'
+
+# 導入し直したlibyangがlyd_parentシンボルを提供していない場合は,
+# FRR実行時に安全に起動できないため, 明示的に失敗させる
+- name: Fail when installed libyang still misses defined lyd_parent symbol after distro remediation
+  ansible.builtin.fail:
+    msg: >-
+      Installed libyang still misses defined lyd_parent symbol after remediation
+      in distro FRR install path. This indicates FRR runtime cannot be started safely on this host.
+  when:
+    - (frr_version | default('', true) | trim | length) == 0
+    - ansible_facts.os_family == 'Debian'
+    - (frr_libyang_symbol_check_after_distro_remediation.rc | default(1)) != 0
+
+#
+# 版数指定時の動作
+#
+
+# OSディストリビューション標準のFRRパッケージを算出する
+# 処理論理
+#  1. hostvarsに対し, dict2itemsでkey/valueペアのリストを作成する
+#  2. 処理対象になっているホスト(selectattrからホスト名(key)がansible_play_hosts_all(処理対象ホスト)に含まれるホスト)を抽出する
+#  3. selectattrから対象OS(value.ansible_facts.os_family)がDebian/Rhelのホストを抽出する
+#  4. mapでホスト名(key)を抽出する
+#  5. listでリスト化する
+#
+#  Debian/RHELの結果をfrr_package_targets_debian/frr_package_targets_rhelに格納する
+#
+- name: Compute strict FRR package targets per OS family
+  ansible.builtin.set_fact:
+    frr_package_targets_debian: >-
+      {{
+        hostvars
+        | dict2items
+        | selectattr('key', 'in', ansible_play_hosts_all)
+        | selectattr('value.ansible_facts.os_family', 'equalto', 'Debian')
+        | map(attribute='key')
+        | list
+      }}
+    frr_package_targets_rhel: >-
+      {{
+        hostvars
+        | dict2items
+        | selectattr('key', 'in', ansible_play_hosts_all)
+        | selectattr('value.ansible_facts.os_family', 'equalto', 'RedHat')
+        | map(attribute='key')
+        | list
+      }}
+  run_once: true
+  when:
+    - (frr_version | default('', true) | trim | length) > 0
+
+# FRRパッケージ構築用の作業ディレクトリパスをfrr_build_workspace設定する
+- name: Set default effective workspace for FRR strict source build
+  ansible.builtin.set_fact:
+    frr_build_workspace_effective: "{{ frr_build_workspace }}"
+  when:
+    - (frr_version | default('', true) | trim | length) > 0
+
+# FRR構築用の作業ディレクトリを制御ホスト上に作成する
+- name: Ensure FRR build workspace exists on controller for strict source build scripts
+  when:
+    - (frr_version | default('', true) | trim | length) > 0
+  block:
+
+    # 制御ホスト上に作業ディレクトリを作成し, 書き込み不可の場合は代替へ切り替える
+    - name: Create configured FRR build workspace on controller
+      ansible.builtin.file:
+        path: "{{ frr_build_workspace_effective }}"
+        state: directory
+        mode: "0755"
+      delegate_to: "{{ frr_build_host }}"
+      become: false
+
+    # 制御ホスト上の作業ディレクトリが書き込み可能であることを確認する
+    - name: Verify configured FRR build workspace is writable on controller
+      ansible.builtin.command:
+        argv:
+          - /bin/sh
+          - -c
+          - >-
+            probe="{{ frr_build_workspace_effective }}/.ansible-write-probe-$$";
+            touch "$probe" && rm -f "$probe"
+      delegate_to: "{{ frr_build_host }}"
+      become: false
+      changed_when: false
+  rescue:
+    # 制御ホスト上の作業ディレクトリが書き込み不可の場合は, ansible実行ユーザで書き込めるようにする
+    - name: Switch FRR build workspace to per-user fallback path
+      ansible.builtin.set_fact:
+        frr_build_workspace_effective: >-
+          /tmp/frr-build-{{ lookup('env', 'USER') | default('ansible', true) }}
+
+    # 制御ホスト上の作業ディレクトリを代替パスに作成する
+    - name: Create fallback FRR build workspace on controller
+      ansible.builtin.file:
+        path: "{{ frr_build_workspace_effective }}"
+        state: directory
+        mode: "0755"
+      delegate_to: "{{ frr_build_host }}"
+      become: false
+
+    # 制御ホスト上の作業ディレクトリが書き込み可能であることを確認する
+    - name: Verify fallback FRR build workspace is writable on controller
+      ansible.builtin.command:
+        argv:
+          - /bin/sh
+          - -c
+          - >-
+            probe="{{ frr_build_workspace_effective }}/.ansible-write-probe-$$";
+            touch "$probe" && rm -f "$probe"
+      delegate_to: "{{ frr_build_host }}"
+      become: false
+      changed_when: false
+
+# FRR構築スクリプトを生成する (Ubuntu/Debian用)
+- name: Render FRR deb build script on controller for pkgbld-common
+  ansible.builtin.template:
+    src: build-frr-deb.sh.j2
+    dest: "{{ frr_build_workspace_effective }}/build-frr-deb.sh"
+    mode: "0755"
+  delegate_to: "{{ frr_build_host }}"
+  become: false
+  when:
+    - (frr_version | default('', true) | trim | length) > 0
+
+# FRR構築スクリプトを生成する (RHEL系用)
+- name: Render FRR rpm build script on controller for pkgbld-common
+  ansible.builtin.template:
+    src: build-frr-rpm.sh.j2
+    dest: "{{ frr_build_workspace_effective }}/build-frr-rpm.sh"
+    mode: "0755"
+  delegate_to: "{{ frr_build_host }}"
+  become: false
+  when:
+    - (frr_version | default('', true) | trim | length) > 0
+
+# FRR構築スクリプトをpkgbld-commonへ委譲し, 構築ホスト上でパッケージを作成して導入する
 - name: Build and install strict FRR version on Debian family
   when:
     - (frr_version | default('', true) | trim | length) > 0
     - ansible_facts.os_family == 'Debian'
   block:
+
+    # 構築ホスト上の作業ディレクトリを作成する
     - name: Ensure frr build workspace exists on build host for pkgbld-common
       ansible.builtin.file:
-        path: "{{ frr_build_workspace }}"
+        path: "{{ frr_build_workspace_effective }}"
         state: directory
         mode: "0755"
       delegate_to: "{{ frr_build_host }}"
-      run_once: true
+      become: false
 
+    # FRR構築用Dockerfileを生成する (Ubuntu/Debian用)
     - name: Render FRR deb Dockerfile on build host for pkgbld-common
       ansible.builtin.template:
         src: Dockerfile.ubuntu.j2
-        dest: "{{ frr_build_workspace }}/Dockerfile.frr-deb"
+        dest: "{{ frr_build_workspace_effective }}/Dockerfile.frr-deb"
         mode: "0644"
       delegate_to: "{{ frr_build_host }}"
       run_once: true
 
+    # FRR構築用Dockerイメージを構築する (Ubuntu/Debian用)
     - name: Build FRR deb builder container image for pkgbld-common
       ansible.builtin.command:
         argv:
@@ -43,8 +229,8 @@
           - -t
           - "{{ frr_build_container_image_debian }}"
           - -f
-          - "{{ frr_build_workspace }}/Dockerfile.frr-deb"
-          - "{{ frr_build_workspace }}"
+          - "{{ frr_build_workspace_effective }}/Dockerfile.frr-deb"
+          - "{{ frr_build_workspace_effective }}"
       async: "{{ frr_build_timeout_seconds }}"
       poll: 0
       register: frr_deb_builder_image_build_job_pkgbld
@@ -52,6 +238,7 @@
       run_once: true
       changed_when: true
 
+    # FRR構築用Dockerイメージの構築完了を待機する (Ubuntu/Debian用)
     - name: Wait FRR deb builder image build for pkgbld-common
       ansible.builtin.async_status:
         jid: "{{ frr_deb_builder_image_build_job_pkgbld.ansible_job_id }}"
@@ -63,25 +250,32 @@
       delegate_to: "{{ frr_build_host }}"
       run_once: true
 
+    # FRR構築スクリプトを生成する (Ubuntu/Debian用)
     - name: Render FRR deb build script on build host for pkgbld-common
       ansible.builtin.template:
         src: build-frr-deb.sh.j2
-        dest: "{{ frr_build_workspace }}/build-frr-deb.sh"
+        dest: "{{ frr_build_workspace_effective }}/build-frr-deb.sh"
         mode: "0755"
       delegate_to: "{{ frr_build_host }}"
-      run_once: true
+      become: false
+
+    # FRR構築用のパラメタを設定する (Ubuntu/Debian用)
     - name: Set pkgbld-common variables for FRR deb package build/install
       ansible.builtin.set_fact:
         package_build_host: "{{ frr_build_host }}"
-        package_build_workspace: "{{ frr_build_workspace }}"
-        package_build_output_dir: "{{ frr_build_output_dir }}"
+        package_build_workspace: "{{ frr_build_workspace_effective }}"
+        package_build_output_dir: "{{ frr_build_workspace_effective }}/output"
         pkgbld_container_runtime: "{{ frr_build_container_runtime }}"
         pkgbld_container_network_mode: "{{ frr_build_container_network_mode }}"
         pkgbld_builder_image_debian: "{{ frr_build_container_image_debian }}"
         pkgbld_builder_image_rhel: "{{ frr_build_container_image_rhel }}"
         pkgbld_container_workdir: "{{ frr_build_container_workdir }}"
         pkgbld_container_output_dir: "{{ frr_build_container_workdir }}/output"
-        pkgbld_build_script_src: "{{ frr_build_workspace }}/build-frr-deb.sh"
+        pkgbld_build_script_src_debian: "{{ frr_build_workspace_effective }}/build-frr-deb.sh"
+        pkgbld_build_script_name_debian: "build-frr-deb.sh"
+        pkgbld_build_script_src_rhel: "{{ frr_build_workspace_effective }}/build-frr-rpm.sh"
+        pkgbld_build_script_name_rhel: "build-frr-rpm.sh"
+        pkgbld_build_script_src: "{{ frr_build_workspace_effective }}/build-frr-deb.sh"
         pkgbld_build_script_name: "build-frr-deb.sh"
         pkgbld_package_type: "deb"
         pkgbld_package_name: "frr"
@@ -89,7 +283,7 @@
           - "frr*.deb"
         pkgbld_package_file_patterns_rhel:
           - "frr*.rpm"
-        package_targets: "{{ ansible_play_hosts_all }}"
+        package_targets: "{{ frr_package_targets_debian | default([]) }}"
         pkgbld_install_deb_lock_wait_seconds: "{{ frr_install_deb_lock_wait_seconds }}"
         pkgbld_build_timeout_seconds: "{{ frr_build_timeout_seconds }}"
         pkgbld_build_loop_delay_seconds: "{{ frr_build_loop_delay_seconds }}"
@@ -119,28 +313,80 @@
     - name: Build and install FRR local packages via pkgbld-common
       ansible.builtin.include_role:
         name: pkgbld-common
+    # FRR導入後にlibyangがlyd_parentシンボルを提供しているか確認する
+    # nm -D "${libyang_so}" 2>/dev/null | grep -q 'lyd_parent$'
+    # のようにgrep -q を使うと pipefail で SIGPIPE が rc=141 として扱われることがあるため,
+    # 末尾まで読んで 0/1 を返す awk で存在確認する。
+    - name: Check whether installed libyang provides lyd_parent symbol after FRR install (pkgbld-common path)
+      ansible.builtin.shell: >-
+        set -o pipefail;
+        libyang_so="$(ldd /usr/lib/x86_64-linux-gnu/frr/libfrr.so.0 | awk '/libyang\.so\.2/ && !found {print $3; found=1} END{if(!found) exit 1}')";
+        test -n "${libyang_so}";
+        nm -D "${libyang_so}" 2>/dev/null | awk '$NF ~ /^lyd_parent(@.*)?$/ && $(NF-1) != "U"{found=1} END{exit(found?0:1)}'
+      args:
+        executable: /bin/bash
+      register: frr_libyang_symbol_check_after_pkgbld_install
+      changed_when: false
+      failed_when: false
 
+    # FRR導入後にlibyangがlyd_parentシンボルを提供していない場合は, remediate-libyang.ymlを呼び出して修復する
+    - name: Remediate libyang packages after FRR install when symbol is missing (pkgbld-common path)
+      ansible.builtin.include_tasks: remediate-libyang.yml
+      vars:
+        frr_libyang_symbol_check_rc: "{{ frr_libyang_symbol_check_after_pkgbld_install.rc | default(0) }}"
+        frr_libyang_force_remediate: false
+        frr_libyang_phase_label: "after FRR install (pkgbld-common path)"
+        frr_libyang_fetch_prefix: "libyang-fetch-after-pkgbld-"
+
+    # FRR導入後にlibyangがlyd_parentシンボルを提供していることを確認する
+    # nm -D "${libyang_so}" 2>/dev/null | grep -q 'lyd_parent$'
+    # のようにgrep -q を使うと pipefail で SIGPIPE が rc=141 として扱われることがあるため,
+    # 末尾まで読んで 0/1 を返す awk で存在確認する。
+    - name: Re-check whether installed libyang provides lyd_parent symbol after remediation (pkgbld-common path)
+      ansible.builtin.shell: >-
+        set -o pipefail;
+        libyang_so="$(ldd /usr/lib/x86_64-linux-gnu/frr/libfrr.so.0 | awk '/libyang\.so\.2/ && !found {print $3; found=1} END{if(!found) exit 1}')";
+        test -n "${libyang_so}";
+        nm -D "${libyang_so}" 2>/dev/null | awk '$NF ~ /^lyd_parent(@.*)?$/ && $(NF-1) != "U"{found=1} END{exit(found?0:1)}'
+      args:
+        executable: /bin/bash
+      register: frr_libyang_symbol_check_after_pkgbld_remediation
+      changed_when: false
+
+    # 修復用にFRR導入後にlibyangがlyd_parentシンボルを提供していない場合は, エラー終了する
+    - name: Fail when installed libyang still misses lyd_parent symbol (pkgbld-common path)
+      ansible.builtin.fail:
+        msg: >-
+          Installed libyang still misses lyd_parent symbol after remediation.
+          This indicates FRR runtime cannot be started safely on this host.
+      when: (frr_libyang_symbol_check_after_pkgbld_remediation.rc | default(1)) != 0
+
+# FRR構築処理 (RHEL系)
 - name: Build and install strict FRR version on RedHat family
   when:
     - (frr_version | default('', true) | trim | length) > 0
     - ansible_facts.os_family == 'RedHat'
   block:
+
+    # 構築ホスト上の作業ディレクトリを作成する
     - name: Ensure frr build workspace exists on build host for pkgbld-common
       ansible.builtin.file:
-        path: "{{ frr_build_workspace }}"
+        path: "{{ frr_build_workspace_effective }}"
         state: directory
         mode: "0755"
       delegate_to: "{{ frr_build_host }}"
-      run_once: true
+      become: false
 
+    # FRR構築用Dockerfileを生成する (RHEL系用)
     - name: Render FRR rpm Dockerfile on build host for pkgbld-common
       ansible.builtin.template:
         src: Dockerfile.almalinux.j2
-        dest: "{{ frr_build_workspace }}/Dockerfile.frr-rpm"
+        dest: "{{ frr_build_workspace_effective }}/Dockerfile.frr-rpm"
         mode: "0644"
       delegate_to: "{{ frr_build_host }}"
       run_once: true
 
+    # FRR構築用Dockerイメージを構築する (RHEL系用)
     - name: Build FRR rpm builder container image for pkgbld-common
       ansible.builtin.command:
         argv:
@@ -151,8 +397,8 @@
           - -t
           - "{{ frr_build_container_image_rhel }}"
           - -f
-          - "{{ frr_build_workspace }}/Dockerfile.frr-rpm"
-          - "{{ frr_build_workspace }}"
+          - "{{ frr_build_workspace_effective }}/Dockerfile.frr-rpm"
+          - "{{ frr_build_workspace_effective }}"
       async: "{{ frr_build_timeout_seconds }}"
       poll: 0
       register: frr_rpm_builder_image_build_job_pkgbld
@@ -160,6 +406,7 @@
       run_once: true
       changed_when: true
 
+    # FRR構築用Dockerイメージの構築完了を待機する (RHEL系用)
     - name: Wait FRR rpm builder image build for pkgbld-common
       ansible.builtin.async_status:
         jid: "{{ frr_rpm_builder_image_build_job_pkgbld.ansible_job_id }}"
@@ -171,25 +418,32 @@
       delegate_to: "{{ frr_build_host }}"
       run_once: true
 
+    # FRR構築スクリプトを生成する (RHEL系用)
     - name: Render FRR rpm build script on build host for pkgbld-common
       ansible.builtin.template:
         src: build-frr-rpm.sh.j2
-        dest: "{{ frr_build_workspace }}/build-frr-rpm.sh"
+        dest: "{{ frr_build_workspace_effective }}/build-frr-rpm.sh"
         mode: "0755"
       delegate_to: "{{ frr_build_host }}"
-      run_once: true
+      become: false
+
+    # FRR構築パラメタを設定する (RHEL系用)
     - name: Set pkgbld-common variables for FRR rpm package build/install
       ansible.builtin.set_fact:
         package_build_host: "{{ frr_build_host }}"
-        package_build_workspace: "{{ frr_build_workspace }}"
-        package_build_output_dir: "{{ frr_build_output_dir }}"
+        package_build_workspace: "{{ frr_build_workspace_effective }}"
+        package_build_output_dir: "{{ frr_build_workspace_effective }}/output"
         pkgbld_container_runtime: "{{ frr_build_container_runtime }}"
         pkgbld_container_network_mode: "{{ frr_build_container_network_mode }}"
         pkgbld_builder_image_debian: "{{ frr_build_container_image_debian }}"
         pkgbld_builder_image_rhel: "{{ frr_build_container_image_rhel }}"
         pkgbld_container_workdir: "{{ frr_build_container_workdir }}"
         pkgbld_container_output_dir: "{{ frr_build_container_workdir }}/output"
-        pkgbld_build_script_src: "{{ frr_build_workspace }}/build-frr-rpm.sh"
+        pkgbld_build_script_src_debian: "{{ frr_build_workspace_effective }}/build-frr-deb.sh"
+        pkgbld_build_script_name_debian: "build-frr-deb.sh"
+        pkgbld_build_script_src_rhel: "{{ frr_build_workspace_effective }}/build-frr-rpm.sh"
+        pkgbld_build_script_name_rhel: "build-frr-rpm.sh"
+        pkgbld_build_script_src: "{{ frr_build_workspace_effective }}/build-frr-rpm.sh"
         pkgbld_build_script_name: "build-frr-rpm.sh"
         pkgbld_package_type: "rpm"
         pkgbld_package_name: "frr"
@@ -197,7 +451,7 @@
           - "frr*.deb"
         pkgbld_package_file_patterns_rhel:
           - "frr*.rpm"
-        package_targets: "{{ ansible_play_hosts_all }}"
+        package_targets: "{{ frr_package_targets_rhel | default([]) }}"
         pkgbld_install_deb_lock_wait_seconds: "{{ frr_install_deb_lock_wait_seconds }}"
         pkgbld_build_timeout_seconds: "{{ frr_build_timeout_seconds }}"
         pkgbld_build_loop_delay_seconds: "{{ frr_build_loop_delay_seconds }}"
@@ -219,10 +473,12 @@
         pkgbld_verify_version_expected: "{{ frr_version | trim }}"
         pkgbld_verify_strip_after_hyphen: false
 
+    # FRRパッケージを構築してインストールする (RHEL系用)
     - name: Build and install FRR local packages via pkgbld-common
       ansible.builtin.include_role:
         name: pkgbld-common
 
+# パッケージ生成に失敗したらplaybookを失敗させる
 - name: Fail for unsupported OS family when strict version is requested
   ansible.builtin.fail:
     msg: "Strict FRR source build is supported only on Debian and RedHat families. os_family={{ ansible_facts.os_family }}"

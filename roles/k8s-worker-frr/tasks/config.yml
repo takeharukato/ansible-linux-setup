@@ -45,16 +45,31 @@
   changed_when: false
   failed_when: false
 
+# vtysh の dry-run 機能が利用可能な場合の構文検証を実施する
 - name: Validate FRR configuration syntax (FRR 8.1+)
-  ansible.builtin.command: vtysh -f /etc/frr/frr.conf --dry-run
+  ansible.builtin.command:
+    argv:
+      - vtysh
+      - -C
+      - -f
+      - /etc/frr/frr.conf
   register: frr_config_validation
   changed_when: false
   failed_when: frr_config_validation.rc != 0
-  when: "'--dry-run' in vtysh_help.stdout or '--dry-run' in vtysh_help.stderr"
+  when: >-
+    '--dryrun' in vtysh_help.stdout or
+    '--dryrun' in vtysh_help.stderr or
+    '--dry-run' in vtysh_help.stdout or
+    '--dry-run' in vtysh_help.stderr
 
+# vtysh の dry-run 機能がない場合は互換手順で構文検証を実施する
 - name: Validate FRR configuration syntax (legacy method)
   ansible.builtin.shell: vtysh -c 'configure terminal' < /etc/frr/frr.conf
   register: frr_config_validation_legacy
   changed_when: false
   failed_when: frr_config_validation_legacy.rc != 0
-  when: "'--dry-run' not in vtysh_help.stdout and '--dry-run' not in vtysh_help.stderr"
+  when: >-
+    '--dryrun' not in vtysh_help.stdout and
+    '--dryrun' not in vtysh_help.stderr and
+    '--dry-run' not in vtysh_help.stdout and
+    '--dry-run' not in vtysh_help.stderr
