@@ -5,7 +5,7 @@
 #
 
 ---
-
+# インストール対象となるRPMパッケージのパスのリストを作成する。
 - name: Build local rpm install path list
   ansible.builtin.set_fact:
     pkgbld_rpm_install_paths: >-
@@ -17,6 +17,58 @@
         | list
       }}
 
+# RHEL系で /etc/init.d の型不整合があると chkconfig 導入時に cpio 展開が失敗するため,
+# rpm 導入前に互換 symlink (/etc/rc.d/init.d へのリンク) へ正規化する。
+- name: Normalize /etc/init.d compatibility path on RedHat family hosts
+  ansible.builtin.shell: |
+    set -euo pipefail
+
+    canonical_target="/etc/rc.d/init.d"
+    backup_path="/etc/init.d.ansible-backup"
+
+    mkdir -p "${canonical_target}"
+
+    if [[ -L /etc/init.d ]]; then
+      current_target="$(readlink -f /etc/init.d || true)"
+      if [[ "${current_target}" == "${canonical_target}" ]]; then
+        exit 0
+      fi
+      rm -f /etc/init.d
+      ln -s "${canonical_target}" /etc/init.d
+      echo "NORMALIZED"
+      exit 0
+    fi
+
+    if [[ -d /etc/init.d ]]; then
+      # 既存内容を失わないよう, 同名が無いものだけ標準ディレクトリへ退避する。
+      cp -a -n /etc/init.d/. "${canonical_target}/" || true
+
+      if [[ ! -e "${backup_path}" ]]; then
+        mv /etc/init.d "${backup_path}"
+      else
+        rm -rf /etc/init.d
+      fi
+
+      ln -s "${canonical_target}" /etc/init.d
+      echo "NORMALIZED"
+      exit 0
+    fi
+
+    if [[ ! -e /etc/init.d ]]; then
+      ln -s "${canonical_target}" /etc/init.d
+      echo "NORMALIZED"
+      exit 0
+    fi
+
+    echo "ERROR: /etc/init.d exists as unsupported file type." >&2
+    exit 1
+  args:
+    executable: /bin/bash
+  register: pkgbld_initd_normalize_result
+  changed_when: "'NORMALIZED' in (pkgbld_initd_normalize_result.stdout | default(''))"
+  become: true
+
+# RPMパッケージのインストールを一括で実行する。
 - name: Install local rpm packages in one transaction
   ansible.builtin.dnf:
     name: "{{ pkgbld_rpm_install_paths }}"

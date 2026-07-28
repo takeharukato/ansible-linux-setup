@@ -5,7 +5,8 @@
 #
 
 ---
-
+# パッケージをインストールする際のコマンドラインを構築する。
+# 非対話的にパッケージを導入するため, DEBIAN_FRONTEND=noninteractive を設定する。
 - name: Build local deb install argv
   ansible.builtin.set_fact:
     pkgbld_deb_install_argv: >-

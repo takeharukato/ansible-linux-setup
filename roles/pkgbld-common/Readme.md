@@ -71,6 +71,7 @@
 - 本ロールは, 指定されたコンテナイメージ名を `docker run` などのコンテナ実行コマンドへ渡して利用する。コンテナイメージの作成処理やコンテナイメージの読み込み処理は本ロールでは実行しない。
 - 本ロールは, 成果物探索パラメタを使ってパッケージ成果物を特定し, そのパッケージ成果物を構築ホストから制御ホストへ回収する。
 - 本ロールは, 配布/導入パラメタを使ってパッケージ成果物を制御ホストから play の実行対象ホストへ配布し, OS系統に応じた導入コマンドでそのパッケージ成果物を導入する。
+- RedHat系統への導入時は, `chkconfig` 導入時の `cpio` 展開失敗を防ぐため, `dnf` 実行前に `/etc/init.d` を互換 symlink (`/etc/rc.d/init.d` へのリンク) へ正規化する。
 - 本ロールは, 検証パラメタを使って導入済み状態と版数照合結果を検証する。
 
 ## 呼び出し元ロールからの使用方法
@@ -381,6 +382,7 @@ RHEL(AlmaLinuxなど)ホストに対し, 前掲のパラメタで本ロールを
 | パッケージ成果物が見つからない | 成果物パターン不一致 | pkgbld_package_file_patterns_* と実ファイル名 | パッケージ成果物探索パターンを実ファイル名に合わせる。実行メッセージ例: No package artifact was generated。 |
 | 成果物回収で失敗する | 構築ホストの権限不足, パス不整合 | package_build_output_dir と成果物権限 | パッケージ成果物出力先ディレクトリと成果物ファイルの読み取り権限を確認する。実行メッセージ例: Fetch built packages ...。 |
 | Debian系統で待機時間を超過する | 他プロセスがパッケージ管理処理の排他制御を保持 | `apt` / `dpkg` の排他制御状態 | 排他制御待機時間パラメタ `pkgbld_install_deb_lock_wait_seconds` を延長する。実行メッセージ例: lock timeout。 |
+| RedHat系統で `chkconfig` 導入時に失敗する (`error: unpacking of archive failed on file /etc/init.d...`) | `/etc/init.d` の型不整合 (ディレクトリ/不正リンク/不正ファイル) | `ls -ld /etc/init.d /etc/rc.d/init.d` の結果, `pkgbld-common` 実行ログの `Normalize /etc/init.d compatibility path on RedHat family hosts` タスク結果 | `pkgbld-common` は導入前に `/etc/init.d` を自動正規化する。失敗が継続する場合は `/etc/init.d` が通常ファイルや特殊ファイルになっていないか確認する。 |
 | RedHat系統で署名検証に失敗する | 署名未設定の rpm ファイルを導入 | `dnf` エラーメッセージ | 署名検証方針パラメタ `pkgbld_disable_gpg_check` を調整する。実行メッセージ例: GPG error。 |
 | 版数照合で不一致になる | 版数照合用コマンド, 版数抽出式, 期待版数の不整合 | 版数照合コマンド出力, 版数抽出式, 期待版数 | 版数抽出式と期待版数を見直し, Debianで付加版番号差分がある場合は `pkgbld_verify_strip_after_hyphen` の設定値を検討する。実行メッセージ例: version mismatch。 |
 
@@ -391,10 +393,12 @@ RHEL(AlmaLinuxなど)ホストに対し, 前掲のパラメタで本ロールを
 - `pkgbld_container_env_args` は環境変数引数配列を実行引数へそのまま連結するため, 引数値の引用符付与方針を呼び出し元で統一する。
 - `package_targets` は1回だけ実行する処理(run_onceタスク)でのOS判定用ホスト配列として必須であり, 空配列は指定できない。
 - `pkgbld_package_type` は入力検証に使用する値であり, 実行時のOS分岐は `ansible_facts.os_family` に従う。
+- RedHat系統では導入前に `/etc/init.d` 正規化処理を実施し, 必要に応じて既存の `/etc/init.d` ディレクトリを `/etc/init.d.ansible-backup` として退避する。既存運用で `/etc/init.d` を直接管理している場合は, 退避先の扱いを運用手順に含めること。
 
 ## 検証項目
 
 - 構築ホストの `package_build_output_dir` にパッケージ成果物ファイルが存在すること。
 - 導入対象ホストの `pkgbld_install_dest_dir` に配布済みパッケージ成果物ファイルが存在すること。
+- RedHat系統では導入後に `/etc/init.d` が `/etc/rc.d/init.d` を参照する互換 symlink であること。
 - Debian系統では `dpkg-query`, RedHat系統では `rpm -q` が導入済みパッケージ名を返すこと。
 - 版数検証を有効化した場合, 版数抽出式で抽出した版数文字列が期待版数 (`pkgbld_verify_version_expected`) と一致すること。
