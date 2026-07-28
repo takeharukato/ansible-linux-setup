@@ -1,0 +1,65 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#
+#  RHEL系 buildコンテナ実行
+#
+
+---
+
+# RedHat 系ビルダーコンテナで build スクリプトを実行する
+# 留意事項:
+#   作業ディレクトリと成果物出力ディレクトリを bind mount し,
+#   スクリプトが生成した成果物を構築ホスト側へ直接書き戻す。
+- name: Run package build script in RedHat builder container
+  ansible.builtin.command:
+    argv: >-
+      {{
+        [
+          pkgbld_container_runtime,
+          'run',
+          '--rm',
+          '--network',
+          pkgbld_container_network_mode,
+          '-v',
+          package_build_workspace ~ ':' ~ pkgbld_container_workdir,
+          '-v',
+          package_build_output_dir ~ ':' ~ pkgbld_container_output_dir,
+          '-w',
+          pkgbld_container_workdir
+        ]
+        +
+        (pkgbld_container_env_args | default([]))
+        +
+        [
+          pkgbld_builder_image_rhel,
+          '/bin/bash',
+          pkgbld_container_workdir ~ '/' ~ (pkgbld_effective_build_script_name | default(pkgbld_build_script_name))
+        ]
+        +
+        (pkgbld_build_script_args | default([]))
+      }}
+  async: "{{ pkgbld_build_timeout_seconds }}"
+  poll: 0
+  register: pkgbld_rhel_build_job
+  delegate_to: "{{ package_build_host }}"
+  changed_when: true
+
+# RedHat 系の build 非同期ジョブ完了まで待機する
+# 留意事項:
+#   タイムアウト値とポーリング間隔はロール変数で調整可能とする。
+- name: Wait RedHat package build completion
+  ansible.builtin.async_status:
+    jid: "{{ pkgbld_rhel_build_job.ansible_job_id }}"
+  register: pkgbld_rhel_build_result
+  until: pkgbld_rhel_build_result.finished
+  retries: "{{ (pkgbld_build_timeout_seconds // pkgbld_build_loop_delay_seconds) | int }}"
+  delay: "{{ pkgbld_build_loop_delay_seconds }}"
+  failed_when: (pkgbld_rhel_build_result.rc | default(0)) != 0
+  delegate_to: "{{ package_build_host }}"
+
+# RedHat 系 build の標準出力を必要時のみ表示する
+- name: Show RedHat package build stdout lines
+  ansible.builtin.debug:
+    var: pkgbld_rhel_build_result.stdout_lines
+  when: (pkgbld_rhel_build_result.stdout | default('') | length) > 0
+  delegate_to: "{{ package_build_host }}"

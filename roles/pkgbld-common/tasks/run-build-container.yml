@@ -14,14 +14,14 @@
   block:
     # Debian 系向けビルダーコンテナで build スクリプトを実行する
     - name: Run package build in Debian builder container
-      ansible.builtin.include_tasks: build/debian.yml
+      ansible.builtin.include_tasks: build-tasks/debian.yml
       vars:
         pkgbld_effective_build_script_name: "{{ pkgbld_build_script_name_debian }}"
       when: hostvars['localhost'].pkgbld_has_debian_targets | default(false)
 
     # RedHat 系向けビルダーコンテナで build スクリプトを実行する
     - name: Run package build in RedHat builder container
-      ansible.builtin.include_tasks: build/rhel.yml
+      ansible.builtin.include_tasks: build-tasks/rhel.yml
       vars:
         pkgbld_effective_build_script_name: "{{ pkgbld_build_script_name_rhel }}"
       when: hostvars['localhost'].pkgbld_has_redhat_targets | default(false)
