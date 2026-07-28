@@ -13,7 +13,6 @@
     state: present
     update_cache: true
   when:
-    - skopeo_enabled | default(false) | bool
     - ansible_facts.os_family == 'Debian'
 
 # RHEL 系で skopeo 導入を試行する。
@@ -25,7 +24,6 @@
   register: skopeo_rhel_install_result
   failed_when: false
   when:
-    - skopeo_enabled | default(false) | bool
     - ansible_facts.os_family == 'RedHat'
 
 # RHEL 系で skopeo が解決できない場合のみ EPEL を導入する。
@@ -35,7 +33,6 @@
     name: epel-release
     state: present
   when:
-    - skopeo_enabled | default(false) | bool
     - ansible_facts.os_family == 'RedHat'
     - skopeo_rhel_install_result is defined
     - (skopeo_rhel_install_result.rc | default(0)) != 0
@@ -47,7 +44,6 @@
     name: "{{ skopeo_packages }}"
     state: present
   when:
-    - skopeo_enabled | default(false) | bool
     - ansible_facts.os_family == 'RedHat'
     - skopeo_rhel_install_result is defined
     - (skopeo_rhel_install_result.rc | default(0)) != 0
@@ -59,7 +55,6 @@
     name: curl
     state: present
   when:
-    - skopeo_enabled | default(false) | bool
     - skopeo_enable_backup_script | default(false) | bool
 
 # Python版スクリプトで利用するYAMLパーサーを導入する。
@@ -70,16 +65,15 @@
     state: present
     update_cache: true
   when:
-    - skopeo_enabled | default(false) | bool
     - skopeo_enable_backup_script | default(false) | bool
     - ansible_facts.os_family == 'Debian'
 
+# Python版スクリプトで利用するYAMLパーサーを導入する。
 - name: Install Python YAML package on RHEL family
   become: true
   ansible.builtin.dnf:
     name: "{{ skopeo_python_yaml_package_rhel }}"
     state: present
   when:
-    - skopeo_enabled | default(false) | bool
     - skopeo_enable_backup_script | default(false) | bool
     - ansible_facts.os_family == 'RedHat'

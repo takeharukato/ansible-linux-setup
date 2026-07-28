@@ -16,7 +16,6 @@
     group: root
     mode: "0755"
   when:
-    - skopeo_enabled | default(false) | bool
     - skopeo_completion_enabled | default(false) | bool
     - (skopeo_bash_completion_path | default('', true) | length) > 0
 
@@ -31,7 +30,6 @@
     mode: "0644"
     backup: false
   when:
-    - skopeo_enabled | default(false) | bool
     - skopeo_completion_enabled | default(false) | bool
     - (skopeo_bash_completion_path | default('', true) | length) > 0
 
@@ -45,7 +43,6 @@
     group: root
     mode: "0755"
   when:
-    - skopeo_enabled | default(false) | bool
     - skopeo_completion_enabled | default(false) | bool
     - (skopeo_zsh_completion_path | default('', true) | length) > 0
 
@@ -60,6 +57,5 @@
     mode: "0644"
     backup: false
   when:
-    - skopeo_enabled | default(false) | bool
     - skopeo_completion_enabled | default(false) | bool
     - (skopeo_zsh_completion_path | default('', true) | length) > 0

@@ -6,6 +6,7 @@
 #
 ---
 
+# スクリプト配置先ディレクトリを作成する。
 - name: "Create {{ skopeo_scripts_dir }}"
   become: true
   ansible.builtin.file:
@@ -14,8 +15,8 @@
     owner: root
     group: root
     mode: "0755"
-  when: skopeo_enabled | default(false) | bool
 
+# バックアップ配置先ディレクトリを作成する。
 - name: "Create {{ skopeo_backup_dir }}"
   become: true
   ansible.builtin.file:
@@ -24,8 +25,8 @@
     owner: root
     group: root
     mode: "1777"
-  when: skopeo_enabled | default(false) | bool
 
+# バックアップ作業用ディレクトリを作成する。
 - name: "Create {{ skopeo_backup_work_dir }}"
   become: true
   ansible.builtin.file:
@@ -34,8 +35,8 @@
     owner: root
     group: root
     mode: "1777"
-  when: skopeo_enabled | default(false) | bool
 
+# 設定ファイル配置先ディレクトリを作成する。
 - name: "Create {{ skopeo_config_dir }}"
   become: true
   ansible.builtin.file:
@@ -44,7 +45,6 @@
     owner: root
     group: root
     mode: "0755"
-  when: skopeo_enabled | default(false) | bool
 
 # 初回のみ設定ファイルを作成し, 以降はユーザ編集を保持する。
 - name: "Create {{ skopeo_backup_restore_config_path }}"
@@ -58,9 +58,9 @@
     force: false
     backup: false
   when:
-    - skopeo_enabled | default(false) | bool
     - skopeo_enable_backup_script | default(false) | bool
 
+# バックアップ用の Python スクリプトを配置する。
 - name: "Create {{ skopeo_backup_python_script_path }}"
   become: true
   ansible.builtin.template:
@@ -71,9 +71,9 @@
     mode: "0755"
     backup: false
   when:
-    - skopeo_enabled | default(false) | bool
     - skopeo_enable_backup_script | default(false) | bool
 
+# リストア用の Python スクリプトを配置する。
 - name: "Create {{ skopeo_restore_python_script_path }}"
   become: true
   ansible.builtin.template:
@@ -84,7 +84,6 @@
     mode: "0755"
     backup: false
   when:
-    - skopeo_enabled | default(false) | bool
     - skopeo_enable_backup_script | default(false) | bool
 
 # バックアップスクリプトを配置する。
@@ -98,7 +97,6 @@
     mode: "0755"
     backup: false
   when:
-    - skopeo_enabled | default(false) | bool
     - skopeo_enable_backup_script | default(false) | bool
 
 # リストアスクリプトを配置する。
@@ -112,7 +110,6 @@
     mode: "0755"
     backup: false
   when:
-    - skopeo_enabled | default(false) | bool
     - skopeo_enable_backup_script | default(false) | bool
 
 # 日次バックアップスクリプトを配置する。
@@ -126,7 +123,6 @@
     mode: "0755"
     backup: false
   when:
-    - skopeo_enabled | default(false) | bool
     - skopeo_enable_backup_script | default(false) | bool
 
 # バックアップ実行コマンド用のシンボリックリンクを作成する。
@@ -138,7 +134,6 @@
     state: link
     force: true
   when:
-    - skopeo_enabled | default(false) | bool
     - skopeo_enable_backup_script | default(false) | bool
 
 # リストア実行コマンド用のシンボリックリンクを作成する。
@@ -150,7 +145,6 @@
     state: link
     force: true
   when:
-    - skopeo_enabled | default(false) | bool
     - skopeo_enable_backup_script | default(false) | bool
 
 # 日次バックアップ実行コマンド用のシンボリックリンクを作成する。
@@ -162,5 +156,4 @@
     state: link
     force: true
   when:
-    - skopeo_enabled | default(false) | bool
     - skopeo_enable_backup_script | default(false) | bool
