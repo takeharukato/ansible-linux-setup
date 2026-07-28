@@ -20,9 +20,11 @@ _collect_pod_ips_get_label_keys() {
         return
     fi
 
+{% raw %}
     kubectl get pods -A \
         -o go-template='{{range .items}}{{range $k, $_ := .metadata.labels}}{{printf "%s\n" $k}}{{end}}{{end}}' \
         2>/dev/null | sort -u
+{% endraw %}
 }
 
 _collect_pod_ips_completion() {

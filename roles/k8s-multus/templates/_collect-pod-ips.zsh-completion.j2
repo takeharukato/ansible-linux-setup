@@ -18,9 +18,11 @@ _collect_pod_ips_get_label_selectors() {
   local -a selectors
   local label_key
 
+{% raw %}
   label_keys=($(kubectl get pods -A \
     -o go-template='{{range .items}}{{range $k, $_ := .metadata.labels}}{{printf "%s\n" $k}}{{end}}{{end}}' \
     2>/dev/null | sort -u))
+{% endraw %}
 
   for label_key in "${label_keys[@]}"; do
     selectors+=("${label_key}=")
