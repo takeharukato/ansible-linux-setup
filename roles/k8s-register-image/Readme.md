@@ -61,7 +61,6 @@
          - `k8s_register_image_control_plane_hosts`: 登録対象の control plane ノード名配列を設定する (例: `['k8sctrlplane01.local', 'k8sctrlplane02.local']`)。
          - `k8s_register_image_worker_hosts`: 登録対象の worker ノード名配列を設定する (例: `['k8sworker0101.local', 'k8sworker0102.local']`)。
     2. 自動検出:
-         - `k8s_register_image_auto_discover_control_plane_hosts`: control plane ノードを自動検出する場合に `true` を設定する。
          - `k8s_register_image_auto_discover_worker_hosts`: worker ノードを自動検出する場合に `true` を設定する。
          - `k8s_kubeconfig_to_discover_workers_path`: worker ノード自動検出で `kubectl` が参照する kubeconfig ファイルパスを設定する(例: `/etc/kubernetes/admin.conf`)。
 3. 実行時制御として以下の変数を設定する。
@@ -75,7 +74,7 @@
 1. 呼び出し元ロールで, 制御ホスト上に登録対象コンテナイメージ tar を配置する。
 2. 呼び出し元ロールで, 本ロールに渡す入力パラメタを目的別に設定する。
    - コンポーネント定義: コンポーネント名と tar ファイルパス, 期待タグ
-  - 対象ノード指定: 明示指定または自動検出
+  - 対象ノード指定: control plane は明示指定, worker は明示指定または自動検出
    - 実行制御: 一時配置先, 未修飾名補完レジストリ, 後始末方針
 3. `include_role` で `k8s-register-image` を呼び出し, 設定した入力パラメタを渡す。
 4. 実行結果で, 対象ノード上の `ctr -n k8s.io images ls` を実行し, 期待したタグが登録されたことを確認する。
@@ -100,8 +99,7 @@
   - `k8s_register_image_components`: `コンポーネント名` から `コンテナイメージ tar ファイルへのパス` への辞書
   - `k8s_register_image_expected_images`: `コンポーネント名` から `コンテナイメージ名`への辞書
 - control plane ノード群へ配布するために, 以下の設定を行う:
-  - `k8s_register_image_auto_discover_control_plane_hosts` を `true` に設定
-  - control plane ノード一覧の算出に使用する `inventory/hosts` ファイル中のインベントリグループ名を `k8s_register_image_control_plane_group_name` 変数に設定
+  - `k8s_register_image_control_plane_hosts` に control plane ノード一覧を設定する
 - 配布時の一時配置先を `k8s_register_image_remote_cache_dir` へ設定
 - 未修飾名イメージの補完先レジストリを `k8s_register_image_unqualified_image_registry` へ設定
 - 登録後も対象ノード上のコンテナイメージ tar ファイルを削除せず保持するために `k8s_register_image_cleanup_remote_tar` に `false` を設定する。典型的な場合は, control plane ノードへの配布後に続けて worker ノードへの配布処理を行うためである。そのため, control plane ノードへの配布後に対象ノード上のコンテナイメージ tar ファイルを削除しないようにする。
@@ -122,11 +120,12 @@
 11:       manager: "virtualcluster/manager-amd64:latest"
 12:       syncer: "virtualcluster/syncer-amd64:latest"
 13:       vn-agent: "virtualcluster/vn-agent-amd64:latest"
-14:     k8s_register_image_auto_discover_control_plane_hosts: true
-15:     k8s_register_image_control_plane_group_name: "k8s_ctrl_plane"
-16:     k8s_register_image_remote_cache_dir: "/tmp/vc-images"
-17:     k8s_register_image_unqualified_image_registry: "docker.io"
-18:     k8s_register_image_cleanup_remote_tar: false
+14:     k8s_register_image_control_plane_hosts:
+15:       - "k8sctrlplane01.local"
+16:       - "k8sctrlplane02.local"
+17:     k8s_register_image_remote_cache_dir: "/tmp/vc-images"
+18:     k8s_register_image_unqualified_image_registry: "docker.io"
+19:     k8s_register_image_cleanup_remote_tar: false
 ```
 
 上記例の各行での記載内容は以下の通り。
@@ -139,11 +138,11 @@
 - 6-13 行目: 登録対象コンポーネント名, コンテナイメージ tar ファイル, コンテナイメージ名を指定するための設定である。
   - 6-9行目: 登録対象コンポーネント名をキーにコンテナイメージ tar ファイルを取得する辞書を設定
   - 10-13行目: 登録対象コンポーネント名をキーにコンテナイメージ名を取得する辞書を設定
-- 14-15 行目: control plane ノードを自動検出するための設定である。`k8s_register_image_control_plane_group_name` で指定したインベントリグループ(ここでは `k8s_ctrl_plane`)を参照する。
-- 16-18 行目: 一時配置先, 未修飾名補完レジストリ, 登録後の tar 保持方針を指定するための設定である。
-  - 16行目: 対象ノード上で tar を一時配置するディレクトリ(`k8s_register_image_remote_cache_dir`)を指定
-  - 17行目: 未修飾名イメージへ補完する既定レジストリ(`k8s_register_image_unqualified_image_registry`)を指定
-  - 18行目: CRIへの登録後に対象ノード上の tar を削除せず保持する設定(`k8s_register_image_cleanup_remote_tar: false`)
+- 14-16 行目: control plane ノード一覧を明示指定するための設定である。
+- 17-19 行目: 一時配置先, 未修飾名補完レジストリ, 登録後の tar 保持方針を指定するための設定である。
+  - 17行目: 対象ノード上で tar を一時配置するディレクトリ(`k8s_register_image_remote_cache_dir`)を指定
+  - 18行目: 未修飾名イメージへ補完する既定レジストリ(`k8s_register_image_unqualified_image_registry`)を指定
+  - 19行目: CRIへの登録後に対象ノード上の tar を削除せず保持する設定(`k8s_register_image_cleanup_remote_tar: false`)
 
 #### コンテナイメージをworker ノード群に配布する場合の例
 
@@ -156,8 +155,7 @@
   - `k8s_register_image_auto_discover_worker_hosts` を `true` に設定
   - worker ノード一覧の算出に使用する kubeconfig のパスを `k8s_kubeconfig_to_discover_workers_path` 変数に設定
 - worker ノードへの配布処理の重複実行を抑止するために, 以下の設定を行う:
-  - `k8s_register_image_auto_discover_control_plane_hosts` を `true` に設定
-  - control plane ノード一覧の算出に使用する `inventory/hosts` ファイル中のインベントリグループ名を `k8s_register_image_control_plane_group_name` 変数に設定
+  - `k8s_register_image_control_plane_hosts` に control plane ノード一覧を明示指定する
 - 配布時の一時配置先を `k8s_register_image_remote_cache_dir` へ設定
 - 未修飾名イメージの補完先レジストリを `k8s_register_image_unqualified_image_registry` へ設定
 - 登録後に対象ノード上のコンテナイメージ tar ファイルを削除するために `k8s_register_image_cleanup_remote_tar` に `true` を設定する。典型的な場合は, worker ノードへの配布処理が本節の処理の終端となるためである。そのため, 対象ノード上にコンテナイメージ tar ファイルを残さないようにする。
@@ -178,12 +176,14 @@
 11:       manager: "virtualcluster/manager-amd64:latest"
 12:       syncer: "virtualcluster/syncer-amd64:latest"
 13:       vn-agent: "virtualcluster/vn-agent-amd64:latest"
-14:     k8s_register_image_auto_discover_control_plane_hosts: true
-15:     k8s_register_image_auto_discover_worker_hosts: true
-16:     k8s_kubeconfig_to_discover_workers_path: "/etc/kubernetes/admin.conf"
-17:     k8s_register_image_remote_cache_dir: "/tmp/vc-images"
-18:     k8s_register_image_unqualified_image_registry: "docker.io"
-19:     k8s_register_image_cleanup_remote_tar: true
+14:     k8s_register_image_control_plane_hosts:
+15:       - "k8sctrlplane01.local"
+16:       - "k8sctrlplane02.local"
+17:     k8s_register_image_auto_discover_worker_hosts: true
+18:     k8s_kubeconfig_to_discover_workers_path: "/etc/kubernetes/admin.conf"
+19:     k8s_register_image_remote_cache_dir: "/tmp/vc-images"
+20:     k8s_register_image_unqualified_image_registry: "docker.io"
+21:     k8s_register_image_cleanup_remote_tar: true
 ```
 
 上記例の各行での記載内容は以下の通り。
@@ -196,14 +196,14 @@
 - 6-13 行目: 登録対象コンポーネント名, コンテナイメージ tar ファイル, コンテナイメージ名を指定するための設定である。
   - 6-9行目: 登録対象コンポーネント名をキーにコンテナイメージ tar ファイルを取得する辞書を設定
   - 10-13行目: 登録対象コンポーネント名をキーにコンテナイメージ名を取得する辞書を設定
-- 14-16 行目: worker ノードを自動検出するための設定である。
-  - 14行目: worker 配布を実行する代表の control plane ノードを自動検出するよう(`k8s_register_image_auto_discover_control_plane_hosts: true`)指定
-  - 15行目: worker ノードを自動検出する設定(`k8s_register_image_auto_discover_worker_hosts: true`)を指定
-  - 16行目: worker ノード自動検出時に `kubectl` が参照する kubeconfig (`k8s_kubeconfig_to_discover_workers_path`)を指定
-- 17-19 行目: 一時配置先, 未修飾名補完レジストリ, 登録後のコンテナイメージ tar ファイル削除方針を指定するための設定である。
-  - 17行目: 対象ノード上でコンテナイメージ tar ファイルを一時配置するディレクトリ(`k8s_register_image_remote_cache_dir`)を指定
-  - 18行目: 未修飾名イメージへ補完する既定レジストリ(`k8s_register_image_unqualified_image_registry`)を指定
-  - 19行目: CRIへの登録後に対象ノード上のコンテナイメージ tar ファイルを削除する設定(`k8s_register_image_cleanup_remote_tar: true`)を指定
+- 14-16 行目: worker 配布時の実行主体判定に使う control plane ノード一覧を明示指定する設定である。
+- 17-18 行目: worker ノードを自動検出するための設定である。
+  - 17行目: worker ノードを自動検出する設定(`k8s_register_image_auto_discover_worker_hosts: true`)を指定
+  - 18行目: worker ノード自動検出時に `kubectl` が参照する kubeconfig (`k8s_kubeconfig_to_discover_workers_path`)を指定
+- 19-21 行目: 一時配置先, 未修飾名補完レジストリ, 登録後のコンテナイメージ tar ファイル削除方針を指定するための設定である。
+  - 19行目: 対象ノード上でコンテナイメージ tar ファイルを一時配置するディレクトリ(`k8s_register_image_remote_cache_dir`)を指定
+  - 20行目: 未修飾名イメージへ補完する既定レジストリ(`k8s_register_image_unqualified_image_registry`)を指定
+  - 21行目: CRIへの登録後に対象ノード上のコンテナイメージ tar ファイルを削除する設定(`k8s_register_image_cleanup_remote_tar: true`)を指定
 
 
 ### 各パラメタ変数に設定する値
@@ -214,9 +214,8 @@
 | コンポーネント定義 | `k8s_register_image_expected_images` | `{}` | コンポーネント名をキー, コンテナイメージ名を値とする対応表を指定する。 |
 | 対象ノード指定(明示指定時) | `k8s_register_image_control_plane_hosts` | `[]` | 登録対象の control plane ノード名配列を指定する。 |
 | 対象ノード指定(明示指定時) | `k8s_register_image_worker_hosts` | `[]` | 登録対象の worker ノード名配列を指定する。 |
-| 対象ノード指定(自動検出時) | `k8s_register_image_auto_discover_control_plane_hosts` | `false` | control plane ノードを自動検出する場合に `true` を指定する。 |
 | 対象ノード指定(自動検出時) | `k8s_register_image_auto_discover_worker_hosts` | `false` | worker ノードを自動検出する場合に `true` を指定する。 |
-| 対象ノード指定(自動検出時) | `k8s_register_image_control_plane_group_name` | `"k8s_ctrl_plane"` | control plane ノード自動検出時に参照するインベントリグループ名を指定する。 |
+| 対象ノード指定(明示指定補助) | `k8s_register_image_control_plane_group_name` | `"k8s_ctrl_plane"` | 呼び出し元で `groups[...]` を参照して control plane ノード一覧を組み立てる際のグループ名を指定する。 |
 | 対象ノード指定(自動検出時) | `k8s_kubeconfig_to_discover_workers_path` | `""` | worker ノード自動検出時に `kubectl` が参照する kubeconfig パスを指定する。 |
 | 実行制御 | `k8s_register_image_skip_discovery` | `false` | 対象ノード再探索を抑止する場合に `true` を指定する。 |
 | 実行制御 | `k8s_register_image_remote_cache_dir` | `"/tmp/k8s-register-image"` | 対象ノード上でコンテナイメージ tar ファイルを一時配置するディレクトリを指定する。 |

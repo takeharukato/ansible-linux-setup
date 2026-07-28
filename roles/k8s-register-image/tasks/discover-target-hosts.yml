@@ -6,28 +6,15 @@
 #
 ---
 
-# control plane ホスト一覧を自動解決する場合は, 事前に空配列へ初期化する。
-- name: "Reset control-plane hosts for auto-discovery"
+# control plane ホスト一覧が未指定の場合は, 現在ホストを補完する。
+- name: "Ensure control-plane hosts are explicitly defined"
   ansible.builtin.set_fact:
-    k8s_register_image_control_plane_hosts: []
-  when: k8s_register_image_auto_discover_control_plane_hosts | bool
-
-# 対象 control plane ホスト一覧を収集する。
-- name: "Collect control-plane hosts"
-  ansible.builtin.set_fact:
-    k8s_register_image_control_plane_hosts: "{{ (k8s_register_image_control_plane_hosts | default([])) + [item] }}"
-  loop: "{{ groups[k8s_register_image_control_plane_group_name] | default([]) }}"
-  when:
-    - k8s_register_image_auto_discover_control_plane_hosts | bool
-    - item in ansible_play_hosts_all
-
-# 指定グループに該当 host が無い場合は, 現在ホストを control plane として補完する。
-- name: "Fallback control-plane hosts to current host"
-  ansible.builtin.set_fact:
-    k8s_register_image_control_plane_hosts: ["{{ inventory_hostname }}"]
-  when:
-    - k8s_register_image_auto_discover_control_plane_hosts | bool
-    - (k8s_register_image_control_plane_hosts | default([], true) | length) == 0
+    k8s_register_image_control_plane_hosts: >-
+      {{
+        (k8s_register_image_control_plane_hosts | default([], true))
+        if ((k8s_register_image_control_plane_hosts | default([], true) | length) > 0)
+        else [inventory_hostname]
+      }}
 
 # 現在ホストが同一クラスタ内の代表ノードかどうかを判定する。
 - name: "Set cluster leader flag"

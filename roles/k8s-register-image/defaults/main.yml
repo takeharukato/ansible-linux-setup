@@ -21,13 +21,10 @@ k8s_register_image_control_plane_hosts: []
 # 登録対象 worker ホスト一覧
 k8s_register_image_worker_hosts: []
 
-# control plane ホスト一覧を自動解決するかどうか
-k8s_register_image_auto_discover_control_plane_hosts: false
-
 # worker ホスト一覧を自動解決するかどうか
 k8s_register_image_auto_discover_worker_hosts: false
 
-# control plane 自動解決時に参照するインベントリグループ名
+# 呼び出し元で control plane ホスト一覧を組み立てる際のインベントリグループ名
 k8s_register_image_control_plane_group_name: "k8s_ctrl_plane"
 
 # worker 自動解決時に kubectl で参照する kubeconfig パス

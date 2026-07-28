@@ -18,15 +18,36 @@
     name: k8s-register-image
     tasks_from: discover-target-hosts.yml
   vars:
-    k8s_register_image_auto_discover_control_plane_hosts: true
+    k8s_register_image_control_plane_hosts:
+      - "{{ inventory_hostname }}"
     k8s_register_image_auto_discover_worker_hosts: true
     k8s_kubeconfig_to_discover_workers_path: "{{ virtualcluster_supercluster_kubeconfig_path }}"
+
+# 本タスクはクラスタごとに独立して配布するため,
+# 自ホストが配布実行主体として選定されていることを保証する
+- name: "Validate cluster-local worker discovery mode"
+  ansible.builtin.assert:
+    that:
+      - k8s_register_image_is_cluster_leader | default(false) | bool
+    fail_msg: >-
+      Worker discovery must run in cluster-local mode.
+      inventory_hostname={{ inventory_hostname }}
+      is_cluster_leader={{ k8s_register_image_is_cluster_leader | default('undefined') }}
 
 # ワーカーノード情報の表示
 - name: "Display worker node list"
   ansible.builtin.debug:
     msg: "Worker nodes found: {{ k8s_register_image_worker_hosts | join(', ') }}"
   when: k8s_register_image_is_cluster_leader | default(true) | bool
+
+- name: "Fail when no worker nodes were discovered in this cluster"
+  ansible.builtin.fail:
+    msg: >-
+      No worker nodes were discovered from kubeconfig={{ virtualcluster_supercluster_kubeconfig_path }}
+      on control-plane host={{ inventory_hostname }}.
+  when:
+    - k8s_register_image_is_cluster_leader | default(true) | bool
+    - (k8s_register_image_worker_hosts | default([], true) | length) == 0
 
 # コントロールプレーン上のイメージファイルを読み取り可能にする
 # 留意事項:
@@ -72,7 +93,6 @@
     k8s_register_image_remote_cache_dir: "/tmp"
     k8s_register_image_unqualified_image_registry: "{{ virtualcluster_unqualified_image_registry }}"
     k8s_register_image_auto_discover_worker_hosts: false
-    k8s_register_image_auto_discover_control_plane_hosts: false
     k8s_register_image_skip_discovery: true
 
 # コントロールプレーン上のイメージキャッシュを削除
