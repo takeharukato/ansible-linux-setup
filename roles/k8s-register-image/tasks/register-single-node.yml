@@ -43,6 +43,36 @@
   become: true
   changed_when: true
 
+# tar import 後に期待タグの存在を検証し, 配布漏れを早期検出する
+- name: "Verify imported image tags on target node"
+  ansible.builtin.shell: |
+    set -euo pipefail
+    expected_tag="{{ k8s_register_image_expected_images[item.key] }}"
+    first_component="${expected_tag%%/*}"
+    expected_alias=""
+
+    if [[ "${first_component}" != "localhost" && "${first_component}" != *.* && "${first_component}" != *:* ]]; then
+      expected_alias="{{ k8s_register_image_unqualified_image_registry }}/${expected_tag}"
+    fi
+
+    if ctr -n k8s.io images ls -q | grep -Fx "${expected_tag}" >/dev/null; then
+      exit 0
+    fi
+
+    if [[ -n "${expected_alias}" ]] && ctr -n k8s.io images ls -q | grep -Fx "${expected_alias}" >/dev/null; then
+      exit 0
+    fi
+
+    echo "ERROR: expected image tag not found for component={{ item.key }} tag=${expected_tag} alias=${expected_alias}" >&2
+    ctr -n k8s.io images ls -q >&2 || true
+    exit 1
+  args:
+    executable: /bin/bash
+  loop: "{{ k8s_register_image_components | dict2items }}"
+  delegate_to: "{{ target_host }}"
+  become: true
+  changed_when: false
+
 # 対象ノード上の一時 tar 配置先に転送した tar ファイルを削除する。
 - name: "Cleanup temporary image files on target node"
   ansible.builtin.file:
