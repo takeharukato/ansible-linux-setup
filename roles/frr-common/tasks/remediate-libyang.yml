@@ -119,8 +119,8 @@
           {{
             frr_libyang_deb_source_files
             | default([])
-            | selectattr('path', 'search', '/' ~ frr_libyang_runtime_pkg_name ~ '_')
-            | rejectattr('path', 'search', '/libyang2-dev_')
+            | selectattr('path', 'search', frr_libyang_runtime_pkg_name ~ '_')
+            | rejectattr('path', 'search', 'libyang2-dev_')
             | list
           }}
 
@@ -131,7 +131,7 @@
           {{
             frr_libyang_deb_source_files
             | default([])
-            | selectattr('path', 'search', '/libyang2-dev_')
+            | selectattr('path', 'search', 'libyang2-dev_')
             | list
           }}
 
