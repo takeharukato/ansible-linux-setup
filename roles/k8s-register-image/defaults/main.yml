@@ -41,3 +41,35 @@ k8s_register_image_unqualified_image_registry: "docker.io"
 
 # 対象ノード上の一時 tar を削除するかどうか
 k8s_register_image_cleanup_remote_tar: true
+
+# 各対象ノードへ処理を開始する前の接続プリフライト有効化フラグ
+k8s_register_image_connection_preflight_enabled: true
+# 接続プリフライト全体の待機タイムアウト秒数
+k8s_register_image_connection_preflight_timeout: 300
+# 接続プリフライト時の1回あたり接続タイムアウト秒数
+k8s_register_image_connection_preflight_connect_timeout: 15
+# 接続プリフライト開始前の遅延秒数
+k8s_register_image_connection_preflight_delay_seconds: 0
+# 接続プリフライトのポーリング間隔秒数
+k8s_register_image_connection_preflight_sleep_seconds: 5
+
+# 画像tar転送(copy)時の再試行有効化フラグ
+k8s_register_image_transfer_retry_enabled: true
+# 画像tar転送(copy)時の最大試行回数
+k8s_register_image_transfer_retries: 3
+# 画像tar転送(copy)時の試行間隔秒数
+k8s_register_image_transfer_retry_delay_seconds: 5
+
+# worker検出前に Ready 条件を待機するかどうか
+k8s_register_image_wait_for_worker_ready_enabled: true
+# worker Ready 待機タイムアウト秒数
+k8s_register_image_wait_for_worker_ready_timeout: 180
+# worker Ready 待機の失敗を致命エラーとするかどうか
+k8s_register_image_wait_for_worker_ready_fail_on_timeout: false
+
+# worker検出コマンド実行時の再試行有効化フラグ
+k8s_register_image_worker_discovery_retry_enabled: true
+# worker検出コマンド実行時の最大試行回数
+k8s_register_image_worker_discovery_retries: 3
+# worker検出コマンド実行時の試行間隔秒数
+k8s_register_image_worker_discovery_retry_delay_seconds: 5

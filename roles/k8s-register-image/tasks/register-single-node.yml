@@ -6,6 +6,16 @@
 #
 ---
 
+# 瞬断や再起動直後の遅延に備えて, 対象ノードの接続可能性を事前確認する。
+- name: "Preflight SSH connectivity on target node"
+  ansible.builtin.wait_for_connection:
+    timeout: "{{ k8s_register_image_connection_preflight_timeout }}"
+    connect_timeout: "{{ k8s_register_image_connection_preflight_connect_timeout }}"
+    delay: "{{ k8s_register_image_connection_preflight_delay_seconds }}"
+    sleep: "{{ k8s_register_image_connection_preflight_sleep_seconds }}"
+  delegate_to: "{{ target_host }}"
+  when: k8s_register_image_connection_preflight_enabled | bool
+
 # 対象ノード上の一時 tar 配置先ディレクトリを作成する。
 - name: "Create remote cache directory on target node"
   ansible.builtin.file:
@@ -22,6 +32,10 @@
     src: "{{ item.value }}"
     dest: "{{ k8s_register_image_remote_cache_dir }}/{{ item.value | basename }}"
     mode: "0644"
+  register: k8s_register_image_transfer_result
+  until: (not (k8s_register_image_transfer_retry_enabled | bool)) or (k8s_register_image_transfer_result is succeeded)
+  retries: "{{ (k8s_register_image_transfer_retry_enabled | bool) | ternary(k8s_register_image_transfer_retries, 1) }}"
+  delay: "{{ k8s_register_image_transfer_retry_delay_seconds }}"
   loop: "{{ k8s_register_image_components | dict2items }}"
   delegate_to: "{{ target_host }}"
   become: true

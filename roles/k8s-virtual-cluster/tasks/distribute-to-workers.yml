@@ -22,6 +22,12 @@
       - "{{ inventory_hostname }}"
     k8s_register_image_auto_discover_worker_hosts: true
     k8s_kubeconfig_to_discover_workers_path: "{{ virtualcluster_supercluster_kubeconfig_path }}"
+    k8s_register_image_wait_for_worker_ready_enabled: "{{ virtualcluster_wait_for_worker_ready_enabled }}"
+    k8s_register_image_wait_for_worker_ready_timeout: "{{ virtualcluster_wait_for_worker_ready_timeout }}"
+    k8s_register_image_wait_for_worker_ready_fail_on_timeout: "{{ virtualcluster_wait_for_worker_ready_fail_on_timeout }}"
+    k8s_register_image_worker_discovery_retry_enabled: "{{ virtualcluster_worker_discovery_retry_enabled }}"
+    k8s_register_image_worker_discovery_retries: "{{ virtualcluster_worker_discovery_retries }}"
+    k8s_register_image_worker_discovery_retry_delay_seconds: "{{ virtualcluster_worker_discovery_retry_delay_seconds }}"
 
 # 本タスクはクラスタごとに独立して配布するため,
 # 自ホストが配布実行主体として選定されていることを保証する
@@ -72,6 +78,10 @@
     dest: "{{ virtualcluster_local_cache_dir }}/"
     flat: true
     validate_checksum: false
+  register: virtualcluster_fetch_result
+  until: (not (virtualcluster_fetch_retry_enabled | bool)) or (virtualcluster_fetch_result is succeeded)
+  retries: "{{ (virtualcluster_fetch_retry_enabled | bool) | ternary(virtualcluster_fetch_retries, 1) }}"
+  delay: "{{ virtualcluster_fetch_retry_delay_seconds }}"
   loop: "{{ virtualcluster_build_components }}"
   become: false
   when: k8s_register_image_is_cluster_leader | default(true) | bool

@@ -73,6 +73,27 @@ virtualcluster_build_timeout: 1800
 # localhost(Ansibleコントローラー)上のイメージキャッシュディレクトリ
 virtualcluster_local_cache_dir: "{{ lookup('env', 'HOME') }}/.ansible/vc-images-cache"
 
+# control-plane -> localhost fetch 時の再試行有効化フラグ
+virtualcluster_fetch_retry_enabled: true
+# control-plane -> localhost fetch 時の最大試行回数
+virtualcluster_fetch_retries: 3
+# control-plane -> localhost fetch 時の試行間隔秒数
+virtualcluster_fetch_retry_delay_seconds: 5
+
+# worker 検出前に Ready 条件を待機するかどうか
+virtualcluster_wait_for_worker_ready_enabled: true
+# worker Ready 待機タイムアウト秒数
+virtualcluster_wait_for_worker_ready_timeout: 180
+# worker Ready 待機失敗を致命エラーにするかどうか
+virtualcluster_wait_for_worker_ready_fail_on_timeout: false
+
+# worker 検出コマンド再試行有効化フラグ
+virtualcluster_worker_discovery_retry_enabled: true
+# worker 検出コマンド最大試行回数
+virtualcluster_worker_discovery_retries: 3
+# worker 検出コマンド試行間隔秒数
+virtualcluster_worker_discovery_retry_delay_seconds: 5
+
 # 明示指定する各コンポーネントのtarファイルパス (空文字は未指定)
 # vc-manager, syncer, vn-agent のイメージtarファイルを明示指定する場合は,
 # 下記の変数に制御ノード上でのファイルパスを設定する

@@ -6,6 +6,35 @@
 #
 ---
 
+# worker 検出の前に, 取得対象ノードが Ready になるまで待機する。
+- name: "Wait for worker nodes to become Ready"
+  ansible.builtin.command:
+    argv:
+      - kubectl
+      - --kubeconfig
+      - "{{ k8s_register_image_kubeconfig_to_discover_workers_path | default(k8s_kubeconfig_to_discover_workers_path, true) | default(k8s_supercluster_kubeconfig_path, true) | default('/etc/kubernetes/admin.conf', true) }}"
+      - wait
+      - --for=condition=Ready
+      - nodes
+      - --selector=!node-role.kubernetes.io/control-plane
+      - --timeout={{ k8s_register_image_wait_for_worker_ready_timeout }}s
+  register: k8s_register_image_worker_ready_wait_result
+  changed_when: false
+  failed_when: false
+  become: true
+  when: k8s_register_image_wait_for_worker_ready_enabled | bool
+
+- name: "Fail when worker node Ready wait timed out"
+  ansible.builtin.fail:
+    msg: >-
+      ERROR: worker node Ready wait failed.
+      rc={{ k8s_register_image_worker_ready_wait_result.rc | default('undefined') }}
+      stderr={{ k8s_register_image_worker_ready_wait_result.stderr | default('') }}
+  when:
+    - k8s_register_image_wait_for_worker_ready_enabled | bool
+    - k8s_register_image_wait_for_worker_ready_fail_on_timeout | bool
+    - (k8s_register_image_worker_ready_wait_result.rc | default(1)) != 0
+
 # worker ノード一覧と InternalIP 一覧を取得する。
 # 1. kubeconfig は次の優先順位で決定する。
 #    a. k8s_register_image_kubeconfig_to_discover_workers_path
@@ -29,6 +58,9 @@
       - custom-columns=NAME:.metadata.name,INTERNAL_IPS:.status.addresses[?(@.type=="InternalIP")].address
       - --no-headers
   register: k8s_register_image_worker_nodes_result
+  until: (not (k8s_register_image_worker_discovery_retry_enabled | bool)) or (k8s_register_image_worker_nodes_result is succeeded)
+  retries: "{{ (k8s_register_image_worker_discovery_retry_enabled | bool) | ternary(k8s_register_image_worker_discovery_retries, 1) }}"
+  delay: "{{ k8s_register_image_worker_discovery_retry_delay_seconds }}"
   changed_when: false
   become: true
 
