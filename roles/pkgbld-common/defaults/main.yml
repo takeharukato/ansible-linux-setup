@@ -80,6 +80,24 @@ pkgbld_install_dest_dir: "/tmp"
 # RedHat系統で署名検証を無効化するかどうかの真偽値。
 pkgbld_disable_gpg_check: true
 
+# 導入対象ホストへの接続プリフライト有効化フラグ。
+pkgbld_connection_preflight_enabled: true
+# 接続プリフライト全体の待機タイムアウト秒数。
+pkgbld_connection_preflight_timeout: 300
+# 接続プリフライト時の1回あたり接続タイムアウト秒数。
+pkgbld_connection_preflight_connect_timeout: 15
+# 接続プリフライト開始前の遅延秒数。
+pkgbld_connection_preflight_delay_seconds: 0
+# 接続プリフライトのポーリング間隔秒数。
+pkgbld_connection_preflight_sleep_seconds: 5
+
+# controller -> target 配布(copy)時の再試行有効化フラグ。
+pkgbld_copy_retry_enabled: true
+# controller -> target 配布(copy)時の最大試行回数。
+pkgbld_copy_retries: 3
+# controller -> target 配布(copy)時の試行間隔秒数。
+pkgbld_copy_retry_delay_seconds: 5
+
 #
 # 検証処理関連設定
 #

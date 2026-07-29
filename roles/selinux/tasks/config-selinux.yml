@@ -119,10 +119,12 @@
 # 「リラベルが必要」or「disabled へ変更が入った」場合
 # マシンをリブートする
 - name: Reboot host gracefully to disable SELinux
-  ansible.builtin.reboot:
-    reboot_timeout: "{{ reboot_timeout_sec }}"
-    msg: "Reboot triggered by role: selinux"
-    pre_reboot_delay: 2
+  ansible.builtin.include_role:
+    name: reboot-common
+  vars:
+    reboot_common_timeout: "{{ reboot_timeout_sec }}"
+    reboot_common_message: "Reboot triggered by role: selinux"
+    reboot_common_pre_reboot_delay: 2
   when:
     - se_config_file.stat.exists
     - (

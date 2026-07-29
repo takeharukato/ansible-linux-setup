@@ -328,7 +328,9 @@
 
     # マシンをリブートする
     - name: Reboot host gracefully
-      ansible.builtin.reboot:
-        reboot_timeout: "{{ reboot_timeout_sec }}"
-        msg: "Reboot triggered by role: k8s-worker"
-        pre_reboot_delay: 2
+      ansible.builtin.include_role:
+        name: reboot-common
+      vars:
+        reboot_common_timeout: "{{ reboot_timeout_sec }}"
+        reboot_common_message: "Reboot triggered by role: k8s-worker"
+        reboot_common_pre_reboot_delay: 2

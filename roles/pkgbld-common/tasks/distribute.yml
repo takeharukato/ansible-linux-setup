@@ -6,10 +6,23 @@
 
 ---
 
+# 瞬断や再起動直後の遅延に備えて, 配布前に接続可能性を確認する。
+- name: Preflight SSH connectivity before package distribution
+  ansible.builtin.wait_for_connection:
+    timeout: "{{ pkgbld_connection_preflight_timeout }}"
+    connect_timeout: "{{ pkgbld_connection_preflight_connect_timeout }}"
+    delay: "{{ pkgbld_connection_preflight_delay_seconds }}"
+    sleep: "{{ pkgbld_connection_preflight_sleep_seconds }}"
+  when: pkgbld_connection_preflight_enabled | bool
+
 # 制御ホストに回収した成果物を対象ホストへ配布する
 - name: Copy built packages from controller to target host
   ansible.builtin.copy:
     src: "{{ hostvars['localhost'].pkgbld_fetch_tmpdir_path }}/{{ item.path | basename }}"
     dest: "{{ pkgbld_install_dest_dir }}/{{ item.path | basename }}"
     mode: "0644"
+  register: pkgbld_copy_result
+  until: (not (pkgbld_copy_retry_enabled | bool)) or (pkgbld_copy_result is succeeded)
+  retries: "{{ (pkgbld_copy_retry_enabled | bool) | ternary(pkgbld_copy_retries, 1) }}"
+  delay: "{{ pkgbld_copy_retry_delay_seconds }}"
   loop: "{{ pkgbld_source_files | default([]) }}"

@@ -220,6 +220,8 @@
 
 # マシンをリブートする
 - name: Reboot host gracefully
-  ansible.builtin.reboot:
-    reboot_timeout: "{{ reboot_timeout_sec }}"
-    pre_reboot_delay: 2
+  ansible.builtin.include_role:
+    name: reboot-common
+  vars:
+    reboot_common_timeout: "{{ reboot_timeout_sec }}"
+    reboot_common_pre_reboot_delay: 2

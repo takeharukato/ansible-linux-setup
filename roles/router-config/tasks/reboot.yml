@@ -9,8 +9,10 @@
 # ネットワーク設定変更後に graceful reboot を実行し、
 # iptables-persistent が保存された設定を復元させる
 - name: Reboot host gracefully after network configuration changes
-  ansible.builtin.reboot:
-    reboot_timeout: "{{ reboot_timeout_sec }}"
-    msg: "Reboot triggered by router-config role to apply iptables-persistent rules"
-    pre_reboot_delay: 2
-  become: true
+  ansible.builtin.include_role:
+    name: reboot-common
+  vars:
+    reboot_common_timeout: "{{ reboot_timeout_sec }}"
+    reboot_common_message: "Reboot triggered by router-config role to apply iptables-persistent rules"
+    reboot_common_pre_reboot_delay: 2
+    reboot_common_become: true

@@ -1,0 +1,88 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  再利用用リブート共通処理
+#
+---
+
+# handler から include_tasks で呼ばれた場合は role defaults が自動適用されないため,
+# ここで未指定パラメータへ既定値を補完する。
+- name: Normalize reboot-common parameters
+  ansible.builtin.set_fact:
+    reboot_common_timeout: "{{ reboot_common_timeout | default(reboot_timeout_sec | default(600, true), true) }}"
+    reboot_common_message: "{{ reboot_common_message | default('Reboot triggered by role: common', true) }}"
+    reboot_common_pre_reboot_delay: "{{ reboot_common_pre_reboot_delay | default(2, true) }}"
+    reboot_common_become: "{{ reboot_common_become | default(true, true) }}"
+    reboot_common_wait_for_connection_enabled: "{{ reboot_common_wait_for_connection_enabled | default(true, true) }}"
+    reboot_common_wait_for_connection_timeout: "{{ reboot_common_wait_for_connection_timeout | default(600, true) }}"
+    reboot_common_wait_for_connection_connect_timeout: "{{ reboot_common_wait_for_connection_connect_timeout | default(15, true) }}"
+    reboot_common_wait_for_connection_delay_seconds: "{{ reboot_common_wait_for_connection_delay_seconds | default(5, true) }}"
+    reboot_common_wait_for_connection_sleep_seconds: "{{ reboot_common_wait_for_connection_sleep_seconds | default(5, true) }}"
+    reboot_common_wait_for_connection_retries: "{{ reboot_common_wait_for_connection_retries | default(3, true) }}"
+    reboot_common_wait_for_connection_retry_delay_seconds: "{{ reboot_common_wait_for_connection_retry_delay_seconds | default(10, true) }}"
+    reboot_common_disable_controlmaster_during_reboot: "{{ reboot_common_disable_controlmaster_during_reboot | default(false, true) }}"
+    reboot_common_reboot_phase_ssh_common_args: "{{ reboot_common_reboot_phase_ssh_common_args | default('-o ControlMaster=no -o ControlPersist=no', true) }}"
+
+# 再起動フェーズ専用に, 現在の SSH 共通引数を退避する。
+- name: Save SSH common args before reboot phase
+  ansible.builtin.set_fact:
+    reboot_common_saved_ansible_ssh_common_args: "{{ ansible_ssh_common_args | default('', true) }}"
+  when: reboot_common_disable_controlmaster_during_reboot | bool
+
+# 通常時の設定は維持しつつ, 再起動フェーズのみ ControlMaster を無効化する。
+- name: Disable SSH ControlMaster only during reboot phase
+  ansible.builtin.set_fact:
+    ansible_ssh_common_args: >-
+      {{
+        (
+          [
+            reboot_common_saved_ansible_ssh_common_args | default('', true),
+            reboot_common_reboot_phase_ssh_common_args | default('', true)
+          ]
+          | map('trim')
+          | reject('equalto', '')
+          | join(' ')
+        )
+        | trim
+      }}
+  when: reboot_common_disable_controlmaster_during_reboot | bool
+
+# 一時的に上書きした SSH 引数を即時反映する。
+- name: Reset SSH connection before reboot phase
+  ansible.builtin.meta: reset_connection
+  when: reboot_common_disable_controlmaster_during_reboot | bool
+
+- name: Execute reboot sequence
+  block:
+    # マシンを再起動する
+    - name: Reboot host gracefully
+      ansible.builtin.reboot:
+        reboot_timeout: "{{ reboot_common_timeout }}"
+        msg: "{{ reboot_common_message }}"
+        pre_reboot_delay: "{{ reboot_common_pre_reboot_delay }}"
+      become: "{{ reboot_common_become | bool }}"
+
+    # 再起動後の接続再確立を追加待機し, 一時的な接続揺らぎを吸収する。
+    - name: Wait for host connection after reboot
+      ansible.builtin.wait_for_connection:
+        timeout: "{{ reboot_common_wait_for_connection_timeout }}"
+        connect_timeout: "{{ reboot_common_wait_for_connection_connect_timeout }}"
+        delay: "{{ reboot_common_wait_for_connection_delay_seconds }}"
+        sleep: "{{ reboot_common_wait_for_connection_sleep_seconds }}"
+      register: reboot_common_wait_for_connection_result
+      until: reboot_common_wait_for_connection_result is succeeded
+      retries: "{{ reboot_common_wait_for_connection_retries }}"
+      delay: "{{ reboot_common_wait_for_connection_retry_delay_seconds }}"
+      when: reboot_common_wait_for_connection_enabled | bool
+  always:
+    # 再起動フェーズ終了後は, 元の SSH 共通引数へ戻す。
+    - name: Restore SSH common args after reboot phase
+      ansible.builtin.set_fact:
+        ansible_ssh_common_args: "{{ reboot_common_saved_ansible_ssh_common_args | default('', true) }}"
+      when: reboot_common_disable_controlmaster_during_reboot | bool
+
+    # 復元した SSH 引数を即時反映する。
+    - name: Reset SSH connection after restoring args
+      ansible.builtin.meta: reset_connection
+      when: reboot_common_disable_controlmaster_during_reboot | bool

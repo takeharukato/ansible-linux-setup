@@ -41,10 +41,12 @@
 
 # unattended-upgrades を止めた後, 1回だけ再起動して lock 保持を解消する
 - name: "Reboot once after stopping unattended-upgrades"
-  ansible.builtin.reboot:
-    reboot_timeout: "{{ reboot_timeout_sec }}"
-    msg: "Reboot triggered after stopping unattended-upgrades to release apt locks"
-    pre_reboot_delay: 2
+  ansible.builtin.include_role:
+    name: reboot-common
+  vars:
+    reboot_common_timeout: "{{ reboot_timeout_sec }}"
+    reboot_common_message: "Reboot triggered after stopping unattended-upgrades to release apt locks"
+    reboot_common_pre_reboot_delay: 2
   when: not (common_frontend_lock_reboot_done | default(false))
 
 # ロック解除後に再起動済みであることを記録する
