@@ -52,6 +52,10 @@ k8s_register_image_connection_preflight_connect_timeout: 15
 k8s_register_image_connection_preflight_delay_seconds: 0
 # 接続プリフライトのポーリング間隔秒数
 k8s_register_image_connection_preflight_sleep_seconds: 5
+# 接続プリフライトの最大試行回数
+k8s_register_image_connection_preflight_retries: 8
+# 接続プリフライトの試行間隔秒数
+k8s_register_image_connection_preflight_retry_delay_seconds: 10
 
 # 画像tar転送(copy)時の再試行有効化フラグ
 k8s_register_image_transfer_retry_enabled: true

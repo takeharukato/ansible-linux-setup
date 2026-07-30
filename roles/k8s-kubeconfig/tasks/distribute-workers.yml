@@ -12,10 +12,18 @@
       - k8s_ctrlplane_host | default('') | length > 0
     fail_msg: "k8s_ctrlplane_host must be defined for worker host {{ inventory_hostname }}"
 
+# コントロールプレーンへの到達性確認を行う
 - name: Probe associated control plane host for kubeconfig distribution
   ansible.builtin.wait_for_connection:
-    timeout: "{{ k8s_kubeconfig_probe_timeout | default(15) }}"
+    timeout: "{{ k8s_kubeconfig_probe_timeout | default(15,true) }}"
+    connect_timeout: "{{ k8s_kubeconfig_probe_connect_timeout | default(5,true) }}"
+    sleep: "{{ k8s_kubeconfig_probe_sleep | default(1,true) }}"
+    delay: "{{ k8s_kubeconfig_probe_delay | default(0,true) }}"
   delegate_to: "{{ k8s_ctrlplane_host }}"
+  register: k8s_kubeconfig_probe_result
+  until: k8s_kubeconfig_probe_result is succeeded
+  retries: "{{ k8s_kubeconfig_probe_retries | default(8,true) }}"
+  delay: "{{ k8s_kubeconfig_probe_retry_delay | default(10,true) }}"
 
 # 共通で利用するローカルキャッシュディレクトリを決定
 - name: Define local staging directory for kubeconfig artifacts

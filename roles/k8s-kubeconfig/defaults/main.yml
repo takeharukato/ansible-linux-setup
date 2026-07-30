@@ -57,3 +57,18 @@ k8s_create_unique_kubeconfig_script_path: "{{ k8s_node_setup_tools_dir }}/create
 
 # kubeconfig をシステム側へ配置する際の基準ディレクトリ
 k8s_kubeconfig_system_dir: "/etc/kubernetes"
+
+# ワーカーノード向けkubeconfig配布時に, 対応するコントロールプレーンの
+# 到達性確認で使用する接続待機パラメータ
+# 接続待機の最大タイムアウト秒数
+k8s_kubeconfig_probe_timeout: 15
+# 接続待機の1回あたり接続タイムアウト秒数
+k8s_kubeconfig_probe_connect_timeout: 5
+# 接続待機のポーリング間隔秒数
+k8s_kubeconfig_probe_sleep: 1
+# 接続待機の開始前の遅延秒数
+k8s_kubeconfig_probe_delay: 0
+# 接続待機の最大試行回数
+k8s_kubeconfig_probe_retries: 8
+# 接続待機の試行間隔秒数
+k8s_kubeconfig_probe_retry_delay: 10

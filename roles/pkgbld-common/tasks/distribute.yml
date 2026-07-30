@@ -13,6 +13,10 @@
     connect_timeout: "{{ pkgbld_connection_preflight_connect_timeout }}"
     delay: "{{ pkgbld_connection_preflight_delay_seconds }}"
     sleep: "{{ pkgbld_connection_preflight_sleep_seconds }}"
+  register: pkgbld_connection_preflight_result
+  until: pkgbld_connection_preflight_result is succeeded
+  retries: "{{ pkgbld_connection_preflight_retries | default(8,true) }}"
+  delay: "{{ pkgbld_connection_preflight_retry_delay_seconds | default(10,true) }}"
   when: pkgbld_connection_preflight_enabled | bool
 
 # 制御ホストに回収した成果物を対象ホストへ配布する

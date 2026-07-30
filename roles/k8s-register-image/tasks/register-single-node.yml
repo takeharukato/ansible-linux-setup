@@ -14,6 +14,10 @@
     delay: "{{ k8s_register_image_connection_preflight_delay_seconds }}"
     sleep: "{{ k8s_register_image_connection_preflight_sleep_seconds }}"
   delegate_to: "{{ target_host }}"
+  register: k8s_image_connection_preflight_result
+  until: k8s_image_connection_preflight_result is succeeded
+  retries: "{{ k8s_register_image_connection_preflight_retries | default(8,true) }}"
+  delay: "{{ k8s_register_image_connection_preflight_retry_delay_seconds | default(10,true) }}"
   when: k8s_register_image_connection_preflight_enabled | bool
 
 # 対象ノード上の一時 tar 配置先ディレクトリを作成する。

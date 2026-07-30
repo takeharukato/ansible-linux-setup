@@ -90,6 +90,10 @@ pkgbld_connection_preflight_connect_timeout: 15
 pkgbld_connection_preflight_delay_seconds: 0
 # 接続プリフライトのポーリング間隔秒数。
 pkgbld_connection_preflight_sleep_seconds: 5
+# 接続プリフライトの最大試行回数。
+pkgbld_connection_preflight_retries: 8
+# 接続プリフライトの試行間隔秒数。
+pkgbld_connection_preflight_retry_delay_seconds: 10
 
 # controller -> target 配布(copy)時の再試行有効化フラグ。
 pkgbld_copy_retry_enabled: true
