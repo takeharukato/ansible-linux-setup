@@ -1,0 +1,47 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  ロール固有変数のデフォルト値
+#  group_vars/all/all.yml やhost_varsで上書き可能とするため,
+#  ロール名/defaults/main.yml に定義している
+
+---
+
+# yq ロール有効化フラグ
+yq_enabled: false
+
+# yq 版数 (例: v4.47.1)
+# yq_enabled が true の場合に利用する
+yq_version: "v4.47.1"
+
+# yq シェル補完設定
+yq_completion_enabled: true
+
+# yq パッケージ構築ホスト
+yq_build_host: "localhost"
+
+# yq パッケージ構築タイムアウト(秒)
+yq_pkg_build_timeout_seconds: 3600
+
+# yq パッケージ構築監視ポーリング間隔(秒)
+yq_pkg_build_loop_delay_seconds: 5
+
+# Debian系でのaptロック待機時間(秒)
+yq_install_deb_lock_wait_seconds: 600
+
+# 既存 yq パッケージ削除有無
+yq_remove_existing_package: true
+
+# コンテナビルド用ランタイム
+yq_build_container_runtime: "docker"
+
+# コンテナビルド用ネットワークモード
+yq_build_container_network_mode: "host"
+
+# yq ビルド用コンテナイメージ
+yq_build_container_image_debian: "ubuntu:24.04"
+yq_build_container_image_rhel: "almalinux:9.6"
+
+# yq ビルド時のworkdir
+yq_build_container_workdir: "/work"

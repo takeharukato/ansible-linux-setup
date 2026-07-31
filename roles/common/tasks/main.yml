@@ -42,8 +42,6 @@
   ansible.builtin.include_tasks: kubectl-repositories.yml
 - name: "Common Packages"
   ansible.builtin.include_tasks: common-packages.yml
-- name: "Yq Package"
-  ansible.builtin.include_tasks: yq-package.yml
 - name: "Directory"
   ansible.builtin.include_tasks: directory.yml
 - name: "Directory Dns Client"

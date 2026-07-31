@@ -1,0 +1,219 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  パッケージ関連処理
+---
+
+# yq 版数文字列を正規化する
+- name: Set normalized yq version values
+  ansible.builtin.set_fact:
+    yq_version_tag: >-
+      {{
+        (
+          (yq_version | trim)
+          if ((yq_version | trim) is match('^v[0-9]+\.[0-9]+\.[0-9]+$'))
+          else ('v' ~ (yq_version | trim))
+        )
+      }}
+    yq_version_normalized: "{{ (yq_version | trim | regex_replace('^v', '')) }}"
+
+# yq 版数形式を検証する
+- name: Validate yq version format
+  ansible.builtin.assert:
+    that:
+      - (yq_version | trim) is match('^v?[0-9]+\.[0-9]+\.[0-9]+$')
+    fail_msg: >-
+      Invalid yq_version format: {{ yq_version }}.
+      Use x.y.z or vX.Y.Z format.
+
+# 既存の yq パッケージを削除する (Debian系)
+- name: Remove existing yq package on Debian family before local package install
+  ansible.builtin.apt:
+    name:
+      - yq
+      - "{{ yq_deb_package_name }}"
+    state: absent
+    autoremove: true
+  become: true
+  when:
+    - ansible_facts.os_family == 'Debian'
+    - yq_remove_existing_package | default(true) | bool
+
+# 既存の yq パッケージを削除する (RedHat系)
+- name: Remove existing yq package on RedHat family before local package install
+  ansible.builtin.dnf:
+    name:
+      - yq
+      - "{{ yq_rpm_package_name }}"
+    state: absent
+    autoremove: true
+  become: true
+  when:
+    - ansible_facts.os_family == 'RedHat'
+    - yq_remove_existing_package | default(true) | bool
+
+# チェックモードではローカルパッケージの構築/導入をスキップする
+- name: Skip local yq package build and install in check mode
+  ansible.builtin.debug:
+    msg: >-
+      Check mode: skipping local yq package build/install steps.
+      normalized version={{ yq_version_normalized }}.
+  when: ansible_check_mode | bool
+
+# yq 構築用の作業ディレクトリパスを実行ユーザごとに初期化する
+- name: Set effective workspace for yq build
+  ansible.builtin.set_fact:
+    yq_build_workspace_effective: >-
+      /tmp/yq-build-{{ lookup('env', 'USER') | default('ansible', true) }}
+  run_once: true
+
+# 制御ホスト上に作業ディレクトリを作成し, 書き込み不可の場合は代替へ切り替える
+- name: Ensure yq build workspace exists on controller for pkgbld-common
+  run_once: true
+  when:
+    - not (ansible_check_mode | bool)
+  block:
+
+    # 制御ホスト上の作業ディレクトリを作成する
+    - name: Create configured yq build workspace on controller
+      ansible.builtin.file:
+        path: "{{ yq_build_workspace_effective }}"
+        state: directory
+        mode: "0755"
+      delegate_to: localhost
+      become: false
+
+    # 制御ホスト上の作業ディレクトリが書き込み可能か確認する
+    - name: Verify configured yq build workspace is writable on controller
+      ansible.builtin.command:
+        argv:
+          - /bin/sh
+          - -c
+          - >-
+            probe="{{ yq_build_workspace_effective }}/.ansible-write-probe-$$";
+            touch "$probe" && rm -f "$probe"
+      delegate_to: localhost
+      become: false
+      changed_when: false
+  rescue:
+
+    # 制御ホスト上の作業ディレクトリが書き込み不可の場合は, ユーザごとの代替パスへ切り替える
+    - name: Switch yq build workspace to per-user fallback path
+      ansible.builtin.set_fact:
+        yq_build_workspace_effective: >-
+          /tmp/yq-build-fallback-{{ lookup('env', 'USER') | default('ansible', true) }}
+
+    # 制御ホスト上の代替作業ディレクトリを作成する
+    - name: Create fallback yq build workspace on controller
+      ansible.builtin.file:
+        path: "{{ yq_build_workspace_effective }}"
+        state: directory
+        mode: "0755"
+      delegate_to: localhost
+      become: false
+
+    # 制御ホスト上の代替作業ディレクトリが書き込み可能か確認する
+    - name: Verify fallback yq build workspace is writable on controller
+      ansible.builtin.command:
+        argv:
+          - /bin/sh
+          - -c
+          - >-
+            probe="{{ yq_build_workspace_effective }}/.ansible-write-probe-$$";
+            touch "$probe" && rm -f "$probe"
+      delegate_to: localhost
+      become: false
+      changed_when: false
+
+# 制御ホストでbuildスクリプトを生成し, pkgbld-commonが構築ホストへコピーする
+- name: Render yq deb build script on controller for pkgbld-common
+  ansible.builtin.template:
+    src: build-yq-deb.sh.j2
+    dest: "{{ yq_build_workspace_effective }}/build-yq-deb.sh"
+    mode: "0755"
+  delegate_to: localhost
+  become: false
+  run_once: true
+  when:
+    - not (ansible_check_mode | bool)
+
+# 制御ホストでbuildスクリプトを生成し, pkgbld-commonが構築ホストへコピーする
+- name: Render yq rpm build script on controller for pkgbld-common
+  ansible.builtin.template:
+    src: build-yq-rpm.sh.j2
+    dest: "{{ yq_build_workspace_effective }}/build-yq-rpm.sh"
+    mode: "0755"
+  delegate_to: localhost
+  become: false
+  run_once: true
+  when:
+    - not (ansible_check_mode | bool)
+
+# yq パッケージを構築ホストで作成して導入する
+- name: Build and install yq local packages via pkgbld-common # noqa var-naming[no-role-prefix]
+  ansible.builtin.include_role:
+    name: pkgbld-common
+  vars:
+    package_build_host: "{{ yq_build_host }}"
+    package_build_workspace: "{{ yq_build_workspace_effective }}"
+    package_build_output_dir: "{{ yq_build_workspace_effective }}/output"
+    pkgbld_container_runtime: "{{ yq_build_container_runtime }}"
+    pkgbld_container_network_mode: "{{ yq_build_container_network_mode }}"
+    pkgbld_builder_image_debian: "{{ yq_build_container_image_debian }}"
+    pkgbld_builder_image_rhel: "{{ yq_build_container_image_rhel }}"
+    pkgbld_container_workdir: "{{ yq_build_container_workdir }}"
+    pkgbld_container_output_dir: "{{ yq_build_container_workdir }}/output"
+    pkgbld_build_script_src_debian: "{{ yq_build_workspace_effective }}/build-yq-deb.sh"
+    pkgbld_build_script_name_debian: "build-yq-deb.sh"
+    pkgbld_build_script_src_rhel: "{{ yq_build_workspace_effective }}/build-yq-rpm.sh"
+    pkgbld_build_script_name_rhel: "build-yq-rpm.sh"
+    pkgbld_build_script_src: "{{ yq_build_workspace_effective }}/build-yq-deb.sh"
+    pkgbld_build_script_name: "build-yq-deb.sh"
+    pkgbld_package_type: "deb"
+    pkgbld_package_name: "{{ yq_package_name }}"
+    pkgbld_package_file_patterns_debian:
+      - "{{ yq_deb_package_name }}_{{ yq_version_normalized }}-1_*.deb"
+    pkgbld_package_file_patterns_rhel:
+      - "{{ yq_rpm_package_name }}-{{ yq_version_normalized }}-1.*.rpm"
+    package_targets: "{{ ansible_play_hosts_all }}"
+    pkgbld_install_deb_lock_wait_seconds: "{{ yq_install_deb_lock_wait_seconds }}"
+    pkgbld_build_timeout_seconds: "{{ yq_pkg_build_timeout_seconds }}"
+    pkgbld_build_loop_delay_seconds: "{{ yq_pkg_build_loop_delay_seconds }}"
+    pkgbld_container_env_args:
+      - "-e"
+      - "YQ_VERSION_TAG={{ yq_version_tag }}"
+      - "-e"
+      - "YQ_VERSION_NORMALIZED={{ yq_version_normalized }}"
+      - "-e"
+      - "YQ_SOURCE_BASE_URL={{ yq_source_base_url }}"
+      - "-e"
+      - "YQ_PACKAGE_NAME={{ yq_package_name }}"
+      - "-e"
+      - "YQ_DEB_PACKAGE_NAME={{ yq_deb_package_name }}"
+      - "-e"
+      - "YQ_RPM_PACKAGE_NAME={{ yq_rpm_package_name }}"
+      - "-e"
+      - "YQ_COMMAND_PATH={{ yq_command_local_package }}"
+      - "-e"
+      - "YQ_DEB_ARCH={{ yq_deb_arch }}"
+      - "-e"
+      - "YQ_RPM_ARCH={{ ansible_facts.architecture }}"
+      - "-e"
+      - "YQ_COMPLETION_ENABLED={{ (yq_completion_enabled | default(true) | bool) | ternary('true', 'false') }}"
+      - "-e"
+      - "YQ_BASH_COMPLETION_PATH_DEBIAN={{ yq_bash_completion_path_debian }}"
+      - "-e"
+      - "YQ_BASH_COMPLETION_PATH_RHEL={{ yq_bash_completion_path_rhel }}"
+      - "-e"
+      - "YQ_ZSH_COMPLETION_PATH_DEBIAN={{ yq_zsh_completion_path_debian }}"
+      - "-e"
+      - "YQ_ZSH_COMPLETION_PATH_RHEL={{ yq_zsh_completion_path_rhel }}"
+    pkgbld_verify_version_enabled: true
+    pkgbld_verify_version_command:
+      - "{{ yq_command }}"
+      - --version
+    pkgbld_verify_version_regex: "v([0-9]+\\.[0-9]+\\.[0-9]+)"
+    pkgbld_verify_version_expected: "{{ yq_version_normalized | trim }}"
+  when:
+    - not (ansible_check_mode | bool)

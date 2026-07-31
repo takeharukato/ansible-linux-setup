@@ -17,6 +17,8 @@
       when: ansible_facts.os_family == "RedHat"
     - role: common
       tags: common
+    - role: yq
+      tags: yq
     - role: user-settings
       tags: user-settings
     - role: create-users
