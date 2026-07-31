@@ -19,6 +19,8 @@
       tags: common
     - role: yq
       tags: yq
+    - role: jd
+      tags: jd
     - role: user-settings
       tags: user-settings
     - role: create-users

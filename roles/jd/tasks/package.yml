@@ -1,0 +1,286 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  パッケージ関連処理
+---
+
+# jd 版数文字列を正規化する
+- name: Set normalized jd version values
+  ansible.builtin.set_fact:
+    jd_version_tag: >-
+      {{
+        (
+          (jd_version | trim)
+          if ((jd_version | trim) is match('^v[0-9]+\.[0-9]+\.[0-9]+$'))
+          else ('v' ~ (jd_version | trim))
+        )
+      }}
+    jd_version_normalized: "{{ (jd_version | trim | regex_replace('^v', '')) }}"
+
+# jd 版数形式を検証する
+- name: Validate jd version format
+  ansible.builtin.assert:
+    that:
+      - (jd_version | trim) is match('^v?[0-9]+\.[0-9]+\.[0-9]+$')
+    fail_msg: >-
+      Invalid jd_version format: {{ jd_version }}.
+      Use x.y.z or vX.Y.Z format.
+
+# 既存の jd パッケージを削除する (Debian系)
+- name: Remove existing jd package on Debian family before local package install
+  ansible.builtin.apt:
+    name:
+      - jd
+      - "{{ jd_deb_package_name }}"
+    state: absent
+    autoremove: true
+  become: true
+  when:
+    - ansible_facts.os_family == 'Debian'
+    - jd_remove_existing_package | default(true) | bool
+
+# 既存の jd パッケージを削除する (RedHat系)
+- name: Remove existing jd package on RedHat family before local package install
+  ansible.builtin.dnf:
+    name:
+      - jd
+      - "{{ jd_rpm_package_name }}"
+    state: absent
+    autoremove: true
+  become: true
+  when:
+    - ansible_facts.os_family == 'RedHat'
+    - jd_remove_existing_package | default(true) | bool
+
+# チェックモードではローカルパッケージの構築/導入をスキップする
+- name: Skip local jd package build and install in check mode
+  ansible.builtin.debug:
+    msg: >-
+      Check mode: skipping local jd package build/install steps.
+      normalized version={{ jd_version_normalized }}.
+  when: ansible_check_mode | bool
+
+# jd 構築用の作業ディレクトリパスを実行ユーザごとに初期化する
+- name: Set effective workspace for jd build
+  ansible.builtin.set_fact:
+    jd_build_workspace_effective: >-
+      /tmp/jd-build-{{ lookup('env', 'USER') | default('ansible', true) }}
+  run_once: true
+
+# 制御ホスト上に作業ディレクトリを作成し, 書き込み不可の場合は代替へ切り替える
+- name: Ensure jd build workspace exists on controller for pkgbld-common
+  run_once: true
+  when:
+    - not (ansible_check_mode | bool)
+  block:
+
+    # 制御ホスト上の作業ディレクトリを作成する
+    - name: Create configured jd build workspace on controller
+      ansible.builtin.file:
+        path: "{{ jd_build_workspace_effective }}"
+        state: directory
+        mode: "0755"
+      delegate_to: localhost
+      become: false
+
+    # 制御ホスト上の作業ディレクトリが書き込み可能か確認する
+    - name: Verify configured jd build workspace is writable on controller
+      ansible.builtin.command:
+        argv:
+          - /bin/sh
+          - -c
+          - >-
+            probe="{{ jd_build_workspace_effective }}/.ansible-write-probe-$$";
+            touch "$probe" && rm -f "$probe"
+      delegate_to: localhost
+      become: false
+      changed_when: false
+  rescue:
+
+    # 制御ホスト上の作業ディレクトリが書き込み不可の場合は, ユーザごとの代替パスへ切り替える
+    - name: Switch jd build workspace to per-user fallback path
+      ansible.builtin.set_fact:
+        jd_build_workspace_effective: >-
+          /tmp/jd-build-fallback-{{ lookup('env', 'USER') | default('ansible', true) }}
+
+    # 制御ホスト上の代替作業ディレクトリを作成する
+    - name: Create fallback jd build workspace on controller
+      ansible.builtin.file:
+        path: "{{ jd_build_workspace_effective }}"
+        state: directory
+        mode: "0755"
+      delegate_to: localhost
+      become: false
+
+    # 制御ホスト上の代替作業ディレクトリが書き込み可能か確認する
+    - name: Verify fallback jd build workspace is writable on controller
+      ansible.builtin.command:
+        argv:
+          - /bin/sh
+          - -c
+          - >-
+            probe="{{ jd_build_workspace_effective }}/.ansible-write-probe-$$";
+            touch "$probe" && rm -f "$probe"
+      delegate_to: localhost
+      become: false
+      changed_when: false
+
+# 制御ホストでbuildスクリプトを生成し, pkgbld-commonが構築ホストへコピーする
+- name: Render jd deb build script on controller for pkgbld-common
+  ansible.builtin.template:
+    src: build-jd-deb.sh.j2
+    dest: "{{ jd_build_workspace_effective }}/build-jd-deb.sh"
+    mode: "0755"
+  delegate_to: localhost
+  become: false
+  run_once: true
+  when:
+    - not (ansible_check_mode | bool)
+
+# 制御ホストでbuildスクリプトを生成し, pkgbld-commonが構築ホストへコピーする
+- name: Render jd rpm build script on controller for pkgbld-common
+  ansible.builtin.template:
+    src: build-jd-rpm.sh.j2
+    dest: "{{ jd_build_workspace_effective }}/build-jd-rpm.sh"
+    mode: "0755"
+  delegate_to: localhost
+  become: false
+  run_once: true
+  when:
+    - not (ansible_check_mode | bool)
+
+# 制御ホストで補完テンプレートを生成し, 構築ホストへ転送する
+- name: Render jd bash completion template on controller for pkgbld-common
+  ansible.builtin.template:
+    src: jd.bash-completion.j2
+    dest: "{{ jd_build_workspace_effective }}/jd.bash-completion"
+    mode: "0644"
+  delegate_to: localhost
+  become: false
+  run_once: true
+  when:
+    - not (ansible_check_mode | bool)
+    - jd_completion_enabled | default(true) | bool
+
+# 制御ホストで補完テンプレートを生成し, 構築ホストへ転送する
+- name: Render jd zsh completion template on controller for pkgbld-common
+  ansible.builtin.template:
+    src: jd.zsh-completion.j2
+    dest: "{{ jd_build_workspace_effective }}/jd.zsh-completion"
+    mode: "0644"
+  delegate_to: localhost
+  become: false
+  run_once: true
+  when:
+    - not (ansible_check_mode | bool)
+    - jd_completion_enabled | default(true) | bool
+
+# 構築ホスト上の作業ディレクトリを補完ファイル転送前に作成する
+- name: Ensure jd build workspace exists on build host for completion files
+  ansible.builtin.file:
+    path: "{{ jd_build_workspace_effective }}"
+    state: directory
+    mode: "0755"
+  delegate_to: "{{ jd_build_host }}"
+  become: true
+  run_once: true
+  when:
+    - not (ansible_check_mode | bool)
+    - jd_completion_enabled | default(true) | bool
+
+# 制御ホストで展開した補完ファイルを構築ホストへ配置する
+- name: Copy jd bash completion file to build host workspace
+  ansible.builtin.copy:
+    src: "{{ jd_build_workspace_effective }}/jd.bash-completion"
+    dest: "{{ jd_build_workspace_effective }}/jd.bash-completion"
+    mode: "0644"
+  delegate_to: "{{ jd_build_host }}"
+  become: true
+  run_once: true
+  when:
+    - not (ansible_check_mode | bool)
+    - jd_completion_enabled | default(true) | bool
+
+# 制御ホストで展開した補完ファイルを構築ホストへ配置する
+- name: Copy jd zsh completion file to build host workspace
+  ansible.builtin.copy:
+    src: "{{ jd_build_workspace_effective }}/jd.zsh-completion"
+    dest: "{{ jd_build_workspace_effective }}/jd.zsh-completion"
+    mode: "0644"
+  delegate_to: "{{ jd_build_host }}"
+  become: true
+  run_once: true
+  when:
+    - not (ansible_check_mode | bool)
+    - jd_completion_enabled | default(true) | bool
+
+# jd パッケージを構築ホストで作成して導入する
+- name: Build and install jd local packages via pkgbld-common # noqa var-naming[no-role-prefix]
+  ansible.builtin.include_role:
+    name: pkgbld-common
+  vars:
+    package_build_host: "{{ jd_build_host }}"
+    package_build_workspace: "{{ jd_build_workspace_effective }}"
+    package_build_output_dir: "{{ jd_build_workspace_effective }}/output"
+    pkgbld_container_runtime: "{{ jd_build_container_runtime }}"
+    pkgbld_container_network_mode: "{{ jd_build_container_network_mode }}"
+    pkgbld_builder_image_debian: "{{ jd_build_container_image_debian }}"
+    pkgbld_builder_image_rhel: "{{ jd_build_container_image_rhel }}"
+    pkgbld_container_workdir: "{{ jd_build_container_workdir }}"
+    pkgbld_container_output_dir: "{{ jd_build_container_workdir }}/output"
+    pkgbld_build_script_src_debian: "{{ jd_build_workspace_effective }}/build-jd-deb.sh"
+    pkgbld_build_script_name_debian: "build-jd-deb.sh"
+    pkgbld_build_script_src_rhel: "{{ jd_build_workspace_effective }}/build-jd-rpm.sh"
+    pkgbld_build_script_name_rhel: "build-jd-rpm.sh"
+    pkgbld_build_script_src: "{{ jd_build_workspace_effective }}/build-jd-deb.sh"
+    pkgbld_build_script_name: "build-jd-deb.sh"
+    pkgbld_package_type: "deb"
+    pkgbld_package_name: "{{ jd_package_name }}"
+    pkgbld_package_file_patterns_debian:
+      - "{{ jd_deb_package_name }}_{{ jd_version_normalized }}-1_*.deb"
+    pkgbld_package_file_patterns_rhel:
+      - "{{ jd_rpm_package_name }}-{{ jd_version_normalized }}-1.*.rpm"
+    package_targets: "{{ ansible_play_hosts_all }}"
+    pkgbld_install_deb_lock_wait_seconds: "{{ jd_install_deb_lock_wait_seconds }}"
+    pkgbld_build_timeout_seconds: "{{ jd_pkg_build_timeout_seconds }}"
+    pkgbld_build_loop_delay_seconds: "{{ jd_pkg_build_loop_delay_seconds }}"
+    pkgbld_container_env_args:
+      - "-e"
+      - "JD_VERSION_TAG={{ jd_version_tag }}"
+      - "-e"
+      - "JD_VERSION_NORMALIZED={{ jd_version_normalized }}"
+      - "-e"
+      - "JD_SOURCE_BASE_URL={{ jd_source_base_url }}"
+      - "-e"
+      - "JD_DEB_PACKAGE_NAME={{ jd_deb_package_name }}"
+      - "-e"
+      - "JD_RPM_PACKAGE_NAME={{ jd_rpm_package_name }}"
+      - "-e"
+      - "JD_COMMAND_PATH={{ jd_command_local_package }}"
+      - "-e"
+      - "JD_DEB_ARCH={{ jd_deb_arch }}"
+      - "-e"
+      - "JD_RPM_ARCH={{ ansible_facts.architecture }}"
+      - "-e"
+      - "JD_COMPLETION_ENABLED={{ (jd_completion_enabled | default(true) | bool) | ternary('true', 'false') }}"
+      - "-e"
+      - "JD_BASH_COMPLETION_PATH_DEBIAN={{ jd_bash_completion_path_debian }}"
+      - "-e"
+      - "JD_BASH_COMPLETION_PATH_RHEL={{ jd_bash_completion_path_rhel }}"
+      - "-e"
+      - "JD_ZSH_COMPLETION_PATH_DEBIAN={{ jd_zsh_completion_path_debian }}"
+      - "-e"
+      - "JD_ZSH_COMPLETION_PATH_RHEL={{ jd_zsh_completion_path_rhel }}"
+      - "-e"
+      - "JD_BASH_COMPLETION_SRC={{ jd_build_container_workdir }}/jd.bash-completion"
+      - "-e"
+      - "JD_ZSH_COMPLETION_SRC={{ jd_build_container_workdir }}/jd.zsh-completion"
+    pkgbld_verify_version_enabled: true
+    pkgbld_verify_version_command:
+      - "{{ jd_command }}"
+      - --version
+    pkgbld_verify_version_regex: "v?([0-9]+\\.[0-9]+\\.[0-9]+)"
+    pkgbld_verify_version_expected: "{{ jd_version_normalized | trim }}"
+  when:
+    - not (ansible_check_mode | bool)

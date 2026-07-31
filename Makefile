@@ -6,7 +6,7 @@ top=.
 .PHONY: clean distclean run run_common run_user_settings run_create_users \
 	run_post_user_create run_devel_packages cloc mk_arc mk_role_arc ansible-lint \
 	run_docker_ce run_ntp_server run_ntp_client run_nfs_server \
-	run_ldap_server run_redmine_server run_yq \
+	run_ldap_server run_redmine_server run_yq run_jd \
 	run_k8s_common run_k8s_ctrl_plane run_k8s_multus run_k8s_whereabouts \
 	run_k8s_worker run_k8s_devel run_netgauge run_netshoot_no_portscan \
 	run_k8s_vc_tenant_dns \
@@ -178,6 +178,9 @@ run_redmine_server:
 
 run_yq:
 	ansible-playbook --tags "yq" ${OPT_COMMON} 2>&1 |tee build-yq.log
+
+run_jd:
+	ansible-playbook --tags "jd" ${OPT_COMMON} 2>&1 |tee build-jd.log
 
 run_k8s_common:
 	ansible-playbook --tags "k8s-common" ${OPT_COMMON} 2>&1 |tee build-k8s-common.log

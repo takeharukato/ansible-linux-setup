@@ -1,0 +1,47 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  ロール固有変数のデフォルト値
+#  group_vars/all/all.yml やhost_varsで上書き可能とするため,
+#  ロール名/defaults/main.yml に定義している
+
+---
+
+# jd ロール有効化フラグ
+jd_enabled: false
+
+# jd 版数 (例: v2.1.2)
+# jd_enabled が true の場合に利用する
+jd_version: "v2.5.0"
+
+# jd シェル補完設定
+jd_completion_enabled: true
+
+# jd パッケージ構築ホスト
+jd_build_host: "localhost"
+
+# jd パッケージ構築タイムアウト(秒)
+jd_pkg_build_timeout_seconds: 3600
+
+# jd パッケージ構築監視ポーリング間隔(秒)
+jd_pkg_build_loop_delay_seconds: 5
+
+# Debian系でのaptロック待機時間(秒)
+jd_install_deb_lock_wait_seconds: 600
+
+# 既存 jd パッケージ削除有無
+jd_remove_existing_package: true
+
+# コンテナビルド用ランタイム
+jd_build_container_runtime: "docker"
+
+# コンテナビルド用ネットワークモード
+jd_build_container_network_mode: "host"
+
+# jd ビルド用コンテナイメージ
+jd_build_container_image_debian: "ubuntu:24.04"
+jd_build_container_image_rhel: "almalinux:9.6"
+
+# jd ビルド時のworkdir
+jd_build_container_workdir: "/work"

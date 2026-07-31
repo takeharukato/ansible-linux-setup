@@ -19,6 +19,8 @@
       tags: common
     - role: yq
       tags: yq
+    - role: jd
+      tags: jd
     - role: kea-dhcp
       tags: kea-dhcp
     - role: radvd

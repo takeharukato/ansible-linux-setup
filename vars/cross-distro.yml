@@ -147,6 +147,39 @@ yq_deb_arch_map:
 yq_deb_arch: "{{ yq_deb_arch_map[ansible_facts.architecture] | default('amd64') }}"
 
 ##################################################################################
+# jd コマンドパス
+##################################################################################
+# Ubuntu (Debian系) / RHEL系 ともにローカル構築パッケージで導入した jd を使用
+jd_command_debian: "/usr/local/bin/jd"
+jd_command_rhel: "/usr/local/bin/jd"
+jd_command: "{{ (ansible_facts.os_family == 'Debian') | ternary(jd_command_debian, jd_command_rhel) }}"
+
+# jd ローカルパッケージ設定
+jd_source_base_url: "https://github.com/josephburnett/jd/archive/refs/tags"
+jd_command_local_package: "/usr/local/bin/jd"
+jd_deb_package_name: "jd-local"
+jd_rpm_package_name: "jd-local"
+jd_package_name: "{{ (ansible_facts.os_family == 'Debian') | ternary(jd_deb_package_name, jd_rpm_package_name) }}"
+
+# jd シェル補完配置先
+jd_bash_completion_path_debian: "/usr/share/bash-completion/completions/jd"
+jd_bash_completion_path_rhel: "/usr/share/bash-completion/completions/jd"
+jd_bash_completion_path: "{{ (ansible_facts.os_family == 'Debian') | ternary(jd_bash_completion_path_debian, jd_bash_completion_path_rhel) }}"
+
+jd_zsh_completion_path_debian: "/usr/share/zsh/vendor-completions/_jd"
+jd_zsh_completion_path_rhel: "/usr/share/zsh/site-functions/_jd"
+jd_zsh_completion_path: "{{ (ansible_facts.os_family == 'Debian') | ternary(jd_zsh_completion_path_debian, jd_zsh_completion_path_rhel) }}"
+
+# Ansible facts のアーキテクチャ名から deb パッケージ名へ変換する
+jd_deb_arch_map:
+  x86_64: "amd64"
+  aarch64: "arm64"
+  armv7l: "armhf"
+  i386: "i386"
+
+jd_deb_arch: "{{ jd_deb_arch_map[ansible_facts.architecture] | default('amd64') }}"
+
+##################################################################################
 # Go 言語インストール設定
 ##################################################################################
 # Go公式ダウンロードベースURL
