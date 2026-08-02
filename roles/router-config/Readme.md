@@ -1,22 +1,140 @@
 # router-config ロール
 
-本ロールは, ルータホストで IPv4/IPv6 パケット転送と Network Address Translation (NAT) を制御する設定を行います。実装では, sysctl 設定ファイルの生成, iptables/ip6tables ルール投入, OS 別の永続化, サービス有効化, およびノード再起動を実施します。
+本ロールは, ルータホストで IPv4/IPv6 パケット転送と Network Address Translation (NAT) を制御する設定を行います。
+
+## 目次
+
+- [router-config ロール](#router-config-ロール)
+  - [目次](#目次)
+  - [用語](#用語)
+  - [概要](#概要)
+  - [主な処理](#主な処理)
+  - [前提条件](#前提条件)
+  - [実行方法](#実行方法)
+    - [前提](#前提)
+    - [Make ターゲットで実行](#make-ターゲットで実行)
+    - [ansible-playbook で直接実行](#ansible-playbook-で直接実行)
+    - [推奨実行順序 (モード切替時)](#推奨実行順序-モード切替時)
+  - [主要変数](#主要変数)
+    - [動作制御](#動作制御)
+    - [パッケージ, サービス, ノード再起動](#パッケージ-サービス-ノード再起動)
+    - [ネットワーク関連 (必須)](#ネットワーク関連-必須)
+  - [テンプレートと生成ファイル](#テンプレートと生成ファイル)
+  - [実行フロー](#実行フロー)
+    - [ハンドラ](#ハンドラ)
+      - [bastion\_config\_reload\_sysctl (`handlers/reload-sysctl.yml`)](#bastion_config_reload_sysctl-handlersreload-sysctlyml)
+    - [OS差異](#os差異)
+  - [検証ポイント](#検証ポイント)
+    - [1. ネットワーク構成とルータホストの役割](#1-ネットワーク構成とルータホストの役割)
+      - [ネットワークの分類](#ネットワークの分類)
+      - [IP アドレスの例](#ip-アドレスの例)
+      - [トラフィックの流れ](#トラフィックの流れ)
+    - [2. 共通検証](#2-共通検証)
+      - [2.1 sysctl 設定確認](#21-sysctl-設定確認)
+      - [2.2 永続化状態確認](#22-永続化状態確認)
+    - [3. 純粋ルーティング構成の検証 (config-forward.yml)](#3-純粋ルーティング構成の検証-config-forwardyml)
+      - [3.1 FORWARD ルール確認](#31-forward-ルール確認)
+      - [3.2 NAT 不在確認](#32-nat-不在確認)
+      - [3.3 疎通確認 (送信元保持)](#33-疎通確認-送信元保持)
+    - [4. NAT 構成の検証 (config-nat.yml)](#4-nat-構成の検証-config-natyml)
+      - [4.1 FORWARD, POSTROUTING ルール確認](#41-forward-postrouting-ルール確認)
+      - [4.2 疎通確認 (NAT 変換)](#42-疎通確認-nat-変換)
+      - [4.3 tcpdump による SNAT 確認](#43-tcpdump-による-snat-確認)
+    - [5. 意図的にパケット転送を無効化している場合](#5-意図的にパケット転送を無効化している場合)
+      - [5.1 ルール未設定確認](#51-ルール未設定確認)
+      - [5.2 ルール残骸がある場合の対処](#52-ルール残骸がある場合の対処)
+  - [トラブルシューティング](#トラブルシューティング)
+  - [注意事項](#注意事項)
+  - [テンプレート / 出力ファイル](#テンプレート--出力ファイル)
+  - [補足](#補足)
+    - [動作モード](#動作モード)
+    - [設定値による動作の違い](#設定値による動作の違い)
+    - [makeターゲット `run_router_clear_rules`の処理内容](#makeターゲット-run_router_clear_rulesの処理内容)
+  - [参考資料](#参考資料)
+    - [公式ドキュメント](#公式ドキュメント)
+
 
 ## 用語
 
 | 正式名称 | 略称 | 意味 |
 | --- | --- | --- |
-| Operating System | OS | 基本ソフトウエア。 |
-| Ansible | - | 構成管理ツール。宣言的なタスク定義でホスト設定を自動化する。 |
-| systemd | - | Linux のサービス管理基盤。 |
+| ユーザ | - | 機能を利用する人, 又は識別された利用主体。 |
+| ツール | - | 特定作業を実行するための機能や道具。 |
+| リソース | - | 処理に必要な計算機資源やデータ。 |
+| クラスタ | - | 複数の機器を連携させて一体運用する構成。 |
+| ディストリビューション | - | 基本ソフトウェアと関連部品をまとめた配布形態。 |
+| コンテナイメージ | - | コンテナ実行に必要な内容をまとめた保存形式。 |
+| プログラム | - | 計算機に処理をさせるための命令列。 |
+| コミュニティ | - | 共通目的のもとで継続的に活動する利用者集団。 |
+| プラグイン | - | 既存機能へ追加機能を組み込むための拡張部品。 |
+| サービスアカウント | - | 自動処理向けに用意する利用主体の識別情報。 |
+| コンテナランタイム | - | コンテナを起動, 停止, 管理する実行基盤。 |
+| リクエスト | - | 処理実行や情報取得を要求する操作。 |
+| コントローラ | - | 対象状態を監視し, 期待状態へ調整する制御機能。 |
+| メタデータ | - | 対象データの属性や説明を示す付加情報。 |
+| バックエンド | - | 利用者画面の背後で処理を実行する側。 |
+| ストレージ | - | データを保存する仕組み。 |
+| インストール | - | ソフトウェアを導入して利用可能にする作業。 |
+| マシン | - | 処理を実行する計算機。 |
+| プロビジョニング | - | 利用開始に必要な設定や資源を準備する作業。 |
+| ルーティング | - | 宛先までの経路を選択して転送する処理。 |
+| オブジェクト | - | ひとかたまりとして扱うデータ単位。 |
+| エージェント | - | 指示に従って処理を代行する構成要素。 |
+| ストア | - | データや成果物を保存する場所。 |
+| ジャーナル | - | 時系列の記録を保持する仕組み。 |
+| アカウント | - | 利用者や処理主体を識別する登録情報。 |
+| エンドポイント | - | 通信の接続先を表す識別点。 |
+| パターン | - | 繰り返し現れる構造や記述形式。 |
+| パケット | - | ネットワークで転送するデータ単位。 |
+| カーネル | - | 基本ソフトウェアの中核機能。 |
+| シェル | - | コマンド入力で計算機を操作する仕組み。 |
+| Playbook | - | 自動化処理の実行手順を記述したファイル。 |
+| Canonical | - | Ubuntu を提供する組織名。 |
+| Key-Value | - | キーと値の組で情報を表す方式。 |
+| IP | - | インターネットプロトコルの略称。 |
+| SQL | - | データベースを操作するための記述言語。 |
+| HTTP | - | WWW で情報をやり取りする通信手順。 |
+| HTTPS | - | 通信内容を暗号化して WWW 通信を行う方式。 |
+| RPM | - | RHEL 系で使用するパッケージ形式。 |
+| VM | - | 物理機器上で動作する仮想的な計算機。 |
+| localhost | - | 同一機器自身を指す名前。 |
+| root | - | Unix 系システムの最上位権限を持つ管理者識別子。 |
+| ソフトウェア | - | 情報処理システムで使用するプログラム, 手順, 規則及び関連文書の全体又は一部分。 |
+| アプリケーション | - | 利用者の目的を実現するために動作するソフトウェア。 |
+| パッケージ | - | ソフトウェア導入に必要なファイルをまとめた配布単位。 |
+| リポジトリ | - | ソフトウェアや設定情報を保管し, 取得できるようにした管理場所。 |
+| コマンド | - | 実行者が計算機へ処理を指示するための命令。 |
+| ホスト | - | 管理対象として識別される個別の計算機。 |
+| サーバ | - | 他の機器や利用者へ機能やデータを提供する計算機, 又はその役割。 |
+| コンテナ | - | アプリケーションを動かす隔離された実行単位。 |
+| ネットワーク | - | 機器同士を接続してデータをやり取りする仕組み。 |
+| プロトコル | - | 通信やデータ交換の手順を定めた取り決め。 |
+| ディレクトリ | - | ファイルを階層的に整理するための入れ物。 |
+| ログ | - | 処理の結果や状態を時系列で記録した情報。 |
+| コード | - | 処理内容を記述した文字列。 |
+| Kubernetes | K8s | コンテナを管理する基盤ソフトウェア。 |
+| Pod | - | Kubernetes でコンテナをまとめて管理する最小単位。 |
+| Linux | - | 多くの機器で使われる, 基本ソフトウェアの系統。 |
+| Debian | - | コミュニティ主導で開発される Linux ディストリビューション。 |
+| Ubuntu | - | Canonical が提供する Debian 系の Linux ディストリビューション。 |
+| Docker | - | コンテナイメージやコンテナの作成, 実行, 管理を行うコマンド。 |
+| World Wide Web | WWW | ネットワーク上で文書や情報を相互参照できる仕組み。 |
+| Service | - | サービスの英語表記。 |
+| Node | - | ノードの英語表記。 |
+| Makefile | - | 実行手順を定義したファイル。 |
+| API | - | アプリケーション同士がやり取りする方法を定めた仕様。 |
+| URL | - | WWW 上の資源の場所を示す文字列。 |
+| Operating System | OS | 計算機の基本機能を管理し, アプリケーションを動作させる基盤ソフトウェア。 |
+| Ansible | - | 設定の同一化や導入作業を所定の手順に従って自動化する仕組み。 |
+| systemd | - | Linux システムの初期化とサービス管理を行う仕組み。 |
 | Network Address Translation | NAT | IP アドレスを変換する仕組み。 |
 | Source Network Address Translation | SNAT | 送信元アドレスを変換する NAT 方式。 |
-| Masquerading | MASQUERADE | iptables の SNAT ターゲット。送信元を送信インターフェースのアドレスへ変換する。 |
-| Reverse Path Filtering | RPF | 送信元アドレスの到達可能性を検査するカーネル機能。 |
-| Internet Protocol version 4 | IPv4 | 32 ビットアドレスを使う通信方式。 |
-| Internet Protocol version 6 | IPv6 | 128 ビットアドレスを使う通信方式。 |
-| Classless Inter-Domain Routing | CIDR | `192.168.30.0/24` のようにネットワーク範囲を表す方式。 |
-| Network Interface Card | NIC | ホストのネットワーク接続口。 |
+| Masquerading | MASQUERADE | iptables の SNAT ターゲット。送信元を送信インターフェースのアドレスへ変換します。 |
+| Reverse Path Filtering | RPF | 逆引きパスフィルタリングの設定。 |
+| Internet Protocol version 4 | IPv4 | 32 ビットアドレス空間を持つインターネットプロトコル。現在最も広く使用されているバージョン。 |
+| Internet Protocol version 6 | IPv6 | 128 ビットアドレス空間を持つ次世代インターネットプロトコル。IPv4 アドレス枯渇問題を解決します。 |
+| Classless Inter-Domain Routing | CIDR | IP アドレスとネットワークプレフィックス長を組み合わせた表記法。 |
+| Network Interface Card | NIC | 計算機をネットワークへ接続するための装置または機能。 |
 | iptables | - | Linux の IPv4 パケットフィルタ設定ツール。 |
 | ip6tables | - | Linux の IPv6 パケットフィルタ設定ツール。 |
 | FORWARD chain | FORWARD | 転送パケットを評価するフィルタチェーン。 |
@@ -25,19 +143,49 @@
 | Connection State | ESTABLISHED, RELATED | 既存接続, または既存接続に関連する通信状態。 |
 | conntrack state match | ctstate | `-m conntrack --ctstate ...` で接続状態を条件指定する機能。 |
 | netfilter-persistent | - | Debian 系で iptables/ip6tables ルールを保存, 復元する仕組み。 |
-| iptables-services | - | RedHat 系で iptables/ip6tables を管理するパッケージ。 |
-| systemctl | - | systemd サービスを操作するコマンド。 |
-| sysctl | - | Linux カーネルパラメータを参照, 設定する仕組み。 |
-| Handler | - | Ansible で `notify` により実行される処理。 |
-| Role | - | Ansible の機能単位。tasks, templates, defaults などをまとめた構成。 |
-| Playbook | - | Ansible の実行手順を記述した YAML ファイル。 |
-| Yet Another Markup Language | YAML | 可読性を重視したデータ記述形式。 |
-| Tag | - | Ansible 実行対象を絞り込むラベル。 |
-| Inventory | - | Ansible が接続先ホスト群を定義する設定。 |
-| Docker Community Edition | Docker CE | コンテナ実行基盤 Docker のコミュニティ版。 |
-| become | - | Ansible の権限昇格指定。管理者権限でタスクを実行する。 |
+| iptables-services | - | Red Hat 系で iptables/ip6tables を管理するパッケージ。 |
+| systemctl | - | systemd 管理下のサービスを起動, 停止, 状態確認するコマンド。 |
+| sysctl | - | カーネル動作パラメタを参照, 変更するコマンド。 |
+| Handler | - | 通知時に実行する再処理です。 |
+| Role | - | 特定の名前空間内で有効な権限の集合。 |
+| Ansible Playbook | playbook | 自動化処理の実行手順を順序付きで記述したファイル。 |
+| Yet Another Markup Language | YAML | 設定ファイル形式です。 |
+| Tag | - | Ansibleで実行対象を絞るラベルです。 |
+| Ansible Inventory | - | 実行対象ホストの一覧と接続情報を管理する定義。 |
+| Docker Community Edition | Docker CE | Docker のコミュニティ版。Docker Engine と関連ツールで構成される。 |
+| become | - | Ansible の権限昇格指定。管理者権限でタスクを実行します。 |
 | tcpdump | - | パケットをキャプチャして通信を確認するコマンド。 |
 | Graceful reboot | - | 稼働中サービスへの影響を抑えて実行するノード再起動方式。 |
+| Internet Control Message Protocol | ICMP | 疎通確認や障害通知に使う通信方式。 |
+| Internet Protocol | IP | ネットワーク上で宛先を識別し, データを届けるための通信手順。 |
+| Red Hat Enterprise Linux 9 | RHEL9 | Red Hat Enterprise Linux の第9系統版。 |
+| Ansible Task | task | 自動化処理の最小単位となる実行項目。 |
+| Accept | ACCEPT | 通信を許可する判定結果。 |
+| ansible-playbookコマンド | - | Ansible Playbook を実行して自動構成処理を適用するコマンド。 |
+| `cat` | - | ファイル内容を標準出力へ表示するコマンド。 |
+| `make` | - | Makefile に定義された処理を実行するコマンド。 |
+| `ping` | - | 対象への到達性と往復遅延を確認するコマンド。 |
+| アドレス | - | 宛先や所在を識別するための情報。 |
+| サービス | - | 機能を利用者や他システムへ提供する仕組み。 |
+| システム | - | 複数の要素が連携して目的を実現する仕組み全体。 |
+| ノード | - | ネットワークに接続された機器または処理単位。 |
+| 制御ホスト | - | Playbook を実行し, 他ホストへの処理指示を行う管理用ホスト。 |
+| 対象ホスト | - | Playbook による設定変更や導入処理の適用先となるホスト。 |
+| sudoコマンド | sudo | 一時的に管理者権限でコマンドを実行するためのコマンド。 |
+
+## 概要
+本ロールは, ルータホストで IPv4/IPv6 パケット転送と Network Address Translation (NAT) を制御する設定を行います。実装では, sysctl 設定ファイルの生成, iptables/ip6tables ルール投入, OS 別の永続化, サービス有効化, およびノード再起動を実施します。
+
+## 主な処理
+
+- `95-ipfoward.conf` を配置し, IPv4/IPv6 転送と RPF ルーズモードを有効化します。
+- ルール投入前に既存 FORWARD/POSTROUTING ルールを削除し, モード切替時のルール残骸を防ぎます。
+- 純粋ルーティングモードでは, 外部向けネットワーク <=> 内部プライベートネットワークの双方向 FORWARD ルールを投入します。
+- NAT モードでは, FORWARD ルールに加えて POSTROUTING MASQUERADE を投入します。
+- ルールは `iptables`, `ip6tables` コマンド実行時に即座にカーネルへ適用され, 直ちに有効化されます。
+- 再起動後も設定を維持するため, OS 別方式でルールをファイルへ永続化します。
+  - Debian 系: `netfilter-persistent save` で `/etc/iptables/rules.v4` (IPv4), `/etc/iptables/rules.v6` (IPv6) へ保存
+  - Red Hat 系: `iptables-save`, `ip6tables-save` で `{{ etc_default_dir }}/iptables` (`/etc/sysconfig/iptables`), `{{ etc_default_dir }}/ip6tables` (`/etc/sysconfig/ip6tables`) へ保存後, `iptables`, `ip6tables` サービスを再起動してファイルから再読み込み
 
 ## 前提条件
 
@@ -53,119 +201,6 @@
 - `gpm_mgmt_nic` と `mgmt_nic` が, 対象ホストのインターフェース一覧に存在すること。
 
 これらの NIC 条件を満たさない場合, `Load Params` 以外のタスクは実行されません。
-
-## 実行フロー
-
-`roles/router-config/tasks/main.yml` は次の順序で処理します。
-
-1. **Load Params** (`tasks/load-params.yml`)
-- OS 別パッケージ変数, `cross-distro.yml`, `all-config.yml`, `k8s-api-address.yml` を読み込みます。
-
-2. **Package** (`tasks/package.yml`)
-- `iptables_persistent_package` をインストールします。
-
-3. **Directory** (`tasks/directory.yml`)
-- 現在の実装は空タスクです。
-
-4. **User Group** (`tasks/user_group.yml`)
-- 現在の実装は空タスクです。
-
-5. **Service** (`tasks/service.yml`)
-- RedHat 系で `iptables_persistent_service`, `iptables_persistent_ipv6_service` を `enabled: true` にします。
-
-6. **Config Sysctl** (`tasks/config-sysctl.yml`)
-- `templates/95-ipfoward.j2` を `/etc/sysctl.d/95-ipfoward.conf` に配置します。
-- 変更時はハンドラ `bastion_config_reload_sysctl` を通知します。
-
-7. **Config Clear Rules** (`tasks/config-clear-rules.yml`)
-- `router_forwarding_enabled`, `router_nat_enabled`, `additional_network_routes` のいずれかが有効な場合に既存ルールを削除します。
-
-8. **Config Forward** (`tasks/config-forward.yml`)
-- 実行条件: `(router_forwarding_enabled == true or additional_network_routes が定義済み) and router_nat_enabled == false`。
-- IPv4/IPv6 双方向 FORWARD ルールを設定します。
-
-9. **Config Nat** (`tasks/config-nat.yml`)
-- 実行条件: `router_nat_enabled == true and router_forwarding_enabled == false and (additional_network_routes 未定義または空)`。
-- IPv4/IPv6 の FORWARD ルールと POSTROUTING MASQUERADE ルールを設定します。
-
-10. **Config** (`tasks/config.yml`)
-- 現在の実装は空タスクです。
-
-11. **Reboot** (`tasks/reboot.yml`)
-- `reboot_timeout_sec` を使ってノードの graceful reboot を実行します。
-
-## 主要変数
-
-### 動作制御
-
-| 変数名 | 既定値 | 説明 |
-| --- | --- | --- |
-| `router_forwarding_enabled` | `true` | NAT 無しの双方向 FORWARD ルールを有効化します。`true` の場合は NAT より優先されます。 |
-| `router_nat_enabled` | `false` | NAT 構成を有効化します。`router_forwarding_enabled: true` または `additional_network_routes` 定義時は実行されません。 |
-| `additional_network_routes` | 未定義 | `additional-routes` ロールと連携する追加ルート定義です。定義時は FORWARD 構成が優先されます。 |
-
-### パッケージ, サービス, ノード再起動
-
-| 変数名 | 既定値 | 説明 |
-| --- | --- | --- |
-| `iptables_persistent_package` | OS 依存 | Debian 系は `iptables-persistent`, RedHat 系は `iptables-services`。 |
-| `iptables_persistent_service` | OS 依存 | Debian 系は `iptables-persistent`, RedHat 系は `iptables`。 |
-| `iptables_persistent_ipv6_service` | OS 依存 | Debian 系は `iptables-persistent`, RedHat 系は `ip6tables`。 |
-| `etc_default_dir` | OS 依存 | Debian 系は `/etc/default`, RedHat 系は `/etc/sysconfig`。 |
-| `reboot_timeout_sec` | `600` | ノード再起動後の応答待ちタイムアウト (秒)。 |
-
-### ネットワーク関連 (必須)
-
-| 変数名 | 既定値 | 説明 |
-| --- | --- | --- |
-| `mgmt_nic` | 必須 | 外部向けネットワーク側 NIC。 |
-| `gpm_mgmt_nic` | 必須 | 内部プライベートネットワーク側 NIC。 |
-| `network_ipv4_network_address` | 必須 | 外部向け IPv4 ネットワークアドレス。 |
-| `network_ipv4_prefix_len` | 必須 | 外部向け IPv4 プレフィックス長。 |
-| `network_ipv6_network_address` | 必須 | 外部向け IPv6 ネットワークアドレス。 |
-| `network_ipv6_prefix_len` | 必須 | 外部向け IPv6 プレフィックス長。 |
-| `gpm_mgmt_ipv4_network_cidr` | 必須 | 内部プライベート側 IPv4 CIDR。 |
-| `gpm_mgmt_ipv6_network_cidr` | 必須 | 内部プライベート側 IPv6 CIDR。 |
-
-## 主な処理
-
-- `95-ipfoward.conf` を配置し, IPv4/IPv6 転送と RPF ルーズモードを有効化します。
-- ルール投入前に既存 FORWARD/POSTROUTING ルールを削除し, モード切替時のルール残骸を防ぎます。
-- 純粋ルーティングモードでは, 外部向けネットワーク <=> 内部プライベートネットワークの双方向 FORWARD ルールを投入します。
-- NAT モードでは, FORWARD ルールに加えて POSTROUTING MASQUERADE を投入します。
-- ルールは `iptables`, `ip6tables` コマンド実行時に即座にカーネルへ適用され, 直ちに有効化されます。
-- 再起動後も設定を維持するため, OS 別方式でルールをファイルへ永続化します。
-  - Debian 系: `netfilter-persistent save` で `/etc/iptables/rules.v4` (IPv4), `/etc/iptables/rules.v6` (IPv6) へ保存
-  - RedHat 系: `iptables-save`, `ip6tables-save` で `{{ etc_default_dir }}/iptables` (`/etc/sysconfig/iptables`), `{{ etc_default_dir }}/ip6tables` (`/etc/sysconfig/ip6tables`) へ保存後, `iptables`, `ip6tables` サービスを再起動してファイルから再読み込み
-
-## テンプレート / 出力ファイル
-
-| テンプレートまたは生成物 | 出力先 | 説明 |
-| --- | --- | --- |
-| `templates/95-ipfoward.j2` | `/etc/sysctl.d/95-ipfoward.conf` | IPv4/IPv6 転送, RPF, `accept_ra` を設定します。 |
-| 永続化処理 (Debian 系, IPv4) | `/etc/iptables/rules.v4` | `netfilter-persistent save` で IPv4 ルールを保存します。 |
-| 永続化処理 (Debian 系, IPv6) | `/etc/iptables/rules.v6` | `netfilter-persistent save` で IPv6 ルールを保存します。 |
-| 永続化処理 (RedHat 系, IPv4) | `{{ etc_default_dir }}/iptables` (`/etc/sysconfig/iptables`) | `iptables-save` の出力先。 |
-| 永続化処理 (RedHat 系, IPv6) | `{{ etc_default_dir }}/ip6tables` (`/etc/sysconfig/ip6tables`) | `ip6tables-save` の出力先。 |
-
-## ハンドラ
-
-### bastion_config_reload_sysctl (`handlers/reload-sysctl.yml`)
-
-- `listen`: `bastion_config_reload_sysctl`
-- 実行コマンド: `sysctl --system`
-- 起動条件: `config-sysctl.yml` でテンプレート更新が発生した場合
-
-## OS差異
-
-| 項目 | Debian/Ubuntu | RedHat系 |
-| --- | --- | --- |
-| 永続化パッケージ | `iptables-persistent` | `iptables-services` |
-| IPv4 サービス変数 | `iptables-persistent` | `iptables` |
-| IPv6 サービス変数 | `iptables-persistent` | `ip6tables` |
-| 永続化コマンド | `netfilter-persistent save` | `iptables-save`, `ip6tables-save` |
-| ルール保存先ディレクトリ | `/etc/iptables` | `/etc/sysconfig` |
-| service.yml の有効化処理 | 実質なし | `iptables`, `ip6tables` を有効化 |
 
 ## 実行方法
 
@@ -209,7 +244,108 @@ ansible-playbook -i inventory/hosts router-clear-rules.yml
 2. 変数 (`router_forwarding_enabled`, `router_nat_enabled`, `additional_network_routes`) を調整します。
 3. `make run_router_config` で新モードを適用します。
 
-## 検証
+## 主要変数
+
+### 動作制御
+
+| 変数名 | 既定値 | 説明 |
+| --- | --- | --- |
+| `router_forwarding_enabled` | `true` | NAT 無しの双方向 FORWARD ルールを有効化します。`true` の場合は NAT より優先されます。 |
+| `router_nat_enabled` | `false` | NAT 構成を有効化します。`router_forwarding_enabled: true` または `additional_network_routes` 定義時は実行されません。 |
+| `additional_network_routes` | 未定義 | `additional-routes` ロールと連携する追加ルート定義です。定義時は FORWARD 構成が優先されます。 |
+
+### パッケージ, サービス, ノード再起動
+
+| 変数名 | 既定値 | 説明 |
+| --- | --- | --- |
+| `iptables_persistent_package` | OS 依存 | Debian 系は `iptables-persistent`, Red Hat 系は `iptables-services`。 |
+| `iptables_persistent_service` | OS 依存 | Debian 系は `iptables-persistent`, Red Hat 系は `iptables`。 |
+| `iptables_persistent_ipv6_service` | OS 依存 | Debian 系は `iptables-persistent`, Red Hat 系は `ip6tables`。 |
+| `etc_default_dir` | OS 依存 | Debian 系は `/etc/default`, Red Hat 系は `/etc/sysconfig`。 |
+| `reboot_timeout_sec` | `600` | ノード再起動後の応答待ちタイムアウト (秒)。 |
+
+### ネットワーク関連 (必須)
+
+| 変数名 | 既定値 | 説明 |
+| --- | --- | --- |
+| `mgmt_nic` | 必須 | 外部向けネットワーク側 NIC。 |
+| `gpm_mgmt_nic` | 必須 | 内部プライベートネットワーク側 NIC。 |
+| `network_ipv4_network_address` | 必須 | 外部向け IPv4 ネットワークアドレス。 |
+| `network_ipv4_prefix_len` | 必須 | 外部向け IPv4 プレフィックス長。 |
+| `network_ipv6_network_address` | 必須 | 外部向け IPv6 ネットワークアドレス。 |
+| `network_ipv6_prefix_len` | 必須 | 外部向け IPv6 プレフィックス長。 |
+| `gpm_mgmt_ipv4_network_cidr` | 必須 | 内部プライベート側 IPv4 CIDR。 |
+| `gpm_mgmt_ipv6_network_cidr` | 必須 | 内部プライベート側 IPv6 CIDR。 |
+
+## テンプレートと生成ファイル
+
+本ロールでは以下のテンプレート / ファイルを出力します:
+主な展開先ホストは, 対象ホスト(既定) です。
+
+| テンプレートファイル名 | 出力先パス | 説明 |
+| --- | --- | --- |
+| `95-ipfoward.j2` | `/etc/sysctl.d/95-ipfoward.conf` (既定) | ルータノードで必要な IPv4/IPv6 転送と逆経路フィルタ設定を定義する sysctl 設定です。 |
+
+## 実行フロー
+
+`roles/router-config/tasks/main.yml` は次の順序で処理します。
+
+1. **Load Params** (`tasks/load-params.yml`)
+- OS 別パッケージ変数, `cross-distro.yml`, `all-config.yml`, `k8s-api-address.yml` を読み込みます。
+
+2. **Package** (`tasks/package.yml`)
+- `iptables_persistent_package` をインストールします。
+
+3. **Directory** (`tasks/directory.yml`)
+- 現在の実装は空タスクです。
+
+4. **User Group** (`tasks/user_group.yml`)
+- 現在の実装は空タスクです。
+
+5. **Service** (`tasks/service.yml`)
+- Red Hat 系で `iptables_persistent_service`, `iptables_persistent_ipv6_service` を `enabled: true` にします。
+
+6. **Config Sysctl** (`tasks/config-sysctl.yml`)
+- `templates/95-ipfoward.j2` を `/etc/sysctl.d/95-ipfoward.conf` に配置します。
+- 変更時はハンドラ `bastion_config_reload_sysctl` を通知します。
+
+7. **Config Clear Rules** (`tasks/config-clear-rules.yml`)
+- `router_forwarding_enabled`, `router_nat_enabled`, `additional_network_routes` のいずれかが有効な場合に既存ルールを削除します。
+
+8. **Config Forward** (`tasks/config-forward.yml`)
+- 実行条件: `(router_forwarding_enabled == true or additional_network_routes が定義済み) and router_nat_enabled == false`。
+- IPv4/IPv6 双方向 FORWARD ルールを設定します。
+
+9. **Config Nat** (`tasks/config-nat.yml`)
+- 実行条件: `router_nat_enabled == true and router_forwarding_enabled == false and (additional_network_routes 未定義または空)`。
+- IPv4/IPv6 の FORWARD ルールと POSTROUTING MASQUERADE ルールを設定します。
+
+10. **Config** (`tasks/config.yml`)
+- 現在の実装は空タスクです。
+
+11. **Reboot** (`tasks/reboot.yml`)
+- `reboot_timeout_sec` を使ってノードの graceful reboot を実行します。
+
+### ハンドラ
+
+#### bastion_config_reload_sysctl (`handlers/reload-sysctl.yml`)
+
+- `listen`: `bastion_config_reload_sysctl`
+- 実行コマンド: `sysctl --system`
+- 起動条件: `config-sysctl.yml` でテンプレート更新が発生した場合
+
+### OS差異
+
+| 項目 | Debian/Ubuntu | Red Hat系 |
+| --- | --- | --- |
+| 永続化パッケージ | `iptables-persistent` | `iptables-services` |
+| IPv4 サービス変数 | `iptables-persistent` | `iptables` |
+| IPv6 サービス変数 | `iptables-persistent` | `ip6tables` |
+| 永続化コマンド | `netfilter-persistent save` | `iptables-save`, `ip6tables-save` |
+| ルール保存先ディレクトリ | `/etc/iptables` | `/etc/sysconfig` |
+| service.yml の有効化処理 | 実質なし | `iptables`, `ip6tables` を有効化 |
+
+## 検証ポイント
 
 ### 1. ネットワーク構成とルータホストの役割
 
@@ -377,7 +513,7 @@ enabled
 - `Loaded:` 行に `enabled` が含まれ, システム起動時の自動起動が有効であること。
 - `systemctl is-enabled` コマンドで `enabled` が返ること。
 
-**コマンド** (RedHat系 の場合):
+**コマンド** (Red Hat系 の場合):
 ```bash
 sudo systemctl status iptables
 sudo systemctl status ip6tables
@@ -385,7 +521,7 @@ sudo systemctl is-enabled iptables
 sudo systemctl is-enabled ip6tables
 ```
 
-**確認ポイント** (RedHat系):
+**確認ポイント** (Red Hat系):
 - `iptables`, `ip6tables` サービスが `Active: active (running)` であること。
 - 両サービスが `enabled` で自動起動が有効であること。
 
@@ -525,7 +661,7 @@ Chain POSTROUTING (policy ACCEPT 21 packets, 2822 bytes)
 
 **確認ポイント**:
 - **IPv4 FORWARD ルール**: 内部プライベート IPv4 ネットワーク (`192.168.30.0/24`) から外部 (`ens160`) への転送, および戻りトラフィックの ACCEPT ルールが存在すること。
-- **IPv4 POSTROUTING MASQUERADE**: 行 2 で内部プライベート IPv4 ネットワーク (`192.168.30.0/24`) から `ens160` への送信パケットに MASQUERADE が適用されていること。疎通試験中に同じコマンドを2回実行し, `pkts` カウンタ (例: `174K`) が増加していることを確認することで NAT 変換が実行されていることを確認する。
+- **IPv4 POSTROUTING MASQUERADE**: 行 2 で内部プライベート IPv4 ネットワーク (`192.168.30.0/24`) から `ens160` への送信パケットに MASQUERADE が適用されていること。疎通試験中に同じコマンドを2回実行し, `pkts` カウンタ (例: `174K`) が増加していることを確認することで NAT 変換が実行されていることを確認します。
 - **IPv6 FORWARD ルール**: 内部プライベート IPv6 ネットワーク (`fdad:ba50:248b:1::/64`) から外部への転送ルールが存在すること。
 - **IPv6 POSTROUTING MASQUERADE**: 行 1 で内部プライベート IPv6 ネットワーク (`fdad:ba50:248b:1::/64`) から `ens160` への送信パケットに MASQUERADE が適用されていること。
 
@@ -661,6 +797,24 @@ router.local               : ok=15   changed=3    unreachable=0    failed=0
 - `run_router_config` 実行後, 意図した設定 (転送無効化, 純粋ルーティング, NAT のいずれか) が適用されること。
 - 再度 `sudo iptables -L FORWARD -nv` および `sudo iptables -t nat -L POSTROUTING -nv` で確認し, 期待通りのルール構成になっていること。
 
+## トラブルシューティング
+
+実行者はエラー発生時に build-*.log を確認し, 失敗した task 名と不足変数を特定します。
+
+## 注意事項
+
+実行者は既存の実行順依存を崩さないことを確認した上で本ロールを実行します。
+
+## テンプレート / 出力ファイル
+
+| テンプレートまたは生成物 | 出力先 | 説明 |
+| --- | --- | --- |
+| `templates/95-ipfoward.j2` | `/etc/sysctl.d/95-ipfoward.conf` | IPv4/IPv6 転送, RPF, `accept_ra` を設定します。 |
+| 永続化処理 (Debian 系, IPv4) | `/etc/iptables/rules.v4` | `netfilter-persistent save` で IPv4 ルールを保存します。 |
+| 永続化処理 (Debian 系, IPv6) | `/etc/iptables/rules.v6` | `netfilter-persistent save` で IPv6 ルールを保存します。 |
+| 永続化処理 (Red Hat 系, IPv4) | `{{ etc_default_dir }}/iptables` (`/etc/sysconfig/iptables`) | `iptables-save` の出力先。 |
+| 永続化処理 (Red Hat 系, IPv6) | `{{ etc_default_dir }}/ip6tables` (`/etc/sysconfig/ip6tables`) | `ip6tables-save` の出力先。 |
+
 ## 補足
 
 ### 動作モード
@@ -695,3 +849,10 @@ router.local               : ok=15   changed=3    unreachable=0    failed=0
 - ルーティング機能を停止する前に, ルール残骸を削除します。
 - クリア処理は削除対象ルールが存在しない場合でも `|| true` により継続されます。
 - `make run_router_clear_rules` 実行時のログは `build-router-clear-rules.log` に保存されます。
+## 参考資料
+
+### 公式ドキュメント
+
+- iptables: https://man7.org/linux/man-pages/man8/iptables.8.html
+- ip6tables: https://man7.org/linux/man-pages/man8/ip6tables.8.html
+- sysctl: https://man7.org/linux/man-pages/man8/sysctl.8.html

@@ -1,28 +1,32 @@
 # docker-ce ロール
 
-Docker Community Edition (Docker CE) を導入し, サービス初期化, sysctl の調整, 利用ユーザのグループ設定, およびコンテナボリュームのバックアップ環境を一括で整備するロールです。Debian 系と RHEL 系の差異は `ansible_facts.os_family` を基準に変数を切り替えることで吸収しています。
+本ロールは, Docker Community Edition (Docker CE) を導入し, サービス初期化, sysctl の調整, 利用ユーザのグループ設定, およびコンテナボリュームのバックアップ環境を一括で整備するロールです。
+
+## 目次
 
 - [docker-ce ロール](#docker-ce-ロール)
+  - [目次](#目次)
   - [用語](#用語)
+  - [概要](#概要)
   - [前提条件](#前提条件)
   - [実行方法](#実行方法)
     - [make ターゲット](#make-ターゲット)
     - [ansible-playbook](#ansible-playbook)
-  - [実行フロー](#実行フロー)
   - [主要変数](#主要変数)
     - [ロール固有変数 (defaults/main.yml)](#ロール固有変数-defaultsmainyml)
-    - [その他](#その他)
-  - [デフォルト動作](#デフォルト動作)
-  - [テンプレート・ファイル](#テンプレートファイル)
-  - [OS 差異](#os-差異)
-  - [設定例](#設定例)
-    - [基本設定](#基本設定)
-    - [Docker ログ設定](#docker-ログ設定)
-    - [バックアップ設定](#バックアップ設定)
-    - [ローカルレジストリ設定](#ローカルレジストリ設定)
-  - [バックアップ/復旧フロー](#バックアップ復旧フロー)
-    - [backup-containers の流れ](#backup-containers-の流れ)
-    - [restore-container の流れ](#restore-container-の流れ)
+    - [設定例](#設定例)
+      - [docker-ceコマンド利用ユーザの設定](#docker-ceコマンド利用ユーザの設定)
+      - [Docker ログ設定](#docker-ログ設定)
+      - [バックアップ設定](#バックアップ設定)
+      - [ローカルレジストリ設定](#ローカルレジストリ設定)
+  - [テンプレートと生成ファイル](#テンプレートと生成ファイル)
+  - [実行フロー](#実行フロー)
+    - [デフォルト動作](#デフォルト動作)
+    - [OS 差異](#os-差異)
+    - [バックアップ/復旧フロー](#バックアップ復旧フロー)
+      - [backup-containers の流れ](#backup-containers-の流れ)
+      - [restore-container の流れ](#restore-container-の流れ)
+  - [主な処理](#主な処理)
   - [検証ポイント](#検証ポイント)
     - [前提条件](#前提条件-1)
     - [手順1: Docker バージョン確認](#手順1-docker-バージョン確認)
@@ -38,22 +42,129 @@ Docker Community Edition (Docker CE) を導入し, サービス初期化, sysctl
     - [2. sysctl が反映されない](#2-sysctl-が反映されない)
     - [3. バックアップが失敗する](#3-バックアップが失敗する)
     - [4. docker グループ権限が反映されない](#4-docker-グループ権限が反映されない)
-  - [留意事項](#留意事項)
+  - [注意事項](#注意事項)
     - [ローカルコンテナレジストリ設定時のansible 制御ノード側の設定について](#ローカルコンテナレジストリ設定時のansible-制御ノード側の設定について)
+  - [参考資料](#参考資料)
+    - [公式ドキュメント](#公式ドキュメント)
 
 ## 用語
 
 | 正式名称 | 略称 | 意味 |
 | --- | --- | --- |
+| ユーザ | - | 機能を利用する人, 又は識別された利用主体。 |
+| ツール | - | 特定作業を実行するための機能や道具。 |
+| リソース | - | 処理に必要な計算機資源やデータ。 |
+| クラスタ | - | 複数の機器を連携させて一体運用する構成。 |
+| ディストリビューション | - | 基本ソフトウェアと関連部品をまとめた配布形態。 |
+| コンテナイメージ | - | コンテナ実行に必要な内容をまとめた保存形式。 |
+| プログラム | - | 計算機に処理をさせるための命令列。 |
+| コミュニティ | - | 共通目的のもとで継続的に活動する利用者集団。 |
+| プラグイン | - | 既存機能へ追加機能を組み込むための拡張部品。 |
+| サービスアカウント | - | 自動処理向けに用意する利用主体の識別情報。 |
+| コンテナランタイム | - | コンテナを起動, 停止, 管理する実行基盤。 |
+| リクエスト | - | 処理実行や情報取得を要求する操作。 |
+| コントローラ | - | 対象状態を監視し, 期待状態へ調整する制御機能。 |
+| メタデータ | - | 対象データの属性や説明を示す付加情報。 |
+| バックエンド | - | 利用者画面の背後で処理を実行する側。 |
+| ストレージ | - | データを保存する仕組み。 |
+| インストール | - | ソフトウェアを導入して利用可能にする作業。 |
+| マシン | - | 処理を実行する計算機。 |
+| プロビジョニング | - | 利用開始に必要な設定や資源を準備する作業。 |
+| ルーティング | - | 宛先までの経路を選択して転送する処理。 |
+| オブジェクト | - | ひとかたまりとして扱うデータ単位。 |
+| エージェント | - | 指示に従って処理を代行する構成要素。 |
+| ストア | - | データや成果物を保存する場所。 |
+| ジャーナル | - | 時系列の記録を保持する仕組み。 |
+| アカウント | - | 利用者や処理主体を識別する登録情報。 |
+| エンドポイント | - | 通信の接続先を表す識別点。 |
+| パターン | - | 繰り返し現れる構造や記述形式。 |
+| パケット | - | ネットワークで転送するデータ単位。 |
+| カーネル | - | 基本ソフトウェアの中核機能。 |
+| シェル | - | コマンド入力で計算機を操作する仕組み。 |
+| Playbook | - | 自動化処理の実行手順を記述したファイル。 |
+| Canonical | - | Ubuntu を提供する組織名。 |
+| Key-Value | - | キーと値の組で情報を表す方式。 |
+| IP | - | インターネットプロトコルの略称。 |
+| SQL | - | データベースを操作するための記述言語。 |
+| HTTP | - | WWW で情報をやり取りする通信手順。 |
+| HTTPS | - | 通信内容を暗号化して WWW 通信を行う方式。 |
+| RPM | - | RHEL 系で使用するパッケージ形式。 |
+| VM | - | 物理機器上で動作する仮想的な計算機。 |
+| localhost | - | 同一機器自身を指す名前。 |
+| root | - | Unix 系システムの最上位権限を持つ管理者識別子。 |
+| ソフトウェア | - | 情報処理システムで使用するプログラム, 手順, 規則及び関連文書の全体又は一部分。 |
+| アプリケーション | - | 利用者の目的を実現するために動作するソフトウェア。 |
+| パッケージ | - | ソフトウェア導入に必要なファイルをまとめた配布単位。 |
+| リポジトリ | - | ソフトウェアや設定情報を保管し, 取得できるようにした管理場所。 |
+| コマンド | - | 実行者が計算機へ処理を指示するための命令。 |
+| ホスト | - | 管理対象として識別される個別の計算機。 |
+| サーバ | - | 他の機器や利用者へ機能やデータを提供する計算機, 又はその役割。 |
+| コンテナ | - | アプリケーションを動かす隔離された実行単位。 |
+| ネットワーク | - | 機器同士を接続してデータをやり取りする仕組み。 |
+| プロトコル | - | 通信やデータ交換の手順を定めた取り決め。 |
+| ディレクトリ | - | ファイルを階層的に整理するための入れ物。 |
+| ログ | - | 処理の結果や状態を時系列で記録した情報。 |
+| コード | - | 処理内容を記述した文字列。 |
+| Kubernetes | K8s | コンテナを管理する基盤ソフトウェア。 |
+| Pod | - | Kubernetes でコンテナをまとめて管理する最小単位。 |
+| Linux | - | 多くの機器で使われる, 基本ソフトウェアの系統。 |
+| Debian | - | コミュニティ主導で開発される Linux ディストリビューション。 |
+| Ubuntu | - | Canonical が提供する Debian 系の Linux ディストリビューション。 |
+| Docker | - | コンテナイメージやコンテナの作成, 実行, 管理を行うコマンド。 |
+| Ansible | - | 設定の同一化や導入作業を所定の手順に従って自動化する仕組み。 |
+| World Wide Web | WWW | ネットワーク上で文書や情報を相互参照できる仕組み。 |
+| Service | - | サービスの英語表記。 |
+| Node | - | ノードの英語表記。 |
+| Makefile | - | 実行手順を定義したファイル。 |
+| API | - | アプリケーション同士がやり取りする方法を定めた仕様。 |
+| URL | - | WWW 上の資源の場所を示す文字列。 |
 | Docker Community Edition | Docker CE | Docker のコミュニティ版。Docker Engine と関連ツールで構成される。 |
 | Docker Engine | - | コンテナの実行基盤。 `dockerd` とその API を含む。 |
-| containerd | - | Docker が利用するコンテナランタイム。 |
+| containerd | - | Dockerから分離された軽量なコンテナランタイム。 |
 | Network File System | NFS | ネットワーク越しにファイル共有を行う仕組み。 |
-| Hypertext Transfer Protocol Secure | HTTPS | 暗号化された HTTP 通信。リポジトリ取得に使用。 |
-| Router Advertisement | RA | IPv6 でルータ情報を通知する仕組み。 |
+| Hypertext Transfer Protocol Secure | HTTPS | 通信内容を暗号化して Web 通信を行う方式。 |
+| Router Advertisement | RA | IPv6 で経路情報を通知する仕組み。 |
 | Reverse Path Filtering | rp_filter | 逆引きパスフィルタリングの設定。 |
-| sysctl | - | Linux カーネルパラメータを設定する仕組み。 |
+| sysctl | - | カーネル動作パラメタを参照, 変更するコマンド。 |
 | netcat | nc | ネットワーク到達性を確認するコマンド。RHEL 系では `ncat` を使用。 |
+| Hypertext Transfer Protocol | HTTP | HTTP の正式名称。 |
+| JavaScript Object Notation | JSON | 人間が読みやすいテキスト形式のデータ交換フォーマット。キーと値のペアで構成され, 設定ファイルやAPI レスポンスに広く使用される。 |
+| Network Interface Card | NIC | 計算機をネットワークへ接続するための装置または機能。 |
+| Operating System | OS | 計算機の基本機能を管理し, アプリケーションを動作させる基盤ソフトウェア。 |
+| Red Hat Enterprise Linux | RHEL | Red Hat 社が提供する商用 Linux ディストリビューション。 |
+| Red Hat Enterprise Linux 9 | RHEL9 | Red Hat Enterprise Linux の第9系統版。 |
+| Secure Shell | SSH | 遠隔の計算機へ安全に接続して操作する方式。 |
+| Ansible Playbook | playbook | 自動化処理の実行手順を順序付きで記述したファイル。 |
+| Community Edition | CE | 商用版と区別する無償版の製品区分。 |
+| ansible-playbookコマンド | - | Ansible Playbook を実行して自動構成処理を適用するコマンド。 |
+| `cat` | - | ファイル内容を標準出力へ表示するコマンド。 |
+| `chmod` | - | ファイルやディレクトリのアクセス権を変更するコマンド。 |
+| `curl` | - | URL を指定してデータ送受信を行うコマンド。 |
+| `date` | - | 現在日時を表示するコマンド。 |
+| `docker` | - | コンテナイメージやコンテナの作成, 実行, 管理を行うコマンド。 |
+| `getent` | - | システムの名前解決データベースを参照するコマンド。 |
+| `journalctl` | - | systemd ジャーナルのログを参照するコマンド。 |
+| `ls` | - | ファイルやディレクトリの一覧を表示するコマンド。 |
+| `make` | - | Makefile に定義された処理を実行するコマンド。 |
+| `systemctl` | - | systemd 管理下のサービスを起動, 停止, 状態確認するコマンド。 |
+| アドレス | - | 宛先や所在を識別するための情報。 |
+| サービス | - | 機能を利用者や他システムへ提供する仕組み。 |
+| システム | - | 複数の要素が連携して目的を実現する仕組み全体。 |
+| ノード | - | ネットワークに接続された機器または処理単位。 |
+| ポート | - | 通信の出入口を識別する番号または接点。 |
+| ログイン | - | 利用者認証を行って利用を開始する操作。 |
+| リモートホスト | - | ネットワーク越しに接続して操作する別ホスト。 |
+| ローカルコンテナレジストリ | - | 実行中ホストまたは同一環境内で運用するコンテナイメージ保管先。 |
+| ローカルコンテナレジストリホスト | - | ローカルコンテナレジストリを提供するホスト。 |
+| ローカルレジストリ | - | 実行中ホストまたは同一環境内で運用する成果物保管先。 |
+| ローカルレジストリコンテナ | - | ローカルレジストリ機能を提供するコンテナ。 |
+| 対象ホスト | - | Playbook による設定変更や導入処理の適用先となるホスト。 |
+| sudoコマンド | sudo | 一時的に管理者権限でコマンドを実行するためのコマンド。 |
+
+## 概要
+Docker Community Edition (Docker CE) を導入し, サービス初期化, sysctl の調整, 利用ユーザのグループ設定, およびコンテナボリュームのバックアップ環境を一括で整備するロールです。Debian 系と RHEL 系の差異は `ansible_facts.os_family` を基準に変数を切り替えることで吸収しています。
+
+本ロールは, docker-ce に関する設定処理を実施します。
 
 ## 前提条件
 
@@ -80,19 +191,6 @@ ansible-playbook -i inventory/hosts site.yml --tags docker-ce
 ```
 
 対象ホストを限定する場合は `-l <hostname>` を併用してください。
-
-## 実行フロー
-
-本ロールは以下の順序で処理を実行します:
-
-1. **パラメータ読み込み** (`load-params.yml`): OS 別パッケージ定義と共通変数を読み込みます。
-2. **パッケージ操作** (`package.yml`): 旧パッケージ削除, 前提パッケージ導入, Docker CE パッケージ導入を行います。
-3. **サービス設定** (`service.yml`): sysctl 設定ファイルを配置し, `sysctl --system` を実行後に docker サービスを再起動します。
-4. **ディレクトリ作成** (`directory.yml`): `/usr/local/bin` と `/usr/local/share` を作成します。`docker_ce_registry_enabled: true` の場合はレジストリデータ用ディレクトリ (`docker_ce_registry_data_dir`) も作成します。
-5. **ローカルレジストリ設定** (`registry.yml`): `docker_ce_registry_enabled` が `true` の場合, レジストリコンテナを起動または再作成します。
-6. **バックアップ用ファイル配置とイメージ作成** (`docker-backup-image.yml`): `build_docker_ce_backup_container_image` が `true` の場合のみ, バックアップ・復旧スクリプトと Dockerfile を配置します。`docker_ce_enable_backup_script` が有効な場合, restore-container.j2, Dockerfile.j2, backup.sh.j2 を配置し, さらに `docker_ce_backup_nfs_server` と `docker_ce_backup_nfs_dir` が非空の場合にのみ backup-containers.j2 を配置します。その後, バックアップ用イメージをビルドします。
-7. **ユーザとグループ設定** (`user_group.yml`): docker グループを作成し, `ansible_user`, `docker_ce_users`, `users_list` のユーザを追加します。
-8. **Docker 設定** (`config.yml`): `/etc/docker/daemon.json` を作成し, iptables 管理の無効化などを設定します。`docker_ce_insecure_registries` が非空の場合のみ `insecure-registries` を設定します。既定では共有変数 `container_registry_endpoints` を参照します。
 
 ## 主要変数
 
@@ -123,23 +221,74 @@ ansible-playbook -i inventory/hosts site.yml --tags docker-ce
 | `build_docker_ce_backup_container_image` | `false` | defaults/main.yml | バックアップ用コンテナイメージを作成する場合は `true`。 |
 | `docker_ce_enable_backup_script` | `false` | defaults/main.yml | バックアップスクリプト生成有効化フラグ。`docker_ce_enable_backup_script` が `true` の場合, restore-container.j2, Dockerfile.j2, backup.sh.j2 が配置されます。さらに `docker_ce_backup_nfs_server` と `docker_ce_backup_nfs_dir` が非空の場合にのみ, backup-containers.j2 が配置されます。不要な環境では `false` に設定するとテンプレート生成をスキップできます。 |
 
-### その他
+### 設定例
 
-| 変数名 | 既定値 | 定義場所 | 説明 |
-| --- | --- | --- | --- |
-| `ansible_user` | inventory で指定 | inventory/hosts | Docker グループへ追加する接続ユーザ。 |
+本節では, docker-ceロールの設定方法について説明します。
 
-## デフォルト動作
+#### docker-ceコマンド利用ユーザの設定
 
-- `build_docker_ce_backup_container_image: false` のため, バックアップ/復旧スクリプトとバックアップ用イメージは既定では作成されません。
-- `docker_ce_registry_enabled: false` のため, ローカルレジストリコンテナは既定では作成されません。
-- `docker` サービスは `enabled: true`, `state: restarted` で起動します。
-- `/etc/docker/daemon.json` は iptables 管理の無効化と IPv6 有効化を含む設定で生成されます。
-- `docker_ce_insecure_registries` が空または未定義の場合, `/etc/docker/daemon.json` に `insecure-registries` は出力されません。
-- `docker_ce_backup_output_dir` は `docker_ce_backup_mount_point` と `docker_ce_backup_dir_on_nfs` の結合値になります。既定では `/mnt/containers/docker-ce/daily-backup` です。
-- sysctl は `/etc/modules-load.d/99-docker-bridge.conf` を通じて反映されます。設定内容には `net.bridge.bridge-nf-call-iptables`, `net.bridge.bridge-nf-call-ip6tables`, `net.ipv4.ip_forward`, `net.ipv6.conf.all.forwarding`, `net.ipv6.conf.default.forwarding`, `net.ipv6.bindv6only`, `net.ipv6.conf.<mgmt_nic>.accept_ra`, `net.ipv4.conf.*.rp_filter` が含まれます。
+本節では, docker-ceコマンドを利用するユーザを`docker_ce_users`変数にリストとして記載します。
+`vars/all-config.yml` または `host_vars/<hostname>/main.yml`に以下の形式で利用するユーザのリストを記載します:
 
-## テンプレート・ファイル
+```yaml
+docker_ce_users:
+  - user1
+```
+
+#### Docker ログ設定
+
+本節では, Dockerデーモンのログファイルの設定方法について説明します。
+`vars/all-config.yml` または `host_vars/<hostname>`に以下の設定を記載します:
+
+```yaml
+docker_ce_log_driver: "json-file"
+docker_ce_log_opts:
+  max-size: "50m"
+  max-file: "5"
+```
+
+#### バックアップ設定
+
+登録されているコンテナイメージをNFSの共有ディレクトリにバックアップする場合は,
+`vars/all-config.yml` および `host_vars/<hostname>`に以下の内容を記載します:
+
+`vars/all-config.yml`:
+```yaml
+docker_ce_backup_nfs_server: "nfs.example.org"
+docker_ce_backup_nfs_dir: "/share"
+docker_ce_backup_mount_point: "/mnt"
+docker_ce_backup_dir_on_nfs: "/Linux/containers"
+```
+
+`host_vars/<hostname>`:
+
+```yaml
+build_docker_ce_backup_container_image: true
+```
+
+#### ローカルレジストリ設定
+
+docker-ceを用いてローカルコンテナレジストリ機能を提供する場合は, `vars/all-config.yml` または `host_vars/<hostname>`に以下の設定を記載します:
+
+`vars/all-config.yml`:
+```yaml
+container_registry_endpoints:
+  - endpoint: "local-registry.local:5000"
+    scheme: "http"
+    skip_verify: true
+  - endpoint: "devserver.example.org:5050"
+    scheme: "https"
+    skip_verify: true
+```
+
+`host_vars/<hostname>`
+```yaml
+docker_ce_registry_enabled: true
+docker_ce_registry_port: 5000
+docker_ce_insecure_registries: "{{ container_registry_endpoints }}"
+```
+
+## テンプレートと生成ファイル
 
 本ロールでは以下のテンプレート/ファイルを出力します:
 
@@ -153,7 +302,30 @@ ansible-playbook -i inventory/hosts site.yml --tags docker-ce
 | `daemon.json.j2` | `/etc/docker/daemon.json` | 常に実行 | Docker の動作設定ファイルテンプレート。`docker_ce_insecure_registries` が非空の場合は `insecure-registries` を追加します。 |
 | `/etc/docker/daemon.json` | `/etc/docker/daemon.json` | 常に実行 | Docker の動作設定ファイル。 |
 
-## OS 差異
+## 実行フロー
+
+本ロールは以下の順序で処理を実行します:
+
+1. **パラメータ読み込み** (`load-params.yml`): OS 別パッケージ定義と共通変数を読み込みます。
+2. **パッケージ操作** (`package.yml`): 旧パッケージ削除, 前提パッケージ導入, Docker CE パッケージ導入を行います。
+3. **サービス設定** (`service.yml`): sysctl 設定ファイルを配置し, `sysctl --system` を実行後に docker サービスを再起動します。
+4. **ディレクトリ作成** (`directory.yml`): `/usr/local/bin` と `/usr/local/share` を作成します。`docker_ce_registry_enabled: true` の場合はレジストリデータ用ディレクトリ (`docker_ce_registry_data_dir`) も作成します。
+5. **ローカルレジストリ設定** (`registry.yml`): `docker_ce_registry_enabled` が `true` の場合, レジストリコンテナを起動または再作成します。
+6. **バックアップ用ファイル配置とイメージ作成** (`docker-backup-image.yml`): `build_docker_ce_backup_container_image` が `true` の場合のみ, バックアップ・復旧スクリプトと Dockerfile を配置します。`docker_ce_enable_backup_script` が有効な場合, restore-container.j2, Dockerfile.j2, backup.sh.j2 を配置し, さらに `docker_ce_backup_nfs_server` と `docker_ce_backup_nfs_dir` が非空の場合にのみ backup-containers.j2 を配置します。その後, バックアップ用イメージをビルドします。
+7. **ユーザとグループ設定** (`user_group.yml`): docker グループを作成し, `ansible_user`, `docker_ce_users`, `users_list` のユーザを追加します。
+8. **Docker 設定** (`config.yml`): `/etc/docker/daemon.json` を作成し, iptables 管理の無効化などを設定します。`docker_ce_insecure_registries` が非空の場合のみ `insecure-registries` を設定します。既定では共有変数 `container_registry_endpoints` を参照します。
+
+### デフォルト動作
+
+- `build_docker_ce_backup_container_image: false` のため, バックアップ/復旧スクリプトとバックアップ用イメージは既定では作成されません。
+- `docker_ce_registry_enabled: false` のため, ローカルレジストリコンテナは既定では作成されません。
+- `docker` サービスは `enabled: true`, `state: restarted` で起動します。
+- `/etc/docker/daemon.json` は iptables 管理の無効化と IPv6 有効化を含む設定で生成されます。
+- `docker_ce_insecure_registries` が空または未定義の場合, `/etc/docker/daemon.json` に `insecure-registries` は出力されません。
+- `docker_ce_backup_output_dir` は `docker_ce_backup_mount_point` と `docker_ce_backup_dir_on_nfs` の結合値になります。既定では `/mnt/containers/docker-ce/daily-backup` です。
+- sysctl は `/etc/modules-load.d/99-docker-bridge.conf` を通じて反映されます。設定内容には `net.bridge.bridge-nf-call-iptables`, `net.bridge.bridge-nf-call-ip6tables`, `net.ipv4.ip_forward`, `net.ipv6.conf.all.forwarding`, `net.ipv6.conf.default.forwarding`, `net.ipv6.bindv6only`, `net.ipv6.conf.<mgmt_nic>.accept_ra`, `net.ipv4.conf.*.rp_filter` が含まれます。
+
+### OS 差異
 
 | 項目 | Debian 系 | RHEL 系 | 備考 |
 | --- | --- | --- | --- |
@@ -161,68 +333,9 @@ ansible-playbook -i inventory/hosts site.yml --tags docker-ce
 | 前提パッケージ | `apt-transport-https`, `gnupg` など | `gnupg2` など | `docker_ce_prereq_packages` により異なる。 |
 | netcat コマンド | `nc` | `ncat` | NFS 疎通確認に使用。 |
 
-## 設定例
+### バックアップ/復旧フロー
 
-### 基本設定
-
-`group_vars/all/all.yml` または `host_vars/<hostname>/main.yml`:
-
-```yaml
-docker_ce_users:
-  - user1
-```
-
-### Docker ログ設定
-
-`group_vars/all/all.yml`:
-
-```yaml
-docker_ce_log_driver: "json-file"
-docker_ce_log_opts:
-  max-size: "50m"
-  max-file: "5"
-```
-
-### バックアップ設定
-
-`group_vars/all/all.yml` または `host_vars/<hostname>/main.yml`:
-
-```yaml
-docker_ce_backup_nfs_server: "nfs.example.org"
-docker_ce_backup_nfs_dir: "/share"
-docker_ce_backup_mount_point: "/mnt"
-docker_ce_backup_dir_on_nfs: "/Linux/containers"
-```
-
-`host_vars/<hostname>/main.yml`:
-
-```yaml
-build_docker_ce_backup_container_image: true
-```
-
-### ローカルレジストリ設定
-
-`vars/all-config.yml`:
-```yaml
-container_registry_endpoints:
-  - endpoint: "local-registry.local:5000"
-    scheme: "http"
-    skip_verify: true
-  - endpoint: "devserver.example.org:5050"
-    scheme: "https"
-    skip_verify: true
-```
-
-`host_vars/<hostname>/main.yml`
-```yaml
-docker_ce_registry_enabled: true
-docker_ce_registry_port: 5000
-docker_ce_insecure_registries: "{{ container_registry_endpoints }}"
-```
-
-## バックアップ/復旧フロー
-
-### backup-containers の流れ
+#### backup-containers の流れ
 
 1. `nc_command` で `docker_ce_backup_nfs_server` への NFS ポート疎通を確認します。
 2. `docker_ce_backup_nfs_dir` を `docker_ce_backup_mount_point` へマウントし, 年間通算日 (`date +%j`) を `docker_ce_backup_rotation` で割った余りを世代番号として算出します。
@@ -231,10 +344,18 @@ docker_ce_insecure_registries: "{{ container_registry_endpoints }}"
 
 バックアップは boombatower/docker-backup と互換のコンテナイメージを利用します。
 
-### restore-container の流れ
+#### restore-container の流れ
 
 1. 対象コンテナが停止していることを確認します。
 2. アーカイブファイルを指定し, `docker run --rm --volumes-from ... restore <archive>` で復旧します。
+
+## 主な処理
+
+本ロールは, Docker Engine の導入と運用補助設定を実行する。
+
+1. OS ごとのリポジトリ設定を行い, docker-ce 関連パッケージを導入する。
+2. daemon 設定と sysctl 設定を反映し, サービスを有効化して起動する。
+3. 必要に応じてバックアップ補助スクリプトと補助設定を配置する。
 
 ## 検証ポイント
 
@@ -479,19 +600,19 @@ $ curl http://registry1.local:5000/v2/
 **対処**:
 
 - NFS サーバーとネットワーク経路を確認
-- `nc` または `ncat` がインストールされているか確認
+- `nc` または `ncat` がインストールされていることを確認
 
 ### 4. docker グループ権限が反映されない
 
 **確認内容**:
 
-- `getent group docker` にユーザが含まれているか
+- `getent group docker` にユーザが含まれていること
 
 **対処**:
 
 - ユーザの再ログイン, または `newgrp docker`
 
-## 留意事項
+## 注意事項
 
 - `backup-containers` は稼働中コンテナを対象にするため, 一貫性が必要なアプリケーションでは停止手順と組み合わせて運用してください。
 - `templates/docker-bridge.conf.j2` は IPv4/IPv6 フォワーディングを有効化し, 管理インターフェースで RA を受け入れる設定と `rp_filter` 無効化を含みます。セキュリティポリシー上問題となる場合は値を見直してください。
@@ -532,3 +653,10 @@ container_registry_endpoints:
 本playbookのdocker-ce ロールが適用されたホストの場合は, 上記の設定を自動的に実施します。ただし, `container_registry_endpoints`が空の場合や, `scheme`が, `https`, かつ,`skip_verify=false`と定義されたエントリのみの場合は, `/etc/docker/daemon.json`に`insecure-registries`項目を出力しません。
 
 また, Ansible制御ノード自体に docker-ce ロールを適用していない場合, 制御ノードの daemon.json は変更されません。
+
+## 参考資料
+
+### 公式ドキュメント
+
+- Docker Engine: https://docs.docker.com/engine/
+- Docker Compose: https://docs.docker.com/compose/

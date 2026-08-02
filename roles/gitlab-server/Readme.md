@@ -1,9 +1,23 @@
 # gitlab-server ロール
 
+本ロールは, gitlab-server に関する設定処理を実施します。
+
+## 目次
+
 - [gitlab-server ロール](#gitlab-server-ロール)
+  - [目次](#目次)
   - [用語](#用語)
+  - [概要](#概要)
+  - [主な処理](#主な処理)
+  - [前提条件](#前提条件)
+  - [実行方法](#実行方法)
+  - [主要変数](#主要変数)
+  - [テンプレートと生成ファイル](#テンプレートと生成ファイル)
+  - [実行フロー](#実行フロー)
+  - [検証ポイント](#検証ポイント)
+  - [トラブルシューティング](#トラブルシューティング)
+  - [注意事項](#注意事項)
   - [変数一覧](#変数一覧)
-  - [ロール内の動作](#ロール内の動作)
   - [Gitlabコンテナの構成](#gitlabコンテナの構成)
     - [Gitlabの公開URL, SSHポート, コンテナレジストリ](#gitlabの公開url-sshポート-コンテナレジストリ)
     - [ポートマッピング](#ポートマッピング)
@@ -19,29 +33,121 @@
     - [リストア手順](#リストア手順)
       - [リストア処理の内容](#リストア処理の内容)
     - [定期バックアップ](#定期バックアップ)
-  - [検証ポイント](#検証ポイント)
   - [付録) 本ロールから導入されるバックアップ, リストア用スクリプトのコマンドライン仕様](#付録-本ロールから導入されるバックアップ-リストア用スクリプトのコマンドライン仕様)
     - [gitlab-backup.pyスクリプトのコマンドラインオプション](#gitlab-backuppyスクリプトのコマンドラインオプション)
     - [gitlab-restore.pyスクリプトのコマンドラインオプション](#gitlab-restorepyスクリプトのコマンドラインオプション)
-  - [参考URL](#参考url)
+  - [参考資料](#参考資料)
+    - [公式ドキュメント](#公式ドキュメント)
 
 ## 用語
 
 | 正式名称 | 略称 | 意味 |
 | --- | --- | --- |
+| ユーザ | - | 機能を利用する人, 又は識別された利用主体。 |
+| ツール | - | 特定作業を実行するための機能や道具。 |
+| リソース | - | 処理に必要な計算機資源やデータ。 |
+| クラスタ | - | 複数の機器を連携させて一体運用する構成。 |
+| ディストリビューション | - | 基本ソフトウェアと関連部品をまとめた配布形態。 |
+| コンテナイメージ | - | コンテナ実行に必要な内容をまとめた保存形式。 |
+| プログラム | - | 計算機に処理をさせるための命令列。 |
+| コミュニティ | - | 共通目的のもとで継続的に活動する利用者集団。 |
+| プラグイン | - | 既存機能へ追加機能を組み込むための拡張部品。 |
+| サービスアカウント | - | 自動処理向けに用意する利用主体の識別情報。 |
+| コンテナランタイム | - | コンテナを起動, 停止, 管理する実行基盤。 |
+| リクエスト | - | 処理実行や情報取得を要求する操作。 |
+| コントローラ | - | 対象状態を監視し, 期待状態へ調整する制御機能。 |
+| メタデータ | - | 対象データの属性や説明を示す付加情報。 |
+| バックエンド | - | 利用者画面の背後で処理を実行する側。 |
+| ストレージ | - | データを保存する仕組み。 |
+| インストール | - | ソフトウェアを導入して利用可能にする作業。 |
+| マシン | - | 処理を実行する計算機。 |
+| プロビジョニング | - | 利用開始に必要な設定や資源を準備する作業。 |
+| ルーティング | - | 宛先までの経路を選択して転送する処理。 |
+| オブジェクト | - | ひとかたまりとして扱うデータ単位。 |
+| エージェント | - | 指示に従って処理を代行する構成要素。 |
+| ストア | - | データや成果物を保存する場所。 |
+| ジャーナル | - | 時系列の記録を保持する仕組み。 |
+| アカウント | - | 利用者や処理主体を識別する登録情報。 |
+| エンドポイント | - | 通信の接続先を表す識別点。 |
+| パターン | - | 繰り返し現れる構造や記述形式。 |
+| パケット | - | ネットワークで転送するデータ単位。 |
+| カーネル | - | 基本ソフトウェアの中核機能。 |
+| シェル | - | コマンド入力で計算機を操作する仕組み。 |
+| Playbook | - | 自動化処理の実行手順を記述したファイル。 |
+| Canonical | - | Ubuntu を提供する組織名。 |
+| Key-Value | - | キーと値の組で情報を表す方式。 |
+| IP | - | インターネットプロトコルの略称。 |
+| SQL | - | データベースを操作するための記述言語。 |
+| HTTP | - | WWW で情報をやり取りする通信手順。 |
+| HTTPS | - | 通信内容を暗号化して WWW 通信を行う方式。 |
+| RPM | - | RHEL 系で使用するパッケージ形式。 |
+| VM | - | 物理機器上で動作する仮想的な計算機。 |
+| localhost | - | 同一機器自身を指す名前。 |
+| root | - | Unix 系システムの最上位権限を持つ管理者識別子。 |
+| ソフトウェア | - | 情報処理システムで使用するプログラム, 手順, 規則及び関連文書の全体又は一部分。 |
+| アプリケーション | - | 利用者の目的を実現するために動作するソフトウェア。 |
+| パッケージ | - | ソフトウェア導入に必要なファイルをまとめた配布単位。 |
+| リポジトリ | - | ソフトウェアや設定情報を保管し, 取得できるようにした管理場所。 |
+| コマンド | - | 実行者が計算機へ処理を指示するための命令。 |
+| ホスト | - | 管理対象として識別される個別の計算機。 |
+| サーバ | - | 他の機器や利用者へ機能やデータを提供する計算機, 又はその役割。 |
+| ノード | - | ネットワークに接続された機器または処理単位。 |
+| コンテナ | - | アプリケーションを動かす隔離された実行単位。 |
+| ネットワーク | - | 機器同士を接続してデータをやり取りする仕組み。 |
+| アドレス | - | 宛先や所在を識別するための情報。 |
+| プロトコル | - | 通信やデータ交換の手順を定めた取り決め。 |
+| ディレクトリ | - | ファイルを階層的に整理するための入れ物。 |
+| ログ | - | 処理の結果や状態を時系列で記録した情報。 |
+| コード | - | 処理内容を記述した文字列。 |
+| Kubernetes | K8s | コンテナを管理する基盤ソフトウェア。 |
+| Pod | - | Kubernetes でコンテナをまとめて管理する最小単位。 |
+| Linux | - | 多くの機器で使われる, 基本ソフトウェアの系統。 |
+| Debian | - | コミュニティ主導で開発される Linux ディストリビューション。 |
+| Ubuntu | - | Canonical が提供する Debian 系の Linux ディストリビューション。 |
+| Ansible | - | 設定の同一化や導入作業を所定の手順に従って自動化する仕組み。 |
+| World Wide Web | WWW | ネットワーク上で文書や情報を相互参照できる仕組み。 |
+| Service | - | サービスの英語表記。 |
+| Node | - | ノードの英語表記。 |
+| Makefile | - | 実行手順を定義したファイル。 |
+| API | - | アプリケーション同士がやり取りする方法を定めた仕様。 |
+| URL | - | WWW 上の資源の場所を示す文字列。 |
 | GitLab | - | Git リポジトリ管理とCI/CD機能を統合した開発プラットフォーム |
-| Docker | - | コンテナ仮想化技術を用いたアプリケーション実行環境 |
-| Secure Shell | SSH | 暗号化されたネットワークプロトコル, リモート操作やGit通信で使用 |
-| Hypertext Transfer Protocol Secure | HTTPS | TLS/SSLで暗号化されたHTTP通信プロトコル |
+| Docker | - | コンテナイメージやコンテナの作成, 実行, 管理を行うコマンド。 |
+| Secure Shell | SSH | 遠隔の計算機へ安全に接続して操作する方式。 |
+| Hypertext Transfer Protocol Secure | HTTPS | 通信内容を暗号化して Web 通信を行う方式。 |
 | PostgreSQL | - | オープンソースのリレーショナルデータベース管理システム, GitLabのデータ保存に使用 |
-| Git | - | 分散型バージョン管理システム, ソースコード管理の基盤 |
+| Git | - | 分散バージョン管理システム, ソースコード変更の履歴管理と協業を支援 |
 | Continuous Integration/Continuous Delivery | CI/CD | ソフトウェア開発における継続的な統合と継続的な配信の自動化プロセス |
 | Secure Sockets Layer/Transport Layer Security | SSL/TLS | ネットワーク通信を暗号化するセキュリティプロトコル |
-| Router Advertisement | RA | IPv6ネットワークでルータが配布するネットワーク設定情報 |
-| User Interface | UI | ユーザがシステムと対話する画面やインターフェース |
-| Uniform Resource Locator | URL | インターネット上のリソースの場所を示すアドレス表記 |
+| Router Advertisement | RA | IPv6 で経路情報を通知する仕組み。 |
+| User Interface | UI | 利用者がソフトウェアを操作するための見た目と操作方法。 |
+| Uniform Resource Locator | URL | URL の正式名称。 |
+| Network File System | NFS | ネットワーク越しにファイル共有を行う仕組み。 |
+| Operating System | OS | 計算機の基本機能を管理し, アプリケーションを動作させる基盤ソフトウェア。 |
+| User Identifier | UID | 利用者を識別する番号。 |
+| Host Variables | host_vars | ホスト単位の設定値を格納する変数定義。 |
+| Ansible Inventory | inventory | 実行対象ホストの一覧と接続情報を管理する定義。 |
+| Ansible Task | task | 自動化処理の最小単位となる実行項目。 |
+| Continuous Delivery | CD | 変更を継続的に配備可能な状態へ保つ開発運用手法。 |
+| Continuous Integration | CI | 変更を継続的に統合して検証する開発手法。 |
+| Interface | IF | 装置や機能の接続点。 |
+| Large File Storage | LFS | 大容量ファイルを効率的に管理する仕組み。 |
+| Web | WEB | HTTP などで情報を公開, 閲覧する仕組み。 |
+| ansible-playbookコマンド | - | Ansible Playbook を実行して自動構成処理を適用するコマンド。 |
+| `crontab` | - | 定期実行設定を登録, 表示, 削除するコマンド。 |
+| `docker` | - | コンテナイメージやコンテナの作成, 実行, 管理を行うコマンド。 |
+| `sysctl` | - | カーネル動作パラメタを参照, 変更するコマンド。 |
+| サービス | - | 機能を利用者や他システムへ提供する仕組み。 |
+| システム | - | 複数の要素が連携して目的を実現する仕組み全体。 |
+| データベース | - | 検索や更新ができるよう整理した情報の集合。 |
+| ポート | - | 通信の出入口を識別する番号または接点。 |
+| 制御ホスト | - | Playbook を実行し, 他ホストへの処理指示を行う管理用ホスト。 |
+| 対象ホスト | - | Playbook による設定変更や導入処理の適用先となるホスト。 |
+| sudoコマンド | sudo | 一時的に管理者権限でコマンドを実行するためのコマンド。 |
 
-このロールは GitLab Omnibus の公式 Docker イメージと GitLab Runner をホスト上で運用するための基盤を構築します。`docker compose` によるコンテナ起動 / 停止, 永続化ディレクトリの準備, バックアップ / リストア補助スクリプトの展開を自動化し, 再実行可能な手順で GitLab サービスを維持します。
+## 概要
+
+本ロールは GitLab Omnibus の公式 Docker イメージと GitLab Runner をホスト上で運用するための基盤を構築します。`docker compose` によるコンテナ起動 / 停止, 永続化ディレクトリの準備, バックアップ / リストア補助スクリプトの展開を自動化し, 再実行可能な手順で GitLab サービスを維持します。
 
 以下の処理を実施します:
 
@@ -53,6 +159,75 @@
 - クリーンインストール指定時には既存の設定, データ, コンテナイメージを削除して初期状態から再構築
 
 GitLab の初期ルートパスワードファイルや公開 URL, 通信ポートもロールの変数で一元管理します。
+
+## 主な処理
+
+本ロールは tasks/main.yml から task 群を呼び出し, 設定適用と検証を実施します。
+
+## 前提条件
+
+本ロールの実行者は, 対象ホストが inventory に登録済みであることを確認します。
+本ロールの実行者は, 関連する共通変数が vars/all-config.yml または host_vars に定義済みであることを確認します。
+
+## 実行方法
+
+実行者は制御ホストで以下のコマンドを実行します。
+
+```bash
+ansible-playbook -i inventory/hosts site.yml --tags "gitlab-server"
+```
+
+## 主要変数
+
+| 変数名 | 意味 | 既定値 | 設定例 |
+| --- | --- | --- | --- |
+| (該当なし) | 本ロール実装にはロール全体の実行可否を切り替える `*_enabled` 変数はありません。 | - | - |
+
+## テンプレートと生成ファイル
+
+本ロールでは以下のテンプレート / ファイルを出力します:
+主な展開先ホストは, 対象ホスト(既定) です。
+
+| テンプレートファイル名 | 出力先パス | 説明 |
+| --- | --- | --- |
+| `gitlab-backup.py.j2` | `{{ gitlab_scripts_dir }}/{{ gitlab_backup_script_file }}` (既定: `{{ gitlab_scripts_dir }}/{{ gitlab_backup_script_file }}`) | GitLab データを世代管理付きで取得するバックアップ処理スクリプトです。 |
+| `gitlab-restore.py.j2` | `{{ gitlab_scripts_dir }}/{{ gitlab_restore_script_file }}` (既定: `{{ gitlab_scripts_dir }}/{{ gitlab_restore_script_file }}`) | GitLab のバックアップデータを復元するリストア処理スクリプトです。 |
+| `daily-backup-gitlab.sh.j2` | `{{ gitlab_scripts_dir }}/{{ gitlab_daily_backup_script_file }}` (既定: `{{ gitlab_scripts_dir }}/{{ gitlab_daily_backup_script_file }}`) | GitLab バックアップを定期実行するためのラッパスクリプトです。 |
+| `docker-compose.yml.j2` | `{{ gitlab_docker_compose_file }}` (既定: `{{ gitlab_docker_compose_file }}`) | GitLab 関連コンテナ(本体, DB, 補助サービス)の構成を定義する compose 設定です。 |
+| `90-gitlab-forwarding.conf.j2` | `/etc/sysctl.d/90-gitlab-forwarding.conf` (既定: `/etc/sysctl.d/90-gitlab-forwarding.conf`) | GitLab コンテナ運用で必要な転送系カーネルパラメタを定義する sysctl 設定です。 |
+
+## 実行フロー
+
+1. 実行者が load-params.yml により変数を読み込む。
+2. 実行者が本ロール固有の task を順次実行します。
+3. 実行者が検証コマンドを実行して期待結果を確認します。
+
+1. [tasks/load-params.yml](tasks/load-params.yml) で OS ごとのパッケージ定義や共通パラメータを取り込みます。
+2. `gitlab_clean_install` や `gitlab_remove_container_images` が有効な場合, [tasks/config-clean-install.yml](tasks/config-clean-install.yml) が既存ディレクトリと Docker イメージを削除します。
+3. [tasks/directory-gitlab.yml](tasks/directory-gitlab.yml) が GitLab 用ユーザ / グループを確認し, ホーム, 設定, データ, バックアップ各ディレクトリを所有権付きで作成します。
+4. 同タスク内で `docker-compose.yml` を配置します。`gitlab_enable_backup_script` が有効な場合, バックアップ・リストアスクリプト (`gitlab-backup.py`, `gitlab-restore.py`) を配置します。加えて`gitlab_backup_nfs_server`, `gitlab_backup_mount_point`, `gitlab_backup_output_dir`が非空で, かつ`gitlab_backup_rotation`が正の整数の場合のみ, デイリーバックアップスクリプト(`daily-backup-gitlab.sh`)を配置します。
+5. [tasks/sysctl.yml](tasks/sysctl.yml) が `templates/90-gitlab-forwarding.conf.j2` を `/etc/sysctl.d/90-gitlab-forwarding.conf` に配置し, IPv4/IPv6 フォワーディング (`net.ipv4.ip_forward`, `net.ipv6.conf.all.forwarding`, `net.ipv6.conf.default.forwarding`), 管理 IF (Interface, インターフェース) の RA (Router Advertisement, ルータ広告) 受信 (`net.ipv6.conf.<mgmt_nic>.accept_ra`) を有効化します。配置時は `gitlab_reload_sysctl` ハンドラを通知し, `sysctl --system` で設定を反映します。
+6. [tasks/service.yml](tasks/service.yml) が `docker compose up -d` で GitLab / Runner コンテナを起動し, HTTPS (Hypertext Transfer Protocol Secure) / SSH (Secure Shell) / Registry ポートが開くまで待機します。その後, アクセス URL や初期パスワードファイルパスを表示します。
+7. ロール再実行時には既存の compose ファイルや永続化ディレクトリを再利用し, 冪等に整備を行います。停止したい場合は [tasks/stop-service.yml](tasks/stop-service.yml) を参照してください。
+
+## 検証ポイント
+
+- `/srv/gitlab` 以下に設定, ログ, データ, バックアップ, scripts ディレクトリが期待した所有者 ( `gitlab_user_id` / `gitlab_group_id` ) で作成されていること。
+- `/etc/sysctl.d/90-gitlab-forwarding.conf` が配備され, `sysctl net.ipv4.ip_forward`, `sysctl net.ipv6.conf.all.forwarding` が `1` に設定されていること。
+- `docker compose -f /srv/gitlab/docker-compose.yml ps` で GitLab と GitLab Runner コンテナが稼働していること。
+- Web UI (User Interface, ユーザインターフェース), SSH (Secure Shell), Container Registry が指定したポートで応答すること。
+- `gitlab-backup.py` 実行時にメタ情報付きのバンドルが生成されること。
+- `gitlab-restore.py --verbose <バックアップバンドルファイル>` 実行時に, `puma/sidekiq` の停止, 復旧ログが確認できること。
+- `gitlab-restore.py --verbose <バックアップバンドルファイル>` 実行後にバックアップしたリポジトリやユーザ情報が復元されていること。
+- クリーンインストール実施時は既存ディレクトリや Docker イメージが削除され, 再実行で初期状態から構築されていること。
+
+## トラブルシューティング
+
+実行者はエラー発生時に build-*.log を確認し, 失敗した task 名と不足変数を特定します。
+
+## 注意事項
+
+実行者は既存の実行順依存を崩さないことを確認した上で本ロールを実行します。
 
 ## 変数一覧
 
@@ -89,16 +264,6 @@ GitLab の初期ルートパスワードファイルや公開 URL, 通信ポー�
 | `gitlab_backup_mount_point` | `/mnt` | デイリーバックアップ時のNFSマウントポイント(NFSのマウント/アンマウント時に使用) |
 | `gitlab_backup_dir_on_nfs` | `/gitlab-backups` | デイリーバックアップ時のNFSマウントポイント配下のバックアップ配置先ディレクトリ |
 | `gitlab_enable_backup_script` | `false` | バックアップスクリプト生成有効化フラグ。`true` に設定するとバックアップ・リストアスクリプト(gitlab-backup.py, gitlab-restore.py)が配置されます。デイリーバックアップスクリプト(daily-backup-gitlab.sh)の配置には, 加えて`gitlab_backup_nfs_server`, `gitlab_backup_mount_point`, `gitlab_backup_output_dir`が非空で, かつ`gitlab_backup_rotation`が正の整数である必要があります。不要な環境では `false` に設定するとスクリプト生成をスキップできます。 |
-
-## ロール内の動作
-
-1. [tasks/load-params.yml](tasks/load-params.yml) で OS ごとのパッケージ定義や共通パラメータを取り込みます。
-2. `gitlab_clean_install` や `gitlab_remove_container_images` が有効な場合, [tasks/config-clean-install.yml](tasks/config-clean-install.yml) が既存ディレクトリと Docker イメージを削除します。
-3. [tasks/directory-gitlab.yml](tasks/directory-gitlab.yml) が GitLab 用ユーザ / グループを確認し, ホーム, 設定, データ, バックアップ各ディレクトリを所有権付きで作成します。
-4. 同タスク内で `docker-compose.yml` を配置します。`gitlab_enable_backup_script` が有効な場合, バックアップ・リストアスクリプト (`gitlab-backup.py`, `gitlab-restore.py`) を配置します。加えて`gitlab_backup_nfs_server`, `gitlab_backup_mount_point`, `gitlab_backup_output_dir`が非空で, かつ`gitlab_backup_rotation`が正の整数の場合のみ, デイリーバックアップスクリプト(`daily-backup-gitlab.sh`)を配置します。
-5. [tasks/sysctl.yml](tasks/sysctl.yml) が `templates/90-gitlab-forwarding.conf.j2` を `/etc/sysctl.d/90-gitlab-forwarding.conf` に配置し, IPv4/IPv6 フォワーディング (`net.ipv4.ip_forward`, `net.ipv6.conf.all.forwarding`, `net.ipv6.conf.default.forwarding`), 管理 IF (Interface, インターフェース) の RA (Router Advertisement, ルータ広告) 受信 (`net.ipv6.conf.<mgmt_nic>.accept_ra`) を有効化します。配置時は `gitlab_reload_sysctl` ハンドラを通知し, `sysctl --system` で設定を反映します。
-6. [tasks/service.yml](tasks/service.yml) が `docker compose up -d` で GitLab / Runner コンテナを起動し, HTTPS (Hypertext Transfer Protocol Secure) / SSH (Secure Shell) / Registry ポートが開くまで待機します。その後, アクセス URL や初期パスワードファイルパスを表示します。
-7. ロール再実行時には既存の compose ファイルや永続化ディレクトリを再利用し, 冪等に整備を行います。停止したい場合は [tasks/stop-service.yml](tasks/stop-service.yml) を参照してください。
 
 ## Gitlabコンテナの構成
 
@@ -240,7 +405,6 @@ Gitlabの公式手順に従って, バックアップを生成, 復元するた�
 
 本バックアップスクリプトは, スクリプト実行中にコンテナ内のgitアカウントのUID/GID番号を取得し, コンテナ内からアクセス可能なユーザ権, グループ権を設定して, バックアップバンドルファイル内のGitlab公式のバックアップファイル(`.tar`アーカイブ)のUID/GID番号を設定します。
 UID/GID番号を取得できなかった場合は, `gitlab_user_id`, `gitlab_group_id`変数の設定値に従って, ユーザID, グループIDを設定します。
-
 
 `{{ gitlab_scripts_dir }}/gitlab-backup.py` が正常終了すると,
 
@@ -390,12 +554,12 @@ Restore completed successfully
 
 リストア処理の内容は以下の通りです:
 
-1. バックアップバンドルファイルを展開し, メタ情報とバックアップアーカイブを取得する。
-2. バックアップアーカイブをGitLabバックアップディレクトリに配置する。
-3. pumaとsidekiqサービスを停止する。
+1. バックアップバンドルファイルを展開し, メタ情報とバックアップアーカイブを取得します。
+2. バックアップアーカイブをGitLabバックアップディレクトリに配置します。
+3. pumaとsidekiqサービスを停止します。
 4. gitlab-backup restore コマンドを実行して復元処理を行う。
-5. gitlab-ctl reconfigure と gitlab-ctl start を実行してGitLabを再構成し起動する。
-6. pumaとsidekiqサービスが稼働状態になるのを待機する。
+5. gitlab-ctl reconfigure と gitlab-ctl start を実行してGitLabを再構成し起動します。
+6. pumaとsidekiqサービスが稼働状態になるのを待機します。
 
 ### 定期バックアップ
 
@@ -417,17 +581,6 @@ Gitlabバックアップのバックアップバンドルファイルをコピ�
 上記の設定の場合, 毎日午前3時に`{{ gitlab_daily_backup_dir }}`にバックアップファイルを生成後,
 `{{gitlab_backup_nfs_server}}:{{gitlab_backup_nfs_dir}}`をマウントポイントに指定して,
 NFS (Network File System) サーバをマウントし, バックアップファイルを当該ディレクトリにコピーします。
-
-## 検証ポイント
-
-- `/srv/gitlab` 以下に設定, ログ, データ, バックアップ, scripts ディレクトリが期待した所有者 ( `gitlab_user_id` / `gitlab_group_id` ) で作成されていること。
-- `/etc/sysctl.d/90-gitlab-forwarding.conf` が配備され, `sysctl net.ipv4.ip_forward`, `sysctl net.ipv6.conf.all.forwarding` が `1` に設定されていること。
-- `docker compose -f /srv/gitlab/docker-compose.yml ps` で GitLab と GitLab Runner コンテナが稼働していること。
-- Web UI (User Interface, ユーザインターフェース), SSH (Secure Shell), Container Registry が指定したポートで応答すること。
-- `gitlab-backup.py` 実行時にメタ情報付きのバンドルが生成されること。
-- `gitlab-restore.py --verbose <バックアップバンドルファイル>` 実行時に, `puma/sidekiq` の停止, 復旧ログが確認できること。
-- `gitlab-restore.py --verbose <バックアップバンドルファイル>` 実行後にバックアップしたリポジトリやユーザ情報が復元されていること。
-- クリーンインストール実施時は既存ディレクトリや Docker イメージが削除され, 再実行で初期状態から構築されていること。
 
 ## 付録) 本ロールから導入されるバックアップ, リストア用スクリプトのコマンドライン仕様
 
@@ -496,12 +649,14 @@ GitLabのバックアップを作成およびアーカイブする
   --skip-config 設定ファイル ( gitlab.rb), Gitlabの機密情報ファイル(gitlab-secrets.json ) の復元をスキップする
   (規定値は, `false`, 設定ファイル ( gitlab.rb), Gitlabの機密情報ファイル(gitlab-secrets.json ) の復元を試みる)
   --skip-reconfigure (`gitlab-ctl reconfigure`による)再設定処理(設定ファイル(gitlab.rb)を反映する処理)をスキップする(規定値は, `false`, 再設定処理 (`gitlab-ctl reconfigure`)を実行する)。
-    gitlab.rbを永続化しない運用(キャッシュ内の設定のみで動作し, gitlab.rbへの書き戻しを行わない設定で動作する環境)の場合で, かつ, DBの内容に変更がない場合, 例えば, gitlab-secrets.jsonのみの変更の場合に使用することを想定したオプションである。
+    gitlab.rbを永続化しない運用(キャッシュ内の設定のみで動作し, gitlab.rbへの書き戻しを行わない設定で動作する環境)の場合で, かつ, DBの内容に変更がない場合, 例えば, gitlab-secrets.jsonのみの変更の場合に使用することを想定したオプションです。
     本ロールでは, `docker-compose.yml`内で, 環境変数を用いて, Gitlabの動作オプションを指定しているため, 本オプションを使用する必要はない, また, Gitlabの公式手順でもDB更新後の再構築を行うことが推奨されているため, 通常運用では使用しないオプションであるため, 規定値は, `false`となっている。
   --verbose リストア動作中の詳細ログ出力を有効化 (規定値は, `false`, 詳細ログを表示しない)
 ```
 
-## 参考URL
+## 参考資料
+
+### 公式ドキュメント
 
 - [公式GitLab Omnibus のコンテナイメージを用いたインストール手順](https://docs.gitlab.com/install/docker/installation/)
 - [Gitlabのバックアップ手順](https://docs.gitlab.com/install/docker/backup/)

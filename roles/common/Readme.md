@@ -1,31 +1,189 @@
 # common ロール
 
-他のすべてのロールの前提となる環境を整えるためのロールです。Ubuntu 24.04, Red Hat Enterprise Linux (RHEL) 9 系 (AlmaLinux9.6を想定)を対象とします。
+本ロールは, 本playbookで構築されるインフラノード(共通的に使用される機能を提供するための管理ノード, ソフトウェア開発環境を提供する開発ノード, 仮想化環境内部ネットワークと外部ネットワークとを接続するルータノードなど), Kubernetes クラスタを構成するノード (コントロールプレーン, ワーカー) および データセンター(DC)代表 Free Range Routing (FRR, ルーティングソフト) ルータノードを構築するために必要な, 基礎的なシステム設定を行います。
 
-本playbookで構築されるインフラノード(共通的に使用される機能を提供するための管理ノード, ソフトウエア開発環境を提供する開発ノード, 仮想化環境内部ネットワークと外部ネットワークとを接続するルータノードなど), Kubernetes クラスタを構成するノード (コントロールプレーン, ワーカー) および データセンター(DC)代表 Free Range Routing (FRR, ルーティングソフト) ルータノードを構築するために必要な, 基礎的なシステム設定を行います。
+## 目次
+
+- [common ロール](#common-ロール)
+  - [目次](#目次)
+  - [用語](#用語)
+  - [概要](#概要)
+    - [主な処理](#主な処理)
+  - [前提条件](#前提条件)
+  - [実行方法](#実行方法)
+  - [主要変数](#主要変数)
+    - [基本設定](#基本設定)
+    - [APT Lock 管理 (Debian 系のみ)](#apt-lock-管理-debian-系のみ)
+    - [ネットワーク設定](#ネットワーク設定)
+    - [Sysctl 設定](#sysctl-設定)
+    - [Sudoers 設定](#sudoers-設定)
+    - [仮想化環境設定](#仮想化環境設定)
+    - [multicast DNS/Dynamic DNS 設定 (オプション)](#multicast-dnsdynamic-dns-設定-オプション)
+  - [テンプレートと生成ファイル](#テンプレートと生成ファイル)
+  - [設定例](#設定例)
+    - [単一 NIC 構成 (IPv4 のみ)](#単一-nic-構成-ipv4-のみ)
+    - [デュアル NIC 構成 (管理系 + K8s ネットワーク)](#デュアル-nic-構成-管理系--k8s-ネットワーク)
+    - [デュアルスタック構成 (IPv4 + IPv6)](#デュアルスタック構成-ipv4--ipv6)
+    - [トリプル NIC 構成 (管理系 + K8s ネットワーク + ストレージ)](#トリプル-nic-構成-管理系--k8s-ネットワーク--ストレージ)
+    - [Dynamic DNS 自動登録を有効化した構成](#dynamic-dns-自動登録を有効化した構成)
+  - [実行フロー](#実行フロー)
+    - [OS 差異](#os-差異)
+      - [ネットワーク設定の差異](#ネットワーク設定の差異)
+      - [パッケージマネージャの差異](#パッケージマネージャの差異)
+      - [ファイアウォールの差異](#ファイアウォールの差異)
+      - [その他の差異](#その他の差異)
+  - [検証ポイント](#検証ポイント)
+    - [前提条件](#前提条件-1)
+    - [1. タイムゾーン設定の確認](#1-タイムゾーン設定の確認)
+    - [2. ファイアウォール無効化の確認](#2-ファイアウォール無効化の確認)
+      - [RHEL 系](#rhel-系)
+      - [Debian 系](#debian-系)
+      - [nftables rpfix テーブルの確認](#nftables-rpfix-テーブルの確認)
+    - [3. ネットワーク設定の確認](#3-ネットワーク設定の確認)
+      - [NetworkManager の状態確認](#networkmanager-の状態確認)
+      - [systemd-networkd の無効化確認](#systemd-networkd-の無効化確認)
+      - [ネットワークインターフェース設定の確認 (RHEL 系)](#ネットワークインターフェース設定の確認-rhel-系)
+      - [ネットワークインターフェース設定の確認 (Debian 系)](#ネットワークインターフェース設定の確認-debian-系)
+      - [IP アドレス設定の確認](#ip-アドレス設定の確認)
+      - [デフォルトルートの確認](#デフォルトルートの確認)
+      - [DNS 設定の確認](#dns-設定の確認)
+      - [systemd .link ファイルの確認](#systemd-link-ファイルの確認)
+    - [4. Sudoers 設定の確認](#4-sudoers-設定の確認)
+      - [Drop-in ファイルの存在確認](#drop-in-ファイルの存在確認)
+      - [Drop-in ファイルの内容確認](#drop-in-ファイルの内容確認)
+      - [Sudo 権限の動作確認](#sudo-権限の動作確認)
+    - [5. Sysctl 設定の確認](#5-sysctl-設定の確認)
+      - [Ptrace 設定の確認](#ptrace-設定の確認)
+      - [Dmesg 設定の確認](#dmesg-設定の確認)
+      - [ファイル監視数の確認](#ファイル監視数の確認)
+    - [6. パッケージインストールの確認](#6-パッケージインストールの確認)
+      - [基本パッケージの確認 (Debian 系)](#基本パッケージの確認-debian-系)
+      - [基本パッケージの確認 (RHEL 系)](#基本パッケージの確認-rhel-系)
+      - [Kubernetes 前提パッケージの確認](#kubernetes-前提パッケージの確認)
+      - [yq コマンドの確認](#yq-コマンドの確認)
+      - [言語パッケージの確認 (Debian 系)](#言語パッケージの確認-debian-系)
+      - [mDNS パッケージの確認 (`mdns_enabled: true` の場合)](#mdns-パッケージの確認-mdns_enabled-true-の場合)
+      - [VMware Tools の確認 (`use_vmware: true` の場合)](#vmware-tools-の確認-use_vmware-true-の場合)
+      - [XCP-NG Guest Utilities の確認 (`use_xcpng: true` の場合)](#xcp-ng-guest-utilities-の確認-use_xcpng-true-の場合)
+    - [7. Dynamic DNS Client Scripts の確認 (`use_nm_ddns_update_scripts: true` の場合)](#7-dynamic-dns-client-scripts-の確認-use_nm_ddns_update_scripts-true-の場合)
+      - [スクリプトファイルの存在確認](#スクリプトファイルの存在確認)
+      - [DNS Update Key ファイルの確認](#dns-update-key-ファイルの確認)
+      - [nm-ra-addr-watch サービスの確認](#nm-ra-addr-watch-サービスの確認)
+      - [NetworkManager Dispatcher の動作確認](#networkmanager-dispatcher-の動作確認)
+  - [トラブルシューティング](#トラブルシューティング)
+    - [APT Lock タイムアウト時の対処](#apt-lock-タイムアウト時の対処)
+    - [NetworkManager 設定が適用されない場合 (RHEL 系)](#networkmanager-設定が適用されない場合-rhel-系)
+    - [netplan 適用失敗時の対処 (Debian 系)](#netplan-適用失敗時の対処-debian-系)
+    - [再起動後にネットワーク接続が失われる場合](#再起動後にネットワーク接続が失われる場合)
+    - [Dynamic DNS Update が動作しない場合](#dynamic-dns-update-が動作しない場合)
+    - [Sudoers 設定が反映されない場合](#sudoers-設定が反映されない場合)
+  - [補足](#補足)
+    - [ハンドラ](#ハンドラ)
+    - [他ロールとの依存関係](#他ロールとの依存関係)
+    - [DNS Client Scripts の詳細](#dns-client-scripts-の詳細)
+      - [ddns-client-update.sh](#ddns-client-updatesh)
+      - [nm-ra-addr-watch](#nm-ra-addr-watch)
+      - [90-nm-ns-update](#90-nm-ns-update)
+    - [再起動に関する注意事項](#再起動に関する注意事項)
+    - [netif\_list 変数の詳細](#netif_list-変数の詳細)
+    - [SELinux に関する注意事項 (RHEL 系)](#selinux-に関する注意事項-rhel-系)
+    - [Cloud-Init との共存](#cloud-init-との共存)
+    - [yq コマンドについて](#yq-コマンドについて)
+  - [注意事項](#注意事項)
+  - [参考資料](#参考資料)
+    - [公式ドキュメント](#公式ドキュメント)
 
 ## 用語
 
 | 正式名称 | 略称 | 意味 |
 | --- | --- | --- |
-| Operating System | OS | 基本ソフトウエア。 |
-| Secure Shell | SSH | 暗号化されたリモート接続の仕組み。 |
+| ユーザ | - | 機能を利用する人, 又は識別された利用主体。 |
+| ツール | - | 特定作業を実行するための機能や道具。 |
+| リソース | - | 処理に必要な計算機資源やデータ。 |
+| クラスタ | - | 複数の機器を連携させて一体運用する構成。 |
+| ディストリビューション | - | 基本ソフトウェアと関連部品をまとめた配布形態。 |
+| コンテナイメージ | - | コンテナ実行に必要な内容をまとめた保存形式。 |
+| プログラム | - | 計算機に処理をさせるための命令列。 |
+| コミュニティ | - | 共通目的のもとで継続的に活動する利用者集団。 |
+| プラグイン | - | 既存機能へ追加機能を組み込むための拡張部品。 |
+| サービスアカウント | - | 自動処理向けに用意する利用主体の識別情報。 |
+| コンテナランタイム | - | コンテナを起動, 停止, 管理する実行基盤。 |
+| リクエスト | - | 処理実行や情報取得を要求する操作。 |
+| コントローラ | - | 対象状態を監視し, 期待状態へ調整する制御機能。 |
+| メタデータ | - | 対象データの属性や説明を示す付加情報。 |
+| バックエンド | - | 利用者画面の背後で処理を実行する側。 |
+| ストレージ | - | データを保存する仕組み。 |
+| インストール | - | ソフトウェアを導入して利用可能にする作業。 |
+| マシン | - | 処理を実行する計算機。 |
+| プロビジョニング | - | 利用開始に必要な設定や資源を準備する作業。 |
+| ルーティング | - | 宛先までの経路を選択して転送する処理。 |
+| オブジェクト | - | ひとかたまりとして扱うデータ単位。 |
+| エージェント | - | 指示に従って処理を代行する構成要素。 |
+| ストア | - | データや成果物を保存する場所。 |
+| ジャーナル | - | 時系列の記録を保持する仕組み。 |
+| アカウント | - | 利用者や処理主体を識別する登録情報。 |
+| エンドポイント | - | 通信の接続先を表す識別点。 |
+| パターン | - | 繰り返し現れる構造や記述形式。 |
+| パケット | - | ネットワークで転送するデータ単位。 |
+| カーネル | - | 基本ソフトウェアの中核機能。 |
+| シェル | - | コマンド入力で計算機を操作する仕組み。 |
+| Playbook | - | 自動化処理の実行手順を記述したファイル。 |
+| Canonical | - | Ubuntu を提供する組織名。 |
+| Key-Value | - | キーと値の組で情報を表す方式。 |
+| IP | - | インターネットプロトコルの略称。 |
+| SQL | - | データベースを操作するための記述言語。 |
+| HTTP | - | WWW で情報をやり取りする通信手順。 |
+| HTTPS | - | 通信内容を暗号化して WWW 通信を行う方式。 |
+| RPM | - | RHEL 系で使用するパッケージ形式。 |
+| VM | - | 物理機器上で動作する仮想的な計算機。 |
+| localhost | - | 同一機器自身を指す名前。 |
+| root | - | Unix 系システムの最上位権限を持つ管理者識別子。 |
+| ソフトウェア | - | 情報処理システムで使用するプログラム, 手順, 規則及び関連文書の全体又は一部分。 |
+| アプリケーション | - | 利用者の目的を実現するために動作するソフトウェア。 |
+| パッケージ | - | ソフトウェア導入に必要なファイルをまとめた配布単位。 |
+| リポジトリ | - | ソフトウェアや設定情報を保管し, 取得できるようにした管理場所。 |
+| コマンド | - | 実行者が計算機へ処理を指示するための命令。 |
+| ホスト | - | 管理対象として識別される個別の計算機。 |
+| サーバ | - | 他の機器や利用者へ機能やデータを提供する計算機, 又はその役割。 |
+| コンテナ | - | アプリケーションを動かす隔離された実行単位。 |
+| ネットワーク | - | 機器同士を接続してデータをやり取りする仕組み。 |
+| プロトコル | - | 通信やデータ交換の手順を定めた取り決め。 |
+| ディレクトリ | - | ファイルを階層的に整理するための入れ物。 |
+| ログ | - | 処理の結果や状態を時系列で記録した情報。 |
+| コード | - | 処理内容を記述した文字列。 |
+| Pod | - | Kubernetes でコンテナをまとめて管理する最小単位。 |
+| Linux | - | 多くの機器で使われる, 基本ソフトウェアの系統。 |
+| Debian | - | コミュニティ主導で開発される Linux ディストリビューション。 |
+| Ubuntu | - | Canonical が提供する Debian 系の Linux ディストリビューション。 |
+| Docker | - | コンテナイメージやコンテナの作成, 実行, 管理を行うコマンド。 |
+| Ansible | - | 設定の同一化や導入作業を所定の手順に従って自動化する仕組み。 |
+| World Wide Web | WWW | ネットワーク上で文書や情報を相互参照できる仕組み。 |
+| Service | - | サービスの英語表記。 |
+| Node | - | ノードの英語表記。 |
+| Makefile | - | 実行手順を定義したファイル。 |
+| API | - | アプリケーション同士がやり取りする方法を定めた仕様。 |
+| URL | - | WWW 上の資源の場所を示す文字列。 |
+| Operating System | OS | 計算機の基本機能を管理し, アプリケーションを動作させる基盤ソフトウェア。 |
+| Secure Shell | SSH | 遠隔の計算機へ安全に接続して操作する方式。 |
 | Advanced Package Tool | APT | Debian 系のパッケージ管理ツール。 |
-| Network Interface Card | NIC | ネットワーク接続のためのインターフェース。 |
-| Internet Protocol | IP | 通信で使う規約と識別方式。 |
-| Domain Name System | DNS | ドメイン名と IP アドレスを対応付ける仕組み。 |
+| Network Interface Card | NIC | 計算機をネットワークへ接続するための装置または機能。 |
+| Internet Protocol | IP | ネットワーク上で宛先を識別し, データを届けるための通信手順。 |
+| Domain Name System | DNS | 名前と IP アドレスを対応付ける仕組み。 |
 | Dynamic DNS | DDNS | IP アドレスの変化に合わせて DNS を更新する仕組み。 |
+| Dynamic DNS update key | - | Dynamic DNS 更新要求を認証するために用いる共有鍵情報。 |
+| DNS update key | - | DNS 更新要求を認証するために利用する鍵情報。 |
 | Multicast DNS | mDNS | 同一ネットワーク内の名前解決方式。 |
+| マルチキャスト DNS サービス | - | 同一ネットワーク内で名前解決を行う mDNS 機能を提供するサービス。 |
 | Dynamic Host Configuration Protocol | DHCP | IP アドレスを自動配布する仕組み。 |
 | Stateless Address Autoconfiguration | SLAAC | IPv6 の自動設定方式。 |
 | Transaction SIGnature | TSIG | DNS 更新時に使う共有鍵署名方式。 |
 | Security-Enhanced Linux | SELinux | 強制アクセス制御の仕組み。 |
-| Uncomplicated Firewall | UFW | Ubuntu のファイアウォール管理ツール。 |
+| Uncomplicated Firewall | UFW | 簡易な操作で設定できるパケット制御機能。 |
 | Network Time Protocol | NTP | 時刻同期の仕組み。 |
-| Container Network Interface | CNI | Kubernetes のネットワークプラグイン仕様。 |
-| Yet Another Markup Language | YAML | 設定ファイル形式。 |
-| systemd | - | Linux の初期化とサービス管理を行う仕組み。 |
-| Media Access Control アドレス | MAC | ネットワーク機器の識別子。 |
+| Container Network Interface | CNI | コンテナ間のネットワーク接続を標準化するプラグイン仕様。 |
+| Yet Another Markup Language | YAML | 設定ファイル形式です。 |
+| systemd | - | Linux システムの初期化とサービス管理を行う仕組み。 |
+| Media Access Control Address | MAC | ネットワーク機器の識別子。 |
 | Network Attached Storage | NAS | ネットワーク接続の共有ストレージ。 |
 | Cloud-Init | - | 起動時の初期設定を自動化する仕組み。 |
 | snap | - | Ubuntu のアプリ配布, 実行基盤。 |
@@ -35,6 +193,65 @@
 | Hewlett Packard Enterprise | HPE | 企業向け IT 製品を提供するベンダ名。 |
 | Integrated Lights-Out | iLO | HPE の遠隔管理機能。 |
 | Xen Cloud Platform next generation | XCP-ng | 仮想化基盤。 |
+| IPv6 Address Record | AAAA | DNS で IPv6 アドレスを返すレコード種別。 |
+| Data Center | DC | サーバやネットワーク機器を集約して運用する拠点。 |
+| Free Range Routing | FRR | 複数の経路制御方式を実装したオープンソースの経路制御ソフトウェア。 |
+| Kubernetes | K8s | コンテナを管理する基盤ソフトウェア。 |
+| Avahi | - | Linux で mDNS と DNS-SD を提供するソフトウェア。 |
+| NetworkManager dispatcher | - | NetworkManager の状態変化に応じて外部スクリプトを実行する仕組み。 |
+| Guest Utilities | - | 仮想環境ゲスト OS と仮想化基盤との連携機能を提供する補助ソフトウェア。 |
+| XCP-NG Guest Utilities | - | XCP-NG 仮想環境内のゲスト OS とハイパーバイザ連携を行う補助ソフトウェア群。 |
+| Red Hat Enterprise Linux | RHEL | Red Hat 社が提供する商用 Linux ディストリビューション。 |
+| Red Hat Enterprise Linux 9 | RHEL9 | Red Hat Enterprise Linux の第9系統版。 |
+| Ansible Playbook | playbook | 自動化処理の実行手順を順序付きで記述したファイル。 |
+| Berkeley Internet Name Domain | BIND | DNS サーバ機能を提供するソフトウェア。 |
+| Graphical User Interface | GUI | 画面操作中心の利用形態です。 |
+| Router Advertisement | RA | IPv6 で経路情報を通知する仕組み。 |
+| XCP-ng | XCP-NG | 仮想化基盤を構築するためのオープンソースソフトウェア。 |
+| ansible-playbookコマンド | - | Ansible Playbook を実行して自動構成処理を適用するコマンド。 |
+| `apt` | - | Debian 系でパッケージを導入, 更新, 削除するコマンド。 |
+| `cat` | - | ファイル内容を標準出力へ表示するコマンド。 |
+| `chmod` | - | ファイルやディレクトリのアクセス権を変更するコマンド。 |
+| `dpkg` | - | Debian パッケージの情報参照や導入確認を行うコマンド。 |
+| `grep` | - | テキストから条件に一致する行を抽出するコマンド。 |
+| ipコマンド | - | ネットワーク設定や経路情報の確認, 変更を行うコマンド。 |
+| `journalctl` | - | systemd ジャーナルのログを参照するコマンド。 |
+| `ls` | - | ファイルやディレクトリの一覧を表示するコマンド。 |
+| `rm` | - | ファイルやディレクトリを削除するコマンド。 |
+| rpmコマンド | - | RPM パッケージの情報参照や導入確認を行うコマンド。 |
+| sudoコマンド | sudo | 一時的に管理者権限でコマンドを実行するためのコマンド。 |
+| `sysctl` | - | カーネル動作パラメタを参照, 変更するコマンド。 |
+| `systemctl` | - | systemd 管理下のサービスを起動, 停止, 状態確認するコマンド。 |
+| `yq` | - | YAML を抽出, 変換, 更新するコマンド。 |
+| アドレス | - | 宛先や所在を識別するための情報。 |
+| サービス | - | 機能を利用者や他システムへ提供する仕組み。 |
+| システム | - | 複数の要素が連携して目的を実現する仕組み全体。 |
+| デバッグ | - | 不具合の原因を調査し修正する作業。 |
+| ノード | - | ネットワークに接続された機器または処理単位。 |
+| レコード | - | ひとまとまりの情報項目。 |
+| ログイン | - | 利用者認証を行って利用を開始する操作。 |
+| ロック | - | 同時更新を防ぐための排他制御。 |
+| drop-in ファイル | - | 既存の設定本体を直接変更せず, 追加の設定断片として読み込ませる補助設定ファイル。 |
+| リモートホスト | - | ネットワーク越しに接続して操作する別ホスト。 |
+| 制御ホスト | - | Playbook を実行し, 他ホストへの処理指示を行う管理用ホスト。 |
+| 対象ホスト | - | Playbook による設定変更や導入処理の適用先となるホスト。 |
+
+## 概要
+本playbookで構築されるインフラノード(共通的に使用される機能を提供するための管理ノード, ソフトウェア開発環境を提供する開発ノード, 仮想化環境内部ネットワークと外部ネットワークとを接続するルータノードなど), Kubernetes クラスタを構成するノード (コントロールプレーン, ワーカー) および データセンター(DC)代表 Free Range Routing (FRR, ルーティングソフト) ルータノードを構築するために必要な, 基礎的なシステム設定を行います。
+
+他のすべてのロールの前提となる環境を整えるためのロールです。Ubuntu 24.04, Red Hat Enterprise Linux (RHEL) 9 系 (AlmaLinux9.6を想定) を対象とし, インフラノード, Kubernetes クラスタを構成するノード, および Free Range Routing (FRR) ルータノードを構築するために必要な基礎的なシステム設定を行います。
+
+### 主な処理
+
+- **APT ロック待機**: Debian 系で apt frontend lock を取得できるまで待機し, 後続タスクの失敗を防止します。`unattended-upgrades`, `apt-daily.service`, `apt-daily-upgrade.service`, `apt-daily.timer`, `apt-daily-upgrade.timer` を一時停止し, 復旧時は `unattended-upgrades` と `unattended-upgrades`, `apt-daily.service`を呼び出す`timer`サービス (`apt-daily.timer`, `apt-daily-upgrade.timer`) を有効化/起動してデフォルト運用に戻します。
+- **ファイアウォール無効化**: firewalld, UFW, nftables の rpfix テーブルを無効化します。Kubernetes の CNI (Container Network Interface) が独自にネットワークポリシーを管理するため, ホストレベルのファイアウォールは無効化します。
+- **NetworkManager 優先設定**: systemd-networkd を無効化し, NetworkManager を有効化します。一貫したネットワーク管理インターフェースを提供します。
+- **マルチネットワークインターフェース設定**: 複数の NIC に対して静的 IP アドレス, ゲートウェイ, DNS サーバを設定します。RHEL 系では NetworkManager keyfiles, Debian 系では netplan を使用します。
+- **MAC アドレス固定化**: systemd .link ファイルで NIC 名と MAC アドレスを紐付け, 再起動後も同じデバイス名を維持します。
+- **Sudoers 設定**: `/etc/sudoers.d/` に drop-in ファイルを配置し, 指定グループのユーザがパスワード無しで sudo を実行可能にします。既存の `/etc/sudoers` を変更しないため, 安全に設定を追加, 削除できます。
+- **Sysctl 設定**: 一般ユーザによる ptrace / dmesg を有効化し, ファイル監視数の上限を引き上げます。開発環境での利便性向上を目的とします。
+- **パッケージインストール**: Kubernetes クラスタ構築に必要なパッケージ群, 基本コマンド, 言語パッケージをインストールします。
+- **Dynamic DNS 自動登録** (オプション): NetworkManager の dispatcher 機能を利用し, IP アドレス変更時に自動的に DNS サーバへ nsupdate を送信します。DHCP 環境や IPv6 SLAAC 環境でのホスト名解決を自動化します。
 
 ## 前提条件
 
@@ -44,39 +261,13 @@
 - リモートホストへの SSH 接続が確立されていること
 - 管理者権限 (sudo) が利用可能であること
 
-## 実行フロー
+## 実行方法
 
-本ロールは以下の順序で処理を実行します:
+実行者は制御ホストで以下のコマンドを実行します。
 
-1. **APT Lock 管理** (Debian 系のみ): `apt-get` による自動更新等がロックを保持している場合, 最大 1800 秒 (既定値) 待機して apt frontend lock を取得します。処理中は `unattended-upgrades` と `apt_daily_units_to_stop` に含まれる unit (`apt-daily.service`, `apt-daily-upgrade.service`, `apt-daily.timer`, `apt-daily-upgrade.timer`) を一時停止します。playbook 完了時に `unattended-upgrades` を再度 started/enabled にし, `apt_daily_timers_to_restore` (`apt-daily.timer`, `apt-daily-upgrade.timer`) を 再起動, 有効化 (started/enabled) します。後続の `apt update` などの`apt`操作の失敗を防止します。
-2. **パラメータ読み込み**: OS 別パッケージ定義 (`vars/packages-ubuntu.yml`, `vars/packages-rhel.yml`) とクラスタ共通変数 (`vars/cross-distro.yml`, `vars/all-config.yml`) を読み込みます。
-3. **設定前チェック**: `mgmt_nic` 変数の正規化と検証を行います。未定義時は `common_default_nic` (既定: `ens160`) で補完します。
-4. **タイムゾーン設定**: `common_timezone` (既定: `Asia/Tokyo`) を設定します。
-5. **ファイアウォール無効化**: `enable_firewall` が `false` (既定) の場合, firewalld (RHEL) または UFW (Debian) を停止, 無効化し, nftables の rpfix テーブル( 逆経路フィルタ （Reverse Path Filter） ) を削除します。
-6. **NetworkManager 準備**: NetworkManager をインストール, 有効化し, systemd-networkd を無効化します。
-7. **マルチネットワークインターフェース設定**:
-   - `netif_list` 変数から複数ネットワークインターフェースの設定を行います。
-   - RHEL 系: NetworkManager keyfiles (`/etc/NetworkManager/system-connections/*.nmconnection`) を配置します。
-   - Debian 系: netplan 設定 (`/etc/netplan/99-netcfg.yaml`) を配置します。
-   - systemd .link ファイル (`/etc/systemd/network/10-*.link`) で MAC アドレス固定化を行います。
-   - 不要な旧接続を削除し, 設定適用後に再起動します。
-8. **Sudoers 設定**: `sudo_nopasswd_groups_extra` で指定されたグループ (`adm`, `sudo`, `wheel` 等) に対してパスワード無し sudo を設定します (`/etc/sudoers.d/` drop-in files)。
-9. **Sysctl 設定**:
-   - `kernel.yama.ptrace_scope` = 0 (一般ユーザの ptrace 有効化)
-   - `kernel.dmesg_restrict` = 0 (一般ユーザの dmesg 有効化)
-   - `fs.inotify.max_user_watches` = 524288 (ファイル監視数上限)
-10. **Cron 設定**: `common_disable_cron_mails` が `true` の場合, `/etc/crontab` に `MAILTO=""` を設定してメール送信を無効化します。
-11. **パッケージインストール**:
-    - Kubernetes 前提パッケージ (`ca-certificates`, `curl`, `apt-transport-https` 等)
-    - 共通パッケージ (基本コマンド群: `bash`, `vim`, `emacs`, `tmux`, `kubectl`, `ansible` 等)
-    - yq コマンド (YAML processor, GitHub からバイナリを直接取得)
-    - 言語パッケージ (`language-pack-ja` 等)
-    - mDNS (Avahi) - `mdns_enabled` が `true` の場合
-    - VMware tools - `use_vmware` が `true` の場合
-    - XCP-NG guest utilities - `use_xcpng` が `true` の場合
-12. **ディレクトリ作成**: `/usr/local/sbin`, NAS mount スクリプト用ディレクトリを作成します。
-13. **DNS Client スクリプト配置** (オプション): `use_nm_ddns_update_scripts` が `true` の場合, Dynamic DNS update scripts, NetworkManager dispatcher scripts, Router Advertisement address watch service を配置します。
-14. **再起動**: `/var/run/reboot-required` が存在する場合に再起動します。
+```bash
+ansible-playbook -i inventory/hosts site.yml --tags "common"
+```
 
 ## 主要変数
 
@@ -118,8 +309,8 @@
 
 | 変数名 | 既定値 | 説明 |
 | --- | --- | --- |
-| `common_sysctl_user_ptrace_enable` | `true` | 一般ユーザによる ptrace を有効化するか。 |
-| `common_sysctl_user_dmesg_enable` | `true` | 一般ユーザによる dmesg を有効化するか。 |
+| `common_sysctl_user_ptrace_enable` | `true` | 一般ユーザによる ptrace の有効化可否。 |
+| `common_sysctl_user_dmesg_enable` | `true` | 一般ユーザによる dmesg の有効化可否。 |
 | `common_sysctl_inotify_max_user_watches` | `524288` | ファイル監視数の上限値。 |
 
 ### Sudoers 設定
@@ -127,7 +318,7 @@
 | 変数名 | 既定値 | 説明 |
 | --- | --- | --- |
 | `sudo_nopasswd_groups_extra` | `['adm', 'cdrom', 'sudo', 'dip', 'plugdev', 'lxd', 'systemd-journal']` | パスワード無し sudo を許可するグループのリスト。 |
-| `sudo_nopasswd_groups_autodetect` | `true` | `sudo` / `wheel` グループの自動検出を有効化するか。 |
+| `sudo_nopasswd_groups_autodetect` | `true` | `sudo` / `wheel` グループの自動検出の有効化可否。 |
 | `sudo_nopasswd_absent` | `false` | `true` に設定すると sudoers drop-in ファイルを削除 (ロールバック) します。 |
 | `sudo_dropin_prefix` | `"99-nopasswd"` | 生成する drop-in ファイル名の接頭辞。 |
 
@@ -151,88 +342,26 @@
 | `nm_ra_addr_watch_interval` | `10` | Router Advertisement アドレス監視間隔 (秒)。 |
 | `nm_ns_update_log_level` | `2` | NetworkManager DNS update スクリプトのログレベル (0-5)。 |
 
-## 主な処理
-
-- **APT ロック待機**: Debian 系で apt frontend lock を取得できるまで待機し, 後続タスクの失敗を防止します。`unattended-upgrades`, `apt-daily.service`, `apt-daily-upgrade.service`, `apt-daily.timer`, `apt-daily-upgrade.timer` を一時停止し, 復旧時は `unattended-upgrades` と `unattended-upgrades`, `apt-daily.service`を呼び出す`timer`サービス (`apt-daily.timer`, `apt-daily-upgrade.timer`) を有効化/起動してデフォルト運用に戻します。
-- **ファイアウォール無効化**: firewalld, UFW, nftables の rpfix テーブルを無効化します。Kubernetes の CNI (Container Network Interface) が独自にネットワークポリシーを管理するため, ホストレベルのファイアウォールは無効化します。
-- **NetworkManager 優先設定**: systemd-networkd を無効化し, NetworkManager を有効化します。一貫したネットワーク管理インターフェースを提供します。
-- **マルチネットワークインターフェース設定**: 複数の NIC に対して静的 IP アドレス, ゲートウェイ, DNS サーバを設定します。RHEL 系では NetworkManager keyfiles, Debian 系では netplan を使用します。
-- **MAC アドレス固定化**: systemd .link ファイルで NIC 名と MAC アドレスを紐付け, 再起動後も同じデバイス名を維持します。
-- **Sudoers 設定**: `/etc/sudoers.d/` に drop-in ファイルを配置し, 指定グループのユーザがパスワード無しで sudo を実行可能にします。既存の `/etc/sudoers` を変更しないため, 安全に設定を追加, 削除できます。
-- **Sysctl 設定**: 一般ユーザによる ptrace / dmesg を有効化し, ファイル監視数の上限を引き上げます。開発環境での利便性向上を目的とします。
-- **パッケージインストール**: Kubernetes クラスタ構築に必要なパッケージ群, 基本コマンド, 言語パッケージをインストールします。
-- **Dynamic DNS 自動登録** (オプション): NetworkManager の dispatcher 機能を利用し, IP アドレス変更時に自動的に DNS サーバへ nsupdate を送信します。DHCP 環境や IPv6 SLAAC 環境でのホスト名解決を自動化します。
-
-## テンプレート / ファイル
+## テンプレートと生成ファイル
 
 本ロールでは以下のテンプレート / ファイルを出力します:
 
 | テンプレートファイル名 | 出力先パス | 説明 |
 | --- | --- | --- |
 | `templates/10-netif.link.j2` | `{{ netif_nm_link_dir }}/10-{{ item.netif }}.link` (既定: `/etc/systemd/network/10-<ネットワークインターフェース名>.link`) | systemd .link ファイル。NIC 名と MAC アドレスの紐付けを設定します。 |
-| `templates/rhel9-multi-netif.nmconnection.j2` | `/etc/NetworkManager/system-connections/{{ item.netif }}.nmconnection` | NetworkManager keyfile (RHEL 系)。IP アドレス, ゲートウェイ, DNS サーバを設定します。 |
-| `templates/99-netcfg-multi.yaml.j2` | `/etc/netplan/99-netcfg.yaml` | netplan 設定ファイル (Debian 系)。IP アドレス, ゲートウェイ, DNS サーバを設定します。 |
+| `templates/rhel9-multi-netif.nmconnection.j2` | `/etc/NetworkManager/system-connections/{{ item.netif }}.nmconnection` (既定: `/etc/NetworkManager/system-connections/{{ item.netif }}.nmconnection`) | NetworkManager keyfile (RHEL 系)。IP アドレス, ゲートウェイ, DNS サーバを設定します。 |
+| `templates/99-netcfg-multi.yaml.j2` | `/etc/netplan/99-netcfg.yaml` (既定: `/etc/netplan/99-netcfg.yaml`) | netplan 設定ファイル (Debian 系)。IP アドレス, ゲートウェイ, DNS サーバを設定します。 |
 | `templates/nopasswd-group.sudoers.j2` | `/etc/sudoers.d/{{ sudo_dropin_prefix }}-group-{{ item }}` (既定: `/etc/sudoers.d/99-nopasswd-group-<グループ名>`) | グループ単位のパスワード無し sudo 設定。 |
 | `templates/nopasswd-user.sudoers.j2` | `/etc/sudoers.d/{{ sudo_dropin_prefix }}-user-{{ item }}` (既定: `/etc/sudoers.d/99-nopasswd-user-<ユーザ名>`) | ユーザ単位のパスワード無し sudo 設定。 |
-| `templates/mount-nas.sh.j2` | `/usr/local/sbin/mount-nas.sh` | NAS マウント用スクリプト。 |
+| `templates/mount-nas.sh.j2` | `/usr/local/sbin/mount-nas.sh` (既定: `/usr/local/sbin/mount-nas.sh`) | NAS マウント用スクリプト。 |
 | `templates/ddns-client-update.sh.j2` | `{{ ddns_client_update_sh_path }}` (既定: `/usr/local/sbin/ddns-client-update.sh`) | Dynamic DNS update スクリプト (`use_nm_ddns_update_scripts` が `true` の場合)。 |
 | `templates/ddns-clients-key-file.j2` | `{{ dns_ddns_key_file }}` (既定: `/etc/nsupdate/ddns-clients.key`) | Dynamic DNS update key ファイル (`use_nm_ddns_update_scripts` が `true` の場合)。 |
 | `templates/nm-ra-addr-watch.j2` | `{{ nm_ra_addr_watch_path }}` (既定: `/usr/local/libexec/nm-ra-addr-watch`) | Router Advertisement アドレス監視スクリプト (`use_nm_ddns_update_scripts` が `true` の場合)。 |
-| `templates/nm-ra-addr-watch.service.j2` | `/etc/systemd/system/nm-ra-addr-watch.service` | nm-ra-addr-watch systemd サービスユニット (`use_nm_ddns_update_scripts` が `true` の場合)。 |
+| `templates/nm-ra-addr-watch.service.j2` | `/etc/systemd/system/nm-ra-addr-watch.service` (既定: `/etc/systemd/system/nm-ra-addr-watch.service`) | nm-ra-addr-watch systemd サービスユニット (`use_nm_ddns_update_scripts` が `true` の場合)。 |
 | `templates/90-nm-ns-update.j2` | `{{ nm_ns_update_path }}` (既定: `/etc/NetworkManager/dispatcher.d/90-nm-ns-update`) | NetworkManager dispatcher スクリプト (`use_nm_ddns_update_scripts` が `true` の場合)。IP アドレス変更時に DNS を更新します。 |
 | `templates/sysconfig-ddns-update-client.j2` | `{{ ddns_client_update_sh_sysconfig_path }}` (既定: `/etc/default/ddns-client-update` または `/etc/sysconfig/ddns-client-update`) | ddns-client-update.sh 環境ファイル (`use_nm_ddns_update_scripts` が `true` の場合)。 |
 | `templates/sysconfig-nm-ns-update.j2` | `{{ nm_ns_update_sysconfig_path }}` (既定: `/etc/default/nm-ns-update` または `/etc/sysconfig/nm-ns-update`) | 90-nm-ns-update 環境ファイル (`use_nm_ddns_update_scripts` が `true` の場合)。 |
 | `templates/sysconfig-nm-ra-addr-watch.j2` | `{{ nm_ra_addr_watch_sysconfig_path }}` (既定: `/etc/default/nm-ra-addr-watch` または `/etc/sysconfig/nm-ra-addr-watch`) | nm-ra-addr-watch 環境ファイル (`use_nm_ddns_update_scripts` が `true` の場合)。 |
-
-## OS 差異
-
-本ロールは RHEL 系 (Rocky Linux, AlmaLinux 等) と Debian 系 (Ubuntu) の両方をサポートしますが, 一部の動作に差異があります。
-
-### ネットワーク設定の差異
-
-| 項目 | RHEL 系 | Debian 系 |
-| --- | --- | --- |
-| ネットワーク管理ツール | NetworkManager | NetworkManager + netplan |
-| 設定ファイル形式 | NetworkManager keyfiles (`*.nmconnection`) | netplan YAML (`*.yaml`) |
-| 設定ファイル配置先 | `/etc/NetworkManager/system-connections/` | `/etc/netplan/` |
-| 設定適用方法 | `nmcli connection reload` + `nmcli connection up` | `netplan apply` |
-| 設定ファイルパーミッション | `0600` (root のみ読み書き可) | `0644` (全ユーザ読み取り可) |
-| Cloud-Init 無効化 | 必要 (設定無効化と udev ルールのマスク) | 必要 (netplan 自動設定ファイルのリネーム) |
-
-**RHEL 系の特徴**:
-- NetworkManager keyfiles を直接配置します (`rhel9-multi-netif.nmconnection.j2`)。
-- `nmcli connection load` で構文検証を行い, エラーがあればタスクを停止します。
-- Cloud-Init のネットワーク設定とインターフェース名変更を無効化します。
-- udev ルールはバックアップ後に空ファイルを配置してマスクし, NetworkManager の動作を保証します。
-- 旧形式の ifcfg ファイルを削除します。
-- SELinux コンテキストの復元が必要な場合があります (`restorecon`)。
-
-**Debian 系の特徴**:
-- netplan 設定ファイルを配置し (`99-netcfg-multi.yaml.j2`), `netplan apply` で反映します。
-- netplan が NetworkManager をバックエンドとして使用します (`renderer: NetworkManager`)。
-- Cloud-Init の自動ネットワーク設定ファイル (例: `/etc/netplan/50-cloud-init.yaml`) に `.old` 拡張子を付けてリネームし無効化します。
-
-### パッケージマネージャの差異
-
-| 項目 | RHEL 系 | Debian 系 |
-| --- | --- | --- |
-| パッケージマネージャ | `dnf` | `apt` |
-| ロックファイル待機 | 不要 | 必要 (`apt_lock_wait_timeout`) |
-| 環境ファイル配置先 | `/etc/sysconfig/` | `/etc/default/` |
-| Admin グループ名 | `wheel` | `sudo` |
-
-### ファイアウォールの差異
-
-| 項目 | RHEL 系 | Debian 系 |
-| --- | --- | --- |
-| ファイアウォールサービス | `firewalld` | `ufw` |
-| 無効化コマンド | `systemctl stop/disable/mask firewalld` | `systemctl stop/disable/mask ufw` |
-
-### その他の差異
-
-- **SELinux**: RHEL 系のみ有効, `common_selinux_state` で制御します。
-- **言語パッケージ**: Ubuntu は `language-pack-ja`, RHEL は `glibc-langpack-ja` を使用します。
-- **systemd .link ファイル配置先**: 両 OS とも `/etc/systemd/network/` を使用します (差異なし)。
 
 ## 設定例
 
@@ -362,9 +491,93 @@ netif_list:
 - DNS サーバ側で Dynamic DNS を有効化し, TSIG キーを生成しておく必要があります。
 - `templates/ddns-clients-key-file.j2` テンプレート内で TSIG キーの内容を設定します。
 
+## 実行フロー
+
+本ロールは以下の順序で処理を実行します:
+
+1. **APT Lock 管理** (Debian 系のみ): `apt-get` による自動更新等がロックを保持している場合, 最大 1800 秒 (既定値) 待機して apt frontend lock を取得します。処理中は `unattended-upgrades` と `apt_daily_units_to_stop` に含まれる unit (`apt-daily.service`, `apt-daily-upgrade.service`, `apt-daily.timer`, `apt-daily-upgrade.timer`) を一時停止します。playbook 完了時に `unattended-upgrades` を再度 started/enabled にし, `apt_daily_timers_to_restore` (`apt-daily.timer`, `apt-daily-upgrade.timer`) を 再起動, 有効化 (started/enabled) します。後続の `apt update` などの`apt`操作の失敗を防止します。
+2. **パラメータ読み込み**: OS 別パッケージ定義 (`vars/packages-ubuntu.yml`, `vars/packages-rhel.yml`) とクラスタ共通変数 (`vars/cross-distro.yml`, `vars/all-config.yml`) を読み込みます。
+3. **設定前チェック**: `mgmt_nic` 変数の正規化と検証を行います。未定義時は `common_default_nic` (既定: `ens160`) で補完します。
+4. **タイムゾーン設定**: `common_timezone` (既定: `Asia/Tokyo`) を設定します。
+5. **ファイアウォール無効化**: `enable_firewall` が `false` (既定) の場合, firewalld (RHEL) または UFW (Debian) を停止, 無効化し, nftables の rpfix テーブル( 逆経路フィルタ （Reverse Path Filter） ) を削除します。
+6. **NetworkManager 準備**: NetworkManager をインストール, 有効化し, systemd-networkd を無効化します。
+7. **マルチネットワークインターフェース設定**:
+   - `netif_list` 変数から複数ネットワークインターフェースの設定を行います。
+   - RHEL 系: NetworkManager keyfiles (`/etc/NetworkManager/system-connections/*.nmconnection`) を配置します。
+   - Debian 系: netplan 設定 (`/etc/netplan/99-netcfg.yaml`) を配置します。
+   - systemd .link ファイル (`/etc/systemd/network/10-*.link`) で MAC アドレス固定化を行います。
+   - 不要な旧接続を削除し, 設定適用後に再起動します。
+8. **Sudoers 設定**: `sudo_nopasswd_groups_extra` で指定されたグループ (`adm`, `sudo`, `wheel` 等) に対してパスワード無し sudo を設定します (`/etc/sudoers.d/` drop-in files)。
+9. **Sysctl 設定**:
+   - `kernel.yama.ptrace_scope` = 0 (一般ユーザの ptrace 有効化)
+   - `kernel.dmesg_restrict` = 0 (一般ユーザの dmesg 有効化)
+   - `fs.inotify.max_user_watches` = 524288 (ファイル監視数上限)
+10. **Cron 設定**: `common_disable_cron_mails` が `true` の場合, `/etc/crontab` に `MAILTO=""` を設定してメール送信を無効化します。
+11. **パッケージインストール**:
+    - Kubernetes 前提パッケージ (`ca-certificates`, `curl`, `apt-transport-https` 等)
+    - 共通パッケージ (基本コマンド群: `bash`, `vim`, `emacs`, `tmux`, `kubectl`, `ansible` 等)
+    - yq コマンド (YAML processor, GitHub からバイナリを直接取得)
+    - 言語パッケージ (`language-pack-ja` 等)
+    - mDNS (Avahi) - `mdns_enabled` が `true` の場合
+    - VMware tools - `use_vmware` が `true` の場合
+    - XCP-NG guest utilities - `use_xcpng` が `true` の場合
+12. **ディレクトリ作成**: `/usr/local/sbin`, NAS mount スクリプト用ディレクトリを作成します。
+13. **DNS Client スクリプト配置** (オプション): `use_nm_ddns_update_scripts` が `true` の場合, Dynamic DNS update scripts, NetworkManager dispatcher scripts, Router Advertisement address watch service を配置します。
+14. **再起動**: `/var/run/reboot-required` が存在する場合に再起動します。
+
+### OS 差異
+
+本ロールは RHEL 系 (Rocky Linux, AlmaLinux 等) と Debian 系 (Ubuntu) の両方をサポートしますが, 一部の動作に差異があります。
+
+#### ネットワーク設定の差異
+
+| 項目 | RHEL 系 | Debian 系 |
+| --- | --- | --- |
+| ネットワーク管理ツール | NetworkManager | NetworkManager + netplan |
+| 設定ファイル形式 | NetworkManager keyfiles (`*.nmconnection`) | netplan YAML (`*.yaml`) |
+| 設定ファイル配置先 | `/etc/NetworkManager/system-connections/` | `/etc/netplan/` |
+| 設定適用方法 | `nmcli connection reload` + `nmcli connection up` | `netplan apply` |
+| 設定ファイルパーミッション | `0600` (root のみ読み書き可) | `0644` (全ユーザ読み取り可) |
+| Cloud-Init 無効化 | 必要 (設定無効化と udev ルールのマスク) | 必要 (netplan 自動設定ファイルのリネーム) |
+
+**RHEL 系の特徴**:
+- NetworkManager keyfiles を直接配置します (`rhel9-multi-netif.nmconnection.j2`)。
+- `nmcli connection load` で構文検証を行い, エラーがあればタスクを停止します。
+- Cloud-Init のネットワーク設定とインターフェース名変更を無効化します。
+- udev ルールはバックアップ後に空ファイルを配置してマスクし, NetworkManager の動作を保証します。
+- 旧形式の ifcfg ファイルを削除します。
+- SELinux コンテキストの復元が必要な場合があります (`restorecon`)。
+
+**Debian 系の特徴**:
+- netplan 設定ファイルを配置し (`99-netcfg-multi.yaml.j2`), `netplan apply` で反映します。
+- netplan が NetworkManager をバックエンドとして使用します (`renderer: NetworkManager`)。
+- Cloud-Init の自動ネットワーク設定ファイル (例: `/etc/netplan/50-cloud-init.yaml`) に `.old` 拡張子を付けてリネームし無効化します。
+
+#### パッケージマネージャの差異
+
+| 項目 | RHEL 系 | Debian 系 |
+| --- | --- | --- |
+| パッケージマネージャ | `dnf` | `apt` |
+| ロックファイル待機 | 不要 | 必要 (`apt_lock_wait_timeout`) |
+| 環境ファイル配置先 | `/etc/sysconfig/` | `/etc/default/` |
+| Admin グループ名 | `wheel` | `sudo` |
+
+#### ファイアウォールの差異
+
+| 項目 | RHEL 系 | Debian 系 |
+| --- | --- | --- |
+| ファイアウォールサービス | `firewalld` | `ufw` |
+| 無効化コマンド | `systemctl stop/disable/mask firewalld` | `systemctl stop/disable/mask ufw` |
+
+#### その他の差異
+
+- **SELinux**: RHEL 系のみ有効, `common_selinux_state` で制御します。
+- **言語パッケージ**: Ubuntu は `language-pack-ja`, RHEL は `glibc-langpack-ja` を使用します。
+- **systemd .link ファイル配置先**: 両 OS とも `/etc/systemd/network/` を使用します (差異なし)。
+
 ## 検証ポイント
 
-本節では, `common` ロール実行後にシステムが正しく設定されているかを確認する手順を示します。
+本節では, `common` ロール実行後にシステムが正しく設定されていることを確認する手順を示します。
 
 ### 前提条件
 
@@ -374,7 +587,7 @@ netif_list:
 
 ### 1. タイムゾーン設定の確認
 
-タイムゾーンが正しく設定されているかを確認します。
+タイムゾーンが正しく設定されていることを確認します。
 
 ```bash
 timedatectl
@@ -502,7 +715,7 @@ sudo systemctl status systemd-networkd
 
 #### ネットワークインターフェース設定の確認 (RHEL 系)
 
-NetworkManager keyfile が正しく配置されているかを確認します:
+NetworkManager keyfile が正しく配置されていることを確認します:
 
 ```bash
 ls -l /etc/NetworkManager/system-connections/
@@ -551,7 +764,7 @@ nmcli connection show ens160
 
 #### ネットワークインターフェース設定の確認 (Debian 系)
 
-netplan 設定ファイルが正しく配置されているかを確認します:
+netplan 設定ファイルが正しく配置されていることを確認します:
 
 ```bash
 ls -l /etc/netplan/
@@ -1048,7 +1261,7 @@ Feb 23 10:30:01 hostname NetworkManager[1234]: <info>  [1234567890.2345] dispatc
 
 ### APT Lock タイムアウト時の対処
 
-**症状**: Debian 系で `apt_lock_wait_timeout` (既定: 1800 秒) を超えてもロックが解放されず, タスクが失敗する。
+**症状**: Debian 系で `apt_lock_wait_timeout` (既定: 1800 秒) を超えてもロックが解放されず, タスクが失敗します。
 
 **原因**: 他のプロセス (unattended-upgrades, apt-daily 等) が長時間ロックを保持している。
 
@@ -1089,7 +1302,6 @@ apt_lock_wait_timeout: 3600  # 1 時間
 ### NetworkManager 設定が適用されない場合 (RHEL 系)
 
 **症状**: `.nmconnection` ファイルを配置したが, `nmcli connection show` で接続が表示されない, または IP アドレスが設定されない。
-
 
 1. 構文検証を行います:
 **補足**:
@@ -1177,7 +1389,7 @@ sudo journalctl -u NetworkManager -n 50
 ip link show
 ```
 
-設定ファイル内の NIC 名が実際のデバイス名と一致しているか確認します。
+設定ファイル内の NIC 名が実際のデバイス名と一致していることを確認します。
 
 ### 再起動後にネットワーク接続が失われる場合
 
@@ -1199,14 +1411,14 @@ ip addr show
 ip route
 ```
 
-3. `mgmt_nic` が正しく設定されているか確認します:
+3. `mgmt_nic` が正しく設定されていることを確認します:
 
 ```yaml
 # host_vars/hostname.local
 mgmt_nic: "ens160"  # 実際の管理系 NIC 名を指定
 ```
 
-4. `netif_list` の最初のエントリがデフォルトゲートウェイを持つ管理系 NIC になっているか確認します:
+4. `netif_list` の最初のエントリがデフォルトゲートウェイを持つ管理系 NIC になっていることを確認します:
 
 ```yaml
 netif_list:
@@ -1258,7 +1470,7 @@ sudo dhclient ens160
 sudo cat /etc/bind/named.conf.local
 ```
 
-`allow-update` ディレクティブが正しく設定されているか確認します。
+`allow-update` ディレクティブが正しく設定されていることを確認します。
 
 2. TSIG キーを確認します:
 
@@ -1267,7 +1479,7 @@ sudo cat /etc/bind/named.conf.local
 sudo cat /etc/nsupdate/ddns-clients.key
 ```
 
-DNS サーバ側のキーと一致しているか確認します。
+DNS サーバ側のキーと一致していることを確認します。
 
 3. 手動で nsupdate を実行してテストします:
 
@@ -1321,7 +1533,7 @@ sudo journalctl -u NetworkManager | grep nm-ns-update
 
 **対処方法**:
 
-1. `/etc/sudoers` が `/etc/sudoers.d/` を読み込んでいるか確認します:
+1. `/etc/sudoers` が `/etc/sudoers.d/` を読み込んでいることを確認します:
 
 ```bash
 sudo grep -E 'includedir.*sudoers.d' /etc/sudoers
@@ -1353,7 +1565,7 @@ groups
 id
 ```
 
-`sudo` または `wheel` グループに所属しているか確認します。所属していない場合は追加します:
+`sudo` または `wheel` グループに所属していることを確認します。所属していない場合は追加します:
 
 ```bash
 sudo usermod -aG sudo username  # Debian 系
@@ -1478,7 +1690,7 @@ NetworkManager dispatcher スクリプトです。ネットワークインター
 **デフォルト動作**:
 - `netif_list` が未定義または空リストの場合, `mgmt_nic` を含む単一エントリのリストが自動生成されます。
 - 最初のエントリが管理系 NIC (`mgmt_nic`) として扱われます。
-- ゲートウェイは管理系 NIC のみに設定することを推奨します (複数ゲートウェイによるルーティング競合を防止)。
+- ゲートウェイは管理系 NIC のみに設定することを推奨する (複数ゲートウェイによるルーティング競合を防止)。
 
 **デフォルト設定での具体的な動作**:
 - `netif_list` が未定義かつ `gateway4`, `gateway6` も未定義（空文字列）の場合, 管理系 NIC は **DHCP（IPv4）と SLAAC（IPv6）による自動構成** で機能します。NIC に対してゲートウェイやルート設定は出力されません (DHCP/SLAAC で取得したルートを使用)。
@@ -1531,3 +1743,16 @@ yq --version
 ```
 
 **用途**: Kubernetes マニフェストの編集, Ansible 変数ファイルの操作等に使用します。
+
+## 注意事項
+
+- 本ロールはネットワーク設定, sysctl 設定, sudoers 設定を変更するため, 実行前に対象ホストのメンテナンス可否を確認する。
+- NetworkManager や netplan の再適用により通信断が発生する可能性があるため, 管理経路を確保した状態で実行する。
+
+## 参考資料
+
+### 公式ドキュメント
+
+- Ansible: https://docs.ansible.com/ansible/latest/index.html
+- Ubuntu: https://help.ubuntu.com/
+- Red Hat Enterprise Linux: https://docs.redhat.com/en/documentation/red_hat_enterprise_linux/

@@ -143,7 +143,7 @@ vmlinux1からvmlinux3は, UbuntuベースのVMテンプレートから生成さ
 
 内部プライベートネットワークのみに接続された開発用VMを生成する。
 これらのVMには, ソフトウエア開発用のゲストOS環境を構築することを想定したストレージ容量が設定され, 内部プライベートネットワークに接続される。
-これらのVMは, Infrastructure VMのrouterノードを通して, 仮想環境外部のネットワークに接続されることを想定している。Infrastructure VMのrouterノードのVMを生成し, ゲストOS環境の設定が完了してからこれらのVMを起動することを推奨する。
+これらのVMは, Infrastructure VMのrouterノードを通して, 仮想環境外部のネットワークに接続されることを想定している。Infrastructure VMのrouterノードのVMを生成し, ゲストOS環境の設定が完了してからこれらのVMを起動することを推奨します。
 
 devlinux1からdevlinux3は, UbuntuベースのVMテンプレートから生成され, devlinux4からdevlinux4は, RHELベースのVMテンプレートから生成されることを想定している。
 

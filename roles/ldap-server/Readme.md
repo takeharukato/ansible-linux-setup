@@ -1,8 +1,175 @@
 # Docker Composeを使用したOpenLDAP管理サーバ
 
-このロールは, Docker Composeを使用して, OpenLDAPサーバとphpLDAPadmin(Webベースの管理画面)を構築するロールです。osixia/openldapとosixia/phpldapadminのコンテナイメージを使用し, 2つのコンテナを`docker compose up -d`で起動して, ユーザ, グループ情報を集中管理するLDAP(Lightweight Directory Access Protocol)ディレクトリサービスを提供します。
+本ロールは, Docker Composeを使用して, OpenLDAPサーバとphpLDAPadmin(Webベースの管理画面)を構築するロールです。
+
+## 目次
+
+- [Docker Composeを使用したOpenLDAP管理サーバ](#docker-composeを使用したopenldap管理サーバ)
+  - [目次](#目次)
+  - [用語](#用語)
+  - [概要](#概要)
+    - [構成要素](#構成要素)
+    - [導入後のディレクトリ構成](#導入後のディレクトリ構成)
+  - [前提条件](#前提条件)
+  - [実行方法](#実行方法)
+    - [Makefile を使用した実行(推奨)](#makefile-を使用した実行推奨)
+    - [直接 ansible-playbook で実行](#直接-ansible-playbook-で実行)
+  - [主要変数](#主要変数)
+    - [LDAP基本設定](#ldap基本設定)
+    - [ディレクトリ設定](#ディレクトリ設定)
+    - [コンテナ設定](#コンテナ設定)
+    - [待機設定](#待機設定)
+    - [ネットワーク設定](#ネットワーク設定)
+  - [設定例](#設定例)
+    - [group\_vars/all での設定](#group_varsall-での設定)
+    - [host\_vars/mgmt-server.local での設定](#host_varsmgmt-serverlocal-での設定)
+  - [バックアップ方法](#バックアップ方法)
+  - [テンプレートと生成ファイル](#テンプレートと生成ファイル)
+  - [実行フロー](#実行フロー)
+    - [ハンドラ](#ハンドラ)
+    - [OS差異](#os差異)
+  - [検証ポイント](#検証ポイント)
+    - [前提条件確認](#前提条件確認)
+    - [検証ステップ](#検証ステップ)
+      - [Step 1: Docker Compose ファイル確認](#step-1-docker-compose-ファイル確認)
+      - [Step 2: コンテナ起動状態確認](#step-2-コンテナ起動状態確認)
+      - [Step 3: OpenLDAP サービス接続確認](#step-3-openldap-サービス接続確認)
+      - [Step 4: phpLDAPadmin Web UI ログイン確認](#step-4-phpldapadmin-web-ui-ログイン確認)
+      - [Step 5: LDAP エントリ作成テスト](#step-5-ldap-エントリ作成テスト)
+      - [Step 6: sysctl 設定確認](#step-6-sysctl-設定確認)
+      - [Step 7: バックアップスクリプト動作確認](#step-7-バックアップスクリプト動作確認)
+  - [トラブルシューティング](#トラブルシューティング)
+  - [注意事項](#注意事項)
+    - [Docker Compose v2 について](#docker-compose-v2-について)
+    - [ボリューム永続化について](#ボリューム永続化について)
+    - [セキュリティ考慮事項](#セキュリティ考慮事項)
+    - [バージョン管理](#バージョン管理)
+    - [運用推奨事項](#運用推奨事項)
+  - [付録: `backup-ldap-data.sh`スクリプトの内容](#付録-backup-ldap-datashスクリプトの内容)
+  - [参考資料](#参考資料)
+    - [公式ドキュメント](#公式ドキュメント)
+
+
+## 用語
+
+LDAP関連の標準用語については本セクションで定義します。一般的なネットワーク・システム管理用語は `roles/common/Readme.md` を参照してください。
+
+| 正式名称 | 略称 | 意味 |
+| --- | --- | --- |
+| ユーザ | - | 機能を利用する人, 又は識別された利用主体。 |
+| ツール | - | 特定作業を実行するための機能や道具。 |
+| リソース | - | 処理に必要な計算機資源やデータ。 |
+| クラスタ | - | 複数の機器を連携させて一体運用する構成。 |
+| ディストリビューション | - | 基本ソフトウェアと関連部品をまとめた配布形態。 |
+| コンテナイメージ | - | コンテナ実行に必要な内容をまとめた保存形式。 |
+| プログラム | - | 計算機に処理をさせるための命令列。 |
+| コミュニティ | - | 共通目的のもとで継続的に活動する利用者集団。 |
+| プラグイン | - | 既存機能へ追加機能を組み込むための拡張部品。 |
+| サービスアカウント | - | 自動処理向けに用意する利用主体の識別情報。 |
+| コンテナランタイム | - | コンテナを起動, 停止, 管理する実行基盤。 |
+| リクエスト | - | 処理実行や情報取得を要求する操作。 |
+| コントローラ | - | 対象状態を監視し, 期待状態へ調整する制御機能。 |
+| メタデータ | - | 対象データの属性や説明を示す付加情報。 |
+| バックエンド | - | 利用者画面の背後で処理を実行する側。 |
+| ストレージ | - | データを保存する仕組み。 |
+| インストール | - | ソフトウェアを導入して利用可能にする作業。 |
+| マシン | - | 処理を実行する計算機。 |
+| プロビジョニング | - | 利用開始に必要な設定や資源を準備する作業。 |
+| ルーティング | - | 宛先までの経路を選択して転送する処理。 |
+| オブジェクト | - | ひとかたまりとして扱うデータ単位。 |
+| エージェント | - | 指示に従って処理を代行する構成要素。 |
+| ストア | - | データや成果物を保存する場所。 |
+| ジャーナル | - | 時系列の記録を保持する仕組み。 |
+| アカウント | - | 利用者や処理主体を識別する登録情報。 |
+| エンドポイント | - | 通信の接続先を表す識別点。 |
+| パターン | - | 繰り返し現れる構造や記述形式。 |
+| パケット | - | ネットワークで転送するデータ単位。 |
+| カーネル | - | 基本ソフトウェアの中核機能。 |
+| シェル | - | コマンド入力で計算機を操作する仕組み。 |
+| Playbook | - | 自動化処理の実行手順を記述したファイル。 |
+| Canonical | - | Ubuntu を提供する組織名。 |
+| Key-Value | - | キーと値の組で情報を表す方式。 |
+| IP | - | インターネットプロトコルの略称。 |
+| SQL | - | データベースを操作するための記述言語。 |
+| HTTP | - | WWW で情報をやり取りする通信手順。 |
+| HTTPS | - | 通信内容を暗号化して WWW 通信を行う方式。 |
+| RPM | - | RHEL 系で使用するパッケージ形式。 |
+| VM | - | 物理機器上で動作する仮想的な計算機。 |
+| localhost | - | 同一機器自身を指す名前。 |
+| root | - | Unix 系システムの最上位権限を持つ管理者識別子。 |
+| ソフトウェア | - | 情報処理システムで使用するプログラム, 手順, 規則及び関連文書の全体又は一部分。 |
+| アプリケーション | - | 利用者の目的を実現するために動作するソフトウェア。 |
+| パッケージ | - | ソフトウェア導入に必要なファイルをまとめた配布単位。 |
+| リポジトリ | - | ソフトウェアや設定情報を保管し, 取得できるようにした管理場所。 |
+| コマンド | - | 実行者が計算機へ処理を指示するための命令。 |
+| ホスト | - | 管理対象として識別される個別の計算機。 |
+| サーバ | - | 他の機器や利用者へ機能やデータを提供する計算機, 又はその役割。 |
+| アドレス | - | 宛先や所在を識別するための情報。 |
+| プロトコル | - | 通信やデータ交換の手順を定めた取り決め。 |
+| ディレクトリ | - | ファイルを階層的に整理するための入れ物。 |
+| ログ | - | 処理の結果や状態を時系列で記録した情報。 |
+| コード | - | 処理内容を記述した文字列。 |
+| Kubernetes | K8s | コンテナを管理する基盤ソフトウェア。 |
+| Pod | - | Kubernetes でコンテナをまとめて管理する最小単位。 |
+| Linux | - | 多くの機器で使われる, 基本ソフトウェアの系統。 |
+| Debian | - | コミュニティ主導で開発される Linux ディストリビューション。 |
+| Ubuntu | - | Canonical が提供する Debian 系の Linux ディストリビューション。 |
+| Docker | - | コンテナイメージやコンテナの作成, 実行, 管理を行うコマンド。 |
+| Ansible | - | 設定の同一化や導入作業を所定の手順に従って自動化する仕組み。 |
+| World Wide Web | WWW | ネットワーク上で文書や情報を相互参照できる仕組み。 |
+| Service | - | サービスの英語表記。 |
+| Node | - | ノードの英語表記。 |
+| Makefile | - | 実行手順を定義したファイル。 |
+| API | - | アプリケーション同士がやり取りする方法を定めた仕様。 |
+| URL | - | WWW 上の資源の場所を示す文字列。 |
+| Lightweight Directory Access Protocol | LDAP | 階層型ディレクトリサービスへのアクセスプロトコル, ユーザやグループ情報を集中管理する際に使用される標準プロトコル |
+| Common Name | CN | ディレクトリエントリの一般名, ユーザ名やグループ名として使用される属性 |
+| Domain Component | DC | LDAP 識別名 ( Distinguished Name ) を構成するドメイン要素。 |
+| Organizational Unit | OU | 組織内の部門や部署を表すディレクトリ階層要素 |
+| Distinguished Name | DN | ディレクトリエントリを一意に識別する完全修挙名, CN+OU+DCの組み合わせで構成される |
+| PHP: Hypertext Preprocessor | PHP | サーバサイドWebスクリプト言語, phpLDAPadminで使用される |
+| User Interface | UI | 利用者がソフトウェアを操作するための見た目と操作方法。 |
+| Identifier | ID | 対象を一意に識別するための値。 |
+| Docker Compose | - | 複数のコンテナからなるマルチコンテナアプリケーション(docker-compose.yml)を一括管理, 起動するツール |
+| コンテナ | - | アプリケーションを動かす隔離された実行単位。 |
+| イメージ | - | Dockerコンテナを起動するためのテンプレートファイル。osixia/openldap, osixia/phpldapadminはコンテナイメージ |
+| ボリューム | - | Dockerコンテナ内のディレクトリやファイルシステムをホスト側と共有するためのマウント機構。ローカルディレクトリまたはDocker管理下のボリュームをマウント可能 |
+| マウント | - | Dockerコンテナ内に, 外部(ホストやネットワークストレージ)のディレクトリやボリュームを接続する処理 |
+| ネットワーク | - | Dockerコンテナ同士が通信するための仮想ネットワーク。docker-compose.ymlで明示的に定義可能 |
+| ポートマッピング | - | Dockerコンテナ内のプロセスがリスニングするポート(例えばLDAPなら389)をホスト側のポート(例えば389やカスタムポート)に割り当てる機構 |
+| 環境変数 | - | コンテナ起動時に渡される設定情報。docker-compose.ymlの`environment`セクションで指定。OpenLDAPコンテナは環境変数(LDAP_ORGANISATION, LDAP_DOMAIN等)で初期化される |
+| daemon, スタンドアロンデーモン | slapd | OpenLDAPのメインプロセス。ポート389(デフォルト)でLDAPクライアント接続を受け付け, LDAP操作を処理する |
+| tar | - | 複数ファイルを一つにまとめる, 展開するコマンド。 |
+| Red Hat Enterprise Linux | RHEL | Red Hat 社が提供する商用 Linux ディストリビューション。 |
+| Secure Sockets Layer | SSL | 通信を暗号化する旧来方式の名称。現在は主に TLS を使用する。 |
+| Transmission Control Protocol | TCP | 通信相手との接続を確立してからデータを送受信する通信方式。 |
+| Transport Layer Security | TLS | 通信経路でデータを暗号化して保護する仕組み。 |
+| Host Variables | host_vars | ホスト単位の設定値を格納する変数定義。 |
+| Ansible Playbook | playbook | 自動化処理の実行手順を順序付きで記述したファイル。 |
+| systemd | - | Linux システムの初期化とサービス管理を行う仕組み。 |
+| Ansible Task | task | 自動化処理の最小単位となる実行項目。 |
+| Community Edition | CE | 商用版と区別する無償版の製品区分。 |
+| ansible-playbookコマンド | - | Ansible Playbook を実行して自動構成処理を適用するコマンド。 |
+| `cat` | - | ファイル内容を標準出力へ表示するコマンド。 |
+| `docker` | - | コンテナイメージやコンテナの作成, 実行, 管理を行うコマンド。 |
+| `ldapadd` | - | LDAP サーバへエントリを追加するコマンド。 |
+| `ldapsearch` | - | LDAP サーバ内のエントリを検索するコマンド。 |
+| `ls` | - | ファイルやディレクトリの一覧を表示するコマンド。 |
+| `make` | - | Makefile に定義された処理を実行するコマンド。 |
+| `sysctl` | - | カーネル動作パラメタを参照, 変更するコマンド。 |
+| サイト | - | 情報や機能を公開する場所。 |
+| サービス | - | 機能を利用者や他システムへ提供する仕組み。 |
+| システム | - | 複数の要素が連携して目的を実現する仕組み全体。 |
+| ディスク | - | 永続的にデータを保存する記憶装置。 |
+| データベース | - | 検索や更新ができるよう整理した情報の集合。 |
+| ノード | - | ネットワークに接続された機器または処理単位。 |
+| ポート | - | 通信の出入口を識別する番号または接点。 |
+| ログイン | - | 利用者認証を行って利用を開始する操作。 |
+| sudoコマンド | sudo | 一時的に管理者権限でコマンドを実行するためのコマンド。 |
 
 ## 概要
+
+本ロールは, Docker Composeを使用して, OpenLDAPサーバとphpLDAPadmin(Webベースの管理画面)を構築するロールです。osixia/openldapとosixia/phpldapadminのコンテナイメージを使用し, 2つのコンテナを`docker compose up -d`で起動して, ユーザ, グループ情報を集中管理するLDAP(Lightweight Directory Access Protocol)ディレクトリサービスを提供します。
 
 ### 構成要素
 
@@ -12,21 +179,9 @@
 
 2. **phpLDAPadminコンテナ** (`osixia/phpldapadmin`) — OpenLDAPの設定, 管理のためのWebベースのユーザインターフェースです。PHPで実装されており, ブラウザからhttps://ホスト名:10443(デフォルト)でアクセスして, LDAP DNの検索, 参照, 編集が可能です。管理者認証にはOpenLDAP管理者の認証情報(cn=admin,...)を使用します。
 
-### 実装の流れ
+### 導入後のディレクトリ構成
 
-ロール実行時には以下の処理フローを実施します:
-
-1. パラメータ読み込み — `group_vars`, `host_vars`から変数を読み込む
-2. パッケージインストール — ldapクライアントユーティリティ, Docker CE関連パッケージをインストール
-3. ユーザ/グループ作成 — OpenLDAPコンテナ実行ユーザ(uid 911, gid 911)をホスト上に事前作成
-4. ディレクトリ作成 — `/data/openldap/docker`, `/data/openldap/scripts`, `/data/openldap/slapd/{database,config}`ディレクトリを作成
-5. sysctl設定配置 — IPv4/IPv6フォワーディング, RA受信設定を`/etc/sysctl.d/90-ldap-forwarding.conf`に配置
-6. コンテナ起動 — `docker-compose.yml`をテンプレートから生成し, `docker compose up -d`で2コンテナを起動
-7. 設定調整 — コンテナ起動待機, バックアップスクリプト配置, sysctl再読み込み
-
-### ディレクトリ構成
-
-ロール実行後, ホスト上に以下のディレクトリ構成が生成されます:
+ロール実行後, 対象ホスト上に以下のディレクトリ, ファイルが生成されます:
 
 ```
 /data/openldap/
@@ -41,31 +196,6 @@
 ```
 
 OpenLDAPコンテナは`/data/openldap/slapd/{database,config}`をボリュームマウントして, 永続データ保存と設定共有を実現します。
-
-## 用語
-
-LDAP関連の標準用語については本セクションで定義します。一般的なネットワーク・システム管理用語は `roles/common/Readme.md` を参照してください。
-
-| 正式名称 | 略称 | 意味 |
-| --- | --- | --- |
-| Lightweight Directory Access Protocol | LDAP | 階層型ディレクトリサービスへのアクセスプロトコル, ユーザやグループ情報を集中管理する際に使用される標準プロトコル |
-| Common Name | CN | ディレクトリエントリの一般名, ユーザ名やグループ名として使用される属性 |
-| Domain Component | DC | DNSドメインをディレクトリツリーに対応付ける構成要素 |
-| Organizational Unit | OU | 組織内の部門や部署を表すディレクトリ階層要素 |
-| Distinguished Name | DN | ディレクトリエントリを一意に識別する完全修挙名, CN+OU+DCの組み合わせで構成される |
-| PHP: Hypertext Preprocessor | PHP | サーバサイドWebスクリプト言語, phpLDAPadminで使用される |
-| User Interface | UI | ユーザがシステムと対話する画面やインターフェース |
-| Identifier | ID | 対象を一意に識別するための識別子, ユーザIDやグループIDなど |
-| Docker Compose | - | 複数のコンテナからなるマルチコンテナアプリケーション(docker-compose.yml)を一括管理, 起動するツール |
-| コンテナ | - | オペレーティングシステムレベルの軽量仕想化技術を用いた独立した実行環境。Dockerコンテナは, Dockerイメージから起動される |
-| イメージ | - | Dockerコンテナを起動するためのテンプレートファイル。osixia/openldap, osixia/phpldapadminはコンテナイメージ |
-| ボリューム | - | Dockerコンテナ内のディレクトリやファイルシステムをホスト側と共有するためのマウント機構。ローカルディレクトリまたはDocker管理下のボリュームをマウント可能 |
-| マウント | - | Dockerコンテナ内に, 外部(ホストやネットワークストレージ)のディレクトリやボリュームを接続する処理 |
-| ネットワーク | - | Dockerコンテナ同士が通信するための仮想ネットワーク。docker-compose.ymlで明示的に定義可能 |
-| ポートマッピング | - | Dockerコンテナ内のプロセスがリスニングするポート(例えばLDAPなら389)をホスト側のポート(例えば389やカスタムポート)に割り当てる機構 |
-| 環境変数 | - | コンテナ起動時に渡される設定情報。docker-compose.ymlの`environment`セクションで指定。OpenLDAPコンテナは環境変数(LDAP_ORGANISATION, LDAP_DOMAIN等)で初期化される |
-| daemon, スタンドアロンデーモン | slapd | OpenLDAPのメインプロセス。ポート389(デフォルト)でLDAPクライアント接続を受け付け, LDAP操作を処理する |
-| tar | - | ファイルやディレクトリをテープアーカイブ形式に圧縮, 展開するコマンド。LDAPバックアップで設定とデータベースをアーカイブ化 |
 
 ## 前提条件
 
@@ -83,19 +213,33 @@ LDAP関連の標準用語については本セクションで定義します。�
    - `ldap_organization`: LDAP組織名(例: `my-organization`, 空文字列不可)
    - `ldap_domain`: LDAPドメイン名(例: `example.org`, 空文字列不可)
 
-## 実行フロー
+## 実行方法
 
-ロールは以下の7つのタスク実行フェーズを順序立てて実施します:
+ロール実行は Makefile またはタグ指定による ansible-playbook 実行で実施。
 
-1. **Load Params** — `group_vars/all`, `host_vars/`から変数を読み込み, デフォルト値を上書き
-2. **Package** — LDAPクライアントユーティリティ(ldap-utils(Debian)/openldap-clients(RHEL)), Docker CE関連パッケージをインストール
-3. **User Group** — OpenLDAPコンテナ実行ユーザ(openldap, uid 911, gid 911)をホスト上に事前作成. ボリュームマウント時のディレクトリ所有権を設定するため必須
-4. **Directory** — `/data/openldap/docker`, `/data/openldap/scripts`, `/data/openldap/slapd/{database,config}`の各ディレクトリを作成し, 所有権とパーミッション(755)を設定
-5. **Sysctl** — IPv4/IPv6フォワーディングとRA受信を有効化する設定ファイル(`/etc/sysctl.d/90-ldap-forwarding.conf`)を配置し, sysctl -pのリロード処理を実行. Dockerネットワーク通信の正常動作に必須
-6. **Service** — `docker-compose.yml`をテンプレートから生成してディレクトリに配置, `docker compose up -d`でOpenLDAPコンテナとphpLDAPadminコンテナを起動. 起動待機(デフォルト600秒)処理を実行
-7. **Config** — バックアップスクリプト(`backup-ldap-data.sh`, `restore-ldap-data.sh`)をテンプレートから生成して配置, 実行権限(755)を設定. sysctl設定リロード用ハンドラ(`ldap_server_reload_sysctl`)をトリガー
+### Makefile を使用した実行(推奨)
 
+```bash
+cd /path/to/ubuntu-setup/ansible
+make run_ldap_server
+```
 
+### 直接 ansible-playbook で実行
+
+全ホストで実行(タグ指定):
+```bash
+ansible-playbook -i inventory/hosts site.yml --tags "ldap-server"
+```
+
+特定ホストのみ実行:
+```bash
+ansible-playbook -i inventory/hosts site.yml --tags "ldap-server" -l mgmt-server.local
+```
+
+特定タスク(例: Service タスクのみ)実行:
+```bash
+ansible-playbook -i inventory/hosts site.yml --tags "ldap-server" --tags "service"
+```
 
 ## 主要変数
 
@@ -145,77 +289,101 @@ LDAP関連の標準用語については本セクションで定義します。�
 | `mgmt_nic` | (環境依存) | 管理用ネットワークインターフェース名。sysctl設定でIPv6 RA受信を有効化する際に使用。ansible_facts から自動検出(VMware:ens160, xcp-ng:enX0, その他:eth0) |
 | `openldap_enable_ipv6` | `true` | IPv6フォワーディング有効化フラグ。trueの場合, IPv6フォワーディングとRA受信がmgmt_nicで有効化 |
 
+## 設定例
 
+### group_vars/all での設定
 
+`group_vars/all/all.yml` でロール全体の共通設定を定義:
 
+```yaml
+# LDAP 基本設定
+ldap_organization: "MyOrganization"    # 組織名 ( 必須 )
+ldap_domain: "example.org"             # ドメイン名 ( 必須 )
+ldap_admin_password: "admin"           # 管理者パスワード ( デフォルト値 )
+ldap_admin_port: 10443                 # phpLDAPadmin Web UI ポート
 
-## 主な処理
+# ディレクトリ設定
+openldap_docker_dir: "/data/openldap/docker"
+openldap_scripts_dir: "/data/openldap/scripts"
+openldap_database_dir: "/data/openldap/slapd/database"
+openldap_config_dir: "/data/openldap/slapd/config"
 
-ロール実行時に以下の主要な処理が実行されます:
-
-1. **パッケージインストール** — ldap-utils(Debian系)またはopenldap-clients(RHEL系)などのLDAPクライアントユーティリティをインストール。Docker CE環境の確保も実施
-2. **ユーザ, グループ作成** — OpenLDAPコンテナ実行ユーザ(openldap, uid/gid 911)をホスト側に事前作成。ボリュームマウント時のファイル所有権設定に必須
-3. **ディレクトリ初期化** — `/data/openldap/docker`, `/data/openldap/scripts`, `/data/openldap/slapd/{database,config}`ディレクトリを作成し, 所有権をopenldap:openldapに設定, パーミッション755で保護
-4. **sysctl設定配置** — `/etc/sysctl.d/90-ldap-forwarding.conf`にIPv4フォワーディング(net.ipv4.ip_forward=1), IPv6フォワーディング(net.ipv6.conf.all.forwarding=1), RA受信設定(net.ipv6.conf.{{ mgmt_nic }}.accept_ra=2)を記載し, `sysctl -p`で反映
-5. **Docker Composefile生成** — `docker-compose.yml.j2`テンプレートから`/data/openldap/docker/docker-compose.yml`を生成。2つのコンテナ定義(osixia/openldap, osixia/phpldapadmin), 環境変数, ポートマッピング, ボリュームマウント設定を含む
-6. **コンテナ起動** — `docker compose up -d`で2つのコンテナを起動。OpenLDAPコンテナはLDAPリスナーをポート389で起動(カスタムポート設定可能), phpLDAPadminコンテナはWeb UIをポート10443(デフォルト)で起動
-7. **サービス待機** — `ansible.builtin.wait_for`タスクでOpenLDAPサービス(ポート389)をpoll。デフォルト600秒以内のサービス応答を確認
-8. **バックアップスクリプト配置** — `backup-ldap-data.sh.j2`, `restore-ldap-data.sh.j2`テンプレートから`/data/openldap/scripts/`に生成し, 実行権限(755)を付与。運用期間中のバックアップ, リストア実行をサポート
-
-## テンプレート/出力ファイル
-
-| テンプレート名 | 出力先ファイル(既定値) | 説明 |
-| --- | --- | --- |
-| `docker-compose.yml.j2` | `/data/openldap/docker/docker-compose.yml` | 2つのコンテナ(osixia/openldap, osixia/phpldapadmin)定義。services セクションで各コンテナの環境変数(LDAP_ORGANISATION, LDAP_DOMAIN, LDAP_ADMIN_PASSWORD等), ports セクションでポートマッピング(389:389, 10443:443), volumes セクションでホストディレクトリマウント(/data/openldap/slapd/*)を記載 |
-| `90-ldap-forwarding.conf.j2` | `/etc/sysctl.d/90-ldap-forwarding.conf` | IPv4フォワーディング(net.ipv4.ip_forward=1), IPv6フォワーディング(net.ipv6.conf.all.forwarding=1), RA受信(net.ipv6.conf.{{ mgmt_nic }}.accept_ra=2)を記載するsysctl設定ファイル。Dockerネットワーク通信の正常動作に必須 |
-| `backup-ldap-data.sh.j2` | `/data/openldap/scripts/backup-ldap-data.sh` | LDAP設定(/etc/ldap/slapd.d)とデータベース(/var/lib/ldap), phpLDAPadminデータ(/var/www/phpldapadmin)をtar形式でバックアップするシェルスクリプト。busybox コンテナを用いてボリュームをアーカイブ化し, config-backup.tar, data-backup.tar, phpadmin-backup.tar を生成 |
-| `restore-ldap-data.sh.j2` | `/data/openldap/scripts/restore-ldap-data.sh` | バックアップアーカイブから LDAP設定, データベース, phpLDAPadminデータをリストアするシェルスクリプト。busybox コンテナを用いてアーカイブを展開, コンテナボリューム内に復元 |
-
-## OS差異
-
-Debian系(Ubuntu等)とRHEL系(RHEL 9.x等)の環境でパッケージ名やサービス名が異なります。本ロールは ansible.builtin.package モジュールにより, OS別の設定値を自動選択します。
-
-| 項目 | Debian/Ubuntu系 | RHEL 9系 |
-| --- | --- | --- |
-| **LDAPクライアント パッケージ** | ldap-utils | openldap-clients |
-| **Docker CE パッケージ** | docker-ce, docker-ce-cli, containerd.io | docker-ce, docker-ce-cli, containerd.io |
-| **Docker Composeコマンド** | docker compose(v2, pip3 install via docker.io) | docker compose(v2, pip3 install via docker.io) |
-| **パッケージマネージャー** | apt/apt-get | dnf/yum |
-| **Docker デーモン管理** | systemctl(systemd) | systemctl(systemd) |
-
-## 実行方法
-
-ロール実行は Makefile またはタグ指定による ansible-playbook 実行で実施。
-
-### Makefile を使用した実行(推奨)
-
-```bash
-cd /path/to/ubuntu-setup/ansible
-make run_ldap_server
+# 待機設定
+openldap_wait_timeout: 600             # サービス待機時間(秒)
+openldap_wait_delay: 5
+openldap_wait_sleep: 2
 ```
 
-### 直接 ansible-playbook で実行
+### host_vars/mgmt-server.local での設定
 
-全ホストで実行(タグ指定):
-```bash
-ansible-playbook -i inventory/hosts site.yml --tags "ldap-server"
+ホスト固有の設定を `host_vars/mgmt-server.local` に記載します。ここで設定した値は `group_vars` での設定を上書きします:
+
+```yaml
+# 管理サーバ固有設定
+ldap_organization: "TechDepartment"    # 組織名を上書き
+ldap_domain: "ldap.example.org"        # ドメイン名を上書き ( オプション )
+ldap_admin_password: "secure_password" # 管理者パスワードを上書き ( セキュリティ上, 環境変数推奨 )
+openldap_service_port: 389             # LDAPポート
+openldap_enable_ipv6: true             # IPv6 有効化
 ```
 
-特定ホストのみ実行:
-```bash
-ansible-playbook -i inventory/hosts site.yml --tags "ldap-server" -l mgmt-server.local
+以下のリストアスクリプトを実行すると, LDAP (Lightweight Directory Access Protocol, 軽量ディレクトリアクセスプロトコル) の設定, データベースをカレントディレクトリのconfig-backup.tar, data-backup.tar, phpadmin-backup.tar からリストアします。
+
+事前に,
+
+```
+cd /data/openldap/docker
+docker compose pause
 ```
 
-特定タスク(例: Service タスクのみ)実行:
-```bash
-ansible-playbook -i inventory/hosts site.yml --tags "ldap-server" --tags "service"
+を実行してコンテナ内のプロセスを停止してから
+`/data/openldap/scripts/restore-ldap-data.sh`スクリプトを実行します。
+`restore-ldap-data.sh`スクリプトは, 以下の処理を行います。
+
+- カレントディレクトリをコンテナの/backupディレクトリにマウント
+- busyboxのコンテナを起動
+- tar コマンドで/etc/ldap/slapd.d, /var/lib/ldapディレクトリを, それぞれ, config-backup.tar, data-backup.tar, phpadmin-backup.tarから展開
+- コンテナを破棄
+
+```:restore-ldap-data.sh
+#!/bin/sh
+#  -*- coding:utf-8 mode:bash -*-
+# This file is generated by ansible.
+{# 日付の取得 #}
+# last update: {{ '%Y-%m-%d %H:%M:%S %Z' | strftime(ansible_date_time.epoch) }}
+#
+# busyboxのコンテナイメージを使用して, ホスト上のカレントディレクトリにあるtarファイルの
+# 内容をopenldapコンテナ内で定義されているボリュームに展開する
+#
+
+# 1) openldapのコンテナIDを取得する
+container_id=`docker ps|grep osixia/openldap:|awk -F ' ' '{print $1;}'`
+
+# 2) phpldapadminのコンテナIDを取得する
+phpadmin_container_id=`docker ps|grep osixia/phpldapadmin:|awk -F ' ' '{print $1;}'`
+
+# 3) ホストのカレントディレクトリをコンテナ内の/backupディレクトリにマウントした上で,
+# openldapコンテナのボリュームを参照可能にして, busyboxのコンテナを生成し,
+# カレントディレクトリにあるconfig-backup.tarの内容をopenldapのコンテナ内に展開する
+docker run --rm --volumes-from "${container_id}" -v `pwd`:/backup busybox tar xvf /backup/config-backup.tar -C /
+
+# 4) ホストのカレントディレクトリをコンテナ内の/backupディレクトリにマウントした上で,
+# openldapコンテナのボリュームを参照可能にして, busyboxのコンテナを生成し,
+# カレントディレクトリにあるdata-backup.tarの内容をopenldapのコンテナ内に展開する
+docker run --rm --volumes-from "${container_id}" -v `pwd`:/backup busybox tar xvf /backup/data-backup.tar -C /
+
+# 4) ホストのカレントディレクトリをコンテナ内の/backupディレクトリにマウントした上で,
+# phpldapadminコンテナのボリュームを参照可能にして, busyboxのコンテナを生成し,
+# カレントディレクトリにあるphpadmin-backup.tarの内容をopenldapのコンテナ内に展開する
+docker run --rm --volumes-from "${phpadmin_container_id}" -v `pwd`:/backup busybox tar xvf /backup/phpadmin-backup.tar -C /
 ```
 
-## ハンドラ
+上記が完了したら以下のコマンドを実行して, コンテナを再開します。
 
-| ハンドラ名 | トリガー条件 | 処理内容 |
-| --- | --- | --- |
-| ldap_server_reload_sysctl | sysctl設定ファイル(/etc/sysctl.d/90-ldap-forwarding.conf)が更新された場合 | `sysctl --system`を実行し, カーネルパラメータの設定ファイル群を再読み込み。IPv4/IPv6フォワーディング, RA受信設定を即座に反映し, Dockerネットワーク通信を即座に有効化 |
+```
+cd /data/openldap/docker
+docker compose unpause
+```
 
 インストール先ホストに WEBブラウザから以下のようにアクセスします。
 ポート番号は, `group_vars/all.yml`に記載されている`ldap_admin_port`の値(デフォルトは, `10443`)を指定します。
@@ -227,15 +395,91 @@ https://ホスト名:10443/
 ログイン時は, CN (Common Name, 共通名) に`admin`を指定し, ドメイン名を元に DC (Domain Component, ドメイン構成要素) を指定します。
 
 '.' で区切られたドメイン名の各要素をdc=要素名,dc=要素名として並べてDC (Domain Component, ドメイン構成要素) を指定します。
-
-ドメイン名がelliptic-curve.netの場合, 以下を`login`名に入力します。
+ドメイン名がexample.comの場合, 以下を`login`名に入力します。
 ```
-cn=admin,dc=elliptic-curve,dc=net
+cn=admin,dc=example,dc=com
 ```
 
 パスワードは, `group_vars/all.yml`に記載されている`ldap_admin_password`の値(デフォルトは, `ldap`)を入力します。
 
-## 検証
+## バックアップ方法
+
+以下のバックアップスクリプトを実行すると, LDAP の設定, データベースをカレントディレクトリにバックアップします。
+
+- config-backup.tar LDAP の設定
+- data-backup.tar   LDAP のデータベース
+- phpadmin-backup.tar phpldapadminのデータ
+
+事前に, 以下のコマンドを実行してコンテナ内のプロセスを停止させます:
+```
+cd /data/openldap/docker
+docker compose pause
+```
+
+コンテナ内のプロセスが停止したことを確認後, `/data/openldap/scripts/backup-ldap-data.sh`スクリプトを実行します。`backup-ldap-data.sh`スクリプトは, 以下の処理を行います:
+
+- カレントディレクトリをコンテナの/backupディレクトリにマウント
+- busyboxのコンテナを起動
+- tar コマンドで/etc/ldap/slapd.d, /var/lib/ldapディレクトリを, それぞれ, config-backup.tar, data-backup.tar, phpadmin-backup.tarに保存
+- コンテナを破棄
+
+`backup-ldap-data.sh`スクリプトの処理が完了したら以下のコマンドを実行して, コンテナを再開します:
+
+```
+cd /data/openldap/docker
+docker compose unpause
+```
+
+## テンプレートと生成ファイル
+
+| テンプレートファイル名 | 出力先パス | 説明 |
+| --- | --- | --- |
+| `docker-compose.yml.j2` | `/data/openldap/docker/docker-compose.yml` (既定: `/data/openldap/docker/docker-compose.yml`) | 2つのコンテナ(osixia/openldap, osixia/phpldapadmin)定義。services セクションで各コンテナの環境変数(LDAP_ORGANISATION, LDAP_DOMAIN, LDAP_ADMIN_PASSWORD等), ports セクションでポートマッピング(389:389, 10443:443), volumes セクションでホストディレクトリマウント(/data/openldap/slapd/*)を記載 |
+| `90-ldap-forwarding.conf.j2` | `/etc/sysctl.d/90-ldap-forwarding.conf` (既定: `/etc/sysctl.d/90-ldap-forwarding.conf`) | IPv4フォワーディング(net.ipv4.ip_forward=1), IPv6フォワーディング(net.ipv6.conf.all.forwarding=1), RA受信(net.ipv6.conf.{{ mgmt_nic }}.accept_ra=2)を記載するsysctl設定ファイル。Dockerネットワーク通信の正常動作に必須 |
+| `backup-ldap-data.sh.j2` | `/data/openldap/scripts/backup-ldap-data.sh` (既定: `/data/openldap/scripts/backup-ldap-data.sh`) | LDAP設定(/etc/ldap/slapd.d)とデータベース(/var/lib/ldap), phpLDAPadminデータ(/var/www/phpldapadmin)をtar形式でバックアップするシェルスクリプト。busybox コンテナを用いてボリュームをアーカイブ化し, config-backup.tar, data-backup.tar, phpadmin-backup.tar を生成 |
+| `restore-ldap-data.sh.j2` | `/data/openldap/scripts/restore-ldap-data.sh` (既定: `/data/openldap/scripts/restore-ldap-data.sh`) | バックアップアーカイブから LDAP設定, データベース, phpLDAPadminデータをリストアするシェルスクリプト。busybox コンテナを用いてアーカイブを展開, コンテナボリューム内に復元 |
+
+## 実行フロー
+
+ロールは以下の7つのタスク実行フェーズを順序立てて実施します:
+
+1. **Load Params** — `group_vars/all`, `host_vars/`から変数を読み込み, デフォルト値を上書き
+2. **Package** — LDAPクライアントユーティリティ(ldap-utils(Debian)/openldap-clients(RHEL)), Docker CE関連パッケージをインストール
+3. **User Group** — OpenLDAPコンテナ実行ユーザ(openldap, uid 911, gid 911)をホスト上に事前作成. ボリュームマウント時のディレクトリ所有権を設定するため必須
+4. **Directory** — `/data/openldap/docker`, `/data/openldap/scripts`, `/data/openldap/slapd/{database,config}`の各ディレクトリを作成し, 所有権とパーミッション(755)を設定
+5. **Sysctl** — IPv4/IPv6フォワーディングとRA受信を有効化する設定ファイル(`/etc/sysctl.d/90-ldap-forwarding.conf`)を配置し, sysctl -pのリロード処理を実行. Dockerネットワーク通信の正常動作に必須
+6. **Service** — `docker-compose.yml`をテンプレートから生成してディレクトリに配置, `docker compose up -d`でOpenLDAPコンテナとphpLDAPadminコンテナを起動. 起動待機(デフォルト600秒)処理を実行
+7. **Config** — バックアップスクリプト(`backup-ldap-data.sh`, `restore-ldap-data.sh`)をテンプレートから生成して配置, 実行権限(755)を設定. sysctl設定リロード用ハンドラ(`ldap_server_reload_sysctl`)をトリガー
+
+### ハンドラ
+
+本ロールは以下のハンドラを設定します:
+
+| ハンドラ名 | トリガー条件 | 処理内容 |
+| --- | --- | --- |
+| ldap_server_reload_sysctl | sysctl設定ファイル(/etc/sysctl.d/90-ldap-forwarding.conf)が更新された場合 | `sysctl --system`を実行し, カーネルパラメータの設定ファイル群を再読み込み。IPv4/IPv6フォワーディング, RA受信設定を即座に反映し, Dockerネットワーク通信を即座に有効化 |
+
+### OS差異
+
+Debian系(Ubuntu等)とRHEL系(RHEL 9.x等)の環境でパッケージ名やサービス名が異なります。本ロールは ansible.builtin.package モジュールにより, OS別の設定値を自動選択します。
+
+| 項目 | Debian/Ubuntu系 | RHEL 9系 |
+| --- | --- | --- |
+| **LDAPクライアント パッケージ** | ldap-utils | openldap-clients |
+| **Docker CE パッケージ** | docker-ce, docker-ce-cli, containerd.io | docker-ce, docker-ce-cli, containerd.io |
+| **Docker Composeコマンド** | docker compose(v2, pip3 install via docker.io) | docker compose(v2, pip3 install via docker.io) |
+| **パッケージマネージャー** | apt/apt-get | dnf/yum |
+| **Docker デーモン管理** | systemctl(systemd) | systemctl(systemd) |
+
+## 検証ポイント
+
+以下の検証コマンドを実行し, 構文検査が成功することを確認します。
+
+```bash
+ansible-playbook -i inventory/hosts site.yml --syntax-check
+```
+
+期待結果: エラーが出力されず, syntax check が成功します。
 
 ロール実行完了後, 以下の前提条件確認と7つの検証ステップでセットアップ成功を確認します。
 
@@ -438,31 +682,69 @@ ls -la config-backup.tar data-backup.tar phpadmin-backup.tar
 - `phpadmin-backup.tar` (phpLDAPadminデータ)が生成されていること
 - 全ファイルがサイズを持つ正常なアーカイブファイルとして生成されていること
 
-## バックアップ方法
+## トラブルシューティング
 
-以下のバックアップスクリプトを実行すると, LDAP の設定, データベースをカレントディレクトリにバックアップします。
+代表的なトラブルと対処を以下に示します。
 
-- config-backup.tar LDAP の設定
-- data-backup.tar   LDAP のデータベース
-- phpadmin-backup.tar phpldapadminのデータ
+| 想定トラブル | 主な原因 | 対処方法 |
+| --- | --- | --- |
+| `docker compose` 実行時にコマンドエラーとなる | Docker Compose v2 が未導入, または Docker デーモン未起動 |  `docker --version` と `docker compose version` を確認し, 必要に応じて Docker CE と Compose v2 を導入します。あわせて `sudo systemctl status docker` でデーモン状態を確認し, 停止時は起動してから再実行します。 |
+| OpenLDAP / phpLDAPadmin コンテナが起動しない | `docker-compose.yml` の生成内容不整合, ポート競合, 既存コンテナ残骸 |  `cat /data/openldap/docker/docker-compose.yml` で定義を確認し, `docker ps -a` と `docker compose -f /data/openldap/docker/docker-compose.yml logs` で失敗原因を確認します。ポート競合時は使用中プロセスを停止するか `ldap_admin_port` を変更します。 |
+| ロール実行後に LDAP 接続できない | `ldap_organization` / `ldap_domain` / `ldap_admin_password` が未設定または空文字列で主要タスクがスキップ |  `group_vars` または `host_vars` で必須変数を設定し, 空文字列でないことを確認した上でロールを再実行します。 |
+| phpLDAPadmin へログインできない | Login DN の指定誤り, 管理者パスワード不一致, ドメイン設定不整合 |  Login DN を `cn=admin,dc=...` 形式で再確認し, `ldap_domain` の値と整合する DN を使用します。必要に応じて `ldap_admin_password` を更新し, コンテナ再起動後に再試行します。 |
+| バックアップ/リストアスクリプトが失敗する | コンテナ未起動, スクリプト実行権限不足, カレントディレクトリに必要 tar ファイルが存在しない |  `docker ps` で対象コンテナ起動を確認し, `ls -l /data/openldap/scripts/*.sh` で実行権限を確認します。リストア時は `config-backup.tar`, `data-backup.tar`, `phpadmin-backup.tar` の存在を確認してから再実行します。 |
+| LDAP データが再起動後に消える | ボリュームマウント先ディレクトリ不一致, 所有権/権限不整合 |  `docker-compose.yml` の volume 定義と `/data/openldap/slapd/{database,config}` の実体を確認します。`openldap` ユーザ/グループ(UID/GID 911)の所有権が設定されていることを確認し, 必要に応じて権限を修正します。 |
+| sysctl 設定が反映されず通信が不安定 | `/etc/sysctl.d/90-ldap-forwarding.conf` の未反映, 手動変更との競合 |  `sysctl net.ipv4.ip_forward net.ipv6.conf.all.forwarding` を確認し, 値が期待どおりでなければ `sudo sysctl --system` を実行して再読込します。 |
 
-事前に,
+## 注意事項
 
+このセクションでは, ldap-serverロールの運用や拡張の際に参考となる追加情報を記載します。
+
+### Docker Compose v2 について
+
+本ロールはDocker Compose v2(Composeコマンド)を使用することを前提としています。Docker Engine 20.10以上の環境で`docker compose`コマンド(ハイフンなし)で実行します。
+
+```bash
+docker compose -f docker-compose.yml up -d
+docker compose -f docker-compose.yml down
+docker compose -f docker-compose.yml ps
 ```
-cd /data/openldap/docker
-docker compose pause
-```
 
-を実行してコンテナ内のプロセスを停止してから
-`/data/openldap/scripts/backup-ldap-data.sh`スクリプトを実行します。
-`backup-ldap-data.sh`スクリプトは, 以下の処理を行います。
+### ボリューム永続化について
 
-- カレントディレクトリをコンテナの/backupディレクトリにマウント
-- busyboxのコンテナを起動
-- tar コマンドで/etc/ldap/slapd.d, /var/lib/ldapディレクトリを, それぞれ, config-backup.tar, data-backup.tar, phpadmin-backup.tarに保存
-- コンテナを破棄
+OpenLDAPデータベースとphpLDAPadmin設定データを専用ボリュームに保存する仕様とした背景配下の通り:
 
-```:backup-ldap-data.sh
+- **コンテナのリサイクル**: コンテナを削除, 再作成しても, ボリューム内のデータは永続化される
+- **バックアップの簡素化**: ボリューム内のファイルをホスト側からアクセス可能なため, バックアップスクリプトで容易に抽出できる
+- **パフォーマンス**: ボリュームを適切に設定することで, コンテナ間のI/O性能が向上する可能性がある
+
+### セキュリティ考慮事項
+
+OpenLDAPサーバ部に関してセキュリティ要件に応じて以下の点を検討することが推奨されます:
+
+- **ネットワークセグメンテーション**: LDAPサーバは内部ネットワークのみに公開し, 外部からの直接接続は避ける
+- **TLS/SSL通信**: 本番環境ではTLS/SSL(Secure Sockets Layer, 安全なソケットレイヤ)を有効にしたLDAPS(LDAP over SSL, SSL/TLS経由のLDAP)通信を推奨
+- **認証情報の管理**: bind DNやパスワードは環境変数や秘密管理ツールで管理し, Readmeや設定ファイルにハードコードしない
+
+### バージョン管理
+
+OpenLDAPコンテナイメージは osixia/openldap GitHub リポジトリで複数バージョンが公開されています。本ロール実装時のイメージバージョンは以下から確認可能です。
+
+- `roles/ldap-server/defaults/main.yml` の `ldap_image_version` 変数
+- `roles/ldap-server/templates/docker-compose.yml.j2` のimage定義
+
+### 運用推奨事項
+
+以下の運用が推奨されます。
+
+- **定期的なバックアップ**: 少なくとも月1回程度の頻度でバックアップスクリプトを実行し, ディレクトリエントリの保護を確保する
+- **ログ監視**: Docker コンテナのログを定期的に確認し, エラーやトラブルシューティング情報を収集する
+- **セキュリティアップデート**: osixia/openldap イメージの新バージョンリリース情報を追跡し, セキュリティアップデートが公開された際は迅速に適用する
+- **ディレクトリ設計**: LDAPディレクトリツリー構造の設計段階で, エントリの検索性能やメンテナンス性を考慮する
+
+## 付録: `backup-ldap-data.sh`スクリプトの内容
+
+```bash
 #!/bin/sh
 #  -*- coding:utf-8 mode:bash -*-
 #
@@ -499,172 +781,15 @@ docker run --rm --volumes-from "${ldap_container_id}" -v `pwd`:/backup busybox t
 docker run --rm --volumes-from "${phpadmin_container_id}" -v `pwd`:/backup busybox tar cvf /backup/phpadmin-backup.tar /var/www/phpldapadmin
 ```
 
-上記が完了したら以下のコマンドを実行して, コンテナを再開します。
+## 参考資料
 
-```
-cd /data/openldap/docker
-docker compose unpause
-```
-
-## 設定例
-
-### group_vars/all での設定
-
-`group_vars/all/all.yml` でロール全体の共通設定を定義:
-
-```yaml
-# LDAP 基本設定
-ldap_organization: "MyOrganization"    # 組織名 ( 必須 )
-ldap_domain: "example.org"             # ドメイン名 ( 必須 )
-ldap_admin_password: "admin"           # 管理者パスワード ( デフォルト値 )
-ldap_admin_port: 10443                 # phpLDAPadmin Web UI ポート
-
-# ディレクトリ設定
-openldap_docker_dir: "/data/openldap/docker"
-openldap_scripts_dir: "/data/openldap/scripts"
-openldap_database_dir: "/data/openldap/slapd/database"
-openldap_config_dir: "/data/openldap/slapd/config"
-
-# 待機設定
-openldap_wait_timeout: 600             # サービス待機時間(秒)
-openldap_wait_delay: 5
-openldap_wait_sleep: 2
-```
-
-### host_vars/mgmt-server.local での設定
-
-ホスト固有の設定を `host_vars/mgmt-server.local` に記載します。ここで設定した値は `group_vars` での設定を上書きします:
-
-```yaml
-# 管理サーバ固有設定
-ldap_organization: "TechDepartment"    # 組織名を上書き
-ldap_domain: "ldap.example.org"        # ドメイン名を上書き ( オプション )
-ldap_admin_password: "secure_password" # 管理者パスワードを上書き ( セキュリティ上, 環境変数推奨 )
-openldap_service_port: 389             # LDAPポート
-openldap_enable_ipv6: true             # IPv6 有効化
-```
-
-以下のリストアスクリプトを実行すると, LDAP (Lightweight Directory Access Protocol, 軽量ディレクトリアクセスプロトコル) の設定, データベースをカレントディレクトリのconfig-backup.tar, data-backup.tar, phpadmin-backup.tar からリストアします。
-
-事前に,
-
-```
-cd /data/openldap/docker
-docker compose pause
-```
-
-を実行してコンテナ内のプロセスを停止してから
-`/data/openldap/scripts/restore-ldap-data.sh`スクリプトを実行します。
-`restore-ldap-data.sh`スクリプトは, 以下の処理を行います。
-
-- カレントディレクトリをコンテナの/backupディレクトリにマウント
-- busyboxのコンテナを起動
-- tar コマンドで/etc/ldap/slapd.d, /var/lib/ldapディレクトリを, それぞれ, config-backup.tar, data-backup.tar, phpadmin-backup.tarから展開
-- コンテナを破棄
-
-```:restore-ldap-data.sh
-#!/bin/sh
-#  -*- coding:utf-8 mode:bash -*-
-# This file is generated by ansible.
-{# 日付の取得 #}
-# last update: {{ '%Y-%m-%d %H:%M:%S %Z' | strftime(ansible_date_time.epoch) }}
-#
-# busyboxのコンテナイメージを使用して, ホスト上のカレントディレクトリにあるtarファイルの
-# 内容をopenldapコンテナ内で定義されているボリュームに展開する
-#
-
-# 1) openldapのコンテナIDを取得する
-container_id=`docker ps|grep osixia/openldap:|awk -F ' ' '{print $1;}'`
-
-# 2) phpldapadminのコンテナIDを取得する
-phpadmin_container_id=`docker ps|grep osixia/phpldapadmin:|awk -F ' ' '{print $1;}'`
-
-# 3) ホストのカレントディレクトリをコンテナ内の/backupディレクトリにマウントした上で,
-# openldapコンテナのボリュームを参照可能にして, busyboxのコンテナを生成し,
-# カレントディレクトリにあるconfig-backup.tarの内容をopenldapのコンテナ内に展開する
-docker run --rm --volumes-from "${container_id}" -v `pwd`:/backup busybox tar xvf /backup/config-backup.tar -C /
-
-# 4) ホストのカレントディレクトリをコンテナ内の/backupディレクトリにマウントした上で,
-# openldapコンテナのボリュームを参照可能にして, busyboxのコンテナを生成し,
-# カレントディレクトリにあるdata-backup.tarの内容をopenldapのコンテナ内に展開する
-docker run --rm --volumes-from "${container_id}" -v `pwd`:/backup busybox tar xvf /backup/data-backup.tar -C /
-
-# 4) ホストのカレントディレクトリをコンテナ内の/backupディレクトリにマウントした上で,
-# phpldapadminコンテナのボリュームを参照可能にして, busyboxのコンテナを生成し,
-# カレントディレクトリにあるphpadmin-backup.tarの内容をopenldapのコンテナ内に展開する
-docker run --rm --volumes-from "${phpadmin_container_id}" -v `pwd`:/backup busybox tar xvf /backup/phpadmin-backup.tar -C /
-```
-
-上記が完了したら以下のコマンドを実行して, コンテナを再開します。
-
-```
-cd /data/openldap/docker
-docker compose unpause
-```
-
-## 補足
-
-このセクションでは, ldap-serverロールの運用や拡張の際に参考となる追加情報を記載します。
-
-### Docker Compose v2 について
-
-本ロールはDocker Compose v2(Composeコマンド)を使用することを前提としています。Docker Engine 20.10以上の環境で`docker compose`コマンド(ハイフンなし)で実行します。
-
-```bash
-docker compose -f docker-compose.yml up -d
-docker compose -f docker-compose.yml down
-docker compose -f docker-compose.yml ps
-```
-
-### ボリューム永続化について
-
-OpenLDAPデータベースとphpLDAPadmin設定データを専用ボリュームに保存する仕様とした背景配下の通り:
-
-- **コンテナのリサイクル**: コンテナを削除, 再作成しても, ボリューム内のデータは永続化される
-- **バックアップの簡素化**: ボリューム内のファイルをホスト側からアクセス可能なため, バックアップスクリプトで容易に抽出できる
-- **パフォーマンス**: ボリュームを適切に設定することで, コンテナ間のI/O性能が向上する可能性がある
-
-### セキュリティ考慮事項
-
-OpenLDAPサーバ部に関してセキュリティ要件に応じて以下の点を検討することが推奨されます:
-
-- **ネットワークセグメンテーション**: LDAPサーバは内部ネットワークのみに公開し, 外部からの直接接続は避ける
-- **TLS/SSL通信**: 本番環境ではTLS/SSL(Secure Sockets Layer, 安全なソケットレイヤ)を有効にしたLDAPS(LDAP over SSL, SSL/TLS経由のLDAP)通信を推奨
-- **認証情報の管理**: bind DNやパスワードは環境変数や秘密管理ツールで管理し, Readmeや設定ファイルにハードコードしない
-
-### スケーリングに関する補足事項
-
-複数ホストへの展開や高可用性実現時の検討項目は以下の通り:
-
-- **レプリケーション**: OpenLDAPマスター/スレーブ構成でレプリケーション実装が可能です。詳細はOpenLDAP公式ドキュメントを参照してください
-- **ロードバランシング**: 複数のLDAPサーバを配置し, ロードバランサー経由でアクセス可能にすることで, 耐障害性を向上できます
-- **ホット/コールドスタンバイ**: 予備マシンを待機させ, 障害時切り替えを実現する構成が可能です
-
-### バージョン管理
-
-OpenLDAPコンテナイメージは osixia/openldap GitHub リポジトリで複数バージョンが公開されています。本ロール実装時のイメージバージョンは以下から確認可能です。
-
-- `roles/ldap-server/defaults/main.yml` の `ldap_image_version` 変数
-- `roles/ldap-server/templates/docker-compose.yml.j2` のimage定義
-
-### 運用推奨事項
-
-以下の運用が推奨されます。
-
-- **定期的なバックアップ**: 少なくとも月1回程度の頻度でバックアップスクリプトを実行し, ディレクトリエントリの保護を確保する
-- **ログ監視**: Docker コンテナのログを定期的に確認し, エラーやトラブルシューティング情報を収集する
-- **セキュリティアップデート**: osixia/openldap イメージの新バージョンリリース情報を追跡し, セキュリティアップデートが公開された際は迅速に適用する
-- **ディレクトリ設計**: LDAPディレクトリツリー構造の設計段階で, エントリの検索性能やメンテナンス性を考慮する
-
-## 参考リンク
+### 公式ドキュメント
 
 OpenLDAP サーバとphpLDAPadminの運用管理に関する公開リソースを以下に記載します:
 
 - **OpenLDAP Official Documentation**: https://www.openldap.org/doc/
   - OpenLDAPの公式ドキュメント, 設定リファレンス, トラブルシューティング等を提供
-
 - **osixia/openldap GitHub Repository**: https://github.com/osixia/docker-openldap
   - 本ロールで使用しているopenldapのDockerイメージのソースコード, 設定例, 既知の問題等を提供
-
 - **osixia/phpldapadmin GitHub Repository**: https://github.com/osixia/docker-phpldapadmin
   - phpLDAPadminのDockerイメージのソースコード, 使用方法, トラブルシューティング情報を提供

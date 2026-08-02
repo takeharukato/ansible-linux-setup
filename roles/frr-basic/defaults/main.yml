@@ -8,6 +8,9 @@
 
 # roles/frr-basic/defaults/main.yml
 
+# frr-basicロールの実行可否
+frr_basic_enabled: false
+
 # BGP グローバル（実値は host_vars 側で上書き）
 frr_bgp_asn: 0
 frr_bgp_router_id: ""

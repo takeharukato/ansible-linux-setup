@@ -13,13 +13,24 @@
   ansible.builtin.include_tasks: load-params.yml
 - name: "Package"
   ansible.builtin.include_tasks: package.yml
+  when: frr_basic_enabled | default(false) | bool
 - name: "Package Frr"
   ansible.builtin.include_tasks: package-frr.yml
+  when: frr_basic_enabled | default(false) | bool
 - name: "Directory"
   ansible.builtin.include_tasks: directory.yml
+  when: frr_basic_enabled | default(false) | bool
 - name: "User Group"
   ansible.builtin.include_tasks: user_group.yml
+  when: frr_basic_enabled | default(false) | bool
 - name: "Service"
   ansible.builtin.include_tasks: service.yml
+  when: frr_basic_enabled | default(false) | bool
 - name: "Config"
   ansible.builtin.include_tasks: config.yml
+  when: frr_basic_enabled | default(false) | bool
+
+- name: "Skip frr-basic tasks when disabled"
+  ansible.builtin.debug:
+    msg: "Skip frr-basic because frr_basic_enabled is false"
+  when: not (frr_basic_enabled | default(false) | bool)

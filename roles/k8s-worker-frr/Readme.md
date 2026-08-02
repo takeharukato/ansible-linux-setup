@@ -1,14 +1,18 @@
 # k8s-worker-frr ロール
 
-Kubernetes ワーカーノード上に FRR (Free Range Routing) を導入し, データセンタ(以下DCと略す) 代表 FRR への iBGP (Internal Border Gateway Protocol) 広告により Pod/Service ネットワークをデータセンター間で共有するロールです。Cilium native routing モードを前提とします。Cilium BGP Control Plane を使用しない場合の代替ルーティング機能を実現します。
+本ロールは, Kubernetes ワーカーノード上に FRR (Free Range Routing) を導入し, データセンタ(以下DCと略す) 代表 FRR への iBGP (Internal Border Gateway Protocol) 広告により Pod/Service ネットワークをデータセンター間で共有するロールです。
+
+## 目次
 
 - [k8s-worker-frr ロール](#k8s-worker-frr-ロール)
+  - [目次](#目次)
   - [用語](#用語)
-  - [前提](#前提)
-  - [基本仕様](#基本仕様)
-  - [実装方針](#実装方針)
-  - [実行フロー](#実行フロー)
-    - [BGP 設定の詳細](#bgp-設定の詳細)
+  - [概要](#概要)
+    - [実行環境に対する前提](#実行環境に対する前提)
+    - [基本仕様](#基本仕様)
+  - [本ロール中で実施する主な処理](#本ロール中で実施する主な処理)
+  - [Cilium BGP Control Plane との排他関係](#cilium-bgp-control-plane-との排他関係)
+  - [実行方法](#実行方法)
   - [主要変数](#主要変数)
     - [基本設定](#基本設定)
     - [iBGP 設定](#ibgp-設定)
@@ -23,11 +27,6 @@ Kubernetes ワーカーノード上に FRR (Free Range Routing) を導入し, �
     - [host\_vars/k8sctrlplane01.local](#host_varsk8sctrlplane01local)
     - [DC 代表 FRR および外部ゲートウェイの設定](#dc-代表-frr-および外部ゲートウェイの設定)
       - [DC 代表 FRR 側の対応設定](#dc-代表-frr-側の対応設定)
-  - [Cilium BGP Control Plane との排他関係](#cilium-bgp-control-plane-との排他関係)
-  - [本ロール中で実施する主な処理](#本ロール中で実施する主な処理)
-  - [テンプレート / ファイル](#テンプレート--ファイル)
-  - [ハンドラ](#ハンドラ)
-  - [検証ポイント](#検証ポイント)
   - [host\_vars/ 設定例](#host_vars-設定例)
     - [Cluster1 ワーカーノード設定例](#cluster1-ワーカーノード設定例)
       - [ワーカーノード設定 (host\_vars/k8sworker0101.local)](#ワーカーノード設定-host_varsk8sworker0101local)
@@ -42,92 +41,99 @@ Kubernetes ワーカーノード上に FRR (Free Range Routing) を導入し, �
     - [外部ゲートウェイ(extgw)設定例](#外部ゲートウェイextgw設定例)
       - [host\_vars/extgw.local](#host_varsextgwlocal)
     - [ネットワーク構成まとめ](#ネットワーク構成まとめ)
-  - [標準デュアルスタックでの検証方法](#標準デュアルスタックでの検証方法)
-    - [標準デュアルスタック設定の概要](#標準デュアルスタック設定の概要)
-    - [標準デュアルスタック設定例](#標準デュアルスタック設定例)
-      - [標準デュアルスタック設定でのワーカーノード設定 (host\_vars/k8sworker0101.local)](#標準デュアルスタック設定でのワーカーノード設定-host_varsk8sworker0101local)
-        - [設定のポイント](#設定のポイント)
-      - [DC代表FRR設定 (host\_vars/frr01.local)](#dc代表frr設定-host_varsfrr01local)
-    - [前提条件](#前提条件)
-    - [1. FRR サービス状態の確認](#1-frr-サービス状態の確認)
-    - [2. FRR 設定の構文確認](#2-frr-設定の構文確認)
-    - [3. iBGP セッション状態の確認](#3-ibgp-セッション状態の確認)
-    - [4. 広告経路の確認 (IPv4)](#4-広告経路の確認-ipv4)
-    - [5. 広告経路の確認 (IPv6)](#5-広告経路の確認-ipv6)
-    - [6. カーネルルーティングテーブルの確認](#6-カーネルルーティングテーブルの確認)
-      - [IPv4ルートの確認](#ipv4ルートの確認)
-      - [IPv6ルートの確認](#ipv6ルートの確認)
-    - [7. BGP ネイバー詳細情報の確認](#7-bgp-ネイバー詳細情報の確認)
-      - [IPv4 ネイバーの詳細](#ipv4-ネイバーの詳細)
-      - [IPv6 ネイバーの詳細](#ipv6-ネイバーの詳細)
-    - [8. DC 代表 FRR での受信経路確認](#8-dc-代表-frr-での受信経路確認)
-      - [8.1 IPv4 経路の確認](#81-ipv4-経路の確認)
-      - [8.2 IPv6 経路の確認](#82-ipv6-経路の確認)
-      - [8.3 External Gateway (extgw) での経路確認](#83-external-gateway-extgw-での経路確認)
-    - [9. DC 間 Pod 疎通テスト (標準デュアルスタック)](#9-dc-間-pod-疎通テスト-標準デュアルスタック)
-      - [9.1 既存テスト Pod の削除 ( 存在する場合 )](#91-既存テスト-pod-の削除--存在する場合-)
-      - [9.2 テスト Pod のデプロイ](#92-テスト-pod-のデプロイ)
-      - [9.3 Pod IP アドレスの確認](#93-pod-ip-アドレスの確認)
-      - [9.4 Cilium 設定の確認](#94-cilium-設定の確認)
-      - [9.5 Cluster1  =\>  Cluster2 疎通テスト (IPv4)](#95-cluster1----cluster2-疎通テスト-ipv4)
-      - [9.6 Cluster2  =\>  Cluster1 疎通テスト (IPv4)](#96-cluster2----cluster1-疎通テスト-ipv4)
-      - [9.7 Cluster1  =\>  Cluster2 疎通テスト (IPv6)](#97-cluster1----cluster2-疎通テスト-ipv6)
-      - [9.8 Cluster2  =\>  Cluster1 疎通テスト (IPv6)](#98-cluster2----cluster1-疎通テスト-ipv6)
-      - [9.9 テスト Pod のクリーンアップ](#99-テスト-pod-のクリーンアップ)
-  - [補足](#補足)
-  - [Multiprotocol BGP (IPv4トランスポートでIPv6のBGP広告も実施する設定) 利用時の検証方法](#multiprotocol-bgp-ipv4トランスポートでipv6のbgp広告も実施する設定-利用時の検証方法)
-    - [Multiprotocol BGP 設定例](#multiprotocol-bgp-設定例)
-      - [Multiprotocol BGPでのワーカーノード設定 (host\_vars/k8sworker0101.local)](#multiprotocol-bgpでのワーカーノード設定-host_varsk8sworker0101local)
-      - [Multiprotocol BGP設定でのDC代表FRR設定 (host\_vars/frr01.local)](#multiprotocol-bgp設定でのdc代表frr設定-host_varsfrr01local)
-      - [設定時の注意事項](#設定時の注意事項)
-    - [Multiprotocol BGPでの前提条件](#multiprotocol-bgpでの前提条件)
-    - [1. FRR サービス状態の確認 (Multiprotocol BGP)](#1-frr-サービス状態の確認-multiprotocol-bgp)
-    - [2. FRR 設定の構文確認 (Multiprotocol BGP)](#2-frr-設定の構文確認-multiprotocol-bgp)
-    - [3. iBGP セッション状態の確認 (Multiprotocol BGP)](#3-ibgp-セッション状態の確認-multiprotocol-bgp)
-    - [4. Multiprotocol BGP設定での広告経路の確認 (IPv4)](#4-multiprotocol-bgp設定での広告経路の確認-ipv4)
-    - [5. Multiprotocol BGP設定での広告経路の確認 (IPv6)](#5-multiprotocol-bgp設定での広告経路の確認-ipv6)
-    - [6. prefix-list の確認](#6-prefix-list-の確認)
-    - [7. route-map の確認](#7-route-map-の確認)
-    - [8. カーネルルーティングテーブルの確認 (IPv4)](#8-カーネルルーティングテーブルの確認-ipv4)
-    - [9. カーネルルーティングテーブルの確認 (IPv6)](#9-カーネルルーティングテーブルの確認-ipv6)
-    - [10. IP フォワーディング設定の確認](#10-ip-フォワーディング設定の確認)
-    - [11. DC 代表 FRR での受信経路確認](#11-dc-代表-frr-での受信経路確認)
-      - [11.1 IPv4 経路の確認](#111-ipv4-経路の確認)
-      - [11.2 IPv6 経路の確認](#112-ipv6-経路の確認)
-      - [11.3 External Gateway (extgw) での経路確認](#113-external-gateway-extgw-での経路確認)
-    - [12. DC 間 Pod 疎通テスト (IPv4/IPv6 デュアルスタック)](#12-dc-間-pod-疎通テスト-ipv4ipv6-デュアルスタック)
-      - [12.1 既存テスト Pod の削除 ( 存在する場合 )](#121-既存テスト-pod-の削除--存在する場合-)
-      - [12.2 テスト Pod のデプロイ](#122-テスト-pod-のデプロイ)
-      - [12.3 Pod IP アドレスの確認](#123-pod-ip-アドレスの確認)
-      - [12.4 Cilium 設定の確認 ( オプション )](#124-cilium-設定の確認--オプション-)
-      - [12.5 Cluster1  =\>  Cluster2 疎通テスト (IPv4)](#125-cluster1----cluster2-疎通テスト-ipv4)
-      - [12.6 Cluster2  =\>  Cluster1 疎通テスト (IPv4)](#126-cluster2----cluster1-疎通テスト-ipv4)
-      - [12.7 Cluster1  =\>  Cluster2 疎通テスト (IPv6)](#127-cluster1----cluster2-疎通テスト-ipv6)
-      - [12.8 Cluster2  =\>  Cluster1 疎通テスト (IPv6)](#128-cluster2----cluster1-疎通テスト-ipv6)
-      - [12.9 テスト完了後のクリーンアップ](#129-テスト完了後のクリーンアップ)
-  - [RFC 5549 (IPv6 トランスポート) 利用時の検証方法](#rfc-5549-ipv6-トランスポート-利用時の検証方法)
-    - [RFC 5549 (IPv6 トランスポート) 利用時の前提条件](#rfc-5549-ipv6-トランスポート-利用時の前提条件)
-    - [RFC 5549 環境での host\_vars 設定例](#rfc-5549-環境での-host_vars-設定例)
-      - [ワーカーノードの設定例 (host\_vars/k8sworker0101.local)](#ワーカーノードの設定例-host_varsk8sworker0101local)
-      - [DC 代表 FRR の設定例 (host\_vars/frr01.local)](#dc-代表-frr-の設定例-host_varsfrr01local)
-      - [External Gateway の設定例 (host\_vars/extgw.local)](#external-gateway-の設定例-host_varsextgwlocal)
-      - [Cluster2 のワーカーノード設定例 (host\_vars/k8sworker0201.local)](#cluster2-のワーカーノード設定例-host_varsk8sworker0201local)
-    - [1. FRR サービス状態の確認 (RFC 5549 (IPv6 トランスポート) 利用時の例)](#1-frr-サービス状態の確認-rfc-5549-ipv6-トランスポート-利用時の例)
-    - [2. BGP セッション状態の確認 (IPv6 トランスポート)](#2-bgp-セッション状態の確認-ipv6-トランスポート)
-    - [3. 広告経路の確認 (IPv4 - RFC 5549)](#3-広告経路の確認-ipv4---rfc-5549)
-    - [4. 広告経路の確認 (IPv6)](#4-広告経路の確認-ipv6)
-    - [5. カーネルルーティングテーブルの確認 (IPv4 - RFC 5549)](#5-カーネルルーティングテーブルの確認-ipv4---rfc-5549)
-    - [6. カーネルルーティングテーブルの確認 (IPv6)](#6-カーネルルーティングテーブルの確認-ipv6)
-    - [7. DC 代表 FRR での経路確認 (RFC 5549)](#7-dc-代表-frr-での経路確認-rfc-5549)
-      - [7.1 BGP ネイバー詳細確認 (Extended Nexthop Capability)](#71-bgp-ネイバー詳細確認-extended-nexthop-capability)
-      - [7.2 IPv4 BGP テーブルの確認 (link-local nexthop)](#72-ipv4-bgp-テーブルの確認-link-local-nexthop)
-    - [8. External Gateway での経路確認 (RFC 5549)](#8-external-gateway-での経路確認-rfc-5549)
-      - [8.1 IPv4 BGP テーブルの確認](#81-ipv4-bgp-テーブルの確認)
-      - [8.2 IPv6 BGP テーブルの確認](#82-ipv6-bgp-テーブルの確認)
-    - [9. DC 間 Pod 疎通テスト (RFC 5549)](#9-dc-間-pod-疎通テスト-rfc-5549)
-      - [9.1 テスト Pod のデプロイと IP アドレス確認](#91-テスト-pod-のデプロイと-ip-アドレス確認)
-      - [9.2 IPv6 疎通テスト](#92-ipv6-疎通テスト)
-      - [9.3 IPv4 疎通テスト](#93-ipv4-疎通テスト)
+  - [テンプレートと生成ファイル](#テンプレートと生成ファイル)
+  - [実行フロー](#実行フロー)
+    - [実装方針](#実装方針)
+    - [ロール内の実行フロー](#ロール内の実行フロー)
+    - [ハンドラ](#ハンドラ)
+    - [BGP 設定の詳細](#bgp-設定の詳細)
+  - [検証ポイント](#検証ポイント)
+    - [FRRの動作確認](#frrの動作確認)
+    - [標準デュアルスタックでの検証方法](#標準デュアルスタックでの検証方法)
+      - [標準デュアルスタック設定の概要](#標準デュアルスタック設定の概要)
+      - [標準デュアルスタック設定例](#標準デュアルスタック設定例)
+        - [標準デュアルスタック設定でのワーカーノード設定 (host\_vars/k8sworker0101.local)](#標準デュアルスタック設定でのワーカーノード設定-host_varsk8sworker0101local)
+          - [設定のポイント](#設定のポイント)
+        - [DC代表FRR設定 (host\_vars/frr01.local)](#dc代表frr設定-host_varsfrr01local)
+      - [前提条件](#前提条件)
+      - [1. FRR サービス状態の確認](#1-frr-サービス状態の確認)
+      - [2. FRR 設定の構文確認](#2-frr-設定の構文確認)
+      - [3. iBGP セッション状態の確認](#3-ibgp-セッション状態の確認)
+      - [4. 広告経路の確認 (IPv4)](#4-広告経路の確認-ipv4)
+      - [5. 広告経路の確認 (IPv6)](#5-広告経路の確認-ipv6)
+      - [6. カーネルルーティングテーブルの確認](#6-カーネルルーティングテーブルの確認)
+        - [IPv4ルートの確認](#ipv4ルートの確認)
+        - [IPv6ルートの確認](#ipv6ルートの確認)
+      - [7. BGP ネイバー詳細情報の確認](#7-bgp-ネイバー詳細情報の確認)
+        - [IPv4 ネイバーの詳細](#ipv4-ネイバーの詳細)
+        - [IPv6 ネイバーの詳細](#ipv6-ネイバーの詳細)
+      - [8. DC 代表 FRR での受信経路確認](#8-dc-代表-frr-での受信経路確認)
+        - [8.1 IPv4 経路の確認](#81-ipv4-経路の確認)
+        - [8.2 IPv6 経路の確認](#82-ipv6-経路の確認)
+        - [8.3 External Gateway (extgw) での経路確認](#83-external-gateway-extgw-での経路確認)
+      - [9. DC 間 Pod 疎通テスト (標準デュアルスタック)](#9-dc-間-pod-疎通テスト-標準デュアルスタック)
+        - [9.1 既存テスト Pod の削除 ( 存在する場合 )](#91-既存テスト-pod-の削除--存在する場合-)
+        - [9.2 テスト Pod のデプロイ](#92-テスト-pod-のデプロイ)
+        - [9.3 Pod IP アドレスの確認](#93-pod-ip-アドレスの確認)
+        - [9.4 Cilium 設定の確認](#94-cilium-設定の確認)
+        - [9.5 Cluster1  =\>  Cluster2 疎通テスト (IPv4)](#95-cluster1----cluster2-疎通テスト-ipv4)
+        - [9.6 Cluster2  =\>  Cluster1 疎通テスト (IPv4)](#96-cluster2----cluster1-疎通テスト-ipv4)
+        - [9.7 Cluster1  =\>  Cluster2 疎通テスト (IPv6)](#97-cluster1----cluster2-疎通テスト-ipv6)
+        - [9.8 Cluster2  =\>  Cluster1 疎通テスト (IPv6)](#98-cluster2----cluster1-疎通テスト-ipv6)
+        - [9.9 テスト Pod のクリーンアップ](#99-テスト-pod-のクリーンアップ)
+    - [Multiprotocol BGP (IPv4トランスポートでIPv6のBGP広告も実施する設定) 利用時の検証方法](#multiprotocol-bgp-ipv4トランスポートでipv6のbgp広告も実施する設定-利用時の検証方法)
+      - [Multiprotocol BGP 設定例](#multiprotocol-bgp-設定例)
+        - [Multiprotocol BGPでのワーカーノード設定 (host\_vars/k8sworker0101.local)](#multiprotocol-bgpでのワーカーノード設定-host_varsk8sworker0101local)
+        - [Multiprotocol BGP設定でのDC代表FRR設定 (host\_vars/frr01.local)](#multiprotocol-bgp設定でのdc代表frr設定-host_varsfrr01local)
+        - [設定時の注意事項](#設定時の注意事項)
+      - [Multiprotocol BGPでの前提条件](#multiprotocol-bgpでの前提条件)
+      - [1. FRR サービス状態の確認 (Multiprotocol BGP)](#1-frr-サービス状態の確認-multiprotocol-bgp)
+      - [2. FRR 設定の構文確認 (Multiprotocol BGP)](#2-frr-設定の構文確認-multiprotocol-bgp)
+      - [3. iBGP セッション状態の確認 (Multiprotocol BGP)](#3-ibgp-セッション状態の確認-multiprotocol-bgp)
+      - [4. Multiprotocol BGP設定での広告経路の確認 (IPv4)](#4-multiprotocol-bgp設定での広告経路の確認-ipv4)
+      - [5. Multiprotocol BGP設定での広告経路の確認 (IPv6)](#5-multiprotocol-bgp設定での広告経路の確認-ipv6)
+      - [6. prefix-list の確認](#6-prefix-list-の確認)
+      - [7. route-map の確認](#7-route-map-の確認)
+      - [8. カーネルルーティングテーブルの確認 (IPv4)](#8-カーネルルーティングテーブルの確認-ipv4)
+      - [9. カーネルルーティングテーブルの確認 (IPv6)](#9-カーネルルーティングテーブルの確認-ipv6)
+      - [10. IP フォワーディング設定の確認](#10-ip-フォワーディング設定の確認)
+      - [11. DC 代表 FRR での受信経路確認](#11-dc-代表-frr-での受信経路確認)
+        - [11.1 IPv4 経路の確認](#111-ipv4-経路の確認)
+        - [11.2 IPv6 経路の確認](#112-ipv6-経路の確認)
+        - [11.3 External Gateway (extgw) での経路確認](#113-external-gateway-extgw-での経路確認)
+      - [12. DC 間 Pod 疎通テスト (IPv4/IPv6 デュアルスタック)](#12-dc-間-pod-疎通テスト-ipv4ipv6-デュアルスタック)
+        - [12.1 既存テスト Pod の削除 ( 存在する場合 )](#121-既存テスト-pod-の削除--存在する場合-)
+        - [12.2 テスト Pod のデプロイ](#122-テスト-pod-のデプロイ)
+        - [12.3 Pod IP アドレスの確認](#123-pod-ip-アドレスの確認)
+        - [12.4 Cilium 設定の確認 ( オプション )](#124-cilium-設定の確認--オプション-)
+        - [12.5 Cluster1  =\>  Cluster2 疎通テスト (IPv4)](#125-cluster1----cluster2-疎通テスト-ipv4)
+        - [12.6 Cluster2  =\>  Cluster1 疎通テスト (IPv4)](#126-cluster2----cluster1-疎通テスト-ipv4)
+        - [12.7 Cluster1  =\>  Cluster2 疎通テスト (IPv6)](#127-cluster1----cluster2-疎通テスト-ipv6)
+        - [12.8 Cluster2  =\>  Cluster1 疎通テスト (IPv6)](#128-cluster2----cluster1-疎通テスト-ipv6)
+        - [12.9 テスト完了後のクリーンアップ](#129-テスト完了後のクリーンアップ)
+    - [RFC 5549 (IPv6 トランスポート) 利用時の検証方法](#rfc-5549-ipv6-トランスポート-利用時の検証方法)
+      - [RFC 5549 (IPv6 トランスポート) 利用時の前提条件](#rfc-5549-ipv6-トランスポート-利用時の前提条件)
+      - [RFC 5549 環境での host\_vars 設定例](#rfc-5549-環境での-host_vars-設定例)
+        - [ワーカーノードの設定例 (host\_vars/k8sworker0101.local)](#ワーカーノードの設定例-host_varsk8sworker0101local)
+        - [DC 代表 FRR の設定例 (host\_vars/frr01.local)](#dc-代表-frr-の設定例-host_varsfrr01local)
+        - [External Gateway の設定例 (host\_vars/extgw.local)](#external-gateway-の設定例-host_varsextgwlocal)
+        - [Cluster2 のワーカーノード設定例 (host\_vars/k8sworker0201.local)](#cluster2-のワーカーノード設定例-host_varsk8sworker0201local)
+      - [1. FRR サービス状態の確認 (RFC 5549 (IPv6 トランスポート) 利用時の例)](#1-frr-サービス状態の確認-rfc-5549-ipv6-トランスポート-利用時の例)
+      - [2. BGP セッション状態の確認 (IPv6 トランスポート)](#2-bgp-セッション状態の確認-ipv6-トランスポート)
+      - [3. 広告経路の確認 (IPv4 - RFC 5549)](#3-広告経路の確認-ipv4---rfc-5549)
+      - [4. 広告経路の確認 (IPv6)](#4-広告経路の確認-ipv6)
+      - [5. カーネルルーティングテーブルの確認 (IPv4 - RFC 5549)](#5-カーネルルーティングテーブルの確認-ipv4---rfc-5549)
+      - [6. カーネルルーティングテーブルの確認 (IPv6)](#6-カーネルルーティングテーブルの確認-ipv6)
+      - [7. DC 代表 FRR での経路確認 (RFC 5549)](#7-dc-代表-frr-での経路確認-rfc-5549)
+        - [7.1 BGP ネイバー詳細確認 (Extended Nexthop Capability)](#71-bgp-ネイバー詳細確認-extended-nexthop-capability)
+        - [7.2 IPv4 BGP テーブルの確認 (link-local nexthop)](#72-ipv4-bgp-テーブルの確認-link-local-nexthop)
+      - [8. External Gateway での経路確認 (RFC 5549)](#8-external-gateway-での経路確認-rfc-5549)
+        - [8.1 IPv4 BGP テーブルの確認](#81-ipv4-bgp-テーブルの確認)
+        - [8.2 IPv6 BGP テーブルの確認](#82-ipv6-bgp-テーブルの確認)
+      - [9. DC 間 Pod 疎通テスト (RFC 5549)](#9-dc-間-pod-疎通テスト-rfc-5549)
+        - [9.1 テスト Pod のデプロイと IP アドレス確認](#91-テスト-pod-のデプロイと-ip-アドレス確認)
+        - [9.2 IPv6 疎通テスト](#92-ipv6-疎通テスト)
+        - [9.3 IPv4 疎通テスト](#93-ipv4-疎通テスト)
   - [トラブルシューティング](#トラブルシューティング)
     - [1. BGP セッションが `Established` にならない場合](#1-bgp-セッションが-established-にならない場合)
       - [1.1 全構成共通の診断手順](#11-全構成共通の診断手順)
@@ -145,13 +151,82 @@ Kubernetes ワーカーノード上に FRR (Free Range Routing) を導入し, �
       - [3.4 RFC 5549構成での確認ポイント](#34-rfc-5549構成での確認ポイント)
     - [4. IPv6 Pod 通信が失敗する場合](#4-ipv6-pod-通信が失敗する場合)
     - [5. 経路受信は成功するが, Pod から外部への通信ができない場合](#5-経路受信は成功するが-pod-から外部への通信ができない場合)
-  - [参考リンク](#参考リンク)
+  - [注意事項](#注意事項)
+  - [参考資料](#参考資料)
+    - [公式ドキュメント](#公式ドキュメント)
 
 ## 用語
 
 | 正式名称 | 略称 | 意味 |
 | --- | --- | --- |
-| Application Programming Interface | API | アプリケーション同士がやり取りする方法を定めた仕様。 |
+| ユーザ | - | 機能を利用する人, 又は識別された利用主体。 |
+| ツール | - | 特定作業を実行するための機能や道具。 |
+| リソース | - | 処理に必要な計算機資源やデータ。 |
+| クラスタ | - | 複数の機器を連携させて一体運用する構成。 |
+| ディストリビューション | - | 基本ソフトウェアと関連部品をまとめた配布形態。 |
+| コンテナイメージ | - | コンテナ実行に必要な内容をまとめた保存形式。 |
+| プログラム | - | 計算機に処理をさせるための命令列。 |
+| コミュニティ | - | 共通目的のもとで継続的に活動する利用者集団。 |
+| プラグイン | - | 既存機能へ追加機能を組み込むための拡張部品。 |
+| サービスアカウント | - | 自動処理向けに用意する利用主体の識別情報。 |
+| コンテナランタイム | - | コンテナを起動, 停止, 管理する実行基盤。 |
+| リクエスト | - | 処理実行や情報取得を要求する操作。 |
+| コントローラ | - | 対象状態を監視し, 期待状態へ調整する制御機能。 |
+| メタデータ | - | 対象データの属性や説明を示す付加情報。 |
+| バックエンド | - | 利用者画面の背後で処理を実行する側。 |
+| ストレージ | - | データを保存する仕組み。 |
+| インストール | - | ソフトウェアを導入して利用可能にする作業。 |
+| マシン | - | 処理を実行する計算機。 |
+| プロビジョニング | - | 利用開始に必要な設定や資源を準備する作業。 |
+| ルーティング | - | 宛先までの経路を選択して転送する処理。 |
+| オブジェクト | - | ひとかたまりとして扱うデータ単位。 |
+| エージェント | - | 指示に従って処理を代行する構成要素。 |
+| ストア | - | データや成果物を保存する場所。 |
+| ジャーナル | - | 時系列の記録を保持する仕組み。 |
+| アカウント | - | 利用者や処理主体を識別する登録情報。 |
+| エンドポイント | - | 通信の接続先を表す識別点。 |
+| パターン | - | 繰り返し現れる構造や記述形式。 |
+| パケット | - | ネットワークで転送するデータ単位。 |
+| カーネル | - | 基本ソフトウェアの中核機能。 |
+| シェル | - | コマンド入力で計算機を操作する仕組み。 |
+| Playbook | - | 自動化処理の実行手順を記述したファイル。 |
+| Canonical | - | Ubuntu を提供する組織名。 |
+| Key-Value | - | キーと値の組で情報を表す方式。 |
+| IP | - | インターネットプロトコルの略称。 |
+| SQL | - | データベースを操作するための記述言語。 |
+| HTTP | - | WWW で情報をやり取りする通信手順。 |
+| HTTPS | - | 通信内容を暗号化して WWW 通信を行う方式。 |
+| RPM | - | RHEL 系で使用するパッケージ形式。 |
+| VM | - | 物理機器上で動作する仮想的な計算機。 |
+| localhost | - | 同一機器自身を指す名前。 |
+| root | - | Unix 系システムの最上位権限を持つ管理者識別子。 |
+| ソフトウェア | - | 情報処理システムで使用するプログラム, 手順, 規則及び関連文書の全体又は一部分。 |
+| システム | - | 複数の要素が連携して目的を実現する仕組み全体。 |
+| アプリケーション | - | 利用者の目的を実現するために動作するソフトウェア。 |
+| パッケージ | - | ソフトウェア導入に必要なファイルをまとめた配布単位。 |
+| リポジトリ | - | ソフトウェアや設定情報を保管し, 取得できるようにした管理場所。 |
+| コマンド | - | 実行者が計算機へ処理を指示するための命令。 |
+| ホスト | - | 管理対象として識別される個別の計算機。 |
+| サーバ | - | 他の機器や利用者へ機能やデータを提供する計算機, 又はその役割。 |
+| コンテナ | - | アプリケーションを動かす隔離された実行単位。 |
+| ネットワーク | - | 機器同士を接続してデータをやり取りする仕組み。 |
+| プロトコル | - | 通信やデータ交換の手順を定めた取り決め。 |
+| ディレクトリ | - | ファイルを階層的に整理するための入れ物。 |
+| ログ | - | 処理の結果や状態を時系列で記録した情報。 |
+| コード | - | 処理内容を記述した文字列。 |
+| Pod | - | Kubernetes でコンテナをまとめて管理する最小単位。 |
+| Linux | - | 多くの機器で使われる, 基本ソフトウェアの系統。 |
+| Debian | - | コミュニティ主導で開発される Linux ディストリビューション。 |
+| Ubuntu | - | Canonical が提供する Debian 系の Linux ディストリビューション。 |
+| Docker | - | コンテナイメージやコンテナの作成, 実行, 管理を行うコマンド。 |
+| Ansible | - | 設定の同一化や導入作業を所定の手順に従って自動化する仕組み。 |
+| World Wide Web | WWW | ネットワーク上で文書や情報を相互参照できる仕組み。 |
+| Service | - | サービスの英語表記。 |
+| Node | - | ノードの英語表記。 |
+| Makefile | - | 実行手順を定義したファイル。 |
+| API | - | アプリケーション同士がやり取りする方法を定めた仕様。 |
+| URL | - | WWW 上の資源の場所を示す文字列。 |
+| Application Programming Interface | API | API の正式名称。 |
 | Custom Resource Definition | CRD | Kubernetes APIを拡張してユーザ独自のリソース種別を定義する仕組み。 |
 | Role-Based Access Control | RBAC | ユーザやサービスアカウントが実行可能な操作を役割(Role)で制限する仕組み。 |
 | Service Account | - | Kubernetes内部でPodが他のリソースにアクセスする際に用いる仮想的なアカウント。 |
@@ -162,6 +237,7 @@ Kubernetes ワーカーノード上に FRR (Free Range Routing) を導入し, �
 | 名前空間 ( namespace )  | - | Kubernetes内部でリソースを論理的に分離する単位。 |
 | ポッド ( Pod ) | - | Kubernetes上で動作するコンテナの最小単位。 |
 | デーモンセット ( DaemonSet ) | - | Kubernetesクラスタ内の全ノード(または指定した一部のノード)で必ずPodを1つずつ起動させるリソース。 |
+| デプロイ ( Deploy ) | - | 機能や設定を実行環境へ展開し, 利用可能な状態にする作業。 |
 | デプロイメント ( Deployment ) | - | 指定した数のPodを維持し, ローリングアップデート等を管理するリソース。 |
 | StatefulSet | - | 状態を持つアプリケーションのPodを順序付けて管理するリソース。 |
 | サービス ( Service ) | - | Podへのアクセスを抽象化し, 負荷分散やサービスディスカバリを提供するリソース。 |
@@ -172,7 +248,7 @@ Kubernetes ワーカーノード上に FRR (Free Range Routing) を導入し, �
 | PersistentVolumeClaim | PVC | ユーザがPVを要求する際に利用するリソース。 |
 | StorageClass | - | 動的にPVをプロビジョニングする際のストレージ種別を定義するリソース。 |
 | Kubernetes ノード ( Kubernetes Node ) | - | Kubernetesクラスタを構成する物理マシンまたは仮想マシン。 |
-| コントロールプレーンノード ( Control Plane Node ) | - | Kubernetesクラスタ全体を管理, 制御する中枢ノード群。kube-apiserver, kube-controller-manager, kube-schedulerなどが動作する。 |
+| コントロールプレーンノード ( Control Plane Node ) | - | Kubernetesクラスタ全体を管理, 制御する中枢ノード群。kube-apiserver, kube-controller-manager, kube-schedulerなどが動作します。 |
 | ワーカノード ( Worker Node ) | - | 実際にアプリケーションのPodを実行するノード。 |
 | kube-apiserver | - | KubernetesのAPIリクエストを受け付け, etcdへの読み書きを仲介するコンポーネント。 |
 | kube-controller-manager | - | Deployment, ReplicaSetなど各種コントローラを実行し, Kubernetesクラスタの状態を監視, 調整するコンポーネント。 |
@@ -181,7 +257,8 @@ Kubernetes ワーカーノード上に FRR (Free Range Routing) を導入し, �
 | kube-proxy | - | 各Node上でServiceのネットワークルールを管理するコンポーネント。 |
 | etcd | - | KubernetesのKubernetesクラスタ状態を保存する分散Key-Valueストア。 |
 | Container Network Interface | CNI | コンテナ間のネットワーク接続を標準化するプラグイン仕様。 |
-| Cilium | - | eBPFを活用した高性能なCNIプラグイン。ネットワークポリシーやサービスメッシュ機能を提供する。 |
+| Cilium | - | eBPFを活用した高性能なCNIプラグイン。ネットワークポリシーやサービスメッシュ機能を提供します。 |
+| Extended Berkeley Packet Filter | eBPF | Linux カーネル内で安全にプログラムを実行する仕組み。高性能なパケット処理や観測機能の実装に利用される。 |
 | Serviceエンドポイント ( Service Endpoint ) | - | Serviceのバックエンドとして通信を受けるPod, または, 当該の通信を受けるPodに加え, 当該の通信を受けるPodへ通信を届けるためのネットワーク上の転送先情報全体を指す。 |
 | Serviceエンドポイント情報 ( Service Endpoint Information ) | - | Serviceエンドポイントを特定して転送先を決めるための情報。主にバックエンドPodのIPアドレス, ポート番号, プロトコル, 所属クラスタ名(またはクラスタ識別子)で構成される。 |
 | Multus | - | 複数のCNIプラグインを同時に使用できるようにするメタCNIプラグイン。 |
@@ -189,7 +266,7 @@ Kubernetes ワーカーノード上に FRR (Free Range Routing) を導入し, �
 | containerd | - | Dockerから分離された軽量なコンテナランタイム。 |
 | kubeadm | - | Kubernetesクラスタの初期構築と管理を支援する公式ツール。 |
 | kubectl | - | Kubernetesクラスタを操作するためのコマンドラインツール。 |
-| Helm | - | Kubernetesアプリケーションのパッケージ管理ツール。Chart形式でアプリケーションを配布, インストールする。 |
+| Helm | - | Kubernetesアプリケーションのパッケージ管理ツール。Chart形式でアプリケーションを配布, インストールします。 |
 | Chart | - | Helmで管理されるアプリケーションパッケージの単位。Kubernetes Manifestのテンプレート集。 |
 | Operator | - | アプリケーション固有の運用知識をコードで自動化するKubernetesの拡張パターン。 |
 | Custom Resource | CR | CRDで定義されたユーザ独自のリソースの実体。 |
@@ -198,10 +275,53 @@ Kubernetes ワーカーノード上に FRR (Free Range Routing) を導入し, �
 | Label | - | リソースに付与するKey-Value形式のメタデータ。リソースの分類, 検索に利用される。 |
 | Selector | - | Labelを利用してリソースを選択する条件式。 |
 | Annotation | - | リソースに付与するKey-Value形式の補足情報。ツールやコントローラが参照するメタデータ。 |
-| Taint | - | Kubernetes ノードに設定する特殊なマークで, 特定の条件を満たさないPodの配置を拒否する。 |
+| Taint | - | Kubernetes ノードに設定する特殊なマークで, 特定の条件を満たさないPodの配置を拒否します。 |
 | Toleration | - | PodがTaintを持つNodeへ配置されることを許可する設定。 |
+| Autonomous System | AS | 単一の管理主体で運用されるネットワークのまとまり。 |
+| Border Gateway Protocol | BGP | 自律システム間で経路情報を交換する経路制御方式。 |
+| Classless Inter-Domain Routing | CIDR | IP アドレスとネットワークプレフィックス長を組み合わせた表記法。 |
+| Data Center | DC | サーバやネットワーク機器を集約して運用する拠点。 |
+| Free Range Routing | FRR | 複数の経路制御方式を実装したオープンソースの経路制御ソフトウェア。 |
+| Internet Protocol | IP | ネットワーク上で宛先を識別し, データを届けるための通信手順。 |
+| Kubernetes | K8s | コンテナを管理する基盤ソフトウェア。 |
+| Operating System | OS | 計算機の基本機能を管理し, アプリケーションを動作させる基盤ソフトウェア。 |
+| Request for Comments | RFC | インターネット技術の仕様を公開する文書体系。 |
+| Red Hat Enterprise Linux 9 | RHEL9 | Red Hat Enterprise Linux の第9系統版。 |
+| Transmission Control Protocol | TCP | 通信相手との接続を確立してからデータを送受信する通信方式。 |
+| Time To Live | TTL | パケットの有効中継回数を示す値。 |
+| External BGP | eBGP | 異なる自律システム間で経路情報を交換するための BGP の動作モード。AS 番号が異なるルータ間で使用される。 |
+| Host Variables | host_vars | ホスト単位の設定値を格納する変数定義。 |
+| Internal BGP | iBGP | 同一自律システム内の BGP ルータ間で経路情報を交換するための BGP の動作モード。AS 番号が同じルータ間で使用される。 |
+| Ansible Task | task | 自動化処理の最小単位となる実行項目。 |
+| Border Gateway Protocol 4 | BGP-4 | BGP の第4版仕様。 |
+| Identifier | ID | 対象を一意に識別するための値。 |
+| Local Area Network | LAN | 限定された範囲内で構成するネットワーク。 |
+| Network Layer Reachability Information | NLRI | BGP で交換する到達可能な経路情報。 |
+| Routing Information Base | RIB | 経路情報を保持する表。 |
+| Round Trip Time | RTT | 往復通信に要する時間。 |
+| ansible-playbookコマンド | - | Ansible Playbook を実行して自動構成処理を適用するコマンド。 |
+| `cat` | - | ファイル内容を標準出力へ表示するコマンド。 |
+| ipコマンド | - | ネットワーク設定や経路情報の確認, 変更を行うコマンド。 |
+| `journalctl` | - | systemd ジャーナルのログを参照するコマンド。 |
+| `ping` | - | 対象への到達性と往復遅延を確認するコマンド。 |
+| `ping6` | - | IPv6 宛先への到達性と往復遅延を確認するコマンド。 |
+| `sysctl` | - | カーネル動作パラメタを参照, 変更するコマンド。 |
+| `systemctl` | - | systemd 管理下のサービスを起動, 停止, 状態確認するコマンド。 |
+| `vtysh` | - | FRR の統合操作シェルで設定や状態確認を行うコマンド。 |
+| アドレス | - | 宛先や所在を識別するための情報。 |
+| サービス | - | 機能を利用者や他システムへ提供する仕組み。 |
+| ノード | - | ネットワークに接続された機器または処理単位。 |
+| ポート | - | 通信の出入口を識別する番号または接点。 |
+| ローカル | - | 実行中の装置や同一環境の内部。 |
+| 制御ホスト | - | Playbook を実行し, 他ホストへの処理指示を行う管理用ホスト。 |
+| 対象ホスト | - | Playbook による設定変更や導入処理の適用先となるホスト。 |
+| sudoコマンド | sudo | 一時的に管理者権限でコマンドを実行するためのコマンド。 |
 
-## 前提
+## 概要
+
+Kubernetes ワーカーノード上に FRR (Free Range Routing) を導入し, データセンタ(以下DCと略す) 代表 FRR への iBGP (Internal Border Gateway Protocol) 広告により Pod/Service ネットワークをデータセンター間で共有するロールです。Cilium native routing モードを前提とします。Cilium BGP Control Plane を使用しない場合の代替ルーティング機能を実現します。
+
+### 実行環境に対する前提
 
 - K8sクラスタのCNIは, Ciliumをnative routingモードで動作。
 - 本ロールは `k8s-worker` ロール実行後に適用することを前提。
@@ -216,16 +336,16 @@ Kubernetes ワーカーノード上に FRR (Free Range Routing) を導入し, �
 - K8sのBGP Control Plane機能を使わない場合を想定し, 各K8sのワーカーノード上のFRRからDC代表FRRにiBGP経路広告を行うことによりデータセンター間でのPod間通信を行うことを想定。
 - 各K8sクラスタごとに固有なK8sのPodネットワーク, K8sのサービスネットワークが定義。
 - 各K8sのワーカーノード上のFRRからDC代表FRRに, ワーカーノードとDC代表FRR間の静的ルート, K8sのPodネットワークへのルート, K8sのサービスネットワークへのルートをiBGP広告。
-- 広告対象のネットワークプレフィクスの下限/上限を変数で変更可能とする。
+- 広告対象のネットワークプレフィクスの下限/上限を変数で変更可能とします。
 - DC代表FRRはこのプレイブックでは, frr01.local/frr02.localのホストとして定義。
 - DC代表FRRからextgw.localのホストで動作しているFRRに経路をeBGP (External Border Gateway Protocol)で広告。
-- FRRのbgpdで交換されるK8sのPodネットワークへのルート, K8sのサービスネットワークへのルートをカーネルのルーティングテーブルに反映する。
+- FRRのbgpdで交換されるK8sのPodネットワークへのルート, K8sのサービスネットワークへのルートをカーネルのルーティングテーブルに反映します。
 - 本ロールに関連する変数は, パラメタ名から設定値への辞書のリストとして定義されるk8s_worker_frr変数に設定。
 - `k8s_bgp.enabled` が `false` かつ `k8s_worker_frr.enabled` が `true` の場合のみ動作し, 両者の同時有効化は不可。
 - 対象OSは Debian/Ubuntu 系および RHEL9 系を想定し, FRR 8.1 以降の利用を推奨。
 - FRR設定ファイル配置とサービス再起動のため root 権限(sudo)が必要。
 
-## 基本仕様
+### 基本仕様
 
 本ロールは以下の要件を満たすように設計されています:
 
@@ -235,58 +355,39 @@ Kubernetes ワーカーノード上に FRR (Free Range Routing) を導入し, �
 - カーネルルーティングテーブルへの反映: DC 代表 FRR から学習した BGP ルートをカーネルのルーティングテーブルに反映し, データセンター間の Pod 間通信を実現します。変数によるフィルタ設定が可能で, デフォルトでは全 BGP ルートを反映します。
 - 複数Kubernetesクラスタ対応: Kubernetesクラスタ名/ID による変数階層化により, 同一 DC 内の複数 K8s Kubernetesクラスタで異なる Pod/Service CIDR を広告できます。
 - Cilium BGP Control Plane との排他実行: `k8s_bgp.enabled` が `false` かつ `k8s_worker_frr.enabled` が `true` の場合のみ動作します。
-- RFC 5549 サポート: IPv6 トランスポートで IPv4 Network Layer Reachability Information (NLRI) を運ぶ設定をオプションで有効化できます ( デフォルトは無効 ) 。
-- IPv4 トランスポートで IPv6 NLRI: IPv4 ネイバーで IPv6 経路を交換する設定をオプションで有効化できます ( デフォルトは無効, RFC 5549 と排他的 ) 。
+- RFC 5549 サポート: IPv6 トランスポートで IPv4 Network Layer Reachability Information (NLRI) を運ぶ設定をオプションで有効化できる ( デフォルトは無効 ) 。
+- IPv4 トランスポートで IPv6 NLRI: IPv4 ネイバーで IPv6 経路を交換する設定をオプションで有効化できる ( デフォルトは無効, RFC 5549 と排他的 ) 。
 - 経路広告方法の選択: 静的経路定義 + `redistribute static` (デフォルト, 他Kubernetes ノードとの互換性重視) または `network` コマンドによる直接広告 (Cilium がカーネルに経路を作成する前提) を選択できます。
 - BGP プロトコル: BGP-4 (RFC 4271) を使用します。
 - サポート構成: 標準デュアルスタック構成, Multiprotocol BGP 構成, RFC 5549 構成に対応します。
 
-## 実装方針
+## 本ロール中で実施する主な処理
 
-本ロールの実装における主要な設計判断と技術的詳細:
+- **FRR パッケージのインストール**: `frr_packages` で定義されたパッケージをインストールし, FRR サービスを有効化, 起動します。
+- **IPv4/IPv6 フォワーディング有効化**: sysctl ドロップイン `/etc/sysctl.d/90-frr-forwarding.conf` を配置し, `net.ipv4.ip_forward` と `net.ipv6.conf.all.forwarding` を `1` に設定します。
+- **FRR デーモン有効化**: `/etc/frr/daemons` で zebra と bgpd を有効化します。
+- **BGP 設定の生成と配置**: `frr.conf.j2` テンプレートから `/etc/frr/frr.conf` を生成し, 以下を含みます:
+  - iBGP ネイバー設定 (`dc_frr_addresses` から取得)
+  - ネットワーク広告 (ホストルート, Pod CIDR, Service CIDR)
+  - プレフィックス長フィルタ用 prefix-list (送信用とカーネルインポート用を分離)
+  - Route-map (送信フィルタとカーネルインポートフィルタ)
+- **FRR 設定の構文検証**: `vtysh -f /etc/frr/frr.conf --dry-run` (FRR 8.1+) で構文エラーをチェックします。古いバージョンでは代替検証方法を使用します。エラーがあればタスクを停止します。フォールバックや警告出力は行わず, 厳密な検証を優先します。
+- **vtysh アクセス許可**: `frr_vtysh_users` で指定されたユーザを `frr_vtysh_group` に追加し, sudo なしで vtysh を実行可能にします。
 
-- 変数定義: 本ロールに関連する変数は, パラメタ名から設定値への辞書として定義される `k8s_worker_frr` 変数に設定します。
-- データセンタ(DC) 代表 FRR の定義: DC 代表 FRR (frr01.local/frr02.local) の情報は, ワーカーノードの `k8s_worker_frr` 辞書内の `dc_frr_addresses` キーに各 DC FRR Kubernetes ノードのリスニングアドレスをマッピングとして持ちます ( 例: `dc_frr_addresses: {frr01.local: "192.168.40.49"}` ) 。
-- Pod/Service CIDR 取得: `k8s_worker_frr` 変数内の `clusters.<cluster_name>` 配下のキー `pod_cidrs_v4`, `service_cidrs_v4`, `pod_cidrs_v6`, `service_cidrs_v6` から取得します。これらのキーの値はネットワーク CIDR のリストです。
-- ホストルート広告: ワーカーノードから DC FRR への nexthop 到達性確保のため, ワーカーノード自身への `/32` (IPv4) または `/128` (IPv6) ホストルートを広告します。これらは `k8s_worker_frr` 辞書の `advertise_host_route_ipv4`/`advertise_host_route_ipv6` キーで明示的に指定します。
-- プレフィックス長フィルタ実現方法: FRR route-map + prefix-list 定義で実現します。IPv4/IPv6, Pod/Service 別に複数の prefix-list を address-family 別に分けて定義します ( 命名規則: `PL-V4-POD-OUT`, `PL-V4-SVC-OUT`, `PL-V4-HOST-OUT`, `PL-V6-POD-OUT`, `PL-V6-SVC-OUT`, `PL-V6-HOST-OUT` ) 。フィルタの粒度には範囲指定 ( 例: /24-/28 ) を使用します。
-- Route-map 適用タイミング: prefix-list フィルタはネイバーへの送信時 ( `neighbor X route-map Y out` ) に適用します。
-- カーネルルート反映: zebra のカーネルルート反映用 route-map (`RM-KERNEL-IMPORT`) を用意し, 変数 (`kernel_route_filter`) によってカーネルに反映するルートを指定できるようにしています。デフォルト ( 変数未定義時 ) は全 BGP ルートをカーネルに反映します。
-- 経路広告方法: 変数 `route_advertisement_method` で 2 つの方式を選択できます。`"static"` (デフォルト) は静的経路定義 + `redistribute static` で BGP に再配送します。この方式はカーネルに経路が存在しなくても広告でき, 他Kubernetes ノードとの互換性が高いです。`"network"` は `network` コマンドで直接広告します。この方式は Cilium がカーネルに経路を作成することを前提とします。
+## Cilium BGP Control Plane との排他関係
 
-## 実行フロー
+本ロールは Cilium BGP Control Plane を使用しない場合の代替ルーティング機能です。以下の条件で排他実行されます:
 
-1. `load-params.yml` で OS 別パッケージ定義 (`vars/packages-*.yml`) とKubernetesクラスタ共通変数 (`vars/cross-distro.yml`, `vars/all-config.yml`, `vars/k8s-api-address.yml`) を読み込みます。
-2. `config-check-params.yml` でパラメータの妥当性を検証します。特に RFC 5549 (`rfc5549_enabled`) と IPv4 トランスポートでの IPv6 NLRI (`ipv4_transport_ipv6_nlri_enabled`) が同時に有効化されていないことを確認します。両方が `true` の場合はエラーで停止します。
-3. `package.yml` で FRR パッケージをインストールし, FRR サービスを有効化, 起動します。
-4. `directory.yml` は現状プレースホルダとして読み込まれます (将来の拡張用)。
-5. `user_group.yml` で vtysh アクセス許可グループを作成し, 指定されたユーザを追加します (`frr_vtysh_users` 変数で制御)。
-6. `service.yml` は現状プレースホルダとして読み込まれます (将来の拡張用)。
-7. `config.yml` で以下の設定ファイルを配置します:
-   - `/etc/sysctl.d/90-frr-forwarding.conf`: IPv4/IPv6 フォワーディングを有効化し, `reload_sysctl` ハンドラを発火させます。
-   - `/etc/frr/daemons`: zebra と bgpd を有効化し, `restart_frr` ハンドラを発火させます。
-   - `/etc/frr/frr.conf`: BGP 設定, prefix-list, route-map, カーネルインポート設定を含むメイン設定ファイルを配置し, `restart_frr` ハンドラを発火させます。
-   - FRR 設定の構文検証: `vtysh -f /etc/frr/frr.conf --dry-run` (FRR 8.1+) で構文を検証します。古いバージョンでは `vtysh -c 'configure terminal' < /etc/frr/frr.conf` を使用します。エラーがあればタスクを即座に停止します。
+- 本ロール実行条件: `k8s_worker_frr.enabled` が `true`, かつ, `k8s_bgp.enabled` が `false`
+- Cilium BGP Control Plane 実行条件: `k8s_bgp.enabled` が `true`
 
-### BGP 設定の詳細
+## 実行方法
 
-`frr.conf.j2` テンプレートは以下の設定を生成します:
+実行者は制御ホストで以下のコマンドを実行します。
 
-- BGP 基本設定: `k8s_worker_frr.local_asn` (iBGP 構成のため DC 代表 FRR と同一 AS (Autonomous System)), および, `k8s_worker_frr.router_id` (ワーカーノードの Router ID) を使用します。
-- iBGP ネイバー: `k8s_worker_frr.dc_frr_addresses` で定義された DC 代表 FRR Kubernetes ノードに対して iBGP セッションを確立します。
-- ネットワーク広告:
-  - ワーカーノード自身への到達性確保用 `/32` (IPv4) または `/128` (IPv6) ホストルート (`advertise_host_route_ipv4/ipv6`)
-  - 当該のワーカーノードが所属するK8sクラスタの Pod ネットワーク CIDR (`clusters.<cluster_name>.pod_cidrs_v4/v6`)
-  - 当該のワーカーノードが所属するK8sクラスタの Service ネットワーク CIDR (`clusters.<cluster_name>.service_cidrs_v4/v6`)
-- プレフィックス長フィルタ (送信): address-family 別に以下の prefix-list を定義します:
-  - `PL-V4-POD-OUT`: IPv4 Pod ネットワーク用 (min/max 長は `prefix_filter.ipv4.pod_min_length/pod_max_length`)
-  - `PL-V4-SVC-OUT`: IPv4 Service ネットワーク用 (min/max 長は `prefix_filter.ipv4.service_min_length/service_max_length`)
-  - `PL-V4-HOST-OUT`: IPv4 ホストルート用 (`/32` のみ許可)
-  - `PL-V6-POD-OUT`: IPv6 Pod ネットワーク用 (min/max 長は `prefix_filter.ipv6.pod_min_length/pod_max_length`)
-  - `PL-V6-SVC-OUT`: IPv6 Service ネットワーク用 (min/max 長は `prefix_filter.ipv6.service_min_length/service_max_length`)
-  - `PL-V6-HOST-OUT`: IPv6 ホストルート用 (`/128` のみ許可)
-- Route-map (送信): `RM-V4-OUT` および `RM-V6-OUT` で上記 prefix-list をマッチし, 各 DC 代表 FRR ネイバーに `neighbor X route-map Y out` で適用します。
-- カーネルインポート用 route-map: `RM-KERNEL-IMPORT` を定義し, `ip protocol bgp route-map RM-KERNEL-IMPORT` および `ipv6 protocol bgp route-map RM-KERNEL-IMPORT` でカーネルへのルートインポートを制御します。`kernel_route_filter` が未定義の場合は全 BGP ルートを許可し, 定義されている場合は指定された prefix-list にマッチするルートのみをインポートします。
+```bash
+ansible-playbook -i inventory/hosts site.yml --tags "k8s-worker-frr"
+```
 
 ## 主要変数
 
@@ -394,7 +495,7 @@ k8s_worker_frr:
   enabled: false  # コントロールプレーンノードではワーカー用FRRを無効化
 ```
 
-コントロールプレーンノードでは **`enabled: false` を明示的に設定**するか, **変数を未定義**のままにします。
+コントロールプレーンノードでは **`enabled: false` を明示的に設定**し, または **変数を未定義**のままにします。
 
 ### DC 代表 FRR および外部ゲートウェイの設定
 
@@ -435,57 +536,6 @@ frr_ebgp_neighbors:
 frr_ebgp_neighbors_v6:
   - { addr: "fd69:6684:61a:90::81", asn: 65100, desc: "External GW" }
 ```
-
-## Cilium BGP Control Plane との排他関係
-
-本ロールは Cilium BGP Control Plane を使用しない場合の代替ルーティング機能です。以下の条件で排他実行されます:
-
-- 本ロール実行条件: `k8s_worker_frr.enabled` が `true`, かつ, `k8s_bgp.enabled` が `false`
-- Cilium BGP Control Plane 実行条件: `k8s_bgp.enabled` が `true`
-
-## 本ロール中で実施する主な処理
-
-- **FRR パッケージのインストール**: `frr_packages` で定義されたパッケージをインストールし, FRR サービスを有効化, 起動します。
-- **IPv4/IPv6 フォワーディング有効化**: sysctl ドロップイン `/etc/sysctl.d/90-frr-forwarding.conf` を配置し, `net.ipv4.ip_forward` と `net.ipv6.conf.all.forwarding` を `1` に設定します。
-- **FRR デーモン有効化**: `/etc/frr/daemons` で zebra と bgpd を有効化します。
-- **BGP 設定の生成と配置**: `frr.conf.j2` テンプレートから `/etc/frr/frr.conf` を生成し, 以下を含みます:
-  - iBGP ネイバー設定 (`dc_frr_addresses` から取得)
-  - ネットワーク広告 (ホストルート, Pod CIDR, Service CIDR)
-  - プレフィックス長フィルタ用 prefix-list (送信用とカーネルインポート用を分離)
-  - Route-map (送信フィルタとカーネルインポートフィルタ)
-- **FRR 設定の構文検証**: `vtysh -f /etc/frr/frr.conf --dry-run` (FRR 8.1+) で構文エラーをチェックします。古いバージョンでは代替検証方法を使用します。エラーがあればタスクを停止します。フォールバックや警告出力は行わず, 厳密な検証を優先します。
-- **vtysh アクセス許可**: `frr_vtysh_users` で指定されたユーザを `frr_vtysh_group` に追加し, sudo なしで vtysh を実行可能にします。
-
-## テンプレート / ファイル
-
-本ロールでは以下のファイルを出力します:
-
-| テンプレートファイル名 | 出力先パス | 説明 |
-| --- | --- | --- |
-| `templates/frr.conf.j2` | `/etc/frr/frr.conf` | FRR メイン設定ファイルのテンプレート。BGP 設定, prefix-list, route-map, カーネルインポート設定を含みます。 |
-| `templates/daemons.j2` | `/etc/frr/daemons` | FRR デーモン有効化設定のテンプレート。zebra と bgpd を有効化します。 |
-| `templates/90-frr-forwarding.conf.j2` | `/etc/sysctl.d/90-frr-forwarding.conf` | IPv4/IPv6 フォワーディング有効化用 sysctl 設定のテンプレート。 |
-
-## ハンドラ
-
-本ロールでは以下のハンドラを使用します:
-
-| ハンドラ名 | 説明 | トリガー条件 |
-| --- | --- | --- |
-| `restart_frr` | FRR サービスを再起動します (`systemctl restart frr`)。 | `/etc/frr/frr.conf` または `/etc/frr/daemons` が変更されたとき。 |
-| `reload_sysctl` | sysctl 設定を再読み込みします (`sysctl --system`)。 | `/etc/sysctl.d/90-frr-forwarding.conf` が変更されたとき。 |
-
-## 検証ポイント
-
-- `systemctl status frr` で FRR サービスが `active (running)` である。
-- `/etc/frr/frr.conf` が正しく配置され, 構文エラーがない (`vtysh -c "show running-config"` で確認可能)。
-- `vtysh -c "show bgp summary"` で DC 代表 FRR への iBGP セッションが `Established` である。
-- `vtysh -c "show ip bgp"` および `vtysh -c "show bgp ipv6"` で Pod/Service CIDR が広告されている。
-- `ip route` および `ip -6 route` で DC 代表 FRR から学習した BGP ルートがカーネルのルーティングテーブルに反映されている (プロトコルが `bgp` として表示される)。
-- `vtysh -c "show ip prefix-list"` および `vtysh -c "show ipv6 prefix-list"` で prefix-list が正しく定義されている。
-- `vtysh -c "show route-map"` で route-map が正しく定義され, 意図したフィルタが適用されている。
-- `/etc/sysctl.d/90-frr-forwarding.conf` が配置され, `sysctl net.ipv4.ip_forward` および `sysctl net.ipv6.conf.all.forwarding` が `1` を返す。
-- 他 DC のワーカーノードから本ワーカーノードの Pod への疎通が可能である (ping テストなど)。
 
 ## host_vars/ 設定例
 
@@ -685,11 +735,94 @@ DC間通信の経路広告をextgw経由で実施する構成となっており,
 - Cluster1 (AS 65011): k8sworker01xx <=> (iBGP) <=> frr01 <=> (eBGP) <=> extgw
 - Cluster2 (AS 65012): k8sworker02xx <=> (iBGP) <=> frr02 <=> (eBGP) <=> extgw
 
-## 標準デュアルスタックでの検証方法
+## テンプレートと生成ファイル
+
+本ロールでは以下のテンプレート / ファイルを出力します:
+主な展開先ホストは, 対象ホスト(既定) です。
+
+| テンプレートファイル名 | 出力先パス | 説明 |
+| --- | --- | --- |
+| `90-frr-forwarding.conf.j2` | `/etc/sysctl.d/90-frr-forwarding.conf` (既定: `/etc/sysctl.d/90-frr-forwarding.conf`) | IPv4/IPv6 転送と関連カーネルパラメタを有効化する sysctl 設定ファイルです。 |
+| `frr.conf.j2` | `/etc/frr/frr.conf` (既定: `/etc/frr/frr.conf`) | FRR の経路制御動作(ルーティングプロトコルやポリシー)を定義する設定ファイルです。 |
+| `daemons.j2` | `/etc/frr/daemons` (既定: `/etc/frr/daemons`) | FRR で起動する各デーモンの有効/無効を定義する設定ファイルです。 |
+
+## 実行フロー
+
+### 実装方針
+
+本ロールの実装における主要な設計判断と技術的詳細は以下の通りです:
+
+- 変数定義: 本ロールに関連する変数は, パラメタ名から設定値への辞書として定義される `k8s_worker_frr` 変数に設定します。
+- データセンタ(DC) 代表 FRR の定義: DC 代表 FRR (frr01.local/frr02.local) の情報は, ワーカーノードの `k8s_worker_frr` 辞書内の `dc_frr_addresses` キーに各 DC FRR Kubernetes ノードのリスニングアドレスをマッピングとして持ちます ( 例: `dc_frr_addresses: {frr01.local: "192.168.40.49"}` ) 。
+- Pod/Service CIDR 取得: `k8s_worker_frr` 変数内の `clusters.<cluster_name>` 配下のキー `pod_cidrs_v4`, `service_cidrs_v4`, `pod_cidrs_v6`, `service_cidrs_v6` から取得します。これらのキーの値はネットワーク CIDR のリストです。
+- ホストルート広告: ワーカーノードから DC FRR への nexthop 到達性確保のため, ワーカーノード自身への `/32` (IPv4) または `/128` (IPv6) ホストルートを広告します。これらは `k8s_worker_frr` 辞書の `advertise_host_route_ipv4`/`advertise_host_route_ipv6` キーで明示的に指定します。
+- プレフィックス長フィルタ実現方法: FRR route-map + prefix-list 定義で実現します。IPv4/IPv6, Pod/Service 別に複数の prefix-list を address-family 別に分けて定義します ( 命名規則: `PL-V4-POD-OUT`, `PL-V4-SVC-OUT`, `PL-V4-HOST-OUT`, `PL-V6-POD-OUT`, `PL-V6-SVC-OUT`, `PL-V6-HOST-OUT` ) 。フィルタの粒度には範囲指定 ( 例: /24-/28 ) を使用します。
+- Route-map 適用タイミング: prefix-list フィルタはネイバーへの送信時 ( `neighbor X route-map Y out` ) に適用します。
+- カーネルルート反映: zebra のカーネルルート反映用 route-map (`RM-KERNEL-IMPORT`) を用意し, 変数 (`kernel_route_filter`) によってカーネルに反映するルートを指定できるようにしています。デフォルト ( 変数未定義時 ) は全 BGP ルートをカーネルに反映します。
+- 経路広告方法: 変数 `route_advertisement_method` で 2 つの方式を選択できます。`"static"` (デフォルト) は静的経路定義 + `redistribute static` で BGP に再配送します。この方式はカーネルに経路が存在しなくても広告でき, 他Kubernetes ノードとの互換性が高いです。`"network"` は `network` コマンドで直接広告します。この方式は Cilium がカーネルに経路を作成することを前提とします。
+
+### ロール内の実行フロー
+
+1. `load-params.yml` で OS 別パッケージ定義 (`vars/packages-*.yml`) とKubernetesクラスタ共通変数 (`vars/cross-distro.yml`, `vars/all-config.yml`, `vars/k8s-api-address.yml`) を読み込みます。
+2. `config-check-params.yml` でパラメータの妥当性を検証します。特に RFC 5549 (`rfc5549_enabled`) と IPv4 トランスポートでの IPv6 NLRI (`ipv4_transport_ipv6_nlri_enabled`) が同時に有効化されていないことを確認します。両方が `true` の場合はエラーで停止します。
+3. `package.yml` で FRR パッケージをインストールし, FRR サービスを有効化, 起動します。
+4. `directory.yml` は現状プレースホルダとして読み込まれます (将来の拡張用)。
+5. `user_group.yml` で vtysh アクセス許可グループを作成し, 指定されたユーザを追加します (`frr_vtysh_users` 変数で制御)。
+6. `service.yml` は現状プレースホルダとして読み込まれます (将来の拡張用)。
+7. `config.yml` で以下の設定ファイルを配置します:
+   - `/etc/sysctl.d/90-frr-forwarding.conf`: IPv4/IPv6 フォワーディングを有効化し, `reload_sysctl` ハンドラを発火させます。
+   - `/etc/frr/daemons`: zebra と bgpd を有効化し, `restart_frr` ハンドラを発火させます。
+   - `/etc/frr/frr.conf`: BGP 設定, prefix-list, route-map, カーネルインポート設定を含むメイン設定ファイルを配置し, `restart_frr` ハンドラを発火させます。
+   - FRR 設定の構文検証: `vtysh -f /etc/frr/frr.conf --dry-run` (FRR 8.1+) で構文を検証します。古いバージョンでは `vtysh -c 'configure terminal' < /etc/frr/frr.conf` を使用します。エラーがあればタスクを即座に停止します。
+
+### ハンドラ
+
+本ロールでは以下のハンドラを使用します:
+
+| ハンドラ名 | 説明 | トリガー条件 |
+| --- | --- | --- |
+| `restart_frr` | FRR サービスを再起動します (`systemctl restart frr`)。 | `/etc/frr/frr.conf` または `/etc/frr/daemons` が変更されたとき。 |
+| `reload_sysctl` | sysctl 設定を再読み込みします (`sysctl --system`)。 | `/etc/sysctl.d/90-frr-forwarding.conf` が変更されたとき。 |
+
+### BGP 設定の詳細
+
+`frr.conf.j2` テンプレートは以下の設定を生成します:
+
+- BGP 基本設定: `k8s_worker_frr.local_asn` (iBGP 構成のため DC 代表 FRR と同一 AS (Autonomous System)), および, `k8s_worker_frr.router_id` (ワーカーノードの Router ID) を使用します。
+- iBGP ネイバー: `k8s_worker_frr.dc_frr_addresses` で定義された DC 代表 FRR Kubernetes ノードに対して iBGP セッションを確立します。
+- ネットワーク広告:
+  - ワーカーノード自身への到達性確保用 `/32` (IPv4) または `/128` (IPv6) ホストルート (`advertise_host_route_ipv4/ipv6`)
+  - 当該のワーカーノードが所属するK8sクラスタの Pod ネットワーク CIDR (`clusters.<cluster_name>.pod_cidrs_v4/v6`)
+  - 当該のワーカーノードが所属するK8sクラスタの Service ネットワーク CIDR (`clusters.<cluster_name>.service_cidrs_v4/v6`)
+- プレフィックス長フィルタ (送信): address-family 別に以下の prefix-list を定義します:
+  - `PL-V4-POD-OUT`: IPv4 Pod ネットワーク用 (min/max 長は `prefix_filter.ipv4.pod_min_length/pod_max_length`)
+  - `PL-V4-SVC-OUT`: IPv4 Service ネットワーク用 (min/max 長は `prefix_filter.ipv4.service_min_length/service_max_length`)
+  - `PL-V4-HOST-OUT`: IPv4 ホストルート用 (`/32` のみ許可)
+  - `PL-V6-POD-OUT`: IPv6 Pod ネットワーク用 (min/max 長は `prefix_filter.ipv6.pod_min_length/pod_max_length`)
+  - `PL-V6-SVC-OUT`: IPv6 Service ネットワーク用 (min/max 長は `prefix_filter.ipv6.service_min_length/service_max_length`)
+  - `PL-V6-HOST-OUT`: IPv6 ホストルート用 (`/128` のみ許可)
+- Route-map (送信): `RM-V4-OUT` および `RM-V6-OUT` で上記 prefix-list をマッチし, 各 DC 代表 FRR ネイバーに `neighbor X route-map Y out` で適用します。
+- カーネルインポート用 route-map: `RM-KERNEL-IMPORT` を定義し, `ip protocol bgp route-map RM-KERNEL-IMPORT` および `ipv6 protocol bgp route-map RM-KERNEL-IMPORT` でカーネルへのルートインポートを制御します。`kernel_route_filter` が未定義の場合は全 BGP ルートを許可し, 定義されている場合は指定された prefix-list にマッチするルートのみをインポートします。
+
+## 検証ポイント
+
+### FRRの動作確認
+
+- `systemctl status frr` で FRR サービスが `active (running)` になること。
+- `/etc/frr/frr.conf` が正しく配置され, 構文エラーがない (`vtysh -c "show running-config"` で確認可能)。
+- `vtysh -c "show bgp summary"` で DC 代表 FRR への iBGP セッションが `Established` です。
+- `vtysh -c "show ip bgp"` および `vtysh -c "show bgp ipv6"` で Pod/Service CIDR が広告されている。
+- `ip route` および `ip -6 route` で DC 代表 FRR から学習した BGP ルートがカーネルのルーティングテーブルに反映されている (プロトコルが `bgp` として表示される)。
+- `vtysh -c "show ip prefix-list"` および `vtysh -c "show ipv6 prefix-list"` で prefix-list が正しく定義されている。
+- `vtysh -c "show route-map"` で route-map が正しく定義され, 意図したフィルタが適用されている。
+- `/etc/sysctl.d/90-frr-forwarding.conf` が配置され, `sysctl net.ipv4.ip_forward` および `sysctl net.ipv6.conf.all.forwarding` が `1` を返す。
+- 他 DC のワーカーノードから本ワーカーノードの Pod への疎通が可能である (ping テストなど)。
+
+### 標準デュアルスタックでの検証方法
 
 以下は標準デュアルスタック構成 (IPv4とIPv6を別々のトランスポートで運ぶ) での具体的な検証手順です。
 
-### 標準デュアルスタック設定の概要
+#### 標準デュアルスタック設定の概要
 
 標準デュアルスタック構成では, IPv4とIPv6で独立したBGPセッションを確立します:
 
@@ -698,9 +831,9 @@ DC間通信の経路広告をextgw経由で実施する構成となっており,
 - セッション数: 2つ (IPv4用とIPv6用)
 - 設定対象ansible変数: `dc_frr_addresses` (IPv4) と `dc_frr_addresses_v6` (IPv6) の両方が必要
 
-### 標準デュアルスタック設定例
+#### 標準デュアルスタック設定例
 
-#### 標準デュアルスタック設定でのワーカーノード設定 (host_vars/k8sworker0101.local)
+##### 標準デュアルスタック設定でのワーカーノード設定 (host_vars/k8sworker0101.local)
 
 ```yaml
 k8s_worker_frr:
@@ -724,13 +857,13 @@ k8s_worker_frr:
   advertise_host_route_ipv6: "fd69:6684:61a:2::42/128"
 ```
 
-##### 設定のポイント
+###### 設定のポイント
 
 - `ipv4_transport_ipv6_nlri_enabled: false` (デフォルト値, 明示的に記載)
 - `dc_frr_addresses` と `dc_frr_addresses_v6` の両方を定義
 - IPv4ルートはIPv4セッション, IPv6ルートはIPv6セッションで交換
 
-#### DC代表FRR設定 (host_vars/frr01.local)
+##### DC代表FRR設定 (host_vars/frr01.local)
 
 ```yaml
 # K8sKubernetes ノードとの iBGP ピア (IPv4セッション)
@@ -753,7 +886,7 @@ frr_ebgp_neighbors_v6:
   - { addr: "fd69:6684:61a:90::81", asn: 65100, desc: "External GW" }
 ```
 
-### 前提条件
+#### 前提条件
 
 本例で使用する設定値:
 
@@ -774,7 +907,7 @@ frr_ebgp_neighbors_v6:
   - Service CIDR IPv4: `10.254.0.0/16`
   - Service CIDR IPv6: `fdb6:6e92:3cfb:feed::/112`
 
-### 1. FRR サービス状態の確認
+#### 1. FRR サービス状態の確認
 
 **実施Kubernetes ノード**: `k8sworker0101.local`
 
@@ -821,7 +954,7 @@ systemctl status frr
 - zebra, bgpd, staticd のプロセスが起動している
 - `all daemons up, doing startup-complete notify` メッセージが表示される
 
-### 2. FRR 設定の構文確認
+#### 2. FRR 設定の構文確認
 
 **実施Kubernetes ノード**: `k8sworker0101.local`
 
@@ -863,7 +996,7 @@ router bgp 65011
 - 静的ルート定義が存在する (Pod CIDR, Service CIDR, ホストルート - IPv4/IPv6)
 - AS 番号 (`65011`) と Router ID (`192.168.30.42`) が正しい
 
-### 3. iBGP セッション状態の確認
+#### 3. iBGP セッション状態の確認
 
 **実施Kubernetes ノード**: `k8sworker0101.local`
 
@@ -950,7 +1083,7 @@ fd69:6684:61a:2::49 4      65011         8         6        0    0    0 00:02:54
 Total number of neighbors 1
 ```
 
-### 4. 広告経路の確認 (IPv4)
+#### 4. 広告経路の確認 (IPv4)
 
 **実施Kubernetes ノード**: `k8sworker0101.local`
 
@@ -991,7 +1124,7 @@ Displayed  9 routes and 9 total paths
 - `Next Hop` が `0.0.0.0` (自Kubernetes ノードで広告) である
 - `Origin codes` が `?` (incomplete, `redistribute static` で広告された経路) である
 
-### 5. 広告経路の確認 (IPv6)
+#### 5. 広告経路の確認 (IPv6)
 
 **実施Kubernetes ノード**: `k8sworker0101.local`
 
@@ -1054,11 +1187,11 @@ Displayed  11 routes and 11 total paths
 - `Origin codes` が `?` (incomplete) である
 - **IPv6セッション経由で受信**した経路も表示される
 
-### 6. カーネルルーティングテーブルの確認
+#### 6. カーネルルーティングテーブルの確認
 
 **実施Kubernetes ノード**: `k8sworker0101.local`
 
-#### IPv4ルートの確認
+##### IPv4ルートの確認
 
 **コマンド**:
 
@@ -1091,7 +1224,7 @@ default via 192.168.30.10 dev ens160 proto static metric 100
 - `proto static` のルートが存在する (自Kubernetes ノードで広告する経路)
 - BGPルートのnexthopは `192.168.40.49` (DC代表FRR, K8sネットワーク経由で到達)
 
-#### IPv6ルートの確認
+##### IPv6ルートの確認
 
 **コマンド**:
 
@@ -1126,11 +1259,11 @@ fd69:6684:61a:2::42 dev ens160 proto static metric 1024 pref medium
 - `proto bgp` のIPv6ルートが存在する (他Kubernetesクラスタからの学習経路)
 - `proto static` のIPv6ルートが存在する (自Kubernetes ノードで広告する経路)
 
-### 7. BGP ネイバー詳細情報の確認
+#### 7. BGP ネイバー詳細情報の確認
 
 **実施Kubernetes ノード**: `k8sworker0101.local`
 
-#### IPv4 ネイバーの詳細
+##### IPv4 ネイバーの詳細
 
 **コマンド**:
 
@@ -1228,7 +1361,7 @@ Read thread: on  Write thread: on  FD used: 24
 - `Local host: 192.168.40.42` (K8sネットワーク側アドレス)
 - `Foreign host: 192.168.40.49` (DC代表FRR)
 
-#### IPv6 ネイバーの詳細
+##### IPv6 ネイバーの詳細
 
 **コマンド**:
 
@@ -1328,11 +1461,11 @@ Read thread: on  Write thread: on  FD used: 25
 - `Local host: fd69:6684:61a:2::42` (K8sネットワーク側IPv6アドレス)
 - `Foreign host: fd69:6684:61a:2::49` (DC代表FRR)
 
-### 8. DC 代表 FRR での受信経路確認
+#### 8. DC 代表 FRR での受信経路確認
 
 **実施Kubernetes ノード**: `frr01.local` または `frr02.local`
 
-#### 8.1 IPv4 経路の確認
+##### 8.1 IPv4 経路の確認
 
 **コマンド** (frr01.local で実行):
 
@@ -1367,7 +1500,7 @@ Displayed  3 routes and 17 total paths
 - ホストルート (`192.168.40.42/32`) に `*>` が付いていない場合, 他のパスがベストパスとして選択されている可能性がある ( 複数のワーカーノードから同じホストルートが広告されている場合など )
 - "Displayed 3 routes and 17 total paths" は, 3つの異なるネットワークプレフィクスに対して合計17のBGPパスが存在することを示す ( 複数のiBGPピアから同じ経路を受信している場合 )
 
-#### 8.2 IPv6 経路の確認
+##### 8.2 IPv6 経路の確認
 
 **コマンド** (frr01.local で実行):
 
@@ -1408,7 +1541,7 @@ Displayed  3 routes and 15 total paths
 - **IPv6セッションでIPv6ネイバー (`fd69:6684:61a:2::42`) から受信**している（標準デュアルスタック）
 - "Displayed 3 routes and 15 total paths" は, 3つの異なるネットワークプレフィクスに対して合計15のBGPパスが存在することを示す ( 複数のiBGPピアから同じ経路を受信している場合 )
 
-#### 8.3 External Gateway (extgw) での経路確認
+##### 8.3 External Gateway (extgw) での経路確認
 
 **実施Kubernetes ノード**: `extgw.local`
 
@@ -1538,7 +1671,7 @@ Displayed  12 routes and 15 total paths
 - "Displayed 12 routes and 15 total paths" は, 12の異なるネットワークプレフィクスに対して合計15のBGPパスが存在することを示す
 - External Gateway が両Kubernetesクラスタへの経路を学習している
 
-### 9. DC 間 Pod 疎通テスト (標準デュアルスタック)
+#### 9. DC 間 Pod 疎通テスト (標準デュアルスタック)
 
 **前提**:
 
@@ -1546,7 +1679,7 @@ Displayed  12 routes and 15 total paths
 - Cluster2 (context: `kubernetes-admin@kubernetes-2`, Pod CIDR `10.243.0.0/16`, IPv6 Pod CIDR `fdb6:6e92:3cfb:0100::/56`)
 - テスト用 Pod として busybox イメージを使用
 
-#### 9.1 既存テスト Pod の削除 ( 存在する場合 )
+##### 9.1 既存テスト Pod の削除 ( 存在する場合 )
 
 **コマンド**:
 
@@ -1555,7 +1688,7 @@ kubectl --context kubernetes-admin@kubernetes delete pod test-pod --ignore-not-f
 kubectl --context kubernetes-admin@kubernetes-2 delete pod test-pod --ignore-not-found
 ```
 
-#### 9.2 テスト Pod のデプロイ
+##### 9.2 テスト Pod のデプロイ
 
 **コマンド**:
 
@@ -1575,7 +1708,7 @@ pod/test-pod condition met
 pod/test-pod condition met
 ```
 
-#### 9.3 Pod IP アドレスの確認
+##### 9.3 Pod IP アドレスの確認
 
 **コマンド**:
 
@@ -1629,7 +1762,7 @@ test-pod   1/1     Running   0          20s   fdb6:6e92:3cfb:103::8806   k8swork
 - Cluster2 Pod: IPv4 `10.243.3.33/32`, IPv6 `fdb6:6e92:3cfb:103::8806/128`
 - IPv6 アドレスがKubernetesクラスタ固有の `/56` 範囲に属している (`0200::/56` vs `0100::/56`)
 
-#### 9.4 Cilium 設定の確認
+##### 9.4 Cilium 設定の確認
 
 **コマンド**:
 
@@ -1652,7 +1785,7 @@ kubectl --context kubernetes-admin@kubernetes-2 get cm -n kube-system cilium-con
 - 各Kubernetesクラスタで異なる `/16` (IPv4) と `/56` (IPv6) 範囲が設定されている
 - FRR が広告している Pod CIDR と一致している
 
-#### 9.5 Cluster1  =>  Cluster2 疎通テスト (IPv4)
+##### 9.5 Cluster1  =>  Cluster2 疎通テスト (IPv4)
 
 **コマンド**:
 
@@ -1680,7 +1813,7 @@ round-trip min/avg/max = 0.517/0.905/1.668 ms
 - RTT が 0.5-1.7ms 程度 (LAN 環境)
 - busybox の ping 出力形式 ( `seq=0` 形式 )
 
-#### 9.6 Cluster2  =>  Cluster1 疎通テスト (IPv4)
+##### 9.6 Cluster2  =>  Cluster1 疎通テスト (IPv4)
 
 **コマンド**:
 
@@ -1707,7 +1840,7 @@ round-trip min/avg/max = 0.417/0.558/0.788 ms
 - 0% パケットロス
 - 双方向での IPv4 通信が確立している
 
-#### 9.7 Cluster1  =>  Cluster2 疎通テスト (IPv6)
+##### 9.7 Cluster1  =>  Cluster2 疎通テスト (IPv6)
 
 **コマンド**:
 
@@ -1735,7 +1868,7 @@ round-trip min/avg/max = 0.679/0.795/1.022 ms
 - RTT が 0.6-1.0ms 程度
 - IPv6 アドレスが Cluster2 の範囲 (`0100::/56`) に属している
 
-#### 9.8 Cluster2  =>  Cluster1 疎通テスト (IPv6)
+##### 9.8 Cluster2  =>  Cluster1 疎通テスト (IPv6)
 
 **コマンド**:
 
@@ -1763,7 +1896,7 @@ round-trip min/avg/max = 0.648/0.823/1.068 ms
 - 双方向での IPv6 通信が確立している
 - IPv6 アドレスが Cluster1 の範囲 (`0200::/56`) に属している
 
-#### 9.9 テスト Pod のクリーンアップ
+##### 9.9 テスト Pod のクリーンアップ
 
 **コマンド**:
 
@@ -1779,29 +1912,13 @@ pod "test-pod" deleted
 pod "test-pod" deleted
 ```
 
-## 補足
+### Multiprotocol BGP (IPv4トランスポートでIPv6のBGP広告も実施する設定) 利用時の検証方法
 
-- **Pod/Service CIDR 変更時の運用**: Kubernetesクラスタの Pod/Service CIDR が変更された場合, 対象ワーカーノードの `host_vars/<hostname>.local` にある `k8s_worker_frr.clusters.<cluster_name>` セクションを更新し, 本ロールを再実行してください。FRR 設定ファイルが再生成され, `restart_frr` ハンドラにより FRR サービスが再起動されます。再実行前に, 既存の BGP セッションが一時的に切断されることに注意してください。
-- **複数Kubernetesクラスタ運用時のKubernetesクラスタ ID 管理**: 同一 DC 内に複数の K8s Kubernetesクラスタがある場合, 各Kubernetesクラスタで異なる `cluster_name` を使用し, 各ワーカーノードの `host_vars/<hostname>.local` で `k8s_worker_frr.clusters` に所属Kubernetesクラスタの Pod/Service CIDR を定義してください。併せて `k8s_worker_frr.cluster_name` を適切に設定し, 所属するKubernetesクラスタを明示してください。
-- **経路広告方法の選択**: `route_advertisement_method` 変数で経路広告方法を選択できます。`"static"` (デフォルト) は静的経路定義 + `redistribute static` で BGP に再配送し, カーネルに経路が存在しなくても広告できます。この方式は他Kubernetes ノードとの互換性が高く推奨されます。`"network"` は `network` コマンドで直接広告し, Cilium がカーネルに経路を作成することを前提とします。既存環境や他Kubernetes ノードとの互換性を考慮して選択してください。
-- **カーネルルートフィルタの使用**: `kernel_route_filter` が未定義の場合, DC 代表 FRR から学習した全 BGP ルートがカーネルに反映されます。特定のルートのみをインポートしたい場合は, `host_vars` で `kernel_route_filter.ipv4` または `kernel_route_filter.ipv6` に prefix-list 名のリストを定義し, 対応する prefix-list を `frr.conf.j2` テンプレート外で定義してください (現在のテンプレートはカーネルインポート用 prefix-list の定義をサポートしていないため, 手動で追加する必要があります)。
-- **FRR 設定の手動確認**: FRR 設定ファイルの内容を確認したい場合は, `vtysh -c "show running-config"` を実行してください。また, `vtysh` を対話モードで起動し, `show bgp summary`, `show ip bgp`, `show route-map` などのコマンドで BGP セッション状態やルート情報を確認できます。
-- **vtysh アクセス許可**: `frr_vtysh_users` にユーザを追加すると, そのユーザは sudo なしで `vtysh` コマンドを実行できるようになります。これにより, FRR の設定確認や操作が容易になります。
-- **FRR 構文検証の厳密性**: 本ロールは `vtysh --dry-run` (FRR 8.1+) または代替方法で FRR 設定の構文を検証し, エラーがあればタスクを即座に停止します。フォールバックや警告出力は行わないため, 設定ミスがあると再実行が必要になります。設定変更時は慎重に行ってください。
-- **RFC 5549 と IPv4 トランスポート IPv6 NLRI の排他制御**: `rfc5549_enabled` (IPv6 トランスポートで IPv4 NLRI を運ぶ) と `ipv4_transport_ipv6_nlri_enabled` (IPv4 トランスポートで IPv6 NLRI を運ぶ) は排他的な設定です。本ロールは実行開始時にパラメータ検証タスク (`config-check-params.yml`) で両変数の値をチェックし, 両方とも `true` に設定されている場合はアサーションエラーでタスクを停止します。エラーメッセージには現在の設定値と選択可能な3つのオプション (RFC 5549 のみ有効, IPv4 トランスポート IPv6 NLRI のみ有効, 両方とも無効) が表示されます。これにより, 矛盾した設定による FRR の誤動作を防ぎます。
-- **Cilium BGP Control Plane との切り替え**: Cilium BGP Control Plane から本ロールへ切り替える場合, または逆方向の切り替えを行う場合は, 以下の手順を推奨します:
-  1. 現在の BGP セッションを確認し, ルート情報をバックアップします。
-  2. `host_vars` で `k8s_bgp.enabled` と `k8s_worker_frr.enabled` を適切に変更します (排他的に `true` にする)。
-  3. ワーカーノードで `k8s-worker` ロールを再実行します。
-  4. BGP セッションと ルート広告が正しく動作していることを確認します。
-
-## Multiprotocol BGP (IPv4トランスポートでIPv6のBGP広告も実施する設定) 利用時の検証方法
-
-### Multiprotocol BGP 設定例
+#### Multiprotocol BGP 設定例
 
 Multiprotocol BGP構成では, IPv4 BGPセッション1つでIPv4とIPv6の両方のルートを交換します。
 
-#### Multiprotocol BGPでのワーカーノード設定 (host_vars/k8sworker0101.local)
+##### Multiprotocol BGPでのワーカーノード設定 (host_vars/k8sworker0101.local)
 
 ```yaml
 k8s_worker_frr:
@@ -1835,7 +1952,7 @@ k8s_worker_frr:
 - IPv4接続のみでIPv6ルーティングも実現
 - Extended Nexthop Capabilityが自動有効化
 
-#### Multiprotocol BGP設定でのDC代表FRR設定 (host_vars/frr01.local)
+##### Multiprotocol BGP設定でのDC代表FRR設定 (host_vars/frr01.local)
 
 DC代表FRR側も同様にMultiprotocol BGP対応が必要です。frr-basicロールのテンプレートが対応している場合, 以下のように設定します。
 
@@ -1856,16 +1973,16 @@ frr_ebgp_neighbors:
 frr_ebgp_neighbors_v6: []
 ```
 
-**注意**: frr-basicロールがMultiprotocol BGPに対応しているかテンプレートを確認してください。対応していない場合は, IPv4ネイバーでIPv6 address-familyをactivateする設定を手動で追加する必要があります。
+**注意**: frr-basicロールのテンプレートがMultiprotocol BGPに対応していることを確認してください。対応していない場合は, IPv4ネイバーでIPv6 address-familyをactivateする設定を手動で追加する必要があります。
 
-#### 設定時の注意事項
+##### 設定時の注意事項
 
 1. **排他的な設定**: `rfc5549_enabled` と `ipv4_transport_ipv6_nlri_enabled` は同時に `true` にしないでください。
 2. **対向側の設定**: DC代表FRR側もMultiprotocol BGPに対応した設定が必要です。
 3. **Extended Nexthop Capability**: テンプレートが自動で有効化しますが, 対向側 ( DC代表FRR ) も対応している必要があります。
 4. **セッション数の確認**: `show bgp summary` でIPv4セッション1つのみが表示され, IPv6 Unicast Summaryでも同じIPv4アドレスのネイバーが表示されることを確認してください。
 
-### Multiprotocol BGPでの前提条件
+#### Multiprotocol BGPでの前提条件
 
 本例で使用する設定値:
 
@@ -1887,7 +2004,7 @@ frr_ebgp_neighbors_v6: []
   - Service CIDR IPv4: `10.254.0.0/16`
   - Service CIDR IPv6: `fdb6:6e92:3cfb:feed::/112`
 
-### 1. FRR サービス状態の確認 (Multiprotocol BGP)
+#### 1. FRR サービス状態の確認 (Multiprotocol BGP)
 
 **実施Kubernetes ノード**: `k8sworker0101.local`
 
@@ -1932,7 +2049,7 @@ Jan 26 13:20:15 k8sworker0101 bgpd[1254]: [W59KS-A3ZXZ] bgp_update_receive: rcvd
 - BGP End-of-RIB (IPv4/IPv6) メッセージが表示される ( BGPセッション確立後 )
 - インターフェース関連の警告 ( 例: `Cannot find IF <interface> in VRF` ) は一時的なもので, 通常は無視可能
 
-### 2. FRR 設定の構文確認 (Multiprotocol BGP)
+#### 2. FRR 設定の構文確認 (Multiprotocol BGP)
 
 **実施Kubernetes ノード**: `k8sworker0101.local`
 
@@ -1976,7 +2093,7 @@ router bgp 65011
 - AS 番号 (`65011`) と Router ID (`192.168.30.42`) が正しい
 - `no bgp ebgp-requires-policy` が設定されている
 
-### 3. iBGP セッション状態の確認 (Multiprotocol BGP)
+#### 3. iBGP セッション状態の確認 (Multiprotocol BGP)
 
 **実施Kubernetes ノード**: `k8sworker0101.local`
 
@@ -2063,7 +2180,7 @@ Total number of neighbors 2
 - `Up/Down` 列にアップタイムが表示されている
 - 両方の DC 代表 FRR (`192.168.40.49`, `192.168.40.50`) とのセッションが確立している
 
-### 4. Multiprotocol BGP設定での広告経路の確認 (IPv4)
+#### 4. Multiprotocol BGP設定での広告経路の確認 (IPv4)
 
 **実施Kubernetes ノード**: `k8sworker0101.local`
 
@@ -2106,7 +2223,7 @@ Displayed  9 routes and 9 total paths
 - 対向Kubernetesクラスター (Cluster2) の経路 (`10.243.0.0/16`, `10.253.0.0/16`) がiBGP/eBGP経由で受信されている
 - 自身の広告ルートの `Origin codes` が `?` (incomplete, `redistribute static` で再配送された経路) である
 
-### 5. Multiprotocol BGP設定での広告経路の確認 (IPv6)
+#### 5. Multiprotocol BGP設定での広告経路の確認 (IPv6)
 
 **実施Kubernetes ノード**: `k8sworker0101.local`
 
@@ -2225,7 +2342,7 @@ RPKI validation codes: V valid, I invalid, N Not found
 Displayed  11 routes and 11 total paths
 ```
 
-### 6. prefix-list の確認
+#### 6. prefix-list の確認
 
 **実施Kubernetes ノード**: `k8sworker0101.local`
 
@@ -2284,7 +2401,7 @@ BGP: ipv6 prefix-list PL-V6-SVC-OUT: 1 entries
 - IPv6 Service 用フィルタ (`PL-V6-SVC-OUT`) が `/112` ～ `/120` の範囲を許可
 - IPv6 Host 用フィルタ (`PL-V6-HOST-OUT`) が `/128` のみを許可
 
-### 7. route-map の確認
+#### 7. route-map の確認
 
 **実施Kubernetes ノード**: `k8sworker0101.local`
 
@@ -2434,7 +2551,7 @@ route-map: RM-V6-OUT Invoked: 6 Optimization: enabled Processed Change: false
 - `RM-V6-OUT` も同様の構造である
 - `RM-KERNEL-IMPORT` が定義されている (カーネルへのルートインポート用)
 
-### 8. カーネルルーティングテーブルの確認 (IPv4)
+#### 8. カーネルルーティングテーブルの確認 (IPv4)
 
 **実施Kubernetes ノード**: `k8sworker0101.local`
 
@@ -2461,7 +2578,7 @@ ip route show proto bgp
 - インターフェース名 (`ens192`) は環境により異なる (例: `enX1`, `eth1` など)
 - `nhid` (nexthop ID) が表示される
 
-### 9. カーネルルーティングテーブルの確認 (IPv6)
+#### 9. カーネルルーティングテーブルの確認 (IPv6)
 
 **実施Kubernetes ノード**: `k8sworker0101.local`
 
@@ -2490,7 +2607,7 @@ fdb6:6e92:3cfb:feec::/112 nhid 56 via fe80::250:56ff:fe00:4a1c dev ens192 metric
 - インターフェース名 (`ens192`) は環境により異なる
 - `nhid` (nexthop ID) が表示される
 
-### 10. IP フォワーディング設定の確認
+#### 10. IP フォワーディング設定の確認
 
 **実施Kubernetes ノード**: `k8sworker0101.local`
 
@@ -2512,11 +2629,11 @@ net.ipv6.conf.all.forwarding = 1
 
 - 両方の値が `1` である (フォワーディング有効)
 
-### 11. DC 代表 FRR での受信経路確認
+#### 11. DC 代表 FRR での受信経路確認
 
 **実施Kubernetes ノード**: `frr01.local` または `frr02.local`
 
-#### 11.1 IPv4 経路の確認
+##### 11.1 IPv4 経路の確認
 
 **コマンド** (frr01.local で実行):
 
@@ -2551,7 +2668,7 @@ Displayed  3 routes and 13 total paths
 - ホストルート (`192.168.40.42/32`) に `*>` が付いていない場合, 他のパスがベストパスとして選択されている可能性がある ( 複数のワーカーノードから同じホストルートが広告されている場合など )
 - "Displayed 3 routes and 13 total paths" は, 3つの異なるネットワークプレフィクスに対して合計13のBGPパスが存在することを示す ( 複数のiBGPピアから同じ経路を受信している場合 )
 
-#### 11.2 IPv6 経路の確認
+##### 11.2 IPv6 経路の確認
 
 **コマンド** (frr01.local で実行):
 
@@ -2592,7 +2709,7 @@ Displayed  3 routes and 15 total paths
 - IPv4 トランスポート上で IPv6 NLRI が交換されている (`ipv4_transport_ipv6_nlri_enabled: true` の効果)
 - "Displayed 3 routes and 15 total paths" は, 3つの異なるネットワークプレフィクスに対して合計15のBGPパスが存在することを示す ( 複数のiBGPピアから同じ経路を受信している場合 )
 
-#### 11.3 External Gateway (extgw) での経路確認
+##### 11.3 External Gateway (extgw) での経路確認
 
 **実施Kubernetes ノード**: `extgw.local`
 
@@ -2659,7 +2776,7 @@ sudo vtysh -c "show bgp ipv6"
 - `Path` に AS 番号が表示される (eBGP 経由)
 - External Gateway が両Kubernetesクラスタへの経路を学習している
 
-### 12. DC 間 Pod 疎通テスト (IPv4/IPv6 デュアルスタック)
+#### 12. DC 間 Pod 疎通テスト (IPv4/IPv6 デュアルスタック)
 
 **前提**:
 
@@ -2667,7 +2784,7 @@ sudo vtysh -c "show bgp ipv6"
 - Cluster2 (context: `kubernetes-admin@kubernetes-2`, Pod CIDR `10.243.0.0/16`, IPv6 Pod CIDR `fdb6:6e92:3cfb:0100::/56`)
 - テスト用 Pod として busybox イメージを使用
 
-#### 12.1 既存テスト Pod の削除 ( 存在する場合 )
+##### 12.1 既存テスト Pod の削除 ( 存在する場合 )
 
 **コマンド**:
 
@@ -2683,7 +2800,7 @@ kubectl --context kubernetes-admin@kubernetes delete pod test-pod --ignore-not-f
 kubectl --context kubernetes-admin@kubernetes-2 delete pod test-pod --ignore-not-found
 ```
 
-#### 12.2 テスト Pod のデプロイ
+##### 12.2 テスト Pod のデプロイ
 
 **コマンド**:
 
@@ -2712,7 +2829,7 @@ $ kubectl --context kubernetes-admin@kubernetes-2 wait --for=condition=Ready pod
 pod/test-pod condition met
 ```
 
-#### 12.3 Pod IP アドレスの確認
+##### 12.3 Pod IP アドレスの確認
 
 **コマンド**:
 
@@ -2773,7 +2890,7 @@ $ kubectl --context kubernetes-admin@kubernetes-2 exec test-pod -- ip addr
 - Cluster2 Pod: IPv4 `10.243.5.191/32`, IPv6 `fdb6:6e92:3cfb:105::3566/128`
 - IPv6 アドレスがKubernetesクラスタ固有の `/56` 範囲に属している (`0200::/56` vs `0100::/56`)
 
-#### 12.4 Cilium 設定の確認 ( オプション )
+##### 12.4 Cilium 設定の確認 ( オプション )
 
 **コマンド**:
 
@@ -2796,7 +2913,7 @@ $ kubectl --context kubernetes-admin@kubernetes-2 get cm -n kube-system cilium-c
 - 各Kubernetesクラスタで異なる `/56` 範囲が設定されている
 - FRR が広告している Pod CIDR と一致している
 
-#### 12.5 Cluster1  =>  Cluster2 疎通テスト (IPv4)
+##### 12.5 Cluster1  =>  Cluster2 疎通テスト (IPv4)
 
 **コマンド**:
 
@@ -2825,7 +2942,7 @@ round-trip min/avg/max = 0.521/0.738/1.162 ms
 - RTT が 0.5-1.2ms 程度 (LAN 環境)
 - busybox の ping 出力形式 ( `seq=0` 形式 )
 
-#### 12.6 Cluster2  =>  Cluster1 疎通テスト (IPv4)
+##### 12.6 Cluster2  =>  Cluster1 疎通テスト (IPv4)
 
 **コマンド**:
 
@@ -2853,7 +2970,7 @@ round-trip min/avg/max = 0.443/0.597/0.882 ms
 - 0% パケットロス
 - 双方向での IPv4 通信が確立している
 
-#### 12.7 Cluster1  =>  Cluster2 疎通テスト (IPv6)
+##### 12.7 Cluster1  =>  Cluster2 疎通テスト (IPv6)
 
 **コマンド**:
 
@@ -2882,7 +2999,7 @@ round-trip min/avg/max = 0.655/1.052/1.795 ms
 - RTT が 0.6-1.8ms 程度
 - IPv6 アドレスが Cluster2 の範囲 (`0100::/56`) に属している
 
-#### 12.8 Cluster2  =>  Cluster1 疎通テスト (IPv6)
+##### 12.8 Cluster2  =>  Cluster1 疎通テスト (IPv6)
 
 **コマンド**:
 
@@ -2911,7 +3028,7 @@ round-trip min/avg/max = 0.785/1.168/1.834 ms
 - 双方向での IPv6 通信が確立している
 - IPv6 アドレスが Cluster1 の範囲 (`0200::/56`) に属している
 
-#### 12.9 テスト完了後のクリーンアップ
+##### 12.9 テスト完了後のクリーンアップ
 
 **コマンド**:
 
@@ -2920,13 +3037,13 @@ kubectl --context kubernetes-admin@kubernetes delete pod test-pod
 kubectl --context kubernetes-admin@kubernetes-2 delete pod test-pod
 ```
 
-## RFC 5549 (IPv6 トランスポート) 利用時の検証方法
+### RFC 5549 (IPv6 トランスポート) 利用時の検証方法
 
 RFC 5549 を有効化した場合 (`rfc5549_enabled: true`), BGP セッションは IPv6 トランスポートで確立され, IPv4 および IPv6 の両方の NLRI が Extended Nexthop Capability を使用して運ばれます。この設定では, IPv4 ルートのネクストホップとして IPv6 アドレス (link-local または global) が使用されるため, 検証時の出力が通常の IPv4 トランスポートとは異なります。
 
 以下は RFC 5549 を有効化した環境での具体的な検証手順です。
 
-### RFC 5549 (IPv6 トランスポート) 利用時の前提条件
+#### RFC 5549 (IPv6 トランスポート) 利用時の前提条件
 
 本例で使用する設定値:
 
@@ -2944,11 +3061,11 @@ RFC 5549 を有効化した場合 (`rfc5549_enabled: true`), BGP セッション
   - Pod CIDR IPv6: `fdb6:6e92:3cfb:200::/56`
   - Service CIDR IPv6: `fdb6:6e92:3cfb:feed::/112`
 
-### RFC 5549 環境での host_vars 設定例
+#### RFC 5549 環境での host_vars 設定例
 
 RFC 5549 を使用する場合, すべての BGP ネイバーアドレスを IPv6 で指定します。以下に各Kubernetes ノードタイプの設定例を示します。
 
-#### ワーカーノードの設定例 (host_vars/k8sworker0101.local)
+##### ワーカーノードの設定例 (host_vars/k8sworker0101.local)
 
 ```yaml
 ---
@@ -2988,7 +3105,7 @@ k8s_worker_frr:
 - `dc_frr_addresses_v6` に IPv6 アドレスを指定（`dc_frr_addresses` は使用しない）
 - `router_id` は IPv4 形式のまま ( BGP Router ID は IPv4 形式が必須 )
 
-#### DC 代表 FRR の設定例 (host_vars/frr01.local)
+##### DC 代表 FRR の設定例 (host_vars/frr01.local)
 
 ```yaml
 ---
@@ -3027,7 +3144,7 @@ frr_basic:
 - `frr_ebgp_neighbors` の全アドレスを IPv6 で指定
 - コントロールプレーンノードを含める場合は, そのKubernetes ノードも FRR がインストールされている必要がある
 
-#### External Gateway の設定例 (host_vars/extgw.local)
+##### External Gateway の設定例 (host_vars/extgw.local)
 
 ```yaml
 ---
@@ -3056,7 +3173,7 @@ frr_basic:
 - `frr_ebgp_neighbors` の全アドレスを IPv6 で指定 ( 各 DC の外部接続側アドレス )
 - AS 番号は eBGP 用の独立した AS (65100) を使用
 
-#### Cluster2 のワーカーノード設定例 (host_vars/k8sworker0201.local)
+##### Cluster2 のワーカーノード設定例 (host_vars/k8sworker0201.local)
 
 ```yaml
 ---
@@ -3095,7 +3212,7 @@ k8s_worker_frr:
 - IPv6 アドレスが Cluster2 の範囲 (`fd69:6684:61a:3::/64`) に属している
 - Pod/Service CIDR も Cluster2 専用の範囲を使用
 
-### 1. FRR サービス状態の確認 (RFC 5549 (IPv6 トランスポート) 利用時の例)
+#### 1. FRR サービス状態の確認 (RFC 5549 (IPv6 トランスポート) 利用時の例)
 
 **実施Kubernetes ノード**: `k8sworker0101.local`
 
@@ -3140,7 +3257,7 @@ systemctl status frr
 - **BGP End-of-RIB メッセージでネイバーが IPv6 アドレス (`fd69:6684:61a:2::49`) として表示される** (RFC 5549 の証拠)
 - IPv4/IPv6 両方の Unicast で End-of-RIB が受信されている
 
-### 2. BGP セッション状態の確認 (IPv6 トランスポート)
+#### 2. BGP セッション状態の確認 (IPv6 トランスポート)
 
 **実施Kubernetes ノード**: `k8sworker0101.local`
 
@@ -3183,7 +3300,7 @@ Total number of neighbors 1
 - IPv4/IPv6 両方の Address Family で **同じ IPv6 ネイバー** とセッションが確立している
 - `PfxSnt` が `3` である (Pod CIDR, Service CIDR, ホストルートを送信)
 
-### 3. 広告経路の確認 (IPv4 - RFC 5549)
+#### 3. 広告経路の確認 (IPv4 - RFC 5549)
 
 **実施Kubernetes ノード**: `k8sworker0101.local`
 
@@ -3236,7 +3353,7 @@ Displayed  11 routes and 11 total paths
 - 対向Kubernetesクラスター (Cluster2) の IPv4 経路 (`10.243.0.0/16`, `10.253.0.0/16`, `192.168.50.0/24`) が受信されている
 - ネクストホップが **IPv4 アドレスではなく IPv6 アドレス** である点に注意
 
-### 4. 広告経路の確認 (IPv6)
+#### 4. 広告経路の確認 (IPv6)
 
 **実施Kubernetes ノード**: `k8sworker0101.local`
 
@@ -3297,7 +3414,7 @@ Displayed  11 routes and 11 total paths
 - IPv6 ルートは通常通り link-local または global IPv6 アドレスをネクストホップとして使用
 - 対向Kubernetesクラスター (Cluster2) の IPv6 経路が受信されている
 
-### 5. カーネルルーティングテーブルの確認 (IPv4 - RFC 5549)
+#### 5. カーネルルーティングテーブルの確認 (IPv4 - RFC 5549)
 
 **実施Kubernetes ノード**: `k8sworker0101.local`
 
@@ -3324,7 +3441,7 @@ ip route show proto bgp
 - カーネルが IPv4 パケットを IPv6 ネクストホップ経由でフォワーディングしている
 - インターフェース名 (`ens192`) は環境により異なる
 
-### 6. カーネルルーティングテーブルの確認 (IPv6)
+#### 6. カーネルルーティングテーブルの確認 (IPv6)
 
 **実施Kubernetes ノード**: `k8sworker0101.local`
 
@@ -3350,11 +3467,11 @@ fdb6:6e92:3cfb:feec::/112 nhid 42 via fe80::250:56ff:fe00:4a1c dev ens192 metric
 - IPv6 ルートは通常通り link-local ネクストホップを使用
 - 対向Kubernetesクラスタの IPv6 Pod/Service CIDR が表示される
 
-### 7. DC 代表 FRR での経路確認 (RFC 5549)
+#### 7. DC 代表 FRR での経路確認 (RFC 5549)
 
 **実施Kubernetes ノード**: `frr01.local`
 
-#### 7.1 BGP ネイバー詳細確認 (Extended Nexthop Capability)
+##### 7.1 BGP ネイバー詳細確認 (Extended Nexthop Capability)
 
 **コマンド**:
 
@@ -3413,7 +3530,7 @@ BGP connection: shared network
 - IPv4/IPv6 両方の Address Family が negotiated されている
 - 3 prefixes (Pod CIDR, Service CIDR, ホストルート) が受信されている
 
-#### 7.2 IPv4 BGP テーブルの確認 (link-local nexthop)
+##### 7.2 IPv4 BGP テーブルの確認 (link-local nexthop)
 
 **コマンド**:
 
@@ -3463,11 +3580,11 @@ Displayed  12 routes and 15 total paths
 - ワーカーノードから学習したルート (`10.244.0.0/16`, `10.254.0.0/16`, ホストルート) が含まれる
 - eBGP 経由で学習した対向Kubernetesクラスタのルートも link-local nexthop を使用
 
-### 8. External Gateway での経路確認 (RFC 5549)
+#### 8. External Gateway での経路確認 (RFC 5549)
 
 **実施Kubernetes ノード**: `extgw.local`
 
-#### 8.1 IPv4 BGP テーブルの確認
+##### 8.1 IPv4 BGP テーブルの確認
 
 **コマンド**:
 
@@ -3527,7 +3644,7 @@ Displayed  12 routes and 15 total paths
 - `Path` 列に AS 番号が表示される (eBGP 経由)
 - ワーカーノードのホストルート (`192.168.40.42/32`, `192.168.40.43/32`, `192.168.50.52/32`, `192.168.50.53/32`) も link-local nexthop で学習されている
 
-#### 8.2 IPv6 BGP テーブルの確認
+##### 8.2 IPv6 BGP テーブルの確認
 
 **コマンド**:
 
@@ -3598,13 +3715,13 @@ Displayed  12 routes and 15 total paths
 - 両Kubernetesクラスタの IPv6 Pod/Service CIDR および DC ネットワークの /64 プレフィクスが受信されている
 - ワーカーノードのホストルート (`fd69:6684:61a:2::42/128`, etc.) も学習されている
 
-### 9. DC 間 Pod 疎通テスト (RFC 5549)
+#### 9. DC 間 Pod 疎通テスト (RFC 5549)
 
 RFC 5549 環境でも Pod 間通信テストの手順は通常の環境と同じです。詳細な手順は [12. DC 間 Pod 疎通テスト (IPv4/IPv6 デュアルスタック)](#12-dc-間-pod-疎通テスト-ipv4ipv6-デュアルスタック) を参照してください。
 
 以下は RFC 5549 環境での実際の検証例です。
 
-#### 9.1 テスト Pod のデプロイと IP アドレス確認
+##### 9.1 テスト Pod のデプロイと IP アドレス確認
 
 **コマンド**:
 
@@ -3678,7 +3795,7 @@ kubectl --context kubernetes-admin@kubernetes-2 exec test-pod -- ip addr
 - Cluster2 Pod: IPv4 `10.243.3.45/32`, IPv6 `fdb6:6e92:3cfb:103::4a74/128` (k8sworker0202)
 - IPv6 アドレスがKubernetesクラスタ専用範囲に属している (`0200::/56` vs `0100::/56`)
 
-#### 9.2 IPv6 疎通テスト
+##### 9.2 IPv6 疎通テスト
 
 **コマンド (Cluster1  =>  Cluster2)**:
 
@@ -3725,7 +3842,7 @@ round-trip min/avg/max = 0.501/0.803/1.293 ms
 - 双方向での IPv6 通信が成功
 - **RFC 5549 環境でも Pod 間通信は正常に機能**
 
-#### 9.3 IPv4 疎通テスト
+##### 9.3 IPv4 疎通テスト
 
 RFC 5549 環境でも IPv4 通信は正常に機能します。以下は実際の検証例です。
 
@@ -3831,7 +3948,7 @@ sudo iptables -L -n | grep 179
 sudo ip6tables -L -n | grep 179
 ```
 
-BGP ポート (TCP 179) が許可されているか確認
+BGP ポート (TCP 179) が許可されていることを確認
 
 **2. ネットワーク到達性確認**:
 
@@ -3864,7 +3981,7 @@ sudo journalctl -u frr -n 50
 
 **4. DC 代表 FRR の設定確認**:
 
-   DC 側の FRR (`frr01.local`, `frr02.local`) が正しい IP アドレス (K8s ネットワーク側: `192.168.40.x`, `192.168.50.x`) でワーカーノードをネイバーとして設定しているか確認。管理ネットワーク (`192.168.30.x`) を使用している場合は接続できません。
+   DC 側の FRR (`frr01.local`, `frr02.local`) が正しい IP アドレス (K8s ネットワーク側: `192.168.40.x`, `192.168.50.x`) でワーカーノードをネイバーとして設定していることを確認。管理ネットワーク (`192.168.30.x`) を使用している場合は接続できません。
 
    ```bash
    # frr01.local で実行
@@ -4022,7 +4139,7 @@ k8s_worker_frr:
 
 **2. DC代表FRR側の設定確認**:
 
-DC代表FRR (`frr01.local`) でIPv6ネイバーが設定されているか確認:
+DC代表FRR (`frr01.local`) でIPv6ネイバーが設定されていることを確認:
 
 ```bash
 # frr01.local で実行
@@ -4110,7 +4227,7 @@ ip route show 10.244.0.0/16
 ip -6 route show fdb6:6e92:3cfb:200::/56
 ```
 
-静的経路が定義されているか確認
+静的経路が定義されていることを確認
 
 **3. redistribute static の確認**:
 
@@ -4118,7 +4235,7 @@ ip -6 route show fdb6:6e92:3cfb:200::/56
 sudo vtysh -c "show running-config" | grep "redistribute static"
 ```
 
-`redistribute static` が address-family に設定されているか確認
+`redistribute static` が address-family に設定されていることを確認
 
 **4. prefix-list のマッチ確認**:
 
@@ -4155,7 +4272,7 @@ ip -6 route show fd69:6684:61a:2::42/128
 sudo vtysh -c "show running-config" | grep -A 10 "address-family ipv6"
 ```
 
-`redistribute static` がIPv6 address-familyに含まれているか確認
+`redistribute static` がIPv6 address-familyに含まれていることを確認
 
 **3. IPv6経路の広告確認**:
 
@@ -4182,7 +4299,7 @@ sudo vtysh -c "show bgp ipv6 unicast"
 sudo vtysh -c "show running-config" | grep -A 15 "address-family ipv6"
 ```
 
-`neighbor 192.168.40.49 activate` がIPv6 address-familyに含まれているか確認
+`neighbor 192.168.40.49 activate` がIPv6 address-familyに含まれていることを確認
 
 **2. BGP IPv6サマリーでIPv4ネイバー確認**:
 
@@ -4210,7 +4327,7 @@ IPv4アドレス (`192.168.40.49`) のネイバーが表示され, `PfxSnt` が3
 sudo vtysh -c "show running-config" | grep -A 15 "address-family ipv4"
 ```
 
-`neighbor fd69:6684:61a:2::49 activate` がIPv4 address-familyに含まれているか確認
+`neighbor fd69:6684:61a:2::49 activate` がIPv4 address-familyに含まれていることを確認
 
 **2. Extended Nexthop Capability確認**:
 
@@ -4220,7 +4337,7 @@ sudo vtysh -c "show bgp ipv6 neighbors fd69:6684:61a:2::49" | grep -A 5 "Address
 
 `IPv4 Unicast` が `extended-nexthop` とともに表示されるか確認
 
-**3. IPv4経路がIPv6セッションで送信されているか確認**:
+**3. IPv4経路がIPv6セッションで送信されていることを確認**:
 
 ```bash
 sudo vtysh -c "show bgp ipv4 unicast summary"
@@ -4284,7 +4401,7 @@ Cilium が広すぎる範囲 (例: `/48`) を `ipv6-native-routing-cidr` に設�
    sudo cat /etc/kubernetes/manifests/kube-controller-manager.yaml | grep cluster-cidr
    ```
 
-   Kubernetes の `--cluster-cidr` (Control Plane) と FRR が広告している IPv6 CIDR (`host_vars` の `clusters.<cluster_name>.pod_cidrs_v6`) が一致しているか確認。不一致の場合, 以下のいずれかで修正:
+   Kubernetes の `--cluster-cidr` (Control Plane) と FRR が広告している IPv6 CIDR (`host_vars` の `clusters.<cluster_name>.pod_cidrs_v6`) が一致していることを確認。不一致の場合, 以下のいずれかで修正:
 
 - **方法1**: `host_vars/k8sctrlplane*.local` の `k8s_pod_ipv6_network_cidr` をKubernetesクラスタ専用範囲 (例: `fdb6:6e92:3cfb:0200::/56`) に変更し, Kubernetesクラスタを再構築
 - **方法2**: ワーカーノードの `host_vars` で `clusters.<cluster_name>.pod_cidrs_v6` を Kubernetes の実際の Pod CIDR に合わせる
@@ -4318,7 +4435,7 @@ sysctl net.ipv6.conf.all.forwarding
 kubectl -n kube-system get cm cilium-config -o yaml | grep routing-mode
 ```
 
-`native` または `routed` になっているか確認。`overlay` モードでは BGP ルーティングは機能しません。
+`native` または `routed` になっていることを確認。`overlay` モードでは BGP ルーティングは機能しません。
 
 **3. Pod から外部への traceroute**:
 
@@ -4328,8 +4445,28 @@ kubectl exec -it test-pod-c1 -- traceroute -n 192.168.255.48
 
 パケットがどこで止まるか確認
 
-## 参考リンク
+## 注意事項
 
+- **Pod/Service CIDR 変更時の運用**: Kubernetesクラスタの Pod/Service CIDR が変更された場合, 対象ワーカーノードの `host_vars/<hostname>.local` にある `k8s_worker_frr.clusters.<cluster_name>` セクションを更新し, 本ロールを再実行してください。FRR 設定ファイルが再生成され, `restart_frr` ハンドラにより FRR サービスが再起動されます。再実行前に, 既存の BGP セッションが一時的に切断されることに注意してください。
+- **複数Kubernetesクラスタ運用時のKubernetesクラスタ ID 管理**: 同一 DC 内に複数の K8s Kubernetesクラスタがある場合, 各Kubernetesクラスタで異なる `cluster_name` を使用し, 各ワーカーノードの `host_vars/<hostname>.local` で `k8s_worker_frr.clusters` に所属Kubernetesクラスタの Pod/Service CIDR を定義してください。併せて `k8s_worker_frr.cluster_name` を適切に設定し, 所属するKubernetesクラスタを明示してください。
+- **経路広告方法の選択**: `route_advertisement_method` 変数で経路広告方法を選択できます。`"static"` (デフォルト) は静的経路定義 + `redistribute static` で BGP に再配送し, カーネルに経路が存在しなくても広告できます。この方式は他Kubernetes ノードとの互換性が高く推奨されます。`"network"` は `network` コマンドで直接広告し, Cilium がカーネルに経路を作成することを前提とします。既存環境や他Kubernetes ノードとの互換性を考慮して選択してください。
+- **カーネルルートフィルタの使用**: `kernel_route_filter` が未定義の場合, DC 代表 FRR から学習した全 BGP ルートがカーネルに反映されます。特定のルートのみをインポートしたい場合は, `host_vars` で `kernel_route_filter.ipv4` または `kernel_route_filter.ipv6` に prefix-list 名のリストを定義し, 対応する prefix-list を `frr.conf.j2` テンプレート外で定義してください (現在のテンプレートはカーネルインポート用 prefix-list の定義をサポートしていないため, 手動で追加する必要があります)。
+- **FRR 設定の手動確認**: FRR 設定ファイルの内容を確認したい場合は, `vtysh -c "show running-config"` を実行してください。また, `vtysh` を対話モードで起動し, `show bgp summary`, `show ip bgp`, `show route-map` などのコマンドで BGP セッション状態やルート情報を確認できます。
+- **vtysh アクセス許可**: `frr_vtysh_users` にユーザを追加すると, そのユーザは sudo なしで `vtysh` コマンドを実行できるようになります。これにより, FRR の設定確認や操作が容易になります。
+- **FRR 構文検証の厳密性**: 本ロールは `vtysh --dry-run` (FRR 8.1+) または代替方法で FRR 設定の構文を検証し, エラーがあればタスクを即座に停止します。フォールバックや警告出力は行わないため, 設定ミスがあると再実行が必要になります。設定変更時は慎重に行ってください。
+- **RFC 5549 と IPv4 トランスポート IPv6 NLRI の排他制御**: `rfc5549_enabled` (IPv6 トランスポートで IPv4 NLRI を運ぶ) と `ipv4_transport_ipv6_nlri_enabled` (IPv4 トランスポートで IPv6 NLRI を運ぶ) は排他的な設定です。本ロールは実行開始時にパラメータ検証タスク (`config-check-params.yml`) で両変数の値をチェックし, 両方とも `true` に設定されている場合はアサーションエラーでタスクを停止します。エラーメッセージには現在の設定値と選択可能な3つのオプション (RFC 5549 のみ有効, IPv4 トランスポート IPv6 NLRI のみ有効, 両方とも無効) が表示されます。これにより, 矛盾した設定による FRR の誤動作を防ぎます。
+- **Cilium BGP Control Plane との切り替え**: Cilium BGP Control Plane から本ロールへ切り替える場合, または逆方向の切り替えを行う場合は, 以下の手順を推奨します:
+  1. 現在の BGP セッションを確認し, ルート情報をバックアップします。
+  2. `host_vars` で `k8s_bgp.enabled` と `k8s_worker_frr.enabled` を適切に変更します (排他的に `true` にする)。
+  3. ワーカーノードで `k8s-worker` ロールを再実行します。
+  4. BGP セッションと ルート広告が正しく動作していることを確認します。
+
+## 参考資料
+
+### 公式ドキュメント
+
+- [FRRouting](https://docs.frrouting.org/en/latest/)
+- [Kubernetes](https://kubernetes.io/docs/home/)
 - [FRR 基本設定 (Integrated Config File
 )](https://docs.frrouting.org/en/latest/basic.html#config-file)
 - [FRR VTYSH設定](https://docs.frrouting.org/en/latest/vtysh.html)

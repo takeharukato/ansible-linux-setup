@@ -1,29 +1,147 @@
 # dns-server ロール
 
-BIND を用いた権威兼キャッシュ DNS サーバーを構成するロールです。対象 OS に応じて Debian 系と RHEL 系の差異を吸収の上, ゾーンファイルと `named.conf`/`named.conf.options` をテンプレートから生成します。
+本ロールは, BIND を用いた権威兼キャッシュ DNS サーバーを構成するロールです。
 
-また, クライアントからのホスト名, IPアドレス登録を受け付けるためのDynamic DNS 更新用 Transaction SIGnature (TSIG) キーを組み込み, IPv4/IPv6 双方の順引き, 逆引きゾーンを作成します。
+## 目次
 
-必要に応じて systemd, Security-Enhanced Linux (SELinux), Firewall の周辺設定も行います。
+- [dns-server ロール](#dns-server-ロール)
+  - [目次](#目次)
+  - [用語](#用語)
+  - [概要](#概要)
+  - [前提条件](#前提条件)
+  - [実行方法](#実行方法)
+    - [Makefile を使用](#makefile-を使用)
+    - [Ansible コマンド直接実行](#ansible-コマンド直接実行)
+  - [主要変数](#主要変数)
+    - [ロール固有変数](#ロール固有変数)
+    - [OS 差異吸収変数](#os-差異吸収変数)
+    - [サイト全体共通変数](#サイト全体共通変数)
+    - [設定例](#設定例)
+      - [基本設定 (単一ネットワーク)](#基本設定-単一ネットワーク)
+      - [IPv4 限定設定](#ipv4-限定設定)
+      - [複数ネットワーク逆引き設定](#複数ネットワーク逆引き設定)
+    - [複数ネットワーク逆引きゾーン対応](#複数ネットワーク逆引きゾーン対応)
+      - [機能概要](#機能概要)
+      - [設定例](#設定例-1)
+        - [`group_vars/all/all.yml` または `host_vars/<hostname>/main.yml`](#group_varsallallyml-または-host_varshostnamemainyml)
+        - [生成されるゾーン定義 (named.conf.zones)](#生成されるゾーン定義-namedconfzones)
+        - [生成されるゾーンファイル](#生成されるゾーンファイル)
+      - [クライアント側の nsupdate 使用例](#クライアント側の-nsupdate-使用例)
+      - [カスタムフィルターの詳細](#カスタムフィルターの詳細)
+        - [`ipv4_reverse_zone` フィルター](#ipv4_reverse_zone-フィルター)
+        - [`ipv6_reverse_zone` フィルター](#ipv6_reverse_zone-フィルター)
+  - [テンプレートと生成ファイル](#テンプレートと生成ファイル)
+  - [実行フロー](#実行フロー)
+    - [デフォルト動作](#デフォルト動作)
+    - [OS 差異](#os-差異)
+      - [RHEL 系専用処理の詳細](#rhel-系専用処理の詳細)
+  - [主な処理](#主な処理)
+  - [検証ポイント](#検証ポイント)
+    - [パターン1: デュアルスタック対応 ( 標準構成 )](#パターン1-デュアルスタック対応--標準構成-)
+      - [前提条件](#前提条件-1)
+      - [1. サービス状態の確認](#1-サービス状態の確認)
+      - [2. 設定構文検証](#2-設定構文検証)
+      - [3. 順引き解決確認 (IPv4/IPv6)](#3-順引き解決確認-ipv4ipv6)
+      - [4. 逆引き解決確認 (IPv4)](#4-逆引き解決確認-ipv4)
+      - [5. 逆引き解決確認 (IPv6)](#5-逆引き解決確認-ipv6)
+      - [6. SELinux コンテキスト確認 (RHEL 系のみ)](#6-selinux-コンテキスト確認-rhel-系のみ)
+      - [7. Firewall 設定確認](#7-firewall-設定確認)
+        - [RHEL 系 (firewalld)](#rhel-系-firewalld)
+        - [Debian 系 (UFW)](#debian-系-ufw)
+      - [8. Dynamic DNS 更新確認](#8-dynamic-dns-更新確認)
+      - [9. ゾーンファイル内容確認](#9-ゾーンファイル内容確認)
+    - [パターン2: IPv4 限定構成](#パターン2-ipv4-限定構成)
+    - [パターン3: 複数ネットワーク対応](#パターン3-複数ネットワーク対応)
+      - [追加ステップ: 複数ネットワークゾーン確認](#追加ステップ-複数ネットワークゾーン確認)
+  - [トラブルシューティング](#トラブルシューティング)
+    - [問題1: named が起動しない](#問題1-named-が起動しない)
+    - [問題2: ゾーン読み込みエラー](#問題2-ゾーン読み込みエラー)
+    - [問題3: SELinux 阻止 (RHEL 系のみ)](#問題3-selinux-阻止-rhel-系のみ)
+    - [問題4: Dynamic DNS 更新失敗](#問題4-dynamic-dns-更新失敗)
+    - [問題5: Firewall 疎通不可](#問題5-firewall-疎通不可)
+    - [問題6: 複数ネットワーク逆引きゾーンの重複定義](#問題6-複数ネットワーク逆引きゾーンの重複定義)
+  - [注意事項](#注意事項)
+    - [設定関連注意事項](#設定関連注意事項)
+    - [セキュリティ](#セキュリティ)
+    - [運用上の留意事項](#運用上の留意事項)
+  - [参考資料](#参考資料)
+    - [公式ドキュメント](#公式ドキュメント)
 
 ## 用語
 
 | 正式名称 | 略称 | 意味 |
 |---------|------|------|
-| Berkeley Internet Name Domain | BIND | 最も広く使われる DNS サーバーの実装。インターネット標準の DNS プロトコルを実装したオープンソースソフトウエア。 |
-| Domain Name System | DNS | ドメイン名と IP アドレスを対応付ける仕組み。 |
+| Berkeley Internet Name Domain | BIND | DNS サーバ機能を提供するソフトウェア。 |
+| Domain Name System | DNS | 名前と IP アドレスを対応付ける仕組み。 |
 | named | - | BIND の DNS サーバープロセス名。 |
 | ゾーン | - | DNS で管理される特定のドメインの範囲。 |
 | 順引き (正引き) | - | ドメイン名から IP アドレスを検索する方向の名前解決。 |
 | 逆引き | - | IP アドレスからドメイン名を検索する方向の名前解決。 |
-| Transaction SIGnature | TSIG | DNS 更新時に使う共有鍵署名方式。Dynamic DNS の更新を認証するために使用される。 |
+| Transaction SIGnature | TSIG | DNS 更新時に使う共有鍵署名方式。 |
 | nsupdate | - | Dynamic DNS を更新するためのコマンドラインツール。TSIG キーを使用して認証を行う。 |
 | rndc | - | BIND の管理コマンド (Remote Name Daemon Control の略)。named プロセスの制御, ゾーンリロード, 統計表示などに使用。 |
-| Dynamic DNS | DDNS | IP アドレスの変化に合わせて DNS レコードを動的に更新する仕組み。 |
-| Security-Enhanced Linux | SELinux | RHEL 系で使用される強制アクセス制御の仕組み。 |
+| Dynamic DNS | DDNS | IP アドレスの変化に合わせて DNS を更新する仕組み。 |
+| Dynamic DNS update key | - | Dynamic DNS 更新要求を認証するために用いる共有鍵情報。 |
+| DNS update key | - | DNS 更新要求を認証するために利用する鍵情報。 |
+| Security-Enhanced Linux | SELinux | 強制アクセス制御の仕組み。 |
 | firewalld | - | RHEL 系のファイアウォール管理デーモン。 |
-| Uncomplicated Firewall | UFW | Debian/Ubuntu 系のファイアウォール管理ツール。 |
+| Uncomplicated Firewall | UFW | 簡易な操作で設定できるパケット制御機能。 |
+| drop-in ファイル | - | 既存の設定本体を直接変更せず, 追加の設定断片として読み込ませる補助設定ファイル。 |
 | systemd drop-in | - | systemd サービスの設定を上書き, 追加するための設定ファイル。`/etc/systemd/system/<サービス名>.service.d/` 配下に配置。 |
+| IPv6 Address Record | AAAA | DNS で IPv6 アドレスを返すレコード種別。 |
+| Classless Inter-Domain Routing | CIDR | IP アドレスとネットワークプレフィックス長を組み合わせた表記法。 |
+| Dynamic Host Configuration Protocol | DHCP | IP アドレスを自動配布する仕組み。 |
+| Domain Name System Security Extensions | DNSSEC | DNS 応答の改ざん検出を行う拡張機能。 |
+| Fully Qualified Domain Name | FQDN | 末尾まで省略せず書いた完全なドメイン名。 |
+| Internet Protocol | IP | ネットワーク上で宛先を識別し, データを届けるための通信手順。 |
+| Name Server | NS | DNS ゾーンを管理するサーバを示すレコード種別。 |
+| Operating System | OS | 計算機の基本機能を管理し, アプリケーションを動作させる基盤ソフトウェア。 |
+| Process Identifier | PID | 実行中の処理を識別する番号。 |
+| Pointer Record | PTR | DNS で IP アドレスから名前を逆引きするレコード種別。 |
+| Red Hat Enterprise Linux | RHEL | Red Hat 社が提供する商用 Linux ディストリビューション。 |
+| Red Hat Enterprise Linux 9 | RHEL9 | Red Hat Enterprise Linux の第9系統版。 |
+| Start of Authority | SOA | DNS ゾーンの管理情報を持つレコード種別。 |
+| Secure Shell | SSH | 遠隔の計算機へ安全に接続して操作する方式。 |
+| Transmission Control Protocol | TCP | 通信相手との接続を確立してからデータを送受信する通信方式。 |
+| Time To Live | TTL | パケットの有効中継回数を示す値。 |
+| User Datagram Protocol | UDP | 接続確立を行わずにデータを送受信する通信方式。 |
+| systemd | - | Linux システムの初期化とサービス管理を行う仕組み。 |
+| Access Control List | ACL | 通信やアクセスを許可または禁止するための規則一覧。 |
+| DNS Answer Section | ANSWER | DNS 応答に含まれる回答情報の領域。 |
+| Internet Systems Consortium | ISC | BIND や Kea などを提供する開発組織。 |
+| IPv6 Reverse Pointer Record | PTR6 | IPv6 アドレスの逆引きで使う PTR レコード。 |
+| DNS Question Section | QUESTION | DNS 問い合わせで指定した質問内容の領域。 |
+| RSA/SHA-1 | RSASHA1 | RSA と SHA-1 を組み合わせた署名方式。 |
+| Section | SECTION | データ表示を用途別に分割した区画。 |
+| Secure Hash Algorithm 1 | SHA-1 | Secure Hash Algorithm 1 ( SHA-1 ) に基づくハッシュ方式。 |
+| ansible-playbookコマンド | - | Ansible Playbook を実行して自動構成処理を適用するコマンド。 |
+| `cat` | - | ファイル内容を標準出力へ表示するコマンド。 |
+| `chmod` | - | ファイルやディレクトリのアクセス権を変更するコマンド。 |
+| `chown` | - | ファイルやディレクトリの所有者, 所有グループを変更するコマンド。 |
+| `dig` | - | DNS 問い合わせ結果を詳細表示するコマンド。 |
+| `journalctl` | - | systemd ジャーナルのログを参照するコマンド。 |
+| `ls` | - | ファイルやディレクトリの一覧を表示するコマンド。 |
+| `make` | - | Makefile に定義された処理を実行するコマンド。 |
+| `systemctl` | - | systemd 管理下のサービスを起動, 停止, 状態確認するコマンド。 |
+| アドレス | - | 宛先や所在を識別するための情報。 |
+| オクテット | - | 8ビットを1単位とするデータ長。 |
+| サイト | - | 情報や機能を公開する場所。 |
+| サービス | - | 機能を利用者や他システムへ提供する仕組み。 |
+| システム | - | 複数の要素が連携して目的を実現する仕組み全体。 |
+| ノード | - | ネットワークに接続された機器または処理単位。 |
+| ブロック | - | ひとかたまりとして扱う処理単位や領域。 |
+| ポート | - | 通信の出入口を識別する番号または接点。 |
+| レコード | - | ひとまとまりの情報項目。 |
+| リモートホスト | - | ネットワーク越しに接続して操作する別ホスト。 |
+| 対象ホスト | - | Playbook による設定変更や導入処理の適用先となるホスト。 |
+| sudoコマンド | sudo | 一時的に管理者権限でコマンドを実行するためのコマンド。 |
+
+## 概要
+BIND を用いた権威兼キャッシュ DNS サーバーを構成するロールです。対象 OS に応じて Debian 系と RHEL 系の差異を吸収の上, ゾーンファイルと `named.conf`/`named.conf.options` をテンプレートから生成します。
+また, クライアントからのホスト名, IPアドレス登録を受け付けるためのDynamic DNS 更新用 Transaction SIGnature (TSIG) キーを組み込み, IPv4/IPv6 双方の順引き, 逆引きゾーンを作成します。
+必要に応じて systemd, Security-Enhanced Linux (SELinux), Firewall の周辺設定も行います。
+
+本ロールは, dns-server に関する設定処理を実施します。
 
 ## 前提条件
 
@@ -58,22 +176,6 @@ ansible-playbook -i inventory/hosts server.yml --tags dns-server --skip-tags con
 ```
 
 対象プレイブックでこのロールが含まれていればタグ省略でも適用されます。
-
-## 実行フロー
-
-本ロールは以下の順序で処理を実行します:
-
-1. **パラメータ読み込み** (`load-params.yml`): OS ファミリー別パッケージ定義と共通変数を読み込み, ドメインやネットワーク関連変数を構成。
-
-2. **パッケージインストール** (`package.yml`): `dns_bind_packages` を最新化。変更があれば systemd のデフォルトターゲットを `multi-user.target` に設定。
-
-3. **設定ファイル配置とゾーンファイル生成** (`config.yml`): 設定, ゾーン格納ディレクトリをサイズの所有者とパーミッションで作成。OS ごとの `named.conf.options` テンプレートを配置し, フォワーダーや ACL を反映。`named.conf.zones.j2` と各ゾーンテンプレートを展開し, レコードを生成。複数ネットワーク対応時は追加の逆引きゾーンファイルをループで生成。RHEL 系では rndc.key 生成, SELinux fcontext 設定, 暗号ポリシーのコメントアウトを実施。
-
-4. **DNS応答をIPv4に限定するための設定** (`config-systemd-ipv4-only.yml`): `dns_bind_ipv4_only: true` の場合, systemd drop-in を生成し IPv4 応答に限定 (デフォルトは両方対応)。
-
-5. **Firewall 設定** (`config-firewall.yml`): `enable_firewall: true` のときに firewalld または UFW を自動判別し, DNS ポート(既定: 53) の TCP/UDP を開放。
-
-6. **ハンドラ実行**: 構成変更に応じて systemd リスタート, ゾーンリロード等を実行。
 
 ## 主要変数
 
@@ -127,7 +229,221 @@ ansible-playbook -i inventory/hosts server.yml --tags dns-server --skip-tags con
 | `internal_network_list` | `[]` | 複数ネットワーク逆引きゾーン対応: 追加ネットワークのリスト。各要素は `{ipv4: "...", ipv6: "..."}` 形式。 |
 | `enable_firewall` | `false` | Firewall 設定の有効化フラグ (roles/common/defaults/main.yml で定義)。 |
 
-## デフォルト動作
+### 設定例
+
+#### 基本設定 (単一ネットワーク)
+
+`vars/all-config.yml`:
+
+```yaml
+dns_domain: "example.org"
+dns_server: "ns1.example.org"
+dns_server_ipv4_address: "192.168.20.1"
+dns_network: "192.168.20.0"
+dns_network_ipv4_prefix_len: 24
+dns_network_ipv6_prefix: "fd00:1234:5678:1::"
+dns_network_ipv6_prefix_len: 64
+dns_ipv4_reverse: "20.168.192"
+dns_ipv6_reverse: "1.0.0.0.8.7.6.5.4.3.2.1.0.0.d.f"
+dns_host_list:
+  - { name: "host1", ipv4_addr: "10", ipv6_addr: "::10" }
+  - { name: "host2", ipv4_addr: "11", ipv6_addr: "::11" }
+dns_ddns_key_secret: "YOUR_BASE64_ENCODED_SECRET_HERE"
+```
+
+#### IPv4 限定設定
+
+`host_vars/<hostname>/main.yml`:
+
+```yaml
+dns_bind_ipv4_only: true
+```
+
+この設定により, systemd drop-in で `ExecStart` に `-4` フラグが追加され, named は IPv4 のみでリッスンします。
+
+#### 複数ネットワーク逆引き設定
+
+`group_vars/all/all.yml`:
+
+```yaml
+internal_network_list:
+  # ネットワーク1: IPv4 + IPv6 双方指定
+  - ipv4: "192.168.30.0/24"
+    ipv6: "fd69:6684:61a:2::/64"
+  # ネットワーク2: IPv4 のみ
+  - ipv4: "192.168.40.0/25"
+  # ネットワーク3: IPv6 のみ
+  - ipv6: "fd69:6684:61a:3::/64"
+```
+
+### 複数ネットワーク逆引きゾーン対応
+
+本ロールは複数ネットワークの逆引きゾーン ( IPv4 PTR / IPv6 PTR6 ) を自動生成できます。
+
+#### 機能概要
+
+- **単一ネットワーク**: 既存の `dns_ipv4_reverse`, `dns_ipv6_reverse`, `dns_host_list` による逆引きゾーン生成は **変更なし**で引き続き利用可能。
+- **複数ネットワーク**: `internal_network_list` を定義することで, 追加ネットワークの逆引きゾーンを自動生成。各ネットワークはカスタムフィルター ( `ipv4_reverse_zone`, `ipv6_reverse_zone` ) で CIDR ノーテーションから自動的にゾーン名を計算。
+- **動的登録対応**: 追加ネットワークのゾーンファイルはスケルトン ( SOA + NS のみ ) で生成。PTR/PTR6 レコードはクライアント側の `nsupdate` で動的に登録する運用を想定。
+
+#### 設定例
+
+##### `group_vars/all/all.yml` または `host_vars/<hostname>/main.yml`
+
+```yaml
+# === 複数ネットワーク逆引きゾーン ===
+internal_network_list:
+  # ネットワーク1: IPv4 + IPv6 双方指定
+  - ipv4: "192.168.30.0/24"
+    ipv6: "fd69:6684:61a:2::/64"
+  # ネットワーク2: IPv4 のみ
+  - ipv4: "192.168.40.0/25"
+  # ネットワーク3: IPv6 のみ
+  - ipv6: "fd69:6684:61a:3::/64"
+```
+
+##### 生成されるゾーン定義 (named.conf.zones)
+
+```bind
+// === 複数ネットワーク逆引きゾーン ===
+zone "30.168.192.in-addr.arpa" IN {
+        type    master;
+        file    "/var/lib/bind/db.30.168.192";
+        update-policy {
+                grant ddns-clients zonesub ANY PTR;
+        };
+};
+
+zone "2.0.0.0.a.1.6.0.4.8.6.6.9.6.d.f.ip6.arpa" IN {
+        type    master;
+        file    "/var/lib/bind/db.2.0.0.0.a.1.6.0.4.8.6.6.9.6.d.f";
+        update-policy {
+                grant ddns-clients zonesub ANY PTR;
+        };
+};
+
+// ... (ネットワーク2, 3 も同様)
+```
+
+##### 生成されるゾーンファイル
+
+ファイル `/var/lib/bind/db.30.168.192` (IPv4 逆引きゾーン例):
+
+```dns
+$TTL 86400
+@       IN      SOA     mgmt-server.elliptic-curve.net. root.elliptic-curve.net. (
+        202601201200 ;Serial
+        3600            ;Refresh
+        1800            ;Retry
+        604800          ;Expire
+        86400           ;Minimum TTL
+)
+
+       IN      NS       mgmt-server.elliptic-curve.net.
+
+; === 動的 DNS (nsupdate) レコード登録ゾーン ===
+; 以下のネットワークアドレス範囲の逆引きレコード(PTR)は
+; nsupdateで動的に登録してください。
+;
+; 登録対象ネットワーク: 192.168.30.0/24
+;
+; 登録例:
+; nsupdate -k /etc/bind/ddns.key
+; > server 192.168.30.1
+; > zone 30.168.192.in-addr.arpa.
+; > update add 100.30.168.192.in-addr.arpa 3600 PTR hostname.example.org.
+; > send
+;
+```
+
+#### クライアント側の nsupdate 使用例
+
+```bash
+#!/bin/bash
+# クライアント側で動的に PTR を登録
+
+DNS_SERVER="192.168.30.1"
+REVERSE_ZONE="30.168.192.in-addr.arpa"
+DDNS_KEY="/etc/bind/ddns.key"
+HOSTNAME="client01.example.org"
+IPADDR="192.168.30.100"
+TTL=3600
+
+# IPv4 逆引きレコード登録
+nsupdate -k "$DDNS_KEY" <<EOF
+server $DNS_SERVER
+zone $REVERSE_ZONE
+update add ${IPADDR##*.}.${IPADDR%.*} $TTL PTR $HOSTNAME.
+send
+EOF
+
+# IPv6 の場合 ( 例 )
+# IPv6 PTR の計算: fd69:6684:61a:2::100  =>  0.0.1.0.0.0.0.0.0.0.0.0.2.0.0.0.a.1.6.0.4.8.6.6.9.6.d.f.ip6.arpa
+```
+
+#### カスタムフィルターの詳細
+
+##### `ipv4_reverse_zone` フィルター
+
+IPv4 CIDR ネットワークを逆引きゾーン名に変換します。
+
+| 入力 | 出力 | 用途 |
+|------|------|------|
+| `192.168.30.0/24` | `30.168.192` | zone "30.168.192.in-addr.arpa" |
+| `192.168.0.0/16` | `168.192` | zone "168.192.in-addr.arpa" |
+| `10.0.0.0/8` | `10` | zone "10.in-addr.arpa" |
+| `192.168.30.128/25` | `30.168.192` | /24 未満は最初の 3 オクテット |
+
+**エラーハンドリング**: CIDR 形式不正 ( 例：`192.168.30` など ) の場合, AnsibleFilterError 例外を発生させ, タスク失敗となります。
+
+##### `ipv6_reverse_zone` フィルター
+
+IPv6 プレフィクスとプレフィクス長を逆引きゾーン名 ( ニブル形式 ) に変換します。
+
+| 入力 | 出力 | 用途 |
+|------|------|------|
+| `fd69:6684:61a:2::/64` | `2.0.0.0.a.1.6.0.4.8.6.6.9.6.d.f` | zone "2.0.0.0.a.1.6.0.4.8.6.6.9.6.d.f.ip6.arpa" |
+| `fd69:6684:61a:3::/64` | `3.0.0.0.a.1.6.0.4.8.6.6.9.6.d.f` | zone "3.0.0.0.a.1.6.0.4.8.6.6.9.6.d.f.ip6.arpa" |
+| `2001:db8::/32` | `8.b.d.0.1.0.0.2` | zone "8.b.d.0.1.0.0.2.ip6.arpa" |
+
+**エラーハンドリング**:
+- IPv6 形式不正 ( 例：`gggg::` )  =>  AnsibleFilterError
+- プレフィクス長が 0-128 範囲外  =>  AnsibleFilterError
+
+## テンプレートと生成ファイル
+
+本ロールでは以下のテンプレート/ファイルを出力します:
+
+| テンプレートファイル名 | 出力先パス | 説明 |
+|------|--------|------|
+| `rhel-named.conf.j2` | `/etc/named.conf` (RHEL) (既定: `/etc/named.conf` (RHEL)) | 最小クリーン版 named.conf (既存ファイルをバックアップ後に置換)。 |
+| `named.conf.options.j2` | `/etc/bind/named.conf.options` (Debian) (既定: `/etc/bind/named.conf.options` (Debian)) | ACL, options, forwarders を定義。 |
+| `rhel-named.conf.options.j2` | `/etc/named/named.conf.options` (RHEL) (既定: `/etc/named/named.conf.options` (RHEL)) | ACL, options, forwarders, rndc controls セクション, rndc.key の include を定義。 |
+| `named.conf.zones.j2` | `/etc/bind/named.conf.zones` / `/etc/named/named.conf.zones` (既定: `/etc/bind/named.conf.zones` / `/etc/named/named.conf.zones`) | 順引き/逆引きゾーン定義 (単一ネットワーク + 複数ネットワーク対応)。 |
+| `db.forward.conf.j2` | `/var/lib/bind/db.<DNS_domain>` / `/var/named/zone/db.<DNS_domain>` (既定: `/var/lib/bind/db.<DNS_domain>` / `/var/named/zone/db.<DNS_domain>`) | 順引きゾーンファイル (A/AAAA レコード)。 |
+| `db.reverse.j2` | `/var/lib/bind/db.<reverse_zone>` / `/var/named/zone/db.<reverse_zone>` (既定: `/var/lib/bind/db.<reverse_zone>` / `/var/named/zone/db.<reverse_zone>`) | IPv4 逆引きゾーンファイル (PTR レコード)。 |
+| `db.reverse.ipv6.j2` | `/var/lib/bind/db.<reverse_zone_ipv6>` / `/var/named/zone/db.<reverse_zone_ipv6>` (既定: `/var/lib/bind/db.<reverse_zone_ipv6>` / `/var/named/zone/db.<reverse_zone_ipv6>`) | IPv6 逆引きゾーンファイル (PTR レコード)。 |
+| `db.reverse.additional.j2` | `/var/lib/bind/db.<reverse_zone>` / `/var/named/zone/db.<reverse_zone>` (既定: `/var/lib/bind/db.<reverse_zone>` / `/var/named/zone/db.<reverse_zone>`) | 追加 IPv4 逆引きゾーンファイル (スケルトン: SOA + NS のみ)。 |
+| `db.reverse.additional.ipv6.j2` | `/var/lib/bind/db.<reverse_zone_ipv6>` / `/var/named/zone/db.<reverse_zone_ipv6>` (既定: `/var/lib/bind/db.<reverse_zone_ipv6>` / `/var/named/zone/db.<reverse_zone_ipv6>`) | 追加 IPv6 逆引きゾーンファイル (スケルトン: SOA + NS のみ)。 |
+| `90-override.conf.j2` | `/etc/systemd/system/named.service.d/90-override.conf` (既定: `/etc/systemd/system/named.service.d/90-override.conf`) | IPv4 限定用 systemd drop-in (ExecStart に `-4` を追加)。 |
+
+## 実行フロー
+
+本ロールは以下の順序で処理を実行します:
+
+1. **パラメータ読み込み** (`load-params.yml`): OS ファミリー別パッケージ定義と共通変数を読み込み, ドメインやネットワーク関連変数を構成。
+
+2. **パッケージインストール** (`package.yml`): `dns_bind_packages` を最新化。変更があれば systemd のデフォルトターゲットを `multi-user.target` に設定。
+
+3. **設定ファイル配置とゾーンファイル生成** (`config.yml`): 設定, ゾーン格納ディレクトリをサイズの所有者とパーミッションで作成。OS ごとの `named.conf.options` テンプレートを配置し, フォワーダーや ACL を反映。`named.conf.zones.j2` と各ゾーンテンプレートを展開し, レコードを生成。複数ネットワーク対応時は追加の逆引きゾーンファイルをループで生成。RHEL 系では rndc.key 生成, SELinux fcontext 設定, 暗号ポリシーのコメントアウトを実施。
+
+4. **DNS応答をIPv4に限定するための設定** (`config-systemd-ipv4-only.yml`): `dns_bind_ipv4_only: true` の場合, systemd drop-in を生成し IPv4 応答に限定 (デフォルトは両方対応)。
+
+5. **Firewall 設定** (`config-firewall.yml`): `enable_firewall: true` のときに firewalld または UFW を自動判別し, DNS ポート(既定: 53) の TCP/UDP を開放。
+
+6. **ハンドラ実行**: 構成変更に応じて systemd リスタート, ゾーンリロード等を実行。
+
+### デフォルト動作
 
 | 条件 | 結果 |
 |-----|------|
@@ -141,24 +457,7 @@ ansible-playbook -i inventory/hosts server.yml --tags dns-server --skip-tags con
 | SELinux が有効 (RHEL 系) | `dns_bind_zone_dir` に `named_zone_t` コンテキストを自動適用。 |
 | SELinux が無効 (RHEL 系) | SELinux 関連タスクがスキップされます。 |
 
-## テンプレート, ファイル
-
-本ロールでは以下のテンプレート/ファイルを出力します:
-
-| テンプレートファイル名 | 出力先 | 説明 |
-|------|--------|------|
-| `rhel-named.conf.j2` | `/etc/named.conf` (RHEL) | 最小クリーン版 named.conf (既存ファイルをバックアップ後に置換)。 |
-| `named.conf.options.j2` | `/etc/bind/named.conf.options` (Debian) | ACL, options, forwarders を定義。 |
-| `rhel-named.conf.options.j2` | `/etc/named/named.conf.options` (RHEL) | ACL, options, forwarders, rndc controls セクション, rndc.key の include を定義。 |
-| `named.conf.zones.j2` | `/etc/bind/named.conf.zones` / `/etc/named/named.conf.zones` | 順引き/逆引きゾーン定義 (単一ネットワーク + 複数ネットワーク対応)。 |
-| `db.forward.conf.j2` | `/var/lib/bind/db.<DNS_domain>` / `/var/named/zone/db.<DNS_domain>` | 順引きゾーンファイル (A/AAAA レコード)。 |
-| `db.reverse.j2` | `/var/lib/bind/db.<reverse_zone>` / `/var/named/zone/db.<reverse_zone>` | IPv4 逆引きゾーンファイル (PTR レコード)。 |
-| `db.reverse.ipv6.j2` | `/var/lib/bind/db.<reverse_zone_ipv6>` / `/var/named/zone/db.<reverse_zone_ipv6>` | IPv6 逆引きゾーンファイル (PTR レコード)。 |
-| `db.reverse.additional.j2` | `/var/lib/bind/db.<reverse_zone>` / `/var/named/zone/db.<reverse_zone>` | 追加 IPv4 逆引きゾーンファイル (スケルトン: SOA + NS のみ)。 |
-| `db.reverse.additional.ipv6.j2` | `/var/lib/bind/db.<reverse_zone_ipv6>` / `/var/named/zone/db.<reverse_zone_ipv6>` | 追加 IPv6 逆引きゾーンファイル (スケルトン: SOA + NS のみ)。 |
-| `90-override.conf.j2` | `/etc/systemd/system/named.service.d/90-override.conf` | IPv4 限定用 systemd drop-in (ExecStart に `-4` を追加)。 |
-
-## OS 差異
+### OS 差異
 
 RHEL 系 (Rocky Linux, AlmaLinux 等) と Debian 系 (Debian, Ubuntu) の主な差異を以下に示します:
 
@@ -176,7 +475,7 @@ RHEL 系 (Rocky Linux, AlmaLinux 等) と Debian 系 (Debian, Ubuntu) の主な�
 | **SELinux** | 該当なし | 有効時に `semanage fcontext` と `restorecon` を実行 | RHEL のみ SELinux コンテキスト設定が必要。 |
 | **Firewall バックエンド** | UFW | firewalld | Debian では UFW, RHEL では firewalld を優先。 |
 
-### RHEL 系専用処理の詳細
+#### RHEL 系専用処理の詳細
 
 RHEL 系では以下の専用処理を実施します:
 
@@ -197,54 +496,23 @@ RHEL 系では以下の専用処理を実施します:
 
 5. **SELinux fcontext 設定**: SELinux が有効な場合, `semanage fcontext -a -t named_zone_t '{{ dns_bind_selinux_target }}'` を実行し, `restorecon -Rv {{ dns_bind_zone_dir }}` でゾーンディレクトリに `named_zone_t` コンテキストを適用。Debian には SELinux が存在しないため, この処理は不要。
 
-## 設定例
+## 主な処理
 
-### 基本設定 (単一ネットワーク)
+本ロールは, DNS サーバの導入からゾーン生成, サービス有効化までを実行する。
 
-`vars/all-config.yml`:
+1. OS 種別に応じた DNS パッケージと依存パッケージを導入する。
+2. named.conf とゾーン定義を生成し, フォワーダーと ACL を反映する。
+3. サービスを再起動し, 起動状態と設定整合を検証する。
 
-```yaml
-dns_domain: "example.org"
-dns_server: "ns1.example.org"
-dns_server_ipv4_address: "192.168.20.1"
-dns_network: "192.168.20.0"
-dns_network_ipv4_prefix_len: 24
-dns_network_ipv6_prefix: "fd00:1234:5678:1::"
-dns_network_ipv6_prefix_len: 64
-dns_ipv4_reverse: "20.168.192"
-dns_ipv6_reverse: "1.0.0.0.8.7.6.5.4.3.2.1.0.0.d.f"
-dns_host_list:
-  - { name: "host1", ipv4_addr: "10", ipv6_addr: "::10" }
-  - { name: "host2", ipv4_addr: "11", ipv6_addr: "::11" }
-dns_ddns_key_secret: "YOUR_BASE64_ENCODED_SECRET_HERE"
+## 検証ポイント
+
+実行者は以下の検証コマンドを実行し, 構文検査が成功することを確認します。
+
+```bash
+ansible-playbook -i inventory/hosts site.yml --syntax-check
 ```
 
-### IPv4 限定設定
-
-`host_vars/<hostname>/main.yml`:
-
-```yaml
-dns_bind_ipv4_only: true
-```
-
-この設定により, systemd drop-in で `ExecStart` に `-4` フラグが追加され, named は IPv4 のみでリッスンします。
-
-### 複数ネットワーク逆引き設定
-
-`group_vars/all/all.yml`:
-
-```yaml
-internal_network_list:
-  # ネットワーク1: IPv4 + IPv6 双方指定
-  - ipv4: "192.168.30.0/24"
-    ipv6: "fd69:6684:61a:2::/64"
-  # ネットワーク2: IPv4 のみ
-  - ipv4: "192.168.40.0/25"
-  # ネットワーク3: IPv6 のみ
-  - ipv6: "fd69:6684:61a:3::/64"
-```
-
-## 検証
+期待結果: エラーが出力されず, syntax check が成功します。
 
 ロール適用後, DNS サーバーの動作を検証します。検証パターンは構成に応じて実施してください。
 
@@ -1181,8 +1449,6 @@ IPv6 プレフィクスとプレフィクス長を逆引きゾーン名 ( ニブ
 
 テンプレートは `templates/` 配下にあり, 環境に合わせて `named.conf.*` や `db.*` を生成します。特に `named.conf.zones.j2` では `grant ddns-clients zonesub` によりサブゾーン単位の Dynamic DNS を許可します。`bind_serial` を事前に指定すると SOA シリアルを固定できます。
 
-## 留意事項
-
 ### セキュリティ
 
 - **TSIG シークレット管理**: `dns_ddns_key_secret` は機密情報を含むファイルであるため, セキュリティ方針に応じて適切に管理してください。
@@ -1195,3 +1461,10 @@ IPv6 プレフィクスとプレフィクス長を逆引きゾーン名 ( ニブ
 - **Dynamic DNS クライアントとの統合**: Dynamic DNS クライアントスクリプト (`roles/common/templates/ddns-client-update.sh.j2` 等) と組み合わせる場合, FQDN 末尾のドット (`.`) やゾーン名の整合性に注意してください。
 - **複数ネットワーク逆引きゾーンの重複チェック**: 重複定義の自動検出機能がないため, `named-checkconf -z` を手動で実行して重複がないことを運用者側で確認してください。特に `dns_ipv4_reverse` と `internal_network_list` のネットワークが重複しないように注意してください。
 - **シリアル番号の自動更新**: `bind_serial` が未指定の場合, テンプレート生成時に日付ベースのシリアル番号が自動生成されます。シリアル番号を固定したい場合は明示的に `bind_serial`変数 を設定してください。
+
+## 参考資料
+
+### 公式ドキュメント
+
+- BIND 9 Administrator Reference Manual: https://bind9.readthedocs.io/en/latest/
+- ISC Kea DHCP: https://kea.readthedocs.io/en/latest/

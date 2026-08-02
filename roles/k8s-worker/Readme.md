@@ -1,50 +1,159 @@
 # k8s-worker ロール
 
-Kubernetes ワーカーノードを Kubernetes クラスタへ参加させるためのロールです。`k8s-common` で整えた前提の上に, 低遅延化向けの OS チューニング, ワーカーノードを Kubernetes クラスタへ参加させる設定, ワーカーノードで必要な通信を許可するファイアウォール設定 (NodePort を使う場合の設定を含む), Cilium BGP Control Plane の設定をまとめて適用します。既存ワーカーノードのスケジュール停止 (`kubectl cordon`), Pod退避 (`kubectl drain`), Kubernetes クラスタからの削除 (`kubectl delete node`) まで一括で扱います。
+本ロールは, Kubernetes ワーカーノードを Kubernetes クラスタへ参加させるためのロールです。
+
+## 目次
+
+- [k8s-worker ロール](#k8s-worker-ロール)
+  - [目次](#目次)
+  - [用語](#用語)
+  - [概要](#概要)
+  - [前提条件](#前提条件)
+  - [実行方法](#実行方法)
+  - [主要変数](#主要変数)
+    - [API 待機設定](#api-待機設定)
+    - [containerd 待機設定](#containerd-待機設定)
+    - [Kubernetes オペレータユーザ設定](#kubernetes-オペレータユーザ設定)
+    - [セットアップツール配置先](#セットアップツール配置先)
+    - [ワーカーノード固有設定](#ワーカーノード固有設定)
+    - [ファイアウォール / NodePort 設定](#ファイアウォール--nodeport-設定)
+    - [CPU / systemd スライス設定](#cpu--systemd-スライス設定)
+    - [Cilium BGP Control Plane 設定](#cilium-bgp-control-plane-設定)
+  - [設定例](#設定例)
+    - [基本設定](#基本設定)
+    - [低遅延構成](#低遅延構成)
+    - [Cilium BGP Control Plane 有効構成](#cilium-bgp-control-plane-有効構成)
+  - [テンプレートと生成ファイル](#テンプレートと生成ファイル)
+  - [実行フロー](#実行フロー)
+    - [ハンドラ処理](#ハンドラ処理)
+    - [OS 差異](#os-差異)
+      - [ファイアウォール設定の差異](#ファイアウォール設定の差異)
+      - [GRUB 更新方法の差異](#grub-更新方法の差異)
+  - [検証ポイント](#検証ポイント)
+    - [前提条件](#前提条件-1)
+    - [1. Kubernetes ノード登録状態の確認](#1-kubernetes-ノード登録状態の確認)
+    - [2. kubelet サービス状態の確認](#2-kubelet-サービス状態の確認)
+    - [3. kubelet ログの確認](#3-kubelet-ログの確認)
+    - [4. CPU 予約設定の確認 (低遅延構成時)](#4-cpu-予約設定の確認-低遅延構成時)
+    - [5. CPU 割り当て固定サービスの確認 (低遅延構成時)](#5-cpu-割り当て固定サービスの確認-低遅延構成時)
+    - [6. Cilium BGP Control Plane リソースの確認 (Cilium BGP Control Plane 有効構成時)](#6-cilium-bgp-control-plane-リソースの確認-cilium-bgp-control-plane-有効構成時)
+    - [7. ファイアウォール設定の確認 (`enable_firewall: true` の場合)](#7-ファイアウォール設定の確認-enable_firewall-true-の場合)
+  - [トラブルシューティング](#トラブルシューティング)
+  - [注意事項](#注意事項)
+  - [参考資料](#参考資料)
+    - [公式ドキュメント](#公式ドキュメント)
+
 
 ## 用語
 
 | 正式名称 | 略称 | 意味 |
 | --- | --- | --- |
-| Application Programming Interface | API | アプリケーション同士がやり取りする方法を定めた仕様。 |
+| ユーザ | - | 機能を利用する人, 又は識別された利用主体。 |
+| ツール | - | 特定作業を実行するための機能や道具。 |
+| リソース | - | 処理に必要な計算機資源やデータ。 |
+| クラスタ | - | 複数の機器を連携させて一体運用する構成。 |
+| ディストリビューション | - | 基本ソフトウェアと関連部品をまとめた配布形態。 |
+| コンテナイメージ | - | コンテナ実行に必要な内容をまとめた保存形式。 |
+| プログラム | - | 計算機に処理をさせるための命令列。 |
+| コミュニティ | - | 共通目的のもとで継続的に活動する利用者集団。 |
+| プラグイン | - | 既存機能へ追加機能を組み込むための拡張部品。 |
+| サービスアカウント | - | 自動処理向けに用意する利用主体の識別情報。 |
+| コンテナランタイム | - | コンテナを起動, 停止, 管理する実行基盤。 |
+| リクエスト | - | 処理実行や情報取得を要求する操作。 |
+| コントローラ | - | 対象状態を監視し, 期待状態へ調整する制御機能。 |
+| メタデータ | - | 対象データの属性や説明を示す付加情報。 |
+| バックエンド | - | 利用者画面の背後で処理を実行する側。 |
+| ストレージ | - | データを保存する仕組み。 |
+| インストール | - | ソフトウェアを導入して利用可能にする作業。 |
+| マシン | - | 処理を実行する計算機。 |
+| プロビジョニング | - | 利用開始に必要な設定や資源を準備する作業。 |
+| ルーティング | - | 宛先までの経路を選択して転送する処理。 |
+| オブジェクト | - | ひとかたまりとして扱うデータ単位。 |
+| エージェント | - | 指示に従って処理を代行する構成要素。 |
+| ストア | - | データや成果物を保存する場所。 |
+| ジャーナル | - | 時系列の記録を保持する仕組み。 |
+| アカウント | - | 利用者や処理主体を識別する登録情報。 |
+| エンドポイント | - | 通信の接続先を表す識別点。 |
+| パターン | - | 繰り返し現れる構造や記述形式。 |
+| パケット | - | ネットワークで転送するデータ単位。 |
+| カーネル | - | 基本ソフトウェアの中核機能。 |
+| シェル | - | コマンド入力で計算機を操作する仕組み。 |
+| Playbook | - | 自動化処理の実行手順を記述したファイル。 |
+| Canonical | - | Ubuntu を提供する組織名。 |
+| Key-Value | - | キーと値の組で情報を表す方式。 |
+| IP | - | インターネットプロトコルの略称。 |
+| SQL | - | データベースを操作するための記述言語。 |
+| HTTP | - | WWW で情報をやり取りする通信手順。 |
+| HTTPS | - | 通信内容を暗号化して WWW 通信を行う方式。 |
+| RPM | - | RHEL 系で使用するパッケージ形式。 |
+| VM | - | 物理機器上で動作する仮想的な計算機。 |
+| localhost | - | 同一機器自身を指す名前。 |
+| root | - | Unix 系システムの最上位権限を持つ管理者識別子。 |
+| ソフトウェア | - | 情報処理システムで使用するプログラム, 手順, 規則及び関連文書の全体又は一部分。 |
+| アプリケーション | - | 利用者の目的を実現するために動作するソフトウェア。 |
+| パッケージ | - | ソフトウェア導入に必要なファイルをまとめた配布単位。 |
+| リポジトリ | - | ソフトウェアや設定情報を保管し, 取得できるようにした管理場所。 |
+| コマンド | - | 実行者が計算機へ処理を指示するための命令。 |
+| ホスト | - | 管理対象として識別される個別の計算機。 |
+| サーバ | - | 他の機器や利用者へ機能やデータを提供する計算機, 又はその役割。 |
+| コンテナ | - | アプリケーションを動かす隔離された実行単位。 |
+| ネットワーク | - | 機器同士を接続してデータをやり取りする仕組み。 |
+| プロトコル | - | 通信やデータ交換の手順を定めた取り決め。 |
+| ディレクトリ | - | ファイルを階層的に整理するための入れ物。 |
+| ログ | - | 処理の結果や状態を時系列で記録した情報。 |
+| コード | - | 処理内容を記述した文字列。 |
+| Kubernetes | K8s | コンテナを管理する基盤ソフトウェア。 |
+| Pod | - | Kubernetes でコンテナをまとめて管理する最小単位。 |
+| Linux | - | 多くの機器で使われる, 基本ソフトウェアの系統。 |
+| Debian | - | コミュニティ主導で開発される Linux ディストリビューション。 |
+| Ubuntu | - | Canonical が提供する Debian 系の Linux ディストリビューション。 |
+| Docker | - | コンテナイメージやコンテナの作成, 実行, 管理を行うコマンド。 |
+| Ansible | - | 設定の同一化や導入作業を所定の手順に従って自動化する仕組み。 |
+| World Wide Web | WWW | ネットワーク上で文書や情報を相互参照できる仕組み。 |
+| Service | - | サービスの英語表記。 |
+| Node | - | ノードの英語表記。 |
+| Makefile | - | 実行手順を定義したファイル。 |
+| API | - | アプリケーション同士がやり取りする方法を定めた仕様。 |
+| URL | - | WWW 上の資源の場所を示す文字列。 |
+| Application Programming Interface | API | API の正式名称。 |
 | Custom Resource Definition | CRD | Kubernetes APIを拡張してユーザ独自のリソース種別を定義する仕組み。 |
 | Role-Based Access Control | RBAC | ユーザやサービスアカウントが実行可能な操作を役割(Role)で制限する仕組み。 |
 | Service Account | - | Kubernetes内部でPodが他のリソースにアクセスする際に用いる仮想的なアカウント。 |
-| ClusterRole | - | Kubernetes クラスタ全体に適用される権限の集合。 |
+| ClusterRole | - | Kubernetesクラスタ全体に適用される権限の集合。 |
 | ClusterRoleBinding | - | ClusterRoleをユーザやサービスアカウントに紐付ける仕組み。 |
 | Role | - | 特定の名前空間内で有効な権限の集合。 |
 | RoleBinding | - | Roleをユーザやサービスアカウントに紐付ける仕組み。 |
 | 名前空間 ( namespace )  | - | Kubernetes内部でリソースを論理的に分離する単位。 |
 | ポッド ( Pod ) | - | Kubernetes上で動作するコンテナの最小単位。 |
-| デーモンセット ( DaemonSet ) | - | Kubernetes クラスタ内の全 Kubernetes ノード(または指定した一部の Kubernetes ノード)で必ずPodを1つずつ起動させるリソース。 |
+| デーモンセット ( DaemonSet ) | - | Kubernetesクラスタ内の全ノード(または指定した一部のノード)で必ずPodを1つずつ起動させるリソース。 |
 | デプロイメント ( Deployment ) | - | 指定した数のPodを維持し, ローリングアップデート等を管理するリソース。 |
 | StatefulSet | - | 状態を持つアプリケーションのPodを順序付けて管理するリソース。 |
 | サービス ( Service ) | - | Podへのアクセスを抽象化し, 負荷分散やサービスディスカバリを提供するリソース。 |
-| Ingress | - | Kubernetes クラスタ外部からHTTP/HTTPS通信を受け付け, 内部のServiceへルーティングする仕組み。 |
+| Ingress | - | Kubernetesクラスタ外部からHTTP/HTTPS通信を受け付け, 内部のServiceへルーティングする仕組み。 |
 | コンフィグマップ ( ConfigMap ) | - | 設定情報を保持し, Podへ環境変数やファイルとして注入するリソース。 |
 | シークレット ( Secret ) | - | 機密情報を保持し, Podへ安全に注入するリソース。 |
-| PersistentVolume | PV | Kubernetes クラスタ内で利用可能なストレージリソースを表すオブジェクト。 |
+| PersistentVolume | PV | Kubernetesクラスタ内で利用可能なストレージリソースを表すオブジェクト。 |
 | PersistentVolumeClaim | PVC | ユーザがPVを要求する際に利用するリソース。 |
 | StorageClass | - | 動的にPVをプロビジョニングする際のストレージ種別を定義するリソース。 |
-| Kubernetes ノード ( Kubernetes Node ) | - | Kubernetes クラスタを構成する物理マシンまたは仮想マシン。 |
-| コントロールプレーンノード ( Control Plane Node ) | - | Kubernetes クラスタ全体を管理, 制御する中枢ノード群。kube-apiserver, kube-controller-manager, kube-schedulerなどが動作する。 |
-| ワーカーノード ( Worker Node ) | - | 実際にアプリケーションのPodを実行する Kubernetes ノード。 |
+| Kubernetes ノード ( Kubernetes Node ) | - | Kubernetesクラスタを構成する物理マシンまたは仮想マシン。 |
+| コントロールプレーンノード ( Control Plane Node ) | - | Kubernetesクラスタ全体を管理, 制御する中枢ノード群。kube-apiserver, kube-controller-manager, kube-schedulerなどが動作します。 |
+| ワーカーノード ( Worker Node ) | - | Kubernetes クラスタで実際にアプリケーション(ポッド ( Pod ))が実行されるノード。kubelet と呼ばれるエージェントが動作し, コントロールプレーンノードからの指示に基づいてコンテナを実行管理します。 |
 | kube-apiserver | - | KubernetesのAPIリクエストを受け付け, etcdへの読み書きを仲介するコンポーネント。 |
-| kube-controller-manager | - | Deployment, ReplicaSetなど各種コントローラを実行し, Kubernetes クラスタの状態を監視, 調整するコンポーネント。 |
-| kube-scheduler | - | 新規作成されたPodを適切な Kubernetes ノードへ配置するコンポーネント。 |
-| kubelet | - | 各 Kubernetes ノード上で動作し, Podの起動, 停止, 監視を行うエージェント。 |
-| kube-proxy | - | 各 Kubernetes ノード上でServiceのネットワークルールを管理するコンポーネント。 |
-| etcd | - | Kubernetes の Kubernetes クラスタ状態を保存する分散Key-Valueストア。 |
+| kube-controller-manager | - | Deployment, ReplicaSetなど各種コントローラを実行し, Kubernetesクラスタの状態を監視, 調整するコンポーネント。 |
+| kube-scheduler | - | 新規作成されたPodを適切なNodeへ配置するコンポーネント。 |
+| kubelet | - | 各Node上で動作し, Podの起動, 停止, 監視を行うエージェント。 |
+| kube-proxy | - | 各Node上でServiceのネットワークルールを管理するコンポーネント。 |
+| etcd | - | KubernetesのKubernetesクラスタ状態を保存する分散Key-Valueストア。 |
 | Container Network Interface | CNI | コンテナ間のネットワーク接続を標準化するプラグイン仕様。 |
-| Cilium | - | eBPFを活用した高性能なCNIプラグイン。ネットワークポリシーやサービスメッシュ機能を提供する。 |
+| Cilium | - | eBPFを活用した高性能なCNIプラグイン。ネットワークポリシーやサービスメッシュ機能を提供します。 |
 | Serviceエンドポイント ( Service Endpoint ) | - | Serviceのバックエンドとして通信を受けるPod, または, 当該の通信を受けるPodに加え, 当該の通信を受けるPodへ通信を届けるためのネットワーク上の転送先情報全体を指す。 |
-| Serviceエンドポイント情報 ( Service Endpoint Information ) | - | Serviceエンドポイントを特定して転送先を決めるための情報。主にバックエンドPodのIPアドレス, ポート番号, プロトコル, 所属 Kubernetes クラスタ名(またはクラスタ識別子)で構成される。 |
+| Serviceエンドポイント情報 ( Service Endpoint Information ) | - | Serviceエンドポイントを特定して転送先を決めるための情報。主にバックエンドPodのIPアドレス, ポート番号, プロトコル, 所属クラスタ名(またはクラスタ識別子)で構成される。 |
 | Multus | - | 複数のCNIプラグインを同時に使用できるようにするメタCNIプラグイン。 |
 | Container Runtime Interface | CRI | Kubernetesがコンテナランタイムと通信するための標準インターフェース。 |
 | containerd | - | Dockerから分離された軽量なコンテナランタイム。 |
-| kubeadm | - | Kubernetes クラスタの初期構築と管理を支援する公式ツール。 |
-| kubectl | - | Kubernetes クラスタを操作するためのコマンドラインツール。 |
-| Helm | - | Kubernetesアプリケーションのパッケージ管理ツール。Chart形式でアプリケーションを配布, インストールする。 |
+| kubeadm | - | Kubernetesクラスタの初期構築と管理を支援する公式ツール。 |
+| kubectl | - | Kubernetesクラスタを操作するためのコマンドラインツール。 |
+| Helm | - | Kubernetesアプリケーションのパッケージ管理ツール。Chart形式でアプリケーションを配布, インストールします。 |
 | Chart | - | Helmで管理されるアプリケーションパッケージの単位。Kubernetes Manifestのテンプレート集。 |
 | Operator | - | アプリケーション固有の運用知識をコードで自動化するKubernetesの拡張パターン。 |
 | Custom Resource | CR | CRDで定義されたユーザ独自のリソースの実体。 |
@@ -53,32 +162,61 @@ Kubernetes ワーカーノードを Kubernetes クラスタへ参加させるた
 | Label | - | リソースに付与するKey-Value形式のメタデータ。リソースの分類, 検索に利用される。 |
 | Selector | - | Labelを利用してリソースを選択する条件式。 |
 | Annotation | - | リソースに付与するKey-Value形式の補足情報。ツールやコントローラが参照するメタデータ。 |
-| Taint | - | Kubernetes ノードに設定する特殊なマークで, 特定の条件を満たさないPodの配置を拒否する。 |
-| Toleration | - | PodがTaintを持つ Kubernetes ノードへ配置されることを許可する設定。 |
-| Uncomplicated Firewall | UFW | Ubuntu向けの簡易ファイアウォール管理ツール。iptablesのフロントエンドとして動作し, 直感的なコマンドでルール設定が可能。 |
-| Border Gateway Protocol | BGP | インターネット上の自律システム間でルーティング情報を交換するための外部ゲートウェイプロトコル。Kubernetes環境ではCilium BGP Control Planeによるネットワーク経路制御に使用される。 |
-| Cilium BGP Control Plane | - | Cilium が提供する BGP 連携機能。Kubernetes ノード情報や Service 情報に基づく経路広告を外部ルータへ配布するために利用する。 |
+| Taint | - | Kubernetes ノードに設定する特殊なマークで, 特定の条件を満たさないPodの配置を拒否します。 |
+| Toleration | - | PodがTaintを持つNodeへ配置されることを許可する設定。 |
+| Uncomplicated Firewall | UFW | 簡易な操作で設定できるパケット制御機能。 |
+| Border Gateway Protocol | BGP | 自律システム間で経路情報を交換する経路制御方式。 |
+| Cilium BGP Control Plane | - | Cilium が提供する BGP 連携機能。Kubernetes ノード情報や Service 情報に基づく経路広告を外部ルータへ配布するために利用します。 |
 | CiliumBGPAdvertisement | - | Cilium BGP Control Plane で広告対象のプレフィックスや属性を定義するカスタムリソース。 |
 | CiliumBGPPeerConfig | - | Cilium BGP Control Plane で BGP ピアとのセッション設定を定義するカスタムリソース。 |
 | CiliumBGPClusterConfig | - | Cilium BGP Control Plane で Kubernetes ノード単位の BGP 構成を定義するカスタムリソース。 |
 | NodePort | - | Service の公開方式の一つで, 各 Kubernetes ノードの特定ポートを開放して Kubernetes クラスタ外部からのアクセスを受け付ける仕組み。 |
-| Classless Inter-Domain Routing | CIDR | IP アドレス範囲をプレフィックス長で表現する記法。ネットワーク経路や許可範囲の指定に利用される。 |
-| ReplicaSet | - | 指定した数の Pod レプリカを維持する Kubernetes リソース。通常は Deployment が内部的に管理する。 |
-| kubeconfig | - | kubectlや他のツールが Kubernetes クラスタにアクセスするための設定ファイル。接続先 Kubernetes クラスタ情報, 認証情報, コンテキストを含む。 |
+| Classless Inter-Domain Routing | CIDR | IP アドレスとネットワークプレフィックス長を組み合わせた表記法。 |
+| ReplicaSet | - | 指定した数の Pod レプリカを維持する Kubernetes リソース。通常は Deployment が内部的に管理します。 |
+| kubeconfig | - | Kubernetes 接続設定ファイルを指す名称。kubectl などが参照する。 |
 | Extended Berkeley Packet Filter | eBPF | Linux カーネル内で安全にプログラムを実行する仕組み。高性能なパケット処理や観測機能の実装に利用される。 |
-| Hypertext Transfer Protocol | HTTP | Web 通信で利用されるアプリケーション層プロトコル。 |
-| Hypertext Transfer Protocol Secure | HTTPS | TLS により暗号化された HTTP 通信。 |
-| Internet Protocol | IP | ネットワーク機器間でパケットを配送するための基盤プロトコル。 |
-| Operating System | OS | ハードウェア資源の管理とアプリケーション実行基盤を提供する基本ソフトウェア。 |
-| systemd スライス ( systemd slice ) | - | Linux の systemd でプロセスを階層的にまとめて管理するための単位。CPU やメモリなどの資源制御に利用する。 |
-| Red Hat Enterprise Linux | RHEL | Red Hat 社が提供する Linux ディストリビューション。RHEL9 はそのメジャーバージョン 9 を指す。 |
-| Secure Shell | SSH | 暗号化されたリモート接続とコマンド実行を提供するプロトコル。 |
-| Certificate Authority | CA | デジタル証明書を発行し, 署名する信頼された機関。Kubernetesでは各種コンポーネント間の通信を保護するために使用される。 |
+| Hypertext Transfer Protocol | HTTP | HTTP の正式名称。 |
+| Hypertext Transfer Protocol Secure | HTTPS | 通信内容を暗号化して Web 通信を行う方式。 |
+| Internet Protocol | IP | ネットワーク上で宛先を識別し, データを届けるための通信手順。 |
+| Operating System | OS | 計算機の基本機能を管理し, アプリケーションを動作させる基盤ソフトウェア。 |
+| systemd スライス ( systemd slice ) | - | Linux の systemd でプロセスを階層的にまとめて管理するための単位。CPU やメモリなどの資源制御に利用します。 |
+| Red Hat Enterprise Linux | RHEL | Red Hat 社が提供する商用 Linux ディストリビューション。 |
+| Secure Shell | SSH | 遠隔の計算機へ安全に接続して操作する方式。 |
+| Certificate Authority | CA | 電子証明書を発行して正当性を保証する組織または仕組み。 |
 | Basic Input/Output System | BIOS | 起動時にハードウェア初期化とブート処理を実行するファームウェア方式。 |
 | Unified Extensible Firmware Interface | UEFI | BIOS を拡張, 置換するファームウェア方式。 |
-| Central Processing Unit | CPU | 命令実行と演算処理を担う主要な計算装置。 |
+| Central Processing Unit | CPU | 計算処理を実行する中核部品。 |
 | Interrupt Request | IRQ | ハードウェアの一部からプロセッサーに直ちに送信されるシグナル。IRQ は Interrupt ReQuest の略。 |
-| GNU GRand Unified Bootloader | GRUB | Linux 系 OS で広く利用されるブートローダ。カーネル起動引数の設定を管理する。 |
+| GNU GRand Unified Bootloader | GRUB | Linux 系 OS で広く利用されるブートローダ。カーネル起動引数の設定を管理します。 |
+| Red Hat Enterprise Linux 9 | RHEL9 | Red Hat Enterprise Linux の第9系統版。 |
+| systemd | - | Linux システムの初期化とサービス管理を行う仕組み。 |
+| Ansible Task | task | 自動化処理の最小単位となる実行項目。 |
+| ansible-playbookコマンド | - | Ansible Playbook を実行して自動構成処理を適用するコマンド。 |
+| `cat` | - | ファイル内容を標準出力へ表示するコマンド。 |
+| `journalctl` | - | systemd ジャーナルのログを参照するコマンド。 |
+| `make` | - | Makefile に定義された処理を実行するコマンド。 |
+| `systemctl` | - | systemd 管理下のサービスを起動, 停止, 状態確認するコマンド。 |
+| アドレス | - | 宛先や所在を識別するための情報。 |
+| サービス | - | 機能を利用者や他システムへ提供する仕組み。 |
+| システム | - | 複数の要素が連携して目的を実現する仕組み全体。 |
+| スケジューリング | - | 実行順序や時刻を計画して割り当てる処理。 |
+| ノード | - | ネットワークに接続された機器または処理単位。 |
+| ポート | - | 通信の出入口を識別する番号または接点。 |
+| 制御ホスト | - | Playbook を実行し, 他ホストへの処理指示を行う管理用ホスト。 |
+| 対象ホスト | - | Playbook による設定変更や導入処理の適用先となるホスト。 |
+| sudoコマンド | sudo | 一時的に管理者権限でコマンドを実行するためのコマンド。 |
+
+## 概要
+Kubernetes ワーカーノードを Kubernetes クラスタへ参加させるためのロールです。`k8s-common` で整えた前提の上に, 低遅延化向けの OS チューニング, ワーカーノードを Kubernetes クラスタへ参加させる設定, ワーカーノードで必要な通信を許可するファイアウォール設定 (NodePort を使う場合の設定を含む), Cilium BGP Control Plane の設定をまとめて適用します。既存ワーカーノードのスケジュール停止 (`kubectl cordon`), Pod退避 (`kubectl drain`), Kubernetes クラスタからの削除 (`kubectl delete node`) まで一括で扱います。
+
+本ロールは, ワーカーノードの参加処理, 低遅延向け設定, ファイアウォール設定, Cilium BGP Control Plane 設定をまとめて適用します。
+
+- **ファイアウォール構成**: `enable_firewall` が有効な環境で UFW/firewalld を初期化し, 10250/tcp などの制御プレーン向けポートと NodePort 範囲を恒久的に開放します。
+- **CPU シールドの準備**: systemd スライス単位で使用可能CPU範囲 (`AllowedCPUs`) を固定します。これにより, IRQを受け付けるCPUを固定するスクリプトを実行できる状態にします。
+- **GRUB と低遅延調整**: `k8s_reserved_system_cpus_default` に基づき `nohz_full` や `isolcpus` などのカーネルパラメータを更新し, ワーカースレッドと IRQ をアプリケーション向け / システム処理向けに分離します。
+- **Kubernetes クラスタ参加処理**: 既存ワーカーノードのスケジュール停止 (`kubectl cordon`), Pod退避 (`kubectl drain`), Kubernetes クラスタからの削除 (`kubectl delete node`), ワーカーノード構成リセット (`kubeadm reset`), Kubernetes クラスタへ参加 (`kubeadm join --config`) を自動化し, `containerd` は起動 (`state: started`) と自動起動有効化 (`enabled: true`), `kubelet` は自動起動有効化 (`enabled: true`) と再起動を実施します。
+- **Cilium BGP Control Plane**: Kubernetes ノード固有の識別子で CRD マニフェストを生成し, CiliumBGPAdvertisement / CiliumBGPPeerConfig / CiliumBGPClusterConfig を適用して Pod/Service CIDR をルータへ広告します。
+- **再起動とユーティリティ登録**: CPU割り当てサービス (`pin-worker-queue`, `pin-irqs`) を `enabled` 登録し, OS チューニング後と Kubernetes クラスタ参加後にそれぞれリブートします。
 
 ## 前提条件
 
@@ -88,16 +226,16 @@ Kubernetes ワーカーノードを Kubernetes クラスタへ参加させるた
 - 対象ホストで管理者権限 (sudo) が利用可能であること
 - `k8s_ctrlplane_endpoint`, `k8s_ctrlplane_port`, `k8s_ctrlplane_host` が適切に設定済みであること
 
-## 実行フロー
+## 実行方法
 
-1. [roles/k8s-worker/tasks/load-params.yml](roles/k8s-worker/tasks/load-params.yml#L8-L23) で OS ファミリ別パッケージ情報と共通変数 (`cross-distro.yml`, `all-config.yml`, `k8s-api-address.yml`) を読み込みます。
-2. [roles/k8s-worker/tasks/main.yml](roles/k8s-worker/tasks/main.yml#L12-L15) で `package.yml`, `directory.yml`, `user_group.yml`, `service.yml` を include します (現状はプレースホルダ)。
-3. [roles/k8s-worker/tasks/config-k8sworker-firewall.yml](roles/k8s-worker/tasks/config-k8sworker-firewall.yml#L8-L195) で `enable_firewall` と `firewall_backend` に応じたファイアウォール設定を行います。
-4. [roles/k8s-worker/tasks/config-irq-balance.yml](roles/k8s-worker/tasks/config-irq-balance.yml) で低遅延構成時に `irq balance`パッケージ(`irq_balance_package`変数で定義) を削除します。
-5. [roles/k8s-worker/tasks/config-shielding.yml](roles/k8s-worker/tasks/config-shielding.yml#L8-L27) で `k8s_systemd_slices` 配下に CPU割り当て設定ファイルを生成します。
-6. [roles/k8s-worker/tasks/config-worker-node.yml](roles/k8s-worker/tasks/config-worker-node.yml#L11-L354) で CPU レンジ算出, GRUBのOSカーネル起動パラメタを設定, CPU割り当てスクリプト配置, 初回リブートを実施します。
-7. [roles/k8s-worker/tasks/config.yml](roles/k8s-worker/tasks/config.yml#L8-L186) で kube-apiserver 待機, Kubernetes クラスタ参加設定生成, 既存ワーカーノード整理, ワーカーノード構成リセット (`kubeadm reset`), Kubernetes クラスタへ参加 (`kubeadm join`), `containerd` と `kubelet` の自動起動有効化 (`enabled: true`), 二度目のリブートを実施します。
-8. [roles/k8s-worker/tasks/config-cilium-bgp-cplane.yml](roles/k8s-worker/tasks/config-cilium-bgp-cplane.yml#L8-L105) で `k8s_bgp.enabled: true` の場合に Cilium BGP Control Plane マニフェストを生成, CRD 確認後に適用します。
+実行者は制御ホストで以下のいずれかを実行します。
+
+```bash
+make run_k8s_worker
+
+ansible-playbook -i inventory/hosts k8s-worker.yml --tags "k8s-worker"
+ansible-playbook -i inventory/hosts site.yml --tags "k8s-worker"
+```
 
 ## 主要変数
 
@@ -105,9 +243,9 @@ Kubernetes ワーカーノードを Kubernetes クラスタへ参加させるた
 
 | 変数名 | 既定値 | 説明 |
 | --- | --- | --- |
-| `k8s_ctrlplane_endpoint` | 各 `host_vars` | コントロールプレーン API の到達先アドレス。本ロールでは, kubelet 側で優先される Pod CIDR のIPアドレスファミリと Kubernetes API エンドポイント広告アドレスのアドレスファミリ整合を確実にするため, IPアドレスを指定します。 |
-| `k8s_api_wait_host` | `{{ k8s_ctrlplane_endpoint }}` | kube-apiserver 待機先ホスト。 |
-| `k8s_api_wait_port` | `{{ k8s_ctrlplane_port }}` | kube-apiserver 待機先ポート。`k8s_ctrlplane_endpoint` にポート番号を含めた場合はその値を使用し, ポート指定がない場合は `6443` を使用します。 |
+| `k8s_ctrlplane_endpoint` | `""` (未設定) | コントロールプレーン API の到達先アドレス。本ロールでは, kubelet 側で優先される Pod CIDR のIPアドレスファミリと Kubernetes API エンドポイント広告アドレスのアドレスファミリ整合を確実にするため, IPアドレスを指定します。 |
+| `k8s_api_wait_host` | コントロールプレーン API の到達先アドレスと同一値 | kube-apiserver 待機先ホスト。 |
+| `k8s_api_wait_port` | `6443` | kube-apiserver 待機先ポート。`k8s_ctrlplane_endpoint` にポート番号を含めた場合はその値を使用し, ポート指定がない場合は `6443` を使用します。 |
 | `k8s_api_wait_timeout` | `600` | kube-apiserver 待機タイムアウト (秒)。 |
 | `k8s_api_wait_delay` | `2` | 待機開始前ディレイ (秒)。 |
 | `k8s_api_wait_sleep` | `1` | 待機リトライ間隔 (秒)。 |
@@ -132,23 +270,23 @@ Kubernetes ワーカーノードを Kubernetes クラスタへ参加させるた
 | `k8s_operator_user` | `kube` | Kubernetes 操作用ユーザ名。 |
 | `k8s_operator_home` | `/home/kube` | Kubernetes 操作用ユーザのホームディレクトリ。 |
 | `k8s_operator_shell` | `/bin/bash` | Kubernetes 操作用ユーザのシェル。 |
-| `k8s_operator_groups_list` | `{{ adm_groups }}` | Kubernetes 操作用ユーザが所属するグループ一覧。 |
+| `k8s_operator_groups_list` | Debian/Ubuntu: `['adm', 'sudo']`, RHEL: `['wheel']` | Kubernetes 操作用ユーザが所属するグループ一覧。 |
 
 ### セットアップツール配置先
 
 | 変数名 | 既定値 | 説明 |
 | --- | --- | --- |
 | `k8s_node_setup_tools_prefix` | `/opt/k8snodes` | ツール配置プレフィックス。 |
-| `k8s_node_setup_tools_dir` | `{{ k8s_node_setup_tools_prefix }}/sbin` | CPU割り当てスクリプト等の配置先。 |
-| `k8s_node_setup_tools_docs_dir` | `{{ k8s_node_setup_tools_prefix }}/docs` | ドキュメント配置先。 |
-| `k8s_embed_kubeconfig_script_path` | `{{ k8s_node_setup_tools_dir }}/create-embedded-kubeconfig.py` | kubeconfig 生成スクリプト配置先。 |
-| `k8s_embed_kubeconfig_output_dir` | `{{ k8s_operator_home }}/.kube` | kubeconfig 出力先。 |
+| `k8s_node_setup_tools_dir` | `/opt/k8snodes/sbin` | CPU割り当てスクリプト等の配置先。 |
+| `k8s_node_setup_tools_docs_dir` | `/opt/k8snodes/docs` | ドキュメント配置先。 |
+| `k8s_embed_kubeconfig_script_path` | `/opt/k8snodes/sbin/create-embedded-kubeconfig.py` | kubeconfig 生成スクリプト配置先。 |
+| `k8s_embed_kubeconfig_output_dir` | `/home/kube/.kube` | kubeconfig 出力先。 |
 
 ### ワーカーノード固有設定
 
 | 変数名 | 既定値 | 説明 |
 | --- | --- | --- |
-| `k8s_ctrlplane_host` | 各 `host_vars` | `delegate_to` で `kubeadm`, `kubectl` を実行するコントロールプレーンノード。 |
+| `k8s_ctrlplane_host` | `""` (未設定) | `delegate_to` で `kubeadm`, `kubectl` を実行するコントロールプレーンノード。 |
 | `k8s_kubeadm_config_store` | `/home/ansible/kubeadm` | `kubeadm.config.yml` や Cilium BGP Control Plane マニフェスト保存先。 |
 | `k8s_kubeadm_ignore_preflight_errors_arg` | `--ignore-preflight-errors=all` | `kubeadm join` に渡す preflight オプション。 |
 | `k8s_drain_timeout_minutes` | `5` | Pod退避 (`kubectl drain`) のタイムアウト (分)。 |
@@ -159,8 +297,8 @@ Kubernetes ワーカーノードを Kubernetes クラスタへ参加させるた
 
 | 変数名 | 既定値 | 説明 |
 | --- | --- | --- |
-| `enable_firewall` | `false` (`vars/all-config.yml`) | `true` の場合にファイアウォール設定を有効化。 |
-| `firewall_backend` | OS 判定で `['ufw']` または `['firewalld']` | 使用するファイアウォール実装。 |
+| `enable_firewall` | `false` | `true` の場合にファイアウォール設定を有効化。 |
+| `firewall_backend` | Debian/Ubuntu: `['ufw']`, RHEL: `['firewalld']` | 使用するファイアウォール実装。 |
 | `k8s_worker_enable_nodeport` | `false` | NodePort 範囲の開放有無。 |
 | `k8s_worker_nodeport_range` | `30000-32767` | NodePort 開放範囲。 |
 | `k8s_worker_node_ports_from_ctrlplane` | `['10250/tcp']` | コントロールプレーンから許可するポート。 |
@@ -178,60 +316,13 @@ Kubernetes ワーカーノードを Kubernetes クラスタへ参加させるた
 | --- | --- | --- |
 | `k8s_bgp.enabled` | 未定義 | `true` 時に Cilium BGP Control Plane マニフェストを生成, 適用。 |
 | `k8s_bgp.neighbors` | 未定義 | BGP ピア定義。`k8s_bgp.enabled: true` の場合は必須。 |
-| `k8s_bgp.node_name` | `ansible_hostname` | BGP リソース名生成に利用するワーカーノード名。 |
-| `k8s_bgp.apply_delegate` | `{{ k8s_ctrlplane_host }}` | BGP マニフェストを適用するホスト。 |
+| `k8s_bgp.node_name` | 対象ホスト名 | BGP リソース名生成に利用するワーカーノード名。 |
+| `k8s_bgp.apply_delegate` | `""` (未設定時は対象ホスト名) | BGP マニフェストを適用するホスト。 |
 
 補足 (未定義時の動作):
 - `k8s_bgp.node_name` が未定義, もしくは空文字列の場合は `ansible_hostname` が自動的に使われます。
 - `k8s_bgp.neighbors` 配下の `peer_address` または `peer_asn` が未定義, もしくは空文字列のエントリは, マニフェスト生成時に当該ピア設定を出力しません。
 - `k8s_bgp.neighbors` の全エントリが上記条件に該当する場合は, BGP ピア設定が空になります。意図した経路広告を行うため, 有効な `peer_address` と `peer_asn` を少なくとも 1 組設定してください。
-
-## 主な処理
-
-- **ファイアウォール構成**: `enable_firewall` が有効な環境で UFW/firewalld を初期化し, 10250/tcp などの制御プレーン向けポートと NodePort 範囲を恒久的に開放します。
-- **CPU シールドの準備**: systemd スライス単位で使用可能CPU範囲 (`AllowedCPUs`) を固定します。これにより, IRQを受け付けるCPUを固定するスクリプトを実行できる状態にします。
-- **GRUB と低遅延調整**: `k8s_reserved_system_cpus_default` に基づき `nohz_full` や `isolcpus` などのカーネルパラメータを更新し, ワーカースレッドと IRQ をアプリケーション向け / システム処理向けに分離します。
-- **Kubernetes クラスタ参加処理**: 既存ワーカーノードのスケジュール停止 (`kubectl cordon`), Pod退避 (`kubectl drain`), Kubernetes クラスタからの削除 (`kubectl delete node`), ワーカーノード構成リセット (`kubeadm reset`), Kubernetes クラスタへ参加 (`kubeadm join --config`) を自動化し, `containerd` は起動 (`state: started`) と自動起動有効化 (`enabled: true`), `kubelet` は自動起動有効化 (`enabled: true`) と再起動を実施します。
-- **Cilium BGP Control Plane**: Kubernetes ノード固有の識別子で CRD マニフェストを生成し, CiliumBGPAdvertisement / CiliumBGPPeerConfig / CiliumBGPClusterConfig を適用して Pod/Service CIDR をルータへ広告します。
-- **再起動とユーティリティ登録**: CPU割り当てサービス (`pin-worker-queue`, `pin-irqs`) を `enabled` 登録し, OS チューニング後と Kubernetes クラスタ参加後にそれぞれリブートします。
-
-## テンプレート／ファイル
-
-| テンプレート | 生成ファイル | 説明 |
-| --- | --- | --- |
-| [roles/k8s-worker/templates/worker-kubeadm.config.j2](roles/k8s-worker/templates/worker-kubeadm.config.j2) | kubeadm.config.yml ( 対象ホストの `k8s_kubeadm_config_store` 配下, 規定値: `/home/ansible/kubeadm/kubeadm.config.yml` ) | Kubernetes クラスタ参加 (`kubeadm join`) に渡す設定をまとめ, トークンと CA ハッシュを組み込んだ構成ファイルを生成します。 |
-| [roles/k8s-worker/templates/systemd-cpuset.conf.j2](roles/k8s-worker/templates/systemd-cpuset.conf.j2) | 40-cpuset.conf ( 対象ホストの各 systemd スライス配下, 規定値: `/etc/systemd/system/{init.scope.d\|system.slice.d\|user.slice.d\|user-.slice.d}/40-cpuset.conf` ) | CPU シールド向けに使用可能CPU範囲 (`AllowedCPUs`) を固定し, k8s_systemd_slices の各ドロップインで共有する設定を作成します。 |
-| [roles/k8s-worker/templates/pin-worker-queue.sh.j2](roles/k8s-worker/templates/pin-worker-queue.sh.j2) | pin-worker-queue.sh ( 対象ホストの `k8s_node_setup_tools_dir` 配下, 規定値: `/opt/k8snodes/sbin/pin-worker-queue.sh` ) | workqueue のアンバウンドスレッドをアプリケーション向け CPU に割り当てるセットアップスクリプトを配置します。 |
-| [roles/k8s-worker/templates/pin-worker-queue.service.j2](roles/k8s-worker/templates/pin-worker-queue.service.j2) | pin-worker-queue.service ( 対象ホストの systemd ユニットディレクトリ, 規定値: `/etc/systemd/system/pin-worker-queue.service` ) | pin-worker-queue.sh を1回だけ実行し, ブート後に CPU割り当てを適用する systemd ユニットを登録します。 |
-| [roles/k8s-worker/templates/pin-irqs.py.j2](roles/k8s-worker/templates/pin-irqs.py.j2) | pin-irqs.py ( 対象ホストの `k8s_node_setup_tools_dir` 配下, 規定値: `/opt/k8snodes/sbin/pin-irqs.py` ) | 割込みをシステム処理向け CPU へ割り当てる Python スクリプトを配備します。 |
-| [roles/k8s-worker/templates/pin-irqs.service.j2](roles/k8s-worker/templates/pin-irqs.service.j2) | pin-irqs.service ( 対象ホストの systemd ユニットディレクトリ, 規定値: `/etc/systemd/system/pin-irqs.service` ) | pin-irqs.py を起動して IRQ アフィニティを適用する systemd ユニットを登録します。 |
-| [roles/k8s-common/templates/cilium-bgp-resources.yml.j2](roles/k8s-common/templates/cilium-bgp-resources.yml.j2) | Cilium BGP Control Plane マニフェスト ( 対象ホストの `cilium_bgp_manifest_dir` 配下, 規定値: `/home/ansible/kubeadm/cilium/bgp/` ) | Kubernetes ノード固有の識別子を含む CiliumBGP* リソースをまとめたマニフェストを生成し, apply_delegate で指定したホストに保存します。 |
-
-## ハンドラ
-
-| ハンドラ | トリガー | 説明 |
-| --- | --- | --- |
-| [roles/k8s-worker/handlers/kubelet.yml](roles/k8s-worker/handlers/kubelet.yml) | `notify: kubelet_restarted_and_enabled` | kubelet の daemon-reload と再起動, enable をまとめて実施し, Kubernetes クラスタ参加後のサービス状態を整えます。 |
-| [roles/k8s-worker/handlers/reload-firewall.yml](roles/k8s-worker/handlers/reload-firewall.yml) | `notify: reload firewalld` / `notify: reload ufw` | firewall_backend に応じて firewalld もしくは UFW を再読み込みし, NodePort などのポート開放設定を反映させます。 |
-| [roles/k8s-worker/handlers/reboot-node.yml](roles/k8s-worker/handlers/reboot-node.yml) | `notify: reboot_node_handler` | リブートを実行し, GRUBのOSカーネル起動パラメタ設定や Kubernetes クラスタ参加 (`kubeadm join`) 後の状態を確定させます。 |
-
-## OS 差異
-
-### ファイアウォール設定の差異
-
-| 項目 | RHEL 系 | Debian/Ubuntu 系 |
-| --- | --- | --- |
-| バックエンド | firewalld | UFW |
-| ルール適用方法 | 条件を細かく指定するルール (rich rule)とポート開放 | allow ルール |
-| 反映方法 | `firewall-cmd --reload` | `ufw reload` |
-| NodePort 範囲表記 | `30000-32767/tcp` | `30000:32767/tcp` |
-
-### GRUB 更新方法の差異
-
-| 項目 | RHEL 系 | Debian/Ubuntu 系 |
-| --- | --- | --- |
-| 更新コマンド | `grub2-mkconfig` | `update-grub` |
-| 出力先 | BIOS/UEFI を判別して `/boot/grub2/grub.cfg` または `/boot/efi/EFI/*/grub.cfg` | 既定の GRUB 設定先 |
 
 ## 設定例
 
@@ -276,8 +367,7 @@ k8s_systemd_slices:
 
 ### Cilium BGP Control Plane 有効構成
 
-Cilium BGP Control Planeを有効にしたコントロールプレインノード配下のKubernetesクラスタを構成するワーカーノードの設定例を以下に示します:
-
+Cilium BGP Control Planeを有効にしたコントロールプレーンノード配下の Kubernetes クラスタを構成するワーカーノードの設定例を以下に示します:
 
 ```yaml
 # Cilium BGP Control Plane機能有効時の設定
@@ -296,9 +386,63 @@ k8s_bgp:
   - `peer_address`: ワーカーノードからBGPセッションを張る相手 (外部ルータやL3スイッチ) のIPアドレスを指定します。
   - `peer_asn`: `peer_address` で指定した相手装置側のAS番号 (Autonomous System Number) を指定します。
 
-なお, Cilium BGP Control Plane マニフェストの生成, 適用は `k8s_bgp.apply_delegate` で指定したホスト (規定値: `k8s_ctrlplane_host`の設定値) で実施されます。
+なお, Cilium BGP Control Plane マニフェストの生成, 適用は `k8s_bgp.apply_delegate` で指定したホスト (既定値: 空文字列, 未指定時は対象ホスト名) で実施されます。
 
-## 設定内容の検証
+## テンプレートと生成ファイル
+
+本ロールでは以下のテンプレート / ファイルを出力します:
+展開先ホストは, `cilium_bgp_delegate_host`で指定されたホスト(既定は, 対象ホスト) です。
+
+| テンプレートファイル名 | 出力先パス | 説明 |
+| --- | --- | --- |
+| `roles/k8s-common/templates/cilium-bgp-resources.yml.j2` | `/home/ansible/kubeadm/cilium/bgp/cilium-bgp-resources-<node-suffix>.yml` | Cilium BGP Control Plane の ClusterConfig, PeerConfig, Advertisement 定義を生成するマニフェストです。 |
+| `systemd-cpuset.conf.j2` | `/etc/systemd/system/init.scope.d/40-cpuset.conf`, `/etc/systemd/system/system.slice.d/40-cpuset.conf`, `/etc/systemd/system/user.slice.d/40-cpuset.conf`, `/etc/systemd/system/user-.slice.d/40-cpuset.conf` | kubelet やランタイムの CPU 割り当てを固定し, ワーカーノードの遅延揺らぎを抑える systemd 設定です。 |
+| `pin-worker-queue.sh.j2` | `/opt/k8snodes/sbin/pin-worker-queue.sh` | ワーカーノードの NIC キュー割り当てを最適化し, 割り込み偏りを抑えるための設定スクリプトです。 |
+| `pin-worker-queue.service.j2` | `/etc/systemd/system/pin-worker-queue.service` (既定: `/etc/systemd/system/pin-worker-queue.service`) | 起動時に NIC キュー固定処理を適用する systemd サービス定義です。 |
+| `pin-irqs.py.j2` | `/opt/k8snodes/sbin/pin-irqs.py` | IRQ を CPU コアへ分散配置し, レイテンシ安定化を図るための調整スクリプトです。 |
+| `pin-irqs.service.j2` | `/etc/systemd/system/pin-irqs.service` (既定: `/etc/systemd/system/pin-irqs.service`) | 起動時に IRQ 固定処理を自動適用する systemd サービス定義です。 |
+| `worker-kubeadm.config.j2` | `/home/ansible/kubeadm/kubeadm.config.yml` | ワーカーノード参加時の kubeadm 実行パラメタを定義する設定ファイルです。 |
+
+## 実行フロー
+
+1. [roles/k8s-worker/tasks/load-params.yml](roles/k8s-worker/tasks/load-params.yml) で OS ファミリ別パッケージ情報と共通変数 (`cross-distro.yml`, `all-config.yml`, `k8s-api-address.yml`) を読み込みます。
+2. [roles/k8s-worker/tasks/main.yml](roles/k8s-worker/tasks/main.yml) で `package.yml`, `directory.yml`, `user_group.yml`, `service.yml` を include します (現状はプレースホルダ)。
+3. [roles/k8s-worker/tasks/config-k8sworker-firewall.yml](roles/k8s-worker/tasks/config-k8sworker-firewall.yml) で `enable_firewall` と `firewall_backend` に応じたファイアウォール設定を行います。
+4. [roles/k8s-worker/tasks/config-irq-balance.yml](roles/k8s-worker/tasks/config-irq-balance.yml) で低遅延構成時に `irq balance`パッケージ(`irq_balance_package`変数で定義) を削除します。
+5. [roles/k8s-worker/tasks/config-shielding.yml](roles/k8s-worker/tasks/config-shielding.yml) で `k8s_systemd_slices` 配下に CPU割り当て設定ファイルを生成します。
+6. [roles/k8s-worker/tasks/config-worker-node.yml](roles/k8s-worker/tasks/config-worker-node.yml) で CPU レンジ算出, GRUBのOSカーネル起動パラメタを設定, CPU割り当てスクリプト配置, 初回リブートを実施します。
+7. [roles/k8s-worker/tasks/config.yml](roles/k8s-worker/tasks/config.yml) で kube-apiserver 待機, Kubernetes クラスタ参加設定生成, 既存ワーカーノード整理, ワーカーノード構成リセット (`kubeadm reset`), Kubernetes クラスタへ参加 (`kubeadm join`), `containerd` と `kubelet` の自動起動有効化 (`enabled: true`), 二度目のリブートを実施します。
+8. [roles/k8s-worker/tasks/config-cilium-bgp-cplane.yml](roles/k8s-worker/tasks/config-cilium-bgp-cplane.yml) で `k8s_bgp.enabled: true` の場合に Cilium BGP Control Plane マニフェストを生成, CRD 確認後に適用します。
+
+### ハンドラ処理
+
+| ハンドラ | トリガー | 説明 |
+| --- | --- | --- |
+| [roles/k8s-worker/handlers/kubelet.yml](roles/k8s-worker/handlers/kubelet.yml) | `notify: kubelet_restarted_and_enabled` | kubelet の daemon-reload と再起動, enable をまとめて実施し, Kubernetes クラスタ参加後のサービス状態を整えます。 |
+| [roles/k8s-worker/handlers/reload-firewall.yml](roles/k8s-worker/handlers/reload-firewall.yml) | `notify: reload firewalld` / `notify: reload ufw` | firewall_backend に応じて firewalld もしくは UFW を再読み込みし, NodePort などのポート開放設定を反映させます。 |
+| [roles/k8s-worker/handlers/reboot-node.yml](roles/k8s-worker/handlers/reboot-node.yml) | `notify: reboot_node_handler` | リブートを実行し, GRUBのOSカーネル起動パラメタ設定や Kubernetes クラスタ参加 (`kubeadm join`) 後の状態を確定させます。 |
+
+### OS 差異
+
+#### ファイアウォール設定の差異
+
+| 項目 | RHEL 系 | Debian/Ubuntu 系 |
+| --- | --- | --- |
+| バックエンド | firewalld | UFW |
+| ルール適用方法 | 条件を細かく指定するルール (rich rule)とポート開放 | allow ルール |
+| 反映方法 | `firewall-cmd --reload` | `ufw reload` |
+| NodePort 範囲表記 | `30000-32767/tcp` | `30000:32767/tcp` |
+
+#### GRUB 更新方法の差異
+
+| 項目 | RHEL 系 | Debian/Ubuntu 系 |
+| --- | --- | --- |
+| 更新コマンド | `grub2-mkconfig` | `update-grub` |
+| 出力先 | BIOS/UEFI を判別して `/boot/grub2/grub.cfg` または `/boot/efi/EFI/*/grub.cfg` | 既定の GRUB 設定先 |
+
+## 検証ポイント
+
+本節では, 本ロール適用後の検証方法について説明します。
 
 ### 前提条件
 
@@ -504,11 +648,32 @@ sudo: ufw: コマンドが見つかりません
 - NodePort を有効化している場合, 範囲ルールが反映されていることを確認してください。
 - `ufw` コマンドが見つからない場合は, UFW 未導入または firewalld 利用環境です。OS と `firewall_backend` の設定に合わせて確認コマンドを使い分けてください。
 
-## 補足と注意事項
+## トラブルシューティング
+
+実行者はエラー発生時に `build-k8s-worker.log` を確認し, 失敗した task 名と不足変数を特定します。代表的なトラブルと対処を以下に示します。
+
+| 想定トラブル | 主な原因 | 対処方法 |
+| --- | --- | --- |
+| `k8s-worker` の実処理がスキップされる | `k8s_ctrlplane_endpoint` または `k8s_ctrlplane_host` が未設定, または空文字列 | 実行者は対象ホストの `host_vars` に `k8s_ctrlplane_endpoint`, `k8s_ctrlplane_host` を設定し, `ansible-playbook -i inventory/hosts k8s-worker.yml --tags "k8s-worker"` を再実行します。 |
+| `kubeadm join` が失敗する | コントロールプレーン API への到達不能, トークン取得失敗, 時刻ずれ | 実行者は `k8s_ctrlplane_endpoint` と `k8s_ctrlplane_port` を確認し, コントロールプレーンで `kubeadm token create` が成功する状態を確認します。必要に応じて対象ホストの時刻同期状態を確認した後に再実行します。 |
+| Cilium BGP Control Plane のマニフェスト生成で失敗する | `k8s_bgp.enabled: true` の環境で `k8s_bgp.neighbors` が空, または必須キー不足 | 実行者は `k8s_bgp.neighbors` 配下に `peer_address` と `peer_asn` を設定し, 再実行します。 |
+| Cilium BGP Control Plane の適用で `resource type` エラーが出る | Cilium BGP 関連 CRD が未導入 | 実行者はコントロールプレーンで `kubectl get crd ciliumbgpadvertisements.cilium.io`, `kubectl get crd ciliumbgppeerconfigs.cilium.io`, `kubectl get crd ciliumbgpclusterconfigs.cilium.io` を実行し, CRD 導入状態を確認してから再実行します。 |
+| ファイアウォール関連タスクが失敗する | `firewall_backend` と OS の組み合わせ不整合, または必要コマンド未導入 | 実行者は Debian/Ubuntu 系で `ufw`, RHEL 系で `firewalld` を使用する設定になっていることを確認し, `enable_firewall` を `false` に戻して切り分けた後に段階的に有効化します。 |
+| 低遅延化タスクが実行されない | `k8s_reserved_system_cpus_default` が未設定 | 実行者は `k8s_reserved_system_cpus_default` に CPU 範囲 (例: `0-3`) を設定し, 再実行します。 |
+| リブート後にノードが `Ready` へ戻らない | kubelet/containerd の起動不良, またはノード再参加未完了 | 実行者は対象ホストで `systemctl status containerd kubelet` と `journalctl -u kubelet -n 100 --no-pager` を確認し, コントロールプレーンで `kubectl get nodes -o wide` を確認して原因を特定します。 |
+
+## 注意事項
 
 - 本ロールは `config-worker-node.yml` と `config.yml` の両方でリブートを実行します。
 - `config.yml` には ワーカーノード構成リセット (`kubeadm reset`) が含まれるため, 稼働中 Kubernetes クラスタへ適用する際は事前に Pod 退避や停止計画を準備してください。Pod退避 (`kubectl drain --ignore-daemonsets --delete-emptydir-data`) は DaemonSet を退避しないため, 必要に応じて対象ワーカーノードで稼働する各 DaemonSet Pod の停止, 再スケジューリング手順を整備し, Local Persistent Volume のデータは退避やアンマウントを含む保全策を講じてから実行してください。
 - コントロールプレーン側でトークン生成 (`kubeadm token create`) や `kubectl` を実行するため, `k8s_ctrlplane_host` では Ansible の権限昇格 (`become: true`) が成功するように設定してください。権限昇格に失敗すると Kubernetes クラスタ参加用トークン取得が失敗します。
-- Cilium BGP Control Plane のマニフェストは `k8s_bgp.apply_delegate` で指定したホスト ( 既定は `k8s_ctrlplane_host` )上で生成・適用されます。
+- Cilium BGP Control Plane のマニフェストは `k8s_bgp.apply_delegate` で指定したホスト (既定値: 空文字列, 未指定時は対象ホスト名) 上で生成・適用されます。
 - NodePort を有効化する場合は必要なサービスのみが公開されるよう, 上位ネットワーク機器側のアクセス制御リストも合わせて確認してください。
 - ファイアウォールタスクはデフォルトで無効化されています。現状は動作検証が十分でないため, `enable_firewall` は `false` を推奨します。
+
+## 参考資料
+
+### 公式ドキュメント
+
+- [Kubernetes](https://kubernetes.io/docs/home/)
+- [kubeadm join](https://kubernetes.io/docs/reference/setup-tools/kubeadm/kubeadm-join/)

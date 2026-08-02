@@ -1,44 +1,175 @@
 # user-settings ロール
 
-本ロールは新規ユーザ作成時に複製される `/etc/skel` 以下のスケルトン環境を構築します。プロキシ設定やシェル初期化ファイル, Emacs 関連ファイルをテンプレートとして配布し, `/etc/skel` にスケルトン環境を整備します。すべてのタスクは再実行可能で, 既存ファイルがある場合は整形, 追記のみを行い冪等性を維持します。
+本ロールは新規ユーザ作成時に複製される `/etc/skel` 以下のスケルトン環境を構築します。
 
-## 概要
+## 目次
 
-本ロールは `/etc/skel` を基点とした標準環境を提供します。運用ポリシーに応じて, `vars/all-config.yml`, `group_vars` や `host_vars` で必要な変数を上書きして利用してください。
+- [user-settings ロール](#user-settings-ロール)
+  - [目次](#目次)
+  - [用語](#用語)
+  - [概要](#概要)
+  - [前提条件](#前提条件)
+  - [実行方法](#実行方法)
+  - [主要変数](#主要変数)
+    - [スケルトン設定ファイル制御変数](#スケルトン設定ファイル制御変数)
+    - [ホームディレクトリバックアップ関連変数](#ホームディレクトリバックアップ関連変数)
+    - [Docker関連変数](#docker関連変数)
+    - [プロキシ設定変数](#プロキシ設定変数)
+    - [SSH関連変数](#ssh関連変数)
+      - [`.ssh/config`ファイルにmulticast DNSホストを登録するための設定](#sshconfigファイルにmulticast-dnsホストを登録するための設定)
+      - [`.ssh/config`ファイルにDNSホストを登録するための設定](#sshconfigファイルにdnsホストを登録するための設定)
+  - [systemd ssh-agent の使用方法](#systemd-ssh-agent-の使用方法)
+    - [ユーザでの有効化手順](#ユーザでの有効化手順)
+    - [SSH エージェントフォワーディングとの共存](#ssh-エージェントフォワーディングとの共存)
+  - [バックアップスクリプト詳細](#バックアップスクリプト詳細)
+    - [機能](#機能)
+    - [crontabの記載例](#crontabの記載例)
+    - [実行方法](#実行方法-1)
+      - [手動実行の場合:](#手動実行の場合)
+      - [定期実行 (毎日深夜) の場合](#定期実行-毎日深夜-の場合)
+  - [テンプレートと生成ファイル](#テンプレートと生成ファイル)
+    - [Emacs スケルトン配置ファイル](#emacs-スケルトン配置ファイル)
+  - [実行フロー](#実行フロー)
+  - [検証ポイント](#検証ポイント)
+    - [1. ロール実行結果の確認](#1-ロール実行結果の確認)
+    - [2. /etc/skel 基本ファイルの配置確認](#2-etcskel-基本ファイルの配置確認)
+    - [3. .gitignore 生成条件の確認](#3-gitignore-生成条件の確認)
+    - [4. Emacs 必須設定ファイルの確認](#4-emacs-必須設定ファイルの確認)
+    - [5. Docker 補助スクリプトの確認](#5-docker-補助スクリプトの確認)
+    - [6. backup-home スクリプトの確認](#6-backup-home-スクリプトの確認)
+    - [7. プロキシ関連テンプレート展開確認](#7-プロキシ関連テンプレート展開確認)
+    - [既存ユーザに対する Emacs パッケージインストールおよびオプション設定ファイル配布の検証について](#既存ユーザに対する-emacs-パッケージインストールおよびオプション設定ファイル配布の検証について)
+  - [トラブルシューティング](#トラブルシューティング)
+  - [注意事項](#注意事項)
+  - [参考資料](#参考資料)
+    - [公式ドキュメント](#公式ドキュメント)
+
 
 ## 用語
 
 | 正式名称 | 略称 | 意味 |
 | --- | --- | --- |
-| Ansible | - | インフラストラクチャの構成管理と自動化を行うオープンソースツール。YAML 形式のプレイブックでシステム構成を記述し, SSH を使用して複数のリモートホストに対して冪等な変更を実行できる。 |
+| ユーザ | - | 機能を利用する人, 又は識別された利用主体。 |
+| ツール | - | 特定作業を実行するための機能や道具。 |
+| リソース | - | 処理に必要な計算機資源やデータ。 |
+| クラスタ | - | 複数の機器を連携させて一体運用する構成。 |
+| ディストリビューション | - | 基本ソフトウェアと関連部品をまとめた配布形態。 |
+| コンテナイメージ | - | コンテナ実行に必要な内容をまとめた保存形式。 |
+| プログラム | - | 計算機に処理をさせるための命令列。 |
+| コミュニティ | - | 共通目的のもとで継続的に活動する利用者集団。 |
+| プラグイン | - | 既存機能へ追加機能を組み込むための拡張部品。 |
+| サービスアカウント | - | 自動処理向けに用意する利用主体の識別情報。 |
+| コンテナランタイム | - | コンテナを起動, 停止, 管理する実行基盤。 |
+| リクエスト | - | 処理実行や情報取得を要求する操作。 |
+| コントローラ | - | 対象状態を監視し, 期待状態へ調整する制御機能。 |
+| メタデータ | - | 対象データの属性や説明を示す付加情報。 |
+| バックエンド | - | 利用者画面の背後で処理を実行する側。 |
+| ストレージ | - | データを保存する仕組み。 |
+| インストール | - | ソフトウェアを導入して利用可能にする作業。 |
+| マシン | - | 処理を実行する計算機。 |
+| プロビジョニング | - | 利用開始に必要な設定や資源を準備する作業。 |
+| ルーティング | - | 宛先までの経路を選択して転送する処理。 |
+| オブジェクト | - | ひとかたまりとして扱うデータ単位。 |
+| エージェント | - | 指示に従って処理を代行する構成要素。 |
+| ストア | - | データや成果物を保存する場所。 |
+| ジャーナル | - | 時系列の記録を保持する仕組み。 |
+| アカウント | - | 利用者や処理主体を識別する登録情報。 |
+| エンドポイント | - | 通信の接続先を表す識別点。 |
+| パターン | - | 繰り返し現れる構造や記述形式。 |
+| パケット | - | ネットワークで転送するデータ単位。 |
+| カーネル | - | 基本ソフトウェアの中核機能。 |
+| シェル | - | コマンド入力で計算機を操作する仕組み。 |
+| Playbook | - | 自動化処理の実行手順を記述したファイル。 |
+| Canonical | - | Ubuntu を提供する組織名。 |
+| Key-Value | - | キーと値の組で情報を表す方式。 |
+| IP | - | インターネットプロトコルの略称。 |
+| SQL | - | データベースを操作するための記述言語。 |
+| HTTP | - | WWW で情報をやり取りする通信手順。 |
+| HTTPS | - | 通信内容を暗号化して WWW 通信を行う方式。 |
+| RPM | - | RHEL 系で使用するパッケージ形式。 |
+| VM | - | 物理機器上で動作する仮想的な計算機。 |
+| localhost | - | 同一機器自身を指す名前。 |
+| ソフトウェア | - | 情報処理システムで使用するプログラム, 手順, 規則及び関連文書の全体又は一部分。 |
+| アプリケーション | - | 利用者の目的を実現するために動作するソフトウェア。 |
+| パッケージ | - | ソフトウェア導入に必要なファイルをまとめた配布単位。 |
+| リポジトリ | - | ソフトウェアや設定情報を保管し, 取得できるようにした管理場所。 |
+| コマンド | - | 実行者が計算機へ処理を指示するための命令。 |
+| ホスト | - | 管理対象として識別される個別の計算機。 |
+| サーバ | - | 他の機器や利用者へ機能やデータを提供する計算機, 又はその役割。 |
+| ノード | - | ネットワークに接続された機器または処理単位。 |
+| コンテナ | - | アプリケーションを動かす隔離された実行単位。 |
+| ネットワーク | - | 機器同士を接続してデータをやり取りする仕組み。 |
+| アドレス | - | 宛先や所在を識別するための情報。 |
+| プロトコル | - | 通信やデータ交換の手順を定めた取り決め。 |
+| ディレクトリ | - | ファイルを階層的に整理するための入れ物。 |
+| ログ | - | 処理の結果や状態を時系列で記録した情報。 |
+| Kubernetes | K8s | コンテナを管理する基盤ソフトウェア。 |
+| Pod | - | Kubernetes でコンテナをまとめて管理する最小単位。 |
+| Linux | - | 多くの機器で使われる, 基本ソフトウェアの系統。 |
+| Ubuntu | - | Canonical が提供する Debian 系の Linux ディストリビューション。 |
+| World Wide Web | WWW | ネットワーク上で文書や情報を相互参照できる仕組み。 |
+| Service | - | サービスの英語表記。 |
+| Node | - | ノードの英語表記。 |
+| Makefile | - | 実行手順を定義したファイル。 |
+| API | - | アプリケーション同士がやり取りする方法を定めた仕様。 |
+| URL | - | WWW 上の資源の場所を示す文字列。 |
+| Ansible | - | 設定の同一化や導入作業を所定の手順に従って自動化する仕組み。 |
+| GNU Bourne Again Shell | Bash | GNU プロジェクトが提供する Unix 系シェル。 |
+| C/C++ | - | C 言語と C++ 言語をまとめて示す表記。 |
 | aspell | - | スペルチェッカープログラム, テキストファイルの綴字をチェック |
 | Bash | - | GNU Bourne Again Shell, Linuxで標準的に使用されるシェル |
 | cron | - | スケジューラデーモン, 定期的にコマンドやスクリプトを実行 |
-| crontab | - | cron テーブル, ユーザごとのスケジューリング設定ファイル |
-| curl | - | コマンドラインHTTPクライアント, URLでデータ転送をサポート |
-| Debian | - | コミュニティ主導のLinuxディストリビューション, Ubuntu の基盤 |
-| Docker | - | コンテナ型仮想化技術を実装したオープンソースのプラットフォーム。アプリケーションとその実行環境を軽量な仮想コンテナとしてパッケージ化し, ホストOS上で隔離して実行する。仮想マシンと異なり, ゲストOSを必要とせず, ホストOSのカーネルを共有することで高速起動と低オーバーヘッドを実現する。コンテナイメージの作成, 配布, 実行を管理する Docker Engine と, イメージを保管, 共有する Docker Hub などのレジストリから構成される。 |
+| crontab | - | 定期実行設定を登録, 表示, 削除するコマンド。 |
+| curl | - | URL を指定してデータ送受信を行うコマンド。 |
+| Debian | - | コミュニティ主導で開発される Linux ディストリビューション。 |
+| Docker | - | コンテナイメージやコンテナの作成, 実行, 管理を行うコマンド。 |
 | Emacs | - | テキスト編集機能が豊富な高機能テキストエディタ, 拡張可能な設定で開発環境として利用 |
 | Environment Modules | - | 環境管理システム, 複数のバージョンのツールと依存関係を管理 |
 | Git | - | 分散バージョン管理システム, ソースコード変更の履歴管理と協業を支援 |
 | GNU Debugger | GDB | GNU プロジェクトのデバッガ, C/C++ などのプログラムのデバッグに使用 |
 | GNU Screen | - | 画面マルチプレクサ, 複数のシェルセッションを単一の接続で管理 |
 | Grand Unified Debugger | GUD | Emacs に統合されたデバッガインターフェース, gdb など外部デバッガと連携 |
-| Hypertext Transfer Protocol | HTTP | Webでのデータ転送プロトコル, クライアントとサーバ間の通信規約 |
-| Hypertext Transfer Protocol Secure | HTTPS | HTTPの暗号化版, SSL/TLSでデータを保護 |
-| multicast DNS | mDNS | ローカルネットワーク内でホスト名解決を行うプロトコル |
-| Network FileSystem | NFS | ネットワークファイルシステム, リモートのファイルシステムをマウント |
+| Hypertext Transfer Protocol | HTTP | HTTP の正式名称。 |
+| Hypertext Transfer Protocol Secure | HTTPS | 通信内容を暗号化して Web 通信を行う方式。 |
+| multicast DNS | mDNS | 同一ネットワーク内の名前解決方式。 |
+| Network File System | NFS | ネットワーク越しにファイル共有を行う仕組み。 |
 | proxy | - | ネットワーク中継サーバ, クライアントとサーバの間で通信を仲介 |
-| Red Hat Enterprise Linux | RHEL | Red Hat 社が提供する Linux ディストリビューション。RHEL9 はそのメジャーバージョン 9 を指す。 |
-| root | - | Unix系システムの最高権限ユーザ, すべてのファイルとプロセスへのアクセス権を持つ |
-| Secure Shell | SSH | リモートコンピュータへの安全なログインと通信を可能にするプロトコル。ネットワーク接続を暗号化することで, ユーザ認証と通信内容の機密性を確保する。 |
-| sudo | - | 別のユーザ (通常は root) の権限で指定されたコマンドを実行することを可能にする Unix 系システムのプログラム。管理者以外のユーザが管理作業を行うときに使用される。 |
-| tar | - | テープアーカイブユーティリティ, ファイルをまとめてアーカイブ化 |
+| Red Hat Enterprise Linux | RHEL | Red Hat 社が提供する商用 Linux ディストリビューション。 |
+| root | - | Unix 系システムの最上位権限を持つ管理者識別子。 |
+| Secure Shell | SSH | 遠隔の計算機へ安全に接続して操作する方式。 |
+| Superuser Do | - | 別のユーザ (通常は root) の権限で指定されたコマンドを実行することを可能にする Unix 系システムのプログラム。管理者以外のユーザが管理作業を行うときに使用される |
+| tar | - | 複数ファイルを一つにまとめる, 展開するコマンド。 |
 | tmux | - | Terminal multiplexer, 複数のシェルセッションを管理するターミナル分割ツール |
 | vars | - | 変数定義ファイル, Ansible で共通設定値を記載 |
 | wget | - | GNU Wget, コマンドラインダウンロードツール, ネットワークファイル取得に使用 |
 | xz | - | 高圧縮率のテキストおよびバイナリ圧縮フォーマット, .xz 拡張子で使用 |
 | zsh | - | Z Shell, 強力な対話的シェル, プログラミング機能が豊富 |
+| IPv6 Address Record | AAAA | DNS で IPv6 アドレスを返すレコード種別。 |
+| Domain Name System | DNS | 名前と IP アドレスを対応付ける仕組み。 |
+| Operating System | OS | 計算機の基本機能を管理し, アプリケーションを動作させる基盤ソフトウェア。 |
+| Pointer Record | PTR | DNS で IP アドレスから名前を逆引きするレコード種別。 |
+| Red Hat Enterprise Linux 9 | RHEL9 | Red Hat Enterprise Linux の第9系統版。 |
+| systemd | - | Linux システムの初期化とサービス管理を行う仕組み。 |
+| Play | PLAY | Ansible で対象群と処理集合をまとめた実行単位。 |
+| Recap | RECAP | Ansible 実行結果を要約表示する区画。 |
+| ansible-playbookコマンド | - | Ansible Playbook を実行して自動構成処理を適用するコマンド。 |
+| `ls` | - | ファイルやディレクトリの一覧を表示するコマンド。 |
+| `make` | - | Makefile に定義された処理を実行するコマンド。 |
+| `systemctl` | - | systemd 管理下のサービスを起動, 停止, 状態確認するコマンド。 |
+| コード | - | 処理内容を記述した文字列。 |
+| サービス | - | 機能を利用者や他システムへ提供する仕組み。 |
+| システム | - | 複数の要素が連携して目的を実現する仕組み全体。 |
+| レコード | - | ひとまとまりの情報項目。 |
+| ログイン | - | 利用者認証を行って利用を開始する操作。 |
+| リモートホスト | - | ネットワーク越しに接続して操作する別ホスト。 |
+| ローカルログイン | - | 実行中ホストへ直接ログインして操作すること。 |
+| 対象ホスト | - | Playbook による設定変更や導入処理の適用先となるホスト。 |
+| sudoコマンド | sudo | 一時的に管理者権限でコマンドを実行するためのコマンド。 |
+
+## 概要
+本ロールは新規ユーザ作成時に複製される `/etc/skel` 以下のスケルトン環境を構築します。プロキシ設定やシェル初期化ファイル, Emacs 関連ファイルをテンプレートとして配布し, `/etc/skel` にスケルトン環境を整備します。すべてのタスクは再実行可能で, 既存ファイルがある場合は整形, 追記のみを行い冪等性を維持します。
+
+本ロールは `/etc/skel` を基点とした標準環境を提供します。運用ポリシーに応じて, `vars/all-config.yml` や `host_vars` で必要な変数を上書きして利用してください。
 
 ## 前提条件
 
@@ -46,30 +177,34 @@
 - Ansible 2.15 以降
 - リモートホストへの SSH 接続が確立されていること
 - 管理者権限 (sudo) が利用可能であること ( バックアップスクリプト配置時のみ必須 )
-## 実行フロー
 
-本ロールは以下の順序で処理を実行します:
+## 実行方法
 
-1. **パラメータ読み込み** (load-params.yml): Debian/RHEL の差分を吸収するために `vars/cross-distro.yml` や共通設定を読み込みます。
-2. **パッケージ管理** (package.yml): パッケージインストール関連の処理 ( 将来的な拡張に予約 ) 。
-3. **共通ディレクトリ作成** (directory.yml): `/usr/local/bin` の作成とホームディレクトリバックアップスクリプトを配置します。
-4. **Bash設定展開** (directory-bash.yml): Bash用の設定ファイル (`.bashrc`, `.bashrc.proxy` など) を `/etc/skel` に展開 ( `user_settings_create_bash_skel` で制御 ) 。
-5. **zsh設定展開** (directory-zsh.yml): zsh用の設定ファイル (`.zshrc`, `.zprofile` など) を `/etc/skel` に展開 ( `user_settings_create_zsh_skel` で制御 ) 。
-6. **SSH設定展開** (directory-ssh.yml): SSH用の設定ファイル (`.ssh/config`, `.ssh/authorized_keys`) を `/etc/skel` に展開 ( `user_settings_create_ssh_skel` で制御 ) 。
-7. **curl設定展開** (directory-curl.yml): curl用の設定ファイル (`.curlrc`) を `/etc/skel` に展開 ( `user_settings_create_curl_skel` で制御 ) 。
-8. **wget設定展開** (directory-wget.yml): wget用の設定ファイル (`.wgetrc`) を `/etc/skel` に展開 ( `user_settings_create_wget_skel` で制御 ) 。
-9. **screen設定展開** (directory-screen.yml): screen用の設定ファイル (`.screenrc`) を `/etc/skel` に展開 ( `user_settings_create_screen_skel` で制御 ) 。
-10. **tmux設定展開** (directory-tmux.yml): tmux用の設定ファイル (`.tmux.conf`) を `/etc/skel` に展開 ( `user_settings_create_tmux_skel` で制御 ) 。
-11. **aspell設定展開** (directory-aspell.yml): aspell用の設定ファイル (`.aspell.conf`) を `/etc/skel` に展開 ( `user_settings_create_aspell_skel` で制御 ) 。
-12. **Git無視ルール展開** (directory-gitignore.yml): Git用の無視ファイルリスト (`.gitignore`) を `/etc/skel` に展開 ( `user_settings_create_git_skel` および `user_settings_create_gitignore_on_homedir_skel` で制御 ) 。
-13. **GDB設定展開** (directory-gdb.yml): GDB用の設定ファイル (`.gdbinit`) を `/etc/skel` に展開 ( `user_settings_create_gdb_skel` で制御 ) 。
-14. **systemd ssh-agent 設定展開** (directory-systemd-ssh-agent.yml): systemd ユーザー機能を使用した ssh-agent の設定ファイル (`ssh-agent.service`, `ssh-agent.socket`) を `/etc/skel/.config/systemd/user/` に展開 ( `user_settings_systemd_ssh_agent_skel` で制御 ) 。
-15. **Emacs設定ツリー構築** (directory-emacs.yml): `/etc/skel/.emacs.d` ツリーを作成し, `init.el` と必須設定ファイル ( `proxy-settings.el`, `basic-settings.el`, `japanese-environment.el` ) を展開 ( `user_settings_create_emacs_skel` で制御 ) 。
-16. **バックアップスクリプト配置** (directory-home-backup-script.yml): ホームディレクトリバックアップスクリプトを `/usr/local/bin/backup-home` に配置 ( `user_settings_backup_home_script_enabled` および関連変数で制御 ) 。
-17. **ホームコマンド配置** (home-command.yml): `/etc/skel/bin` を作成し, `clean-all-docker-images.sh`, `run-docker.sh` などの運用スクリプトをテンプレートから配布。
-17. **設定関連処理** (config.yml): その他の設定関連処理。
-18. **サービス管理** (service.yml): サービス関連処理 ( 将来的な拡張に予約 ) 。
-19. **ユーザ, グループ管理** (user_group.yml): ユーザ, グループ関連処理 ( 将来的な拡張に予約 ) 。
+user-settings ロールのみ実行する場合:
+```bash
+make run_user_settings
+```
+
+または,
+
+```bash
+ansible-playbook -i inventory/hosts site.yml -t user-settings
+```
+
+特定ホストのみ対象として実行する場合:
+```bash
+ansible-playbook -i inventory/hosts site.yml -l ubuntu-server.local
+```
+
+特定ホストで user-settings ロールのみ実行する場合:
+```bash
+ansible-playbook -i inventory/hosts site.yml -l ubuntu-server.local -t user-settings
+```
+
+変数を上書きして user-settings ロールを実行 (例: Bash 設定を有効化)する場合:
+```bash
+ansible-playbook -i inventory/hosts site.yml -t user-settings -e "user_settings_create_bash_skel=true"
+```
 
 ## 主要変数
 
@@ -109,10 +244,10 @@ Emacs パッケージの管理 ( インストール対象パッケージの指�
 | `user_settings_backup_home_nfs_dir` | `""` | マウントするNFS共有ディレクトリ。空の場合はスクリプト生成をスキップします。 |
 | `user_settings_backup_home_mount_point` | `"/mnt"` | NFSマウントポイント。空の場合はスクリプト生成をスキップします。 |
 | `user_settings_backup_dir_on_nfs` | `""` | NFSマウントポイント配下のバックアップ配置先ディレクトリ。空の場合はスクリプト生成をスキップします。 |
-| `user_settings_backup_output_dir` | `"{{ user_settings_backup_home_mount_point }}{{ user_settings_backup_dir_on_nfs }}"` | 最終的なバックアップ出力先ディレクトリ (計算値)。 |
+| `user_settings_backup_output_dir` | `"/mnt"` | 最終的なバックアップ出力先ディレクトリ。 |
 | `user_settings_backup_users_list` | `[]` | バックアップ対象ユーザのリスト。空の場合はスクリプト生成をスキップします。 |
 | `user_settings_backup_bin_dir` | `"/usr/local/bin"` | backup-homeスクリプトを配置するディレクトリ。規定値での配置先は `/usr/local/bin/backup-home`。 |
-| `user_settings_backup_share_dir` | `"/usr/local/share/backup-home"` | crontab例など関連ファイルを配置するディレクトリ。規定値での配置先は `/usr/local/share/backup-home/backup-home.cron.example`。 |
+| `user_settings_backup_share_dir` | `"/usr/local/share/backup-home"` | crontab例など関連ファイルを配置するディレクトリ。規定値でのcrontab例の配置先は `/usr/local/share/backup-home/backup-home.cron.example`。 |
 
 ### Docker関連変数
 
@@ -179,49 +314,7 @@ dns_host_list:
 `Host <dns_host_listで指定したホスト名>.<dns_domainで指定したドメイン名>`形式で, `.ssh/config`のホストエントリが作成されます。`
 `dns_domain` が未定義または空文字列の場合は, `Host <dns_host_listで指定したホスト名>` 形式 (ドメイン名を除いたホスト名のみを指定)で出力されます。
 
-## テンプレート/ファイル
-
-| テンプレート名 | 展開先ファイル | 説明 |
-| --- | --- | --- |
-| `_aspell.conf.j2` | `/etc/skel/.aspell.conf` | aspell 用辞書設定 |
-| `_bshrc.lmod.j2` | `/etc/skel/.bashrc.lmod` | Bash で環境モジュール (`Environment Modules`)を有効化 |
-| `_bashrc.mine.j2` | `/etc/skel/.bashrc.mine` | Bash ユーザ個別設定 (プロキシ/Lmod/シェル補完を有効化する役目を担う, その他設定例をコメント形式で記載) |
-| `_bshrc.proxy.j2` | `/etc/skel/.bashrc.proxy` | Bash 向けプロキシ設定 |
-| `_bshrc.proxy.j2` | `/etc/skel/.zshrc.proxy` | zsh 向けプロキシ設定 |
-| `_curlrc.j2` | `/etc/skel/.curlrc` | curl の既定オプション |
-| `_gdbinit.j2` | `/etc/skel/.gdbinit` | GDB 初期化設定 |
-| `_gitconfig.j2` | `/etc/skel/.gitconfig` | Git 共通設定 |
-| `_gitignore.j2` | `/etc/skel/.gitignore` | Git 無視ルール雛形 (オプション。`user_settings_create_gitignore_on_homedir_skel` で制御) |
-| `_screenrc.j2` | `/etc/skel/.screenrc` | GNU Screen 設定 |
-| `_tmux.conf.j2` | `/etc/skel/.tmux.conf` | tmux 設定 |
-| `_wgetrc.j2` | `/etc/skel/.wgetrc` | wget の既定オプション |
-| `_zprofile.j2` | `/etc/skel/.zprofile` | zsh ログイン設定 |
-| `_bash_profile.j2` | `/etc/skel/.bash_profile` | Bash ログイン設定 |
-| `_zshrc.j2` | `/etc/skel/.zshrc` | zsh メイン設定 |
-| `_zshrc_common.j2` | `/etc/skel/.zshrc.common` | zsh 共通設定 |
-| `_zshrc.mine.sample.j2` | `/etc/skel/.zshrc.mine.sample` | zsh ユーザ個別設定サンプル |
-| `_ssh__authorized_keys.j2` | `/etc/skel/.ssh/authorized_keys` | authorized_keys 雛形 |
-| `_ssh__config.j2` | `/etc/skel/.ssh/config` | OpenSSH 共通設定 |
-| `_config_systemd_user_ssh-agent.socket.j2` | `/etc/skel/.config/systemd/user/ssh-agent.socket` | systemd ssh-agent ソケットユニット |
-| `_config_systemd_user_ssh-agent.service.j2` | `/etc/skel/.config/systemd/user/ssh-agent.service` | systemd ssh-agent サービスユニット |
-| `backup-home.j2` | `{{ user_settings_backup_bin_dir }}/backup-home` | ホームバックアップスクリプト。規定値での配置先は `/usr/local/bin/backup-home`。 |
-| `backup-home.cron.example.j2` | `{{ user_settings_backup_share_dir }}/backup-home.cron.example` | ホームバックアップスクリプト用 crontab 例。規定値での配置先は `/usr/local/share/backup-home/backup-home.cron.example`。 |
-| `clean-all-docker-images.sh.j2` | `/etc/skel/bin/clean-all-docker-images.sh` | Docker イメージ一括削除スクリプト |
-| `run-docker.sh.j2` | `/etc/skel/bin/run-docker.sh` | Docker コンテナ起動補助スクリプト |
-
-### Emacs スケルトン配置ファイル
-
-以下のファイルは `/etc/skel/.emacs.d/` ツリー下に配置され, 新規ユーザ作成時に自動的にホームディレクトリにコピーされます。
-init.el は Emacs 初期化ファイルで, proxy-settings.el, basic-settings.el, japanese-environment.el はコメント化されていない状態で初期化ファイルから読み込まれます。
-
-| テンプレート名 | 展開先ファイル | 説明 |
-| --- | --- | --- |
-| `_emacs_d__init.el.j2` | `/etc/skel/.emacs.d/init.el` | Emacs 初期化ファイル ( 必須 )  |
-| `_emacs_d__proxy-settings.el.j2` | `/etc/skel/.emacs.d/user_settings/proxy-settings.el` | Emacs プロキシ設定 ( init.el 内で使用 )  |
-| `_emacs_d__basic-settings.el.j2` | `/etc/skel/.emacs.d/user_settings/basic-settings.el` | 基本 ロードパス, キーバインド, 編集設定 ( init.el 内で使用 )  |
-| `_emacs_d__japanese-environment.el.j2` | `/etc/skel/.emacs.d/user_settings/japanese-environment.el` | 日本語環境設定 ( init.el 内で使用 )  |
-
-オプションの Emacs 設定ファイル ( auctex-mode-settings.el, cmake-settings.el など, init.el でコメント化されているもの ) については, `post-user-create` ロール ( テンプレートから直接各ユーザのホームディレクトリにEmacs設定ファイルに配置するタスクを実施するロール ) の Readme.md を参照してください。
+実行者は既存の実行順依存を崩さないことを確認した上で本ロールを実行します。
 
 ## systemd ssh-agent の使用方法
 
@@ -257,7 +350,7 @@ backup-home スクリプト (`/usr/local/bin/backup-home`) は, 指定された�
 
 ### crontabの記載例
 
-このロールは `{{ user_settings_backup_share_dir }}/backup-home.cron.example` (規定値は, `/usr/local/share/backup-home/backup-home.cron.example` ) に crontab サンプルを自動配置します。
+このロールは `/usr/local/share/backup-home/backup-home.cron.example` に crontab サンプルを自動配置します。
 このファイルを修正し, `/etc/cron.daily/backup-home` に配置してください:
 
 より詳細な crontab エントリが必要な場合は, crontabのマニュアルに従って, サンプルファイルを修正の上, `/etc/cron.d/backup-home` などに配置してください。
@@ -281,41 +374,74 @@ sudo /usr/local/bin/backup-home
 2. 指定されたバックアップ世代数を保持
 3. エラーログはシステムのcronログ ( `/var/log/syslog` など ) に記録
 
-### 留意事項
+## テンプレートと生成ファイル
 
-1. ユーザ作成フロー: 本ロール,  `create-users` ロール,  `post-user-create` ロール の順序で実行されます。既存ユーザに対する Emacs パッケージ導入は `post-user-create` ロールで行われるため, 同じプレイブックで適切な順序に配置してください。詳細は `post-user-create` ロールの Readme.md を参照してください。
-2. 各スケルトン設定ファイルの作成要否は `user_settings_create_*_skel` 変数で個別に制御できます。不要な設定ファイルは `false` に設定してスキップしてください。
-3. Git 設定: `.gitconfig` は `post-user-create` ロールで各ユーザのホームディレクトリに作成されます (`post_user_create_gitconfig_enabled: true` の場合)。本ロールでは `/etc/skel/.gitignore` のみを管理します。
-4. ホームディレクトリバックアップスクリプトの導入処理を有効化する場合は, 以下の条件をすべて満たす必要があります:
-   - `user_settings_backup_home_script_enabled: true`
-   - `user_settings_backup_home_nfs_server` が空でない
-   - `user_settings_backup_home_nfs_dir` が空でない
-   - `user_settings_backup_home_mount_point` が空でない
-   - `user_settings_backup_dir_on_nfs` が空でない
-   - `user_settings_backup_users_list` が空でない
-   - `user_settings_backup_home_rotation` が1以上
+| テンプレートファイル名 | 出力先パス (規定) | 説明 |
+| --- | --- | --- |
+| `_aspell.conf.j2` | `/etc/skel/.aspell.conf` | aspell 用辞書設定 |
+| `_bshrc.lmod.j2` | `/etc/skel/.bashrc.lmod`  | Bash で環境モジュール (`Environment Modules`)を有効化 |
+| `_bashrc.mine.j2` | `/etc/skel/.bashrc.mine` | Bash ユーザ個別設定 (プロキシ/Lmod/シェル補完を有効化する役目を担う, その他設定例をコメント形式で記載) |
+| `_bshrc.proxy.j2` | `/etc/skel/.bashrc.proxy` | Bash 向けプロキシ設定 |
+| `_bshrc.proxy.j2` | `/etc/skel/.zshrc.proxy` | zsh 向けプロキシ設定 |
+| `_curlrc.j2` | `/etc/skel/.curlrc` | curl の既定オプション |
+| `_gdbinit.j2` | `/etc/skel/.gdbinit` | GDB 初期化設定 |
+| `_gitconfig.j2` | `/etc/skel/.gitconfig` | Git 共通設定 |
+| `_gitignore.j2` | `/etc/skel/.gitignore` | Git 無視ルール雛形 (オプション。`user_settings_create_gitignore_on_homedir_skel` で制御) |
+| `_screenrc.j2` | `/etc/skel/.screenrc` | GNU Screen 設定 |
+| `_tmux.conf.j2` | `/etc/skel/.tmux.conf` | tmux 設定 |
+| `_wgetrc.j2` | `/etc/skel/.wgetrc` | wget の既定オプション |
+| `_zprofile.j2` | `/etc/skel/.zprofile` | zsh ログイン設定 |
+| `_bash_profile.j2` | `/etc/skel/.bash_profile` | Bash ログイン設定 |
+| `_zshrc.j2` | `/etc/skel/.zshrc` | zsh メイン設定 |
+| `_zshrc_common.j2` | `/etc/skel/.zshrc.common` | zsh 共通設定 |
+| `_zshrc.mine.sample.j2` | `/etc/skel/.zshrc.mine.sample` | zsh ユーザ個別設定サンプル |
+| `_ssh__authorized_keys.j2` | `/etc/skel/.ssh/authorized_keys` | authorized_keys 雛形 |
+| `_ssh__config.j2` | `/etc/skel/.ssh/config` | OpenSSH 共通設定 |
+| `_config_systemd_user_ssh-agent.socket.j2` | `/etc/skel/.config/systemd/user/ssh-agent.socket` | systemd ssh-agent ソケットユニット |
+| `_config_systemd_user_ssh-agent.service.j2` | `/etc/skel/.config/systemd/user/ssh-agent.service` | systemd ssh-agent サービスユニット |
+| `backup-home.j2` | `/usr/local/bin/backup-home` | ホームバックアップスクリプト。|
+| `backup-home.cron.example.j2` | `/usr/local/share/backup-home/backup-home.cron.example` | ホームバックアップスクリプト用 crontab 例。|
+| `clean-all-docker-images.sh.j2` | `/etc/skel/bin/clean-all-docker-images.sh` | Docker イメージ一括削除スクリプト |
+| `run-docker.sh.j2` | `/etc/skel/bin/run-docker.sh` | Docker コンテナ起動補助スクリプト |
 
-## 実行方法
+### Emacs スケルトン配置ファイル
 
-```bash
-make run_user_settings
-```
+以下のファイルは `/etc/skel/.emacs.d/` ツリー下に配置され, 新規ユーザ作成時に自動的にホームディレクトリにコピーされます。
+init.el は Emacs 初期化ファイルで, proxy-settings.el, basic-settings.el, japanese-environment.el はコメント化されていない状態で初期化ファイルから読み込まれます。
 
-または,
+| テンプレートファイル名 | 出力先パス | 説明 |
+| --- | --- | --- |
+| `_emacs_d__init.el.j2` | `/etc/skel/.emacs.d/init.el`  | Emacs 初期化ファイル ( 必須 ) |
+| `_emacs_d__proxy-settings.el.j2` | `/etc/skel/.emacs.d/user_settings/proxy-settings.el` | Emacs プロキシ設定 ( init.el 内で使用 ) |
+| `_emacs_d__basic-settings.el.j2` | `/etc/skel/.emacs.d/user_settings/basic-settings.el` | 基本 ロードパス, キーバインド, 編集設定 ( init.el 内で使用 ) |
+| `_emacs_d__japanese-environment.el.j2` | `/etc/skel/.emacs.d/user_settings/japanese-environment.el` | 日本語環境設定 ( init.el 内で使用 ) |
 
-```bash
-# user-settings ロールのみ実行
-ansible-playbook -i inventory/hosts site.yml -t user-settings
+オプションの Emacs 設定ファイル ( auctex-mode-settings.el, cmake-settings.el など, init.el でコメント化されているもの ) については, `post-user-create` ロール ( テンプレートから直接各ユーザのホームディレクトリにEmacs設定ファイルに配置するタスクを実施するロール ) の Readme.md を参照してください。
 
-# 特定ホストのみ対象
-ansible-playbook -i inventory/hosts site.yml -l ubuntu-server.local
+## 実行フロー
 
-# 特定ホストで user-settings ロールのみ実行
-ansible-playbook -i inventory/hosts site.yml -l ubuntu-server.local -t user-settings
+本ロールは以下の順序で処理を実行します:
 
-# 変数を上書きして user-settings ロールを実行 (例: Bash 設定を有効化)
-ansible-playbook -i inventory/hosts site.yml -t user-settings -e "user_settings_create_bash_skel=true"
-```
+1. **パラメータ読み込み** (load-params.yml): Debian/RHEL の差分を吸収するために `vars/cross-distro.yml` や共通設定を読み込みます。
+2. **パッケージ管理** (package.yml): パッケージインストール関連の処理 ( 将来的な拡張に予約 ) 。
+3. **共通ディレクトリ作成** (directory.yml): `/usr/local/bin` の作成とホームディレクトリバックアップスクリプトを配置します。
+4. **Bash設定展開** (directory-bash.yml): Bash用の設定ファイル (`.bashrc`, `.bashrc.proxy` など) を `/etc/skel` に展開 ( `user_settings_create_bash_skel` で制御 ) 。
+5. **zsh設定展開** (directory-zsh.yml): zsh用の設定ファイル (`.zshrc`, `.zprofile` など) を `/etc/skel` に展開 ( `user_settings_create_zsh_skel` で制御 ) 。
+6. **SSH設定展開** (directory-ssh.yml): SSH用の設定ファイル (`.ssh/config`, `.ssh/authorized_keys`) を `/etc/skel` に展開 ( `user_settings_create_ssh_skel` で制御 ) 。
+7. **curl設定展開** (directory-curl.yml): curl用の設定ファイル (`.curlrc`) を `/etc/skel` に展開 ( `user_settings_create_curl_skel` で制御 ) 。
+8. **wget設定展開** (directory-wget.yml): wget用の設定ファイル (`.wgetrc`) を `/etc/skel` に展開 ( `user_settings_create_wget_skel` で制御 ) 。
+9. **screen設定展開** (directory-screen.yml): screen用の設定ファイル (`.screenrc`) を `/etc/skel` に展開 ( `user_settings_create_screen_skel` で制御 ) 。
+10. **tmux設定展開** (directory-tmux.yml): tmux用の設定ファイル (`.tmux.conf`) を `/etc/skel` に展開 ( `user_settings_create_tmux_skel` で制御 ) 。
+11. **aspell設定展開** (directory-aspell.yml): aspell用の設定ファイル (`.aspell.conf`) を `/etc/skel` に展開 ( `user_settings_create_aspell_skel` で制御 ) 。
+12. **Git無視ルール展開** (directory-gitignore.yml): Git用の無視ファイルリスト (`.gitignore`) を `/etc/skel` に展開 ( `user_settings_create_git_skel` および `user_settings_create_gitignore_on_homedir_skel` で制御 ) 。
+13. **GDB設定展開** (directory-gdb.yml): GDB用の設定ファイル (`.gdbinit`) を `/etc/skel` に展開 ( `user_settings_create_gdb_skel` で制御 ) 。
+14. **systemd ssh-agent 設定展開** (directory-systemd-ssh-agent.yml): systemd ユーザー機能を使用した ssh-agent の設定ファイル (`ssh-agent.service`, `ssh-agent.socket`) を `/etc/skel/.config/systemd/user/` に展開 ( `user_settings_systemd_ssh_agent_skel` で制御 ) 。
+15. **Emacs設定ツリー構築** (directory-emacs.yml): `/etc/skel/.emacs.d` ツリーを作成し, `init.el` と必須設定ファイル ( `proxy-settings.el`, `basic-settings.el`, `japanese-environment.el` ) を展開 ( `user_settings_create_emacs_skel` で制御 ) 。
+16. **バックアップスクリプト配置** (directory-home-backup-script.yml): ホームディレクトリバックアップスクリプトを `/usr/local/bin/backup-home` に配置 ( `user_settings_backup_home_script_enabled` および関連変数で制御 ) 。
+17. **ホームコマンド配置** (home-command.yml): `/etc/skel/bin` を作成し, `clean-all-docker-images.sh`, `run-docker.sh` などの運用スクリプトをテンプレートから配布。
+17. **設定関連処理** (config.yml): その他の設定関連処理。
+18. **サービス管理** (service.yml): サービス関連処理 ( 将来的な拡張に予約 ) 。
+19. **ユーザ, グループ管理** (user_group.yml): ユーザ, グループ関連処理 ( 将来的な拡張に予約 ) 。
 
 ## 検証ポイント
 
@@ -465,9 +591,43 @@ sudo -n grep -E "proxy|ProxyCommand|no_proxy|NO_PROXY" /etc/skel/.bashrc.proxy /
 
 - 既定状態では `proxy_server`, `proxy_port`, `proxy_user`, `proxy_password`, `no_proxy` の設定行がコメントアウトされた形で記載されていることを確認します。
 
-
-## 補足
-
 ### 既存ユーザに対する Emacs パッケージインストールおよびオプション設定ファイル配布の検証について
 
 既存ユーザに対する Emacs パッケージインストールおよびオプション設定ファイル配布の検証は, `post-user-create` ロールの Readme.md の検証ポイントを参照してください。
+
+## トラブルシューティング
+
+実行者はエラー発生時に build-*.log を確認し, 失敗した task 名と不足変数を特定します。代表的なトラブルと対処を以下に示します。
+
+| 想定トラブル | 主な原因 | 対処方法 |
+| --- | --- | --- |
+| `/etc/skel/.bashrc` や `/etc/skel/.zshrc` が生成されない | 対応する `user_settings_create_*_skel` 変数が `false` のため, 個別タスクがスキップされている | 実行者は `user_settings_create_bash_skel`, `user_settings_create_zsh_skel`, `user_settings_create_ssh_skel` など対象機能の変数を確認し, 必要な項目だけ `true` に変更して再実行します。Ansible 出力で `Directory Bash` や `Directory Zsh` が `skipping` になっていないことを確認します。 |
+| `/etc/skel/.ssh/config` はあるが新規ユーザで SSH 接続設定が期待どおり生成されない | `mdns_host_list`, `dns_host_list`, `dns_domain` が空, または必要な要素が不足している | 実行者は `mdns_host_list` と `dns_host_list` の定義内容を確認し, `name` を含む辞書形式で指定されていることを確認します。`dns_domain` が空の場合はドメイン名なしの Host エントリになる点も踏まえて設定を見直します。 |
+| Emacs 設定ファイルが配置されない | `user_settings_create_emacs_skel` が `false` のため, `directory-emacs.yml` がスキップされている | 実行者は `user_settings_create_emacs_skel: true` を設定し, `/etc/skel/.emacs.d/init.el` と `/etc/skel/.emacs.d/user_settings/` 配下の必須ファイルが生成されることを確認します。 |
+| `backup-home` スクリプトが配置されない | バックアップスクリプトの有効化条件を満たしていないため, `directory-home-backup-script.yml` 全体がスキップされている | 実行者は `user_settings_backup_home_script_enabled: true` に加え, `user_settings_backup_home_nfs_server`, `user_settings_backup_home_nfs_dir`, `user_settings_backup_home_mount_point`, `user_settings_backup_dir_on_nfs`, `user_settings_backup_users_list`, `user_settings_backup_home_rotation` がすべて有効値になっていることを確認して再実行します。 |
+| `backup-home` 実行時に NFS マウントで失敗する | NFS サーバ到達不可, 共有ディレクトリ名誤り, `sudo` 権限不足 | 実行者は対象ホストで `mount -t nfs <server>:<dir> /mnt` を手動で確認し, `user_settings_backup_home_nfs_server` と `user_settings_backup_home_nfs_dir` の値を見直します。非 root 実行時は `sudo` が利用可能であることも確認します。 |
+| `clean-all-docker-images.sh` や `run-docker.sh` が生成されない | `create_docker_image_operation_script` が `false` のため, `home-command.yml` の個別テンプレート配置がスキップされている | 実行者は `create_docker_image_operation_script: true` を設定し, `/etc/skel/bin/clean-all-docker-images.sh` と `/etc/skel/bin/run-docker.sh` が作成されることを確認します。 |
+| systemd ssh-agent を有効化したのに新規ユーザで利用できない | ユーザ作成後に `systemctl --user enable --now ssh-agent.socket` を実行していない, または `user_settings_systemd_ssh_agent_skel` が `false` | 実行者は `user_settings_systemd_ssh_agent_skel: true` で `/etc/skel/.config/systemd/user/ssh-agent.socket` が配置されていることを確認し, 作成済みユーザ側で `systemctl --user enable --now ssh-agent.socket` を実行します。 |
+
+## 注意事項
+
+
+1. ユーザ作成フロー: 本ロール,  `create-users` ロール,  `post-user-create` ロール の順序で実行されます。既存ユーザに対する Emacs パッケージ導入は `post-user-create` ロールで行われるため, 同じプレイブックで適切な順序に配置してください。詳細は `post-user-create` ロールの Readme.md を参照してください。
+2. 各スケルトン設定ファイルの作成要否は `user_settings_create_*_skel` 変数で個別に制御できます。不要な設定ファイルは `false` に設定してスキップしてください。
+3. Git 設定: `.gitconfig` は `post-user-create` ロールで各ユーザのホームディレクトリに作成されます (`post_user_create_gitconfig_enabled: true` の場合)。本ロールでは `/etc/skel/.gitignore` のみを管理します。
+4. ホームディレクトリバックアップスクリプトの導入処理を有効化する場合は, 以下の条件をすべて満たす必要があります:
+   - `user_settings_backup_home_script_enabled: true`
+   - `user_settings_backup_home_nfs_server` が空でない
+   - `user_settings_backup_home_nfs_dir` が空でない
+   - `user_settings_backup_home_mount_point` が空でない
+   - `user_settings_backup_dir_on_nfs` が空でない
+   - `user_settings_backup_users_list` が空でない
+   - `user_settings_backup_home_rotation` が1以上
+
+## 参考資料
+
+### 公式ドキュメント
+
+- [Bash Manual](https://www.gnu.org/software/bash/manual/)
+- [Zsh Documentation](https://zsh.sourceforge.io/Doc/)
+- [Git documentation](https://git-scm.com/doc)

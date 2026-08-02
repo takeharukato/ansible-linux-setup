@@ -103,16 +103,16 @@ playbook実行, アーカイブ作成用Makefileでは, 以下のターゲット
 |ターゲット名|処理内容|
 |---|---|
 |all, または,run|inventory/hostsに定義されたすべてのホストに対して構築を実施する(デフォルトターゲット)。|
-|clean|一時ファイルを削除する。|
-|distclean|アーカイブを含めて一時ファイルを削除する。|
-|run_ロール名|指定されたロール名のロールをinventory/hostsに定義されたすべてのホストに対して実施する。|
-|mk_arc|本playbookのアーカイブを作成する。アーカイブ名は, `ansible-<実行日時>.tgz`となる。<実行日時>は, `西暦年月2桁日2桁 (YYYYMMDD)`形式となる。|
-|mk_role_arc <ロールディレクトリ>|指定したロールから構成されるアーカイブを作成する。<ロールディレクトリ>には, `roles/common`のように対象のロールを定義したディレクトリへの相対パスを(`./`を付けずに)指定する。アーカイブ名は, `ansible-<ロール名>-<実行日>.tgz`となる。<実行日>は, `西暦年月2桁日2桁 (YYYYMMDD)`形式となる。例えば, `make mk_role_arc roles/common`を実行した場合は, `ansible-common-<実行日>.tgz`というアーカイブが作成される。|
-|cloc|コード行数をclocコマンドを用いて表示する。|
+|clean|一時ファイルを削除します。|
+|distclean|アーカイブを含めて一時ファイルを削除します。|
+|run_ロール名|指定されたロール名のロールをinventory/hostsに定義されたすべてのホストに対して実施します。|
+|mk_arc|本playbookのアーカイブを作成します。アーカイブ名は, `ansible-<実行日時>.tgz`となる。<実行日時>は, `西暦年月2桁日2桁 (YYYYMMDD)`形式となる。|
+|mk_role_arc <ロールディレクトリ>|指定したロールから構成されるアーカイブを作成します。<ロールディレクトリ>には, `roles/common`のように対象のロールを定義したディレクトリへの相対パスを(`./`を付けずに)指定します。アーカイブ名は, `ansible-<ロール名>-<実行日>.tgz`となる。<実行日>は, `西暦年月2桁日2桁 (YYYYMMDD)`形式となる。例えば, `make mk_role_arc roles/common`を実行した場合は, `ansible-common-<実行日>.tgz`というアーカイブが作成される。|
+|cloc|コード行数をclocコマンドを用いて表示します。|
 
 ## 設定方法
 
-本playbookでは, 以下のファイルに設定項目を記載する。
+本playbookでは, 以下のファイルに設定項目を記載します。
 
 1. vars/all-config.yml  広域設定ファイル
 2. host_vars/ ディレクトリ配下のホスト設定ファイル
@@ -124,11 +124,11 @@ playbook実行, アーカイブ作成用Makefileでは, 以下のターゲット
 ### 広域設定ファイル (vars/all-config.yml) の設定値
 
 本節では, 広域設定ファイル (vars/all-config.yml) の設定項目について述べる。
-広域設定ファイルは, 各ロールのdefaults/main.ymlに記載されているデフォルト値の定義に使用される設定値やそれらのファイル中に記載されているデフォルト値を上書きするための設定値を記載する。
+広域設定ファイルは, 各ロールのdefaults/main.ymlに記載されているデフォルト値の定義に使用される設定値やそれらのファイル中に記載されているデフォルト値を上書きするための設定値を記載します。
 
 各ロールのdefaults/main.ymlに記載されているデフォルトの設定値を修正する場合は,
 **defaults/main.ymlの設定値を変更せず**, vars/all-config.ymlに設定を転記の上,
-設定値をvars/all-config.yml側で更新することを推奨する。
+設定値をvars/all-config.yml側で更新することを推奨します。
 
 #### 広域設定ファイル基本設定
 
@@ -142,9 +142,9 @@ playbook実行, アーカイブ作成用Makefileでは, 以下のターゲット
 |common_timezone|タイムゾーンの名前|"Asia/Tokyo"|
 |common_disable_cron_mails|Cronジョブ完了後のメール送信を抑止する|true|
 |common_selinux_state|Security-Enhanced Linuxの動作モード('enforcing', 'permissive', 'disabled' のいずれかを指定)|"permissive"|
-|common_sysctl_user_ptrace_enable|一般ユーザによるptraceを有効化し, straceやプログラムのデバッグを可能にする。|true|
-|common_sysctl_user_dmesg_enable|一般ユーザによる`dmesg`コマンドの発行を許可する。|true|
-|common_sysctl_inotify_max_user_watches|inotify(7) APIによるファイルシステムイベント監視数の上限値を設定する。|524288|
+|common_sysctl_user_ptrace_enable|一般ユーザによるptraceを有効化し, straceやプログラムのデバッグを可能にします。|true|
+|common_sysctl_user_dmesg_enable|一般ユーザによる`dmesg`コマンドの発行を許可します。|true|
+|common_sysctl_inotify_max_user_watches|inotify(7) APIによるファイルシステムイベント監視数の上限値を設定します。|524288|
 |enable_firewall|Firewall (firewalld / Uncomplicated Firewall (UFW) ) を使用する場合はtrueを指定|false|
 |users_list|作成するユーザのリスト|users_list定義参照|
 |sudo_nopasswd_users|パスワード入力なしに, sudoコマンドを実行可能なユーザのリストを指定する|['user1']|
@@ -156,15 +156,15 @@ playbook実行, アーカイブ作成用Makefileでは, 以下のターゲット
 
 users_listには, 以下の要素からなる辞書のリストを記述する.
 
-- name ログイン名を指定する。
-- group プライマリグループ名を指定する。
-- password ログインパスワードのパスワードハッシュ(/etc/shadow 互換の SHA-512-crypt 方式)を指定する。 "{{ パスワード文字列'\|password_hash('sha512') }}"と記載する。
-- update_password パスワード設定タイミングを指定する。通常, 'on\_create'を指定する。
+- name ログイン名を指定します。
+- group プライマリグループ名を指定します。
+- password ログインパスワードのパスワードハッシュ(/etc/shadow 互換の SHA-512-crypt 方式)を指定します。 "{{ パスワード文字列'\|password_hash('sha512') }}"と記載します。
+- update_password パスワード設定タイミングを指定します。通常, 'on\_create'を指定します。
 - shell ログインシェルを指定する (/bin/bash など)。
-- home ホームディレクトリ名を指定する。
-- comment General Electric Comprehensive Operating Supervisor ( GECOS ) フィールドに書き込むフルネームやコメントを記載する。
-- email 電子メールアドレスを記載する。
-- github GitHubのアカウント名を記載する。アカウント名を記載すると, 本項目に記載されたGitHubアカウントから公開鍵を取り込み, 作成したユーザのSecure Shell (SSH) 公開鍵として使用する。
+- home ホームディレクトリ名を指定します。
+- comment General Electric Comprehensive Operating Supervisor ( GECOS ) フィールドに書き込むフルネームやコメントを記載します。
+- email 電子メールアドレスを記載します。
+- github GitHubのアカウント名を記載します。アカウント名を記載すると, 本項目に記載されたGitHubアカウントから公開鍵を取り込み, 作成したユーザのSecure Shell (SSH) 公開鍵として使用します。
 
 記載例は以下の通り。
 
@@ -174,9 +174,9 @@ users_listには, 以下の要素からなる辞書のリストを記述する.
 
 #### users_authorized_keys定義
 
-ユーザ名文字列から.ssh/authorized_keysに追記する公開鍵文字列のリストへのマッピングを定義する辞書である`users_authorized_keys`変数に, ユーザ名とそのユーザのSSH公開鍵のリストを定義することで, 公開鍵によるSSHログイン可能に設定できる。
+ユーザ名文字列から.ssh/authorized_keysに追記する公開鍵文字列のリストへのマッピングを定義する辞書である`users_authorized_keys`変数に, ユーザ名とそのユーザのSSH公開鍵のリストを定義することで, 公開鍵によるSSHログイン可能に設定できます。
 
-`users_authorized_keys`のキーには, `users_list`のユーザ名(`name`キーの値)を指定し, `users_authorized_keys`の値には, OpenSSHの `.ssh/authorized_keys`に登録する公開鍵情報行を記載する。
+`users_authorized_keys`のキーには, `users_list`のユーザ名(`name`キーの値)を指定し, `users_authorized_keys`の値には, OpenSSHの `.ssh/authorized_keys`に登録する公開鍵情報行を記載します。
 
 `users_authorized_keys`の例を以下に示す。
 
@@ -205,7 +205,7 @@ users_listには, 以下の要素からなる辞書のリストを記述する.
 #### ネットワーク設定
 
 以下で管理サーバは, Network Time Protocol (NTP) サーバ, Domain Name System (DNS) サーバ, Lightweight Directory Access Protocol (LDAP) サーバなどを担うホストを表す。
-これらの役割を別のホストに割り当てる場合は, それぞれのサーバごとに個別のアドレスやホスト名を設定する。
+これらの役割を別のホストに割り当てる場合は, それぞれのサーバごとに個別のアドレスやホスト名を設定します。
 
 |変数名|意味|設定値の例|
 |---|---|---|
@@ -248,14 +248,14 @@ users_listには, 以下の要素からなる辞書のリストを記述する.
 
 ipv4_name_server1, ipv4_name_server2の両方を設定した場合は両方設定される。ipv4_name_server1, ipv4_name_server2のいずれか一方のみを設定した場合は, その1つのみ設定される。ipv4_name_server1, ipv4_name_server2のいずれも設定しなかった場合は, Dynamic Host Configuration Protocol (DHCP) で取得したDNSサーバが設定される。
 
-実装上は, dns_searchには, DNSサーチドメインをセミコロン(;)またはカンマ(,)で区切って指定するほか, リストで指定することも可能だが, 仕様としては, セミコロン(;)で区切るものとする。
+実装上は, dns_searchには, DNSサーチドメインをセミコロン(;)またはカンマ(,)で区切って指定するほか, リストで指定することも可能だが, 仕様としては, セミコロン(;)で区切るものとします。
 
-注意:systemd-resolvedが Local Area Network (LAN) 内のドメイン名を外部のDNS ( フォールバックDNS ) に問い合わせに行かないようにするためipv4_name_server1, ipv4_name_server2にはLAN内のDNSサーバを設定する。
+注意:systemd-resolvedが Local Area Network (LAN) 内のドメイン名を外部のDNS ( フォールバックDNS ) に問い合わせに行かないようにするためipv4_name_server1, ipv4_name_server2にはLAN内のDNSサーバを設定します。
 
 dns_host_listに以下の要素からなる辞書のリストを記述することで,
 静的IPv4アドレスを持つホストのホスト名とIPv4アドレスをDNSのゾーン情報に記録することが
-できる。
-ユーザの.ssh/configファイルに`ホスト名.{{dns_domain}}`のホスト情報を追記する。
+できます。
+ユーザの.ssh/configファイルに`ホスト名.{{dns_domain}}`のホスト情報を追記します。
 
 - name ホスト名 (例:"devserver")
 - ipv4_addr IPv4アドレスのプレフィクスを除いた値 (例:192.168.20.11/24の場合, '11')
@@ -271,17 +271,17 @@ dns_host_list
 #### multicast DNS (mDNS) 関連設定
 
 RFC 6762 multicast DNSによる名前解決を行うためのパッケージ(`avahi`, `nss-mdns`など)を導入する場合は,
-`mdns_enabled`変数を`true`に設定する。
+`mdns_enabled`変数を`true`に設定します。
 
 |変数名|意味|設定値の例|
 |---|---|---|
-| `mdns_enabled`|RFC 6762 multicast DNSによる名前解決機能(`avahi daemon`など)を利用する場合は, `true`に設定する。規定値は, `false`。|`false`|
+| `mdns_enabled`|RFC 6762 multicast DNSによる名前解決機能(`avahi daemon`など)を利用する場合は, `true`に設定します。規定値は, `false`。|`false`|
 
-また, `mdns_host_list`に以下の要素からなる辞書のリストを記述することで, ユーザの.ssh/configファイルに`ホスト名.local`のホスト情報を追記することができる:
+また, `mdns_host_list`に以下の要素からなる辞書のリストを記述することで, ユーザの.ssh/configファイルに`ホスト名.local`のホスト情報を追記することができます:
 
 |キー名|設定値|設定値の例|
 |---|---|---|
-|name|ホスト名を指定する。|'vmlinux1'|
+|name|ホスト名を指定します。|'vmlinux1'|
 
 記載例は以下の通り:
 
@@ -295,7 +295,7 @@ mdns_host_list:
 
 #### Network Time Protocol (NTP) クライアントの設定
 
-ntp_servers_listにNTPクライアントから参照するNTPサーバのIPアドレス, または, ホスト名をリスト形式で指定する。
+ntp_servers_listにNTPクライアントから参照するNTPサーバのIPアドレス, または, ホスト名をリスト形式で指定します。
 
 記載例は以下の通り:
 
@@ -307,7 +307,7 @@ ntp_servers_list:
 
 #### Domain Name System (DNS) サーバの設定
 
-以下の項目を設定する。
+以下の項目を設定します。
 
 |変数名|意味|設定値の例|
 |---|---|---|
@@ -324,12 +324,12 @@ ntp_servers_list:
 |dns_network_ipv6_prefix_filename|IPv6逆引きゾーンファイル名|"fd69-6684-61a-1"|
 |dns_ipv4_reverse|IPv4逆引きゾーンファイル名/ゾーン名|"20.168.192"|
 |dns_ipv6_reverse|IPv6逆引きゾーン名|"1.0.0.0.a.1.6.0.4.8.6.6.9.6.d.f"|
-|dns_ddns_key_secret|Dynamic DNS updateで使用する。共通鍵(`ddns-confgen -a hmac-sha256 -k ddns-clients`で生成された値を指定)|"Kdi362s+dCkToqo4F+JfwMK6yILQyn1mrqI1xfGqDfk="|
+|dns_ddns_key_secret|Dynamic DNS updateで使用します。共通鍵(`ddns-confgen -a hmac-sha256 -k ddns-clients`で生成された値を指定)|"Kdi362s+dCkToqo4F+JfwMK6yILQyn1mrqI1xfGqDfk="|
 |use_nm_ddns_update_scripts|ip monitorコマンドでIPv6アドレス変更を監視する機能とNetwork Manager dispatcher経由でDynamic DNSでホスト名とIPアドレスをDNSに自動登録する機能を有効にする場合はtrueに設定。|true|
 
 #### Network File System (NFS) サーバの設定
 
-以下の項目を設定する。
+以下の項目を設定します。
 
 |変数名|意味|設定値の例|
 |---|---|---|
@@ -339,13 +339,13 @@ ntp_servers_list:
 
 #### Network Time Protocol (NTP)サーバの設定
 
-以下の項目を設定する。
+以下の項目を設定します。
 
 |変数名|意味|設定値の例|
 |---|---|---|
 |ntp_allow|NTPサーバにアクセス可能なホストが所属するネットワークのネットワークアドレス|"{{ network_ipv4_network_address }}/{{ network_ipv4_prefix_len }}"|
 
-上記の他に, external_ntp_servers_listに参照する外部NTPサーバをリスト形式で指定する。
+上記の他に, external_ntp_servers_listに参照する外部NTPサーバをリスト形式で指定します。
 
 ```yaml
 external_ntp_servers_list:
@@ -373,7 +373,7 @@ external_ntp_servers_list:
 
 #### Rancher 関連設定
 
-以下の項目を設定する。
+以下の項目を設定します。
 
 |変数名|意味|設定値の例|
 |---|---|---|
@@ -392,7 +392,7 @@ external_ntp_servers_list:
 
 #### Docker Community Edition関連設定
 
-docker_ce_usersにdocker利用ユーザをリスト形式で指定する。
+docker_ce_usersにdocker利用ユーザをリスト形式で指定します。
 
 記載例
 
@@ -403,18 +403,18 @@ docker_ce_users:
 
 ##### ローカルコンテナレジストリ設定
 
-DockerクライアントやKubernetesノード(Kubernetesノード上のContainer Runtime Interface (CRI) (containerd)から利用するローカルコンテナレジストリ関連の設定を以下に記載する。
+DockerクライアントやKubernetesノード(Kubernetesノード上のContainer Runtime Interface (CRI) (containerd)から利用するローカルコンテナレジストリ関連の設定を以下に記載します。
 
-`container_registry_endpoints` はDocker クライアントの設定(`docker_ce_insecure_registries`) とKubernetesのContainer Runtime Interface (CRI) (containerd)の設定 (`k8s_containerd_registry_endpoints`) の両方から参照する共有のendpointリストである。
+`container_registry_endpoints` はDocker クライアントの設定(`docker_ce_insecure_registries`) とKubernetesのContainer Runtime Interface (CRI) (containerd)の設定 (`k8s_containerd_registry_endpoints`) の両方から参照する共有のendpointリストです。
 
 |変数名|意味|設定値の例|
 |---|---|---|
-|container_registry_endpoints|docker-ce/k8sで共通利用するレジストリエンドポイントの辞書のリスト。各要素は `endpoint`, `scheme`, `skip_verify` を持つ辞書で指定する。既定値は空リスト。|[{ endpoint: 'local-registry.local:5000', scheme: 'http', skip_verify: true }]|
+|container_registry_endpoints|docker-ce/k8sで共通利用するレジストリエンドポイントの辞書のリスト。各要素は `endpoint`, `scheme`, `skip_verify` を持つ辞書で指定します。既定値は空リスト。|[{ endpoint: 'local-registry.local:5000', scheme: 'http', skip_verify: true }]|
 |docker_ce_registry_enabled|docker-ceロール適用ホストでローカルレジストリコンテナを起動する場合はtrueを指定|true|
 |docker_ce_registry_port|ローカルレジストリの待受ポート|5000|
 
-- `container_registry_endpoints` は, `vars/all-config.yml` で管理することを推奨する。必要な場合は, `vars/all-config.yml`内での記述を削除の上, `host_vars` で設定する(`vars/all-config.yml`の設定値の方が優先されるため, `host_vars` で設定する場合は, `vars/all-config.yml`内での記述を削除する必要がある)。
-- `docker_ce_registry_enabled` は, `host_vars` で管理し, 必要時のみ `vars/all-config.yml` で上書きすることを推奨する。
+- `container_registry_endpoints` は, `vars/all-config.yml` で管理することを推奨します。必要な場合は, `vars/all-config.yml`内での記述を削除の上, `host_vars` で設定する(`vars/all-config.yml`の設定値の方が優先されるため, `host_vars` で設定する場合は, `vars/all-config.yml`内での記述を削除する必要がある)。
+- `docker_ce_registry_enabled` は, `host_vars` で管理し, 必要時のみ `vars/all-config.yml` で上書きすることを推奨します。
 
 記載例:
 
@@ -437,8 +437,8 @@ docker_ce_registry_port: 5000
 
 ##### ローカルコンテナレジストリ設定時のansible 制御ノード側の設定について
 
-本playbookでは, コンテナイメージをローカルコンテナレジストリに登録する際に制御ノード上のDockerクライアントを使用する。
-ローカルコンテナレジストリの接続スキームが`http`の場合, 制御ノード上の`/etc/docker/daemon.json`ファイルに以下の項目を追加し, 登録対象レジストリ(`container_registry_endpoints`変数の`endpoint`の項目に記載されたレジストリ)に対するアクセスを許可するよう設定する。
+本playbookでは, コンテナイメージをローカルコンテナレジストリに登録する際に制御ノード上のDockerクライアントを使用します。
+ローカルコンテナレジストリの接続スキームが`http`の場合, 制御ノード上の`/etc/docker/daemon.json`ファイルに以下の項目を追加し, 登録対象レジストリ(`container_registry_endpoints`変数の`endpoint`の項目に記載されたレジストリ)に対するアクセスを許可するよう設定します。
 
 ```json
 {
@@ -458,7 +458,7 @@ container_registry_endpoints:
     skip_verify: true
 ```
 
-`/etc/docker/daemon.json`ファイルには, 以下の項目を記載する。
+`/etc/docker/daemon.json`ファイルには, 以下の項目を記載します。
 
 ```json
 {
@@ -466,7 +466,7 @@ container_registry_endpoints:
 }
 ```
 
-本playbookのdocker-ce ロールが適用されたホストの場合は, 上記の設定を自動的に実施する。ただし, `container_registry_endpoints`が空の場合や, `scheme`が, `https`, かつ,`skip_verify=false`と定義されたエントリのみの場合は, `/etc/docker/daemon.json`に`insecure-registries`項目を出力しない。
+本playbookのdocker-ce ロールが適用されたホストの場合は, 上記の設定を自動的に実施します。ただし, `container_registry_endpoints`が空の場合や, `scheme`が, `https`, かつ,`skip_verify=false`と定義されたエントリのみの場合は, `/etc/docker/daemon.json`に`insecure-registries`項目を出力しない。
 
 また, Ansible制御ノード自体に docker-ce ロールを適用していない場合, 制御ノードの daemon.json は変更されない。
 
@@ -514,23 +514,23 @@ NFSマウントは以下のように行われる。
 
 |変数名|意味|設定値の例|
 |---|---|---|
-|user_settings_create_bash_skel|Bash用の設定ファイルを作成する場合は true を指定する。規定値は false。|false|
-|user_settings_create_zsh_skel|zsh用の設定ファイルを作成する場合は true を指定する。規定値は false。|false|
-|user_settings_create_ssh_skel|SSH用の設定ファイルを作成する場合は true を指定する。規定値は false。|false|
-|user_settings_create_curl_skel|curl用の設定ファイルを作成する場合は true を指定する。規定値は false。|false|
-|user_settings_create_wget_skel|wget用の設定ファイルを作成する場合は true を指定する。規定値は false。|false|
-|user_settings_create_screen_skel|screen用の設定ファイルを作成する場合は true を指定する。規定値は false。|false|
-|user_settings_create_tmux_skel|tmux用の設定ファイルを作成する場合は true を指定する。規定値は false。|false|
-|user_settings_create_aspell_skel|aspell用の設定ファイルを作成する場合は true を指定する。規定値は false。|false|
-|user_settings_create_git_skel|Git用の設定ファイル (.gitignore) を /etc/skel に作成する場合は true を指定する。規定値は false。|false|
-|user_settings_create_gitignore_on_homedir_skel|デフォルトの .gitignore をホームディレクトリ直下 (/etc/skel/.gitignore) に作成する場合は true を指定する。規定値は false。|false|
-|user_settings_create_gdb_skel|GDB用の設定ファイルを作成する場合は true を指定する。規定値は false。|false|
-|user_settings_create_emacs_skel|Emacs用の基本設定ファイルを作成する場合は true を指定する。規定値は false。|false|
+|user_settings_create_bash_skel|Bash用の設定ファイルを作成する場合は true を指定します。規定値は false。|false|
+|user_settings_create_zsh_skel|zsh用の設定ファイルを作成する場合は true を指定します。規定値は false。|false|
+|user_settings_create_ssh_skel|SSH用の設定ファイルを作成する場合は true を指定します。規定値は false。|false|
+|user_settings_create_curl_skel|curl用の設定ファイルを作成する場合は true を指定します。規定値は false。|false|
+|user_settings_create_wget_skel|wget用の設定ファイルを作成する場合は true を指定します。規定値は false。|false|
+|user_settings_create_screen_skel|screen用の設定ファイルを作成する場合は true を指定します。規定値は false。|false|
+|user_settings_create_tmux_skel|tmux用の設定ファイルを作成する場合は true を指定します。規定値は false。|false|
+|user_settings_create_aspell_skel|aspell用の設定ファイルを作成する場合は true を指定します。規定値は false。|false|
+|user_settings_create_git_skel|Git用の設定ファイル (.gitignore) を /etc/skel に作成する場合は true を指定します。規定値は false。|false|
+|user_settings_create_gitignore_on_homedir_skel|デフォルトの .gitignore をホームディレクトリ直下 (/etc/skel/.gitignore) に作成する場合は true を指定します。規定値は false。|false|
+|user_settings_create_gdb_skel|GDB用の設定ファイルを作成する場合は true を指定します。規定値は false。|false|
+|user_settings_create_emacs_skel|Emacs用の基本設定ファイルを作成する場合は true を指定します。規定値は false。|false|
 
 #### ホームディレクトリのバックアップ
 
 指定したユーザのホームディレクトリをNFSサーバ上にバックアップするためのスクリプトを
-`/usr/local/bin/backup-home`として作成する。また, NFSマウントを行うためのスクリプトが,
+`/usr/local/bin/backup-home`として作成します。また, NFSマウントを行うためのスクリプトが,
 `/usr/local/sbin/mount-nfs.sh`に作成される。
 
 NFSマウントは以下のように行われる。
@@ -573,7 +573,7 @@ NFSマウントは以下のように行われる。
 |user_settings_backup_home_mount_point|デイリーバックアップ時のNFSマウントポイント (NFSのマウント/アンマウント時に使用)|"/mnt"|
 |user_settings_backup_dir_on_nfs|デイリーバックアップ時のNFSマウントポイント配下のバックアップ配置先ディレクトリ|"/Linux/Devel"|
 
-バックアップ対象ユーザは, `user_settings_backup_users_list`変数にユーザ名をリストとして指定する。
+バックアップ対象ユーザは, `user_settings_backup_users_list`変数にユーザ名をリストとして指定します。
 
 記載例は以下の通り:
 
@@ -584,7 +584,7 @@ user_settings_backup_users_list:
 
 #### Emacsパッケージ関連設定
 
-ユーザ作成時に導入されるEmacsパッケージのパッケージ名を`create_user_emacs_package_list`にリスト形式で指定する。規定値は, 空リスト(`[]`)として定義される。
+ユーザ作成時に導入されるEmacsパッケージのパッケージ名を`create_user_emacs_package_list`にリスト形式で指定します。規定値は, 空リスト(`[]`)として定義される。
 
 記載例は以下の通り:
 
@@ -606,7 +606,7 @@ create_user_emacs_package_list:
 
 #### Lightweight Directory Access Protocol (LDAP) サーバ関連設定
 
-以下の項目を設定する。
+以下の項目を設定します。
 
 |変数名|意味|設定値の例|
 |---|---|---|
@@ -623,7 +623,7 @@ create_user_emacs_package_list:
 
 #### Redmine関連設定
 
-Redmineのデイリーバックアップ関連の設定を記載する。
+Redmineのデイリーバックアップ関連の設定を記載します。
 Redmineのデイリーバックアップについては, `roles/redmine-server/Readme.md`参照。
 
 |変数名|意味|設定値の例|
@@ -643,7 +643,7 @@ Redmineのデイリーバックアップについては, `roles/redmine-server/R
 
 #### Gitlab関連設定
 
-Gitlabの公開URL, イメージファイル関連の設定を記載する。
+Gitlabの公開URL, イメージファイル関連の設定を記載します。
 
 | 変数名 | 意味 | 設定値の例 |
 | --- | --- | --- |
@@ -651,7 +651,7 @@ Gitlabの公開URL, イメージファイル関連の設定を記載する。
 | gitlab_https_port | GitLab Web UI (HTTPS) 公開ポート。 | 9443 |
 | gitlab_ssh_port | GitLab SSH (リポジトリ操作用) 公開ポート。 | 2224 |
 | gitlab_registry_port | コンテナレジストリ公開ポート。 | 5050 |
-| gitlab_registry_require_auth | GitLab Container Registry の認証を必須にする場合は true を指定。false の場合は認証不要で利用する。 | false |
+| gitlab_registry_require_auth | GitLab Container Registry の認証を必須にする場合は true を指定。false の場合は認証不要で利用します。 | false |
 | gitlab_docker_image | GitLab Omnibus Docker イメージ。公式の推奨に従って, バージョン名を明示してイメージを指定。 | "gitlab/gitlab-ce:18.6.2-ce.0" |
 | gitlab_runner_docker_image | GitLab Runner Docker イメージ。GitLab 本体とメジャーバージョン, マイナーバージョンを合わせること。 | "gitlab/gitlab-runner:ubuntu-v18.6.6" |
 | gitlab_enable_backup_script | バックアップスクリプト生成有効化フラグ。`true`に設定した場合にバックアップ・リストアスクリプト(gitlab-backup.py, gitlab-restore.py)が配置される。デイリーバックアップスクリプト(daily-backup-gitlab.sh)の配置には, 加えて`gitlab_backup_nfs_server`, `gitlab_backup_mount_point`, `gitlab_backup_output_dir`が非空で, かつ`gitlab_backup_rotation`が正の整数である必要がある。規定値は`false`。 | "true" または "false" |
@@ -681,7 +681,7 @@ GitLab Web UI (HTTPS)ポート(`gitlab_https_port`)やGitLab Container Registry�
 
 #### Kubernetes関連設定
 
-Kubernetes (以下K8sと記す)関連の設定を以下に記載する。
+Kubernetes (以下K8sと記す)関連の設定を以下に記載します。
 
 |変数名|意味|設定値の例|
 |---|---|---|
@@ -711,14 +711,14 @@ Kubernetes (以下K8sと記す)関連の設定を以下に記載する。
 |k8s_operator_github_key_list|K8sオペレータアカウント(`kube`)の公開鍵をGitHubから取得する際の, Githubアカウントを設定するマッピングのリストです。`[ { github: '<アカウント名>' } ]` のようなリストを設定することで, `https://github.com/<account>.keys` から鍵を取得し, K8sオペレータアカウント(`kube`)の公開鍵に追加します。取得した公開鍵は, `k8s_operator_authorized_key_list`の設定値と合わせてソート, 重複排除され, K8sオペレータアカウント(`kube`)の公開鍵に反映されます。|`[]`|
 |k8s_helm_completion_enabled|`true` の場合, Helm の bash / zsh 補完ファイルを生成・配置します。|`true`|
 
-共通CA関連の設定値 (`enable_create_k8s_ca`, `k8s_common_ca`, `k8s_shared_ca_output_dir`, `k8s_shared_ca_replace_kube_ca`) を有効にすると, `k8s-shared-ca` ロールが共通CAの生成/取得と配布を行い, `k8s-ctrlplane` ロールは `kubeadm reset` 後に当該共通CAを `/etc/kubernetes/pki/shared-ca/` へ復元した上で `kubeadm init` を実行する。`k8s_shared_ca_replace_kube_ca: true` の場合, API サーバや kube-controller-manager 等の証明書は共通CAで再発行される。 ワーカーノードでは `kubeadm reset` / `kubeadm join` を併せて実施して全ノードが新しいルート共通CAを信頼する状態へ更新する。
+共通CA関連の設定値 (`enable_create_k8s_ca`, `k8s_common_ca`, `k8s_shared_ca_output_dir`, `k8s_shared_ca_replace_kube_ca`) を有効にすると, `k8s-shared-ca` ロールが共通CAの生成/取得と配布を行い, `k8s-ctrlplane` ロールは `kubeadm reset` 後に当該共通CAを `/etc/kubernetes/pki/shared-ca/` へ復元した上で `kubeadm init` を実行します。`k8s_shared_ca_replace_kube_ca: true` の場合, API サーバや kube-controller-manager 等の証明書は共通CAで再発行される。 ワーカーノードでは `kubeadm reset` / `kubeadm join` を併せて実施して全ノードが新しいルート共通CAを信頼する状態へ更新します。
 このため, クラスタ再構築時はコントロールプレインとワーカーノードの双方を再構築すること。
 
-k8s_operator_github_key_listにk8sの各ノードへログインするために使用する公開鍵を得る方式を表す辞書をリスト形式で指定する。
+k8s_operator_github_key_listにk8sの各ノードへログインするために使用する公開鍵を得る方式を表す辞書をリスト形式で指定します。
 
 |キー名|設定値|設定値の例|
 |---|---|---|
-|github|GitHubのアカウント名を記載する。アカウント名を記載すると, 本項目に記載されたGitHubアカウントから公開鍵を取り込み, 作成したユーザのSSH公開鍵として使用する。|`sampleuser`|
+|github|GitHubのアカウント名を記載します。アカウント名を記載すると, 本項目に記載されたGitHubアカウントから公開鍵を取り込み, 作成したユーザのSSH公開鍵として使用します。|`sampleuser`|
 
 記載例は以下の通り:
 
@@ -728,20 +728,20 @@ k8s_operator_github_key_list:
 ```
 
 その他, Cilium CNI, Multus メタCNI, Whereabouts IPアドレスマネージャの
-バージョン, Helmのチャートバージョン, イメージバージョンなどを指定できる。
+バージョン, Helmのチャートバージョン, イメージバージョンなどを指定できます。
 
 ##### Kubernetesからローカルコンテナレジストリを使用するための設定
 
 Kubernetesノードから使用可能なローカルコンテナレジストリを
-`container_registry_endpoints`変数(辞書のリスト)に設定する。
+`container_registry_endpoints`変数(辞書のリスト)に設定します。
 
-`container_registry_endpoints` はDocker クライアントの設定(`docker_ce_insecure_registries`) とKubernetesのContainer Runtime Interface (CRI) (containerd)の設定 (`k8s_containerd_registry_endpoints`) の両方から参照する共有のendpointリストである。
+`container_registry_endpoints` はDocker クライアントの設定(`docker_ce_insecure_registries`) とKubernetesのContainer Runtime Interface (CRI) (containerd)の設定 (`k8s_containerd_registry_endpoints`) の両方から参照する共有のendpointリストです。
 
-`container_registry_endpoints` は, `vars/all-config.yml` で管理することを推奨する。必要な場合は, `vars/all-config.yml`内での記述を削除の上, `host_vars` で設定する(`vars/all-config.yml`の設定値の方が優先されるため, `host_vars` で設定する場合は, `vars/all-config.yml`内での記述を削除する必要がある)。
+`container_registry_endpoints` は, `vars/all-config.yml` で管理することを推奨します。必要な場合は, `vars/all-config.yml`内での記述を削除の上, `host_vars` で設定する(`vars/all-config.yml`の設定値の方が優先されるため, `host_vars` で設定する場合は, `vars/all-config.yml`内での記述を削除する必要がある)。
 
 |変数名|意味|設定値の例|
 |---|---|---|
-|container_registry_endpoints|docker-ce/k8sで共通利用するレジストリエンドポイントの辞書のリスト。各要素は `endpoint`, `scheme`, `skip_verify` を持つ辞書で指定する。既定値は空リスト。|[{ endpoint: 'local-registry.local:5000', scheme: 'http', skip_verify: true }]|
+|container_registry_endpoints|docker-ce/k8sで共通利用するレジストリエンドポイントの辞書のリスト。各要素は `endpoint`, `scheme`, `skip_verify` を持つ辞書で指定します。既定値は空リスト。|[{ endpoint: 'local-registry.local:5000', scheme: 'http', skip_verify: true }]|
 
 記載例:
 
@@ -758,10 +758,10 @@ container_registry_endpoints:
 
 ##### K8sクラスタ間の接続設定
 
-本playbookでは, K8sクラスタ間で共通のServiceネットワークを共有することを想定し, 異なるネットワーク内のK8sクラスタ群をBorder Gateway Protocol (BGP) 広告で相互接続することを想定している(K8sクラスタ間でServiceネットワークを交換するためには, `host_vars/`配下の設定ファイル中で`k8s_bgp`変数を定義し, キー`advertise_services`の設定値を`true`に設定する。本項目の規定値は`false`である)。
+本playbookでは, K8sクラスタ間で共通のServiceネットワークを共有することを想定し, 異なるネットワーク内のK8sクラスタ群をBorder Gateway Protocol (BGP) 広告で相互接続することを想定している(K8sクラスタ間でServiceネットワークを交換するためには, `host_vars/`配下の設定ファイル中で`k8s_bgp`変数を定義し, キー`advertise_services`の設定値を`true`に設定します。本項目の規定値は`false`である)。
 
 - 仮想外部ネットワーク上にFRRouting(FRR)パッケージを動作させ, Serviceネットワーク上への接続は, 当該のFRRouting内部のルータを介して行われる
-- 現状のロールでは, FRR 側で `frr_networks_*` に指定したプレフィックスを静的に広告する。
+- 現状のロールでは, FRR 側で `frr_networks_*` に指定したプレフィックスを静的に広告します。
 - 各クラスタ内の K8s ノード (もしくは Cilium BGP Control Plane 等) と FRR の間で iBGP を確立し, extgw を介して eBGP でクラスタ間の経路交換を行う。
 
 ネットワーク構成例を以下に示す:
@@ -798,24 +798,24 @@ flowchart LR
 
 ##### FRRoutingの設定
 
-本playbookでは, 自律システム (`Autonomous System`)間でのBGPによる経路制御を[FRRouting](https://frrouting.org/)パッケージを用いて行う。FRRouting関連の設定を以下に記載する。これらの設定は, 各ネットワーク上のFRRoutingを導入した仮想マシンに対する設定値として, `host_vars/`配下のファイル(例:frr01.localなど)に記載する。
+本playbookでは, 自律システム (`Autonomous System`)間でのBGPによる経路制御を[FRRouting](https://frrouting.org/)パッケージを用いて行う。FRRouting関連の設定を以下に記載します。これらの設定は, 各ネットワーク上のFRRoutingを導入した仮想マシンに対する設定値として, `host_vars/`配下のファイル(例:frr01.localなど)に記載します。
 
 K8sを構成するコントロールプレイン, ワーカーノードとは別に,各K8sネットワークごとに独立したVMを, FRRoutingを導入した仮想マシンを構築し, 各K8sネットワーク, 管理ネットワーク, 仮想外部ネットワーク(`extgw`仮想マシンが所属するネットワーク)と接続する仮想NICを用意して構築することを想定している。
 
 |変数名|意味|設定値の例|
 |---|---|---|
-|`frr_bgp_asn`|BGPで使用する自律システム (`Autonomous System`) 番号(`AS番号`)を指定する。1〜4294967295の整数で設定する。|`65011`|
-|`frr_bgp_router_id`|FRRノードを識別するBGP Router-ID (IPv4アドレス形式) を指定する。|`192.168.30.49`|
-|`frr_ibgp_neighbors`|iBGPでピアリングするノード群を定義する。`addr`(接続先IPv4アドレス) / `asn`(ピアのAS番号) / `desc`(ピアの説明文) を要素に持つ辞書のリストで指定する。|`[{ addr: '192.168.30.41', asn: 65011, desc: 'C1 control-plane' }]`|
-|`frr_ibgp_neighbors_v6`|iBGPでピアリングするノード群をIPv6アドレスで定義する。`addr`(接続先IPv6アドレス) / `asn`(ピアのAS番号) / `desc`(ピアの説明文) を要素に持つ辞書のリストで指定する。|`[{ addr: 'fd69:6684:61a:2::41', asn: 65011, desc: 'C1 control-plane' }]`|
-|`frr_ebgp_neighbors`|eBGPで接続する外部ピアを定義する。`addr`(接続先IPv4アドレス) / `asn`(ピアのAS番号) / `desc`(ピアの説明文) を要素に持つ辞書のリストで指定する。|`[{ addr: '192.168.90.1', asn: 65100, desc: 'External GW' }]`|
-|`frr_ebgp_neighbors_v6`|eBGPで接続する外部ピアをIPv6アドレスで定義する。`addr`(接続先IPv6アドレス) / `asn`(ピアのAS番号) / `desc`(ピアの説明文) を要素に持つ辞書のリストで指定する。|`[{ addr: 'fd69:6684:61a:90::1', asn: 65100, desc: 'External GW' }]`|
-|`frr_networks_v4`|BGPで広告するIPv4プレフィックスをCIDR表記のリストで指定する。|`['192.168.30.0/24', '192.168.90.0/24']`|
-|`frr_networks_v6`|BGPで広告するIPv6プレフィックスをCIDR表記のリストで指定する。|`['fd69:6684:61a:2::/64', 'fd69:6684:61a:90::/64']`|
+|`frr_bgp_asn`|BGPで使用する自律システム (`Autonomous System`) 番号(`AS番号`)を指定します。1〜4294967295の整数で設定します。|`65011`|
+|`frr_bgp_router_id`|FRRノードを識別するBGP Router-ID (IPv4アドレス形式) を指定します。|`192.168.30.49`|
+|`frr_ibgp_neighbors`|iBGPでピアリングするノード群を定義します。`addr`(接続先IPv4アドレス) / `asn`(ピアのAS番号) / `desc`(ピアの説明文) を要素に持つ辞書のリストで指定します。|`[{ addr: '192.168.30.41', asn: 65011, desc: 'C1 control-plane' }]`|
+|`frr_ibgp_neighbors_v6`|iBGPでピアリングするノード群をIPv6アドレスで定義します。`addr`(接続先IPv6アドレス) / `asn`(ピアのAS番号) / `desc`(ピアの説明文) を要素に持つ辞書のリストで指定します。|`[{ addr: 'fd69:6684:61a:2::41', asn: 65011, desc: 'C1 control-plane' }]`|
+|`frr_ebgp_neighbors`|eBGPで接続する外部ピアを定義します。`addr`(接続先IPv4アドレス) / `asn`(ピアのAS番号) / `desc`(ピアの説明文) を要素に持つ辞書のリストで指定します。|`[{ addr: '192.168.90.1', asn: 65100, desc: 'External GW' }]`|
+|`frr_ebgp_neighbors_v6`|eBGPで接続する外部ピアをIPv6アドレスで定義します。`addr`(接続先IPv6アドレス) / `asn`(ピアのAS番号) / `desc`(ピアの説明文) を要素に持つ辞書のリストで指定します。|`[{ addr: 'fd69:6684:61a:90::1', asn: 65100, desc: 'External GW' }]`|
+|`frr_networks_v4`|BGPで広告するIPv4プレフィックスをCIDR表記のリストで指定します。|`['192.168.30.0/24', '192.168.90.0/24']`|
+|`frr_networks_v6`|BGPで広告するIPv6プレフィックスをCIDR表記のリストで指定します。|`['fd69:6684:61a:2::/64', 'fd69:6684:61a:90::/64']`|
 
 ##### Cilium CNI
 
-Cilium Container Network Interface (`CNI`) 関連の設定を以下に記載する。
+Cilium Container Network Interface (`CNI`) 関連の設定を以下に記載します。
 
 |変数名|意味|設定値の例|
 |---|---|---|
@@ -826,7 +826,7 @@ Cilium Container Network Interface (`CNI`) 関連の設定を以下に記載す�
 |k8s_cilium_cli_archive_name|配布する Cilium CLI アーカイブ名|`cilium-linux-amd64.tar.gz`|
 |k8s_cilium_cli_download_url|Cilium CLI のダウンロード URL|`https://github.com/cilium/cilium-cli/releases/latest/download/{{ k8s_cilium_cli_archive_name }}`|
 |k8s_cilium_cli_checksum_url|Cilium CLI の SHA256 チェックサム取得先|`{{ k8s_cilium_cli_download_url }}.sha256sum`|
-|k8s_cilium_cli_completion_enabled|Ciliumのbash/zsh用シェル補完ファイルを生成する。|`true`|
+|k8s_cilium_cli_completion_enabled|Ciliumのbash/zsh用シェル補完ファイルを生成します。|`true`|
 |k8s_cilium_shared_ca_enabled|`k8s-k8s-k8s-cilium-shared-ca` ロールによる `cilium-ca` Secret の生成/更新を有効化する|`false`|
 |k8s_cilium_shared_ca_reuse_k8s_ca|`k8s-shared-ca` ロールで生成した共通CAを流用する場合に true を指定する|`false`|
 |k8s_cilium_shared_ca_output_dir|共通CAを自動生成する際の出力ディレクトリ|`/etc/kubernetes/pki/k8s-k8s-cilium-shared-ca`|
@@ -863,17 +863,17 @@ Cilium Container Network Interface (`CNI`) 関連の設定を以下に記載す�
 |hubble_cli_release_tag_prefix|GitHub タグに付与する接頭辞。|`v`|
 |hubble_cli_download_url|ダウンロード URL。独自ミラーを利用する場合は, `vars/all-config.yml`内でURLを定義し, 規定値を上書きしてください。|上記パラメータを組み合わせた文字列|
 
-`k8s_cilium_shared_ca_enabled: true` の場合, `k8s-cilium-shared-ca` ロールがコントロールプレインノードで `kubectl apply` を実行し, `kube-system/{{ k8s_cilium_shared_ca_secret_name }}` Secret を共通CAから再生成する。`k8s_cilium_shared_ca_reuse_k8s_ca: true` を指定する際は, 同一ホストで `k8s-shared-ca` ロールを先に実行し, `k8s_shared_ca_cert_path` / `k8s_shared_ca_key_path` の facts を取得しておくこと。`k8s_cilium_shared_ca_reuse_k8s_ca: false` で `k8s_cilium_shared_ca_auto_create: true` の場合はロールが `openssl` を用いて証明書/鍵を自動生成し, `k8s_cilium_shared_ca_output_dir` に配置する。既存の証明書/鍵をそのまま利用する場合は同ディレクトリへ事前配置するか, `k8s_cilium_shared_ca_cert_path` / `k8s_cilium_shared_ca_key_path` へフルパスを指定し, 必要に応じて `k8s_cilium_shared_ca_auto_create: false` を設定する。
+`k8s_cilium_shared_ca_enabled: true` の場合, `k8s-cilium-shared-ca` ロールがコントロールプレインノードで `kubectl apply` を実行し, `kube-system/{{ k8s_cilium_shared_ca_secret_name }}` Secret を共通CAから再生成します。`k8s_cilium_shared_ca_reuse_k8s_ca: true` を指定する際は, 同一ホストで `k8s-shared-ca` ロールを先に実行し, `k8s_shared_ca_cert_path` / `k8s_shared_ca_key_path` の facts を取得しておくこと。`k8s_cilium_shared_ca_reuse_k8s_ca: false` で `k8s_cilium_shared_ca_auto_create: true` の場合はロールが `openssl` を用いて証明書/鍵を自動生成し, `k8s_cilium_shared_ca_output_dir` に配置します。既存の証明書/鍵をそのまま利用する場合は同ディレクトリへ事前配置するか, `k8s_cilium_shared_ca_cert_path` / `k8s_cilium_shared_ca_key_path` へフルパスを指定し, 必要に応じて `k8s_cilium_shared_ca_auto_create: false` を設定します。
 `k8s_cilium_shared_ca_cert_path` / `k8s_cilium_shared_ca_key_path` が空文字列でなければ, `k8s_cilium_shared_ca_output_dir` + ファイル名よりも優先的に参照される。`k8s_cilium_shared_ca_auto_create: false` を指定した場合, ロールは証明書/鍵を生成・更新せず既存ファイルの存在を検証するのみで, 見つからない場合はタスクを失敗させる。
 
-Cluster Mesh 用 Secret (`k8s_cilium_clustermesh_secret_enabled: true`) は共通CAで署名した Transport Layer Security (`TLS`) 証明書と秘密鍵, および共通CA証明書を `cilium_clustermesh_secret_*` 系変数の指示に従って保存する。Subject Alternative Name (`SAN`) は既定で `clustermesh-apiserver` Service 名を含むため, クラスタ固有の Service 名を利用する場合は `k8s_cilium_clustermesh_tls_san_dns` を上書きして接続先に合わせる。
+Cluster Mesh 用 Secret (`k8s_cilium_clustermesh_secret_enabled: true`) は共通CAで署名した Transport Layer Security (`TLS`) 証明書と秘密鍵, および共通CA証明書を `cilium_clustermesh_secret_*` 系変数の指示に従って保存します。Subject Alternative Name (`SAN`) は既定で `clustermesh-apiserver` Service 名を含むため, クラスタ固有の Service 名を利用する場合は `k8s_cilium_clustermesh_tls_san_dns` を上書きして接続先に合わせる。
 
 ##### Cilium BGP Control Planeの設定
 
 本節では, Cilium に組み込まれた BGP デーモン ( Cilium-BGP Control Plane Custom Resource Definition (CRD) )を使い, Kubernetes ノードが外部ルータ (FRRouting など)と BGP セッションを張り, Cilium が管理するルーティング情報を外部に直接広告する機能であるCilium BGP Control Plane機能の設定について述べる。
 
 Cilium BGP Control Planeの設定は, `host_vars`配下のK8sクラスタを構成するコントロールプレイン, ワーカーノードの各設定ファイルに`k8s_bgp`変数を定義することで行う。
-`k8s_bgp`変数は, Cilium BGP Control Plane の動作を制御するマッピング(辞書)を定義する。`k8s_bgp`変数のキーと設定値の型,設定値の説明, 設定値の例は, 以下の通り:
+`k8s_bgp`変数は, Cilium BGP Control Plane の動作を制御するマッピング(辞書)を定義します。`k8s_bgp`変数のキーと設定値の型,設定値の説明, 設定値の例は, 以下の通り:
 
 | キー | 型 | 説明 | 設定例 |
 | --- | --- | --- | --- |
@@ -883,7 +883,7 @@ Cilium BGP Control Planeの設定は, `host_vars`配下のK8sクラスタを構�
 | `kubeconfig` | string (ファイルパス文字列) | Cilium が Kubernetes API に接続するための `kubeconfig` ファイルのパス名を指定する | `"/etc/kubernetes/admin.conf"` |
 | `export_pod_cidr` | bool | Pod CIDR (当該ノードが所属する K8s クラスタ内の Pod 仮想ネットワークのアドレス帯) を BGP で広告する | `true` |
 | `advertise_services` | bool | Service CIDR (当該ノードが所属する K8s クラスタ内のサービスネットワーク上の仮想 IP アドレス帯) を BGP で広告する | `false` |
-| `address_families` | list[string / dict] | 各 BGP ピアに共通で適用するアドレスファミリ設定のリスト。リストの要素が文字列の場合は `ipv4` / `ipv6` などの BGPが扱うアドレス体系識別子(`Address Family Identifier` (`AFI`) )を指定する。リストの要素を文字列として指定した場合は, 後続アドレスファミリ識別子(`Subsequent Address Family Identifier` (`SAFI`))に`unicast`を指定したものとして扱い, 既定の広告ラベルを紐づける。リストの要素を辞書として指定する場合の指定方法は, 「`k8s_bgp`変数の`address_families`の要素を辞書として指定する場合の指定方法」を参照のこと | `["ipv4", {"afi": "ipv6", "safi": "unicast"}]` |
+| `address_families` | list[string / dict] | 各 BGP ピアに共通で適用するアドレスファミリ設定のリスト。リストの要素が文字列の場合は `ipv4` / `ipv6` などの BGPが扱うアドレス体系識別子(`Address Family Identifier` (`AFI`) )を指定します。リストの要素を文字列として指定した場合は, 後続アドレスファミリ識別子(`Subsequent Address Family Identifier` (`SAFI`))に`unicast`を指定したものとして扱い, 既定の広告ラベルを紐づける。リストの要素を辞書として指定する場合の指定方法は, 「`k8s_bgp`変数の`address_families`の要素を辞書として指定する場合の指定方法」を参照のこと | `["ipv4", {"afi": "ipv6", "safi": "unicast"}]` |
 | `neighbors` | list[dict] | 接続先 BGP ピアのリスト。各要素は下記のサブキーを持つ辞書である | `[...]` |
 | `neighbors[].peer_address` | string (CIDR文字列) | BGP ピアのアドレス (CIDR 形式)。 `/32` や `/128` で単一ホストを指定する | `"192.168.30.49/32"` |
 | `neighbors[].peer_asn` | int | 対向 BGP ピアの ASN | `65011` |
@@ -898,19 +898,19 @@ Cilium BGP Control Planeの設定は, `host_vars`配下のK8sクラスタを構�
 
 | キー | 型 | 説明 |
 | --- | --- | --- |
-| `afi` | string | アドレス体系識別子を指定する。省略時は `ipv4` を使用する |
-| `safi` | string | 後続アドレスファミリ識別子を指定する。省略時は `unicast` を使用する |
-| `attributes` | dict | BGP 属性を指定する。辞書の内容は `attributes` セクションとしてそのまま出力される |
-| `advertisements` | dict | 当該 AFI/SAFI に適用する広告設定を指定する。CiliumBGPPeerConfig の `families[].advertisements` にそのまま展開されるため, `matchLabels` や `matchExpressions` などのラベルセレクタを含む辞書を記述する (例: `{ "matchLabels": { "bgp.cilium.io/advertisement-group": "custom" } }`) |
-| `disable_default_advertisements` | bool | 既定の広告ラベルを無効化する。`true` を指定すると既定ラベルを付与しない |
+| `afi` | string | アドレス体系識別子を指定します。省略時は `ipv4` を使用する |
+| `safi` | string | 後続アドレスファミリ識別子を指定します。省略時は `unicast` を使用する |
+| `attributes` | dict | BGP 属性を指定します。辞書の内容は `attributes` セクションとしてそのまま出力される |
+| `advertisements` | dict | 当該 AFI/SAFI に適用する広告設定を指定します。CiliumBGPPeerConfig の `families[].advertisements` にそのまま展開されるため, `matchLabels` や `matchExpressions` などのラベルセレクタを含む辞書を記述する (例: `{ "matchLabels": { "bgp.cilium.io/advertisement-group": "custom" } }`) |
+| `disable_default_advertisements` | bool | 既定の広告ラベルを無効化します。`true` を指定すると既定ラベルを付与しない |
 
 ##### Kubernetes ワーカーノード上でFRRによるルート交換を行う場合の設定
 
 本節では, Kubernetes ワーカーノード上に FRR (Free Range Routing) を導入し, データセンター (以下DCと略す) 代表 FRR への iBGP (Internal Border Gateway Protocol) 広告により Pod/Service ネットワークをデータセンター間で共有するロール (`k8s-worker-frr`) の設定について述べる。
 
-本機能は Cilium native routing モードを前提とし, Cilium BGP Control Plane を使用しない場合の代替ルーティング機能を実現する。
+本機能は Cilium native routing モードを前提とし, Cilium BGP Control Plane を使用しない場合の代替ルーティング機能を実現します。
 
-本ロールは, `k8s_bgp.enabled` (Cilium BGP Control Plane の有効化フラグ) が `false` で, かつ, `k8s_worker_frr.enabled` が `true` の場合のみ動作する。
+本ロールは, `k8s_bgp.enabled` (Cilium BGP Control Plane の有効化フラグ) が `false` で, かつ, `k8s_worker_frr.enabled` が `true` の場合のみ動作します。
 
 `k8s_worker_frr` 変数は辞書形式で定義し, 以下のキーで動作を制御する:
 
@@ -924,8 +924,8 @@ Cilium BGP Control Planeの設定は, `host_vars`配下のK8sクラスタを構�
 |k8s_worker_frr.cluster_name|クラスタ名。`k8s_cilium_cm_cluster_name` と一致させ, `clusters` 辞書からクラスタ固有の Pod/Service CIDR を取得する|`"cluster1"`|
 |k8s_worker_frr.advertise_host_route_ipv4|ワーカーノード自身への到達性確保用 IPv4 ホストルート|`"192.168.40.42/32"`|
 |k8s_worker_frr.advertise_host_route_ipv6|ワーカーノード自身への到達性確保用 IPv6 ホストルート|`"fd69:6684:61a:2::42/128"`|
-|k8s_worker_frr.rfc5549_enabled|RFC 5549 サポート (IPv6 トランスポートで IPv4 Network Layer Reachability Information (NLRI) を運ぶ)。`true` の場合, `dc_frr_addresses_v6` で定義された IPv6 ネイバーも IPv4 address-family で activate し, `capability extended-nexthop` を有効化する。既定値は `false`|`true`|
-|k8s_worker_frr.ipv4_transport_ipv6_nlri_enabled|IPv4 トランスポートで IPv6 NLRI を運ぶ設定。`true` の場合, `dc_frr_addresses` で定義された IPv4 ネイバーも IPv6 address-family で activate し, `capability extended-nexthop` を有効化する。`rfc5549_enabled` との同時有効化は想定していない ( 排他的 ) 。既定値は `false`|`true`|
+|k8s_worker_frr.rfc5549_enabled|RFC 5549 サポート (IPv6 トランスポートで IPv4 Network Layer Reachability Information (NLRI) を運ぶ)。`true` の場合, `dc_frr_addresses_v6` で定義された IPv6 ネイバーも IPv4 address-family で activate し, `capability extended-nexthop` を有効化します。既定値は `false`|`true`|
+|k8s_worker_frr.ipv4_transport_ipv6_nlri_enabled|IPv4 トランスポートで IPv6 NLRI を運ぶ設定。`true` の場合, `dc_frr_addresses` で定義された IPv4 ネイバーも IPv6 address-family で activate し, `capability extended-nexthop` を有効化します。`rfc5549_enabled` との同時有効化は想定していない ( 排他的 ) 。既定値は `false`|`true`|
 |k8s_worker_frr.route_advertisement_method|経路広告方法の選択。`"static"`: 静的経路定義 + `redistribute static` で BGP に再配送 (カーネルに経路が存在しなくても広告可能)。`"network"`: `network` コマンドで直接広告 (Cilium がカーネルに経路を作成することを前提)。既定値は `"static"`|`"static"`|
 |k8s_worker_frr.static_route_interface|静的経路の出力インターフェース。`route_advertisement_method="static"` の場合のみ使用。未設定の場合は `mgmt_nic` 変数を使用 (VMware 環境: `ens160`, Xen環境: `enX0`, その他: `eth0`)|`"ens160"`|
 |k8s_worker_frr.prefix_filter.ipv4.pod_min_length|IPv4 Pod ネットワークの最小プレフィックス長。既定値は `24`|`24`|
@@ -950,13 +950,13 @@ Cilium BGP Control Planeの設定は, `host_vars`配下のK8sクラスタを構�
 - 当該のワーカーノードが所属するK8sクラスタの Pod ネットワーク CIDR (IPv4/IPv6)
 - 当該のワーカーノードが所属するK8sクラスタの Service ネットワーク CIDR (IPv4/IPv6)
 
-送信する経路は, address-family 別の prefix-list と route-map でフィルタリングされる。また, DC 代表 FRR から学習した BGP ルートをカーネルのルーティングテーブルに反映し, データセンター間の Pod 間通信を実現する。カーネルへのインポートも route-map で制御可能で, デフォルトでは全 BGP ルートを反映する。
+送信する経路は, address-family 別の prefix-list と route-map でフィルタリングされる。また, DC 代表 FRR から学習した BGP ルートをカーネルのルーティングテーブルに反映し, データセンター間の Pod 間通信を実現します。カーネルへのインポートも route-map で制御可能で, デフォルトでは全 BGP ルートを反映します。
 
 設定の詳細や検証方法については, `roles/k8s-worker-frr/Readme.md` を参照。
 
 ##### Multus メタCNI
 
-Multus メタCNI関連の設定を以下に記載する。
+Multus メタCNI関連の設定を以下に記載します。
 
 |変数名|意味|設定値の例|
 |---|---|---|
@@ -965,7 +965,7 @@ Multus メタCNI関連の設定を以下に記載する。
 
 ##### Whereabouts CNI
 
-Whereabouts CNI関連の設定を以下に記載する。
+Whereabouts CNI関連の設定を以下に記載します。
 
 |変数名|意味|設定値の例|
 |---|---|---|
@@ -980,55 +980,55 @@ Whereabouts CNI関連の設定を以下に記載する。
 
 ##### Hubble UI
 
-Hubble UI関連の設定を以下に記載する。
+Hubble UI関連の設定を以下に記載します。
 
 |変数名|意味|設定値の例|
 |---|---|---|
 |k8s_hubble_ui_config_dir|Hubble UI設定ファイル格納ディレクトリパス|"{{ k8s_kubeadm_config_store }}/hubble-ui"|
-|k8s_hubble_ui_enabled|Hubble UI導入関連タスクを実行するかどうか。vars/all-config.ymlやコントロールプレインのhost_varsファイルで, 本変数を`true` に設定した場合は, Hubble UI を導入する。|`false`|
+|k8s_hubble_ui_enabled|Hubble UI導入関連タスクを実行するかどうか。vars/all-config.ymlやコントロールプレインのhost_varsファイルで, 本変数を`true` に設定した場合は, Hubble UI を導入します。|`false`|
 |hubble_ui_version|Hubble UIのバージョン (Cilium Helm Chartのバージョンと同じ)。空文字列の場合は `k8s_cilium_version` を使用|""|
 |hubble_ui_service_type|Hubble UI Serviceの公開方法。`NodePort`, `LoadBalancer`, `ClusterIP` から選択。現在は, `NodePort`のみ対応。|`"NodePort"`|
 |hubble_ui_nodeport|NodePortを使用する場合のポート番号|`31234`|
 |hubble_ui_replicas|Hubble UI Deploymentのレプリカ数|`1`|
-|hubble_ui_merge_existing_values|既存のCilium Helm valuesとマージするかどうか。`true`の場合、`helm get values`で取得した既存値と新規設定を統合する。**既存のCilium設定を保護するため、デフォルトで`true`に設定されている。**|`true`|
+|hubble_ui_merge_existing_values|既存のCilium Helm valuesとマージするかどうか。`true`の場合、`helm get values`で取得した既存値と新規設定を統合します。**既存のCilium設定を保護するため、デフォルトで`true`に設定されている。**|`true`|
 |hubble_ui_ingress_enabled|Ingressを有効化するかどうか (将来対応予定)|`false`|
 |hubble_ui_ingress_hosts|Ingressのホスト名リスト (将来対応予定)|`[]`|
 |hubble_ui_ingress_class_name|IngressのClass Name (将来対応予定)|`""`|
 
 #### 複数コントロールプレインの操作
 
-`k8s-kubeconfig` ロールは, 各コントロールプレインで証明書を埋め込んだ `kubeconfig` を生成し, kubeconfigファイル結合ツール(`create-uniq-kubeconfig.py`) で統合した `merged-kubeconfig.conf` (統合 `kubeconfig`)を全ノードに配布する。これにより, 1 つの `kubeconfig` で複数K8sクラスタ のコンテキストを切り替えて操作できる。
+`k8s-kubeconfig` ロールは, 各コントロールプレインで証明書を埋め込んだ `kubeconfig` を生成し, kubeconfigファイル結合ツール(`create-uniq-kubeconfig.py`) で統合した `merged-kubeconfig.conf` (統合 `kubeconfig`)を全ノードに配布します。これにより, 1 つの `kubeconfig` で複数K8sクラスタ のコンテキストを切り替えて操作できます。
 
-本playbookでは Kubernetesオペレータとして, `kube` ユーザを作成する。`kube` ユーザの既定 `kubeconfig` (`~/.kube/config`) を `merged-kubeconfig.conf` へのシンボリックリンクとして作成するため, `kube` ユーザであれば `kubectl` の `--kubeconfig` オプションを省略して, K8sクラスタ のコンテキスト操作を行うことが可能である。
+本playbookでは Kubernetesオペレータとして, `kube` ユーザを作成します。`kube` ユーザの既定 `kubeconfig` (`~/.kube/config`) を `merged-kubeconfig.conf` へのシンボリックリンクとして作成するため, `kube` ユーザであれば `kubectl` の `--kubeconfig` オプションを省略して, K8sクラスタ のコンテキスト操作を行うことが可能です。
 
 ##### kubeconfig ファイルの配置と属性
 
 |ファイル|配置ホスト|所有者/グループ|権限|含まれる情報|
 |---|---|---|---|---|
-|~kube/.kube/cluster*-embedded.kubeconfig|コントロールプレインのみ|`kube:kube`|`0600`|各コントロールプレイン専用の証明書を内包した `kubeconfig`。共通CA証明書 `/etc/kubernetes/pki/shared-ca/cluster-mesh-ca.crt` (共通CA証明書未使用時は `/etc/kubernetes/pki/ca.crt`), および `/etc/kubernetes/admin.conf` が保持する管理者クライアント証明書と秘密鍵, クラスタ定義 (`clusters`) とユーザー定義 (`users`) とを内包する。統合 `kubeconfig` (`merged-kubeconfig.conf`)の生成に使用される。|
-|~kube/.kube/ca-embedded-admin.conf|コントロールプレインのみ|`kube:kube`|`0600`|`/etc/kubernetes/admin.conf` に含まれるクラスタCA証明書, 共通CA証明書 ( `/etc/kubernetes/pki/shared-ca/cluster-mesh-ca.crt` ( 共通CA証明書未使用時は `/etc/kubernetes/pki/ca.crt` ), 管理者クライアント証明書, 管理者クライアント秘密鍵とを内包する。|
-|~kube/.kube/merged-kubeconfig.conf|全ノード|`kube:kube`|`0600`|全コントロールプレインのコンテキスト (`kubernetes-admin@<Kubernetes API エンドポイントを識別するための名前>`) を統合した統合 `kubeconfig`。クラスタ定義 (`clusters`), ユーザー定義 (`users`), コンテキスト定義 (`contexts`) をまとめて保持する。|
+|~kube/.kube/cluster*-embedded.kubeconfig|コントロールプレインのみ|`kube:kube`|`0600`|各コントロールプレイン専用の証明書を内包した `kubeconfig`。共通CA証明書 `/etc/kubernetes/pki/shared-ca/cluster-mesh-ca.crt` (共通CA証明書未使用時は `/etc/kubernetes/pki/ca.crt`), および `/etc/kubernetes/admin.conf` が保持する管理者クライアント証明書と秘密鍵, クラスタ定義 (`clusters`) とユーザー定義 (`users`) とを内包します。統合 `kubeconfig` (`merged-kubeconfig.conf`)の生成に使用される。|
+|~kube/.kube/ca-embedded-admin.conf|コントロールプレインのみ|`kube:kube`|`0600`|`/etc/kubernetes/admin.conf` に含まれるクラスタCA証明書, 共通CA証明書 ( `/etc/kubernetes/pki/shared-ca/cluster-mesh-ca.crt` ( 共通CA証明書未使用時は `/etc/kubernetes/pki/ca.crt` ), 管理者クライアント証明書, 管理者クライアント秘密鍵とを内包します。|
+|~kube/.kube/merged-kubeconfig.conf|全ノード|`kube:kube`|`0600`|全コントロールプレインのコンテキスト (`kubernetes-admin@<Kubernetes API エンドポイントを識別するための名前>`) を統合した統合 `kubeconfig`。クラスタ定義 (`clusters`), ユーザー定義 (`users`), コンテキスト定義 (`contexts`) をまとめて保持します。|
 |~kube/.kube/config (シンボリックリンク)|全ノード|`kube:kube`|`0600`|`kubectl` を`--kubeconfig`オプション無しに, 統合 `kubeconfig`を使用して実行するためのシンボリックリンク。|
 |~kube/.kube/config-default|全ノード|`kube:kube`|`0600`|`kubeadm init` 実行時の`kubeconfig`ファイル (`~/.kube/config`) を保存するためのバックアップファイル。統合 `kubeconfig`へのシンボリックリンクを`~/.kube/config`として作成する際に, 既存の `~/.kube/config` が通常ファイルとして存在していた場合にのみ作成される。|
-|/etc/kubernetes/ca-embedded-admin.conf|コントロールプレインのみ|`root:root`|`0600`|root 向けに配置する証明書埋め込み `kubeconfig` クラスタCA証明書, 共通CA証明書 ( `/etc/kubernetes/pki/shared-ca/cluster-mesh-ca.crt`, 共通CA証明書未使用時は `/etc/kubernetes/pki/ca.crt` ), 管理者クライアント証明書, 管理者クライアント秘密鍵とを内包する。root 権限での操作時に使用する。|
-|/etc/kubernetes/merged-kubeconfig.conf|全ノード|`root:root`|`0600`|全コントロールプレインのコンテキスト (`kubernetes-admin@<Kubernetes API エンドポイントを識別するための名前>`) を統合した統合 `kubeconfig`。クラスタ定義 (`clusters`), ユーザー定義 (`users`), コンテキスト定義 (`contexts`) をまとめて保持する。`sudo KUBECONFIG=/etc/kubernetes/merged-kubeconfig.conf kubectl` を実行することで利用する。|
+|/etc/kubernetes/ca-embedded-admin.conf|コントロールプレインのみ|`root:root`|`0600`|root 向けに配置する証明書埋め込み `kubeconfig` クラスタCA証明書, 共通CA証明書 ( `/etc/kubernetes/pki/shared-ca/cluster-mesh-ca.crt`, 共通CA証明書未使用時は `/etc/kubernetes/pki/ca.crt` ), 管理者クライアント証明書, 管理者クライアント秘密鍵とを内包します。root 権限での操作時に使用します。|
+|/etc/kubernetes/merged-kubeconfig.conf|全ノード|`root:root`|`0600`|全コントロールプレインのコンテキスト (`kubernetes-admin@<Kubernetes API エンドポイントを識別するための名前>`) を統合した統合 `kubeconfig`。クラスタ定義 (`clusters`), ユーザー定義 (`users`), コンテキスト定義 (`contexts`) をまとめて保持します。`sudo KUBECONFIG=/etc/kubernetes/merged-kubeconfig.conf kubectl` を実行することで利用します。|
 
-なお, 制御ノード側では, `~/.ansible/kubeconfig-cache/` (権限 `0700`) に最新の 統合 `kubeconfig` (`merged-kubeconfig.conf`) をキャッシュし, ワーカーノード配布時に再利用する。
+なお, 制御ノード側では, `~/.ansible/kubeconfig-cache/` (権限 `0700`) に最新の 統合 `kubeconfig` (`merged-kubeconfig.conf`) をキャッシュし, ワーカーノード配布時に再利用します。
 
 ##### `kubeconfig` ファイルの収集
 
 本節では, 取得ファイルをローカルの `dest/` に整理し, シンボリックリンクの参照先を記録する手順を, OS 系列ごとに示す。
 
-`kubeconfig ファイルの配置と属性` に挙げたうち, `/etc/kubernetes/ca-embedded-admin.conf` と `/etc/kubernetes/merged-kubeconfig.conf` は, それぞれ `~kube/.kube/ca-embedded-admin.conf` と `~kube/.kube/merged-kubeconfig.conf` と同内容である。不要な権限昇格を避けるため, `~kube/.kube` 配下のファイルのみ収集すれば十分である。
+`kubeconfig ファイルの配置と属性` に挙げたうち, `/etc/kubernetes/ca-embedded-admin.conf` と `/etc/kubernetes/merged-kubeconfig.conf` は, それぞれ `~kube/.kube/ca-embedded-admin.conf` と `~kube/.kube/merged-kubeconfig.conf` と同内容です。不要な権限昇格を避けるため, `~kube/.kube` 配下のファイルのみ収集すれば十分です。
 
-以下の例では, 収集対象コントロールプレインを列挙したファイル (例: `ctrlplane-hosts.txt`) を用意し, `pslurp` / `parallel-slurp`コマンドの実行時に使用する。
+以下の例では, 収集対象コントロールプレインを列挙したファイル (例: `ctrlplane-hosts.txt`) を用意し, `pslurp` / `parallel-slurp`コマンドの実行時に使用します。
 
 ```plaintext
 k8sctrlplane01.local
 k8sctrlplane02.local
 ```
 
-`pslurp` / `parallel-slurp` は `-L` で指定したディレクトリ配下にホスト名ごとのサブディレクトリを作成し, 取得したファイルを保存する。必要に応じて `-O "-oStrictHostKeyChecking=no"` や `-x "-i <鍵ファイル>"` 等の SSH オプションを付与して環境に合わせる。`pssh` パッケージの導入手順や利用可能なコマンドオプションは [pssh の GitHub リポジトリ](https://github.com/lilydjwg/pssh) を参照すること。
+`pslurp` / `parallel-slurp` は `-L` で指定したディレクトリ配下にホスト名ごとのサブディレクトリを作成し, 取得したファイルを保存します。必要に応じて `-O "-oStrictHostKeyChecking=no"` や `-x "-i <鍵ファイル>"` 等の SSH オプションを付与して環境に合わせる。`pssh` パッケージの導入手順や利用可能なコマンドオプションは [pssh の GitHub リポジトリ](https://github.com/lilydjwg/pssh) を参照すること。
 
 ###### RedHat系 の場合
 
@@ -1041,7 +1041,7 @@ k8sctrlplane02.local
 
 ###### Debian 系 の場合
 
-Debian 系では `pslurp` が `parallel-slurp` という名称で提供される。引数は同一で利用できる。
+Debian 系では `pslurp` が `parallel-slurp` という名称で提供される。引数は同一で利用できます。
 
 |ファイル|説明|取得コマンド例|
 |---|---|---|
@@ -1054,7 +1054,7 @@ Debian 系では `pslurp` が `parallel-slurp` という名称で提供される
 
 本節では, Cilium Cluster Mesh などで共有する Kubernetes 共通認証局(Certificate Authority)証明書 (CA) ( 以下, 共通CA )がコントロールプレイン間で適切に適用されていることを確認する手順を述べる。
 
-まずコンテキスト名を確認する。
+まずコンテキスト名を確認します。
 
 ```bash
 kubectl config get-contexts
@@ -1063,8 +1063,8 @@ CURRENT   NAME                            CLUSTER    AUTHINFO             NAMESP
           kubernetes-admin@kubernetes-2   cluster2   kubernetes-admin-2
 ```
 
-上記の`NAME`列に出力されている文字列をコンテキスト名(`<context>`)として使用する。
-以下のコマンドを各コントロールプレインで実行し, 出力されるハッシュ値がコントロールプレイン間で一致することを確認する。
+上記の`NAME`列に出力されている文字列をコンテキスト名(`<context>`)として使用します。
+以下のコマンドを各コントロールプレインで実行し, 出力されるハッシュ値がコントロールプレイン間で一致することを確認します。
 
 ```bash
 kubectl --context <context> -n kube-system get secret cilium-ca -o jsonpath='{.data.ca\.crt}' | base64 -d | sha256sum
@@ -1074,7 +1074,7 @@ kubectl --context <context> -n kube-system get secret cilium-ca -o jsonpath='{.d
 
 本節では, Cluster Mesh 用 機密情報を保持するリソース(`Secret`) `cilium-clustermesh`がコントロールプレイン間で適切に適用されていることを確認する手順を述べる。
 
-まずコンテキスト名を確認する。
+まずコンテキスト名を確認します。
 
 ```bash
 kubectl config get-contexts
@@ -1083,7 +1083,7 @@ CURRENT   NAME                            CLUSTER    AUTHINFO             NAMESP
           kubernetes-admin@kubernetes-2   cluster2   kubernetes-admin-2
 ```
 
-上記の`NAME`列に出力されている文字列をコンテキスト名(`<context>`)として使用する。以下のコマンドを各コントロールプレインで実行し, 出力されるハッシュ値がコントロールプレイン間で一致することを確認する。
+上記の`NAME`列に出力されている文字列をコンテキスト名(`<context>`)として使用します。以下のコマンドを各コントロールプレインで実行し, 出力されるハッシュ値がコントロールプレイン間で一致することを確認します。
 
 ```bash
 kubectl --context <context> -n kube-system get secret cilium-clustermesh -o jsonpath='{.data.tls\.crt}' | base64 -d | openssl x509 -noout -text
@@ -1099,7 +1099,7 @@ kubectl --context <context> -n kube-system get secret cilium-clustermesh -o json
   ```
 
 - **ワーカーノードへの再配布**:
-  `inventory/hosts`の`k8s_worker`の項目に配布対象となるワーカノードのホスト名を記載したうえで, コントロールプレインで統合された統合 `kubeconfig` (`merged-kubeconfig.conf`) を各ワーカーに配布する Make ターゲット (`update-worker-kubeconfig`)を実行する。`update-worker-kubeconfig` は直前の手順で最新化された 統合 `kubeconfig` (`merged-kubeconfig.conf`) をコントロールプレインから取得するため, 事前に `make update-ctrlplane-kubeconfig` を完了していることが前提となる。
+  `inventory/hosts`の`k8s_worker`の項目に配布対象となるワーカノードのホスト名を記載したうえで, コントロールプレインで統合された統合 `kubeconfig` (`merged-kubeconfig.conf`) を各ワーカーに配布する Make ターゲット (`update-worker-kubeconfig`)を実行します。`update-worker-kubeconfig` は直前の手順で最新化された 統合 `kubeconfig` (`merged-kubeconfig.conf`) をコントロールプレインから取得するため, 事前に `make update-ctrlplane-kubeconfig` を完了していることが前提となる。
 
   ```shell
   make update-worker-kubeconfig
@@ -1107,13 +1107,13 @@ kubectl --context <context> -n kube-system get secret cilium-clustermesh -o json
 
 ###### `~kube/.kube/config`ファイルに関する補足事項
 
-本playbookの`k8s-kubeconfig` ロールは `~kube/.kube/config` を 統合 `kubeconfig` (`merged-kubeconfig.conf`) へのシンボリックリンクに置き換え, 旧ファイルを `config-default` として退避する。
+本playbookの`k8s-kubeconfig` ロールは `~kube/.kube/config` を 統合 `kubeconfig` (`merged-kubeconfig.conf`) へのシンボリックリンクに置き換え, 旧ファイルを `config-default` として退避します。
 
-手動で差し替える必要はないが, 独自に編集する場合はロール再実行時に同リンクへ戻される点に注意する。
+手動で差し替える必要はないが, 独自に編集する場合はロール再実行時に同リンクへ戻される点に注意します。
 
 ###### コンテキスト一覧取得
 
-統合 `kubeconfig` (`merged-kubeconfig.conf`)中のコンテキスト一覧は, `kube` ユーザでログインした状態で以下を実行することで取得する。
+統合 `kubeconfig` (`merged-kubeconfig.conf`)中のコンテキスト一覧は, `kube` ユーザでログインした状態で以下を実行することで取得します。
 
 ```shell
 kubectl config get-contexts --kubeconfig=~/.kube/merged-kubeconfig.conf
@@ -1149,7 +1149,7 @@ k8sworker0102    Ready    <none>          7h31m   v1.31.13
 
 ### Netgauge
 
-ネットワーク性能測定ツールであるNetgauge関連の設定を以下に記載する。
+ネットワーク性能測定ツールであるNetgauge関連の設定を以下に記載します。
 
 |変数名|意味|設定値の例|
 |---|---|---|
@@ -1159,7 +1159,7 @@ k8sworker0102    Ready    <none>          7h31m   v1.31.13
 
 ### host_vars/ ディレクトリ配下のホスト設定ファイル
 
-host_varsには主にネットワークインターフェースの設定やK8s関連の設定を記載する。
+host_varsには主にネットワークインターフェースの設定やK8s関連の設定を記載します。
 
 host_varsに記載がないホストについては, dhcpv4によるアドレス割り当て, vars/all-config.ymlに記載されているDNS関連情報に基づいてネットワークの設定が行われる。
 
@@ -1171,20 +1171,20 @@ K8sノードは, 管理用ネットワークと運用ネットワーク(K8sのPo
 |mgmt_nic|管理用のネットワークインターフェース名|"ens160"|
 |k8s_ctrlplane_host|Kubernetes コントロールプレインのホスト名|"k8sctrlplane01.local"|
 |k8s_ctrlplane_endpoint|K8sコントロールプレインのAPI広告エンドポイントアドレス|"fd69:6684:61a:1::41"|
-|k8s_kubelet_nic|K8sのkubeletが使用するNetwork Interface Card (NIC) を指定, 未指定時はmgmt_nicが使用される。運用ネットワーク(K8sネットワーク)内でK8s間の通信を閉じるなら, K8sネットワーク側のNICを指定する。|"ens192"|
+|k8s_kubelet_nic|K8sのkubeletが使用するNetwork Interface Card (NIC) を指定, 未指定時はmgmt_nicが使用される。運用ネットワーク(K8sネットワーク)内でK8s間の通信を閉じるなら, K8sネットワーク側のNICを指定します。|"ens192"|
 |k8s_pod_ipv4_network_cidr|K8s IPv4 PodネットワークアドレスのCIDR|"10.244.0.0/16"|
 |k8s_pod_ipv6_network_cidr|K8s IPv6 PodネットワークアドレスのCIDR|"fdb6:6e92:3cfb:0100::/56"|
 |k8s_cilium_cm_cluster_name|Cilium Cluster Meshのクラスタ名|"cluster1"|
 |k8s_cilium_cm_cluster_id|Cilium Cluster MeshのクラスタID|1|
-|k8s_whereabouts_ipv4_range_start|Whereaboutsのセカンダリネットワークのアドレスレンジ開始アドレス(IPv4)。 コントロールプレイン用ホスト設定ファイルで設定する。|"192.168.20.100"|
-|k8s_whereabouts_ipv4_range_end|Whereaboutsのセカンダリネットワークのアドレスレンジ終了アドレス(IPv4)。 コントロールプレイン用ホスト設定ファイルで設定する。|"192.168.20.254"|
-|k8s_whereabouts_ipv6_range_start|Whereaboutsのセカンダリネットワークのアドレスレンジ開始アドレス(IPv6)。 コントロールプレイン用ホスト設定ファイルで設定する。|"fd69:6684:61a:3::100"|
-|k8s_whereabouts_ipv6_range_end|Whereaboutsのセカンダリネットワークのアドレスレンジ終了アドレス(IPv6)。 コントロールプレイン用ホスト設定ファイルで設定する。|"fd69:6684:61a:3::254"|
+|k8s_whereabouts_ipv4_range_start|Whereaboutsのセカンダリネットワークのアドレスレンジ開始アドレス(IPv4)。 コントロールプレイン用ホスト設定ファイルで設定します。|"192.168.20.100"|
+|k8s_whereabouts_ipv4_range_end|Whereaboutsのセカンダリネットワークのアドレスレンジ終了アドレス(IPv4)。 コントロールプレイン用ホスト設定ファイルで設定します。|"192.168.20.254"|
+|k8s_whereabouts_ipv6_range_start|Whereaboutsのセカンダリネットワークのアドレスレンジ開始アドレス(IPv6)。 コントロールプレイン用ホスト設定ファイルで設定します。|"fd69:6684:61a:3::100"|
+|k8s_whereabouts_ipv6_range_end|Whereaboutsのセカンダリネットワークのアドレスレンジ終了アドレス(IPv6)。 コントロールプレイン用ホスト設定ファイルで設定します。|"fd69:6684:61a:3::254"|
 
 #### ホスト設定ファイル中でのネットワークインターフェース設定
 
-複数のNICを持ったマシンにおける各NICの設定値をnetif_list変数に設定する。
-netif_list変数は, 以下の要素からなる辞書のリストである。
+複数のNICを持ったマシンにおける各NICの設定値をnetif_list変数に設定します。
+netif_list変数は, 以下の要素からなる辞書のリストです。
 
 |キー名|設定値|設定値の例|
 |---|---|---|
@@ -1211,18 +1211,18 @@ netif_list変数は, 以下の要素からなる辞書のリストである。
 - DNS サーチドメインが指定されていない場合は自動取得したサーチドメインを使用する
 - グローバル変数 ipv4_name_server1, ipv4_name_server2, ipv6_name_server1, ipv6_name_server2 が
   定義されている場合は, 各インターフェースの DNS サーバ指定がない場合に使用する
-- DNSサーバ項目の出力有無については, 以下のロジックで決定する。
+- DNSサーバ項目の出力有無については, 以下のロジックで決定します。
    1. 各インターフェースの ignore_auto_ipv4_dns, ignore_auto_ipv6_dns フラグを確認する
    2. フラグが true の場合は, name_server_ipv4_1, name_server_ipv4_2,
       name_server_ipv6_1, name_server_ipv6_2 の値を確認し, 設定されていれば
       それらをDNSサーバのリストに追加する
-   3. DNSサーバのリストを事前に算出し, ネームサーバの項目出力要否を判断の上, DNSサーバの設定を出力する。IPv4 DNSサーバが一切設定されていない場合は DHCP を, IPv6 DNSサーバが一切設定されていない場合は Router Advertisement (RA) / DHCPv6 を使用する (ignore_auto_* の設定に関わらず受け入れる)。
+   3. DNSサーバのリストを事前に算出し, ネームサーバの項目出力要否を判断の上, DNSサーバの設定を出力します。IPv4 DNSサーバが一切設定されていない場合は DHCP を, IPv6 DNSサーバが一切設定されていない場合は Router Advertisement (RA) / DHCPv6 を使用する (ignore_auto_* の設定に関わらず受け入れる)。
 - DNS サーチドメインの決定ロジック
   netif_listのdns_searchを優先し, 無ければvars/all-config.ymlで設定された
-  dns_search変数の値を採用する。どちらも無ければ設定しない。
+  dns_search変数の値を採用します。どちらも無ければ設定しない。
 
-ルートメトリックについては, ネットワークの設計方針に応じて適切に設定する。
-例えば, 運用系ネットワークを通して外部ネットワークにつなぐ場合は, 運用系NIC以外のNICのメトリックを高めに設定する。
+ルートメトリックについては, ネットワークの設計方針に応じて適切に設定します。
+例えば, 運用系ネットワークを通して外部ネットワークにつなぐ場合は, 運用系NIC以外のNICのメトリックを高めに設定します。
 
 ## ansible-lint設定ファイル (ansible-lint.yml)の使用法
 
@@ -1248,27 +1248,31 @@ ansible-lintコマンドを, `-c`オプションを指定せずに実行した�
 
 ## 用語
 
-- Application Programming Interface ( API ) : ソフトウェア間連携のための呼び出し規約, インターフェース。
-- Classless Inter-Domain Routing ( CIDR ) : IP アドレスの表記と経路集約の方式 ( 例: 10.0.0.0/16 ) 。
-- Central Processing Unit ( CPU ) : 中央演算処理装置。
-- Domain Name System ( DNS ) : コンピュータネットワーク上のホスト名や電子メールのアドレスに使われるドメイン名と, IPアドレスとの対応づけ ( 正引き, 逆引き ) を管理するシステム。
-- Dynamic Host Configuration Protocol ( DHCP ) : IPv4 端末にアドレス等のネットワーク設定を自動配布する通信規約。
-- Dynamic Host Configuration Protocol for IPv6  ( DHCPv6 ) : IPv6 向けの DHCP。
-- General Electric Comprehensive Operating Supervisor (GECOS)フィールド: /etc/passwd のコメント欄 ( フルネーム等 ) を表すフィールド名。
-- Internet Control Message Protocol ( ICMP ) : IP通信における誤りの通知や通信に関する情報の通知などのために使用される通信規約。
-- Internet Protocol ( IP ) :インターネットでデータを送受信するための通信規約。
-- Kubernetes ( K8s ) : コンテナオーケストレーションのためのプラットフォーム。
-- Lightweight Directory Access Protocol ( LDAP ) : ネットワーク内のユーザー, デバイス, ファイルなどの情報を一元管理し, 検索や認証を行うための通信規約。
-- Local Area Network ( LAN ) : 建物やフロア等の限定範囲で構成されるローカルネットワーク。
-- Multicast DNS ( mDNS ) : ユニキャストDNSサーバーが存在しない環境において, ローカルリンク上でDNSに類似した 操作を実行する機能を提供するための通信規約。
-- Network File System ( NFS ) : ネットワーク経由でファイルを共有するための通信規約。
-- Network Interface Card ( NIC ) : ネットワークに接続するためのハードウェア。
-- Network Time Protocol ( NTP ) : ネットワークに接続されたコンピューターなどの機器の時計を, 正確な時刻に同期させるための通信規約。
-- Router Advertisement ( RA ) : IPv6 のプレフィクスやデフォルトルータ情報を周知する ICMPv6 通信規約。
-- Security-Enhanced Linux ( SELinux ) : カーネルレベルの強制アクセス制御によりプロセス／リソース隔離を強化する仕組み。
-- Secure Shell (SSH): リモートログイン／ファイル転送／コマンド実行のための暗号化プロトコル, および, コマンド。
-- Uncomplicated Firewall ( UFW ) : Linux のパケットフィルタ ( iptables / nftables ) を簡便に操作するためのフロントエンド。Ubuntu Linuxで使用されるファイアウォール機能を提供するパッケージ。
-- Virtual Machine ( VM ) : 物理マシン上で仮想的に動作する計算機環境。
+| 正式名称 | 略称 | 意味 |
+| --- | --- | --- |
+| Application Programming Interface | API | ソフトウェア間連携のための呼び出し規約, インターフェース。 |
+| Classless Inter-Domain Routing | CIDR | IP アドレスの表記と経路集約の方式 ( 例: 10.0.0.0/16 )。 |
+| Central Processing Unit | CPU | 中央演算処理装置。 |
+| Domain Name System | DNS | コンピュータネットワーク上のホスト名や電子メールのアドレスに使われるドメイン名と, IPアドレスとの対応づけ ( 正引き, 逆引き ) を管理するシステム。 |
+| Dynamic Host Configuration Protocol | DHCP | IPv4 端末にアドレス等のネットワーク設定を自動配布する通信規約。 |
+| Dynamic Host Configuration Protocol for IPv6 | DHCPv6 | IPv6 向けの DHCP。 |
+| General Electric Comprehensive Operating Supervisorフィールド | GECOS | /etc/passwd のコメント欄 ( フルネーム等 ) を表すフィールド名。 |
+| Internet Control Message Protocol | ICMP | IP通信における誤りの通知や通信に関する情報の通知などのために使用される通信規約。 |
+| Internet Protocol | IP | インターネットでデータを送受信するための通信規約。 |
+| Kubernetes | K8s | コンテナオーケストレーションのためのプラットフォーム。 |
+| Lightweight Directory Access Protocol | LDAP | ネットワーク内のユーザー, デバイス, ファイルなどの情報を一元管理し, 検索や認証を行うための通信規約。 |
+| Local Area Network | LAN | 建物やフロア等の限定範囲で構成されるローカルネットワーク。 |
+| Multicast DNS | mDNS | ユニキャストDNSサーバーが存在しない環境において, ローカルリンク上でDNSに類似した操作を実行する機能を提供するための通信規約。 |
+| Network File System | NFS | ネットワーク経由でファイルを共有するための通信規約。 |
+| Network Interface Card | NIC | ネットワークに接続するためのハードウェア。 |
+| Network Time Protocol | NTP | ネットワークに接続されたコンピューターなどの機器の時計を, 正確な時刻に同期させるための通信規約。 |
+| Router Advertisement | RA | IPv6 のプレフィクスやデフォルトルータ情報を周知する ICMPv6 通信規約。 |
+| Security-Enhanced Linux | SELinux | カーネルレベルの強制アクセス制御によりプロセス/リソース隔離を強化する仕組み。 |
+| Secure Shell | SSH | リモートログイン/ファイル転送/コマンド実行のための暗号化プロトコル, および, コマンド。 |
+| drop-in ファイル | - | 既存の設定本体を直接変更せず, 追加の設定断片として読み込ませる補助設定ファイル。 |
+| sudoコマンド | sudo | 一時的に管理者権限でコマンドを実行するためのコマンド。 |
+| Uncomplicated Firewall | UFW | Linux のパケットフィルタ ( iptables / nftables ) を簡便に操作するためのフロントエンド。Ubuntu Linuxで使用されるファイアウォール機能を提供するパッケージ。 |
+| Virtual Machine | VM | 物理マシン上で仮想的に動作する計算機環境。 |
 
 ## 参考サイト
 

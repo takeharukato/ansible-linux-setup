@@ -1,24 +1,21 @@
 # k8s-virtual-cluster ロール
 
-[VirtualCluster - Enabling Kubernetes Hard Multi-tenancy](https://github.com/kubernetes-retired/cluster-api-provider-nested/tree/main/virtualcluster) (
-Kubernetes 仮想クラスタ ) の基盤コンポーネントをデプロイするロールです。このロールは, Kubernetes API を仮想化し, 複数の論理的な Kubernetes クラスタを単一のKubernetes クラスタ上で動作させるための基盤を構築します。
+本ロールは, [VirtualCluster - Enabling Kubernetes Hard Multi-tenancy](https://github.com/kubernetes-retired/cluster-api-provider-nested/tree/main/virtualcluster) の基盤コンポーネントを展開(デプロイ)するロールです。
+
+## 目次
 
 - [k8s-virtual-cluster ロール](#k8s-virtual-cluster-ロール)
+  - [目次](#目次)
   - [用語](#用語)
+  - [概要](#概要)
+    - [展開 (デプロイ) されるコンポーネント](#展開-デプロイ-されるコンポーネント)
+  - [主な処理](#主な処理)
+    - [クリーンビルド処理 (`virtualcluster_clean_build: true` の場合)](#クリーンビルド処理-virtualcluster_clean_build-true-の場合)
+    - [ビルドと展開 (デプロイ) 処理](#ビルドと展開-デプロイ-処理)
+    - [パッチ適用詳細](#パッチ適用詳細)
   - [前提条件](#前提条件)
     - [永続ストレージに関する前提条件](#永続ストレージに関する前提条件)
-  - [概要](#概要)
-    - [デプロイされるコンポーネント](#デプロイされるコンポーネント)
-  - [実行フロー](#実行フロー)
-    - [コンテナイメージ作成と配布の流れ](#コンテナイメージ作成と配布の流れ)
-      - [ソース取得からコンテナイメージ作成配布処理中での排他制御について](#ソース取得からコンテナイメージ作成配布処理中での排他制御について)
-    - [既存のコンテナイメージをコントロールプレイン/ワーカーノードに配布して仮想クラスタ環境を構築する場合の流れ](#既存のコンテナイメージをコントロールプレインワーカーノードに配布して仮想クラスタ環境を構築する場合の流れ)
-      - [前提](#前提)
-      - [処理フロー](#処理フロー)
-    - [優先順位と昇格保存のルール](#優先順位と昇格保存のルール)
-    - [設定例](#設定例)
-      - [例1: explicit モード(明示指定)](#例1-explicit-モード明示指定)
-      - [例2: cache モード(既定キャッシュ再利用)](#例2-cache-モード既定キャッシュ再利用)
+  - [実行方法](#実行方法)
   - [主要変数](#主要変数)
     - [既定の起動引数の意味](#既定の起動引数の意味)
       - [vc-manager (`virtualcluster_vc_manager_args`)](#vc-manager-virtualcluster_vc_manager_args)
@@ -43,11 +40,6 @@ Kubernetes 仮想クラスタ ) の基盤コンポーネントをデプロイす
         - [トラブルシューティング](#トラブルシューティング)
   - [仮想クラスタ/テナント設定例](#仮想クラスタテナント設定例)
     - [PersistentVolume 設定例](#persistentvolume-設定例)
-  - [実行方法](#実行方法)
-  - [主な処理](#主な処理)
-    - [クリーンビルド処理 (`virtualcluster_clean_build: true` の場合)](#クリーンビルド処理-virtualcluster_clean_build-true-の場合)
-    - [ビルドとデプロイ処理](#ビルドとデプロイ処理)
-    - [パッチ適用詳細](#パッチ適用詳細)
   - [テナント操作補助スクリプト](#テナント操作補助スクリプト)
     - [スクリプト配置](#スクリプト配置)
     - [スクリプト一覧](#スクリプト一覧)
@@ -68,6 +60,16 @@ Kubernetes 仮想クラスタ ) の基盤コンポーネントをデプロイす
       - [補完の動作](#補完の動作)
       - [補完機能のトラブルシューティング](#補完機能のトラブルシューティング)
     - [トラブルシューティング](#トラブルシューティング-1)
+  - [実行フロー](#実行フロー)
+    - [コンテナイメージ作成と配布の流れ](#コンテナイメージ作成と配布の流れ)
+      - [ソース取得からコンテナイメージ作成配布処理中での排他制御について](#ソース取得からコンテナイメージ作成配布処理中での排他制御について)
+    - [既存のコンテナイメージをコントロールプレーン/ワーカーノードに配布して仮想クラスタ環境を構築する場合の流れ](#既存のコンテナイメージをコントロールプレーンワーカーノードに配布して仮想クラスタ環境を構築する場合の流れ)
+      - [前提](#前提)
+      - [処理フロー](#処理フロー)
+    - [優先順位と昇格保存のルール](#優先順位と昇格保存のルール)
+    - [設定例](#設定例)
+      - [例1: explicit モード(明示指定)](#例1-explicit-モード明示指定)
+      - [例2: cache モード(既定キャッシュ再利用)](#例2-cache-モード既定キャッシュ再利用)
   - [検証ポイント](#検証ポイント)
   - [トラブルシューティング](#トラブルシューティング-2)
     - [VirtualCluster作成後の診断](#virtualcluster作成後の診断)
@@ -95,21 +97,19 @@ Kubernetes 仮想クラスタ ) の基盤コンポーネントをデプロイす
       - [3. パッチファイルの内容確認](#3-パッチファイルの内容確認)
       - [4. 手動パッチ適用テスト](#4-手動パッチ適用テスト)
       - [5. クリーンビルドによる解決](#5-クリーンビルドによる解決)
-  - [テナント kubeconfig 生成スクリプト](#テナント-kubeconfig-生成スクリプト)
-    - [スクリプトの概要](#スクリプトの概要)
-    - [使用方法](#使用方法)
-    - [オプション](#オプション)
-    - [テナント kubeconfig の使用](#テナント-kubeconfig-の使用)
-      - [kubectl port-forward を使用したポートフォワーディング](#kubectl-port-forward-を使用したポートフォワーディング)
-      - [テナント操作用kubeconfig の生成](#テナント操作用kubeconfig-の生成)
-      - [実行例](#実行例-1)
-      - [ポートフォワード操作の例](#ポートフォワード操作の例)
-      - [テナント環境へアクセスするためのkubeconfig の生成例](#テナント環境へアクセスするためのkubeconfig-の生成例)
-    - [automountServiceAccountToken 優先順位の検証手順](#automountserviceaccounttoken-優先順位の検証手順)
   - [注意事項](#注意事項)
-  - [留意事項](#留意事項)
-  - [参考リンク](#参考リンク)
   - [付録](#付録)
+  - [テナント kubeconfig 生成スクリプト](#テナント-kubeconfig-生成スクリプト)
+    - [スクリプトの動作概要](#スクリプトの動作概要)
+      - [オプション](#オプション)
+      - [使用例](#使用例)
+      - [テナント kubeconfig の使用](#テナント-kubeconfig-の使用)
+        - [kubectl port-forward を使用したポートフォワーディング](#kubectl-port-forward-を使用したポートフォワーディング)
+        - [テナント操作用kubeconfig の生成](#テナント操作用kubeconfig-の生成)
+        - [実行例](#実行例-1)
+        - [ポートフォワード操作の例](#ポートフォワード操作の例)
+        - [テナント環境へアクセスするためのkubeconfig の生成例](#テナント環境へアクセスするためのkubeconfig-の生成例)
+      - [automountServiceAccountToken 優先順位の検証手順](#automountserviceaccounttoken-優先順位の検証手順)
     - [files/pod\_kubeapiaccess\_automount.patchの障害修正内容](#filespod_kubeapiaccess_automountpatchの障害修正内容)
       - [現象](#現象)
       - [条件](#条件)
@@ -117,57 +117,239 @@ Kubernetes 仮想クラスタ ) の基盤コンポーネントをデプロイす
       - [処置概要](#処置概要)
       - [原因詳細](#原因詳細)
       - [処置詳細](#処置詳細)
-
+  - [参考資料](#参考資料)
+    - [公式ドキュメント](#公式ドキュメント)
 
 ## 用語
 
 | 正式名称 | 略称 | 意味 |
 | --- | --- | --- |
-| Kubernetes | K8s | コンテナを管理する基盤ソフトウエア。 |
-| Application Programming Interface | API | 他の仕組みから機能を呼び出すための窓口。 |
-| Custom Resource Definition | CRD | Kubernetes に独自のリソース型を追加する仕組み。 |
-| Role-Based Access Control | RBAC | 権限を役割単位で制御する仕組み。 |
-| Transport Layer Security | TLS | 通信を暗号化する仕組み。 |
+| ユーザ | - | 機能を利用する人, 又は識別された利用主体。 |
+| ツール | - | 特定作業を実行するための機能や道具。 |
+| リソース | - | 処理に必要な計算機資源やデータ。 |
+| クラスタ | - | 複数の機器を連携させて一体運用する構成。 |
+| ディストリビューション | - | 基本ソフトウェアと関連部品をまとめた配布形態。 |
+| コンテナイメージ | - | コンテナ実行に必要な内容をまとめた保存形式。 |
+| プログラム | - | 計算機に処理をさせるための命令列。 |
+| コミュニティ | - | 共通目的のもとで継続的に活動する利用者集団。 |
+| プラグイン | - | 既存機能へ追加機能を組み込むための拡張部品。 |
+| サービスアカウント | - | 自動処理向けに用意する利用主体の識別情報。 |
+| コンテナランタイム | - | コンテナを起動, 停止, 管理する実行基盤。 |
+| リクエスト | - | 処理実行や情報取得を要求する操作。 |
+| コントローラ | - | 対象状態を監視し, 期待状態へ調整する制御機能。 |
+| メタデータ | - | 対象データの属性や説明を示す付加情報。 |
+| バックエンド | - | 利用者画面の背後で処理を実行する側。 |
+| ストレージ | - | データを保存する仕組み。 |
+| インストール | - | ソフトウェアを導入して利用可能にする作業。 |
+| マシン | - | 処理を実行する計算機。 |
+| プロビジョニング | - | 利用開始に必要な設定や資源を準備する作業。 |
+| ルーティング | - | 宛先までの経路を選択して転送する処理。 |
+| オブジェクト | - | ひとかたまりとして扱うデータ単位。 |
+| エージェント | - | 指示に従って処理を代行する構成要素。 |
+| ストア | - | データや成果物を保存する場所。 |
+| ジャーナル | - | 時系列の記録を保持する仕組み。 |
+| アカウント | - | 利用者や処理主体を識別する登録情報。 |
+| エンドポイント | - | 通信の接続先を表す識別点。 |
+| パターン | - | 繰り返し現れる構造や記述形式。 |
+| パケット | - | ネットワークで転送するデータ単位。 |
+| カーネル | - | 基本ソフトウェアの中核機能。 |
+| シェル | - | コマンド入力で計算機を操作する仕組み。 |
+| Playbook | - | 自動化処理の実行手順を記述したファイル。 |
+| Canonical | - | Ubuntu を提供する組織名。 |
+| Key-Value | - | キーと値の組で情報を表す方式。 |
+| IP | - | インターネットプロトコルの略称。 |
+| SQL | - | データベースを操作するための記述言語。 |
+| HTTP | - | WWW で情報をやり取りする通信手順。 |
+| HTTPS | - | 通信内容を暗号化して WWW 通信を行う方式。 |
+| RPM | - | RHEL 系で使用するパッケージ形式。 |
+| VM | - | 物理機器上で動作する仮想的な計算機。 |
+| localhost | - | 同一機器自身を指す名前。 |
+| root | - | Unix 系システムの最上位権限を持つ管理者識別子。 |
+| ソフトウェア | - | 情報処理システムで使用するプログラム, 手順, 規則及び関連文書の全体又は一部分。 |
+| システム | - | 複数の要素が連携して目的を実現する仕組み全体。 |
+| アプリケーション | - | 利用者の目的を実現するために動作するソフトウェア。 |
+| パッケージ | - | ソフトウェア導入に必要なファイルをまとめた配布単位。 |
+| リポジトリ | - | ソフトウェアや設定情報を保管し, 取得できるようにした管理場所。 |
+| コマンド | - | 実行者が計算機へ処理を指示するための命令。 |
+| ホスト | - | 管理対象として識別される個別の計算機。 |
+| サーバ | - | 他の機器や利用者へ機能やデータを提供する計算機, 又はその役割。 |
+| コンテナ | - | アプリケーションを動かす隔離された実行単位。 |
+| ネットワーク | - | 機器同士を接続してデータをやり取りする仕組み。 |
+| アドレス | - | 宛先や所在を識別するための情報。 |
+| プロトコル | - | 通信やデータ交換の手順を定めた取り決め。 |
+| ディレクトリ | - | ファイルを階層的に整理するための入れ物。 |
+| ログ | - | 処理の結果や状態を時系列で記録した情報。 |
+| コード | - | 処理内容を記述した文字列。 |
+| Pod | - | Kubernetes でコンテナをまとめて管理する最小単位。 |
+| Linux | - | 多くの機器で使われる, 基本ソフトウェアの系統。 |
+| Debian | - | コミュニティ主導で開発される Linux ディストリビューション。 |
+| Ubuntu | - | Canonical が提供する Debian 系の Linux ディストリビューション。 |
+| Docker | - | コンテナイメージやコンテナの作成, 実行, 管理を行うコマンド。 |
+| Ansible | - | 設定の同一化や導入作業を所定の手順に従って自動化する仕組み。 |
+| World Wide Web | WWW | ネットワーク上で文書や情報を相互参照できる仕組み。 |
+| Service | - | サービスの英語表記。 |
+| Node | - | ノードの英語表記。 |
+| Makefile | - | 実行手順を定義したファイル。 |
+| API | - | アプリケーション同士がやり取りする方法を定めた仕様。 |
+| URL | - | WWW 上の資源の場所を示す文字列。 |
+| Kubernetes | K8s | コンテナを管理する基盤ソフトウェア。 |
+| Application Programming Interface | API | API の正式名称。 |
+| Custom Resource Definition | CRD | Kubernetes APIを拡張してユーザ独自のリソース種別を定義する仕組み。 |
+| Role-Based Access Control | RBAC | ユーザやサービスアカウントが実行可能な操作を役割(Role)で制限する仕組み。 |
+| Transport Layer Security | TLS | 通信経路でデータを暗号化して保護する仕組み。 |
 | Domain Name System | DNS | 名前と IP アドレスを対応付ける仕組み。 |
 | トラフィック ( Traffic ) | - | ネットワーク上で送受信される通信電文。Kubernetes では主に HTTP, TCP, UDP などの通信手順に基づいて送受信される通信データを指す。 |
-| etcd | - | Kubernetes の設定情報と状態を保存する分散キーバリューストア。 |
-| kube-apiserver | - | KubernetesのAPIリクエストを受け付けて処理するコンポーネント。 |
-| kube-controller-manager | - | Kubernetes コントローラマネージャ, リソースの状態を監視して制御するコンポーネント。 |
-| kubectl | - | Kubernetes クラスタを操作するコマンドラインツール。kube-apiserverへのリクエストを送信し, リソースの作成, 更新, 削除, 確認を行う。 |
-| コントロールプレーンノード ( Control Plane Node ) | - | Kubernetesクラスタを制御するためのコンポーネント(kube-apiserver, kube-scheduler, kube-controller-manager, etcd など)が動作し, クラスタ全体の制御と調整を行うノード。|
-| ワーカノード ( Worker Node ) | - | Kubernetes クラスタで実際にアプリケーション(ポッド ( Pod ))が実行されるノード。kubelet と呼ばれるエージェントが動作し, コントロールプレーンノードからの指示に基づいてコンテナを実行管理する。 |
+| etcd | - | KubernetesのKubernetesクラスタ状態を保存する分散Key-Valueストア。 |
+| kube-apiserver | - | KubernetesのAPIリクエストを受け付け, etcdへの読み書きを仲介するコンポーネント。 |
+| kube-controller-manager | - | Deployment, ReplicaSetなど各種コントローラを実行し, Kubernetesクラスタの状態を監視, 調整するコンポーネント。 |
+| kubectl | - | Kubernetesクラスタを操作するためのコマンドラインツール。 |
+| コントロールプレーンノード ( Control Plane Node ) | - | Kubernetesクラスタ全体を管理, 制御する中枢ノード群。kube-apiserver, kube-controller-manager, kube-schedulerなどが動作します。 |
+| ワーカノード ( Worker Node ) | - | 実際にアプリケーションのPodを実行するノード。 |
 | コンテナ ( Container ) | - | アプリケーションと依存関係を一つのパッケージ化したもの。軽量で, どの環境でも一貫して実行可能。 |
-| ポッド ( Pod ) | - | Kubernetes の最小展開単位。1 個以上のコンテナ ( Container ) で構成される実行環境。ポッド ( Pod ) 内のすべてのコンテナ ( Container ) は, OS が提供するネットワーク名前空間, および, IP アドレスを共有するため, ループバックアドレス (localhost) の異なるポート番号を使用してプロセス間通信が可能, 共有ストレージによって密接に結合され, 同一ノード上で常に共存, Pod 内のコンテナ群一式が一体となって配置される (スケジューリングの単位として不可分)。 |
-| レプリカ ( Replica ) | - | ポッド ( Pod ) の複製。デプロイメント ( Deployment ) などのリソースが高可用性や負荷分散のために複数のレプリカを作成, 管理する。指定されたレプリカ数に基づいて同一の仕様を持つポッドが複数実行される。 |
-| デプロイメント ( Deployment ) | - | Kubernetes リソース。ステートレスなアプリケーション向け。複数のレプリカ(ポッド ( Pod ) の複製)を管理し, 水平スケーリング に対応。 |
-| デーモンセット ( DaemonSet ) | - | Kubernetes リソース。Kubernetes クラスタ内の全ノード(またはフィルタ条件を満たすノード)に 1 つのポッド ( Pod ) を配置するリソース。監視やログ収集に適す。 |
+| ポッド ( Pod ) | - | Kubernetes上で動作するコンテナの最小単位。 |
+| レプリカ ( Replica ) | - | ポッド ( Pod ) の複製。デプロイメント ( Deployment ) などのリソースが高可用性や負荷分散のために複数のレプリカを作成, 管理します。指定されたレプリカ数に基づいて同一の仕様を持つポッドが複数実行される。 |
+| デプロイ ( Deploy ) | - | 機能や設定を実行環境へ展開し, 利用可能な状態にする作業。 |
+| デプロイメント ( Deployment ) | - | 指定した数のPodを維持し, ローリングアップデート等を管理するリソース。 |
+| デーモンセット ( DaemonSet ) | - | Kubernetesクラスタ内の全ノード(または指定した一部のノード)で必ずPodを1つずつ起動させるリソース。 |
 | ステートレス ( Stateless ) | - | アプリケーションの性質を表す用語で，アプリケーションから使用される各種データの状態を永続記憶(ストレージ)に保持しなくとも，動作可能なアプリケーションであることを示す。 |
 | ステートフル ( Stateful ) | - | アプリケーションの性質を表す用語で，アプリケーションから使用される各種データの状態を永続記憶(ストレージ)に保持することを前提として動作するアプリケーションであることを示す。 |
-| サービス ( Service ) | - | Kubernetes リソース。ポッド ( Pod ) へのネットワークアクセスを定義。仮想 IP アドレスを提供し, 通信電文 ( トラフィック ) を適切なポッドに転送 ( ルーティング ) する。 |
-| PersistentVolume | PV | Kubernetes リソース。クラスタ内の永続ストレージを表すリソース。ボリュームのサイズ, アクセスモード, 回収ポリシ, バックエンド(ローカルストレージ, NFS, ブロック型ストレージなど)を定義。 |
-| PersistentVolumeClaim | PVC | Kubernetes リソース。ポッド ( Pod ) がストレージを利用する際の要求リソース。必要なストレージ容量, アクセスモードを指定し, Kubernetes のコントローラが対応する PersistentVolume にバインドする。 |
-| StorageClass | - | Kubernetes リソース。永続ストレージのプロビジョニング方法を定義するリソース。プロビジョナ(ローカルストレージプロビジョナ, AWS EBS, NFS など)とパラメータを指定し, PersistentVolumeClaim の要求に基づいて動的に PersistentVolume を作成する。 |
-| バインド ( Bind ) | - | Kubernetes ストレージレイヤにおける処理。PersistentVolumeClaim の要求条件(容量, アクセスモード)が PersistentVolume の仕様と合致した場合, Kubernetes のコントローラが両者を紐付ける。バインド後, ポッドは PVC 経由で PV のストレージを利用できるようになる。 |
-| プロビジョニング ( Provisioning ) | - | Kubernetes ストレージレイヤにおける処理。StorageClass で定義されたプロビジョナが, PersistentVolumeClaim の要求に応じて新しい PersistentVolume を自動的に作成するプロセス。動的プロビジョニングにより, ユーザが個別に PV を作成する手間を削減できる。静的プロビジョニング(管理者が事前に PV を作成)に対応する概念。 |
-| プロビジョナ ( Provisioner ) | - | Kubernetes ストレージスタックのコンポーネント。StorageClass で指定し, PersistentVolumeClaim の要求に基づいて PersistentVolume を自動作成する。実装にはローカルストレージプロビジョナ, AWS EBS CSI ドライバ, NFS などが存在。 |
+| サービス ( Service ) | - | Podへのアクセスを抽象化し, 負荷分散やサービスディスカバリを提供するリソース。 |
+| PersistentVolume | PV | Kubernetesクラスタ内で利用可能なストレージリソースを表すオブジェクト。 |
+| PersistentVolumeClaim | PVC | ユーザがPVを要求する際に利用するリソース。 |
+| StorageClass | SC | 動的にPVをプロビジョニングする際のストレージ種別を定義するリソース。 |
+| バインド ( Bind ) | - | Kubernetes ストレージレイヤーにおける処理。PersistentVolumeClaim の要求条件(容量, アクセスモード)が PersistentVolume の仕様と合致した場合, Kubernetes のコントローラーが両者を紐付ける。バインド後, ポッドは PVC 経由で PV のストレージを利用できるようになる。 |
+| プロビジョニング ( Provisioning ) | - | Kubernetes ストレージレイヤーにおける処理。StorageClass で定義されたプロビジョナーが, PersistentVolumeClaim の要求に応じて新しい PersistentVolume を自動的に作成するプロセス。動的プロビジョニングにより, ユーザーが個別に PV を作成する手間を削減できます。静的プロビジョニング(管理者が事前に PV を作成)に対応する概念。 |
+| プロビジョナ ( Provisioner ) | - | Kubernetes ストレージスタックのコンポーネント。StorageClass で指定し, PersistentVolumeClaim の要求に基づいて PersistentVolume を自動作成します。実装にはローカルストレージプロビジョナ, AWS EBS CSI ドライバ, NFS などが存在。 |
 | emptyDir | - | Kubernetes ボリュームタイプ。ポッドがノードに割り当てられた時に作成される一時的なボリューム。ポッドが存在する限りデータが保持され, ポッド削除時にデータが失われる。開発環境での一時データ保存や Pod 内のコンテナ間でのファイル共有に使用。 |
-| コンフィグマップ ( ConfigMap ) | - | Kubernetes リソース。設定データをキー, バリューペアで保存し, 非機密情報を管理。 |
-| シークレット ( Secret ) | - | Kubernetes リソース。パスワード, API キー, 証明書などの機密データを暗号化して安全に保存, 管理。 |
-| 仮想クラスタ ( Virtual Cluster ) | - | Kubernetes API を仮想化して提供する論理的な Kubernetesクラスタ。各テナントに独立した専用Kubernetesクラスタとして見える環境を提供する。 |
-| スーパークラスタ ( Super Cluster ) | - | 仮想クラスタ ( Virtual Cluster ) を動作させるホスト側の物理Kubernetesクラスタ。実際のノードリソースを提供する。 |
-| テナント ( Tenant ) | - | 互いに独立した Kubernetes コントロールプレーンノードを持つ論理的な利用者またはチーム。各テナントについて, 専用の仮想クラスタ ( Virtual Cluster ) が割り当てられ, テナントに割り当てられた仮想クラスタ ( Virtual Cluster ) 内のリソース (名前空間 ( namespace ) , CRD) を他のテナントに影響を与えずに作成できる。物理リソース (ノード) をスーパークラスタ ( Super Cluster ) を通じて他のテナントと共有し, かつ, 仮想リソース (Kubernetes のリソース) は, Kubernetes のコントロールプレーンノードレベルで分離される。 |
+| コンフィグマップ ( ConfigMap ) | - | 設定情報を保持し, Podへ環境変数やファイルとして注入するリソース。 |
+| シークレット ( Secret ) | - | 機密情報を保持し, Podへ安全に注入するリソース。 |
+| 仮想クラスタ ( Virtual Cluster ) | - | Kubernetes API を仮想化して提供する論理的な Kubernetesクラスタ。各テナントに独立した専用Kubernetesクラスタとして見える環境を提供します。 |
+| スーパークラスタ ( Super Cluster ) | - | 仮想クラスタ ( Virtual Cluster ) を動作させるホスト側の物理Kubernetesクラスタ。実際のノードリソースを提供します。 |
+| テナント ( Tenant ) | - | 互いに独立した Kubernetes コントロールプレーンノードを持つ論理的な利用者またはチーム。各テナントについて, 専用の仮想クラスタ ( Virtual Cluster ) が割り当てられ, テナントに割り当てられた仮想クラスタ ( Virtual Cluster ) 内のリソース (名前空間 ( namespace ) , CRD) を他のテナントに影響を与えずに作成できます。物理リソース (ノード) をスーパークラスタ (Super Cluster) を通じて他のテナントと共有し, かつ, 仮想リソース (Kubernetes のリソース) は, Kubernetes のコントロールプレーンノードレベルで分離される。 |
 | vc-manager ( Virtual Cluster Manager ) | vc-manager | 仮想クラスタ ( Virtual Cluster ) の制御コンポーネント。スーパークラスタ ( Super Cluster ) 上で仮想クラスタ ( Virtual Cluster ) の管理を行う。 |
 | vc-syncer ( Virtual Cluster Syncer ) | vc-syncer | 仮想クラスタ ( Virtual Cluster ) とスーパークラスタ ( Super Cluster ) の状態を同期するコンポーネント。 |
-| vn-agent ( Virtual Node Agent ) | vn-agent | ワーカノード上で仮想クラスタ ( Virtual Cluster ) の通信を中継するエージェント。 |
-| feature gate | - | Kubernetesやその関連プロジェクトで使用される機能制御スイッチ。実験的または段階的に導入される機能を個別に有効化/無効化するための仕組み。`--feature-gates=FeatureName=true/false`形式でコマンドライン引数として指定する。これにより, 安定版に到達していない機能などを選択的に有効化可能。VirtualClusterでは, vc-syncerの`SyncTenantPVCStatusPhase=true`などが該当する。 |
-| Phase sync | - | VirtualCluster固有の機能。テナント側で作成された PersistentVolumeClaim (PVC) の状態(Phase: Pending, Bound等)をスーパークラスタ側と同期する仕組み。vc-syncer の feature gate (`SyncTenantPVCStatusPhase=true`)で有効化され, テナント側から PVC の実際の状態を確認可能にする。この同期により, テナント内で PVC が正常にバインドされたかどうかをリアルタイムで把握できる。 |
+| vn-agent ( Virtual Node Agent ) | vn-agent | ワーカーノード上で仮想クラスタ ( Virtual Cluster ) の通信を中継するエージェント。 |
+| feature gate | - | Kubernetesやその関連プロジェクトで使用される機能制御スイッチ。実験的または段階的に導入される機能を個別に有効化/無効化するための仕組み。`--feature-gates=FeatureName=true/false`形式でコマンドライン引数として指定します。これにより, 安定版に到達していない機能などを選択的に有効化可能。VirtualClusterでは, vc-syncerの`SyncTenantPVCStatusPhase=true`などが該当します。 |
+| Phase sync | - | VirtualCluster固有の機能。テナント側で作成された PersistentVolumeClaim (PVC) の状態(Phase: Pending, Bound等)をスーパークラスタ側と同期する仕組み。vc-syncer の feature gate (`SyncTenantPVCStatusPhase=true`)で有効化され, テナント側から PVC の実際の状態を確認可能にします。この同期により, テナント内で PVC が正常にバインドされた可否をリアルタイムで把握できます。 |
 | webhook | - | Kubernetes API 拡張機構。vc-manager では VirtualCluster リソースの検証と変更時の操作を行う際に使用される。 |
 | Debian Bookworm Slim | debian:bookworm-slim | Dockerイメージ作成時に使用するDebian 12 (Bookworm)の軽量ベースイメージ。 |
-| 名前空間 ( namespace ) | - | Kubernetes におけるリソースのグループ化と分離の仕組み。 |
+| 名前空間 ( namespace ) | - | Kubernetes内部でリソースを論理的に分離する単位。 |
 | ラベル ( label ) | - | リソースに対する付加情報の一種で, key=value 形式で指定される。典型的には, リソースの検索, 選別 ( selector ) のために用いられる。 |
 | アノテーション ( annotation ) | - | リソースに対する付加情報の一種で, key: value 形式で指定される。リソースの検索, 選別 ( selector ) を目的としない用途の付加情報を指定するために用いられる。 |
 | セレクタ ( selector ) | - | Kubernetes において, ラベル ( label ) に基づいてリソースを識別, 選択するための仕組み。たとえば, Service が特定のラベルを持つ Pod を選択して通信電文を転送する際に使用される。 |
-| サービスアカウント (Service Account)| - | 人間以外の実体をKubernetesクラスタ内で一意に識別するために提供されるアカウントの一種。 アプリケーションPod, システムコンポーネント, および, Kubernetesクラスター内外の実体に紐づけられたServiceAccountの認証情報を通して, これらの実体を互いに識別することが可能である。|
+| サービスアカウント (Service Account)| - | 人間以外の実体をKubernetesクラスタ内で一意に識別するために提供されるアカウントの一種。 アプリケーションPod, システムコンポーネント, および, Kubernetesクラスター内外の実体に紐づけられたServiceAccountの認証情報を通して, これらの実体を互いに識別することが可能です。|
+| Fully Qualified Domain Name | FQDN | 末尾まで省略せず書いた完全なドメイン名。 |
+| Public Key Infrastructure | PKI | 公開鍵証明書を運用するための仕組み。 |
+| Red Hat Enterprise Linux | RHEL | Red Hat 社が提供する商用 Linux ディストリビューション。 |
+| Uniform Resource Locator | URL | URL の正式名称。 |
+| Host Variables | host_vars | ホスト単位の設定値を格納する変数定義。 |
+| Ansible Inventory | inventory | 実行対象ホストの一覧と接続情報を管理する定義。 |
+| Central Processing Unit | CPU | 計算処理を実行する中核部品。 |
+| Container Runtime Interface | CRI | Kubernetesがコンテナランタイムと通信するための標準インターフェース。 |
+| ansible-playbookコマンド | - | Ansible Playbook を実行して自動構成処理を適用するコマンド。 |
+| `cat` | - | ファイル内容を標準出力へ表示するコマンド。 |
+| `cp` | - | ファイルやディレクトリを複製するコマンド。 |
+| `docker` | - | コンテナイメージやコンテナの作成, 実行, 管理を行うコマンド。 |
+| `export` | - | シェル変数を子プロセスへ引き継ぐ環境変数として設定するコマンド。 |
+| `grep` | - | テキストから条件に一致する行を抽出するコマンド。 |
+| `ls` | - | ファイルやディレクトリの一覧を表示するコマンド。 |
+| `make` | - | Makefile に定義された処理を実行するコマンド。 |
+| `mkdir` | - | ディレクトリを作成するコマンド。 |
+| `rm` | - | ファイルやディレクトリを削除するコマンド。 |
+| `sed` | - | テキストを置換, 抽出, 整形するコマンド。 |
+| `sleep` | - | 指定秒数だけ処理を待機するコマンド。 |
+| `source` | - | シェル設定ファイルやスクリプトを現在シェルへ読み込むコマンド。 |
+| `ssh` | - | 遠隔ホストへ安全に接続して操作するコマンド。 |
+| `unset` | - | シェル変数や環境変数を削除するコマンド。 |
+| データベース | - | 検索や更新ができるよう整理した情報の集合。 |
+| ノード | - | ネットワークに接続された機器または処理単位。 |
+| ブロック | - | ひとかたまりとして扱う処理単位や領域。 |
+| ポート | - | 通信の出入口を識別する番号または接点。 |
+| ログイン | - | 利用者認証を行って利用を開始する操作。 |
+| ローカル | - | 実行中の装置や同一環境の内部。 |
+| リモートコマンド | - | 別ホスト上で実行されるコマンド。 |
+| リモートサーバ | - | ネットワーク越しに利用する別ホストのサーバ。 |
+| リモートビルドサーバ | - | ネットワーク越しにビルド処理を実行するサーバ。 |
+| リモートマシン | - | ネットワーク越しに利用する別の計算機。 |
+| ローカルストレージ | - | 実行中ホストに直結した保存領域。 |
+| ローカルパス | - | 実行中ホスト内のファイルパス。 |
+| ローカルポート | - | 実行中ホスト上で待受または接続に使用する通信ポート。 |
+| ローカルマシン | - | 処理を実行している同一の計算機。 |
+| 対象ホスト | - | Playbook による設定変更や導入処理の適用先となるホスト。 |
+| sudoコマンド | sudo | 一時的に管理者権限でコマンドを実行するためのコマンド。 |
+
+## 概要
+[VirtualCluster - Enabling Kubernetes Hard Multi-tenancy](https://github.com/kubernetes-retired/cluster-api-provider-nested/tree/main/virtualcluster) の基盤コンポーネントを展開 (デプロイ) するロールです。このロールは, Kubernetes API を仮想化し, 複数の論理的な Kubernetes クラスタを単一の Kubernetes クラスタ上で動作させるための基盤を構築します。
+
+仮想クラスタにより, ホストKubernetesクラスタ (以下, スーパークラスタ) 上で複数のテナント向けコントロールプレーンノードを独立して運用できます。各テナントのコントロールプレーンノードはスーパークラスタのワーカノードを共有しながら, APIレベルの分離を実現します。
+
+### 展開 (デプロイ) されるコンポーネント
+
+本ロールは以下の3つの主要コンポーネントを展開 (デプロイ) します:
+
+1. **vc-manager (Virtual Cluster Manager)**
+   - VirtualClusterリソースを監視し, テナント に割り当てられた仮想クラスタ のライフサイクルを管理します。
+   - Webhook検証によりVirtualClusterリソースの整合性を保証します。
+   - Deployment形式で展開 (デプロイ) され, `vc-manager` 名前空間 ( namespace ) 内で動作します。
+
+2. **vc-syncer (Virtual Cluster Syncer)**
+   - 仮想クラスタ とスーパークラスタ の状態を同期するコンポーネントです。
+   - テナント に割り当てられた仮想クラスタ のリソース(Pod, Service, ConfigMap等)をスーパークラスタ 上の実体と関連付けます。
+   - Deployment形式で展開 (デプロイ) され, `vc-manager` 名前空間 ( namespace ) 内で動作します。
+   - 広範なRBAC権限(namespaces, nodes, persistentvolumes, storageclasses等への読み書き)を持ちます。
+
+3. **vn-agent (Virtual Node Agent)**
+   - ワーカノード 上で仮想クラスタ の通信を中継するエージェントです。
+   - DaemonSet形式で展開 (デプロイ) され, コントロールプレーンノード を除く全ワーカノード で動作します。
+
+## 主な処理
+
+### クリーンビルド処理 (`virtualcluster_clean_build: true` の場合)
+
+以下の順序で既存リソースを削除します:
+
+1. **VirtualClusterインスタンス削除**: `kubectl delete virtualclusters.tenancy.x-k8s.io --all -n vc-manager --wait=true --timeout=120s`
+2. **テナント名前空間消滅待機**: パターン `vc-manager-*` の名前空間 ( namespace ) が消滅するまで最大 `virtualcluster_tenant_ns_wait_timeout` 秒待機 (ポーリング間隔: `virtualcluster_tenant_ns_wait_delay` 秒)
+3. **ClusterVersionインスタンス削除**: `kubectl delete clusterversions.tenancy.x-k8s.io --all --wait=true --timeout=60s`
+4. **vc-manager名前空間削除**: `kubectl delete namespace vc-manager --wait=true --timeout=120s`
+5. **CRD削除**: `virtualclusters.tenancy.x-k8s.io` と `clusterversions.tenancy.x-k8s.io` を削除
+
+### ビルドと展開 (デプロイ) 処理
+
+- ソースリポジトリからのクローンとビルド(オプション, `virtualcluster_build_from_source: true` の場合)。
+  - `virtualcluster_clean_build: true` の場合, `git clone/pull` 時に `force: true` でローカル変更を破棄します。
+- **ソースコードパッチ適用**: `ansible.posix.patch` モジュールでunified diff形式のパッチを適用します(詳細は後述)。
+- ビルドノードでDockerイメージをビルドしてtarファイルに保存。
+- ビルドノード  =>  Ansibleの制御ノード(localhost)  =>  コントロールプレーンノード への転送。
+- コントロールプレーンノード で `kubectl get nodes` から実際のワーカノード リストを取得。
+- SSH経由で各ワーカノード へイメージを配布し, `ctr -n k8s.io` で取り込み。
+- CRD の生成と登録を行います。
+- **PersistentVolume の準備** (オプション, `prepare-persistent-volumes.yml`): `virtualcluster_persistent_volumes` が host_vars で定義されている場合, 指定されたPVを作成します。ワーカノード上にディレクトリを作成し, local-storage タイプの PV を生成します。この機能は汎用的で, etcd 以外にも任意の用途のPVを作成できます。
+- vc-manager, vc-syncer, vn-agent のマニフェストを生成して apply します。
+- vc-manager の webhook 用証明書をコンテナ内で生成できるように, `/tmp/k8s-webhook-server` を書き込み可能な `emptyDir` で提供します。
+- vc-manager の RBAC に `admissionregistration.k8s.io` と `coordination.k8s.io` の権限を付与します。
+- vc-manager Pod に `virtualcluster-webhook: "true"` ラベルを付与し, vc-managerが動的に作成するwebhook serviceのselectorと一致させます。
+- vc-manager の webhook は 9443 ポートでリッスンし, containerPort もこれに合わせて設定されます。
+- vn-agent はコントロールプレーンノードを除外します。
+
+### パッチ適用詳細
+
+本ロールでは, cluster-api-provider-nestedのソースコードに対して以下の6つのパッチを適用します。パッチ適用には `ansible.posix.patch` モジュール(unified diff形式)を使用します。
+
+| パッチファイル | 対象ファイル | 修正内容 |
+|--------------|------------|----------|
+| `provisioner_native.patch` | `virtualcluster/pkg/controller/controllers/provisioner/provisioner_native.go` | 1. `os`パッケージのimport追加<br>2. `genInitialClusterArgs`関数にschemeパラメータ追加<br>3. 環境変数`VIRTUALCLUSTER_ETCD_SCHEME`からスキーム取得 (デフォルト: https)<br>4. etcd `--initial-cluster`のURL形式を`scheme://...`に変更<br>5. controller-managerのService名前空間 ( namespace ) のnilチェック追加 |
+| `virtualcluster_types.patch` | `virtualcluster/pkg/apis/tenancy/v1alpha1/virtualcluster_types.go` | `ClusterError`定数の値を`"Error"`から`"Failed"`に変更<br>(CRD定義でphaseの許可値に"Failed"が含まれているが"Error"が含まれていない不一致を修正) |
+| `kubeconfig.patch` | `virtualcluster/pkg/controller/kubeconfig/kubeconfig.go` | `generateKubeconfigUseCertAndKey`関数で`net.ParseIP`が`nil`を返す場合 (=ドメイン名) の処理を追加<br>IPv6形式の`[domain]:6443`ではなく通常の`https://domain:6443`形式を使用するように修正 |
+| `service_mutate.patch` | `virtualcluster/pkg/syncer/conversion/mutate.go` | `serviceMutator.Mutate`メソッドで`ClusterIP`を空にする際に`ClusterIPs`を空配列`[]string{}`に設定していた問題を修正<br>Kubernetes v1.20以降の検証ルール("clusterIPが未設定の場合clusterIPsもnil"の要求)に準拠するため`ClusterIPs = nil`に変更<br>これによりテナント ( Tenant ) に割り当てられた仮想クラスタ ( Virtual Cluster ) の`default/kubernetes` Serviceの同期エラーを解消 |
+| `vn_agent_options.patch` | `virtualcluster/cmd/vn-agent/app/options/options.go` | `fileNotExistOrEmpty`で`os.Stat`のエラーを無視して`fi.Size()`を参照していた問題を修正<br>証明書ファイル未配置時にnil参照でpanicする不具合を防ぐため, `os.Stat`が失敗した場合は`true` (未存在または空) を返すように変更 |
+| `pod_kubeapiaccess_automount.patch` | `virtualcluster/pkg/syncer/resources/pod/mutatorplugin/podkubeapiaccessmutator.go`<br>`virtualcluster/pkg/syncer/resources/pod/mutatorplugin/podkubeapiaccessmutator_test.go` | `shouldAutomount`が常に`true`を返していた実装を修正し, Pod設定, ServiceAccount設定, 既定値の優先順で判定するように変更<br>`--disable-service-account-token`有効時はkube-api-access token注入処理をスキップするように変更<br>回帰防止のためautomount判定とdisable時no-opのユニットテストを追加 |
+
+**パッチ適用パラメータ**:
+- `strip: 1`: unified diffの`a/`, `b/`プレフィックスを除去
+- `basedir: "{{ virtualcluster_source_dir }}"`: パッチ適用のベースディレクトリ(デフォルト: `/tmp/cluster-api-provider-nested`)
+
+**冪等性**: `ansible.posix.patch`モジュールは既にパッチが適用済みの場合, 変更なし(`changed=False`)と判定します。
 
 ## 前提条件
 
@@ -213,158 +395,32 @@ etcd の永続ストレージを有効にする場合 (`vcinstances_etcd_storage
 
 **注意**: 本番環境では, データベースの永続化やステートフルアプリケーション対応のため, 専用の StorageClass を準備することを強く推奨します。
 
-## 概要
+## 実行方法
 
-仮想クラスタにより, ホストKubernetesクラスタ (以下, スーパークラスタ) 上で複数のテナント向けコントロールプレーンノードを独立して運用できます。各テナントのコントロールプレーンノードはスーパークラスタのワーカノードを共有しながら, APIレベルの分離を実現します。
-
-### デプロイされるコンポーネント
-
-本ロールは以下の3つの主要コンポーネントをデプロイします:
-
-1. **vc-manager (Virtual Cluster Manager)**
-   - VirtualClusterリソースを監視し, テナント に割り当てられた仮想クラスタ のライフサイクルを管理します。
-   - Webhook検証によりVirtualClusterリソースの整合性を保証します。
-   - Deployment形式でデプロイされ, `vc-manager` 名前空間 ( namespace ) 内で動作します。
-
-2. **vc-syncer (Virtual Cluster Syncer)**
-   - 仮想クラスタ とスーパークラスタ の状態を同期するコンポーネントです。
-   - テナント に割り当てられた仮想クラスタ のリソース(Pod, Service, ConfigMap等)をスーパークラスタ 上の実体と関連付けます。
-   - Deployment形式でデプロイされ, `vc-manager` 名前空間 ( namespace ) 内で動作します。
-   - 広範なRBAC権限(namespaces, nodes, persistentvolumes, storageclasses等への読み書き)を持ちます。
-
-3. **vn-agent (Virtual Node Agent)**
-   - ワーカノード 上で仮想クラスタ の通信を中継するエージェントです。
-   - DaemonSet形式でデプロイされ, コントロールプレーンノード を除く全ワーカノード で動作します。
-
-## 実行フロー
-
-1. `validate.yml` で前提条件と API 疎通を検証します。
-2. `detect-supercluster-images.yml` でスーパークラスタから稼働中のetcd, kube-apiserver, kube-controller-managerのイメージを自動検出します ( デフォルト, `virtualcluster_auto_detect_supercluster_images: true` の場合 ) 。
-3. `cleanup.yml` でクリーンビルド時に既存リソースを削除します ( `virtualcluster_clean_build: true` の場合 ) :
-   - VirtualClusterインスタンス削除  =>  テナント名前空間 ( namespace ) 消滅待機  =>  ClusterVersionインスタンス削除  =>  vc-manager名前空間 ( namespace ) 削除  =>  CRD削除の順で実行します。
-4. `namespace.yml` で `vc-manager` の名前空間 ( namespace ) を作成します。
-5. `crd.yml` で ClusterVersion と VirtualCluster の CRD を登録します。
-6. コンテナイメージ成果物の入力を次の優先順位で判定します: `explicit` > `cache` > `build`。
-  - `explicit`: `virtualcluster_manager_image_tar_path`, `virtualcluster_syncer_image_tar_path`, `virtualcluster_vn_agent_image_tar_path` の3つがすべて指定され, ファイルが存在する場合。
-  - `cache`: `{{ virtualcluster_image_cache_dir }}/latest/images/` に3つのtarファイルが存在する場合。
-  - `build`: 上記2つを満たさず, かつ `virtualcluster_build_from_source: true` の場合。
-  - ただし, `virtualcluster_clean_build: true` かつ `virtualcluster_build_from_source: true` かつ `virtualcluster_skip_cache_on_clean_build: true` の場合は, 古いキャッシュ再利用を避けるため `cache` をスキップして `build` を優先します。
-7. `virtualcluster_build_from_source: true` の場合:
-   - `download-source.yml` でソースリポジトリをクローン/更新します ( `virtualcluster_clean_build: true` の場合は `force: true` でローカル変更を破棄 ) 。
-  - `patch-provisioner.yml`, `patch-virtualcluster-types.yml`, `patch-kubeconfig.yml`, `patch-service-mutate.yml`, `patch-vn-agent-options.yml`, `patch-pod-kubeapiaccess-automount.yml` で6つのunified diff形式パッチを適用します。
-   - `build-binaries.yml` で `make build-images` を実行してバイナリをビルドします。
-   - `build-kubectl-vc.yml` でkubectl-vcプラグインをビルドします ( `virtualcluster_build_kubectl_vc: true` の場合 ) 。
-  - `build-docker-images.yml` でDockerイメージをビルドしてtarファイルに保存します。
-  - `fetch-images.yml` でビルドノードからAnsibleの制御ノード(localhost)へtarファイルを取得します。
-8. `upload-to-ctrlplane.yml` でコントロールプレーンノード へイメージをアップロードします。
-9. `distribute-to-workers.yml` でワーカノード へイメージを配布します:
-   - `kubectl get nodes` で実際のワーカノード リストを取得します。
-   - コントロールプレーンノード からAnsibleの制御ノード(localhost)へイメージをfetchします。
-   - Ansibleの制御ノード(localhost)から各ワーカノード へイメージをcopyします。
-   - 各ワーカノードで `ctr -n k8s.io images import` を実行します。
-10. `deploy-manager.yml` で vc-manager, vc-syncer, vn-agent をデプロイします。
-11. `verify.yml` で CRD と Pod 起動を確認します。
-12. Build成功かつVerify成功時のみ, イメージtarとマニフェストを最新バンドルとして昇格保存します。
-
-### コンテナイメージ作成と配布の流れ
-
-以下の`<component>`には`virtualcluster_build_components`の各要素を指し, 既定では`manager`, `vc-syncer`, `vn-agent`が入ります。
-
-- `virtualcluster_source_repo`を`virtualcluster_build_host`上の`virtualcluster_source_dir`へクローンまたは更新します。
-- `make build-images`でバイナリを生成します。
-- 生成したバイナリから, `debian:bookworm-slim`をベースにDockerイメージを作成し, `virtualcluster/<component>-amd64:latest`でタグ付けします。
-- ビルドノード上で`docker save`により`/tmp/vc_<component>-amd64.tar`を作成します。
-- `fetch-images.yml`でビルドノードからAnsibleの制御ノード(localhost)へtarファイルを転送します。
-- `upload-to-ctrlplane.yml`でAnsibleの制御ノード(localhost)からコントロールプレーンノード へtarファイルを転送します。
-- `distribute-to-workers.yml`で`kubectl get nodes`により`virtualcluster_supercluster_kubeconfig_path`でK8sクラスタ(スーパークラスタ)のワーカノード一覧を取得します。
-- コントロールプレーンノード からAnsibleの制御ノード(localhost)へ`fetch`モジュールでtarファイルを転送します。
-- Ansibleの制御ノード(localhost)から各ワーカノード へ`copy`モジュールでtarファイルを転送し, 各ワーカノードで`ctr -n k8s.io images import`によりイメージを取り込みます。
-
-#### ソース取得からコンテナイメージ作成配布処理中での排他制御について
-
-複数の`k8s_management`ホストが存在する場合でも, 以下は`run_once: true`で1回のみ実行されます。
-
-- ソース取得: `download-source.yml`。
-- バイナリ作成: `build-binaries.yml`。
-- Dockerイメージ作成とtar出力: `build-docker-images.yml`。
-- Ansibleの制御ノード(localhost)への取得とクリーンアップ: `fetch-images.yml`。
-- コントロールプレーンノードへの転送: `upload-to-ctrlplane.yml`。
-- ワーカノードへの配布とクリーンアップ: `distribute-to-workers.yml`。
-
-### 既存のコンテナイメージをコントロールプレイン/ワーカーノードに配布して仮想クラスタ環境を構築する場合の流れ
-
-この節では, 既存のコンテナイメージtarを利用して, ソースビルドを行わずに仮想クラスタ環境を構築する手順を示します。実装上の入力優先順位は `explicit > cache > build` です。ただし, `virtualcluster_clean_build: true` かつ `virtualcluster_build_from_source: true` かつ `virtualcluster_skip_cache_on_clean_build: true` の場合は `cache` をスキップし, `explicit > build` の優先順位で判定します。
-
-#### 前提
-
-- `k8s_virtualcluster_enabled: true` を設定してロールを有効化していること。
-- 配布対象の3コンポーネント(`manager`, `syncer`, `vn-agent`)に対応するtarファイルが利用可能であること。
-- ワーカノードが containerd を使用し, Ansible の制御ノード(localhost)から接続可能であること。
-
-#### 処理フロー
-
-1. `prepare-image-artifacts.yml` で入力ソースを判定し, 動作モードを判定します。
-  - `explicit` モード: `virtualcluster_manager_image_tar_path`, `virtualcluster_syncer_image_tar_path`, `virtualcluster_vn_agent_image_tar_path` の3つがすべて指定され, かつファイルが存在する場合。
-  - `cache` モード: `{{ virtualcluster_image_cache_dir }}/latest/images/` に3つのtarが存在する場合。
-  - `build` モード: 上記のいずれも成立しない場合。
-2. `explicit` または `cache` の場合, 選択されたtarを `virtualcluster_local_cache_dir` に集約します。`build`モードの場合, ソースから構築したコンテナイメージを`virtualcluster_local_cache_dir` に集約します。
-3. `upload-to-ctrlplane.yml` でコントロールプレーンノードへtarを転送します。
-4. `distribute-to-workers.yml` でワーカノード一覧を取得し, 各ワーカノードへtarを転送して `ctr -n k8s.io images import` で取り込みます。
-5. `deploy-manager.yml` で vc-manager, vc-syncer, vn-agent をデプロイします。
-6. `verify.yml` で CRD と Pod 起動を確認します。
-
-### 優先順位と昇格保存のルール
-
-`vc-manager`, `vc-syncer`, `vn-agent`の3コンポーネントのtarが揃っていない場合は, キャッシュモードを`build` に設定(フォールバック)し, ソースからのコンテナイメージ生成を試みます。この時, `virtualcluster_build_from_source: false` の場合は, ソースコードからの構築を明示的に抑止しているものとみなし, playbookを停止(fail)します。
-
-`tasks/main.yml`中の `Promote Latest Image Bundle` タスクで, ソースから構築したコンテナイメージと仮想クラスタ構築に使用したマニュフェストからなるバンドルを`{{ virtualcluster_image_cache_dir }}/latest/images/`配下にキャッシュとして保存する処理を行います (本処理を`昇格保存`と呼びます)。
-
-`build`モードで, 以下の条件を満たした場合にのみ, 使用したマニュフェストとコンテナイメージが最新バンドルへ昇格保存されます:
-
-- コンテナイメージ構築に成功し, かつ,
-- コントロールプレイン/ワーカーノードへのコンテナ展開に成功し,
-- 展開されたコンテナイメージの確認に成功
-
-なお, 昇格保存処理は, `build`モード(`virtualcluster_image_source_mode == 'build'`) の場合, かつ,
-`virtualcluster_build_from_source: true` の場合にのみ実施されます。
-このため, 既存イメージ利用時(`virtualcluster_image_source_mode`が, `explicit`, または, `cache`の場合)は, 最新バンドルの昇格保存処理は実行されません。
-
-### 設定例
-
-#### 例1: explicit モード(明示指定)
-
-```yaml
-k8s_virtualcluster_enabled: true
-virtualcluster_build_from_source: false
-
-virtualcluster_manager_image_tar_path: "/srv/images/manager-amd64.tar"
-virtualcluster_syncer_image_tar_path: "/srv/images/syncer-amd64.tar"
-virtualcluster_vn_agent_image_tar_path: "/srv/images/vn-agent-amd64.tar"
+```bash
+make run_k8s_virtual_cluster
 ```
 
-#### 例2: cache モード(既定キャッシュ再利用)
+または,
 
-```yaml
-k8s_virtualcluster_enabled: true
-virtualcluster_build_from_source: false
+```bash
+# k8s-management.yml を実行
+ansible-playbook k8s-management.yml
 
-# 既定値。必要に応じて変更可能。
-virtualcluster_image_cache_dir: "/opt/virtual-cluster/caches/images"
+# 特定ホストのみ対象
+ansible-playbook k8s-management.yml -l k8sctrlplane01.local
+
+# 仮想クラスタ タスクのみ実行
+ansible-playbook k8s-management.yml -t k8s-virtual-cluster
 ```
-
-cache モードでは, 以下の3ファイルが存在することが条件です。
-
-- `{{ virtualcluster_image_cache_dir }}/latest/images/manager-amd64.tar`
-- `{{ virtualcluster_image_cache_dir }}/latest/images/syncer-amd64.tar`
-- `{{ virtualcluster_image_cache_dir }}/latest/images/vn-agent-amd64.tar`
 
 ## 主要変数
 
 | 変数名 | 既定値 | 説明 |
 | --- | --- | --- |
-| `k8s_virtualcluster_enabled` | `false` | ロールを実行するかどうかを指定します。 |
-| `virtualcluster_build_from_source` | `true` | ソースからビルドするか(true), 既存バイナリ/イメージを使用するか(false)を指定します。 |
-| `virtualcluster_auto_detect_supercluster_images` | `true` | スーパークラスタから稼働中のetcd, kube-apiserver, kube-controller-managerイメージを動的に検出するかどうか。既定: true。falseの場合は`registry.k8s.io/etcd:<スーパークラスタのETCDメジャーバージョン.マイナーバージョン>.0`等のフォールバック値を使用します。運用環境では自動検出により, バージョンズレを防止できます。 |
+| `k8s_virtualcluster_enabled` | `false` | ロールを実行する可否を指定します。 |
+| `virtualcluster_build_from_source` | `true` | ソースからビルドする設定(true)と, 既存バイナリ/イメージを使用する設定(false)を指定します。 |
+| `virtualcluster_auto_detect_supercluster_images` | `true` | スーパークラスタから稼働中のetcd, kube-apiserver, kube-controller-managerイメージを動的に検出する可否。既定: true。falseの場合は`registry.k8s.io/etcd:<スーパークラスタのETCDメジャーバージョン.マイナーバージョン>.0`等のフォールバック値を使用します。運用環境では自動検出により, バージョンズレを防止できます。 |
 | `virtualcluster_build_host` | `"localhost"` | ビルドを実行するホストを指定します (既定: Ansibleの制御ノード)。Docker/Go/Makeがインストール済みである必要があります。 |
 | `virtualcluster_source_repo` | `"https://github.com/kubernetes-retired/cluster-api-provider-nested"` | [VirtualCluster - Enabling Kubernetes Hard Multi-tenancy](https://github.com/kubernetes-retired/cluster-api-provider-nested/tree/main/virtualcluster) のソースリポジトリURLです。 |
 | `virtualcluster_source_version` | `"main"` | クローンするバージョン/ブランチ/タグです。 |
@@ -417,7 +473,7 @@ cache モードでは, 以下の3ファイルが存在することが条件で�
 | `k8s_api_wait_delegate_to` | `"localhost"` | Kubernetes APIサーバ待機タスクの実行元ホストです。 |
 | `virtualcluster_kubectl_vc_install_dir` | `"/usr/local/bin"` | kubectl-vc プラグインのインストール先ディレクトリです。 |
 | `virtualcluster_kubectl_vc_binary` | `"kubectl-vc"` | kubectl-vc プラグインのバイナリ名です。 |
-| `virtualcluster_build_kubectl_vc` | `true` | kubectl-vc プラグインをソースからビルドするかどうかを指定します。 |
+| `virtualcluster_build_kubectl_vc` | `true` | kubectl-vc プラグインをソースからビルドする可否を指定します。 |
 | `virtualcluster_persistent_volumes` | `[]` | 作成するPVのリストです。定義されている場合, 指定されたPVを自動作成します(詳細は「PersistentVolume 設定例」を参照)。 |
 
 ### 既定の起動引数の意味
@@ -454,7 +510,7 @@ cache モードでは, 以下の3ファイルが存在することが条件で�
 
 以下の表中の~(チルダ記号)は, ansibleアカウントでログイン時のホームディレクトリ(規定: `/home/ansible`)を意味します。
 
-| テンプレート | 出力先 | 説明 |
+| テンプレートファイル名 | 出力先パス | 説明 |
 | --- | --- | --- |
 | `templates/namespace.yaml.j2` | `{{ virtualcluster_config_dir }}/namespace.yaml` (既定: `~/kubeadm/virtual-cluster/namespace.yaml`) | 名前空間 ( namespace ) 定義です。 |
 | `templates/clusterversion-crd.yaml.j2` | `{{ virtualcluster_config_dir }}/clusterversion-crd.yaml` (既定: `~/kubeadm/virtual-cluster/clusterversion-crd.yaml`) | ClusterVersion CRD (カスタムリソース定義) です。 |
@@ -465,13 +521,13 @@ cache モードでは, 以下の3ファイルが存在することが条件で�
 
 VirtualCluster CRD (`virtualclusters.tenancy.x-k8s.io`) の `spec` セクションで指定可能なキーを以下に示します。
 
-| キー | 型 | 必須/任意 | 既定値 | 説明 |
-| --- | --- | --- | --- | --- |
-| `clusterVersionName` | string | 必須 | なし | 使用するClusterVersionインスタンス名です。 |
-| `clusterDomain` | string | 任意 | なし | テナントDNSドメインです。 |
-| `kubeConfigSecretName` | string | 任意 | なし | kubeconfig Secret名です。 |
-| `transparentMetaPrefixes` | array[string] | 任意 | なし | スーパークラスタ ( Super Cluster ) 側で保持されるラベル/アノテーションのうち, 指定されたプレフィックスに一致するラベル/アノテーションのキーを持つものを仮想クラスタ ( Virtual Cluster ) に反映するための指定です。スーパークラスタ ( Super Cluster )側で保持されるラベル/アノテーションのうち, 仮想クラスタ ( Virtual Cluster ) 側でも参照可能にすべきもの ( 運用上必要なメタデータ )を指定して仮想クラスタ側に反映するために用いられます。スーパークラスタ ( Super Cluster ) 側から仮想クラスタ ( Virtual Cluster ) 側への同期で, 一致するキーのみを反映します。未指定時は, 空配列を指定したものとして扱われます。 |
-| `opaqueMetaPrefixes` | array[string] | 任意 | なし | 仮想クラスタ ( Virtual Cluster ) 側に保持されているラベル/アノテーションのうち, 指定されたプレフィックスに一致するラベル/アノテーションのキーを持つものをスーパークラスタ ( Super Cluster ) に同期しないための指定です。指定されたラベル/アノテーションは, 仮想クラスタ ( Virtual Cluster ) 側からスーパークラスタ ( Super Cluster ) 側への反映が行われないため, スーパークラスタ ( Super Cluster ) 側からは参照不能となります。仮想クラスタ ( Virtual Cluster ) 側からスーパークラスタ ( Super Cluster ) 側への同期で, 一致するキーを除外します。未指定時は, 空配列を指定したものとして扱われます。 |
+| キー | 型 (既定: 型) | 必須/任意 |
+| --- | --- | --- |
+| `clusterVersionName` | string (既定: string) | 必須 |
+| `clusterDomain` | string (既定: string) | 任意 |
+| `kubeConfigSecretName` | string (既定: string) | 任意 |
+| `transparentMetaPrefixes` | array[string] (既定: array[string]) | 任意 |
+| `opaqueMetaPrefixes` | array[string] (既定: array[string]) | 任意 |
 
 ##### 同一プレフィックスがtransparentMetaPrefixesとopaqueMetaPrefixesの両方に指定された場合の挙動について
 
@@ -643,10 +699,10 @@ kubectl -n $TENANT_NS get pvc test-pvc
 sleep 5
 kubectl -n $TENANT_NS get pvc test-pvc
 
-# 5. スーパークラスタ側でも PVC が同期されているか確認
+# 5. スーパークラスタ側でも PVC が同期されていることを確認
 kubectl -n $TENANT_NS get pvc test-pvc
 
-# 6. PV が自動作成されているか確認
+# 6. PV が自動作成されていることを確認
 kubectl get pv
 ```
 
@@ -655,7 +711,7 @@ kubectl get pv
 **症状: PVC が Pending のままになっている**
 
 ```bash
-# 1. StorageClass にラベルが付いているか確認
+# 1. StorageClass にラベルが付いていることを確認
 kubectl get storageclass -L PublicObjectKey
 
 # 2. テナント側で参照可能な SC があるか確認
@@ -669,13 +725,12 @@ kubectl -n vc-manager logs -l app=vc-syncer --tail=100 | grep -i pvc
 **症状: vc-syncer が PVC Status Phase を同期していない**
 
 ```bash
-# feature gate が有効になっているか確認
+# feature gate が有効になっていることを確認
 kubectl -n vc-manager get deployment vc-syncer -o jsonpath='{.spec.template.spec.containers[0].args}' | grep -o 'feature-gates=[^ ]*'
 ```
 
 **期待する状態:** feature-gates=SyncTenantPVCStatusPhase=true
 そうでない場合は, Deployment 再起動で反映されます。
-
 ## 仮想クラスタ/テナント設定例
 
 ```yaml
@@ -754,77 +809,9 @@ virtualcluster_persistent_volumes:
 
 **注意**: etcd用のPVは, `k8s-vc-instances` ロールが作成します。このため, etcd用のPV設定を`virtualcluster_persistent_volumes`に記載する必要はありません。本設定は `k8s-virtual-cluster` ロール単独で使用する場合や, etcd 以外の用途のPVを作成する場合に使用します。
 
-## 実行方法
-
-```bash
-make run_k8s_virtual_cluster
-```
-
-または,
-
-```bash
-# k8s-management.yml を実行
-ansible-playbook k8s-management.yml
-
-# 特定ホストのみ対象
-ansible-playbook k8s-management.yml -l k8sctrlplane01.local
-
-# 仮想クラスタ タスクのみ実行
-ansible-playbook k8s-management.yml -t k8s-virtual-cluster
-```
-
-## 主な処理
-
-### クリーンビルド処理 (`virtualcluster_clean_build: true` の場合)
-
-以下の順序で既存リソースを削除します:
-
-1. **VirtualClusterインスタンス削除**: `kubectl delete virtualclusters.tenancy.x-k8s.io --all -n vc-manager --wait=true --timeout=120s`
-2. **テナント名前空間消滅待機**: パターン `vc-manager-*` の名前空間 ( namespace ) が消滅するまで最大 `virtualcluster_tenant_ns_wait_timeout` 秒待機 (ポーリング間隔: `virtualcluster_tenant_ns_wait_delay` 秒)
-3. **ClusterVersionインスタンス削除**: `kubectl delete clusterversions.tenancy.x-k8s.io --all --wait=true --timeout=60s`
-4. **vc-manager名前空間削除**: `kubectl delete namespace vc-manager --wait=true --timeout=120s`
-5. **CRD削除**: `virtualclusters.tenancy.x-k8s.io` と `clusterversions.tenancy.x-k8s.io` を削除
-
-### ビルドとデプロイ処理
-
-- ソースリポジトリからのクローンとビルド(オプション, `virtualcluster_build_from_source: true` の場合)。
-  - `virtualcluster_clean_build: true` の場合, `git clone/pull` 時に `force: true` でローカル変更を破棄します。
-- **ソースコードパッチ適用**: `ansible.posix.patch` モジュールでunified diff形式のパッチを適用します(詳細は後述)。
-- ビルドノードでDockerイメージをビルドしてtarファイルに保存。
-- ビルドノード  =>  Ansibleの制御ノード(localhost)  =>  コントロールプレーンノード への転送。
-- コントロールプレーンノード で `kubectl get nodes` から実際のワーカノード リストを取得。
-- SSH経由で各ワーカノード へイメージを配布し, `ctr -n k8s.io` で取り込み。
-- CRD の生成と登録を行います。
-- **PersistentVolume の準備** (オプション, `prepare-persistent-volumes.yml`): `virtualcluster_persistent_volumes` が host_vars で定義されている場合, 指定されたPVを作成します。ワーカノード上にディレクトリを作成し, local-storage タイプの PV を生成します。この機能は汎用的で, etcd 以外にも任意の用途のPVを作成できます。
-- vc-manager, vc-syncer, vn-agent のマニフェストを生成して apply します。
-- vc-manager の webhook 用証明書をコンテナ内で生成できるように, `/tmp/k8s-webhook-server` を書き込み可能な `emptyDir` で提供します。
-- vc-manager の RBAC に `admissionregistration.k8s.io` と `coordination.k8s.io` の権限を付与します。
-- vc-manager Pod に `virtualcluster-webhook: "true"` ラベルを付与し, vc-managerが動的に作成するwebhook serviceのselectorと一致させます。
-- vc-manager の webhook は 9443 ポートでリッスンし, containerPort もこれに合わせて設定されます。
-- vn-agent はコントロールプレーンノードを除外します。
-
-### パッチ適用詳細
-
-本ロールでは, cluster-api-provider-nestedのソースコードに対して以下の6つのパッチを適用します。パッチ適用には `ansible.posix.patch` モジュール(unified diff形式)を使用します。
-
-| パッチファイル | 対象ファイル | 修正内容 |
-|--------------|------------|----------|
-| `provisioner_native.patch` | `virtualcluster/pkg/controller/controllers/provisioner/provisioner_native.go` | 1. `os`パッケージのimport追加<br>2. `genInitialClusterArgs`関数にschemeパラメータ追加<br>3. 環境変数`VIRTUALCLUSTER_ETCD_SCHEME`からスキーム取得 (デフォルト: https)<br>4. etcd `--initial-cluster`のURL形式を`scheme://...`に変更<br>5. controller-managerのService名前空間 ( namespace ) のnilチェック追加 |
-| `virtualcluster_types.patch` | `virtualcluster/pkg/apis/tenancy/v1alpha1/virtualcluster_types.go` | `ClusterError`定数の値を`"Error"`から`"Failed"`に変更<br>(CRD定義でphaseの許可値に"Failed"が含まれているが"Error"が含まれていない不一致を修正) |
-| `kubeconfig.patch` | `virtualcluster/pkg/controller/kubeconfig/kubeconfig.go` | `generateKubeconfigUseCertAndKey`関数で`net.ParseIP`が`nil`を返す場合 (=ドメイン名) の処理を追加<br>IPv6形式の`[domain]:6443`ではなく通常の`https://domain:6443`形式を使用するように修正 |
-| `service_mutate.patch` | `virtualcluster/pkg/syncer/conversion/mutate.go` | `serviceMutator.Mutate`メソッドで`ClusterIP`を空にする際に`ClusterIPs`を空配列`[]string{}`に設定していた問題を修正<br>Kubernetes v1.20以降の検証ルール("clusterIPが未設定の場合clusterIPsもnil"の要求)に準拠するため`ClusterIPs = nil`に変更<br>これによりテナント ( Tenant ) に割り当てられた仮想クラスタ ( Virtual Cluster ) の`default/kubernetes` Serviceの同期エラーを解消 |
-| `vn_agent_options.patch` | `virtualcluster/cmd/vn-agent/app/options/options.go` | `fileNotExistOrEmpty`で`os.Stat`のエラーを無視して`fi.Size()`を参照していた問題を修正<br>証明書ファイル未配置時にnil参照でpanicする不具合を防ぐため, `os.Stat`が失敗した場合は`true` (未存在または空) を返すように変更 |
-| `pod_kubeapiaccess_automount.patch` | `virtualcluster/pkg/syncer/resources/pod/mutatorplugin/podkubeapiaccessmutator.go`<br>`virtualcluster/pkg/syncer/resources/pod/mutatorplugin/podkubeapiaccessmutator_test.go` | `shouldAutomount`が常に`true`を返していた実装を修正し, Pod設定, ServiceAccount設定, 既定値の優先順で判定するように変更<br>`--disable-service-account-token`有効時はkube-api-access token注入処理をスキップするように変更<br>回帰防止のためautomount判定とdisable時no-opのユニットテストを追加 |
-
-**パッチ適用パラメータ**:
-- `strip: 1`: unified diffの`a/`, `b/`プレフィックスを除去
-- `basedir: "{{ virtualcluster_source_dir }}"`: パッチ適用のベースディレクトリ(デフォルト: `/tmp/cluster-api-provider-nested`)
-
-**冪等性**: `ansible.posix.patch`モジュールは既にパッチが適用済みの場合, 変更なし(`changed=False`)と判定します。
-
 ## テナント操作補助スクリプト
 
-このロールによってデプロイされるテナント操作補助スクリプトは, VirtualCluster テナント環境へのリソース操作を簡略化します。
+このロールによって展開 (デプロイ) されるテナント操作補助スクリプトは, VirtualCluster テナント環境へのリソース操作を簡略化します。
 
 ### スクリプト配置
 
@@ -946,7 +933,7 @@ controller-manager-0   1/1     Running   0          21m
 etcd-0                 1/1     Running   0          21m
 ```
 
-これにより, どのKubernetesクラスタ(コンテキスト)に対して操作を行っているかが明確になります。
+これにより, 操作対象のKubernetesクラスタ(コンテキスト)が明確になります。
 
 ### 実行例
 
@@ -956,7 +943,7 @@ etcd-0                 1/1     Running   0          21m
 
 #### 例1: busybox Pod の配置と確認
 
-本節では,テナント(tenant-alpha)へ簡単なbusybox Podをデプロイし, 状態確認やログ取得,削除までの一連の操作フローを示します。
+本節では,テナント(tenant-alpha)へ簡単なbusybox Podを展開 (デプロイ) し, 状態確認やログ取得,削除までの一連の操作フローを示します。
 
 **ステップA: マニフェストファイルの作成**
 
@@ -1562,7 +1549,7 @@ vc-tenant-exec.sh tenant-alpha nginx-demo -it -- /bin/sh
 / #
 ```
 
-この状態でコマンドを入力できます。出力結果に「/ # 」プロンプトが表示されていることを確認して, 対話型シェルが正常に起動していることを確認してください。終了する場合は `exit` と入力するか, `Ctrl+D` を使用します。
+この状態でコマンドを入力できます。出力結果に「/ # 」プロンプトが表示されていることを確認して, 対話型シェルが正常に起動していることを確認してください。終了時は `exit` と入力, または `Ctrl+D` を使用します。
 
 ```bash
 / # exit
@@ -1737,7 +1724,7 @@ zshの場合は, 新しいターミナルセッションを開始しなおして
 
 **補完が動作しない場合:**
 
-1. 補完ファイルが配置されているか確認
+1. 補完ファイルが配置されていることを確認
    ```bash
    # bash
    ls -l /etc/bash_completion.d/vc-tenant-completion
@@ -1747,7 +1734,7 @@ zshの場合は, 新しいターミナルセッションを開始しなおして
    ls -l /usr/share/zsh/site-functions/_vc-tenant-completion     # RHEL/CentOS
    ```
 
-2. kubectl が正常に動作するか確認
+2. kubectl が正常に動作することを確認
    ```bash
    # 補完機能は kubectl を使用してテナント情報を取得します
    kubectl get virtualclusters.tenancy.x-k8s.io -n vc-manager
@@ -1770,7 +1757,7 @@ kubectl get virtualclusters.tenancy.x-k8s.io -n vc-manager
 vc-tenant-get.sh <正しいテナント名> pods
 ```
 
-**異なるKubernetesクラスタ(コンテキスト)で操作したい**
+**異なるKubernetesクラスタ(コンテキスト)で操作したい場合**
 
 スクリプトは現在の kubectl コンテキストを使用します。別のKubernetesクラスタで操作する場合は, 事前にコンテキストを切り替えてください。
 
@@ -1810,10 +1797,129 @@ kubectl -n $TENANT_NS get pods
 kubectl -n $TENANT_NS apply -f manifest.yaml
 ```
 
----
+## 実行フロー
+
+1. `validate.yml` で前提条件と API 疎通を検証します。
+2. `detect-supercluster-images.yml` でスーパークラスタから稼働中のetcd, kube-apiserver, kube-controller-managerのイメージを自動検出します ( デフォルト, `virtualcluster_auto_detect_supercluster_images: true` の場合 ) 。
+3. `cleanup.yml` でクリーンビルド時に既存リソースを削除します ( `virtualcluster_clean_build: true` の場合 ) :
+   - VirtualClusterインスタンス削除  =>  テナント名前空間 ( namespace ) 消滅待機  =>  ClusterVersionインスタンス削除  =>  vc-manager名前空間 ( namespace ) 削除  =>  CRD削除の順で実行します。
+4. `namespace.yml` で `vc-manager` の名前空間 ( namespace ) を作成します。
+5. `crd.yml` で ClusterVersion と VirtualCluster の CRD を登録します。
+6. コンテナイメージ成果物の入力を次の優先順位で判定します: `explicit` > `cache` > `build`。
+  - `explicit`: `virtualcluster_manager_image_tar_path`, `virtualcluster_syncer_image_tar_path`, `virtualcluster_vn_agent_image_tar_path` の3つがすべて指定され, ファイルが存在する場合。
+  - `cache`: `{{ virtualcluster_image_cache_dir }}/latest/images/` に3つのtarファイルが存在する場合。
+  - `build`: 上記2つを満たさず, かつ `virtualcluster_build_from_source: true` の場合。
+  - ただし, `virtualcluster_clean_build: true` かつ `virtualcluster_build_from_source: true` かつ `virtualcluster_skip_cache_on_clean_build: true` の場合は, 古いキャッシュ再利用を避けるため `cache` をスキップして `build` を優先します。
+7. `virtualcluster_build_from_source: true` の場合:
+   - `download-source.yml` でソースリポジトリをクローン/更新します ( `virtualcluster_clean_build: true` の場合は `force: true` でローカル変更を破棄 ) 。
+  - `patch-provisioner.yml`, `patch-virtualcluster-types.yml`, `patch-kubeconfig.yml`, `patch-service-mutate.yml`, `patch-vn-agent-options.yml`, `patch-pod-kubeapiaccess-automount.yml` で6つのunified diff形式パッチを適用します。
+   - `build-binaries.yml` で `make build-images` を実行してバイナリをビルドします。
+   - `build-kubectl-vc.yml` でkubectl-vcプラグインをビルドします ( `virtualcluster_build_kubectl_vc: true` の場合 ) 。
+  - `build-docker-images.yml` でDockerイメージをビルドしてtarファイルに保存します。
+  - `fetch-images.yml` でビルドノードからAnsibleの制御ノード(localhost)へtarファイルを取得します。
+8. `upload-to-ctrlplane.yml` でコントロールプレーンノード へイメージをアップロードします。
+9. `distribute-to-workers.yml` でワーカノード へイメージを配布します:
+   - `kubectl get nodes` で実際のワーカノード リストを取得します。
+   - コントロールプレーンノード からAnsibleの制御ノード(localhost)へイメージをfetchします。
+   - Ansibleの制御ノード(localhost)から各ワーカノード へイメージをcopyします。
+   - 各ワーカノードで `ctr -n k8s.io images import` を実行します。
+10. `deploy-manager.yml` で vc-manager, vc-syncer, vn-agent を展開 (デプロイ) します。
+11. `verify.yml` で CRD と Pod 起動を確認します。
+12. Build成功かつVerify成功時のみ, イメージtarとマニフェストを最新バンドルとして昇格保存します。
+
+### コンテナイメージ作成と配布の流れ
+
+以下の`<component>`には`virtualcluster_build_components`の各要素を指し, 既定では`manager`, `vc-syncer`, `vn-agent`が入ります。
+
+- `virtualcluster_source_repo`を`virtualcluster_build_host`上の`virtualcluster_source_dir`へクローンまたは更新します。
+- `make build-images`でバイナリを生成します。
+- 生成したバイナリから, `debian:bookworm-slim`をベースにDockerイメージを作成し, `virtualcluster/<component>-amd64:latest`でタグ付けします。
+- ビルドノード上で`docker save`により`/tmp/vc_<component>-amd64.tar`を作成します。
+- `fetch-images.yml`でビルドノードからAnsibleの制御ノード(localhost)へtarファイルを転送します。
+- `upload-to-ctrlplane.yml`でAnsibleの制御ノード(localhost)からコントロールプレーンノード へtarファイルを転送します。
+- `distribute-to-workers.yml`で`kubectl get nodes`により`virtualcluster_supercluster_kubeconfig_path`でK8sクラスタ(スーパークラスタ)のワーカノード一覧を取得します。
+- コントロールプレーンノード からAnsibleの制御ノード(localhost)へ`fetch`モジュールでtarファイルを転送します。
+- Ansibleの制御ノード(localhost)から各ワーカノード へ`copy`モジュールでtarファイルを転送し, 各ワーカノードで`ctr -n k8s.io images import`によりイメージを取り込みます。
+
+#### ソース取得からコンテナイメージ作成配布処理中での排他制御について
+
+複数の`k8s_management`ホストが存在する場合でも, 以下は`run_once: true`で1回のみ実行されます。
+
+- ソース取得: `download-source.yml`。
+- バイナリ作成: `build-binaries.yml`。
+- Dockerイメージ作成とtar出力: `build-docker-images.yml`。
+- Ansibleの制御ノード(localhost)への取得とクリーンアップ: `fetch-images.yml`。
+- コントロールプレーンノードへの転送: `upload-to-ctrlplane.yml`。
+- ワーカノードへの配布とクリーンアップ: `distribute-to-workers.yml`。
+
+### 既存のコンテナイメージをコントロールプレーン/ワーカーノードに配布して仮想クラスタ環境を構築する場合の流れ
+
+この節では, 既存のコンテナイメージtarを利用して, ソースビルドを行わずに仮想クラスタ環境を構築する手順を示します。実装上の入力優先順位は `explicit > cache > build` です。ただし, `virtualcluster_clean_build: true` かつ `virtualcluster_build_from_source: true` かつ `virtualcluster_skip_cache_on_clean_build: true` の場合は `cache` をスキップし, `explicit > build` の優先順位で判定します。
+
+#### 前提
+
+- `k8s_virtualcluster_enabled: true` を設定してロールを有効化していること。
+- 配布対象の3コンポーネント(`manager`, `syncer`, `vn-agent`)に対応するtarファイルが利用可能であること。
+- ワーカノードが containerd を使用し, Ansible の制御ノード(localhost)から接続可能であること。
+
+#### 処理フロー
+
+1. `prepare-image-artifacts.yml` で入力ソースを判定し, 動作モードを判定します。
+  - `explicit` モード: `virtualcluster_manager_image_tar_path`, `virtualcluster_syncer_image_tar_path`, `virtualcluster_vn_agent_image_tar_path` の3つがすべて指定され, かつファイルが存在する場合。
+  - `cache` モード: `{{ virtualcluster_image_cache_dir }}/latest/images/` に3つのtarが存在する場合。
+  - `build` モード: 上記のいずれも成立しない場合。
+2. `explicit` または `cache` の場合, 選択されたtarを `virtualcluster_local_cache_dir` に集約します。`build`モードの場合, ソースから構築したコンテナイメージを`virtualcluster_local_cache_dir` に集約します。
+3. `upload-to-ctrlplane.yml` でコントロールプレーンノードへtarを転送します。
+4. `distribute-to-workers.yml` でワーカノード一覧を取得し, 各ワーカノードへtarを転送して `ctr -n k8s.io images import` で取り込みます。
+5. `deploy-manager.yml` で vc-manager, vc-syncer, vn-agent を展開 (デプロイ) します。
+6. `verify.yml` で CRD と Pod 起動を確認します。
+
+### 優先順位と昇格保存のルール
+
+`vc-manager`, `vc-syncer`, `vn-agent`の3コンポーネントのtarが揃っていない場合は, キャッシュモードを`build` に設定(フォールバック)し, ソースからのコンテナイメージ生成を試みます。この時, `virtualcluster_build_from_source: false` の場合は, ソースコードからの構築を明示的に抑止しているものとみなし, playbookを停止(fail)します。
+
+`tasks/main.yml`中の `Promote Latest Image Bundle` タスクで, ソースから構築したコンテナイメージと仮想クラスタ構築に使用したマニュフェストからなるバンドルを`{{ virtualcluster_image_cache_dir }}/latest/images/`配下にキャッシュとして保存する処理を行います (本処理を`昇格保存`と呼びます)。
+
+`build`モードで, 以下の条件を満たした場合にのみ, 使用したマニュフェストとコンテナイメージが最新バンドルへ昇格保存されます:
+
+- コンテナイメージ構築に成功し, かつ,
+- コントロールプレーン/ワーカーノードへのコンテナ展開に成功し,
+- 展開されたコンテナイメージの確認に成功
+
+なお, 昇格保存処理は, `build`モード(`virtualcluster_image_source_mode == 'build'`) の場合, かつ,
+`virtualcluster_build_from_source: true` の場合にのみ実施されます。
+このため, 既存イメージ利用時(`virtualcluster_image_source_mode`が, `explicit`, または, `cache`の場合)は, 最新バンドルの昇格保存処理は実行されません。
+
+### 設定例
+
+#### 例1: explicit モード(明示指定)
+
+```yaml
+k8s_virtualcluster_enabled: true
+virtualcluster_build_from_source: false
+
+virtualcluster_manager_image_tar_path: "/srv/images/manager-amd64.tar"
+virtualcluster_syncer_image_tar_path: "/srv/images/syncer-amd64.tar"
+virtualcluster_vn_agent_image_tar_path: "/srv/images/vn-agent-amd64.tar"
+```
+
+#### 例2: cache モード(既定キャッシュ再利用)
+
+```yaml
+k8s_virtualcluster_enabled: true
+virtualcluster_build_from_source: false
+
+# 既定値。必要に応じて変更可能。
+virtualcluster_image_cache_dir: "/opt/virtual-cluster/caches/images"
+```
+
+cache モードでは, 以下の3ファイルが存在することが条件です。
+
+- `{{ virtualcluster_image_cache_dir }}/latest/images/manager-amd64.tar`
+- `{{ virtualcluster_image_cache_dir }}/latest/images/syncer-amd64.tar`
+- `{{ virtualcluster_image_cache_dir }}/latest/images/vn-agent-amd64.tar`
 
 ## 検証ポイント
-
 
 以下の順で確認してください。
 
@@ -2102,7 +2208,7 @@ kubectl get virtualclusters <NAME> -n <NAMESPACE> -o yaml | grep -A 10 status:
 #### 2. テナント用名前空間確認
 
 ```bash
-# VirtualClusterに対応する名前空間が作成されているか確認
+# VirtualClusterに対応する名前空間が作成されていることを確認
 # 名前空間名は通常 "default-<vc-uid-prefix>-<vc-name>" の形式
 kubectl get namespaces | grep -E "default-.*-"
 
@@ -2149,13 +2255,13 @@ kubectl -n vc-manager logs deployment/vc-manager | grep "<vc-name>"
 - `"will create a VirtualCluster"`: VirtualCluster作成処理の開始
 - `"VirtualCluster is pending"`: ClusterPending状態での処理
 - `"fail to create virtualcluster"`: CreateVirtualCluster処理のエラー
-- `"deploying ステートフルSet for control plane component"`: 各コンポーネントのデプロイ
+- `"deploying ステートフルSet for control plane component"`: 各コンポーネントの展開 (デプロイ)
 - `"VirtualCluster is running"`: 正常に作成完了
 
 #### 5. PKI ( 証明書 ) Secretの確認
 
 ```bash
-# テナント用名前空間にPKI Secretが作成されているか確認
+# テナント用名前空間にPKI Secretが作成されていることを確認
 kubectl get secrets -n <tenant-namespace>
 ```
 
@@ -2187,7 +2293,7 @@ flowchart TD
     CheckPending -->|No| CheckRunning{Status.Phase =<br/>ClusterRunning?}
 
     CheckRunning -->|Yes| SuccessState[正常に作成完了]
-    SuccessState --> SuccessCheck[ステートフルSetがReadyに<br/>なっているか確認]
+    SuccessState --> SuccessCheck[ステートフルSetがReadyに<br/>なっていることを確認]
 
     CheckRunning -->|No| ErrorState[Status.Phase = ClusterError]
     ErrorState --> ErrorCheck1[Status.Message,<br/>Status.Reasonを確認]
@@ -2219,13 +2325,13 @@ flowchart TD
 {"level":"info","logger":"Native","msg":"rootCA secret is not found. Creating"}
 {"level":"info","logger":"Native","msg":"rootCA pair generated"}
 
-# etcdデプロイ
+# etcd展開 (デプロイ)
 {"level":"info","logger":"Native","msg":"deploying ステートフルSet for control plane component","component":"etcd"}
 
-# apiserverデプロイ
+# apiserver展開 (デプロイ)
 {"level":"info","logger":"Native","msg":"deploying ステートフルSet for control plane component","component":"apiserver"}
 
-# controller-managerデプロイ
+# controller-manager展開 (デプロイ)
 {"level":"info","logger":"Native","msg":"deploying ステートフルSet for control plane component","component":"controller-manager"}
 
 # 作成完了
@@ -2237,7 +2343,7 @@ flowchart TD
 # ClusterVersionが見つからない
 {"level":"error","logger":"Native","msg":"fail to create virtualcluster","vc":"vc-sample-1","error":"desired ClusterVersion cv-sample-np not found"}
 
-# ステートフルSetのデプロイタイムアウト
+# ステートフルSetの展開 (デプロイ) タイムアウト
 {"level":"error","logger":"Native","msg":"fail to create virtualcluster","vc":"vc-sample-1","error":"timeout waiting for ステートフルSet etcd to be ready"}
 
 # イメージの取得失敗
@@ -2273,7 +2379,7 @@ kubectl logs etcd-0 -n <tenant-namespace>
 ```plaintext
 Error: ...ImagePullBackOff...
 ```
-**対処**: イメージがワーカノード に配布されているか確認してください。
+**対処**: イメージがワーカノード に配布されていることを確認してください。
 ```bash
 # イメージ配布状態の確認 ( Ansibleタスクのログ確認 )
 # ワーカノードでイメージを確認
@@ -2376,7 +2482,7 @@ TENANT_NS=$(kubectl get virtualclusters -n vc-manager <vc-name> -o jsonpath='{.s
 kubectl get services -n $TENANT_NS kubernetes
 ```
 
-本ロールでは`service_mutate.patch`を適用することでこの問題が解決されています。既存環境で警告が出る場合は, 以下の順で再デプロイしてください。
+本ロールでは`service_mutate.patch`を適用することでこの問題が解決されています。既存環境で警告が出る場合は, 以下の順で再展開 (デプロイ) してください。
 
 1. クリーンビルドでキャッシュを使わない設定を有効化します:
   - `virtualcluster_clean_build: true`
@@ -2394,7 +2500,7 @@ sudo rm -rf /opt/virtual-cluster/caches/images/latest
 sudo rm -rf /tmp/cluster-api-provider-nested
 ```
 
-4. ロールを再実行してvc-syncerを再デプロイします。
+4. ロールを再実行してvc-syncerを再展開 (デプロイ) します。
 
 ### CRD 登録が失敗する場合
 
@@ -2408,10 +2514,10 @@ kubectl logs -n kube-system -l component=kube-apiserver --tail=50
 VirtualClusterリソース作成時に `failed calling webhook "virtualcluster.validating.webhook"` のようなエラーが発生する場合, 以下を確認してください:
 
 ```bash
-# webhook serviceのendpointsが正しく設定されているか確認
+# webhook serviceのendpointsが正しく設定されていることを確認
 kubectl -n vc-manager get endpoints virtualcluster-webhook-service
 
-# webhook serviceのselectorとPodラベルが一致しているか確認
+# webhook serviceのselectorとPodラベルが一致していることを確認
 kubectl -n vc-manager describe service virtualcluster-webhook-service | grep -E "Selector|Endpoints"
 kubectl -n vc-manager get pod -l app=vc-manager -o jsonpath='{.items[0].metadata.labels}' | jq .
 
@@ -2567,55 +2673,81 @@ ansible-playbook k8s-management.yml -t k8s-virtual-cluster -e "virtualcluster_cl
 
 これにより, ローカル変更が破棄され, クリーンなソースに対してパッチが適用されます。
 
+## 注意事項
+
+- Apache License 2.0 で保護された kubeconfig には, テナント管理者用の認証情報(証明書とキー)が含まれます。安全に保管, 配布してください。
+- テナント API サーバーへのアクセスには port-forward やロードバランサーなど, 別途ネットワーク経路の確立が必要です。スーパークラスタの外部からのダイレクトアクセスはサポートされていません。
+- API サーバー Endpoint (`apiserver-svc.vc-manager-*-tenant-name`) は スーパークラスタ内部の Kubernetes Service FQDN のため, スーパークラスタ独自の DNS 名前解決が必要です。
+
+- `k8s_virtualcluster_enabled` が `true` の場合のみロールが実行されます。
+- `virtualcluster_build_from_source: false` を設定すると, `build` モードでの動作を行いません。この場合, `explicit` または `cache` モードで動作可能(明示的なコンテナイメージの指定, または, 過去に構築済みのコンテナイメージとマニュフェストの組(バンドル)が利用可能)である必要があります。
+- `virtualcluster_clean_build` がデフォルトで `true` に設定されており, 既存のVirtualCluster/テナント名前空間 ( namespace ) /ClusterVersion/CRD等を削除してから再構築します。既存リソースを維持したい場合は `virtualcluster_clean_build: false` に設定してください。
+- クリーンビルド時, テナント名前空間 ( namespace ) の消滅を最大 `virtualcluster_tenant_ns_wait_timeout` 秒待機します。大量のテナント が存在する場合や削除に時間がかかる場合は, この値を増やしてください。
+- ワーカノードリストは `kubectl get nodes` から動的に取得されるため, inventory/hosts の設定は不要です。
+- ビルドノードとしてリモートサーバを指定する場合, `virtualcluster_build_host` を適切に設定してください。
+- vc-manager Pod には `virtualcluster-webhook: "true"` ラベルが自動的に付与され, vc-manager自身が起動時に作成するwebhook serviceのselectorと一致するよう設定されています。
+- vc-manager の webhook は 9443 ポートでリッスンします。containerPort定義とwebhook serviceのtargetPortはこれに合わせて設定されています。
+- 本ロールは実験環境向けに作成されており, 実運用環境での設計の妥当性については考慮していません。
+
+## 付録
+
 ## テナント kubeconfig 生成スクリプト
 
 `roles/k8s-virtual-cluster/files/vc-tenant-kubeconfig.sh` スクリプトは, VirtualCluster テナント用の kubeconfig を生成するツールです。このスクリプトを使用することで, テナント管理者がテナント専用の Kubernetes クラスタにアクセスするための kubeconfig を簡単に取得できます。
 
-### スクリプトの概要
+### スクリプトの動作概要
 
-- VirtualCluster リソースからテナント用 Pod namespace を特定
-- テナント namespace 内の `admin-kubeconfig` シークレットから kubeconfig を抽出
-- kubeconfig を標準出力またはファイルに出力
+本スクリプトの動作の概要は以下の通り:
 
-### 使用方法
+1. VirtualCluster リソースからテナント用 Pod namespace を特定
+2. テナント 名前空間 ( namespace ) 内の `admin-kubeconfig` シークレットから kubeconfig を抽出
+3. kubeconfig を標準出力またはファイルに出力
 
-```bash
-# 基本的な使用法: kubeconfigを標準出力に表示
-vc-tenant-kubeconfig.sh tenant-alpha
-
-# kubeconfigをファイルに保存
-vc-tenant-kubeconfig.sh -o ~/.kube/tenant-alpha.conf tenant-alpha
-
-# 複数のオプションを指定
-vc-tenant-kubeconfig.sh -o ~/.kube/config --vc-manager-ns vc-manager tenant-alpha
-```
-
-### オプション
+#### オプション
 
 | オプション | 説明 |
 | --- | --- |
-| `-h, --help` | このヘルプメッセージを表示して終了 |
+| `-h, --help` | ヘルプメッセージを表示して終了 |
 | `-o, --output FILE` | 出力先ファイル(指定しない場合は標準出力) |
 | `--vc-manager-ns NS` | VirtualCluster 管理 namespace(デフォルト: vc-manager) |
 
-### テナント kubeconfig の使用
+#### 使用例
+
+本節では, 本スクリプトの典型的な使用例を説明します。
+
+kubeconfigを標準出力に表示:
+```bash
+vc-tenant-kubeconfig.sh tenant-alpha
+```
+
+kubeconfigをファイルに保存:
+```bash
+vc-tenant-kubeconfig.sh -o ~/.kube/tenant-alpha.conf tenant-alpha
+```
+
+複数のオプションを指定:
+```bash
+vc-tenant-kubeconfig.sh -o ~/.kube/config --vc-manager-ns vc-manager tenant-alpha
+```
+
+#### テナント kubeconfig の使用
 
 本節では, テナント用のkubeconfigを使用してテナントごとに独立した仮想クラスタを操作する方法について説明します。
 
 本節の説明では, コントロールプレインノード上でテナント/仮想クラスタ環境を操作することを前提にしています。
 
-#### kubectl port-forward を使用したポートフォワーディング
+##### kubectl port-forward を使用したポートフォワーディング
 
 生成された kubeconfig でテナント側の Kubernetes クラスタにアクセスするには, **ポートフォワーディングが必要です**。これは, テナント用 API サーバーが VirtualCluster スーパークラスタ内部の Pod として実行されているためです。
 
 スーパークラスタ内部のAPIサーバにアクセスするようにport-forwardを設定する際のkubectlコマンドの書式は以下の通りです:
 
 ```bash
-# 別のターミナルで kubectl port-forward を開始
 LOCAL_PORT=<ローカルポート番号>
 kubectl port-forward -n <テナント実行namespace> svc/apiserver-svc ${LOCAL_PORT}:6443
 ```
 
+- 本コマンドは, kubectl port-forward を開始して常駐させる必要があるため, 典型的にはテナントを操作するターミナルとは別のターミナルで実行します。
 - ローカルポート番号は, 仮想クラスタ内のK8s APIサーバにつなぐためのポート番号(コントロールプレインノード上のポート番号)です。
 - テナント実行namespace は通常, `vc-manager-<ハッシュ>-<テナント名>` の形式です。
 
@@ -2625,7 +2757,7 @@ kubectl port-forward -n <テナント実行namespace> svc/apiserver-svc ${LOCAL_
 kubectl port-forward -n vc-manager-fa7698-tenant-alpha svc/apiserver-svc 16443:6443
 ```
 
-#### テナント操作用kubeconfig の生成
+##### テナント操作用kubeconfig の生成
 
 ポートフォワードを実施したターミナルとは, 別のターミナルで以下のコマンドを実行し, テナント操作用のkubeconfigファイルを作成します。
 
@@ -2641,9 +2773,9 @@ sed -i "s|server: https://.*:6443|server: https://localhost:${LOCAL_PORT}|" ~/.k
 ls -la ~/.kube/tenant-alpha.conf
 ```
 
-#### 実行例
+##### 実行例
 
-#### ポートフォワード操作の例
+##### ポートフォワード操作の例
 
 ローカルポート番号16433から仮想クラスタ内のAPIサーバに接続し, ハッシュが, `fa7698`で, テナント名が, `tenant-alpha` の場合のポートフォワード設定作業の実行結果例を以下に示します:
 
@@ -2656,7 +2788,7 @@ Forwarding from [::1]:16443 -> 6443
 
 上記の `kubectl port-forward` は同一マシンからのアクセスのみを想定しているため, リモートマシンからアクセスする場合は別途設定が必要です。
 
-#### テナント環境へアクセスするためのkubeconfig の生成例
+##### テナント環境へアクセスするためのkubeconfig の生成例
 
 テナント環境へアクセスするための kubeconfig を生成する手順を例示します。
 
@@ -3000,7 +3132,7 @@ kubectl config set-cluster virtualcluster-tenant-alpha --insecure-skip-tls-verif
 
 `kubectl port-forward` は同一マシンからのアクセスのみを想定しているため, リモートマシンからアクセスする場合は, スーパークラスタのロードバランサーまたはゲートウェイ経由でアクセスするように, kubeconfig の server を `https://<loadbalancer-ip>:6443` に変更するなどの対処を行ってください。
 
-### automountServiceAccountToken 優先順位の検証手順
+#### automountServiceAccountToken 優先順位の検証手順
 
 本節では, 仮想クラスタ側に対して `automountServiceAccountToken` の優先順位を4パターンで検証する手順を示します。
 本検証では, 本ロールの`test-programs/vc_verify_automount_precedence.sh`に配置されている検証スクリプトを用いて, 以下の検証を行います:
@@ -3155,30 +3287,6 @@ $
 
 上記手順で, `x509: certificate is valid for ... not localhost` というメッセージが出力された場合は, 手順4の設定を確認してください。
 
-## 注意事項
-
-- Apache License 2.0 で保護された kubeconfig には, テナント管理者用の認証情報(証明書とキー)が含まれます。安全に保管, 配布してください。
-- テナント API サーバーへのアクセスには port-forward やロードバランサーなど, 別途ネットワーク経路の確立が必要です。スーパークラスタの外部からのダイレクトアクセスはサポートされていません。
-- API サーバー Endpoint (`apiserver-svc.vc-manager-*-tenant-name`) は スーパークラスタ内部の Kubernetes Service FQDN のため, スーパークラスタ独自の DNS 名前解決が必要です。
-
-## 留意事項
-
-- `k8s_virtualcluster_enabled` が `true` の場合のみロールが実行されます。
-- `virtualcluster_build_from_source: false` を設定すると, `build` モードでの動作を行いません。この場合, `explicit` または `cache` モードで動作可能(明示的なコンテナイメージの指定, または, 過去に構築済みのコンテナイメージとマニュフェストの組(バンドル)が利用可能)である必要があります。
-- `virtualcluster_clean_build` がデフォルトで `true` に設定されており, 既存のVirtualCluster/テナント名前空間 ( namespace ) /ClusterVersion/CRD等を削除してから再構築します。既存リソースを維持したい場合は `virtualcluster_clean_build: false` に設定してください。
-- クリーンビルド時, テナント名前空間 ( namespace ) の消滅を最大 `virtualcluster_tenant_ns_wait_timeout` 秒待機します。大量のテナント が存在する場合や削除に時間がかかる場合は, この値を増やしてください。
-- ワーカノードリストは `kubectl get nodes` から動的に取得されるため, inventory/hosts の設定は不要です。
-- ビルドノードとしてリモートサーバを指定する場合, `virtualcluster_build_host` を適切に設定してください。
-- vc-manager Pod には `virtualcluster-webhook: "true"` ラベルが自動的に付与され, vc-manager自身が起動時に作成するwebhook serviceのselectorと一致するよう設定されています。
-- vc-manager の webhook は 9443 ポートでリッスンします。containerPort定義とwebhook serviceのtargetPortはこれに合わせて設定されています。
-- 本ロールは実験環境向けに作成されており, 実運用環境での設計の妥当性については考慮していません。
-
-## 参考リンク
-
-- [VirtualCluster - Enabling Kubernetes Hard Multi-tenancy](https://github.com/kubernetes-retired/cluster-api-provider-nested/tree/main/virtualcluster)
-
-## 付録
-
 ### files/pod_kubeapiaccess_automount.patchの障害修正内容
 
 #### 現象
@@ -3198,6 +3306,7 @@ $
 
 - Pod展開時のマニフェスト中の[automountServiceAccountToken](https://kubernetes.io/docs/tasks/configure-pod-container/configure-service-account/#opt-out-of-api-credential-automounting) と ServiceAccount の [automountServiceAccountToken](https://kubernetes.io/docs/reference/access-authn-authz/service-accounts-admin/#bound-service-account-token-volume) を Pod展開時のマニフェスト内の指示 に応じて有効化または無効化すべきところを, 常に有効としてしまっていました。
 - vc-syncer の `--disable-service-account-token` オプションによる設定を ServiceAccount アクセス用のボリューム (kube-api-access) 側の設定に反映すべきところを, 反映できていませんでした。
+
 #### 処置概要
 
 本修正の処置概要は以下の通りです:
@@ -3223,3 +3332,9 @@ $
 - 仮想クラスタ側で, Pod展開時のマニフェストでの設定と ServiceAccount の設定の組み合わせと優先順位を確認する検証シェルスクリプトを追加しました。
   追加したスクリプト: vc_verify_automount_precedence.sh
   検証パターン: (無効/未指定), (有効/未指定), (無効/有効), (有効/無効)。
+
+## 参考資料
+
+### 公式ドキュメント
+
+- [VirtualCluster - Enabling Kubernetes Hard Multi-tenancy](https://github.com/kubernetes-retired/cluster-api-provider-nested/tree/main/virtualcluster)

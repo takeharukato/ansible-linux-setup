@@ -1,5 +1,8 @@
 # k8s-multus ロール
-本ロールは, Kubernetes (K8s)上で動作するPodから複数のCNIプラグインを同時に使用できるようにするメタCNIプラグインである[Multus](https://github.com/k8snetworkplumbingwg/multus-cni)を導入します。
+
+本ロールは, Kubernetes 上で動作する Pod から複数の CNI プラグインを同時に使用できるようにするメタ CNI プラグインである [Multus](https://github.com/k8snetworkplumbingwg/multus-cni) を導入します。
+
+## 目次
 
 - [k8s-multus ロール](#k8s-multus-ロール)
   - [用語](#用語)
@@ -9,6 +12,7 @@
     - [基本仕様](#基本仕様)
     - [実装方針](#実装方針)
   - [前提条件](#前提条件)
+  - [テンプレートと生成ファイル](#テンプレートと生成ファイル)
   - [実行フロー](#実行フロー)
   - [導入方式](#導入方式)
     - [Helm 方式 (推奨, 既定)](#helm-方式-推奨-既定)
@@ -71,12 +75,78 @@
     - [公式ドキュメント](#公式ドキュメント)
     - [関連ロール](#関連ロール)
 
-
 ## 用語
 
 | 正式名称 | 略称 | 意味 |
 | --- | --- | --- |
-| Application Programming Interface | API | アプリケーション同士がやり取りする方法を定めた仕様。 |
+| ユーザ | - | 機能を利用する人, 又は識別された利用主体。 |
+| ツール | - | 特定作業を実行するための機能や道具。 |
+| リソース | - | 処理に必要な計算機資源やデータ。 |
+| クラスタ | - | 複数の機器を連携させて一体運用する構成。 |
+| ディストリビューション | - | 基本ソフトウェアと関連部品をまとめた配布形態。 |
+| コンテナイメージ | - | コンテナ実行に必要な内容をまとめた保存形式。 |
+| プログラム | - | 計算機に処理をさせるための命令列。 |
+| コミュニティ | - | 共通目的のもとで継続的に活動する利用者集団。 |
+| プラグイン | - | 既存機能へ追加機能を組み込むための拡張部品。 |
+| サービスアカウント | - | 自動処理向けに用意する利用主体の識別情報。 |
+| コンテナランタイム | - | コンテナを起動, 停止, 管理する実行基盤。 |
+| リクエスト | - | 処理実行や情報取得を要求する操作。 |
+| コントローラ | - | 対象状態を監視し, 期待状態へ調整する制御機能。 |
+| メタデータ | - | 対象データの属性や説明を示す付加情報。 |
+| バックエンド | - | 利用者画面の背後で処理を実行する側。 |
+| ストレージ | - | データを保存する仕組み。 |
+| インストール | - | ソフトウェアを導入して利用可能にする作業。 |
+| マシン | - | 処理を実行する計算機。 |
+| プロビジョニング | - | 利用開始に必要な設定や資源を準備する作業。 |
+| ルーティング | - | 宛先までの経路を選択して転送する処理。 |
+| オブジェクト | - | ひとかたまりとして扱うデータ単位。 |
+| エージェント | - | 指示に従って処理を代行する構成要素。 |
+| ストア | - | データや成果物を保存する場所。 |
+| ジャーナル | - | 時系列の記録を保持する仕組み。 |
+| アカウント | - | 利用者や処理主体を識別する登録情報。 |
+| エンドポイント | - | 通信の接続先を表す識別点。 |
+| パターン | - | 繰り返し現れる構造や記述形式。 |
+| パケット | - | ネットワークで転送するデータ単位。 |
+| カーネル | - | 基本ソフトウェアの中核機能。 |
+| シェル | - | コマンド入力で計算機を操作する仕組み。 |
+| Playbook | - | 自動化処理の実行手順を記述したファイル。 |
+| Canonical | - | Ubuntu を提供する組織名。 |
+| Key-Value | - | キーと値の組で情報を表す方式。 |
+| IP | - | インターネットプロトコルの略称。 |
+| SQL | - | データベースを操作するための記述言語。 |
+| HTTP | - | WWW で情報をやり取りする通信手順。 |
+| HTTPS | - | 通信内容を暗号化して WWW 通信を行う方式。 |
+| RPM | - | RHEL 系で使用するパッケージ形式。 |
+| VM | - | 物理機器上で動作する仮想的な計算機。 |
+| localhost | - | 同一機器自身を指す名前。 |
+| root | - | Unix 系システムの最上位権限を持つ管理者識別子。 |
+| ソフトウェア | - | 情報処理システムで使用するプログラム, 手順, 規則及び関連文書の全体又は一部分。 |
+| システム | - | 複数の要素が連携して目的を実現する仕組み全体。 |
+| アプリケーション | - | 利用者の目的を実現するために動作するソフトウェア。 |
+| パッケージ | - | ソフトウェア導入に必要なファイルをまとめた配布単位。 |
+| リポジトリ | - | ソフトウェアや設定情報を保管し, 取得できるようにした管理場所。 |
+| コマンド | - | 実行者が計算機へ処理を指示するための命令。 |
+| ホスト | - | 管理対象として識別される個別の計算機。 |
+| サーバ | - | 他の機器や利用者へ機能やデータを提供する計算機, 又はその役割。 |
+| コンテナ | - | アプリケーションを動かす隔離された実行単位。 |
+| ネットワーク | - | 機器同士を接続してデータをやり取りする仕組み。 |
+| プロトコル | - | 通信やデータ交換の手順を定めた取り決め。 |
+| ディレクトリ | - | ファイルを階層的に整理するための入れ物。 |
+| ログ | - | 処理の結果や状態を時系列で記録した情報。 |
+| Kubernetes | K8s | コンテナを管理する基盤ソフトウェア。 |
+| Pod | - | Kubernetes でコンテナをまとめて管理する最小単位。 |
+| Linux | - | 多くの機器で使われる, 基本ソフトウェアの系統。 |
+| Debian | - | コミュニティ主導で開発される Linux ディストリビューション。 |
+| Ubuntu | - | Canonical が提供する Debian 系の Linux ディストリビューション。 |
+| Docker | - | コンテナイメージやコンテナの作成, 実行, 管理を行うコマンド。 |
+| Ansible | - | 設定の同一化や導入作業を所定の手順に従って自動化する仕組み。 |
+| World Wide Web | WWW | ネットワーク上で文書や情報を相互参照できる仕組み。 |
+| Service | - | サービスの英語表記。 |
+| Node | - | ノードの英語表記。 |
+| Makefile | - | 実行手順を定義したファイル。 |
+| API | - | アプリケーション同士がやり取りする方法を定めた仕様。 |
+| URL | - | WWW 上の資源の場所を示す文字列。 |
+| Application Programming Interface | API | API の正式名称。 |
 | Custom Resource Definition | CRD | Kubernetes APIを拡張してユーザ独自のリソース種別を定義する仕組み。 |
 | Role-Based Access Control | RBAC | ユーザやサービスアカウントが実行可能な操作を役割(Role)で制限する仕組み。 |
 | Service Account | - | Kubernetes内部でPodが他のリソースにアクセスする際に用いる仮想的なアカウント。 |
@@ -87,6 +157,7 @@
 | 名前空間 ( namespace )  | - | Kubernetes内部でリソースを論理的に分離する単位。 |
 | ポッド ( Pod ) | - | Kubernetes上で動作するコンテナの最小単位。 |
 | デーモンセット ( DaemonSet ) | - | Kubernetesクラスタ内の全ノード(または指定した一部のノード)で必ずPodを1つずつ起動させるリソース。 |
+| デプロイ ( Deploy ) | - | 機能や設定を実行環境へ展開し, 利用可能な状態にする作業。 |
 | デプロイメント ( Deployment ) | - | 指定した数のPodを維持し, ローリングアップデート等を管理するリソース。 |
 | StatefulSet | - | 状態を持つアプリケーションのPodを順序付けて管理するリソース。 |
 | サービス ( Service ) | - | Podへのアクセスを抽象化し, 負荷分散やサービスディスカバリを提供するリソース。 |
@@ -97,7 +168,7 @@
 | PersistentVolumeClaim | PVC | ユーザがPVを要求する際に利用するリソース。 |
 | StorageClass | - | 動的にPVをプロビジョニングする際のストレージ種別を定義するリソース。 |
 | Kubernetes ノード ( Kubernetes Node ) | - | Kubernetesクラスタを構成する物理マシンまたは仮想マシン。 |
-| コントロールプレーンノード ( Control Plane Node ) | - | Kubernetesクラスタ全体を管理, 制御する中枢ノード群。kube-apiserver, kube-controller-manager, kube-schedulerなどが動作する。 |
+| コントロールプレーンノード ( Control Plane Node ) | - | Kubernetesクラスタ全体を管理, 制御する中枢ノード群。kube-apiserver, kube-controller-manager, kube-schedulerなどが動作します。 |
 | ワーカノード ( Worker Node ) | - | 実際にアプリケーションのPodを実行するノード。 |
 | kube-apiserver | - | KubernetesのAPIリクエストを受け付け, etcdへの読み書きを仲介するコンポーネント。 |
 | kube-controller-manager | - | Deployment, ReplicaSetなど各種コントローラを実行し, Kubernetesクラスタの状態を監視, 調整するコンポーネント。 |
@@ -106,7 +177,8 @@
 | kube-proxy | - | 各Node上でServiceのネットワークルールを管理するコンポーネント。 |
 | etcd | - | KubernetesのKubernetesクラスタ状態を保存する分散Key-Valueストア。 |
 | Container Network Interface | CNI | コンテナ間のネットワーク接続を標準化するプラグイン仕様。 |
-| Cilium | - | eBPFを活用した高性能なCNIプラグイン。ネットワークポリシーやサービスメッシュ機能を提供する。 |
+| Cilium | - | eBPFを活用した高性能なCNIプラグイン。ネットワークポリシーやサービスメッシュ機能を提供します。 |
+| Extended Berkeley Packet Filter | eBPF | Linux カーネル内で安全にプログラムを実行する仕組み。高性能なパケット処理や観測機能の実装に利用される。 |
 | Serviceエンドポイント ( Service Endpoint ) | - | Serviceのバックエンドとして通信を受けるPod, または, 当該の通信を受けるPodに加え, 当該の通信を受けるPodへ通信を届けるためのネットワーク上の転送先情報全体を指す。 |
 | Serviceエンドポイント情報 ( Service Endpoint Information ) | - | Serviceエンドポイントを特定して転送先を決めるための情報。主にバックエンドPodのIPアドレス, ポート番号, プロトコル, 所属クラスタ名(またはクラスタ識別子)で構成される。 |
 | Multus | - | 複数のCNIプラグインを同時に使用できるようにするメタCNIプラグイン。 |
@@ -114,7 +186,7 @@
 | containerd | - | Dockerから分離された軽量なコンテナランタイム。 |
 | kubeadm | - | Kubernetesクラスタの初期構築と管理を支援する公式ツール。 |
 | kubectl | - | Kubernetesクラスタを操作するためのコマンドラインツール。 |
-| Helm | - | Kubernetesアプリケーションのパッケージ管理ツール。Chart形式でアプリケーションを配布, インストールする。 |
+| Helm | - | Kubernetesアプリケーションのパッケージ管理ツール。Chart形式でアプリケーションを配布, インストールします。 |
 | Chart | - | Helmで管理されるアプリケーションパッケージの単位。Kubernetes Manifestのテンプレート集。 |
 | Operator | - | アプリケーション固有の運用知識をコードで自動化するKubernetesの拡張パターン。 |
 | Custom Resource | CR | CRDで定義されたユーザ独自のリソースの実体。 |
@@ -123,10 +195,38 @@
 | Label | - | リソースに付与するKey-Value形式のメタデータ。リソースの分類, 検索に利用される。 |
 | Selector | - | Labelを利用してリソースを選択する条件式。 |
 | Annotation | - | リソースに付与するKey-Value形式の補足情報。ツールやコントローラが参照するメタデータ。 |
-| Taint | - | Kubernetes ノードに設定する特殊なマークで, 特定の条件を満たさないPodの配置を拒否する。 |
+| Taint | - | Kubernetes ノードに設定する特殊なマークで, 特定の条件を満たさないPodの配置を拒否します。 |
 | Toleration | - | PodがTaintを持つNodeへ配置されることを許可する設定。 |
+| Internet Protocol | IP | ネットワーク上で宛先を識別し, データを届けるための通信手順。 |
+| IP Address Management | IPAM | IP アドレス割当を管理する仕組み。 |
+| Red Hat Enterprise Linux | RHEL | Red Hat 社が提供する商用 Linux ディストリビューション。 |
+| User Identifier | UID | 利用者を識別する番号。 |
+| Uniform Resource Locator | URL | URL の正式名称。 |
+| Yet Another Markup Language | YAML | 設定ファイル形式です。 |
+| Network Attachment Definition | NAD | 追加ネットワーク接続設定を定義する Kubernetes の リソース。 |
+| Layer 2 | L2 | 同一ネットワーク内で装置間転送を扱う通信層。 |
+| ansible-playbookコマンド | - | Ansible Playbook を実行して自動構成処理を適用するコマンド。 |
+| `cat` | - | ファイル内容を標準出力へ表示するコマンド。 |
+| `curl` | - | URL を指定してデータ送受信を行うコマンド。 |
+| `helm` | - | Kubernetesアプリケーションのパッケージ管理ツール。Chart形式でアプリケーションを配布, インストールします。 |
+| ipコマンド | - | ネットワーク設定や経路情報の確認, 変更を行うコマンド。 |
+| `ls` | - | ファイルやディレクトリの一覧を表示するコマンド。 |
+| `make` | - | Makefile に定義された処理を実行するコマンド。 |
+| `source` | - | シェル設定ファイルやスクリプトを現在シェルへ読み込むコマンド。 |
+| `systemctl` | - | systemd 管理下のサービスを起動, 停止, 状態確認するコマンド。 |
+| アドレス | - | 宛先や所在を識別するための情報。 |
+| コード | - | 処理内容を記述した文字列。 |
+| サービス | - | 機能を利用者や他システムへ提供する仕組み。 |
+| ノード | - | ネットワークに接続された機器または処理単位。 |
+| ブロック | - | ひとかたまりとして扱う処理単位や領域。 |
+| ポート | - | 通信の出入口を識別する番号または接点。 |
+| ローカル | - | 実行中の装置や同一環境の内部。 |
+| 制御ホスト | - | Playbook を実行し, 他ホストへの処理指示を行う管理用ホスト。 |
+| 対象ホスト | - | Playbook による設定変更や導入処理の適用先となるホスト。 |
+| sudoコマンド | sudo | 一時的に管理者権限でコマンドを実行するためのコマンド。 |
 
 ## 概要
+本ロールは, Kubernetes 上で動作する Pod から複数の CNI プラグインを同時に使用できるようにするメタ CNI プラグインである [Multus](https://github.com/k8snetworkplumbingwg/multus-cni) を導入します。
 
 ### ロールの目的
 
@@ -158,6 +258,10 @@
 
 Helm 方式から kubectl apply 方式への切り替え, またはその逆の切り替え時には, `k8s_multus_cleanup_resources: true` を設定することで既存リソースをクリーンアップしてから再導入できます。
 
+## 主な処理
+
+本ロールは, 変数読み込み, Multus 導入, 補助スクリプト配置, テスト用マニフェスト配置を順に実施します。
+
 ## 前提条件
 
 本ロールを実行する前に, 以下の条件が満たされている必要があります:
@@ -172,76 +276,15 @@ Helm 方式から kubectl apply 方式への切り替え, またはその逆の�
 - **管理者権限**: kubectl 実行に /etc/kubernetes/admin.conf を使用する場合は, root 権限が必要 (sudoコマンドによるコマンド実行が可能であることが必要)
 - **ネットワーク接続**: コンテナイメージ取得のためのインターネット接続 (または内部レジストリへの接続)
 
-## 実行フロー
+## 実行方法
 
-本ロールは以下の手順で Multus CNI を導入します:
-
-1. **パラメータ読み込み** (`load-params.yml`): `vars/config.yml` から設定を読み込みます (現在は placeholder のみ)。
-2. **パッケージインストール** (`package.yml`): Pod アドレス収集ツール `collect-pod-ips.py` を `{{ k8s_node_setup_tools_dir }}` 配下へ配置します。`k8s_collect_pod_ips_completion_enabled: true` の場合は, bash/zsh 補完ファイルもあわせて導入します。
-3. **ディレクトリ作成** (`directory.yml`): Multus 用の設定ディレクトリを作成します。
-4. **ユーザ/グループ作成** (`user_group.yml`): オペレータユーザ (k8s_multus_operator) の設定を行います (既定では作成しない)。
-5. **サービス設定** (`service.yml`): Multus 関連サービスの設定を行います (現在は処理なし, 将来の拡張用)。
-6. **既存リソースのクリーンアップ** (`config-cleanup-multus.yml`): `k8s_multus_cleanup_resources: true` の場合, 既存の Multus リソース (DaemonSet, ClusterRole, ClusterRoleBinding, ServiceAccount, ConfigMap, CRD) を削除します。導入方式の切り替え時に使用します。
-7. **Multus 導入 (Helm 方式)** (`config-multus.yml`): `k8s_multus_use_helm: true` (既定) の場合, 以下の手順で Helm Chart を使用して Multus を導入します:
-   - **kube-apiserver 応答待機**: `wait_for` モジュールで kube-apiserver (https://{{ k8s_multus_k8s_api_endpoint_address }}:{{ k8s_multus_k8s_api_endpoint_port }}) が応答可能になるまで最大 {{ k8s_multus_k8s_api_wait_time }} 秒待機します。
-   - **Helm Chart コピー**: `files/multus-chart/` をターゲットホストへコピーします。
-   - **Helm values 生成**: `templates/multus-values.yml.j2` から values ファイルを生成します。
-   - **Helm インストール/アップグレード**: `helm upgrade --install` コマンドで Multus をデプロイします。
-8. **Multus 導入 (kubectl apply 方式)** (`config-kubectl-applied-multus.yml`): `k8s_multus_use_helm: false` の場合, 公式マニフェスト ({{ k8s_multus_manifest_thin_install_url }}) を `kubectl apply` で適用します。
-9. **テストポッド用マニフェスト配置** (`directory-multus-test-pod.yml`): Multus 動作確認用のテストポッド定義 (`templates/app-pod.yml.j2`) を `{{ k8s_multus_config_dir }}/app-pod.yml` に配置します。
-
-## 導入方式
-
-本ロールでは Multus の導入に2つの方式を提供しています。既定では **Helm 方式** を使用します。
-
-### Helm 方式 (推奨, 既定)
-
-**メリット**:
-
-- バージョン管理が容易 (Helm Release として管理される)
-- values ファイルでの設定変更が簡単
-- アップグレード, ロールバックが容易
-
-**使用方法**:
-
-```yaml
-k8s_multus_use_helm: true  # 既定値
-```
-
-**確認方法**:
+実行者は制御ホストで以下のいずれかを実行します。
 
 ```bash
-kubectl get daemonset -n kube-system
-helm list -n kube-system
-```
+make run_k8s_multus
 
-### kubectl apply 方式
-
-**メリット**:
-
-- 既存環境との互換性維持
-- Helm 不要 (kubectl のみで導入可能)
-- シンプルな導入手順
-
-**使用方法**:
-
-```yaml
-k8s_multus_use_helm: false
-```
-
-**確認方法**:
-
-```bash
-kubectl get daemonset -n kube-system
-```
-
-### 導入方式の切り替え
-
-Helm 方式から kubectl apply 方式, またはその逆に切り替える場合は, 既存リソースをクリーンアップしてから再導入します:
-
-```yaml
-k8s_multus_cleanup_resources: true  # 既存リソースを削除
-k8s_multus_use_helm: true  # または false
+ansible-playbook -i inventory/hosts k8s-ctrl-plane.yml --tags "k8s-multus"
+ansible-playbook -i inventory/hosts site.yml --tags "k8s-multus"
 ```
 
 ## 主要変数
@@ -250,9 +293,8 @@ k8s_multus_use_helm: true  # または false
 
 | 変数名 | 既定値 | 説明 |
 | --- | --- | --- |
-| `k8s_multus_enabled` | `true` | Multus 導入を有効化するかどうか。`false` にするとロール全体をスキップします。 |
-| `k8s_multus_cleanup_resources` | `false` | 既存の Multus リソースを削除するかどうか。導入方式の切り替え時に使用します。 |
-| `k8s_multus_install_test_pod_manifest` | `true` | テストポッド用マニフェストを配置するかどうか。 |
+| `k8s_multus_enabled` | `true` | Multus 導入を有効化する可否。`false` にするとロール全体をスキップします。 |
+| `k8s_multus_cleanup_resources` | `false` | 既存の Multus リソースを削除する可否。導入方式の切り替え時に使用します。 |
 | `k8s_node_setup_tools_prefix` | `"/opt/k8snodes"` | ノード向け補助スクリプト格納先ディレクトリのプレフィックス。 |
 | `k8s_node_setup_tools_dir` | `"{{ k8s_node_setup_tools_prefix }}/sbin"` | ノード向け補助スクリプト格納先ディレクトリ。 |
 
@@ -260,18 +302,15 @@ k8s_multus_use_helm: true  # または false
 
 | 変数名 | 既定値 | 説明 |
 | --- | --- | --- |
-| `k8s_multus_use_helm` | `true` | Helm Chart を使用して Multus を導入するかどうか。`false` にすると kubectl apply 方式に切り替わります。 |
-| `k8s_multus_helm_release_name` | `"multus"` | Helm Release の名前。 |
-| `k8s_multus_helm_namespace` | `"kube-system"` | Helm Release をデプロイする名前空間。 |
+| `k8s_multus_kubectl_apply_enabled` | `false` | kubectl apply 方式を有効化する可否。`false` の場合は Helm Chart 方式を使用します。 |
 | `k8s_multus_helm_chart_path` | `"/tmp/multus-chart"` | ターゲットホストにコピーする Helm Chart のパス。 |
-| `k8s_multus_helm_values_path` | `"/tmp/multus-values.yml"` | 生成した Helm values ファイルのパス。 |
 
 ### コンテナイメージ設定
 
 | 変数名 | 既定値 | 説明 |
 | --- | --- | --- |
 | `k8s_multus_image_repository` | `"ghcr.io/k8snetworkplumbingwg/multus-cni"` | Multus コンテナイメージのリポジトリ。 |
-| `k8s_multus_image_tag` | `"v4.2.3"` | Multus コンテナイメージのタグ。 |
+| `k8s_multus_image_version` | `"v4.2.3"` | Multus コンテナイメージのタグ。 |
 
 ### CNI 設定
 
@@ -284,26 +323,26 @@ k8s_multus_use_helm: true  # または false
 
 | 変数名 | 既定値 | 説明 |
 | --- | --- | --- |
-| `k8s_multus_manifest_thin_install_url` | `"https://raw.githubusercontent.com/k8snetworkplumbingwg/multus-cni/v4.2.3/deployments/multus-daemonset-thin.yml"` | kubectl apply 方式で使用する公式マニフェストの URL (thin インストール版)。 |
+| `k8s_multus_daemonset_manifest_url` | `"https://raw.githubusercontent.com/k8snetworkplumbingwg/multus-cni/refs/tags/{{ k8s_multus_version }}/deployments/multus-daemonset.yml"` | kubectl apply 方式で使用する公式マニフェストの URL。 |
 
 ### API 待機設定
 
 | 変数名 | 既定値 | 説明 |
 | --- | --- | --- |
-| `k8s_multus_k8s_api_wait_time` | `300` | kube-apiserver の応答を待機する最大秒数。 |
+| `k8s_api_wait_timeout` | `600` | kube-apiserver の応答を待機する最大秒数。 |
 
 ### オペレータユーザ設定
 
 | 変数名 | 既定値 | 説明 |
 | --- | --- | --- |
-| `k8s_multus_operator` | `""` | Multus 操作用のユーザ名。空文字列の場合は作成しません (既定)。 |
-| `k8s_multus_operator_group` | `""` | Multus 操作用のグループ名。空文字列の場合は作成しません (既定)。 |
+| `k8s_operator_user` | `"kube"` | Multus 操作を実行するユーザ名。 |
+| `k8s_operator_groups_list` | `"{{ adm_groups }}"` | `k8s_operator_user` に付与するグループ一覧。 |
 
 ### Pod アドレス収集ツール設定
 
 | 変数名 | 既定値 | 説明 |
 | --- | --- | --- |
-| `k8s_collect_pod_ips_completion_enabled` | `true` | `collect-pod-ips.py` 用の bash/zsh 補完ファイルを配置するかどうか。 |
+| `k8s_collect_pod_ips_completion_enabled` | `true` | `collect-pod-ips.py` 用の bash/zsh 補完ファイルを配置する可否。 |
 | `k8s_collect_pod_ips_script_path` | `"{{ k8s_node_setup_tools_dir }}/collect-pod-ips.py"` | Pod アドレス収集ツール本体の配置先。 |
 | `k8s_collect_pod_ips_bash_completion_path` | `"/etc/bash_completion.d/collect-pod-ips"` | bash 補完ファイルの配置先。 |
 | `k8s_collect_pod_ips_zsh_completion_path_debian` | `"/usr/share/zsh/vendor-completions/_collect-pod-ips"` | Debian/Ubuntu 系での zsh 補完ファイル配置先。 |
@@ -317,46 +356,36 @@ k8s_multus_use_helm: true  # または false
 - `k8s_multus_k8s_api_endpoint_address`: kube-apiserver のエンドポイントアドレス (既定: `{{ k8s_api_endpoint_address }}`)
 - `k8s_multus_k8s_api_endpoint_port`: kube-apiserver のエンドポイントポート (既定: `{{ k8s_api_endpoint_port }}`)
 
-## テンプレート, ファイル
+## テンプレートと生成ファイル
 
-本ロールで使用する主要なテンプレートとファイルは以下の通りです:
+本ロールでは以下のテンプレート / ファイルを出力します:
+主な展開先ホストは, 対象ホスト(既定) です。
 
-| ファイル名 | 種別 | 説明 |
+| テンプレートファイル名 | 出力先パス | 説明 |
 | --- | --- | --- |
-| `templates/multus-values.yml.j2` | Jinja2 テンプレート | Helm Chart 用の values ファイルを生成するテンプレート。 |
-| `templates/app-pod.yml.j2` | Jinja2 テンプレート | Multus 動作確認用のテストポッド定義。secondary ネットワークインターフェースとして ipvlan を使用する例を含みます。 |
-| `files/collect-pod-ips.py` | Python スクリプト | Pod の `status.podIPs` と Multus の `network-status` 注釈を収集し, YAML 形式で一覧化する補助ツール。 |
-| `templates/collect-pod-ips.bash-completion.j2` | Jinja2 テンプレート | `collect-pod-ips.py` 用 bash 補完ファイルを生成するテンプレート。 |
-| `templates/_collect-pod-ips.zsh-completion.j2` | Jinja2 テンプレート | `collect-pod-ips.py` 用 zsh 補完ファイルを生成するテンプレート。 |
-| `files/multus-chart/` | Helm Chart | ローカル Helm Chart ディレクトリ。公式 Multus Chart を元にカスタマイズしたものです。 |
+| `multus-values.yml.j2` | `{{ k8s_multus_config_dir }}/multus-values.yml` (既定: `{{ k8s_multus_config_dir }}/multus-values.yml`) | Multus CNI の導入オプションを定義し, 追加ネットワーク利用を有効化する Helm values 設定です。 |
+| `app-pod.yml.j2` | `{{ k8s_multus_config_dir }}/app-pod.yml` (既定: `{{ k8s_multus_config_dir }}/app-pod.yml`) | Multus の複数ネットワーク割当を検証するためのテスト Pod マニフェストです。 |
+| `collect-pod-ips.py` | `{{ k8s_collect_pod_ips_script_path }}` (既定: `{{ k8s_collect_pod_ips_script_path }}`) | Pod の割当 IP を収集し, CNI 設定検証や運用確認に利用する補助スクリプトです。 |
+| `collect-pod-ips.bash-completion.j2` | `{{ k8s_collect_pod_ips_bash_completion_path }}` (既定: `{{ k8s_collect_pod_ips_bash_completion_path }}`) | collect-pod-ips コマンドの入力補完を提供し, 運用コマンド入力を効率化する設定です。 |
+| `_collect-pod-ips.zsh-completion.j2` | `{{ k8s_collect_pod_ips_zsh_completion_path }}` (既定: `{{ k8s_collect_pod_ips_zsh_completion_path }}`) | collect-pod-ips コマンドの入力補完を提供し, 運用コマンド入力を効率化する設定です。 |
 
-### Helm Chart 構成
+## 実行フロー
 
-`files/multus-chart/` には以下のファイルが含まれています:
+本ロールは以下の手順で Multus CNI を導入します:
 
-| ファイル名 | 説明 |
-| --- | --- |
-| `Chart.yaml` | Helm Chart のメタデータ (name: multus-cni, version: 4.2.3, appVersion: v4.2.3)。 |
-| `values.yaml` | Helm Chart の既定値。namespace, image, serviceAccount, CNI パス, リソース制限等を定義します。 |
-| `templates/daemonset.yaml` | Multus DaemonSet の定義。各ノードで Multus コンテナを起動します。 |
-| `templates/serviceaccount.yaml` | Multus 用 ServiceAccount の定義。 |
-| `templates/clusterrole.yaml` | Multus 用 ClusterRole の定義 (CRD, Pod, NetworkAttachmentDefinition 等へのアクセス権)。 |
-| `templates/clusterrolebinding.yaml` | ClusterRole を ServiceAccount に紐付ける ClusterRoleBinding の定義。 |
-| `templates/configmap.yaml` | Multus 用 ConfigMap の定義 (CNI 設定等)。 |
-| `templates/crd.yaml` | NetworkAttachmentDefinition CRD の定義。 |
-| `templates/_helpers.tpl` | Helm テンプレートヘルパー関数。 |
-
-**使用方法**:
-
-1. ロール実行時に `files/multus-chart/` がターゲットホストの `/tmp/multus-chart/` にコピーされます。
-2. `templates/multus-values.yml.j2` から `/tmp/multus-values.yml` が生成されます。
-3. `helm upgrade --install multus /tmp/multus-chart/ --namespace kube-system --values /tmp/multus-values.yml` でデプロイされます。
-
-**カスタマイズポイント**:
-
-- `templates/multus-values.yml.j2`: コンテナイメージ, CNI パス, ServiceAccount 名等を変更できます。
-- `files/multus-chart/values.yaml`: Helm Chart 側の既定値を変更したい場合はこちらを編集します。
-- `files/multus-chart/templates/`: リソース定義自体をカスタマイズしたい場合はこちらを編集します。
+1. **パラメータ読み込み** (`load-params.yml`): `vars/config.yml` から設定を読み込みます (現在は placeholder のみ)。
+2. **パッケージインストール** (`package.yml`): Pod アドレス収集ツール `collect-pod-ips.py` を `{{ k8s_node_setup_tools_dir }}` 配下へ配置します。`k8s_collect_pod_ips_completion_enabled: true` の場合は, bash/zsh 補完ファイルもあわせて導入します。
+3. **ディレクトリ作成** (`directory.yml`): Multus 用の設定ディレクトリを作成します。
+4. **ユーザ/グループ作成** (`user_group.yml`): オペレータユーザ (`k8s_operator_user`) の設定を行います (既定では作成しない)。
+5. **サービス設定** (`service.yml`): Multus 関連サービスの設定を行います (現在は処理なし, 将来の拡張用)。
+6. **既存リソースのクリーンアップ** (`config-cleanup-multus.yml`): `k8s_multus_cleanup_resources: true` の場合, 既存の Multus リソース (DaemonSet, ClusterRole, ClusterRoleBinding, ServiceAccount, ConfigMap, CRD) を削除します。導入方式の切り替え時に使用します。
+7. **Multus 導入 (Helm 方式)** (`config-multus.yml`): `k8s_multus_kubectl_apply_enabled: false` (既定) の場合, 以下の手順で Helm Chart を使用して Multus を導入します:
+   - **kube-apiserver 応答待機**: `wait_for` モジュールで kube-apiserver (https://{{ k8s_api_wait_host }}:{{ k8s_api_wait_port }}) が応答可能になるまで最大 {{ k8s_api_wait_timeout }} 秒待機します。
+   - **Helm Chart コピー**: `files/multus-chart/` をターゲットホストへコピーします。
+   - **Helm values 生成**: `templates/multus-values.yml.j2` から values ファイルを生成します。
+   - **Helm インストール/アップグレード**: `helm upgrade --install` コマンドで Multus をデプロイします。
+8. **Multus 導入 (kubectl apply 方式)** (`config-kubectl-applied-multus.yml`): `k8s_multus_kubectl_apply_enabled: true` の場合, 公式マニフェスト ({{ k8s_multus_daemonset_manifest_url }}) を `kubectl apply` で適用します。
+9. **テストポッド用マニフェスト配置** (`directory-multus-test-pod.yml`): Multus 動作確認用のテストポッド定義 (`templates/app-pod.yml.j2`) を `{{ k8s_multus_config_dir }}/app-pod.yml` に配置します。
 
 ## 検証ポイント
 
@@ -750,7 +779,7 @@ kubectl logs -n kube-system -l app=multus --tail=50
 **対処方法**:
 
 1. CRD の存在を確認: `kubectl get crd | grep network-attachment-definitions`
-2. CRD が存在しない場合は, Helm 導入または kubectl apply 導入が正常に完了していない可能性があります。ロールを再実行するか, `k8s_multus_cleanup_resources: true` で既存リソースをクリーンアップしてから再導入します。
+2. CRD が存在しない場合は, Helm 導入または kubectl apply 導入が正常に完了していない可能性があります。ロールを再実行, または `k8s_multus_cleanup_resources: true` で既存リソースをクリーンアップしてから再導入します。
 3. NAD リソースの作成は 別ロール で行います(例: `k8s-whereabouts`)。**本ロールでは, NAD 自体の作成は行いません**。
 
 ### 3. Pod にセカンダリネットワークインターフェースがアタッチされない
@@ -771,7 +800,7 @@ kubectl logs -n kube-system -l app=multus --tail=50
 1. Annotation の記述を確認: `kubectl get pod <POD_NAME> -o jsonpath='{.metadata.annotations}'`
    - 正しい形式: `k8s.v1.cni.cncf.io/networks: <NAMESPACE>/<NAD_NAME>` または `k8s.v1.cni.cncf.io/networks: <NAD_NAME>` (同一名前空間の場合)
 2. NAD の存在と内容を確認: `kubectl get network-attachment-definitions -n <NAMESPACE> <NAD_NAME> -o yaml`
-3. CNI プラグインバイナリの存在を確認 (thin モードの場合): `sudo ls -l /opt/cni/bin/` で必要なプラグイン (ipvlan, macvlan, bridge 等) が存在するか確認
+3. CNI プラグインバイナリの存在を確認 (thin モードの場合): `sudo ls -l /opt/cni/bin/` で必要なプラグイン (ipvlan, macvlan, bridge 等) が存在することを確認
 4. Multus Pod のログを確認: `kubectl logs -n kube-system -l app=multus`
 
 ### 4. Helm Release が失敗する
@@ -793,7 +822,7 @@ kubectl logs -n kube-system -l app=multus --tail=50
 2. Release の詳細を確認: `helm get all multus -n kube-system`
 3. values ファイルの内容を確認: `cat /tmp/multus-values.yml`
 4. kube-apiserver の応答を確認: `kubectl cluster-info`
-5. Helm を使用せず kubectl apply 方式に切り替える: `k8s_multus_use_helm: false`
+5. Helm を使用せず kubectl apply 方式に切り替える: `k8s_multus_kubectl_apply_enabled: true`
 
 ### 5. kube-apiserver に接続できない
 
@@ -813,7 +842,106 @@ kubectl logs -n kube-system -l app=multus --tail=50
 1. kube-apiserver プロセスの起動を確認: `systemctl status kubelet` (コントロールプレーンノード)
 2. エンドポイントへの接続を確認: `curl -k https://<API_ENDPOINT>:6443/healthz`
 3. ファイアウォール設定を確認: `sudo iptables -L -n | grep 6443` または `sudo firewall-cmd --list-all`
-4. `k8s_multus_k8s_api_wait_time` を増やして再実行
+4. `k8s_api_wait_timeout` を増やして再実行
+
+## 注意事項
+
+実行者は導入方式を切り替える場合, 既存リソースを削除してから再実行します。
+
+## 導入方式
+
+本ロールでは Multus の導入に2つの方式を提供しています。既定では **Helm 方式** を使用します。
+
+### Helm 方式 (推奨, 既定)
+
+**メリット**:
+
+- バージョン管理が容易 (Helm Release として管理される)
+- values ファイルでの設定変更が簡単
+- アップグレード, ロールバックが容易
+
+**使用方法**:
+
+```yaml
+k8s_multus_kubectl_apply_enabled: false  # 既定値
+```
+
+**確認方法**:
+
+```bash
+kubectl get daemonset -n kube-system
+helm list -n kube-system
+```
+
+### kubectl apply 方式
+
+**メリット**:
+
+- 既存環境との互換性維持
+- Helm 不要 (kubectl のみで導入可能)
+- シンプルな導入手順
+
+**使用方法**:
+
+```yaml
+k8s_multus_kubectl_apply_enabled: true
+```
+
+**確認方法**:
+
+```bash
+kubectl get daemonset -n kube-system
+```
+
+### 導入方式の切り替え
+
+Helm 方式から kubectl apply 方式, またはその逆に切り替える場合は, 既存リソースをクリーンアップしてから再導入します:
+
+```yaml
+k8s_multus_cleanup_resources: true  # 既存リソースを削除
+k8s_multus_kubectl_apply_enabled: false  # または true
+```
+
+## テンプレート, ファイル
+
+本ロールで使用する主要なテンプレートとファイルは以下の通りです:
+
+| ファイル名 | 種別 | 説明 |
+| --- | --- | --- |
+| `templates/multus-values.yml.j2` | Jinja2 テンプレート | Helm Chart 用の values ファイルを生成するテンプレート。 |
+| `templates/app-pod.yml.j2` | Jinja2 テンプレート | Multus 動作確認用のテストポッド定義。secondary ネットワークインターフェースとして ipvlan を使用する例を含みます。 |
+| `files/collect-pod-ips.py` | Python スクリプト | Pod の `status.podIPs` と Multus の `network-status` 注釈を収集し, YAML 形式で一覧化する補助ツール。 |
+| `templates/collect-pod-ips.bash-completion.j2` | Jinja2 テンプレート | `collect-pod-ips.py` 用 bash 補完ファイルを生成するテンプレート。 |
+| `templates/_collect-pod-ips.zsh-completion.j2` | Jinja2 テンプレート | `collect-pod-ips.py` 用 zsh 補完ファイルを生成するテンプレート。 |
+| `files/multus-chart/` | Helm Chart | ローカル Helm Chart ディレクトリ。公式 Multus Chart を元にカスタマイズしたものです。 |
+
+### Helm Chart 構成
+
+`files/multus-chart/` には以下のファイルが含まれています:
+
+| ファイル名 | 説明 |
+| --- | --- |
+| `Chart.yaml` | Helm Chart のメタデータ (name: multus-cni, version: 4.2.3, appVersion: v4.2.3)。 |
+| `values.yaml` | Helm Chart の既定値。namespace, image, serviceAccount, CNI パス, リソース制限等を定義します。 |
+| `templates/daemonset.yaml` | Multus DaemonSet の定義。各ノードで Multus コンテナを起動します。 |
+| `templates/serviceaccount.yaml` | Multus 用 ServiceAccount の定義。 |
+| `templates/clusterrole.yaml` | Multus 用 ClusterRole の定義 (CRD, Pod, NetworkAttachmentDefinition 等へのアクセス権)。 |
+| `templates/clusterrolebinding.yaml` | ClusterRole を ServiceAccount に紐付ける ClusterRoleBinding の定義。 |
+| `templates/configmap.yaml` | Multus 用 ConfigMap の定義 (CNI 設定等)。 |
+| `templates/crd.yaml` | NetworkAttachmentDefinition CRD の定義。 |
+| `templates/_helpers.tpl` | Helm テンプレートヘルパー関数。 |
+
+**使用方法**:
+
+1. ロール実行時に `files/multus-chart/` がターゲットホストの `/tmp/multus-chart/` にコピーされます。
+2. `templates/multus-values.yml.j2` から `/tmp/multus-values.yml` が生成されます。
+3. `helm upgrade --install multus /tmp/multus-chart/ --namespace kube-system --values /tmp/multus-values.yml` でデプロイされます。
+
+**カスタマイズポイント**:
+
+- `templates/multus-values.yml.j2`: コンテナイメージ, CNI パス, ServiceAccount 名等を変更できます。
+- `files/multus-chart/values.yaml`: Helm Chart 側の既定値を変更したい場合はこちらを編集します。
+- `files/multus-chart/templates/`: リソース定義自体をカスタマイズしたい場合はこちらを編集します。
 
 ## 補足
 
@@ -865,7 +993,6 @@ ip route add <DESTINATION_NETWORK> via <GATEWAY> dev net1 src <NET1_IP>
 ```
 
 この設定により, カーネルが送信元 IP アドレスを自動選択する際に `net1` の IP アドレスを使用するようになり, セカンダリネットワーク経由の通信が確実に行われます。
-
 
 ## 付録
 
@@ -1676,7 +1803,6 @@ zsh の場合は, 新しいターミナルセッションを開始しなおし�
 
 2. 新しいシェルセッションを開始
   bash/zsh ともに新しいターミナルセッションで自動的に有効化されます。
-
 ## 参考資料
 
 ### 公式ドキュメント

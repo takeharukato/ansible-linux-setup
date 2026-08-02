@@ -1,42 +1,186 @@
 # Advanced Intrusion Detection Environment (AIDE)導入ロール
 
-本ロールでは, Advanced Intrusion Detection Environment (AIDE)を,
-RHEL/Ubuntuのパッケージから導入する。
+本ロールは, Advanced Intrusion Detection Environment (AIDE) を,
+RHEL と Ubuntu のパッケージから導入します。
+
+## 目次
+
+- [Advanced Intrusion Detection Environment (AIDE)導入ロール](#advanced-intrusion-detection-environment-aide導入ロール)
+  - [目次](#目次)
+  - [用語](#用語)
+  - [概要](#概要)
+  - [前提条件](#前提条件)
+  - [実行方法](#実行方法)
+  - [主要変数](#主要変数)
+  - [実行フロー](#実行フロー)
+  - [検証ポイント](#検証ポイント)
+  - [トラブルシューティング](#トラブルシューティング)
+  - [注意事項](#注意事項)
+    - [AIDEの設定ファイルに対するドロップインディレクトリの扱いについて](#aideの設定ファイルに対するドロップインディレクトリの扱いについて)
+  - [参考資料](#参考資料)
+    - [公式ドキュメント](#公式ドキュメント)
 
 ## 用語
 
 | 正式名称 | 略称 | 意味 |
 | --- | --- | --- |
+| ユーザ | - | 機能を利用する人, 又は識別された利用主体。 |
+| ツール | - | 特定作業を実行するための機能や道具。 |
+| リソース | - | 処理に必要な計算機資源やデータ。 |
+| クラスタ | - | 複数の機器を連携させて一体運用する構成。 |
+| ディストリビューション | - | 基本ソフトウェアと関連部品をまとめた配布形態。 |
+| コンテナイメージ | - | コンテナ実行に必要な内容をまとめた保存形式。 |
+| プログラム | - | 計算機に処理をさせるための命令列。 |
+| コミュニティ | - | 共通目的のもとで継続的に活動する利用者集団。 |
+| プラグイン | - | 既存機能へ追加機能を組み込むための拡張部品。 |
+| サービスアカウント | - | 自動処理向けに用意する利用主体の識別情報。 |
+| コンテナランタイム | - | コンテナを起動, 停止, 管理する実行基盤。 |
+| リクエスト | - | 処理実行や情報取得を要求する操作。 |
+| コントローラ | - | 対象状態を監視し, 期待状態へ調整する制御機能。 |
+| メタデータ | - | 対象データの属性や説明を示す付加情報。 |
+| バックエンド | - | 利用者画面の背後で処理を実行する側。 |
+| ストレージ | - | データを保存する仕組み。 |
+| インストール | - | ソフトウェアを導入して利用可能にする作業。 |
+| マシン | - | 処理を実行する計算機。 |
+| プロビジョニング | - | 利用開始に必要な設定や資源を準備する作業。 |
+| ルーティング | - | 宛先までの経路を選択して転送する処理。 |
+| オブジェクト | - | ひとかたまりとして扱うデータ単位。 |
+| エージェント | - | 指示に従って処理を代行する構成要素。 |
+| ストア | - | データや成果物を保存する場所。 |
+| ジャーナル | - | 時系列の記録を保持する仕組み。 |
+| アカウント | - | 利用者や処理主体を識別する登録情報。 |
+| エンドポイント | - | 通信の接続先を表す識別点。 |
+| パターン | - | 繰り返し現れる構造や記述形式。 |
+| パケット | - | ネットワークで転送するデータ単位。 |
+| カーネル | - | 基本ソフトウェアの中核機能。 |
+| シェル | - | コマンド入力で計算機を操作する仕組み。 |
+| Playbook | - | 自動化処理の実行手順を記述したファイル。 |
+| Canonical | - | Ubuntu を提供する組織名。 |
+| Key-Value | - | キーと値の組で情報を表す方式。 |
+| IP | - | インターネットプロトコルの略称。 |
+| SQL | - | データベースを操作するための記述言語。 |
+| HTTP | - | WWW で情報をやり取りする通信手順。 |
+| HTTPS | - | 通信内容を暗号化して WWW 通信を行う方式。 |
+| RPM | - | RHEL 系で使用するパッケージ形式。 |
+| VM | - | 物理機器上で動作する仮想的な計算機。 |
+| localhost | - | 同一機器自身を指す名前。 |
+| root | - | Unix 系システムの最上位権限を持つ管理者識別子。 |
+| ソフトウェア | - | 情報処理システムで使用するプログラム, 手順, 規則及び関連文書の全体又は一部分。 |
+| システム | - | 複数の要素が連携して目的を実現する仕組み全体。 |
+| アプリケーション | - | 利用者の目的を実現するために動作するソフトウェア。 |
+| パッケージ | - | ソフトウェア導入に必要なファイルをまとめた配布単位。 |
+| リポジトリ | - | ソフトウェアや設定情報を保管し, 取得できるようにした管理場所。 |
+| コマンド | - | 実行者が計算機へ処理を指示するための命令。 |
+| ホスト | - | 管理対象として識別される個別の計算機。 |
+| サーバ | - | 他の機器や利用者へ機能やデータを提供する計算機, 又はその役割。 |
+| ノード | - | ネットワークに接続された機器または処理単位。 |
+| コンテナ | - | アプリケーションを動かす隔離された実行単位。 |
+| ネットワーク | - | 機器同士を接続してデータをやり取りする仕組み。 |
+| アドレス | - | 宛先や所在を識別するための情報。 |
+| プロトコル | - | 通信やデータ交換の手順を定めた取り決め。 |
+| ディレクトリ | - | ファイルを階層的に整理するための入れ物。 |
+| ログ | - | 処理の結果や状態を時系列で記録した情報。 |
+| コード | - | 処理内容を記述した文字列。 |
+| Kubernetes | K8s | コンテナを管理する基盤ソフトウェア。 |
+| Pod | - | Kubernetes でコンテナをまとめて管理する最小単位。 |
+| Linux | - | 多くの機器で使われる, 基本ソフトウェアの系統。 |
+| Docker | - | コンテナイメージやコンテナの作成, 実行, 管理を行うコマンド。 |
+| Ansible | - | 設定の同一化や導入作業を所定の手順に従って自動化する仕組み。 |
+| World Wide Web | WWW | ネットワーク上で文書や情報を相互参照できる仕組み。 |
+| Service | - | サービスの英語表記。 |
+| Node | - | ノードの英語表記。 |
+| Makefile | - | 実行手順を定義したファイル。 |
+| API | - | アプリケーション同士がやり取りする方法を定めた仕様。 |
+| URL | - | WWW 上の資源の場所を示す文字列。 |
 | Advanced Intrusion Detection Environment | AIDE | ファイルシステムの改ざん検知を行うホスト型侵入検知システム, ファイルハッシュでの整合性確認 |
-| Red Hat Enterprise Linux | RHEL | Red Hatが提供する商用Linuxディストリビューション |
-| - | Debian | コミュニティ主導で開発されるLinuxディストリビューション |
-| - | Ubuntu | Canonicalが提供するDebianベースのLinuxディストリビューション |
-| General Electric Comprehensive Operating System | GECOS | Unixパスワードファイルのユーザ情報フィールド, フルネームやオフィス情報を格納 |
+| Red Hat Enterprise Linux | RHEL | Red Hat 社が提供する商用 Linux ディストリビューション。 |
+| Debian | - | コミュニティ主導で開発される Linux ディストリビューション。 |
+| Ubuntu | - | Canonical が提供する Debian 系の Linux ディストリビューション。 |
+| Operating System | OS | 計算機の基本機能を管理し, アプリケーションを動作させる基盤ソフトウェア。 |
+| Host Variables | host_vars | ホスト単位の設定値を格納する変数定義。 |
+| Ansible Inventory | inventory | 実行対象ホストの一覧と接続情報を管理する定義。 |
+| Ansible Task | task | 自動化処理の最小単位となる実行項目。 |
+| ansible-playbookコマンド | - | Ansible Playbook を実行して自動構成処理を適用するコマンド。 |
+| `make` | - | Makefile に定義された処理を実行するコマンド。 |
+| 制御ホスト | - | Playbook を実行し, 他ホストへの処理指示を行う管理用ホスト。 |
+| 対象ホスト | - | Playbook による設定変更や導入処理の適用先となるホスト。 |
 
-## 変数一覧
+## 概要
 
-| 変数名 | 意味 | 例 | 備考 |
-| ------ | ---- | -- | ---- |
-|aide_packages|AIDEのパッケージ名|"aide"|vars/cross-distro.ymlで定義しディストリビューション間の差異を吸収|
-|aide_config_path|AIDEのコンフィグレーションファイルパス|"/etc/aide/aide.conf" (Debian/Ubuntu系), "/etc/aide.conf" (RHEL系)|vars/cross-distro.ymlで定義しディストリビューション間の差異を吸収|
-|aide_database_path|AIDEのデータベースパス|"/var/lib/aide/aide.db.gz"|vars/cross-distro.ymlで定義しディストリビューション間の差異を吸収|
-|aide_config_dropin_dir|AIDEのコンフィグレーションファイルのドロップインディレクトリパス|"/etc/aide/aide.conf.d"|vars/cross-distro.ymlで定義しディストリビューション間の差異を吸収, RHEL系では現状使用されない。|
+本ロールでは, Advanced Intrusion Detection Environment (AIDE) を,
+RHEL と Ubuntu のパッケージから導入します。
 
-## 留意事項
+本ロールは, AIDE に関する設定処理を実施します。
+
+## 前提条件
+
+対象ホストが inventory に登録済みであることを確認します。
+関連する共通変数が vars/all-config.yml または host_vars に定義済みであることを確認します。
+
+## 実行方法
+
+制御ホストで以下のコマンドを実行します。
+
+```bash
+make run_aide
+
+
+本ロールは, AIDE の導入と初期化に必要な処理を順に実行する。
+
+1. OS 種別に応じて AIDE パッケージを導入する。
+2. AIDE の設定ファイルを配置し, 監視対象と除外対象を定義する。
+3. AIDE データベースを初期化し, 基準値を作成する。
+ansible-playbook -i inventory/hosts site.yml --tags "aide"
+```
+
+## 主要変数
+
+| 変数名 | 意味 | 既定値 | 設定例 |
+| --- | --- | --- | --- |
+| `aide_packages` | AIDE のパッケージ名。 | OS 依存 | `aide_packages: "aide"` |
+| `aide_config_path` | AIDE の設定ファイルのパス。 | OS 依存 | `aide_config_path: "/etc/aide/aide.conf"` |
+| `aide_database_path` | AIDE のデータベースのパス。 | `"/var/lib/aide/aide.db.gz"` | `aide_database_path: "/var/lib/aide/aide.db.gz"` |
+| `aide_config_dropin_dir` | AIDE の設定ファイルのドロップイン用ディレクトリのパス。 | Debian/Ubuntu 系では `"/etc/aide/aide.conf.d"`, RHEL 系では未使用 | `aide_config_dropin_dir: "/etc/aide/aide.conf.d"` |
+| `(該当なし)` | 本ロール実装にはロール全体の実行可否を切り替える `*_enabled` 変数はありません。 | `-` | `-` |
+
+## 実行フロー
+
+1. load-params.yml により変数が自動的に読み込まれる。
+2. 本ロール固有の task が順次実行される。
+3. 検証コマンドを実行して期待結果を確認します。
+
+## 検証ポイント
+
+以下の検証コマンドを実行し, 構文検査が成功することを確認します。
+
+```bash
+ansible-playbook -i inventory/hosts site.yml --syntax-check
+```
+
+期待結果: エラーが出力されず, syntax check が成功します。
+
+## トラブルシューティング
+
+エラー発生時は build-*.log を確認し, 失敗した task 名と不足変数を特定します。
+
+## 注意事項
 
 ### AIDEの設定ファイルに対するドロップインディレクトリの扱いについて
 
-本来は, AIDEの設定ファイルに対するドロップインディレクトリをUbuntu/Debian系に寄せて, `/etc/aide/aide.conf.d` ディレクトリを作成するようRHEL系でも処理を追加し, 統一した運用を行えることが望ましい。
+本来は, AIDE の設定ファイルに対するドロップインディレクトリを Ubuntu と Debian 系に寄せて, `/etc/aide/aide.conf.d` ディレクトリを作成するよう RHEL 系でも処理を追加し, 統一した運用を行えることが望ましい。
 
-しかし, 本ロール作成時点でのRHEL9系ディストリビューションに標準で搭載されているAIDEのバージョンは, 0.16であり, ワイルドカード指定での設定ファイルのインクルードや`@@x_include`ディレクティブがサポートされていない。
+しかし, 本ロール作成時点での RHEL 9 系ディストリビューションに標準で搭載されている AIDE のバージョンは 0.16 であり, ワイルドカード指定での設定ファイルのインクルードや `@@x_include` ディレクティブがサポートされていない。
 
-このため, ドロップインディレクトリの自動読み込みをUbuntu/Debian環境と同様には行えないことから, RHEL系ではドロップインディレクトリを作成しないようにした。
+このため, ドロップインディレクトリの自動読み込みを Ubuntu と Debian 環境と同様には行えないことから, RHEL 系ではドロップインディレクトリを作成しないようにした。
 
-本ロール作成時のUbuntu/Debian系とRHEL系におけるAIDEの差異は以下の通り:
+本ロール作成時の Ubuntu と Debian 系, RHEL 系における AIDE の差異は以下の通り。
 
-- Debian/Ubuntu: /etc/aide/aide.conf.d ディレクトリはパッケージにより自動作成され, 標準でドロップインディレクトリとしてサポートされている
-- RHEL/AlmaLinux: AIDE 0.16ではワイルドカードや@@x_includeをサポートしていないため, ドロップインディレクトリの自動読み込みができない(インクルード対象ファイルごとに`@@include`ディレクティブを追記する必要がある)
+- Debian と Ubuntu: `/etc/aide/aide.conf.d` ディレクトリはパッケージにより自動作成され, 標準でドロップインディレクトリとしてサポートされている。
+- RHEL と AlmaLinux: AIDE 0.16 ではワイルドカードや `@@x_include` をサポートしていないため, ドロップインディレクトリの自動読み込みができない。インクルード対象ファイルごとに `@@include` ディレクティブを追記する必要がある。
 
-## 参考リンク
+## 参考資料
 
-- [第8章 AIDE で整合性の確認](https://docs.redhat.com/ja/documentation/red_hat_enterprise_linux/9/html/security_hardening/checking-integrity-with-aide_security-hardening) RHEL9のAdvanced Intrusion Detection Environment機能解説文書
+### 公式ドキュメント
+
+- [AIDE](https://aide.github.io/)
+- [Red Hat Enterprise Linux 9 の AIDE 解説](https://docs.redhat.com/ja/documentation/red_hat_enterprise_linux/9/html/security_hardening/checking-integrity-with-aide_security-hardening)

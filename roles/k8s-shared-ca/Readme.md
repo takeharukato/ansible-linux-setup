@@ -1,8 +1,201 @@
 # k8s-shared-ca ロール
 
+本ロールは, Kubernetes クラスタ間の通信を保護するための共通認証局(Certificate Authority, 以下「共通CA」)の証明書と秘密鍵を `ansible-playbook` コマンドを実行するホスト(制御ホスト)上で準備し, 各コントロールプレーンノードへ配置します。
+
+## 目次
+
+- [k8s-shared-ca ロール](#k8s-shared-ca-ロール)
+  - [目次](#目次)
+  - [用語](#用語)
+  - [概要](#概要)
+    - [共通CA の主な用途](#共通ca-の主な用途)
+    - [共通CA の供給元と優先順位](#共通ca-の供給元と優先順位)
+  - [主な処理](#主な処理)
+  - [前提条件](#前提条件)
+  - [実行方法](#実行方法)
+  - [主要変数](#主要変数)
+    - [基本設定](#基本設定)
+    - [CA 生成パラメータ](#ca-生成パラメータ)
+  - [テンプレートと生成ファイル](#テンプレートと生成ファイル)
+  - [実行フロー](#実行フロー)
+    - [1. 制御ホスト上での共通CA 準備](#1-制御ホスト上での共通ca-準備)
+    - [2. 各コントロールプレーンノードへの配置](#2-各コントロールプレーンノードへの配置)
+    - [3. オプション: Kubernetes デフォルトルート CA の置き換え](#3-オプション-kubernetes-デフォルトルート-ca-の置き換え)
+  - [検証ポイント](#検証ポイント)
+    - [制御ホスト上での確認](#制御ホスト上での確認)
+    - [各コントロールプレーンノード上での確認](#各コントロールプレーンノード上での確認)
+    - [オプション: ルート CA 置き換えが有効な場合](#オプション-ルート-ca-置き換えが有効な場合)
+    - [オプション: kubeconfig 埋め込みの確認](#オプション-kubeconfig-埋め込みの確認)
+    - [Cilium Cluster Mesh 接続時の確認](#cilium-cluster-mesh-接続時の確認)
+  - [トラブルシューティング](#トラブルシューティング)
+    - [`enable_create_k8s_ca: false` かつ CA ファイルが見つからない](#enable_create_k8s_ca-false-かつ-ca-ファイルが見つからない)
+    - [ファイルパーミッション エラー](#ファイルパーミッション-エラー)
+    - [OpenSSL 不在またはCA 生成失敗](#openssl-不在またはca-生成失敗)
+    - [`k8s_shared_ca_replace_kube_ca: true` 後, クライアント接続が TLS エラー](#k8s_shared_ca_replace_kube_ca-true-後-クライアント接続が-tls-エラー)
+    - [Cilium Cluster Mesh が TLS エラーで接続できない](#cilium-cluster-mesh-が-tls-エラーで接続できない)
+  - [注意事項](#注意事項)
+    - [保管ポリシー](#保管ポリシー)
+    - [ローテーション手順の指針](#ローテーション手順の指針)
+  - [参考資料](#参考資料)
+    - [公式ドキュメント](#公式ドキュメント)
+
+
+## 用語
+
+| 正式名称 | 略称 | 意味 |
+| --- | --- | --- |
+| ユーザ | - | 機能を利用する人, 又は識別された利用主体。 |
+| ツール | - | 特定作業を実行するための機能や道具。 |
+| リソース | - | 処理に必要な計算機資源やデータ。 |
+| クラスタ | - | 複数の機器を連携させて一体運用する構成。 |
+| ディストリビューション | - | 基本ソフトウェアと関連部品をまとめた配布形態。 |
+| コンテナイメージ | - | コンテナ実行に必要な内容をまとめた保存形式。 |
+| プログラム | - | 計算機に処理をさせるための命令列。 |
+| コミュニティ | - | 共通目的のもとで継続的に活動する利用者集団。 |
+| プラグイン | - | 既存機能へ追加機能を組み込むための拡張部品。 |
+| サービスアカウント | - | 自動処理向けに用意する利用主体の識別情報。 |
+| コンテナランタイム | - | コンテナを起動, 停止, 管理する実行基盤。 |
+| リクエスト | - | 処理実行や情報取得を要求する操作。 |
+| コントローラ | - | 対象状態を監視し, 期待状態へ調整する制御機能。 |
+| メタデータ | - | 対象データの属性や説明を示す付加情報。 |
+| バックエンド | - | 利用者画面の背後で処理を実行する側。 |
+| ストレージ | - | データを保存する仕組み。 |
+| インストール | - | ソフトウェアを導入して利用可能にする作業。 |
+| マシン | - | 処理を実行する計算機。 |
+| プロビジョニング | - | 利用開始に必要な設定や資源を準備する作業。 |
+| ルーティング | - | 宛先までの経路を選択して転送する処理。 |
+| オブジェクト | - | ひとかたまりとして扱うデータ単位。 |
+| エージェント | - | 指示に従って処理を代行する構成要素。 |
+| ストア | - | データや成果物を保存する場所。 |
+| ジャーナル | - | 時系列の記録を保持する仕組み。 |
+| アカウント | - | 利用者や処理主体を識別する登録情報。 |
+| エンドポイント | - | 通信の接続先を表す識別点。 |
+| パターン | - | 繰り返し現れる構造や記述形式。 |
+| パケット | - | ネットワークで転送するデータ単位。 |
+| カーネル | - | 基本ソフトウェアの中核機能。 |
+| シェル | - | コマンド入力で計算機を操作する仕組み。 |
+| Playbook | - | 自動化処理の実行手順を記述したファイル。 |
+| Canonical | - | Ubuntu を提供する組織名。 |
+| Key-Value | - | キーと値の組で情報を表す方式。 |
+| IP | - | インターネットプロトコルの略称。 |
+| SQL | - | データベースを操作するための記述言語。 |
+| HTTP | - | WWW で情報をやり取りする通信手順。 |
+| HTTPS | - | 通信内容を暗号化して WWW 通信を行う方式。 |
+| RPM | - | RHEL 系で使用するパッケージ形式。 |
+| VM | - | 物理機器上で動作する仮想的な計算機。 |
+| localhost | - | 同一機器自身を指す名前。 |
+| root | - | Unix 系システムの最上位権限を持つ管理者識別子。 |
+| ソフトウェア | - | 情報処理システムで使用するプログラム, 手順, 規則及び関連文書の全体又は一部分。 |
+| システム | - | 複数の要素が連携して目的を実現する仕組み全体。 |
+| アプリケーション | - | 利用者の目的を実現するために動作するソフトウェア。 |
+| パッケージ | - | ソフトウェア導入に必要なファイルをまとめた配布単位。 |
+| リポジトリ | - | ソフトウェアや設定情報を保管し, 取得できるようにした管理場所。 |
+| コマンド | - | 実行者が計算機へ処理を指示するための命令。 |
+| ホスト | - | 管理対象として識別される個別の計算機。 |
+| サーバ | - | 他の機器や利用者へ機能やデータを提供する計算機, 又はその役割。 |
+| コンテナ | - | アプリケーションを動かす隔離された実行単位。 |
+| ネットワーク | - | 機器同士を接続してデータをやり取りする仕組み。 |
+| アドレス | - | 宛先や所在を識別するための情報。 |
+| プロトコル | - | 通信やデータ交換の手順を定めた取り決め。 |
+| ディレクトリ | - | ファイルを階層的に整理するための入れ物。 |
+| ログ | - | 処理の結果や状態を時系列で記録した情報。 |
+| コード | - | 処理内容を記述した文字列。 |
+| Kubernetes | K8s | コンテナを管理する基盤ソフトウェア。 |
+| Pod | - | Kubernetes でコンテナをまとめて管理する最小単位。 |
+| Linux | - | 多くの機器で使われる, 基本ソフトウェアの系統。 |
+| Debian | - | コミュニティ主導で開発される Linux ディストリビューション。 |
+| Ubuntu | - | Canonical が提供する Debian 系の Linux ディストリビューション。 |
+| Docker | - | コンテナイメージやコンテナの作成, 実行, 管理を行うコマンド。 |
+| Ansible | - | 設定の同一化や導入作業を所定の手順に従って自動化する仕組み。 |
+| World Wide Web | WWW | ネットワーク上で文書や情報を相互参照できる仕組み。 |
+| Service | - | サービスの英語表記。 |
+| Node | - | ノードの英語表記。 |
+| Makefile | - | 実行手順を定義したファイル。 |
+| API | - | アプリケーション同士がやり取りする方法を定めた仕様。 |
+| URL | - | WWW 上の資源の場所を示す文字列。 |
+| Application Programming Interface | API | API の正式名称。 |
+| Custom Resource Definition | CRD | Kubernetes APIを拡張してユーザ独自のリソース種別を定義する仕組み。 |
+| Role-Based Access Control | RBAC | ユーザやサービスアカウントが実行可能な操作を役割(Role)で制限する仕組み。 |
+| Certificate Authority | CA | 電子証明書を発行して正当性を保証する組織または仕組み。 |
+| Transport Layer Security | TLS | 通信経路でデータを暗号化して保護する仕組み。 |
+| mutual TLS | mTLS | クライアントとサーバー双方が証明書で互いを認証する相互認証方式。 |
+| Service Account | - | Kubernetes内部でPodが他のリソースにアクセスする際に用いる仮想的なアカウント。 |
+| ClusterRole | - | Kubernetesクラスタ全体に適用される権限の集合。 |
+| ClusterRoleBinding | - | ClusterRoleをユーザやサービスアカウントに紐付ける仕組み。 |
+| Role | - | 特定の名前空間内で有効な権限の集合。 |
+| RoleBinding | - | Roleをユーザやサービスアカウントに紐付ける仕組み。 |
+| 名前空間 ( namespace )  | - | Kubernetes内部でリソースを論理的に分離する単位。 |
+| ポッド ( Pod ) | - | Kubernetes上で動作するコンテナの最小単位。 |
+| デーモンセット ( DaemonSet ) | - | Kubernetesクラスタ内の全ノード(または指定した一部のノード)で必ずPodを1つずつ起動させるリソース。 |
+| デプロイメント ( Deployment ) | - | 指定した数のPodを維持し, ローリングアップデート等を管理するリソース。 |
+| StatefulSet | - | 状態を持つアプリケーションのPodを順序付けて管理するリソース。 |
+| サービス ( Service ) | - | Podへのアクセスを抽象化し, 負荷分散やサービスディスカバリを提供するリソース。 |
+| LoadBalancer | - | サービス ( Service )の一種で, クラウドプロバイダーやオンプレミス環境の外部ロードバランサーを利用してクラスタ外部からのアクセスを提供する仕組み。 |
+| Ingress | - | Kubernetesクラスタ外部からHTTP/HTTPS通信を受け付け, 内部のServiceへルーティングする仕組み。 |
+| コンフィグマップ ( ConfigMap ) | - | 設定情報を保持し, Podへ環境変数やファイルとして注入するリソース。 |
+| シークレット ( Secret ) | - | 機密情報を保持し, Podへ安全に注入するリソース。 |
+| PersistentVolume | PV | Kubernetesクラスタ内で利用可能なストレージリソースを表すオブジェクト。 |
+| PersistentVolumeClaim | PVC | ユーザがPVを要求する際に利用するリソース。 |
+| StorageClass | - | 動的にPVをプロビジョニングする際のストレージ種別を定義するリソース。 |
+| Kubernetes ノード ( Kubernetes Node ) | - | Kubernetesクラスタを構成する物理マシンまたは仮想マシン。 |
+| コントロールプレーンノード ( Control Plane Node ) | - | Kubernetesクラスタ全体を管理, 制御する中枢ノード群。kube-apiserver, kube-controller-manager, kube-schedulerなどが動作します。 |
+| ワーカノード ( Worker Node ) | - | 実際にアプリケーションのPodを実行するノード。 |
+| kube-apiserver | - | KubernetesのAPIリクエストを受け付け, etcdへの読み書きを仲介するコンポーネント。 |
+| kube-controller-manager | - | Deployment, ReplicaSetなど各種コントローラを実行し, Kubernetesクラスタの状態を監視, 調整するコンポーネント。 |
+| kube-scheduler | - | 新規作成されたPodを適切なNodeへ配置するコンポーネント。 |
+| kubelet | - | 各Node上で動作し, Podの起動, 停止, 監視を行うエージェント。 |
+| kube-proxy | - | 各Node上でServiceのネットワークルールを管理するコンポーネント。 |
+| etcd | - | KubernetesのKubernetesクラスタ状態を保存する分散Key-Valueストア。 |
+| Container Network Interface | CNI | コンテナ間のネットワーク接続を標準化するプラグイン仕様。 |
+| Cilium | - | eBPFを活用した高性能なCNIプラグイン。ネットワークポリシーやサービスメッシュ機能を提供します。 |
+| Extended Berkeley Packet Filter | eBPF | Linux カーネル内で安全にプログラムを実行する仕組み。高性能なパケット処理や観測機能の実装に利用される。 |
+| Cilium Cluster Mesh | - | Cilium固有の機能で, 複数のKubernetesクラスタ間で以下の処理を行い接続する仕組み。(1)各クラスタのPod IPアドレス範囲に加え, Serviceの仮想IP(ClusterIP), そのServiceを提供するPodやノードの到達先情報を相互に交換, (2)到達先に応じた転送設定を行う(CiliumをNative Routingモードで使用する場合は, Pod間通信が相互に到達できるように経路を準備する必要がある。経路の実現方法は環境依存であり, 外部ルータでの静的経路設定, 同一L2セグメントでの直接到達, BGPによる経路広告などを用いる), (3)通信相手の証明書を検証して相互認証する, (4)Global Serviceを有効にした場合は, 複数クラスタ間で同じService名に対応するServiceエンドポイント情報を相互に共有し, クラスタをまたいだ負荷分散を行う。これにより, 異なるクラスタのPod同士が直接通信したり, サービスを共有したりできます。 |
+| Global Service | - | Cilium Cluster Mesh環境で複数クラスタ間でサービスを共有し, 負荷分散する機能。 |
+| Serviceエンドポイント ( Service Endpoint ) | - | Serviceのバックエンドとして通信を受けるPod, または, 当該の通信を受けるPodに加え, 当該の通信を受けるPodへ通信を届けるためのネットワーク上の転送先情報全体を指す。 |
+| Serviceエンドポイント情報 ( Service Endpoint Information ) | - | Serviceエンドポイントを特定して転送先を決めるための情報。主にバックエンドPodのIPアドレス, ポート番号, プロトコル, 所属クラスタ名(またはクラスタ識別子)で構成される。 |
+| Multus | - | 複数のCNIプラグインを同時に使用できるようにするメタCNIプラグイン。 |
+| Container Runtime Interface | CRI | Kubernetesがコンテナランタイムと通信するための標準インターフェース。 |
+| containerd | - | Dockerから分離された軽量なコンテナランタイム。 |
+| kubeadm | - | Kubernetesクラスタの初期構築と管理を支援する公式ツール。 |
+| kubectl | - | Kubernetesクラスタを操作するためのコマンドラインツール。 |
+| kubeconfig | - | Kubernetes 接続設定ファイルを指す名称。kubectl などが参照する。 |
+| Helm | - | Kubernetesアプリケーションのパッケージ管理ツール。Chart形式でアプリケーションを配布, インストールします。 |
+| Chart | - | Helmで管理されるアプリケーションパッケージの単位。Kubernetes Manifestのテンプレート集。 |
+| Operator | - | アプリケーション固有の運用知識をコードで自動化するKubernetesの拡張パターン。 |
+| Custom Resource | CR | CRDで定義されたユーザ独自のリソースの実体。 |
+| Admission Controller | - | APIリクエストがetcdに保存される前に検証, 変更を行うプラグイン。 |
+| Network Policy | - | Pod間の通信を制御するファイアウォールルールを定義するリソース。 |
+| Label | - | リソースに付与するKey-Value形式のメタデータ。リソースの分類, 検索に利用される。 |
+| Selector | - | Labelを利用してリソースを選択する条件式。 |
+| Annotation | - | リソースに付与するKey-Value形式の補足情報。ツールやコントローラが参照するメタデータ。 |
+| Taint | - | Kubernetes ノードに設定する特殊なマークで, 特定の条件を満たさないPodの配置を拒否します。 |
+| Toleration | - | PodがTaintを持つNodeへ配置されることを許可する設定。 |
+| OpenSSL | - | 証明書, 鍵, 暗号関連データを生成, 参照, 検証するコマンド。 |
+| Ansible Vault | - | Ansibleで機密情報(パスワード, 秘密鍵など)を暗号化して安全に保管, 管理する機能。 |
+| Operating System | OS | 計算機の基本機能を管理し, アプリケーションを動作させる基盤ソフトウェア。 |
+| Red Hat Enterprise Linux 9 | RHEL9 | Red Hat Enterprise Linux の第9系統版。 |
+| Secure Shell | SSH | 遠隔の計算機へ安全に接続して操作する方式。 |
+| Ansible Playbook | playbook | 自動化処理の実行手順を順序付きで記述したファイル。 |
+| Ansible Task | task | 自動化処理の最小単位となる実行項目。 |
+| ansible-playbookコマンド | - | Ansible Playbook を実行して自動構成処理を適用するコマンド。 |
+| `awk` | - | テキストを列単位で解析, 整形するコマンド。 |
+| `chmod` | - | ファイルやディレクトリのアクセス権を変更するコマンド。 |
+| `cp` | - | ファイルやディレクトリを複製するコマンド。 |
+| `dnf` | - | RHEL 系でパッケージを導入, 更新, 削除するコマンド。 |
+| `grep` | - | テキストから条件に一致する行を抽出するコマンド。 |
+| `ls` | - | ファイルやディレクトリの一覧を表示するコマンド。 |
+| `mkdir` | - | ディレクトリを作成するコマンド。 |
+| `openssl` | - | 証明書, 鍵, 暗号関連データを生成, 参照, 検証するコマンド。 |
+| `ssh` | - | 遠隔ホストへ安全に接続して操作するコマンド。 |
+| サービス | - | 機能を利用者や他システムへ提供する仕組み。 |
+| ノード | - | ネットワークに接続された機器または処理単位。 |
+| 制御ホスト | - | Playbook を実行し, 他ホストへの処理指示を行う管理用ホスト。 |
+| 対象ホスト | - | Playbook による設定変更や導入処理の適用先となるホスト。 |
+| sudoコマンド | sudo | 一時的に管理者権限でコマンドを実行するためのコマンド。 |
+
 ## 概要
 
-本ロールは, Kubernetes クラスタ間の通信を保護するための共通認証局(Certificate Authority, 以下「共通CA」)の証明書と秘密鍵を `ansible-playbook` コマンド実行ノード(以下, 「制御ノード」)上で準備し, 各コントロールプレーンノードへ配置します。共通CAは, Cilium Cluster Mesh による複数クラスタ間の mTLS(相互認証 TLS)を同一発行元で統一するほか, kubeconfig に埋め込むクラスタ認証局として, また Kubernetes のデフォルトルート CA を置き換える際に使用されます。
+本ロールは, Kubernetes クラスタ間の通信を保護するための共通認証局(Certificate Authority, 以下「共通CA」)の証明書と秘密鍵を `ansible-playbook` コマンド実行ノード(以下, 「制御ホスト」)上で準備し, 各コントロールプレーンノードへ配置します。共通CAは, Cilium Cluster Mesh による複数クラスタ間の mTLS(相互認証 TLS)を同一発行元で統一するほか, kubeconfig に埋め込むクラスタ認証局として, また Kubernetes のデフォルトルート CA を置き換える際に使用されます。
 
 ### 共通CA の主な用途
 
@@ -25,68 +218,9 @@
 
 本ロールは再実行可能な設計になっており, 既存ファイルがある場合は作成済みの証明書, 鍵ファイルを再利用します。生成した共通CA はセキュリティ要件に応じて, 適切に運用, 管理してください。
 
-## 用語
+## 主な処理
 
-| 正式名称 | 略称 | 意味 |
-| --- | --- | --- |
-| Application Programming Interface | API | アプリケーション同士がやり取りする方法を定めた仕様。 |
-| Custom Resource Definition | CRD | Kubernetes APIを拡張してユーザ独自のリソース種別を定義する仕組み。 |
-| Role-Based Access Control | RBAC | ユーザやサービスアカウントが実行可能な操作を役割(Role)で制限する仕組み。 |
-| Certificate Authority | CA | デジタル証明書を発行し, 署名する信頼された機関。Kubernetesでは各種コンポーネント間の通信を保護するために使用される。 |
-| Transport Layer Security | TLS | ネットワーク通信を暗号化し, 通信相手を認証するセキュリティプロトコル。 |
-| mutual TLS | mTLS | クライアントとサーバー双方が証明書で互いを認証する相互認証方式。 |
-| Service Account | - | Kubernetes内部でPodが他のリソースにアクセスする際に用いる仮想的なアカウント。 |
-| ClusterRole | - | Kubernetesクラスタ全体に適用される権限の集合。 |
-| ClusterRoleBinding | - | ClusterRoleをユーザやサービスアカウントに紐付ける仕組み。 |
-| Role | - | 特定の名前空間内で有効な権限の集合。 |
-| RoleBinding | - | Roleをユーザやサービスアカウントに紐付ける仕組み。 |
-| 名前空間 ( namespace )  | - | Kubernetes内部でリソースを論理的に分離する単位。 |
-| ポッド ( Pod ) | - | Kubernetes上で動作するコンテナの最小単位。 |
-| デーモンセット ( DaemonSet ) | - | Kubernetesクラスタ内の全ノード(または指定した一部のノード)で必ずPodを1つずつ起動させるリソース。 |
-| デプロイメント ( Deployment ) | - | 指定した数のPodを維持し, ローリングアップデート等を管理するリソース。 |
-| StatefulSet | - | 状態を持つアプリケーションのPodを順序付けて管理するリソース。 |
-| サービス ( Service ) | - | Podへのアクセスを抽象化し, 負荷分散やサービスディスカバリを提供するリソース。 |
-| LoadBalancer | - | サービス ( Service )の一種で, クラウドプロバイダーやオンプレミス環境の外部ロードバランサーを利用してクラスタ外部からのアクセスを提供する仕組み。 |
-| Ingress | - | Kubernetesクラスタ外部からHTTP/HTTPS通信を受け付け, 内部のServiceへルーティングする仕組み。 |
-| コンフィグマップ ( ConfigMap ) | - | 設定情報を保持し, Podへ環境変数やファイルとして注入するリソース。 |
-| シークレット ( Secret ) | - | 機密情報を保持し, Podへ安全に注入するリソース。 |
-| PersistentVolume | PV | Kubernetesクラスタ内で利用可能なストレージリソースを表すオブジェクト。 |
-| PersistentVolumeClaim | PVC | ユーザがPVを要求する際に利用するリソース。 |
-| StorageClass | - | 動的にPVをプロビジョニングする際のストレージ種別を定義するリソース。 |
-| Kubernetes ノード ( Kubernetes Node ) | - | Kubernetesクラスタを構成する物理マシンまたは仮想マシン。 |
-| コントロールプレーンノード ( Control Plane Node ) | - | Kubernetesクラスタ全体を管理, 制御する中枢ノード群。kube-apiserver, kube-controller-manager, kube-schedulerなどが動作する。 |
-| ワーカノード ( Worker Node ) | - | 実際にアプリケーションのPodを実行するノード。 |
-| kube-apiserver | - | KubernetesのAPIリクエストを受け付け, etcdへの読み書きを仲介するコンポーネント。 |
-| kube-controller-manager | - | Deployment, ReplicaSetなど各種コントローラを実行し, Kubernetesクラスタの状態を監視, 調整するコンポーネント。 |
-| kube-scheduler | - | 新規作成されたPodを適切なNodeへ配置するコンポーネント。 |
-| kubelet | - | 各Node上で動作し, Podの起動, 停止, 監視を行うエージェント。 |
-| kube-proxy | - | 各Node上でServiceのネットワークルールを管理するコンポーネント。 |
-| etcd | - | KubernetesのKubernetesクラスタ状態を保存する分散Key-Valueストア。 |
-| Container Network Interface | CNI | コンテナ間のネットワーク接続を標準化するプラグイン仕様。 |
-| Cilium | - | eBPFを活用した高性能なCNIプラグイン。ネットワークポリシーやサービスメッシュ機能を提供する。 |
-| Cilium Cluster Mesh | - | Cilium固有の機能で, 複数のKubernetesクラスタ間で以下の処理を行い接続する仕組み。(1)各クラスタのPod IPアドレス範囲に加え, Serviceの仮想IP(ClusterIP), そのServiceを提供するPodやノードの到達先情報を相互に交換, (2)到達先に応じた転送設定を行う(CiliumをNative Routingモードで使用する場合は, Pod間通信が相互に到達できるように経路を準備する必要がある。経路の実現方法は環境依存であり, 外部ルータでの静的経路設定, 同一L2セグメントでの直接到達, BGPによる経路広告などを用いる), (3)通信相手の証明書を検証して相互認証する, (4)Global Serviceを有効にした場合は, 複数クラスタ間で同じService名に対応するServiceエンドポイント情報を相互に共有し, クラスタをまたいだ負荷分散を行う。これにより, 異なるクラスタのPod同士が直接通信したり, サービスを共有したりできる。 |
-| Global Service | - | Cilium Cluster Mesh環境で複数クラスタ間でサービスを共有し, 負荷分散する機能。 |
-| Serviceエンドポイント ( Service Endpoint ) | - | Serviceのバックエンドとして通信を受けるPod, または, 当該の通信を受けるPodに加え, 当該の通信を受けるPodへ通信を届けるためのネットワーク上の転送先情報全体を指す。 |
-| Serviceエンドポイント情報 ( Service Endpoint Information ) | - | Serviceエンドポイントを特定して転送先を決めるための情報。主にバックエンドPodのIPアドレス, ポート番号, プロトコル, 所属クラスタ名(またはクラスタ識別子)で構成される。 |
-| Multus | - | 複数のCNIプラグインを同時に使用できるようにするメタCNIプラグイン。 |
-| Container Runtime Interface | CRI | Kubernetesがコンテナランタイムと通信するための標準インターフェース。 |
-| containerd | - | Dockerから分離された軽量なコンテナランタイム。 |
-| kubeadm | - | Kubernetesクラスタの初期構築と管理を支援する公式ツール。 |
-| kubectl | - | Kubernetesクラスタを操作するためのコマンドラインツール。 |
-| kubeconfig | - | kubectlや他のツールがKubernetesクラスタにアクセスするための設定ファイル。接続先クラスタ情報, 認証情報, コンテキストを含む。 |
-| Helm | - | Kubernetesアプリケーションのパッケージ管理ツール。Chart形式でアプリケーションを配布, インストールする。 |
-| Chart | - | Helmで管理されるアプリケーションパッケージの単位。Kubernetes Manifestのテンプレート集。 |
-| Operator | - | アプリケーション固有の運用知識をコードで自動化するKubernetesの拡張パターン。 |
-| Custom Resource | CR | CRDで定義されたユーザ独自のリソースの実体。 |
-| Admission Controller | - | APIリクエストがetcdに保存される前に検証, 変更を行うプラグイン。 |
-| Network Policy | - | Pod間の通信を制御するファイアウォールルールを定義するリソース。 |
-| Label | - | リソースに付与するKey-Value形式のメタデータ。リソースの分類, 検索に利用される。 |
-| Selector | - | Labelを利用してリソースを選択する条件式。 |
-| Annotation | - | リソースに付与するKey-Value形式の補足情報。ツールやコントローラが参照するメタデータ。 |
-| Taint | - | Kubernetes ノードに設定する特殊なマークで, 特定の条件を満たさないPodの配置を拒否する。 |
-| Toleration | - | PodがTaintを持つNodeへ配置されることを許可する設定。 |
-| OpenSSL | - | SSL/TLSプロトコルの実装およびデジタル証明書, 秘密鍵を生成, 管理するためのオープンソースツール。 |
-| Ansible Vault | - | Ansibleで機密情報(パスワード, 秘密鍵など)を暗号化して安全に保管, 管理する機能。 |
+本ロールは tasks/main.yml から task 群を呼び出し, 設定適用と検証を実施します。
 
 ## 前提条件
 
@@ -94,15 +228,56 @@
 
 - 対象 OS: Debian/Ubuntu系 (Ubuntu 24.04を想定), RHEL9 系 (Rocky Linux, AlmaLinux など, AlmaLinux 9.6を想定)
 - Ansible: 2.15 以降
-- 制御ノードから各ホストへの接続: SSH 接続が確立されていること
+- 制御ホストから各ホストへの接続: SSH 接続が確立されていること
 - 管理者権限: 各ホスト上で sudo による root 権限実行が可能なこと
-- 制御ノード上で OpenSSL が利用可能: 共通CA新規生成時に必須
+- 制御ホスト上で OpenSSL が利用可能: 共通CA新規生成時に必須
+
+## 実行方法
+
+実行者は制御ホストで以下のコマンドを実行します。
+
+```bash
+ansible-playbook -i inventory/hosts site.yml --tags "k8s-shared-ca"
+```
+
+## 主要変数
+
+### 基本設定
+
+| 変数名 | 既定値 | 説明 |
+| --- | --- | --- |
+| `enable_create_k8s_ca` | `false` | 共通CAをロール内で新規生成する設定と, 既存ファイルを必須とする設定を切り替えます。`false`時は `k8s_common_ca` が必須です。 |
+| `k8s_common_ca` | `""` | 既存の共通CAが格納されたディレクトリパス。未指定時はロール同梱資材(`roles/k8s-shared-ca/files/shared-ca/`)または新規生成にフォールバックします。 |
+| `k8s_shared_ca_output_dir` | `/etc/kubernetes/pki/shared-ca` | コントロールプレーンノードに配置する共通CA 一式の配置先ディレクトリ。 |
+| `k8s_shared_ca_replace_kube_ca` | `false` | Kubernetes デフォルトルート CA を共通CA に置き換える可否を制御します。`true` の場合, コアコンポーネント証明書の再発行とワーカーノードの再 join が必須です。 |
+
+### CA 生成パラメータ
+
+これらのパラメータは `enable_create_k8s_ca: true` かつ新規生成時にのみ効果があります。
+
+| 変数名 | 既定値 | 説明 |
+| --- | --- | --- |
+| `k8s_shared_ca_cert_filename` | `cluster-mesh-ca.crt` | 共通CA 証明書ファイル名。 |
+| `k8s_shared_ca_key_filename` | `cluster-mesh-ca.key` | 共通CA 秘密鍵ファイル名。 |
+| `k8s_shared_ca_subject` | `/CN=cilium-cluster-mesh-ca` | 新規生成時に指定する証明書サブジェクト。 |
+| `k8s_shared_ca_valid_days` | `3650` | 新規生成する共通CA の有効日数(10年相当)。 |
+| `k8s_shared_ca_key_size` | `4096` | 新規生成時に使用するRSA 鍵長(ビット数)。 |
+| `k8s_shared_ca_digest` | `sha256` | 証明書署名に利用するダイジェストアルゴリズム。 |
+
+## テンプレートと生成ファイル
+
+本ロールでは以下のテンプレート / ファイルを出力します:
+主な展開先ホストは, 対象ホスト(既定) です。
+
+| テンプレートファイル名 | 出力先パス | 説明 |
+| --- | --- | --- |
+| `{{ k8s_shared_ca_source_cert }} / {{ k8s_shared_ca_source_key }}` | `{{ k8s_shared_ca_output_dir }}/...` (既定: `{{ k8s_shared_ca_output_dir }}/...`) | 共有 CA 証明書と秘密鍵をノードへ配布し, クラスタ内の TLS 信頼連鎖を統一するための資材です。 |
 
 ## 実行フロー
 
 本ロールは以下の手順で共通CA を準備し, 各コントロールプレーンノードへ配置します:
 
-### 1. 制御ノード上での共通CA 準備
+### 1. 制御ホスト上での共通CA 準備
 
 ロール実行時に, 以下の順序で共通CA の供給元を探査します:
 
@@ -124,38 +299,14 @@
 2. kube-apiserver, kube-controller-manager, kube-scheduler 等のコアコンポーネント証明書の再発行
 3. ワーカーノードの再 join により新しいルート CA を信頼させることが必要
 
-## 主要変数
-
-### 基本設定
-
-| 変数名 | 既定値 | 説明 |
-| --- | --- | --- |
-| `enable_create_k8s_ca` | `false` | 共通CAをロール内で新規生成するか, 既存ファイルを必須とするかを切り替えます。`false`時は `k8s_common_ca` が必須です。 |
-| `k8s_common_ca` | `""` | 既存の共通CAが格納されたディレクトリパス。未指定時はロール同梱資材(`roles/k8s-shared-ca/files/shared-ca/`)または新規生成にフォールバックします。 |
-| `k8s_shared_ca_output_dir` | `/etc/kubernetes/pki/shared-ca` | コントロールプレーンノードに配置する共通CA 一式の配置先ディレクトリ。 |
-| `k8s_shared_ca_replace_kube_ca` | `false` | Kubernetes デフォルトルート CA を共通CA に置き換えるかを制御します。`true` の場合, コアコンポーネント証明書の再発行とワーカーノードの再 join が必須です。 |
-
-### CA 生成パラメータ
-
-これらのパラメータは `enable_create_k8s_ca: true` かつ新規生成時にのみ効果があります。
-
-| 変数名 | 既定値 | 説明 |
-| --- | --- | --- |
-| `k8s_shared_ca_cert_filename` | `cluster-mesh-ca.crt` | 共通CA 証明書ファイル名。 |
-| `k8s_shared_ca_key_filename` | `cluster-mesh-ca.key` | 共通CA 秘密鍵ファイル名。 |
-| `k8s_shared_ca_subject` | `/CN=cilium-cluster-mesh-ca` | 新規生成時に指定する証明書サブジェクト。 |
-| `k8s_shared_ca_valid_days` | `3650` | 新規生成する共通CA の有効日数(10年相当)。 |
-| `k8s_shared_ca_key_size` | `4096` | 新規生成時に使用するRSA 鍵長(ビット数)。 |
-| `k8s_shared_ca_digest` | `sha256` | 証明書署名に利用するダイジェストアルゴリズム。 |
-
 ## 検証ポイント
 
 ロール実行後, 以下のコマンドで正常配置を確認してください:
 
-### 制御ノード上での確認
+### 制御ホスト上での確認
 
 ```bash
-# 制御ノードの役割同梱ディレクトリに CA ファイルが存在することを確認
+# 制御ホストの役割同梱ディレクトリに CA ファイルが存在することを確認
 ls -la roles/k8s-shared-ca/files/shared-ca/
 ```
 
@@ -250,7 +401,7 @@ Certificate:
 `k8s_shared_ca_replace_kube_ca: true` を指定した場合のみ実施:
 
 ```bash
-# Kubernetes デフォルトルート CA が共通CA に置き換わっているか確認
+# Kubernetes デフォルトルート CA が共通CA に置き換わっていることを確認
 sudo openssl x509 -noout -text -in /etc/kubernetes/pki/ca.crt | grep -A2 "Subject:"
 ```
 
@@ -268,7 +419,7 @@ sudo openssl x509 -noout -text -in /etc/kubernetes/pki/ca.crt | grep -A2 "Subjec
 - `/etc/kubernetes/pki/ca.crt` が共通CA に置き換わっている
 
 ```bash
-# kube-apiserver 証明書の発行者が共通CA になっているか確認
+# kube-apiserver 証明書の発行者が共通CA になっていることを確認
 sudo openssl x509 -noout -text -in /etc/kubernetes/pki/apiserver.crt | grep -A1 "Issuer:"
 ```
 
@@ -349,7 +500,7 @@ FAILED - The following required files are missing: cluster-mesh-ca.crt, cluster-
    ls -la "$k8s_common_ca"/{cluster-mesh-ca.crt,cluster-mesh-ca.key}
    ```
 
-2. アクセス不可の場合, パス指定を確認し, `enable_create_k8s_ca: true` に変更するか, `k8s_common_ca` を正しい値に修正してからプレイブックを再実行します。
+2. アクセス不可の場合, パス指定を確認し, `enable_create_k8s_ca: true` に変更, または `k8s_common_ca` を正しい値に修正してからプレイブックを再実行します。
 
 ### ファイルパーミッション エラー
 
@@ -377,7 +528,7 @@ ERROR: openssl not found or certificate generation failed
 
 **対処方法**:
 
-1. 制御ノード上で OpenSSL がインストール済みか確認:
+1. 制御ホスト上で OpenSSL がインストール済みか確認:
    ```bash
    which openssl && openssl version
    ```
@@ -424,7 +575,7 @@ TLS: failed to verify peer certificate
 
 **対処方法**:
 
-1. 対向クラスタの `k8s-shared-ca` ロールが同じ共通CA を使用しているか確認:
+1. 対向クラスタの `k8s-shared-ca` ロールが同じ共通CA を使用していることを確認:
    ```bash
    # 現在のクラスタ
    openssl x509 -noout -subject -in /etc/kubernetes/pki/shared-ca/cluster-mesh-ca.crt
@@ -436,13 +587,13 @@ TLS: failed to verify peer certificate
 
 2. 同じ CA を使用していない場合, `k8s_cilium_shared_ca_enabled: true` かつ `k8s_cilium_shared_ca_reuse_k8s_ca: true` を指定して, 両クラスタで `k8s-cilium-shared-ca` ロールを再実行してください。
 
-## 補足
+## 注意事項
 
 ### 保管ポリシー
 
 - 生成された CA 秘密鍵 (`cluster-mesh-ca.key`) は **必ず** 所有者:`root:root`, アクセス権`600`で保持します。
 
-セキュリティ要件に応じて, 制御ノード上では `ansible-vault encrypt roles/k8s-shared-ca/files/shared-ca/cluster-mesh-ca.key` などを用いて暗号化保管することを推奨します。Vault パスワードは別媒体で管理してください。セキュリティ要件に応じて別途対策を検討, 実施してください。
+セキュリティ要件に応じて, 制御ホスト上では `ansible-vault encrypt roles/k8s-shared-ca/files/shared-ca/cluster-mesh-ca.key` などを用いて暗号化保管することを推奨します。Vault パスワードは別媒体で管理してください。セキュリティ要件に応じて別途対策を検討, 実施してください。
 
 また, 耐災害性を確保する必要がある用途では, オフラインバックアップとして, 暗号化されたメディア ( ハードウェアトークンやフルディスク暗号化済みUSBストレージ等 )に CA 鍵と証明書, Vault パスワード情報を保管するなどの対策を別途実施してください。
 
@@ -455,3 +606,10 @@ TLS: failed to verify peer certificate
    - Cilium Cluster Mesh 証明書の再発行
    - `cilium clustermesh status` による疎通確認
 4. ローテーション後は旧CAを失効または安全に廃棄し, Vaultおよびオフラインバックアップを更新します。
+
+## 参考資料
+
+### 公式ドキュメント
+
+- Kubernetes Secrets: https://kubernetes.io/docs/concepts/configuration/secret/
+- OpenSSL: https://www.openssl.org/docs/

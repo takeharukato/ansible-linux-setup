@@ -1,84 +1,133 @@
 # radvd ロール
 
-このロールは Router Advertisement Daemon (radvd) を導入し, 管理ネットワーク向けに IPv6 ルーター広告 (Router Advertisement - RA) を配布します。Stateless Address Autoconfiguration (SLAAC) 用プレフィックスとデフォルトルート, RDNSS/DNSSL (DNS サーバ, サーチドメイン) 情報を RA で広告し, 設定ファイル `/etc/radvd.conf` から生成します。設定変更時は radvd を再起動します。
+本ロールは Router Advertisement Daemon (radvd) を導入し, 管理ネットワーク向けに IPv6 ルーター広告 (Router Advertisement - RA) を配布します。
+
+## 目次
+
+- [用語](#用語)
+- [概要](#概要)
+- [前提条件](#前提条件)
+- [実行方法](#実行方法)
+- [主要変数](#主要変数)
+  - [テンプレートと生成ファイル](#テンプレートと生成ファイル)
+- [実行フロー](#実行フロー)
+- [検証ポイント](#検証ポイント)
+- [注意事項](#注意事項)
+- [参考資料](#参考資料)
 
 ## 用語
 
 | 正式名称 | 略称 | 意味 |
 | --- | --- | --- |
-| Router Advertisement | RA | IPv6ネットワークでルータが送信するICMPv6メッセージ, プレフィックスやDNS情報を配布 |
-| Stateless Address Autoconfiguration | SLAAC | ルーター広告を用いたIPv6アドレス自動設定機構, DHCPサーバ不要 |
+| ユーザ | - | 機能を利用する人, 又は識別された利用主体。 |
+| ツール | - | 特定作業を実行するための機能や道具。 |
+| リソース | - | 処理に必要な計算機資源やデータ。 |
+| クラスタ | - | 複数の機器を連携させて一体運用する構成。 |
+| ディストリビューション | - | 基本ソフトウェアと関連部品をまとめた配布形態。 |
+| コンテナイメージ | - | コンテナ実行に必要な内容をまとめた保存形式。 |
+| プログラム | - | 計算機に処理をさせるための命令列。 |
+| コミュニティ | - | 共通目的のもとで継続的に活動する利用者集団。 |
+| プラグイン | - | 既存機能へ追加機能を組み込むための拡張部品。 |
+| サービスアカウント | - | 自動処理向けに用意する利用主体の識別情報。 |
+| コンテナランタイム | - | コンテナを起動, 停止, 管理する実行基盤。 |
+| リクエスト | - | 処理実行や情報取得を要求する操作。 |
+| コントローラ | - | 対象状態を監視し, 期待状態へ調整する制御機能。 |
+| メタデータ | - | 対象データの属性や説明を示す付加情報。 |
+| バックエンド | - | 利用者画面の背後で処理を実行する側。 |
+| ストレージ | - | データを保存する仕組み。 |
+| インストール | - | ソフトウェアを導入して利用可能にする作業。 |
+| マシン | - | 処理を実行する計算機。 |
+| プロビジョニング | - | 利用開始に必要な設定や資源を準備する作業。 |
+| ルーティング | - | 宛先までの経路を選択して転送する処理。 |
+| オブジェクト | - | ひとかたまりとして扱うデータ単位。 |
+| エージェント | - | 指示に従って処理を代行する構成要素。 |
+| ストア | - | データや成果物を保存する場所。 |
+| ジャーナル | - | 時系列の記録を保持する仕組み。 |
+| アカウント | - | 利用者や処理主体を識別する登録情報。 |
+| エンドポイント | - | 通信の接続先を表す識別点。 |
+| パターン | - | 繰り返し現れる構造や記述形式。 |
+| パケット | - | ネットワークで転送するデータ単位。 |
+| カーネル | - | 基本ソフトウェアの中核機能。 |
+| シェル | - | コマンド入力で計算機を操作する仕組み。 |
+| Playbook | - | 自動化処理の実行手順を記述したファイル。 |
+| Canonical | - | Ubuntu を提供する組織名。 |
+| Key-Value | - | キーと値の組で情報を表す方式。 |
+| IP | - | インターネットプロトコルの略称。 |
+| SQL | - | データベースを操作するための記述言語。 |
+| HTTP | - | WWW で情報をやり取りする通信手順。 |
+| HTTPS | - | 通信内容を暗号化して WWW 通信を行う方式。 |
+| RPM | - | RHEL 系で使用するパッケージ形式。 |
+| VM | - | 物理機器上で動作する仮想的な計算機。 |
+| localhost | - | 同一機器自身を指す名前。 |
+| root | - | Unix 系システムの最上位権限を持つ管理者識別子。 |
+| ソフトウェア | - | 情報処理システムで使用するプログラム, 手順, 規則及び関連文書の全体又は一部分。 |
+| アプリケーション | - | 利用者の目的を実現するために動作するソフトウェア。 |
+| パッケージ | - | ソフトウェア導入に必要なファイルをまとめた配布単位。 |
+| リポジトリ | - | ソフトウェアや設定情報を保管し, 取得できるようにした管理場所。 |
+| コマンド | - | 実行者が計算機へ処理を指示するための命令。 |
+| ホスト | - | 管理対象として識別される個別の計算機。 |
+| サーバ | - | 他の機器や利用者へ機能やデータを提供する計算機, 又はその役割。 |
+| コンテナ | - | アプリケーションを動かす隔離された実行単位。 |
+| ネットワーク | - | 機器同士を接続してデータをやり取りする仕組み。 |
+| プロトコル | - | 通信やデータ交換の手順を定めた取り決め。 |
+| ディレクトリ | - | ファイルを階層的に整理するための入れ物。 |
+| ログ | - | 処理の結果や状態を時系列で記録した情報。 |
+| コード | - | 処理内容を記述した文字列。 |
+| Kubernetes | K8s | コンテナを管理する基盤ソフトウェア。 |
+| Pod | - | Kubernetes でコンテナをまとめて管理する最小単位。 |
+| Linux | - | 多くの機器で使われる, 基本ソフトウェアの系統。 |
+| Debian | - | コミュニティ主導で開発される Linux ディストリビューション。 |
+| Ubuntu | - | Canonical が提供する Debian 系の Linux ディストリビューション。 |
+| Docker | - | コンテナイメージやコンテナの作成, 実行, 管理を行うコマンド。 |
+| Ansible | - | 設定の同一化や導入作業を所定の手順に従って自動化する仕組み。 |
+| World Wide Web | WWW | ネットワーク上で文書や情報を相互参照できる仕組み。 |
+| Service | - | サービスの英語表記。 |
+| Node | - | ノードの英語表記。 |
+| Makefile | - | 実行手順を定義したファイル。 |
+| API | - | アプリケーション同士がやり取りする方法を定めた仕様。 |
+| URL | - | WWW 上の資源の場所を示す文字列。 |
+| Router Advertisement | RA | IPv6 で経路情報を通知する仕組み。 |
+| Stateless Address Autoconfiguration | SLAAC | IPv6 の自動設定方式。 |
 | Recursive DNS Server | RDNSS | ルーター広告で配布されるDNSサーバアドレス情報 |
 | DNS Search List | DNSSL | ルーター広告で配布されるDNS検索ドメインリスト |
-| Internet Protocol version 6 | IPv6 | 128ビットアドレス空間を持つ次世代インターネットプロトコル |
+| Internet Protocol version 6 | IPv6 | 128 ビットアドレス空間を持つ次世代インターネットプロトコル。IPv4 アドレス枯渇問題を解決します。 |
 | Internet Control Message Protocol version 6 | ICMPv6 | IPv6ネットワークでの制御メッセージプロトコル, RA送信に使用 |
-| Domain Name System | DNS | ドメイン名とIPアドレスを対応付ける名前解決システム |
-| Operating System | OS | コンピュータのハードウェアとソフトウェアを管理する基本ソフトウェア |
-| Network Interface | — | ホストがネットワークに接続するための物理的または仮想的なインターフェース, ens192やeth0などの名前で識別 |
-| Prefix (IPv6) | — | IPv6アドレスのネットワーク部。記法: `2001:db8::/32` の`/32`がプレフィックス長 |
-| Lifetime | — | IPv6アドレスやプレフィックスの有効期期間 ( 秒 ) 。有効期限(ValidLifetime)と推奨期限(PreferredLifetime)がある |
-| Handler | — | Ansibleで, タスク実行後に条件付きで実行される処理。ファイル変更時の再起動などに使用 |
-| Template | — | Ansibleで, 変数を埋め込む設定ファイルのひな形。Jinja2形式で記述 |
-| Link-local Address | — | IPv6の自動割り当てアドレス。fe80::で始まる, ローカルネットワーク内でのみ有効 |
+| Domain Name System | DNS | 名前と IP アドレスを対応付ける仕組み。 |
+| Operating System | OS | 計算機の基本機能を管理し, アプリケーションを動作させる基盤ソフトウェア。 |
+| Network Interface | - | ホストがネットワークに接続するための物理的または仮想的なインターフェース, ens192やeth0などの名前で識別 |
+| Prefix (IPv6) | - | IPv6アドレスのネットワーク部。記法: `2001:db8::/32` の`/32`がプレフィックス長 |
+| Lifetime | - | IPv6アドレスやプレフィックスの有効期期間 ( 秒 ) 。有効期限(ValidLifetime)と推奨期限(PreferredLifetime)がある |
+| Handler | - | 通知時に実行する再処理です。 |
+| Template | - | 変数展開して出力する雛形ファイルです。 |
+| Link-local Address | - | IPv6の自動割り当てアドレス。fe80::で始まる, ローカルネットワーク内でのみ有効 |
+| Internet Protocol | IP | ネットワーク上で宛先を識別し, データを届けるための通信手順。 |
+| Process Identifier | PID | 実行中の処理を識別する番号。 |
+| Request for Comments | RFC | インターネット技術の仕様を公開する文書体系。 |
+| Red Hat Enterprise Linux | RHEL | Red Hat 社が提供する商用 Linux ディストリビューション。 |
+| Ansible Playbook | playbook | 自動化処理の実行手順を順序付きで記述したファイル。 |
+| systemd | - | Linux システムの初期化とサービス管理を行う仕組み。 |
+| IPv6 Link-Local Prefix | FE80 | 同一リンク内通信で使う IPv6 接頭辞。 |
+| Layer 2 | L2 | 同一ネットワーク内で装置間転送を扱う通信層。 |
+| ansible-playbookコマンド | - | Ansible Playbook を実行して自動構成処理を適用するコマンド。 |
+| `cat` | - | ファイル内容を標準出力へ表示するコマンド。 |
+| `getent` | - | システムの名前解決データベースを参照するコマンド。 |
+| ipコマンド | - | ネットワーク設定や経路情報の確認, 変更を行うコマンド。 |
+| `journalctl` | - | systemd ジャーナルのログを参照するコマンド。 |
+| `make` | - | Makefile に定義された処理を実行するコマンド。 |
+| `systemctl` | - | systemd 管理下のサービスを起動, 停止, 状態確認するコマンド。 |
+| アドレス | - | 宛先や所在を識別するための情報。 |
+| サービス | - | 機能を利用者や他システムへ提供する仕組み。 |
+| システム | - | 複数の要素が連携して目的を実現する仕組み全体。 |
+| ノード | - | ネットワークに接続された機器または処理単位。 |
+| ログイン | - | 利用者認証を行って利用を開始する操作。 |
+| ローカルアドレス | - | 実行中ホスト上で利用するアドレス。 |
+| 対象ホスト | - | Playbook による設定変更や導入処理の適用先となるホスト。 |
+| sudoコマンド | sudo | 一時的に管理者権限でコマンドを実行するためのコマンド。 |
 
-## 前提条件
+## 概要
+このロールは Router Advertisement Daemon (radvd) を導入し, 管理ネットワーク向けに IPv6 ルーター広告 (Router Advertisement - RA) を配布します。Stateless Address Autoconfiguration (SLAAC) 用プレフィックスとデフォルトルート, RDNSS/DNSSL (DNS サーバ, サーチドメイン) 情報を RA で広告し, 設定ファイル `/etc/radvd.conf` から生成します。設定変更時は radvd を再起動します。
 
-このロールを実行する前に, 以下の前提条件を満たしていることを確認してください。
-
-- **ホスト用途**: radvd はルータノード上で実行されることを想定しています。IPv6 通信を行うネットワークセグメントへの物理的な接続またはその代替が必要です。
-- **IPv6 管理ネットワーク**: ロールで配布する IPv6 プレフィックス (`radvd_router_advertisement_prefix`) は事前に定義されている必要があります。通常は `vars/all-config.yml` や `host_vars/<hostname>` で `gpm_mgmt_ipv6_prefix`/`gpm_mgmt_ipv6_addr_prefix_len` として定義します。
-- **ネットワークインターフェース**: `radvd_nic` パラメータに指定するネットワークインターフェース ( 例: `ens192`, `eth0` ) は対象ホストに存在する必要があります。
-- **Ansible の権限**: ロール実行にはルート権限 ( `become: true` ) が必要です。パッケージ管理, 設定ファイル配置, サービス制御を行うため。
-
-## 実行フロー
-
-このロールは以下の 6 つのステップで逐次処理をします。
-
-1. **Load Params** (`tasks/load-params.yml`): `vars/cross-distro.yml` から OS 別パッケージ名, サービス名を読み込みます。
-2. **Package** (`tasks/package.yml`): radvd パッケージをインストールします。既にインストール済みの場合はスキップします。
-3. **Directory** (`tasks/directory.yml`): radvd の補助ディレクトリが必要な場合は作成します。 ( 現在のテンプレート実装では空 )
-4. **User Group** (`tasks/user_group.yml`): radvd 実行ユーザー, グループの管理が必要な場合は設定します。 ( 現在のテンプレート実装では空 )
-5. **Config** (`tasks/config.yml`): テンプレート [templates/radvd.conf.j2](templates/radvd.conf.j2) から設定ファイルを生成し, `/etc/radvd.conf` に配置します。ファイルが変更された場合, `restart_radvd` ハンドラを通知します。
-6. **Service** (`tasks/service.yml`): ハンドラ [handlers/restart-radvd.yml](handlers/restart-radvd.yml) で radvd サービスを再起動し, `enabled: true` で起動時の自動起動を有効化します。
-
-各ステップは **`radvd_nic` が定義されており, かつ対象ホストのインターフェース一覧に存在する場合にのみ実行**されます。
-
-## 主要変数
-
-| 変数名 | 既定値 | 説明 |
-| --- | --- | --- |
-| `radvd_nic` | `{{ gpm_mgmt_nic \| default(mgmt_nic, true) }}` | RA を配布するインターフェース。 |
-| `radvd_router_advertisement_min_interval` | `30` | RA 送信最小間隔 (秒)。 |
-| `radvd_router_advertisement_max_interval` | `100` | RA 送信最大間隔 (秒)。 |
-| `radvd_router_advertisement_prefix` | `{{ gpm_mgmt_ipv6_prefix }}/{{ gpm_mgmt_ipv6_addr_prefix_len }}` | 広告する IPv6 プレフィックス。 |
-| `radvd_router_advertisement_reachable_time` | `3000` | AdvReachableTime (ms)。 |
-| `radvd_router_advertisement_retrans_timer` | `1000` | AdvRetransTimer (ms)。 |
-| `radvd_router_advertisement_default_lifetime` | `300` | デフォルトルータの lifetime (秒)。0 でデフォルトルート無効。 |
-| `radvd_router_advertisement_prefix_valid_lifetime` | `'infinity'` | プレフィックスの有効期限。 |
-| `radvd_router_advertisement_prefix_preferred_lifetime` | `'infinity'` | プレフィックスの推奨期限。 |
-| `radvd_dns_servers` | `[ "{{ ipv6_name_server1 }}", "{{ ipv6_name_server2 }}" ]` | RDNSS に広告する DNS サーバ。 |
-| `radvd_search_domains` | `[ "{{ dns_domain }}" ]` | DNSSL に広告する検索ドメイン。 |
-| `radvd_package` | OS 依存 (`radvd`) | インストールするパッケージ名。`vars/cross-distro.yml` で解決。 |
-| `radvd_service_name` | OS 依存 | 起動, 再起動するサービス名。`vars/cross-distro.yml` で解決。 |
-| `radvd_config_file_path` | `/etc/radvd.conf` | 生成する設定ファイルのパス。 |
-
-## 主な処理
-
-このロールで実行される主要な処理は以下の通りです。
-
-1. **OS 別パッケージ, サービス情報の読み込み** (`tasks/load-params.yml`)
-   - `vars/cross-distro.yml` から Debian/RHEL のパッケージ名, サービス名を取得します。
-
-2. **radvd パッケージの導入** (`tasks/package.yml`)
-   - `radvd_package` 変数 ( 既定値: `radvd` ) で指定されたパッケージをインストールします。
-
-3. **設定ファイルの生成と配置** (`tasks/config.yml`)
-   - テンプレート [templates/radvd.conf.j2](templates/radvd.conf.j2) を用いて `/etc/radvd.conf` を生成します。
-   - ファイルの内容が変更された場合, `restart_radvd` ハンドラを通知します。
-
-4. **ハンドラによる再起動** (`handlers/restart-radvd.yml`)
-   - systemd を使用して radvd サービスを再起動します。
-   - `enabled: true` により起動時の自動起動を有効化します。
+本ロールは, radvd に関する設定処理を実施します。
 
 ## テンプレートと出力
 
@@ -113,15 +162,14 @@
 - **動作**: systemd サービス `{{ radvd_service_name }}` を restart します。
 - **自動起動**: `enabled: true` により, システム起動時に radvd が自動的に起動されるよう設定します。
 
-## OS 差異
+## 前提条件
 
-radvd パッケージ, サービス名は OS によって異なります。`vars/cross-distro.yml` で以下のように定義されています。
+このロールを実行する前に, 以下の前提条件を満たしていることを確認してください。
 
-| 項目 | Debian/Ubuntu | RHEL/CentOS | 説明 |
-| --- | --- | --- | --- |
-| パッケージ名 | `radvd` | `radvd` | 両 OS で共通 |
-| サービス名 | `radvd` | `radvd` | 両 OS で共通 |
-| 設定ファイルパス | `/etc/radvd.conf` | `/etc/radvd.conf` | 両 OS で共通 |
+- **ホスト用途**: radvd はルータノード上で実行されることを想定しています。IPv6 通信を行うネットワークセグメントへの物理的な接続またはその代替が必要です。
+- **IPv6 管理ネットワーク**: ロールで配布する IPv6 プレフィックス (`radvd_router_advertisement_prefix`) は事前に定義されている必要があります。通常は `vars/all-config.yml` や `host_vars/<hostname>` で `gpm_mgmt_ipv6_prefix`/`gpm_mgmt_ipv6_addr_prefix_len` として定義します。
+- **ネットワークインターフェース**: `radvd_nic` パラメータに指定するネットワークインターフェース ( 例: `ens192`, `eth0` ) は対象ホストに存在する必要があります。
+- **Ansible の権限**: ロール実行にはルート権限 ( `become: true` ) が必要です。パッケージ管理, 設定ファイル配置, サービス制御を行うため。
 
 ## 実行方法
 
@@ -179,7 +227,56 @@ ansible-playbook -i inventory/hosts site.yml --tags "radvd" -e @vars/custom-radv
 
 または, `group_vars/all/all.yml` や `host_vars/<hostname>` で事前に設定してください。
 
-## 検証
+## 主要変数
+
+| 変数名 | 既定値 | 説明 |
+| --- | --- | --- |
+| `radvd_nic` | `{{ gpm_mgmt_nic \| default(mgmt_nic, true) }}` | RA を配布するインターフェース。 |
+| `radvd_router_advertisement_min_interval` | `30` | RA 送信最小間隔 (秒)。 |
+| `radvd_router_advertisement_max_interval` | `100` | RA 送信最大間隔 (秒)。 |
+| `radvd_router_advertisement_prefix` | `{{ gpm_mgmt_ipv6_prefix }}/{{ gpm_mgmt_ipv6_addr_prefix_len }}` | 広告する IPv6 プレフィックス。 |
+| `radvd_router_advertisement_reachable_time` | `3000` | AdvReachableTime (ms)。 |
+| `radvd_router_advertisement_retrans_timer` | `1000` | AdvRetransTimer (ms)。 |
+| `radvd_router_advertisement_default_lifetime` | `300` | デフォルトルータの lifetime (秒)。0 でデフォルトルート無効。 |
+| `radvd_router_advertisement_prefix_valid_lifetime` | `'infinity'` | プレフィックスの有効期限。 |
+| `radvd_router_advertisement_prefix_preferred_lifetime` | `'infinity'` | プレフィックスの推奨期限。 |
+| `radvd_dns_servers` | `[ "{{ ipv6_name_server1 }}", "{{ ipv6_name_server2 }}" ]` | RDNSS に広告する DNS サーバ。 |
+| `radvd_search_domains` | `[ "{{ dns_domain }}" ]` | DNSSL に広告する検索ドメイン。 |
+| `radvd_package` | OS 依存 (`radvd`) | インストールするパッケージ名。`vars/cross-distro.yml` で解決。 |
+| `radvd_service_name` | OS 依存 | 起動, 再起動するサービス名。`vars/cross-distro.yml` で解決。 |
+| `radvd_config_file_path` | `/etc/radvd.conf` | 生成する設定ファイルのパス。 |
+
+## テンプレートと生成ファイル
+
+本ロールでは以下のテンプレート / ファイルを出力します:
+主な展開先ホストは, 対象ホスト(既定) です。
+
+| テンプレートファイル名 | 出力先パス | 説明 |
+| --- | --- | --- |
+| `radvd.conf.j2` | `{{ radvd_config_file_path }}` (既定: `{{ radvd_config_file_path }}`) | IPv6 Router Advertisement のプレフィックス, DNS 配布, 有効期限を定義する radvd 設定です。 |
+
+## 実行フロー
+
+このロールは以下の 6 つのステップで逐次処理をします。
+
+1. **Load Params** (`tasks/load-params.yml`): `vars/cross-distro.yml` から OS 別パッケージ名, サービス名を読み込みます。
+2. **Package** (`tasks/package.yml`): radvd パッケージをインストールします。既にインストール済みの場合はスキップします。
+3. **Directory** (`tasks/directory.yml`): radvd の補助ディレクトリが必要な場合は作成します。 ( 現在のテンプレート実装では空 )
+4. **User Group** (`tasks/user_group.yml`): radvd 実行ユーザー, グループの管理が必要な場合は設定します。 ( 現在のテンプレート実装では空 )
+5. **Config** (`tasks/config.yml`): テンプレート [templates/radvd.conf.j2](templates/radvd.conf.j2) から設定ファイルを生成し, `/etc/radvd.conf` に配置します。ファイルが変更された場合, `restart_radvd` ハンドラを通知します。
+6. **Service** (`tasks/service.yml`): ハンドラ [handlers/restart-radvd.yml](handlers/restart-radvd.yml) で radvd サービスを再起動し, `enabled: true` で起動時の自動起動を有効化します。
+
+各ステップは **`radvd_nic` が定義されており, かつ対象ホストのインターフェース一覧に存在する場合にのみ実行**されます。
+
+## 検証ポイント
+
+実行者は以下の検証コマンドを実行し, 構文検査が成功することを確認します。
+
+```bash
+ansible-playbook -i inventory/hosts site.yml --syntax-check
+```
+
+期待結果: エラーが出力されず, syntax check が成功します。
 
 このセクションでは, ロール実行後に radvd が正常に動作していることを確認する検証手順を記載します。
 
@@ -388,6 +485,20 @@ Jan 20 10:30:10 router radvd[1234]: Sending RA on ens192
 - 定期的に RA を送信していること ( `Sending RA on ens192` が周期的に出力 ) 。
 - エラーやワーニングがないこと。
 
+## 注意事項
+
+実行者は既存の実行順依存を崩さないことを確認した上で本ロールを実行します。
+
+## OS 差異
+
+radvd パッケージ, サービス名は OS によって異なります。`vars/cross-distro.yml` で以下のように定義されています。
+
+| 項目 | Debian/Ubuntu | RHEL/CentOS | 説明 |
+| --- | --- | --- | --- |
+| パッケージ名 | `radvd` | `radvd` | 両 OS で共通 |
+| サービス名 | `radvd` | `radvd` | 両 OS で共通 |
+| 設定ファイルパス | `/etc/radvd.conf` | `/etc/radvd.conf` | 両 OS で共通 |
+
 ## 補足
 
 ### SLAAC と DHCPv6 の使い分け
@@ -402,11 +513,14 @@ Jan 20 10:30:10 router radvd[1234]: Sending RA on ens192
 
 ### トラブルシューティング
 
-- **RA が受信されない**: radvd サービスが起動しているか, インターフェースが正しくバインドされているか確認。`systemctl status radvd` と `/etc/radvd.conf` の `interface` セクションを確認。
-- **クライアント側にアドレスが付与されない**: SLAAC が有効化されているか確認 ( `AdvAutonomous on;` ) 。クライアント側の IPv6 設定を確認 ( `ip -6 addr` ) 。
-- **DNS が解決されない**: RDNSS/DNSSL がテンプレートに正しく展開されているか確認 ( Step 2 ) 。クライアント側の `/etc/resolv.conf` または `systemd-resolved` を確認 ( Step 5 ) 。
+- **RA が受信されない**: radvd サービスが起動していること, およびインターフェースが正しくバインドされていることを確認。`systemctl status radvd` と `/etc/radvd.conf` の `interface` セクションを確認。
+- **クライアント側にアドレスが付与されない**: SLAAC が有効化されていることを確認 ( `AdvAutonomous on;` ) 。クライアント側の IPv6 設定を確認 ( `ip -6 addr` ) 。
+- **DNS が解決されない**: RDNSS/DNSSL がテンプレートに正しく展開されていることを確認 ( Step 2 ) 。クライアント側の `/etc/resolv.conf` または `systemd-resolved` を確認 ( Step 5 ) 。
+## 参考資料
 
-## 参考リンク
+### 公式ドキュメント
+
+- radvd: https://www.litech.org/radvd/
 
 - [radvd - Router Advertisement Daemon](https://linux.die.net/man/8/radvd) — manページ ( 英語 ) 。
 - [RFC 4861 - Neighbor Discovery for IP version 6 (IPv6)](https://tools.ietf.org/html/rfc4861) — ルーター広告の仕様 ( 英語 ) 。

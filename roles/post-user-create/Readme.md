@@ -1,5 +1,141 @@
 # post-user-create ロール
 
+本ロールは `create-users` ロール実行後にユーザホーム関連の後処理を行うロールです。
+
+## 目次
+
+- [用語](#用語)
+- [概要](#概要)
+- [前提条件](#前提条件)
+- [実行方法](#実行方法)
+- [主要変数](#主要変数)
+- [テンプレートと生成ファイル](#テンプレートと生成ファイル)
+- [実行フロー](#実行フロー)
+- [検証ポイント](#検証ポイント)
+- [トラブルシューティング](#トラブルシューティング)
+- [注意事項](#注意事項)
+- [参考資料](#参考資料)
+
+## 用語
+
+| 正式名称 | 略称 | 意味 |
+| --- | --- | --- |
+| ユーザ | - | 機能を利用する人, 又は識別された利用主体。 |
+| ツール | - | 特定作業を実行するための機能や道具。 |
+| リソース | - | 処理に必要な計算機資源やデータ。 |
+| クラスタ | - | 複数の機器を連携させて一体運用する構成。 |
+| ディストリビューション | - | 基本ソフトウェアと関連部品をまとめた配布形態。 |
+| コンテナイメージ | - | コンテナ実行に必要な内容をまとめた保存形式。 |
+| プログラム | - | 計算機に処理をさせるための命令列。 |
+| コミュニティ | - | 共通目的のもとで継続的に活動する利用者集団。 |
+| プラグイン | - | 既存機能へ追加機能を組み込むための拡張部品。 |
+| サービスアカウント | - | 自動処理向けに用意する利用主体の識別情報。 |
+| コンテナランタイム | - | コンテナを起動, 停止, 管理する実行基盤。 |
+| リクエスト | - | 処理実行や情報取得を要求する操作。 |
+| コントローラ | - | 対象状態を監視し, 期待状態へ調整する制御機能。 |
+| メタデータ | - | 対象データの属性や説明を示す付加情報。 |
+| バックエンド | - | 利用者画面の背後で処理を実行する側。 |
+| ストレージ | - | データを保存する仕組み。 |
+| インストール | - | ソフトウェアを導入して利用可能にする作業。 |
+| マシン | - | 処理を実行する計算機。 |
+| プロビジョニング | - | 利用開始に必要な設定や資源を準備する作業。 |
+| ルーティング | - | 宛先までの経路を選択して転送する処理。 |
+| オブジェクト | - | ひとかたまりとして扱うデータ単位。 |
+| エージェント | - | 指示に従って処理を代行する構成要素。 |
+| ストア | - | データや成果物を保存する場所。 |
+| ジャーナル | - | 時系列の記録を保持する仕組み。 |
+| アカウント | - | 利用者や処理主体を識別する登録情報。 |
+| エンドポイント | - | 通信の接続先を表す識別点。 |
+| パターン | - | 繰り返し現れる構造や記述形式。 |
+| パケット | - | ネットワークで転送するデータ単位。 |
+| カーネル | - | 基本ソフトウェアの中核機能。 |
+| シェル | - | コマンド入力で計算機を操作する仕組み。 |
+| Playbook | - | 自動化処理の実行手順を記述したファイル。 |
+| Canonical | - | Ubuntu を提供する組織名。 |
+| Key-Value | - | キーと値の組で情報を表す方式。 |
+| IP | - | インターネットプロトコルの略称。 |
+| SQL | - | データベースを操作するための記述言語。 |
+| HTTP | - | WWW で情報をやり取りする通信手順。 |
+| HTTPS | - | 通信内容を暗号化して WWW 通信を行う方式。 |
+| RPM | - | RHEL 系で使用するパッケージ形式。 |
+| VM | - | 物理機器上で動作する仮想的な計算機。 |
+| localhost | - | 同一機器自身を指す名前。 |
+| root | - | Unix 系システムの最上位権限を持つ管理者識別子。 |
+| ソフトウェア | - | 情報処理システムで使用するプログラム, 手順, 規則及び関連文書の全体又は一部分。 |
+| アプリケーション | - | 利用者の目的を実現するために動作するソフトウェア。 |
+| パッケージ | - | ソフトウェア導入に必要なファイルをまとめた配布単位。 |
+| リポジトリ | - | ソフトウェアや設定情報を保管し, 取得できるようにした管理場所。 |
+| コマンド | - | 実行者が計算機へ処理を指示するための命令。 |
+| ホスト | - | 管理対象として識別される個別の計算機。 |
+| サーバ | - | 他の機器や利用者へ機能やデータを提供する計算機, 又はその役割。 |
+| コンテナ | - | アプリケーションを動かす隔離された実行単位。 |
+| ネットワーク | - | 機器同士を接続してデータをやり取りする仕組み。 |
+| アドレス | - | 宛先や所在を識別するための情報。 |
+| プロトコル | - | 通信やデータ交換の手順を定めた取り決め。 |
+| ディレクトリ | - | ファイルを階層的に整理するための入れ物。 |
+| ログ | - | 処理の結果や状態を時系列で記録した情報。 |
+| コード | - | 処理内容を記述した文字列。 |
+| Kubernetes | K8s | コンテナを管理する基盤ソフトウェア。 |
+| Pod | - | Kubernetes でコンテナをまとめて管理する最小単位。 |
+| Linux | - | 多くの機器で使われる, 基本ソフトウェアの系統。 |
+| Debian | - | コミュニティ主導で開発される Linux ディストリビューション。 |
+| Ubuntu | - | Canonical が提供する Debian 系の Linux ディストリビューション。 |
+| World Wide Web | WWW | ネットワーク上で文書や情報を相互参照できる仕組み。 |
+| Service | - | サービスの英語表記。 |
+| Node | - | ノードの英語表記。 |
+| Makefile | - | 実行手順を定義したファイル。 |
+| API | - | アプリケーション同士がやり取りする方法を定めた仕様。 |
+| URL | - | WWW 上の資源の場所を示す文字列。 |
+| Ansible | - | 設定の同一化や導入作業を所定の手順に従って自動化する仕組み。 |
+| Role | - | 特定の名前空間内で有効な権限の集合。 |
+| Ansible Task | task | 自動化処理の最小単位となる実行項目。 |
+| Template | - | 変数展開して出力する雛形ファイルです。 |
+| Ansible Playbook | - | 自動化処理の実行手順を順序付きで記述したファイル。 |
+| include_tasks | - | Ansible タスク内で別のタスクファイルを読み込む指定 |
+| with_items | - | Ansible でリスト内の複数アイテムに対して同じタスクを反復実行するループ制御 |
+| loop_control | - | Ansible ループの動作を制御するオプション, ループ変数名の変更など |
+| Emacs | - | テキスト編集機能が豊富な高機能テキストエディタ, 拡張可能な設定で開発環境として利用 |
+| Emacs Lisp | - | Emacs の拡張に使用されるプログラミング言語, .el 拡張子のファイルで記述 |
+| MELPA | - | Emacs Lisp Package Archive, Emacs パッケージの主要リポジトリ |
+| package.el | - | Emacs のパッケージ管理システム, リモートリポジトリからパッケージをダウンロード・インストール |
+| .emacs.d | - | Emacs ユーザ設定ディレクトリ, ホームディレクトリ直下に配置され, 初期化ファイルと設定ファイルを格納 |
+| /etc/skel | - | 新規ユーザ作成時にホームディレクトリへ自動コピーされるテンプレートファイルの保管ディレクトリ |
+| スケルトン環境 | - | /etc/skel 配下に構築される，新規ユーザ作成時に自動複製される初期設定ファイルとディレクトリの集合．プロキシ設定，シェル初期化ファイル，Emacs設定などを含む |
+| ホームディレクトリ | HOME directory | ユーザが所有する個人用ディレクトリ, /home/<ユーザ名> など |
+| 所有者 | owner | ファイルやディレクトリを所有するユーザ, ファイルパーミッションで制御 |
+| グループ | group | ファイルやディレクトリに割り当てられたグループ属性, 複数ユーザの権限グループ化に使用 |
+| 実行権限 | executable permission | ファイルが実行可能可否を設定するパーミッション, シェルスクリプトやバイナリを実行するために必要 |
+| passwd データベース | - | OS のユーザ情報を保管するシステムデータベース, ユーザ名, UID, GID, GECOS などを格納 |
+| getent | - | システムの名前解決データベースを参照するコマンド。 |
+| General Electric Comprehensive Operating System | GECOS | Unixパスワードファイルのユーザ情報フィールド, フルネームやオフィス情報を格納 |
+| Git | - | 分散バージョン管理システム, ソースコード変更の履歴管理と協業を支援 |
+| .gitconfig | - | Git の設定ファイル, ユーザの個人設定 (user.name, user.email など) を格納 |
+| Shell script | - | シェル (コマンドラインインタプリタ) で実行可能なスクリプト, テキストファイルで複数のコマンドを記述 |
+| Yet Another Markup Language | YAML | 設定ファイル形式です。 |
+| AUCTeX | - | Emacs 上で LaTeX を編集・コンパイルするための拡張機能 |
+| TRAMP | - | Transparent Remote Access, Multiple Protocol, Emacs でリモート機上のファイルをシームレスに編集 |
+| CMake | - | クロスプラットフォーム対応のビルドシステム, C/C++ などのプロジェクト構築を自動化 |
+| GNU Global | - | ソースコード検索とナビゲーション用ツール, 大規模プロジェクトの関数・シンボルを迅速に位置付け |
+| Grand Unified Debugger | GUD | Emacs に統合されたデバッガインターフェース, gdb など外部デバッガと連携 |
+| YaTeX | - | Emacs 上で日本語 LaTeX を編集するためのモード |
+| Docker | - | コンテナイメージやコンテナの作成, 実行, 管理を行うコマンド。 |
+| Berkeley Software Distribution | BSD | Unix 系オープンソースの系統名。 |
+| GNU Project | GNU | 自由に利用, 改変, 配布できるソフトウェア群を開発する計画。 |
+| Secure Shell | SSH | 遠隔の計算機へ安全に接続して操作する方式。 |
+| User Interface | UI | 利用者がソフトウェアを操作するための見た目と操作方法。 |
+| ansible-playbookコマンド | - | Ansible Playbook を実行して自動構成処理を適用するコマンド。 |
+| `cat` | - | ファイル内容を標準出力へ表示するコマンド。 |
+| `ls` | - | ファイルやディレクトリの一覧を表示するコマンド。 |
+| `make` | - | Makefile に定義された処理を実行するコマンド。 |
+| サービス | - | 機能を利用者や他システムへ提供する仕組み。 |
+| システム | - | 複数の要素が連携して目的を実現する仕組み全体。 |
+| データベース | - | 検索や更新ができるよう整理した情報の集合。 |
+| ノード | - | ネットワークに接続された機器または処理単位。 |
+| ログイン | - | 利用者認証を行って利用を開始する操作。 |
+| リモートホスト | - | ネットワーク越しに接続して操作する別ホスト。 |
+| 対象ホスト | - | Playbook による設定変更や導入処理の適用先となるホスト。 |
+| sudoコマンド | sudo | 一時的に管理者権限でコマンドを実行するためのコマンド。 |
+
 ## 概要
 
 本ロールは `create-users` ロール実行後にユーザホーム関連の後処理を行うロールです。
@@ -14,43 +150,48 @@
 
 本ロールは, `make run_post_user_create` により, 単体での実行が可能です。
 
-## 用語
+## オプション設定ファイルの更新手順
 
-| 正式名称 | 略称 | 意味 |
-| --- | --- | --- |
-| Ansible | - | インフラストラクチャ自動化ツール, 構成管理と自動デプロイメントに使用 |
-| Role | - | Ansible の再利用可能なタスク定義の集合, タスク・ハンドラ・テンプレートをまとめたもの |
-| Task | - | Ansible における単一の操作単位, 一つのアクション (パッケージインストール, ファイル配置など) を表現 |
-| Template | - | Ansible で使用される Jinja2 ベースのテンプレート, 変数埋め込みにより設定ファイルなどを動的生成 |
-| Playbook | - | Ansible の実行内容を定義するYAML形式のファイル, 複数のロールやタスクを組み合わせて記述 |
-| include_tasks | - | Ansible タスク内で別のタスクファイルを読み込む指定 |
-| with_items | - | Ansible でリスト内の複数アイテムに対して同じタスクを反復実行するループ制御 |
-| loop_control | - | Ansible ループの動作を制御するオプション, ループ変数名の変更など |
-| Emacs | - | テキスト編集機能が豊富な高機能テキストエディタ, 拡張可能な設定で開発環境として利用 |
-| Emacs Lisp | - | Emacs の拡張に使用されるプログラミング言語, .el 拡張子のファイルで記述 |
-| MELPA | - | Emacs Lisp Package Archive, Emacs パッケージの主要リポジトリ |
-| package.el | - | Emacs のパッケージ管理システム, リモートリポジトリからパッケージをダウンロード・インストール |
-| .emacs.d | - | Emacs ユーザ設定ディレクトリ, ホームディレクトリ直下に配置され, 初期化ファイルと設定ファイルを格納 |
-| /etc/skel | - | 新規ユーザ作成時にホームディレクトリへ自動コピーされるテンプレートファイルの保管ディレクトリ |
-| スケルトン環境 | - | /etc/skel 配下に構築される，新規ユーザ作成時に自動複製される初期設定ファイルとディレクトリの集合．プロキシ設定，シェル初期化ファイル，Emacs設定などを含む |
-| ホームディレクトリ | HOME directory | ユーザが所有する個人用ディレクトリ, /home/<ユーザ名> など |
-| 所有者 | owner | ファイルやディレクトリを所有するユーザ, ファイルパーミッションで制御 |
-| グループ | group | ファイルやディレクトリに割り当てられたグループ属性, 複数ユーザの権限グループ化に使用 |
-| 実行権限 | executable permission | ファイルが実行可能かどうかを設定するパーミッション, シェルスクリプトやバイナリを実行するために必要 |
-| passwd データベース | - | OS のユーザ情報を保管するシステムデータベース, ユーザ名, UID, GID, GECOS などを格納 |
-| getent | - | OS のシステムデータベース (passwd, group など) から情報を取得するコマンド |
-| General Electric Comprehensive Operating System | GECOS | Unixパスワードファイルのユーザ情報フィールド, フルネームやオフィス情報を格納 |
-| Git | - | 分散バージョン管理システム, ソースコード変更の履歴管理と協業を支援 |
-| .gitconfig | - | Git の設定ファイル, ユーザの個人設定 (user.name, user.email など) を格納 |
-| Shell script | - | シェル (コマンドラインインタプリタ) で実行可能なスクリプト, テキストファイルで複数のコマンドを記述 |
-| YAML Ain't Markup Language | YAML | 人間可読なデータシリアライゼーション形式, 設定ファイルで広く使用 |
-| AUCTeX | - | Emacs 上で LaTeX を編集・コンパイルするための拡張機能 |
-| TRAMP | - | Transparent Remote Access, Multiple Protocol, Emacs でリモート機上のファイルをシームレスに編集 |
-| CMake | - | クロスプラットフォーム対応のビルドシステム, C/C++ などのプロジェクト構築を自動化 |
-| GNU Global | - | ソースコード検索とナビゲーション用ツール, 大規模プロジェクトの関数・シンボルを迅速に位置付け |
-| Grand Unified Debugger | GUD | Emacs に統合されたデバッガインターフェース, gdb など外部デバッガと連携 |
-| YaTeX | - | Emacs 上で日本語 LaTeX を編集するためのモード |
-| Docker | - | コンテナ型の仮想化プラットフォーム, アプリケーションの配置と実行環境を標準化 |
+オプション Emacs 設定ファイル（auctex-mode-settings.el, cmake-settings.el 等）は `defaults/main.yml` で定義されている `emacs_optional_settings_files` リストから、自動的に `tasks/emacs-package-el-setting.yml` を生成します。
+
+### 生成手順
+
+1. `defaults/main.yml` の `emacs_optional_settings_files` にファイルを追加・削除
+2. 次のコマンドを実行してタスクファイルを再生成:
+
+```bash
+cd roles/post-user-create/tasks
+bash generate-emacs-settings.sh ..
+```
+
+または、ansible ディレクトリから実行する場合:
+
+```bash
+bash roles/post-user-create/tasks/generate-emacs-settings.sh roles/post-user-create
+```
+
+3. 生成結果を確認:
+
+```bash
+git diff tasks/emacs-package-el-setting.yml
+```
+
+### 例: 新しい Emacs モードを追加する場合
+
+1. テンプレートを作成: `templates/_emacs_d__new-mode-settings.el.j2`
+2. `defaults/main.yml` の `emacs_optional_settings_files` に `new-mode-settings.el` を追加
+3. 以下のいずれかの方法でタスクファイルを再生成:
+
+```bash
+# 方法1: role の tasks/ ディレクトリから実行
+cd roles/post-user-create/tasks
+bash generate-emacs-settings.sh ..
+
+# 方法2: ansible ディレクトリから実行
+bash roles/post-user-create/tasks/generate-emacs-settings.sh roles/post-user-create
+```
+
+すると新しいタスク「Deploy new-mode-settings.el from template to user home」が自動生成されます。
 
 ## 前提条件
 
@@ -59,18 +200,23 @@
 - リモートホストへの SSH 接続が確立されていること
 - 管理者権限 (sudo) が利用可能であること
 
-## 実行フロー
+## 実行方法
 
-本ロールは以下の順序で処理を実行します:
+```bash
+make run_post_user_create
+```
 
-1. **パラメータ読み込み** (load-params.yml): ロール単独実行時のために, `vars/all-config.yml` などの変数を再読み込みします。
-2. **パッケージ管理** (package.yml): 現在は空実装です。将来的にパッケージインストールが必要な場合に使用します。
-3. **ディレクトリ作成** (directory.yml): 現在は空実装です。将来的にディレクトリ作成が必要な場合に使用します。
-4. **ユーザ・グループ管理** (user_group.yml): 現在は空実装です。将来的にユーザ・グループ操作が必要な場合に使用します。
-5. **サービス管理** (service.yml): 現在は空実装です。将来的にサービス管理が必要な場合に使用します。
-6. **設定ファイル配置** (config.yml): `/etc/skel/bin/install-emacs-packages.sh` をテンプレートから生成します。
-7. **Emacsパッケージ管理** (emacs-package.yml, 条件付き): `create_emacs_package_install_script` が `true` で `create_user_emacs_package_list` に1要素以上定義されている場合に実行されます。
-8. **Git設定ファイル作成** (gitconfig.yml, 条件付き): `post_user_create_gitconfig_enabled` が `true` の場合に実行されます。
+または,
+
+```bash
+# site.yml 全体から post-user-create タグのみ実行
+ansible-playbook -i inventory/hosts site.yml --tags "post-user-create"
+
+# 特定ホストのみ対象
+ansible-playbook -i inventory/hosts site.yml --tags "post-user-create" -l hostname
+```
+
+**注:** 本ロールは `create-users` ロールが事前に実行済みであることを前提としています。
 
 ## 主要変数
 
@@ -97,58 +243,14 @@
 | --- | --- | --- |
 | `users_list` | `[]` | ロールが処理対象とするユーザ情報 (`vars/all-config.yml` で定義)。`name`, `home`, `shell` などを参照し, Emacsパッケージインストール時のアカウントとホームディレクトリを決定します。 |
 
-## 主な処理
+## テンプレートと生成ファイル
 
-本ロールは以下の処理を実行します。
+本ロールでは以下のテンプレート / ファイルを出力します:
 
-### パラメータ読み込み (load-params.yml)
-
-ロール単独実行時のために, `vars/all-config.yml` などの変数を再読み込みします。
-
-### パッケージ管理 (package.yml)
-
-現在は空実装です。将来的にパッケージインストールが必要な場合に使用します。
-
-### ディレクトリ作成 (directory.yml)
-
-現在は空実装です。将来的にディレクトリ作成が必要な場合に使用します。
-
-### ユーザ・グループ管理 (user_group.yml)
-
-現在は空実装です。将来的にユーザ・グループ操作が必要な場合に使用します。
-
-### サービス管理 (service.yml)
-
-現在は空実装です。将来的にサービス管理が必要な場合に使用します。
-
-### 設定ファイル配置 (config.yml)
-
-`create_emacs_package_install_script` が `true` の場合, `/etc/skel/bin/install-emacs-packages.sh` をテンプレートから生成します。このスクリプトは, 新規ユーザ作成時にホームディレクトリにコピーされます。
-
-### Emacsパッケージ管理 (emacs-package.yml)
-
-`create_emacs_package_install_script` が `true` で, `create_user_emacs_package_list` に1要素以上定義されている場合に実行されます。
-
-#### インストールスクリプトの配布 (emacs-package-install.yml)
-
-- 既存ユーザのホームディレクトリに `~/bin/install-emacs-packages.sh` が存在するかを確認
-- 存在しない場合, `/etc/skel/bin/install-emacs-packages.sh` からコピー
-- ユーザ権限でスクリプトを実行し, 指定されたEmacsパッケージをインストール
-
-#### オプション設定ファイルの配布 (emacs-package-el-setting.yml)
-
-- `emacs_optional_settings_files` で定義された20個のファイルを, テンプレートから各ユーザの `~/.emacs.d/user_settings/` に配置
-- このタスクファイルは `generate-emacs-settings.sh` により自動生成されます
-
-### Git設定ファイル作成 (gitconfig.yml)
-
-`post_user_create_gitconfig_enabled` が `true` の場合に実行されます。
-
-1. `ansible.builtin.getent` でシステムのpasswdデータベースからユーザ情報を取得 (GECOSフィールド取得のため)
-2. `users_list` の各ユーザのホームディレクトリに `.gitconfig` をテンプレートから配置
-3. `post_user_create_gitconfig_use_login_name` の設定に応じて, `user.name` にログイン名またはGECOSフィールドを使用
-
-## テンプレート/ファイル
+| テンプレートファイル名 | 出力先パス | 説明 |
+| --- | --- | --- |
+| `templates/install-emacs-packages.sh.j2` | `/etc/skel/bin/install-emacs-packages.sh` (既定: `/etc/skel/bin/install-emacs-packages.sh`) | Emacs パッケージ導入スクリプトを出力します。 |
+| `templates/_gitconfig.j2` | `~/.gitconfig` (既定: `~/.gitconfig`) | ユーザの Git 設定ファイルを出力します。 |
 
 ### Emacs設定ファイル
 
@@ -199,66 +301,18 @@
 | `install-emacs-packages.sh.j2` | `/etc/skel/bin/install-emacs-packages.sh` | Emacsパッケージインストールスクリプト, `create_user_emacs_package_list` で指定されたパッケージをインストール |
 | `_gitconfig.j2` | `~/.gitconfig` | Gitユーザ設定ファイル, user.name と user.email を設定 |
 
-## 実行方法
+## 実行フロー
 
-```bash
-make run_post_user_create
-```
+本ロールは以下の順序で処理を実行します:
 
-または,
-
-```bash
-# site.yml 全体から post-user-create タグのみ実行
-ansible-playbook -i inventory/hosts site.yml --tags "post-user-create"
-
-# 特定ホストのみ対象
-ansible-playbook -i inventory/hosts site.yml --tags "post-user-create" -l hostname
-```
-
-**注:** 本ロールは `create-users` ロールが事前に実行済みであることを前提としています。
-
-## オプション設定ファイルの更新手順
-
-オプション Emacs 設定ファイル（auctex-mode-settings.el, cmake-settings.el 等）は `defaults/main.yml` で定義されている `emacs_optional_settings_files` リストから、自動的に `tasks/emacs-package-el-setting.yml` を生成します。
-
-### 生成手順
-
-1. `defaults/main.yml` の `emacs_optional_settings_files` にファイルを追加・削除
-2. 次のコマンドを実行してタスクファイルを再生成:
-
-```bash
-cd roles/post-user-create/tasks
-bash generate-emacs-settings.sh ..
-```
-
-または、ansible ディレクトリから実行する場合:
-
-```bash
-bash roles/post-user-create/tasks/generate-emacs-settings.sh roles/post-user-create
-```
-
-3. 生成結果を確認:
-
-```bash
-git diff tasks/emacs-package-el-setting.yml
-```
-
-### 例: 新しい Emacs モードを追加する場合
-
-1. テンプレートを作成: `templates/_emacs_d__new-mode-settings.el.j2`
-2. `defaults/main.yml` の `emacs_optional_settings_files` に `new-mode-settings.el` を追加
-3. 以下のいずれかの方法でタスクファイルを再生成:
-
-```bash
-# 方法1: role の tasks/ ディレクトリから実行
-cd roles/post-user-create/tasks
-bash generate-emacs-settings.sh ..
-
-# 方法2: ansible ディレクトリから実行
-bash roles/post-user-create/tasks/generate-emacs-settings.sh roles/post-user-create
-```
-
-すると新しいタスク「Deploy new-mode-settings.el from template to user home」が自動生成されます。
+1. **パラメータ読み込み** (load-params.yml): ロール単独実行時のために, `vars/all-config.yml` などの変数を再読み込みします。
+2. **パッケージ管理** (package.yml): 現在は空実装です。将来的にパッケージインストールが必要な場合に使用します。
+3. **ディレクトリ作成** (directory.yml): 現在は空実装です。将来的にディレクトリ作成が必要な場合に使用します。
+4. **ユーザ・グループ管理** (user_group.yml): 現在は空実装です。将来的にユーザ・グループ操作が必要な場合に使用します。
+5. **サービス管理** (service.yml): 現在は空実装です。将来的にサービス管理が必要な場合に使用します。
+6. **設定ファイル配置** (config.yml): `/etc/skel/bin/install-emacs-packages.sh` をテンプレートから生成します。
+7. **Emacsパッケージ管理** (emacs-package.yml, 条件付き): `create_emacs_package_install_script` が `true` で `create_user_emacs_package_list` に1要素以上定義されている場合に実行されます。
+8. **Git設定ファイル作成** (gitconfig.yml, 条件付き): `post_user_create_gitconfig_enabled` が `true` の場合に実行されます。
 
 ## 検証ポイント
 
@@ -430,6 +484,14 @@ yaml-mode-20231211.732
   - パッケージ名にバージョン番号が付加された形式 (例: `dockerfile-mode-20231130.1801`) でディレクトリが存在
 - 注: スクリプト実行までは本ロールの責務外だが, ユーザが手動で `~/bin/install-emacs-packages.sh` を実行した後に確認可能
 
+## トラブルシューティング
+
+実行者はエラー発生時に build-*.log を確認し, 失敗した task 名と不足変数を特定します。
+
+## 注意事項
+
+実行者は既存の実行順依存を崩さないことを確認した上で本ロールを実行します。
+
 ## 補足
 
 ### GECOSフィールド取得について
@@ -444,3 +506,8 @@ getent_passwd_field_gecos_rhel:   3
 ```
 
 現在は両ディストリビューションとも, フィールドインデックス `3` でGECOS情報を取得しています。
+## 参考資料
+
+### 公式ドキュメント
+
+- Ansible User module: https://docs.ansible.com/ansible/latest/collections/ansible/builtin/user_module.html
