@@ -145,7 +145,6 @@ ansible-playbook -i inventory/hosts site.yml --tags "aide"
 2. [tasks/package.yml](tasks/package.yml) が `aide_packages` で定義されたパッケージ (`aide`) を `state: present` で導入します。
 3. [tasks/directory.yml](tasks/directory.yml) を実行します。現行実装では, RHEL 系のドロップイン運用差異に関する注記のみで, 追加の作成処理は定義していません。
 4. [tasks/user_group.yml](tasks/user_group.yml), [tasks/service.yml](tasks/service.yml), [tasks/config.yml](tasks/config.yml) を順に実行します。現行実装ではこれらのタスクに追加処理定義はありません。
-5. ロール実行後に, 対象ホストで `aide --version` と OS 別のパッケージ確認コマンドを実行し, 導入結果を検証します。
 
 ## 検証ポイント
 
