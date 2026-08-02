@@ -123,13 +123,9 @@ RHEL と Ubuntu のパッケージから導入します。
 
 ```bash
 make run_aide
-
-
-本ロールは, AIDE の導入と初期化に必要な処理を順に実行する。
-
-1. OS 種別に応じて AIDE パッケージを導入する。
-2. AIDE の設定ファイルを配置し, 監視対象と除外対象を定義する。
-3. AIDE データベースを初期化し, 基準値を作成する。
+```
+または,
+```bash
 ansible-playbook -i inventory/hosts site.yml --tags "aide"
 ```
 
@@ -141,27 +137,209 @@ ansible-playbook -i inventory/hosts site.yml --tags "aide"
 | `aide_config_path` | AIDE の設定ファイルのパス。 | OS 依存 | `aide_config_path: "/etc/aide/aide.conf"` |
 | `aide_database_path` | AIDE のデータベースのパス。 | `"/var/lib/aide/aide.db.gz"` | `aide_database_path: "/var/lib/aide/aide.db.gz"` |
 | `aide_config_dropin_dir` | AIDE の設定ファイルのドロップイン用ディレクトリのパス。 | Debian/Ubuntu 系では `"/etc/aide/aide.conf.d"`, RHEL 系では未使用 | `aide_config_dropin_dir: "/etc/aide/aide.conf.d"` |
-| `(該当なし)` | 本ロール実装にはロール全体の実行可否を切り替える `*_enabled` 変数はありません。 | `-` | `-` |
 
 ## 実行フロー
 
-1. load-params.yml により変数が自動的に読み込まれる。
-2. 本ロール固有の task が順次実行される。
-3. 検証コマンドを実行して期待結果を確認します。
+
+1. [tasks/load-params.yml](tasks/load-params.yml) で OS ごとのパッケージ定義, クロスディストリビューション定義, 共通定義を取り込みます。
+2. [tasks/package.yml](tasks/package.yml) が `aide_packages` で定義されたパッケージ (`aide`) を `state: present` で導入します。
+3. [tasks/directory.yml](tasks/directory.yml) を実行します。現行実装では, RHEL 系のドロップイン運用差異に関する注記のみで, 追加の作成処理は定義していません。
+4. [tasks/user_group.yml](tasks/user_group.yml), [tasks/service.yml](tasks/service.yml), [tasks/config.yml](tasks/config.yml) を順に実行します。現行実装ではこれらのタスクに追加処理定義はありません。
+5. ロール実行後に, 対象ホストで `aide --version` と OS 別のパッケージ確認コマンドを実行し, 導入結果を検証します。
 
 ## 検証ポイント
 
-以下の検証コマンドを実行し, 構文検査が成功することを確認します。
+導入後の `aide` コマンドの検証は, 対象ホストで以下の順に実施します。
+
+1. 実行ファイルの配置確認。
+2. パッケージ導入状態の確認。
+3. `aide --version` によるコマンド実行確認。
+4. 設定ファイルパスの存在確認。
+
+Ubuntu/Debian と RHEL 系の両方で共通して, 以下のコマンドを実行します。
 
 ```bash
-ansible-playbook -i inventory/hosts site.yml --syntax-check
+command -v aide
+aide --version
 ```
 
-期待結果: エラーが出力されず, syntax check が成功します。
+実行結果の例:
+```bash
+$ command -v aide
+/usr/bin/aide
+$ aide --version
+AIDE 0.18.6
+
+Compile-time options:
+use pcre2: mandatory
+use pthread: yes
+use zlib compression: yes
+use POSIX ACLs: yes
+use SELinux: yes
+use xattr: yes
+use POSIX 1003.1e capabilities: yes
+use e2fsattrs: yes
+use cURL: no
+use Mhash: yes
+use GNU crypto library: no
+use Linux Auditing Framework: yes
+use locale: no
+syslog ident: aide
+syslog logopt: LOG_CONS
+syslog priority: LOG_NOTICE
+default syslog facility: LOG_LOCAL0
+
+Default config values:
+config file: <none>
+database_in: <none>
+database_out: <none>
+
+Available compiled-in attributes:
+acl: yes
+xattrs: yes
+selinux: yes
+e2fsattrs: yes
+caps: yes
+
+Available hashsum attributes:
+md5: yes
+sha1: yes
+sha256: yes
+sha512: yes
+rmd160: yes
+tiger: yes
+crc32: yes
+crc32b: yes
+haval: yes
+whirlpool: yes
+gost: yes
+stribog256: no
+stribog512: no
+
+Default compound groups:
+R: l+p+u+g+s+c+m+i+n+md5+acl+selinux+xattrs+ftype+e2fsattrs+caps
+L: l+p+u+g+i+n+acl+selinux+xattrs+ftype+e2fsattrs+caps
+>: l+p+u+g+s+i+n+acl+selinux+xattrs+ftype+e2fsattrs+caps+growing
+H: md5+sha1+rmd160+tiger+crc32+haval+gost+crc32b+sha256+sha512+whirlpool
+X: acl+selinux+xattrs+e2fsattrs+caps
+$ echo $?
+0
+```
+
+期待結果は以下の通りです。
+
+- `command -v aide` が `/usr/bin/aide` を返すこと。
+- `aide --version` が終了コード 0 で完了(`echo $?`の結果が0となること)し, 版数文字列を表示すること。
+
+Ubuntu/Debian 系では, 追加で以下のコマンドを実行し, aideパッケージが導入されていることを確認します:
+
+```bash
+dpkg -l | grep -E '^ii\s+aide\b'
+```
+
+Ubuntu/Debian 系での実行結果の例:
+```bash
+dpkg -l | grep -E '^ii\s+aide\b'
+ii  aide                                             0.18.6-2ubuntu0.1                                amd64        Advanced Intrusion Detection Environment - dynamic binary
+ii  aide-common                                      0.18.6-2ubuntu0.1                                all          Advanced Intrusion Detection Environment - Common files
+```
+
+RHEL/AlmaLinux 系では, 追加で以下のコマンドを実行し, aideパッケージが導入されていることを確認します:
+```bash
+rpm -q aide
+```
+RHEL 系での実行結果の例:
+```bash
+$ rpm -q aide
+aide-0.19.2-5.el9_8.1.x86_64
+```
+
+初回運用前に整合性データベースを作成するために以下を実行します:
+
+```bash
+sudo aide --init
+sudo cp /var/lib/aide/aide.db.new.gz /var/lib/aide/aide.db.gz
+```
+
+上記実行後, `sudo aide --check` が実行可能であることを確認します。
+
+実行結果の例:
+```bash
+$ sudo aide --init
+Start timestamp: 2026-08-02 11:00:14 +0900 (AIDE 0.19.2)
+AIDE successfully initialized database.
+New AIDE database written to /var/lib/aide/aide.db.new.gz
+
+Number of entries:      138746
+
+---------------------------------------------------
+The attributes of the (uncompressed) database(s):
+---------------------------------------------------
+
+/var/lib/aide/aide.db.new.gz
+ SHA256    : RU5N9z8gAL6K2lxwcT3hU3/+Tb14M6u5
+             mXVQ+cVkq2A=
+ SHA512    : OF0ReXVtC6bSvJQiLeRTI7S5OkcbO6gI
+             lU/DipYnzx+7t+aBPwDugeWcy3OuX8he
+             df4SOGwM5+fiKnOBCDBOaA==
+ STRIBOG256: /ICeSUPmgNNcL1YkLV/8Vt+FPUSDIbGE
+             nlxvcTJZZEE=
+ STRIBOG512: BqKNV+HXUAwaJ66awLjTJ/mBQNNbtsWh
+             j57FSzoRBizmr54hz4YMh5x7RbWwd+b2
+             mpeyW5Md3E/L0NQWWIxKRw==
+ SHA512/256: D+A17iIwQFPM+fSRkJHgWogIVNtvQfaP
+             Ivil9Xg7+7s=
+ SHA3-256  : zBFECdhNya7Dp8Q84sXRYB8k7xhNlt/V
+             aJJeGNmnkvU=
+ SHA3-512  : fOqQlcWQV8/C0mrc7X+8W5BDnTftF5vS
+             H70IjZDz0Bo2oCrN5ee3Fbs7YsVJze17
+             Wxt1hsZWQdxTaEQ+zD5FYQ==
+
+
+End timestamp: 2026-08-02 11:02:31 +0900 (run time: 2m 17s)
+$ sudo cp /var/lib/aide/aide.db.new.gz /var/lib/aide/aide.db.gz
+$ sudo aide --check
+Start timestamp: 2026-08-02 11:03:54 +0900 (AIDE 0.19.2)
+AIDE found NO differences between database and filesystem. Looks okay!!
+
+Number of entries:      138746
+
+---------------------------------------------------
+The attributes of the (uncompressed) database(s):
+---------------------------------------------------
+
+/var/lib/aide/aide.db.gz
+ SHA256    : RU5N9z8gAL6K2lxwcT3hU3/+Tb14M6u5
+             mXVQ+cVkq2A=
+ SHA512    : OF0ReXVtC6bSvJQiLeRTI7S5OkcbO6gI
+             lU/DipYnzx+7t+aBPwDugeWcy3OuX8he
+             df4SOGwM5+fiKnOBCDBOaA==
+ STRIBOG256: /ICeSUPmgNNcL1YkLV/8Vt+FPUSDIbGE
+             nlxvcTJZZEE=
+ STRIBOG512: BqKNV+HXUAwaJ66awLjTJ/mBQNNbtsWh
+             j57FSzoRBizmr54hz4YMh5x7RbWwd+b2
+             mpeyW5Md3E/L0NQWWIxKRw==
+ SHA512/256: D+A17iIwQFPM+fSRkJHgWogIVNtvQfaP
+             Ivil9Xg7+7s=
+ SHA3-256  : zBFECdhNya7Dp8Q84sXRYB8k7xhNlt/V
+             aJJeGNmnkvU=
+ SHA3-512  : fOqQlcWQV8/C0mrc7X+8W5BDnTftF5vS
+             H70IjZDz0Bo2oCrN5ee3Fbs7YsVJze17
+             Wxt1hsZWQdxTaEQ+zD5FYQ==
+
+
+End timestamp: 2026-08-02 11:05:56 +0900 (run time: 2m 2s)
+```
 
 ## トラブルシューティング
 
-エラー発生時は build-*.log を確認し, 失敗した task 名と不足変数を特定します。
+| 事象 | 主な原因 | 対処方法 |
+| --- | --- | --- |
+| `aide: command not found` が表示される。 | パッケージ導入に失敗している, または PATH に `/usr/bin` が含まれていない。 | `dpkg -l` または `rpm -q` で `aide` 導入有無を確認する。未導入ならロールを再実行し, 導入済みなら `echo "$PATH"` を確認する。 |
+| `aide --version` が失敗する。 | パッケージ破損, 依存関係不整合, 実行権限異常。 | `command -v aide` とパッケージ検証(`rpm -V aide` またはパッケージ再導入)を実施する。必要に応じて `aide` を再導入する。 |
+| `sudo aide --check` 実行時にデータベース未存在エラーが出る。 | 初期化(`aide --init`)を未実施。 | `sudo aide --init` を実行し, `/var/lib/aide/aide.db.new.gz` を `/var/lib/aide/aide.db.gz` へ配置してから再実行する。 |
+| 設定ファイルが見つからない。 | OS別の設定ファイルパスを誤って参照している。 | Ubuntu/Debian 系は `/etc/aide/aide.conf`, RHEL 系は `/etc/aide.conf` を確認する。実環境の `aide_config_path` 定義値を見直す。 |
+| `aide --check` 実行時に権限エラーが出る。 | root 権限が必要なパスを一般ユーザで参照している。 | `sudo aide --check` で実行する。sudo 実行権限がない場合は対象ホストの権限設定を見直す。 |
 
 ## 注意事項
 

@@ -616,10 +616,6 @@ GitLabのバックアップを作成およびアーカイブする
 
 ## 実行フロー
 
-1. 実行者が load-params.yml により変数を読み込む。
-2. 実行者が本ロール固有の task を順次実行します。
-3. 実行者が検証コマンドを実行して期待結果を確認します。
-
 1. [tasks/load-params.yml](tasks/load-params.yml) で OS ごとのパッケージ定義や共通パラメータを取り込みます。
 2. `gitlab_clean_install` や `gitlab_remove_container_images` が有効な場合, [tasks/config-clean-install.yml](tasks/config-clean-install.yml) が既存ディレクトリと Docker イメージを削除します。
 3. [tasks/directory-gitlab.yml](tasks/directory-gitlab.yml) が GitLab 用ユーザ / グループを確認し, ホーム, 設定, データ, バックアップ各ディレクトリを所有権付きで作成します。
