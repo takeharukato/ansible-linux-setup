@@ -82,12 +82,12 @@
 | Playbook | - | 自動化処理の実行手順を記述したファイル。 |
 | Canonical | - | Ubuntu を提供する組織名。 |
 | Key-Value | - | キーと値の組で情報を表す方式。 |
-| IP | - | インターネットプロトコルの略称。 |
-| SQL | - | データベースを操作するための記述言語。 |
-| HTTP | - | WWW で情報をやり取りする通信手順。 |
-| HTTPS | - | 通信内容を暗号化して WWW 通信を行う方式。 |
-| RPM | - | RHEL 系で使用するパッケージ形式。 |
-| VM | - | 物理機器上で動作する仮想的な計算機。 |
+| Internet Protocol | IP | インターネットプロトコルの略称。 |
+| Structured Query Language | SQL | データベースを操作するための記述言語。 |
+| Hypertext Transfer Protocol | HTTP | WWW で情報をやり取りする通信手順。 |
+| Hypertext Transfer Protocol Secure | HTTPS | 通信内容を暗号化して WWW 通信を行う方式。 |
+| RPM Package Manager | RPM | RHEL 系で使用するパッケージ形式。 |
+| Virtual Machine | VM | 物理機器上で動作する仮想的な計算機。 |
 | localhost | - | 同一機器自身を指す名前。 |
 | ソフトウェア | - | 情報処理システムで使用するプログラム, 手順, 規則及び関連文書の全体又は一部分。 |
 | アプリケーション | - | 利用者の目的を実現するために動作するソフトウェア。 |
@@ -111,8 +111,8 @@
 | Service | - | サービスの英語表記。 |
 | Node | - | ノードの英語表記。 |
 | Makefile | - | 実行手順を定義したファイル。 |
-| API | - | アプリケーション同士がやり取りする方法を定めた仕様。 |
-| URL | - | WWW 上の資源の場所を示す文字列。 |
+| Application Programming Interface | API | アプリケーション同士がやり取りする方法を定めた仕様。 |
+| Uniform Resource Locator | URL | WWW 上の資源の場所を示す文字列。 |
 | Ansible | - | 設定の同一化や導入作業を所定の手順に従って自動化する仕組み。 |
 | GNU Bourne Again Shell | Bash | GNU プロジェクトが提供する Unix 系シェル。 |
 | C/C++ | - | C 言語と C++ 言語をまとめて示す表記。 |

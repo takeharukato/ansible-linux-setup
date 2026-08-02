@@ -53,12 +53,12 @@
 | Playbook | - | 自動化処理の実行手順を記述したファイル。 |
 | Canonical | - | Ubuntu を提供する組織名。 |
 | Key-Value | - | キーと値の組で情報を表す方式。 |
-| IP | - | インターネットプロトコルの略称。 |
-| SQL | - | データベースを操作するための記述言語。 |
-| HTTP | - | WWW で情報をやり取りする通信手順。 |
-| HTTPS | - | 通信内容を暗号化して WWW 通信を行う方式。 |
-| RPM | - | RHEL 系で使用するパッケージ形式。 |
-| VM | - | 物理機器上で動作する仮想的な計算機。 |
+| Internet Protocol | IP | インターネットプロトコルの略称。 |
+| Structured Query Language | SQL | データベースを操作するための記述言語。 |
+| Hypertext Transfer Protocol | HTTP | WWW で情報をやり取りする通信手順。 |
+| Hypertext Transfer Protocol Secure | HTTPS | 通信内容を暗号化して WWW 通信を行う方式。 |
+| RPM Package Manager | RPM | RHEL 系で使用するパッケージ形式。 |
+| Virtual Machine | VM | 物理機器上で動作する仮想的な計算機。 |
 | localhost | - | 同一機器自身を指す名前。 |
 | root | - | Unix 系システムの最上位権限を持つ管理者識別子。 |
 | ソフトウェア | - | 情報処理システムで使用するプログラム, 手順, 規則及び関連文書の全体又は一部分。 |
@@ -84,8 +84,8 @@
 | Service | - | サービスの英語表記。 |
 | Node | - | ノードの英語表記。 |
 | Makefile | - | 実行手順を定義したファイル。 |
-| API | - | アプリケーション同士がやり取りする方法を定めた仕様。 |
-| URL | - | WWW 上の資源の場所を示す文字列。 |
+| Application Programming Interface | API | アプリケーション同士がやり取りする方法を定めた仕様。 |
+| Uniform Resource Locator | URL | WWW 上の資源の場所を示す文字列。 |
 | Ansible | - | 設定の同一化や導入作業を所定の手順に従って自動化する仕組み。 |
 | Role | - | 特定の名前空間内で有効な権限の集合。 |
 | Ansible Task | task | 自動化処理の最小単位となる実行項目。 |
@@ -96,7 +96,7 @@
 | loop_control | - | Ansible ループの動作を制御するオプション, ループ変数名の変更など |
 | Emacs | - | テキスト編集機能が豊富な高機能テキストエディタ, 拡張可能な設定で開発環境として利用 |
 | Emacs Lisp | - | Emacs の拡張に使用されるプログラミング言語, .el 拡張子のファイルで記述 |
-| MELPA | - | Emacs Lisp Package Archive, Emacs パッケージの主要リポジトリ |
+| Milkypostman's Emacs Lisp Package Archive | MELPA | Emacs パッケージの主要リポジトリ |
 | package.el | - | Emacs のパッケージ管理システム, リモートリポジトリからパッケージをダウンロード・インストール |
 | .emacs.d | - | Emacs ユーザ設定ディレクトリ, ホームディレクトリ直下に配置され, 初期化ファイルと設定ファイルを格納 |
 | /etc/skel | - | 新規ユーザ作成時にホームディレクトリへ自動コピーされるテンプレートファイルの保管ディレクトリ |
@@ -113,7 +113,7 @@
 | Shell script | - | シェル (コマンドラインインタプリタ) で実行可能なスクリプト, テキストファイルで複数のコマンドを記述 |
 | Yet Another Markup Language | YAML | 設定ファイル形式です。 |
 | AUCTeX | - | Emacs 上で LaTeX を編集・コンパイルするための拡張機能 |
-| TRAMP | - | Transparent Remote Access, Multiple Protocol, Emacs でリモート機上のファイルをシームレスに編集 |
+| Transparent Remote Access, Multiple Protocols | TRAMP | Emacs でリモート機上のファイルをシームレスに編集 |
 | CMake | - | クロスプラットフォーム対応のビルドシステム, C/C++ などのプロジェクト構築を自動化 |
 | GNU Global | - | ソースコード検索とナビゲーション用ツール, 大規模プロジェクトの関数・シンボルを迅速に位置付け |
 | Grand Unified Debugger | GUD | Emacs に統合されたデバッガインターフェース, gdb など外部デバッガと連携 |
