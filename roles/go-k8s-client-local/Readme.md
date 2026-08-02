@@ -8,7 +8,6 @@
   - [目次](#目次)
   - [用語](#用語)
   - [概要](#概要)
-  - [主な処理](#主な処理)
   - [前提条件](#前提条件)
   - [実行方法](#実行方法)
   - [主要変数](#主要変数)
@@ -17,7 +16,6 @@
   - [検証ポイント](#検証ポイント)
   - [トラブルシューティング](#トラブルシューティング)
   - [注意事項](#注意事項)
-  - [検証例](#検証例)
   - [参考資料](#参考資料)
     - [公式ドキュメント](#公式ドキュメント)
 
@@ -116,10 +114,6 @@
 - ローカルパッケージの転送経路は, 構築ホスト -> 制御ノード -> 対象ホストです。
 - 導入後に, `go.mod` 内の `k8s.io/client-go` 版数を検証します。
 
-## 主な処理
-
-本ロールは tasks/main.yml から task 群を呼び出し, 設定適用と検証を実施します。
-
 ## 前提条件
 
 - 対象 OS: Debian/Ubuntu系, RHEL系。
@@ -129,8 +123,11 @@
 
 ## 実行方法
 
-実行者は制御ホストで以下のコマンドを実行します。
-
+制御ホストで以下のコマンドを実行します:
+```bash
+make run_k8s_devel
+```
+または,
 ```bash
 ansible-playbook -i inventory/hosts site.yml --tags "go-k8s-client-local"
 ```
@@ -155,10 +152,10 @@ ansible-playbook -i inventory/hosts site.yml --tags "go-k8s-client-local"
 
 | テンプレートファイル名 | 出力先パス | 説明 |
 | --- | --- | --- |
-| `build-k8s-client-go-deb.sh.j2` | `{{ go_k8s_client_build_workspace_effective }}/build-k8s-client-go-deb.sh` (既定: `{{ go_k8s_client_build_workspace_effective }}/build-k8s-client-go-deb.sh`) | 対象ソフトウェアをソースからビルドし, ローカルパッケージを生成する実行スクリプトです。 |
-| `Dockerfile.ubuntu.j2` | `{{ go_k8s_client_build_workspace_effective }}/Dockerfile.go-k8s-client-deb` (既定: `{{ go_k8s_client_build_workspace_effective }}/Dockerfile.go-k8s-client-deb`) | ローカルパッケージを再現可能にビルドするためのコンテナイメージ定義です。 |
-| `build-k8s-client-go-rpm.sh.j2` | `{{ go_k8s_client_build_workspace_effective }}/build-k8s-client-go-rpm.sh` (既定: `{{ go_k8s_client_build_workspace_effective }}/build-k8s-client-go-rpm.sh`) | 対象ソフトウェアをソースからビルドし, ローカルパッケージを生成する実行スクリプトです。 |
-| `Dockerfile.almalinux.j2` | `{{ go_k8s_client_build_workspace_effective }}/Dockerfile.go-k8s-client-rpm` (既定: `{{ go_k8s_client_build_workspace_effective }}/Dockerfile.go-k8s-client-rpm`) | ローカルパッケージを再現可能にビルドするためのコンテナイメージ定義です。 |
+| `build-k8s-client-go-deb.sh.j2` | `/tmp/go-k8s-client-build-<実行ユーザ名>/build-k8s-client-go-deb.sh` (既定: `/tmp/go-k8s-client-build-<実行ユーザ名>/build-k8s-client-go-deb.sh`) | 対象ソフトウェアをソースからビルドし, ローカルパッケージを生成する実行スクリプトです。 |
+| `Dockerfile.ubuntu.j2` | `/tmp/go-k8s-client-build-<実行ユーザ名>/Dockerfile.go-k8s-client-deb` (既定: `/tmp/go-k8s-client-build-<実行ユーザ名>/Dockerfile.go-k8s-client-deb`) | ローカルパッケージを再現可能にビルドするためのコンテナイメージ定義です。 |
+| `build-k8s-client-go-rpm.sh.j2` | `/tmp/go-k8s-client-build-<実行ユーザ名>/build-k8s-client-go-rpm.sh` (既定: `/tmp/go-k8s-client-build-<実行ユーザ名>/build-k8s-client-go-rpm.sh`) | 対象ソフトウェアをソースからビルドし, ローカルパッケージを生成する実行スクリプトです。 |
+| `Dockerfile.almalinux.j2` | `/tmp/go-k8s-client-build-<実行ユーザ名>/Dockerfile.go-k8s-client-rpm` (既定: `/tmp/go-k8s-client-build-<実行ユーザ名>/Dockerfile.go-k8s-client-rpm`) | ローカルパッケージを再現可能にビルドするためのコンテナイメージ定義です。 |
 
 ## 実行フロー
 
@@ -170,36 +167,69 @@ ansible-playbook -i inventory/hosts site.yml --tags "go-k8s-client-local"
 
 ## 検証ポイント
 
-実行者は以下の検証コマンドを実行し, 構文検査が成功することを確認します。
+以下の検証コマンドを実行します:
 
 ```bash
-ansible-playbook -i inventory/hosts site.yml --syntax-check
+ls -la /opt/k8s-devel/go-client
+test -f /opt/k8s-devel/go-client/go.mod
+echo $?
+test -f /opt/k8s-devel/go-client/go.sum
+echo $?
+test -d /opt/k8s-devel/go-client/vendor
+echo $?
 ```
 
-期待結果: エラーが出力されず, syntax check が成功します。
+実行結果の例:
+```bash
+$ ls -la /opt/k8s-devel/go-client
+合計 20
+drwxr-xr-x 3 root root 4096  7月 31 22:44 .
+drwxr-xr-x 3 root root 4096  7月 31 22:44 ..
+-rw-r--r-- 1 root root  103  7月 31 22:44 go.mod
+-rw-r--r-- 1 root root  153  7月 31 22:44 go.sum
+drwxr-xr-x 2 root root 4096  7月 31 22:44 vendor
+$ test -f /opt/k8s-devel/go-client/go.mod
+$ echo $?
+0
+$ test -f /opt/k8s-devel/go-client/go.sum
+$ echo $?
+0
+$ test -d /opt/k8s-devel/go-client/vendor
+$ echo $?
+0
+```
+
+実行結果から以下の内容を確認します:
+
+- `ls -la /opt/k8s-devel/go-client` の出力に `go.mod`, `go.sum`, `vendor` が表示されること。
+- `test -f /opt/k8s-devel/go-client/go.mod` の直後の `echo $?` が `0` であること。
+- `test -f /opt/k8s-devel/go-client/go.sum` の直後の `echo $?` が `0` であること。
+- `test -d /opt/k8s-devel/go-client/vendor` の直後の `echo $?` が `0` であること。
 
 ## トラブルシューティング
 
-実行者はエラー発生時に build-*.log を確認し, 失敗した task 名と不足変数を特定します。
+代表的なトラブルと対処を以下に示します。
+
+| 想定トラブル | 主な原因 | 対処方法 |
+| --- | --- | --- |
+| `Validate go k8s client version format` で失敗する | `go_k8s_client_version` が `vX.Y.Z` 形式になっていない |  `go_k8s_client_version` を `v0.31.0` のような形式へ修正して再実行します。 |
+| パッケージビルド処理がタイムアウトする | 構築ホストの性能不足, イメージ取得遅延, ネットワーク遅延により待機時間を超過している |  `build-*.log` で停止箇所を確認し, 必要に応じて `go_k8s_client_build_timeout_seconds` を延長して再実行します。 |
+| `Go k8s client ... package was not generated` で失敗する | コンテナ内ビルドは実行されたが, 指定パターンに合致する deb/rpm 成果物が出力されていない | 構築ホスト上の `/tmp/go-k8s-client-build-<実行ユーザ名>/output` を確認し, パッケージ名設定 (`go_k8s_client_deb_package_name` / `go_k8s_client_rpm_package_name`) と build スクリプトの出力を見直して再実行します。 |
+| `No go k8s client deb/rpm file found ...` または `Fetched ... package is missing on controller` で失敗する | 構築ホストから制御ホストへの回収に失敗している, または中間ファイルが削除されている | 構築ホスト上の成果物存在と読み取り権限を確認し, 制御ホストの `~/.ansible/tmp` 配下に回収されることを確認して再実行します。 |
+| 導入後の `go.mod` / `go.sum` / `vendor` 存在確認で失敗する | パッケージ導入は完了したが, `go_k8s_client_install_dir` の内容が欠落している | 対象ホストで `/opt/k8s-devel/go-client` 配下を確認し, 既存ファイル競合の有無を確認した上で再導入します。必要に応じて導入先ディレクトリを退避して再実行します。 |
+| `Installed client-go module version mismatch` で失敗する | 導入済みの `k8s.io/client-go` 版数が `go_k8s_client_version` と一致していない | 対象ホストで `go list -m k8s.io/client-go` の結果を確認し, 指定版数と一致するように `go_k8s_client_version` を修正するか, 既存導入物の影響を除去して再実行します。 |
+| `--check` 実行で成果物が作成されない | チェックモードでは構築/導入処理をスキップする仕様 | 動作確認時に通常実行 (check モードなし) で再実行します。 |
+
 
 ## 注意事項
 
 - 本ロールは client-go の導入ロジックのみを扱う。Go 本体の導入ロジックは `go-lang-local` ロールで扱う。
 - `--check` 実行時は, パッケージ構築/導入処理をスキップします。
 
-## 検証例
-
-```bash
-ls -la /opt/k8s-devel/go-client
-test -f /opt/k8s-devel/go-client/go.mod
-test -f /opt/k8s-devel/go-client/go.sum
-test -d /opt/k8s-devel/go-client/vendor
-grep -E '^\s*k8s.io/client-go\s+v0\.31\.0$' /opt/k8s-devel/go-client/go.mod
-```
 ## 参考資料
 
 ### 公式ドキュメント
 
-- Go Programming Language: https://go.dev/doc/
-- client-go: https://github.com/kubernetes/client-go
-- Kubernetes API Reference: https://kubernetes.io/docs/reference/generated/kubernetes-api/
+- [Go Programming Language](https://go.dev/doc/)
+- [Go言語版 Kubernetes Clientライブラリ](https://github.com/kubernetes/client-go)
+- [Kubernetes API Reference](https://kubernetes.io/docs/reference/generated/kubernetes-api/)

@@ -9,9 +9,13 @@
   - [用語](#用語)
   - [概要](#概要)
   - [本ロールの動作仕様](#本ロールの動作仕様)
+    - [本ロールでの処理内容](#本ロールでの処理内容)
+    - [パッケージ構築～導入までの流れ](#パッケージ構築導入までの流れ)
+    - [導入版数確認方針](#導入版数確認方針)
   - [前提条件](#前提条件)
   - [実行方法](#実行方法)
   - [主要変数](#主要変数)
+  - [パッケージ構築関連ファイル一覧](#パッケージ構築関連ファイル一覧)
   - [テンプレートと生成ファイル](#テンプレートと生成ファイル)
   - [実行フロー](#実行フロー)
   - [検証ポイント](#検証ポイント)
@@ -22,10 +26,6 @@
     - [公式のソースからRHEL/Alma Linux用パッケージ(RPMパッケージ)を構築して導入した場合の確認方法](#公式のソースからrhelalma-linux用パッケージrpmパッケージを構築して導入した場合の確認方法)
   - [トラブルシューティング](#トラブルシューティング)
   - [注意事項](#注意事項)
-  - [本ロールでの処理内容](#本ロールでの処理内容)
-    - [パッケージ構築関連ファイル一覧](#パッケージ構築関連ファイル一覧)
-    - [パッケージ構築～導入までの流れ](#パッケージ構築導入までの流れ)
-    - [導入版数確認方針](#導入版数確認方針)
   - [参考資料](#参考資料)
     - [公式ドキュメント](#公式ドキュメント)
 ## 用語
@@ -143,6 +143,37 @@ Go 言語版 Kubernetes client のローカルパッケージ配布は本ロー�
 - 実効作業ディレクトリへの書き込み確認に失敗した場合は, フォールバック先(`/tmp/go-build-fallback-<USER>`)へ切り替えて継続します。
 - 成果物出力先は入力変数で受け取らず, 実効作業ディレクトリ配下の `output` を内部で使用します。
 
+### 本ロールでの処理内容
+
+本ロールでは, `go_lang_version` 指定の有無により以下の処理を行う:
+
+- `go_lang_version` 未指定時: Go の追加導入は行わず, `go_command` を `go_command_package` に設定します。
+- `go_lang_version` 指定時: Go 版数を API で解決し, コンテナ内でパッケージを構築後, 制御ノード経由で対象ホストに転送して導入します。
+
+### パッケージ構築～導入までの流れ
+
+`go_lang_version` 指定時の流れは以下の通り:
+
+1. Go 公式 API から版数情報を取得し, 指定形式に応じて導入版数を解決します。
+2. 必要に応じて既存の Go パッケージを削除します。
+3. 制御ノード上で実効作業ディレクトリを決定し, 書き込み確認を行う(失敗時はフォールバック先へ切り替える)。
+4. ビルド用コンテナイメージを Dockerfile から作成します。
+5. コンテナ内で Go パッケージ(deb/rpm)を構築します。
+6. 成果物の存在確認と版数確認を行う。
+7. 構築済みパッケージを構築ホストから制御ノードに回収します。
+8. 制御ノードから対象ホストへコピーして導入します。
+9. 導入後の `go version` で版数一致を確認します。
+
+`go_lang_version` 未指定時は, 上記のソース導入処理を行わず, `go_command` を `go_command_package` に設定します。
+
+### 導入版数確認方針
+
+`go_lang_version` を指定した場合, 本ロールは以下を確認し, どれか 1 つでも不一致なら失敗で停止する:
+
+1. 解決された版数が指定形式(`x.y` または `x.y.z`)の期待と一致すること。
+2. 生成パッケージ(deb/rpm)の版数が解決版数と一致すること。
+3. 導入後の `go version` から取得した版数が解決版数と一致すること。
+
 ## 前提条件
 
 本ロールの実行者は, 対象ホストが inventory に登録済みであることを確認します。
@@ -188,6 +219,26 @@ ansible-playbook -i inventory/hosts site.yml --tags "go-lang-local"
 | `go_command_from_tarball_path` | 公式のソースを元にパッケージ構築処理を実施した場合の go コマンドパス。`/usr/local/bin/go` (シンボリックリンク)の実体となるコマンド。 | `"/usr/local/go/bin/go"` |
 | `go_series_fallback_versions` | End of Life (EOL) 系列向けフォールバック版数マップ。 | `{ "1.25": "1.25.11" }` |
 
+## パッケージ構築関連ファイル一覧
+
+パッケージ構築処理, パッケージ導入処理に関連するファイルは以下の通り:
+
+| ロール内での相対パス | 処理内容 |
+| --- | --- |
+| `tasks/main.yml` | エントリポイント。本ロールの処理を定義したyamlファイルを読み込む。|
+| `tasks/load-params.yml` | OS別/共通変数(`vars/packages-*.yml`, `vars/cross-distro.yml`, `vars/all-config.yml`)を読み込む。 |
+| `tasks/package.yml` | Go 導入メイン処理。`go_lang_version` 指定時はソースから構築したパッケージを導入し, 未指定時は `go_command` のみ設定します。 |
+| `tasks/resolve-go-version.yml` | Go API 版数解決。`x.y` 系列解決, EOL フォールバック, 不正形式スキップ判定。 |
+| `tasks/build-go-source-deb.yml` | Debian/Ubuntu 向け deb パッケージ構築処理。 |
+| `tasks/build-go-source-rpm.yml` | RHEL/AlmaLinux 向け rpm パッケージ構築処理。 |
+| `tasks/install-go-local-deb.yml` | 構築済み deb の回収, 転送, 導入, 導入版数確認。 |
+| `tasks/install-go-local-rpm.yml` | 構築済み rpm の回収, 転送, 導入, 導入版数確認。 |
+| `files/resolve_go_latest_patch.py` | API payload から `x.y` 系列の最新 `x.y.z` を抽出する Python スクリプト。 |
+| `templates/build-go-deb.sh.j2` | コンテナ内で実行される deb 構築スクリプト。 |
+| `templates/build-go-rpm.sh.j2` | コンテナ内で実行される rpm 構築スクリプト。 |
+| `templates/Dockerfile.ubuntu.j2` | Debian/Ubuntu 向けパッケージ構築作業用コンテナ定義テンプレート。 |
+| `templates/Dockerfile.almalinux.j2` | RHEL/AlmaLinux 向けパッケージ構築作業用コンテナ定義テンプレート。 |
+
 ## テンプレートと生成ファイル
 
 本ロールでは以下のテンプレート / ファイルを出力します:
@@ -195,16 +246,21 @@ ansible-playbook -i inventory/hosts site.yml --tags "go-lang-local"
 
 | テンプレートファイル名 | 出力先パス | 説明 |
 | --- | --- | --- |
-| `build-go-deb.sh.j2` | `{{ go_build_workspace_effective }}/build-go-deb.sh` (既定: `{{ go_build_workspace_effective }}/build-go-deb.sh`) | 対象ソフトウェアをソースからビルドし, ローカルパッケージを生成する実行スクリプトです。 |
-| `Dockerfile.ubuntu.j2` | `{{ go_build_workspace_effective }}/Dockerfile.go-deb` (既定: `{{ go_build_workspace_effective }}/Dockerfile.go-deb`) | ローカルパッケージを再現可能にビルドするためのコンテナイメージ定義です。 |
-| `build-go-rpm.sh.j2` | `{{ go_build_workspace_effective }}/build-go-rpm.sh` (既定: `{{ go_build_workspace_effective }}/build-go-rpm.sh`) | 対象ソフトウェアをソースからビルドし, ローカルパッケージを生成する実行スクリプトです。 |
-| `Dockerfile.almalinux.j2` | `{{ go_build_workspace_effective }}/Dockerfile.go-rpm` (既定: `{{ go_build_workspace_effective }}/Dockerfile.go-rpm`) | ローカルパッケージを再現可能にビルドするためのコンテナイメージ定義です。 |
+| `build-go-deb.sh.j2` | 通常: `/tmp/go-build-<実行ユーザ名>/build-go-deb.sh`, フォールバック時: `/tmp/go-build-fallback-<実行ユーザ名>/build-go-deb.sh` | 対象ソフトウェアをソースからビルドし, ローカルパッケージを生成する実行スクリプトです。 |
+| `Dockerfile.ubuntu.j2` | 通常: `/tmp/go-build-<実行ユーザ名>/Dockerfile.go-deb`, フォールバック時: `/tmp/go-build-fallback-<実行ユーザ名>/Dockerfile.go-deb` | ローカルパッケージを再現可能にビルドするためのコンテナイメージ定義です。 |
+| `build-go-rpm.sh.j2` | 通常: `/tmp/go-build-<実行ユーザ名>/build-go-rpm.sh`, フォールバック時: `/tmp/go-build-fallback-<実行ユーザ名>/build-go-rpm.sh` | 対象ソフトウェアをソースからビルドし, ローカルパッケージを生成する実行スクリプトです。 |
+| `Dockerfile.almalinux.j2` | 通常: `/tmp/go-build-<実行ユーザ名>/Dockerfile.go-rpm`, フォールバック時: `/tmp/go-build-fallback-<実行ユーザ名>/Dockerfile.go-rpm` | ローカルパッケージを再現可能にビルドするためのコンテナイメージ定義です。 |
 
 ## 実行フロー
 
-1. 実行者が load-params.yml により変数を読み込む。
-2. 実行者が本ロール固有の task を順次実行します。
-3. 実行者が検証コマンドを実行して期待結果を確認します。
+1. `load-params.yml` を実行し, OS別パッケージ変数, 共通変数, クロスディストリビューション変数を読み込みます。
+2. `go_lang_version` が空文字または未定義の場合は, 追加導入を行わず `go_command` を `go_command_package` に設定して終了します。
+3. `go_lang_version` が指定されている場合は `resolve-go-version.yml` を実行し, `x.y` または `x.y.z` 形式に応じて導入版数を解決します。`x.y` 形式で API 解決不能かつフォールバック未定義の場合, または不正形式の場合は警告を出して導入をスキップします。
+4. 導入継続時は必要に応じて既存 Go パッケージを削除し, チェックモード時は構築/導入をスキップします。
+5. 通常実行時は制御ホスト上で実効作業ディレクトリ(`/tmp/go-build-<実行ユーザ名>`)を決定し, 書き込み不可ならフォールバック先(`/tmp/go-build-fallback-<実行ユーザ名>`)へ切り替えます。
+6. 制御ホストで build スクリプトを生成し, `pkgbld-common` を介して構築ホスト上のコンテナで deb/rpm パッケージを構築します。成果物は構築ホスト -> 制御ホスト -> 対象ホストの順で配布して導入します。
+7. 導入後は版数検証を実行し, 期待版数と不一致の場合は失敗で停止します。一致時は `go_command` を `go_command_from_tarball_path` に設定します。
+8. `directory.yml`, `user_group.yml`, `service.yml`, `config.yml` を順に実行します。現行実装ではこれらのタスクに追加処理定義はありません。
 
 ## 検証ポイント
 
@@ -311,7 +367,16 @@ go-lang-1.25.11-1.el9.x86_64
 
 ## トラブルシューティング
 
-実行者はエラー発生時に build-*.log を確認し, 失敗した task 名と不足変数を特定します。
+| 事象 | 主な原因 | 対処方法 |
+| --- | --- | --- |
+| Go導入が実行されず, 警告だけ出て終了する。 | `go_lang_version` が `x.y` または `x.y.z` 形式ではない, もしくは `x.y` 形式で API 解決不能かつフォールバック未定義である。 | `go_lang_version` を `1.25` または `1.25.11` のような形式で指定する。EOL 系列を利用する場合は `vars/cross-distro.yml` の `go_series_fallback_versions` に対象系列を追加する。 |
+| Go 公式 API 取得で失敗する。 | 制御ホストから `https://go.dev/dl/?mode=json&include=all` へ到達できない, または名前解決ができない。 | 制御ホストで `curl -fsS "https://go.dev/dl/?mode=json&include=all"` を実行して疎通を確認する。プロキシ環境では Playbook 実行環境にプロキシ設定を反映する。 |
+| 構築ホストでコンテナイメージ作成/パッケージ構築が失敗する。 | 構築ホストで Docker が利用できない, もしくは `go_build_container_runtime` と実行可能コマンドが一致していない。 | 構築ホストで `docker version` を実行してコンテナランタイムの動作を確認する。必要に応じて `go_build_host` と `go_build_container_runtime` の指定を実環境に合わせる。 |
+| 「Go deb/rpm package was not generated for requested version」で停止する。 | ビルドスクリプト内部でダウンロード/展開/ビルドに失敗した, または期待ファイル名パターンで成果物が生成されていない。 | 構築ホスト上の `/tmp/go-build-<実行ユーザ名>/output` とフォールバック先の `output` を確認する。あわせて `build-*.log` の該当 task の標準出力/標準エラーを確認し, 失敗した工程を修正する。 |
+| 「No go deb/rpm file found in both host and localhost scopes」で停止する。 | 構築ホストで作成した成果物情報が空のままになっている, または成果物回収前にファイルが消えている。 | 構築ホストの成果物ディレクトリに対象版数のファイルが存在することを確認する。`go_build_host` が意図したホスト名と一致していることを確認する。 |
+| 「Fetched go deb/rpm package is missing on controller」で停止する。 | 構築ホストから制御ホストへの `fetch` が失敗した, または制御ホスト一時領域への書き込みに失敗した。 | 制御ホストの `~/.ansible/tmp` 配下に一時ディレクトリが作成されていることを確認する。制御ホストのディスク空き容量と権限を確認し, 必要なら不要ファイルを削除して再実行する。 |
+| 「Installed Go version mismatch」で停止する。 | 生成パッケージ版数と導入後バイナリ版数が一致しない, または旧版の `go` が優先参照されている。 | 対象ホストで `/usr/local/go/bin/go version` と `which go` を確認する。`go_lang_remove_existing_package` を `true` にして再実行し, 旧版パッケージ残存を解消する。 |
+| チェックモードで導入確認が進まない。 | `--check` 実行時は仕様としてビルド/導入処理をスキップする。 | 版数解決以外の検証(成果物生成, 導入, 版数一致確認)を行う場合は `--check` を外して通常実行する。 |
 
 ## 注意事項
 
@@ -320,58 +385,8 @@ go-lang-1.25.11-1.el9.x86_64
 - `go_lang_version` を指定する場合, 制御ノードから `go_versions_api` で指定したへGo 公式サイト (`https://go.dev/dl/`) へのネットワークアクセスが必須となる。
 - `--check` 実行時は版数解決のみ行い, ビルド/導入はスキップします。
 
-## 本ロールでの処理内容
-
-本ロールでは, `go_lang_version` 指定の有無により以下の処理を行う:
-
-- `go_lang_version` 未指定時: Go の追加導入は行わず, `go_command` を `go_command_package` に設定します。
-- `go_lang_version` 指定時: Go 版数を API で解決し, コンテナ内でパッケージを構築後, 制御ノード経由で対象ホストに転送して導入します。
-
-### パッケージ構築関連ファイル一覧
-
-パッケージ構築処理, パッケージ導入処理に関連するファイルは以下の通り:
-
-| ロール内での相対パス | 処理内容 |
-| --- | --- |
-| `tasks/main.yml` | エントリポイント。本ロールの処理を定義したyamlファイルを読み込む。|
-| `tasks/load-params.yml` | OS別/共通変数(`vars/packages-*.yml`, `vars/cross-distro.yml`, `vars/all-config.yml`)を読み込む。 |
-| `tasks/package.yml` | Go 導入メイン処理。`go_lang_version` 指定時はソースから構築したパッケージを導入し, 未指定時は `go_command` のみ設定します。 |
-| `tasks/resolve-go-version.yml` | Go API 版数解決。`x.y` 系列解決, EOL フォールバック, 不正形式スキップ判定。 |
-| `tasks/build-go-source-deb.yml` | Debian/Ubuntu 向け deb パッケージ構築処理。 |
-| `tasks/build-go-source-rpm.yml` | RHEL/AlmaLinux 向け rpm パッケージ構築処理。 |
-| `tasks/install-go-local-deb.yml` | 構築済み deb の回収, 転送, 導入, 導入版数確認。 |
-| `tasks/install-go-local-rpm.yml` | 構築済み rpm の回収, 転送, 導入, 導入版数確認。 |
-| `files/resolve_go_latest_patch.py` | API payload から `x.y` 系列の最新 `x.y.z` を抽出する Python スクリプト。 |
-| `templates/build-go-deb.sh.j2` | コンテナ内で実行される deb 構築スクリプト。 |
-| `templates/build-go-rpm.sh.j2` | コンテナ内で実行される rpm 構築スクリプト。 |
-| `templates/Dockerfile.ubuntu.j2` | Debian/Ubuntu 向けパッケージ構築作業用コンテナ定義テンプレート。 |
-| `templates/Dockerfile.almalinux.j2` | RHEL/AlmaLinux 向けパッケージ構築作業用コンテナ定義テンプレート。 |
-
-### パッケージ構築～導入までの流れ
-
-`go_lang_version` 指定時の流れは以下の通り:
-
-1. Go 公式 API から版数情報を取得し, 指定形式に応じて導入版数を解決します。
-2. 必要に応じて既存の Go パッケージを削除します。
-3. 制御ノード上で実効作業ディレクトリを決定し, 書き込み確認を行う(失敗時はフォールバック先へ切り替える)。
-4. ビルド用コンテナイメージを Dockerfile から作成します。
-5. コンテナ内で Go パッケージ(deb/rpm)を構築します。
-6. 成果物の存在確認と版数確認を行う。
-7. 構築済みパッケージを構築ホストから制御ノードに回収します。
-8. 制御ノードから対象ホストへコピーして導入します。
-9. 導入後の `go version` で版数一致を確認します。
-
-`go_lang_version` 未指定時は, 上記のソース導入処理を行わず, `go_command` を `go_command_package` に設定します。
-
-### 導入版数確認方針
-
-`go_lang_version` を指定した場合, 本ロールは以下を確認し, どれか 1 つでも不一致なら失敗で停止する:
-
-1. 解決された版数が指定形式(`x.y` または `x.y.z`)の期待と一致すること。
-2. 生成パッケージ(deb/rpm)の版数が解決版数と一致すること。
-3. 導入後の `go version` から取得した版数が解決版数と一致すること。
 ## 参考資料
 
 ### 公式ドキュメント
 
-- Go Programming Language: https://go.dev/doc/
+- [Go Programming Language](https://go.dev/doc/)

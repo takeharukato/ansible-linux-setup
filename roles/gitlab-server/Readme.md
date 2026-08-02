@@ -12,12 +12,6 @@
   - [前提条件](#前提条件)
   - [実行方法](#実行方法)
   - [主要変数](#主要変数)
-  - [テンプレートと生成ファイル](#テンプレートと生成ファイル)
-  - [実行フロー](#実行フロー)
-  - [検証ポイント](#検証ポイント)
-  - [トラブルシューティング](#トラブルシューティング)
-  - [注意事項](#注意事項)
-  - [変数一覧](#変数一覧)
   - [Gitlabコンテナの構成](#gitlabコンテナの構成)
     - [Gitlabの公開URL, SSHポート, コンテナレジストリ](#gitlabの公開url-sshポート-コンテナレジストリ)
     - [ポートマッピング](#ポートマッピング)
@@ -33,9 +27,14 @@
     - [リストア手順](#リストア手順)
       - [リストア処理の内容](#リストア処理の内容)
     - [定期バックアップ](#定期バックアップ)
-  - [付録) 本ロールから導入されるバックアップ, リストア用スクリプトのコマンドライン仕様](#付録-本ロールから導入されるバックアップ-リストア用スクリプトのコマンドライン仕様)
-    - [gitlab-backup.pyスクリプトのコマンドラインオプション](#gitlab-backuppyスクリプトのコマンドラインオプション)
-    - [gitlab-restore.pyスクリプトのコマンドラインオプション](#gitlab-restorepyスクリプトのコマンドラインオプション)
+    - [本ロールから導入されるバックアップ, リストア用スクリプトのコマンドライン仕様](#本ロールから導入されるバックアップ-リストア用スクリプトのコマンドライン仕様)
+      - [gitlab-backup.pyスクリプトのコマンドラインオプション](#gitlab-backuppyスクリプトのコマンドラインオプション)
+      - [gitlab-restore.pyスクリプトのコマンドラインオプション](#gitlab-restorepyスクリプトのコマンドラインオプション)
+  - [テンプレートと生成ファイル](#テンプレートと生成ファイル)
+  - [実行フロー](#実行フロー)
+  - [検証ポイント](#検証ポイント)
+  - [トラブルシューティング](#トラブルシューティング)
+  - [注意事項](#注意事項)
   - [参考資料](#参考資料)
     - [公式ドキュメント](#公式ドキュメント)
 
@@ -179,58 +178,6 @@ ansible-playbook -i inventory/hosts site.yml --tags "gitlab-server"
 
 ## 主要変数
 
-| 変数名 | 意味 | 既定値 | 設定例 |
-| --- | --- | --- | --- |
-| (該当なし) | 本ロール実装にはロール全体の実行可否を切り替える `*_enabled` 変数はありません。 | - | - |
-
-## テンプレートと生成ファイル
-
-本ロールでは以下のテンプレート / ファイルを出力します:
-主な展開先ホストは, 対象ホスト(既定) です。
-
-| テンプレートファイル名 | 出力先パス | 説明 |
-| --- | --- | --- |
-| `gitlab-backup.py.j2` | `{{ gitlab_scripts_dir }}/{{ gitlab_backup_script_file }}` (既定: `{{ gitlab_scripts_dir }}/{{ gitlab_backup_script_file }}`) | GitLab データを世代管理付きで取得するバックアップ処理スクリプトです。 |
-| `gitlab-restore.py.j2` | `{{ gitlab_scripts_dir }}/{{ gitlab_restore_script_file }}` (既定: `{{ gitlab_scripts_dir }}/{{ gitlab_restore_script_file }}`) | GitLab のバックアップデータを復元するリストア処理スクリプトです。 |
-| `daily-backup-gitlab.sh.j2` | `{{ gitlab_scripts_dir }}/{{ gitlab_daily_backup_script_file }}` (既定: `{{ gitlab_scripts_dir }}/{{ gitlab_daily_backup_script_file }}`) | GitLab バックアップを定期実行するためのラッパスクリプトです。 |
-| `docker-compose.yml.j2` | `{{ gitlab_docker_compose_file }}` (既定: `{{ gitlab_docker_compose_file }}`) | GitLab 関連コンテナ(本体, DB, 補助サービス)の構成を定義する compose 設定です。 |
-| `90-gitlab-forwarding.conf.j2` | `/etc/sysctl.d/90-gitlab-forwarding.conf` (既定: `/etc/sysctl.d/90-gitlab-forwarding.conf`) | GitLab コンテナ運用で必要な転送系カーネルパラメタを定義する sysctl 設定です。 |
-
-## 実行フロー
-
-1. 実行者が load-params.yml により変数を読み込む。
-2. 実行者が本ロール固有の task を順次実行します。
-3. 実行者が検証コマンドを実行して期待結果を確認します。
-
-1. [tasks/load-params.yml](tasks/load-params.yml) で OS ごとのパッケージ定義や共通パラメータを取り込みます。
-2. `gitlab_clean_install` や `gitlab_remove_container_images` が有効な場合, [tasks/config-clean-install.yml](tasks/config-clean-install.yml) が既存ディレクトリと Docker イメージを削除します。
-3. [tasks/directory-gitlab.yml](tasks/directory-gitlab.yml) が GitLab 用ユーザ / グループを確認し, ホーム, 設定, データ, バックアップ各ディレクトリを所有権付きで作成します。
-4. 同タスク内で `docker-compose.yml` を配置します。`gitlab_enable_backup_script` が有効な場合, バックアップ・リストアスクリプト (`gitlab-backup.py`, `gitlab-restore.py`) を配置します。加えて`gitlab_backup_nfs_server`, `gitlab_backup_mount_point`, `gitlab_backup_output_dir`が非空で, かつ`gitlab_backup_rotation`が正の整数の場合のみ, デイリーバックアップスクリプト(`daily-backup-gitlab.sh`)を配置します。
-5. [tasks/sysctl.yml](tasks/sysctl.yml) が `templates/90-gitlab-forwarding.conf.j2` を `/etc/sysctl.d/90-gitlab-forwarding.conf` に配置し, IPv4/IPv6 フォワーディング (`net.ipv4.ip_forward`, `net.ipv6.conf.all.forwarding`, `net.ipv6.conf.default.forwarding`), 管理 IF (Interface, インターフェース) の RA (Router Advertisement, ルータ広告) 受信 (`net.ipv6.conf.<mgmt_nic>.accept_ra`) を有効化します。配置時は `gitlab_reload_sysctl` ハンドラを通知し, `sysctl --system` で設定を反映します。
-6. [tasks/service.yml](tasks/service.yml) が `docker compose up -d` で GitLab / Runner コンテナを起動し, HTTPS (Hypertext Transfer Protocol Secure) / SSH (Secure Shell) / Registry ポートが開くまで待機します。その後, アクセス URL や初期パスワードファイルパスを表示します。
-7. ロール再実行時には既存の compose ファイルや永続化ディレクトリを再利用し, 冪等に整備を行います。停止したい場合は [tasks/stop-service.yml](tasks/stop-service.yml) を参照してください。
-
-## 検証ポイント
-
-- `/srv/gitlab` 以下に設定, ログ, データ, バックアップ, scripts ディレクトリが期待した所有者 ( `gitlab_user_id` / `gitlab_group_id` ) で作成されていること。
-- `/etc/sysctl.d/90-gitlab-forwarding.conf` が配備され, `sysctl net.ipv4.ip_forward`, `sysctl net.ipv6.conf.all.forwarding` が `1` に設定されていること。
-- `docker compose -f /srv/gitlab/docker-compose.yml ps` で GitLab と GitLab Runner コンテナが稼働していること。
-- Web UI (User Interface, ユーザインターフェース), SSH (Secure Shell), Container Registry が指定したポートで応答すること。
-- `gitlab-backup.py` 実行時にメタ情報付きのバンドルが生成されること。
-- `gitlab-restore.py --verbose <バックアップバンドルファイル>` 実行時に, `puma/sidekiq` の停止, 復旧ログが確認できること。
-- `gitlab-restore.py --verbose <バックアップバンドルファイル>` 実行後にバックアップしたリポジトリやユーザ情報が復元されていること。
-- クリーンインストール実施時は既存ディレクトリや Docker イメージが削除され, 再実行で初期状態から構築されていること。
-
-## トラブルシューティング
-
-実行者はエラー発生時に build-*.log を確認し, 失敗した task 名と不足変数を特定します。
-
-## 注意事項
-
-実行者は既存の実行順依存を崩さないことを確認した上で本ロールを実行します。
-
-## 変数一覧
-
 | 変数名 | 既定値 | 説明 |
 | --- | --- | --- |
 | `gitlab_hostname` | `""` | GitLab WEB UI/Container Registryの公開URL中のホスト名部分を指定します。本変数が, 未設定または空文字列の場合, gitlabの導入を行いません。|
@@ -239,12 +186,12 @@ ansible-playbook -i inventory/hosts site.yml --tags "gitlab-server"
 | `gitlab_registry_port` | `5050` | コンテナレジストリ公開ポート。|
 | `gitlab_registry_require_auth` | `false` | `true` の場合は GitLab Container Registry の認証を必須にします。`false` の場合は認証不要の設定を適用します。|
 | `gitlab_wait_host_stopped` | `"127.0.0.1"` | GitLabサービス停止を待ち合わせる(接続先)ホスト名/IPアドレス。|
-| `gitlab_wait_host_started` | `"{{ inventory_hostname }}"` | GitLabサービス開始を待ち合わせる(接続先)ホスト名/IPアドレス。|
+| `gitlab_wait_host_started` | `"inventoryで指定した対象ホスト名"` | GitLabサービス開始を待ち合わせる(接続先)ホスト名/IPアドレス。|
 | `gitlab_wait_timeout` | `600` | GitLabサービス待ち合わせ時間(単位: 秒)。|
 | `gitlab_wait_delay` | `5` | GitLabサービス待ち合わせる際の開始遅延時間(単位: 秒)。|
 | `gitlab_wait_sleep` | `2` | GitLabサービス待ち合わせる際の待機間隔(単位: 秒)。|
 | `gitlab_wait_delegate_to` | `"localhost"` | GitLabサービス待ち合わせる際の接続元ホスト名/IPアドレス。|
-| `gitlab_external_url` | `https://{{ gitlab_hostname }}:{{ gitlab_https_port }}` | Web UI へアクセスする外部 URL。|
+| `gitlab_external_url` | `https://<gitlab_hostname>:9443` | Web UI へアクセスする外部 URL。|
 | `gitlab_docker_image` | `gitlab/gitlab-ce:18.6.2-ce.0` | GitLab Omnibus Docker イメージ。公式の推奨に従って, バージョン名を明示してイメージを指定してください。|
 | `gitlab_runner_docker_image` | `gitlab/gitlab-runner:ubuntu-v18.6.6` | GitLab Runner Docker イメージ。GitLab 本体とメジャーバージョン, マイナーバージョンを合わせてください。|
 | `gitlab_home_dir` | `/srv/gitlab` | GitLab 導入先ディレクトリ。|
@@ -260,7 +207,7 @@ ansible-playbook -i inventory/hosts site.yml --tags "gitlab-server"
 | `gitlab_daily_backup_script_file` | `daily-backup-gitlab.sh` | Cronに登録するデイリーバックアップスクリプトファイル名 |
 | `gitlab_backup_rotation` | `7` | デイリーバックアップのローテーション世代数 |
 | `gitlab_backup_nfs_server` | `""` | Gitlabのバックアップバンドルファイルを保存するNFSサーバ|
-| `gitlab_backup_nfs_dir` | `share` | Gitlabのバックアップバンドルファイルを保存するNFSサーバのマウント時に指定する共有ディレクトリ名|
+| `gitlab_backup_nfs_dir` | `/share` | Gitlabのバックアップバンドルファイルを保存するNFSサーバのマウント時に指定する共有ディレクトリ名|
 | `gitlab_backup_mount_point` | `/mnt` | デイリーバックアップ時のNFSマウントポイント(NFSのマウント/アンマウント時に使用) |
 | `gitlab_backup_dir_on_nfs` | `/gitlab-backups` | デイリーバックアップ時のNFSマウントポイント配下のバックアップ配置先ディレクトリ |
 | `gitlab_enable_backup_script` | `false` | バックアップスクリプト生成有効化フラグ。`true` に設定するとバックアップ・リストアスクリプト(gitlab-backup.py, gitlab-restore.py)が配置されます。デイリーバックアップスクリプト(daily-backup-gitlab.sh)の配置には, 加えて`gitlab_backup_nfs_server`, `gitlab_backup_mount_point`, `gitlab_backup_output_dir`が非空で, かつ`gitlab_backup_rotation`が正の整数である必要があります。不要な環境では `false` に設定するとスクリプト生成をスキップできます。 |
@@ -274,7 +221,7 @@ ansible-playbook -i inventory/hosts site.yml --tags "gitlab-server"
 |gitlab|gitlab本体|
 |gitlab-runner|gitlabのCI/CDで使用するgitlab-runner|
 
-Docker composeファイルは, `{{ gitlab_home_dir }}/docker-compose.yml` (規定値は, `/srv/gitlab/docker-compose.yml` )に生成されます。
+Docker composeファイルは, `/srv/gitlab/docker-compose.yml` (規定値: `/srv/gitlab/docker-compose.yml`)に生成されます。
 
 ### Gitlabの公開URL, SSHポート, コンテナレジストリ
 
@@ -299,9 +246,9 @@ GitLab Web UI (HTTPS)ポートやGitLab Container Registryのポートは, Gitla
 
 |ホストポート|規定値|コンテナポート|用途|
 |---|---|---|---|
-|`{{ gitlab_https_port }}`|`9443`|`443`|GitLab Web UI (HTTPS)|
-|`{{ gitlab_ssh_port }}`|`2224`|`22`|Gitリポジトリ操作用 SSH|
-|`{{ gitlab_registry_port }}`|`5050`|`5050`|GitLab Container Registry|
+|`9443`|`9443`|`443`|GitLab Web UI (HTTPS)|
+|`2224`|`2224`|`22`|Gitリポジトリ操作用 SSH|
+|`5050`|`5050`|`5050`|GitLab Container Registry|
 
 ### ボリュームの設定
 
@@ -311,15 +258,15 @@ Gitlabで使用する各種データの永続化のため, コンテナ起動後
 
 |ホスト上のパス|規定値|コンテナ内のパス|用途|
 |---|---|---|---|
-|`{{ gitlab_config_dir }}`|`/srv/gitlab/config`|`/etc/gitlab`|GitLab Omnibus 設定ファイル一式|
-|`{{ gitlab_logs_dir }}`|`/srv/gitlab/logs`|`/var/log/gitlab`|GitLab ログ永続化|
-|`{{ gitlab_data_dir }}`|`/srv/gitlab/data`|`/var/opt/gitlab`|GitLab データ永続化 (repositories, uploads など)|
-|`{{ gitlab_runner_config_dir }}`|`/srv/gitlab/gitlab-runner/config`|`/etc/gitlab-runner`|GitLab Runner 設定ファイル|
-|`{{ gitlab_runner_docker_sock_dir }}`|`/var/run/docker.sock`|`/var/run/docker.sock`|Runner からホスト Docker へのアクセス|
+|`/srv/gitlab/config`|`/srv/gitlab/config`|`/etc/gitlab`|GitLab Omnibus 設定ファイル一式|
+|`/srv/gitlab/logs`|`/srv/gitlab/logs`|`/var/log/gitlab`|GitLab ログ永続化|
+|`/srv/gitlab/data`|`/srv/gitlab/data`|`/var/opt/gitlab`|GitLab データ永続化 (repositories, uploads など)|
+|`/srv/gitlab/gitlab-runner/config`|`/srv/gitlab/gitlab-runner/config`|`/etc/gitlab-runner`|GitLab Runner 設定ファイル|
+|`/var/run/docker.sock`|`/var/run/docker.sock`|`/var/run/docker.sock`|Runner からホスト Docker へのアクセス|
 
 ### Gitlabの初期管理者パスワード参照方法
 
-`{{ gitlab_config_dir }}`(規定値は, `/srv/gitlab/config`)に, コンテナ内の`/etc/gitlab`ディレクトリがマウントされます。このため, 初期パスワードは, ホスト上の`{{ gitlab_config_dir }}/initial_root_password` (規定値は, `/srv/gitlab/config/initial_root_password` )を参照することで確認可能です。
+`/srv/gitlab/config`(規定値: `/srv/gitlab/config`)に, コンテナ内の`/etc/gitlab`ディレクトリがマウントされます。このため, 初期パスワードは, ホスト上の`/srv/gitlab/config/initial_root_password` (規定値: `/srv/gitlab/config/initial_root_password`)を参照することで確認可能です。
 
 上記ファイルは, **Gitlab構築後24時間で自動的に消去**されます。
 
@@ -379,34 +326,34 @@ Gitlabの公式手順に従って, バックアップを生成, 復元するた�
 公式手順のバックアップ処理では, 以下の内容はバックアップに含まれないため,
 必要に応じて別途バックアップを取ってください。詳細は, [Data not included in a backup](https://docs.gitlab.com/administration/backup_restore/backup_gitlab/#data-not-included-in-a-backup) を参照ください。
 
-- コンテナ内のGitlabの設定 (`/etc/gitlab`, ホスト上の`{{ gitlab_config_dir }}`(規定値: `/srv/gitlab/config`)の内容
+- コンテナ内のGitlabの設定 (`/etc/gitlab`, ホスト上の`/srv/gitlab/config`(規定値: `/srv/gitlab/config`)の内容
 - Container Registryの実イメージ
 - TLS証明書
 
-公式のバックアップアーカイブには, コンテナ内のGitlabの設定ディレクトリ (`/etc/gitlab`, ホスト上の`{{ gitlab_config_dir }}`, 規定値: `/srv/gitlab/config`)の内容は含まれません。
+公式のバックアップアーカイブには, コンテナ内のGitlabの設定ディレクトリ (`/etc/gitlab`, ホスト上の`/srv/gitlab/config`, 規定値: `/srv/gitlab/config`)の内容は含まれません。
 
 本ロールから導入されるバックアップスクリプト, リストアスクリプトでは, バックアップバンドルアーカイブ中に, Gitlabの主要設定ファイル(`/srv/gitlab/config/gitlab.rb`ファイル), Gitlabの機密情報を格納したjsonファイル(`/srv/gitlab/config/gitlab-secrets.json`ファイル)を同梱し, リストア時に復元するようにしています。
 
-これら以外のコンテナ内のGitlabの設定ディレクトリ (`/etc/gitlab`, ホスト上の`{{ gitlab_config_dir }}`, 規定値: `/srv/gitlab/config`)配下のファイルをバックアップ, リストアする場合は, 手動で実施してください。
+これら以外のコンテナ内のGitlabの設定ディレクトリ (`/etc/gitlab`, ホスト上の`/srv/gitlab/config`, 規定値: `/srv/gitlab/config`)配下のファイルをバックアップ, リストアする場合は, 手動で実施してください。
 
 また, 後方互換のため, Gitlabの主要設定ファイル(`/srv/gitlab/config/gitlab.rb`ファイル), Gitlabの機密情報を格納したjsonファイル(`/srv/gitlab/config/gitlab-secrets.json`ファイル)が含まれないバックアップバンドルファイルからリストア処理を行った場合もエラー終了せず, リストア処理を継続します。
 
 ### バックアップ手順
 
- バックアップは `{{ gitlab_scripts_dir }}/gitlab-backup.py` を root 権限で実行することで行います。
-バックアップスクリプトは GitLab の `gitlab-backup` コマンドのラッパーで, アーカイブとメタデータをまとめたバンドルを`{{ gitlab_daily_backup_dir }}`ディレクトリ配下に, `gitlab-backup.tar.gz`という名前で生成します。
+ バックアップは `/srv/gitlab/scripts/gitlab-backup.py` を root 権限で実行することで行います。
+バックアップスクリプトは GitLab の `gitlab-backup` コマンドのラッパーで, アーカイブとメタデータをまとめたバンドルを`/srv/gitlab/daily-backup`ディレクトリ配下に, `gitlab-backup.tar.gz`という名前で生成します。
 
 本スクリプトで作成するバックアップバンドルファイルは, 以下の情報が含まれた`.tar.gz`形式のアーカイブです。
 
 - バックアップの生成日時やGitlab公式のリストア処理時に使用する`.tar`アーカイブ
 - 当該の`.tar`アーカイブのIDなどのリストア処理に必要な情報を格納したメタ情報ファイル
-- Gitlabの設定 (`/etc/gitlab/gitlab.rb`, ホスト上の`{{ gitlab_config_dir }}/gitlab.rb`(規定値: `/srv/gitlab/config/gitlab.rb`)の内容)
-- Gitlabの機密情報ファイル`/etc/gitlab/gitlab-secrets.json`, ホスト上の`{{ gitlab_config_dir }}/gitlab-secrets.json`(規定値: `/srv/gitlab/config/gitlab-secrets.json`)の内容
+- Gitlabの設定 (`/etc/gitlab/gitlab.rb`, ホスト上の`/srv/gitlab/config/gitlab.rb`(規定値: `/srv/gitlab/config/gitlab.rb`)の内容)
+- Gitlabの機密情報ファイル`/etc/gitlab/gitlab-secrets.json`, ホスト上の`/srv/gitlab/config/gitlab-secrets.json`(規定値: `/srv/gitlab/config/gitlab-secrets.json`)の内容
 
 本バックアップスクリプトは, スクリプト実行中にコンテナ内のgitアカウントのUID/GID番号を取得し, コンテナ内からアクセス可能なユーザ権, グループ権を設定して, バックアップバンドルファイル内のGitlab公式のバックアップファイル(`.tar`アーカイブ)のUID/GID番号を設定します。
 UID/GID番号を取得できなかった場合は, `gitlab_user_id`, `gitlab_group_id`変数の設定値に従って, ユーザID, グループIDを設定します。
 
-`{{ gitlab_scripts_dir }}/gitlab-backup.py` が正常終了すると,
+`/srv/gitlab/scripts/gitlab-backup.py` が正常終了すると,
 
 ```shell
 Backup stored: <バックアップバンドルファイルのパス>
@@ -502,7 +449,7 @@ Backup stored: /srv/gitlab/daily-backup/gitlab-backup.tar.gz
 
 ### リストア手順
 
-root権限で, `{{ gitlab_scripts_dir }}/gitlab-restore.py --verbose <bundle.tar.gz>` を実行します。
+root権限で, `/srv/gitlab/scripts/gitlab-restore.py --verbose <bundle.tar.gz>` を実行します。
 `gitlab-restore.py`を実行すると, バックアップバンドルファイル内のGitlab公式のバックアップファイル(`.tar`アーカイブ)をGitlab公式手順に従って, リストアします。
 
 本リストアスクリプトは, スクリプト実行中にコンテナ内のgitアカウントのUID/GID番号を取得し, コンテナ内からアクセス可能なユーザ権, グループ権を設定して, バックアップバンドルファイル内のGitlab公式のバックアップファイル(`.tar`アーカイブ)を配置します。コンテナ内のgitアカウントのUID/GID番号を取得できなかった場合は, `gitlab_user_id`, `gitlab_group_id`変数の設定値に従って, ユーザID, グループIDを設定します。
@@ -563,7 +510,7 @@ Restore completed successfully
 
 ### 定期バックアップ
 
-本ロールでは, `{{ gitlab_scripts_dir }}` (規定値: `/srv/gitlab/scripts`) 配下に, `{{ gitlab_daily_backup_script_file }}` (規定値: `daily-backup-gitlab.sh`)という名前で
+本ロールでは, `/srv/gitlab/scripts` (規定値: `/srv/gitlab/scripts`) 配下に, `daily-backup-gitlab.sh` (規定値: `daily-backup-gitlab.sh`)という名前で
 定期バックアップ処理を行うシェルスクリプトを導入します。
 
 本スクリプトは, NFS (Network File System) サーバ上に`gitlab-backup-世代番号.tgz`ように世代番号を付加し,
@@ -578,15 +525,15 @@ Gitlabバックアップのバックアップバンドルファイルをコピ�
 0 3 * * * sudo /srv/gitlab/scripts/daily-backup-gitlab.sh
 ```
 
-上記の設定の場合, 毎日午前3時に`{{ gitlab_daily_backup_dir }}`にバックアップファイルを生成後,
-`{{gitlab_backup_nfs_server}}:{{gitlab_backup_nfs_dir}}`をマウントポイントに指定して,
+上記の設定の場合, 毎日午前3時に`/srv/gitlab/daily-backup`にバックアップファイルを生成後,
+`<NFSサーバ名>:/share`をマウントポイントに指定して,
 NFS (Network File System) サーバをマウントし, バックアップファイルを当該ディレクトリにコピーします。
 
-## 付録) 本ロールから導入されるバックアップ, リストア用スクリプトのコマンドライン仕様
+### 本ロールから導入されるバックアップ, リストア用スクリプトのコマンドライン仕様
 
 本節では, 本ロールから導入されるバックアップ, リストア用スクリプトのコマンドライン仕様について説明します。
 
-### gitlab-backup.pyスクリプトのコマンドラインオプション
+#### gitlab-backup.pyスクリプトのコマンドラインオプション
 
 本節では, 本ロールから導入されるgitlab-backup.pyスクリプトのコマンドラインオプション仕様を以下に示します:
 
@@ -614,7 +561,7 @@ GitLabのバックアップを作成およびアーカイブする
   --verbose バックアップ作成中に詳細ログを有効化 (規定値は, `false`, 詳細ログを表示しない)
 ```
 
-### gitlab-restore.pyスクリプトのコマンドラインオプション
+#### gitlab-restore.pyスクリプトのコマンドラインオプション
 
 本節では, 本ロールから導入されるgitlab-restore.pyスクリプトのコマンドラインオプション仕様を以下に示します:
 
@@ -653,6 +600,67 @@ GitLabのバックアップを作成およびアーカイブする
     本ロールでは, `docker-compose.yml`内で, 環境変数を用いて, Gitlabの動作オプションを指定しているため, 本オプションを使用する必要はない, また, Gitlabの公式手順でもDB更新後の再構築を行うことが推奨されているため, 通常運用では使用しないオプションであるため, 規定値は, `false`となっている。
   --verbose リストア動作中の詳細ログ出力を有効化 (規定値は, `false`, 詳細ログを表示しない)
 ```
+
+## テンプレートと生成ファイル
+
+本ロールでは以下のテンプレート / ファイルを出力します:
+主な展開先ホストは, 対象ホスト(既定) です。
+
+| テンプレートファイル名 | 出力先パス | 説明 |
+| --- | --- | --- |
+| `gitlab-backup.py.j2` | `/srv/gitlab/scripts/gitlab-backup.py` (既定: `/srv/gitlab/scripts/gitlab-backup.py`) | GitLab データを世代管理付きで取得するバックアップ処理スクリプトです。 |
+| `gitlab-restore.py.j2` | `/srv/gitlab/scripts/gitlab-restore.py` (既定: `/srv/gitlab/scripts/gitlab-restore.py`) | GitLab のバックアップデータを復元するリストア処理スクリプトです。 |
+| `daily-backup-gitlab.sh.j2` | `/srv/gitlab/scripts/daily-backup-gitlab.sh` (既定: `/srv/gitlab/scripts/daily-backup-gitlab.sh`) | GitLab バックアップを定期実行するためのラッパスクリプトです。 |
+| `docker-compose.yml.j2` | `/srv/gitlab/docker-compose.yml` (既定: `/srv/gitlab/docker-compose.yml`) | GitLab 関連コンテナ(本体, DB, 補助サービス)の構成を定義する compose 設定です。 |
+| `90-gitlab-forwarding.conf.j2` | `/etc/sysctl.d/90-gitlab-forwarding.conf` (既定: `/etc/sysctl.d/90-gitlab-forwarding.conf`) | GitLab コンテナ運用で必要な転送系カーネルパラメタを定義する sysctl 設定です。 |
+
+## 実行フロー
+
+1. 実行者が load-params.yml により変数を読み込む。
+2. 実行者が本ロール固有の task を順次実行します。
+3. 実行者が検証コマンドを実行して期待結果を確認します。
+
+1. [tasks/load-params.yml](tasks/load-params.yml) で OS ごとのパッケージ定義や共通パラメータを取り込みます。
+2. `gitlab_clean_install` や `gitlab_remove_container_images` が有効な場合, [tasks/config-clean-install.yml](tasks/config-clean-install.yml) が既存ディレクトリと Docker イメージを削除します。
+3. [tasks/directory-gitlab.yml](tasks/directory-gitlab.yml) が GitLab 用ユーザ / グループを確認し, ホーム, 設定, データ, バックアップ各ディレクトリを所有権付きで作成します。
+4. 同タスク内で `docker-compose.yml` を配置します。`gitlab_enable_backup_script` が有効な場合, バックアップ・リストアスクリプト (`gitlab-backup.py`, `gitlab-restore.py`) を配置します。加えて`gitlab_backup_nfs_server`, `gitlab_backup_mount_point`, `gitlab_backup_output_dir`が非空で, かつ`gitlab_backup_rotation`が正の整数の場合のみ, デイリーバックアップスクリプト(`daily-backup-gitlab.sh`)を配置します。
+5. [tasks/sysctl.yml](tasks/sysctl.yml) が `templates/90-gitlab-forwarding.conf.j2` を `/etc/sysctl.d/90-gitlab-forwarding.conf` に配置し, IPv4/IPv6 フォワーディング (`net.ipv4.ip_forward`, `net.ipv6.conf.all.forwarding`, `net.ipv6.conf.default.forwarding`), 管理 IF (Interface, インターフェース) の RA (Router Advertisement, ルータ広告) 受信 (`net.ipv6.conf.<mgmt_nic>.accept_ra`) を有効化します。配置時は `gitlab_reload_sysctl` ハンドラを通知し, `sysctl --system` で設定を反映します。
+6. [tasks/service.yml](tasks/service.yml) が `docker compose up -d` で GitLab / Runner コンテナを起動し, HTTPS (Hypertext Transfer Protocol Secure) / SSH (Secure Shell) / Registry ポートが開くまで待機します。その後, アクセス URL や初期パスワードファイルパスを表示します。
+7. ロール再実行時には既存の compose ファイルや永続化ディレクトリを再利用し, 冪等に整備を行います。停止したい場合は [tasks/stop-service.yml](tasks/stop-service.yml) を参照してください。
+
+## 検証ポイント
+
+- `/srv/gitlab` 以下に設定, ログ, データ, バックアップ, scripts ディレクトリが期待した所有者 ( `gitlab_user_id` / `gitlab_group_id` ) で作成されていること。
+- `/etc/sysctl.d/90-gitlab-forwarding.conf` が配備され, `sysctl net.ipv4.ip_forward`, `sysctl net.ipv6.conf.all.forwarding` が `1` に設定されていること。
+- `docker compose -f /srv/gitlab/docker-compose.yml ps` で GitLab と GitLab Runner コンテナが稼働していること。
+- Web UI (User Interface, ユーザインターフェース), SSH (Secure Shell), Container Registry が指定したポートで応答すること。
+- `gitlab-backup.py` 実行時にメタ情報付きのバンドルが生成されること。
+- `gitlab-restore.py --verbose <バックアップバンドルファイル>` 実行時に, `puma/sidekiq` の停止, 復旧ログが確認できること。
+- `gitlab-restore.py --verbose <バックアップバンドルファイル>` 実行後にバックアップしたリポジトリやユーザ情報が復元されていること。
+- クリーンインストール実施時は既存ディレクトリや Docker イメージが削除され, 再実行で初期状態から構築されていること。
+
+## トラブルシューティング
+
+代表的なトラブルと対処を以下に示します。
+
+| 想定トラブル | 主な原因 | 対処方法 |
+| --- | --- | --- |
+| ロールを実行しても GitLab が導入されない | `gitlab_hostname` が未設定または空文字で, `Package` 以降の task が `when` 条件でスキップされる | 実行者は `vars/all-config.yml` または `host_vars` で `gitlab_hostname` を設定し, 再実行時に `skipping` ではなく `ok` / `changed` で進むことを確認します。 |
+| `docker compose ... up -d` で失敗する | 対象ホストに Docker が未導入, または Docker サービス停止中 | 実行者は対象ホストで `docker --version` と `systemctl status docker` を確認し, Docker を起動したうえで再実行します。 |
+| `Wait for GitLab HTTPS/SSH/Registry port ...` でタイムアウトする | GitLab コンテナの起動に時間がかかる, ポート競合がある, または公開ポート設定が不整合 | 実行者は `docker compose -f /srv/gitlab/docker-compose.yml ps` と `docker logs gitlab` を確認します。必要に応じて `gitlab_wait_timeout` を延長し, `gitlab_https_port` / `gitlab_ssh_port` / `gitlab_registry_port` の重複を解消して再実行します。 |
+| `Wait for gitlab self-signed certificate` で失敗する | `gitlab_ssl_cert_path` の証明書が生成されないまま待機上限に到達している | 実行者は `docker logs gitlab` で初期化エラーを確認し, `gitlab_hostname` と `gitlab_external_url` の整合, ディスク容量, 権限を確認して再実行します。 |
+| バックアップ / リストア用スクリプトが配置されない | `gitlab_enable_backup_script` が `false` のためスキップされている | 実行者は `gitlab_enable_backup_script: true` を設定して再実行します。加えて `daily-backup-gitlab.sh` が必要な場合は, `gitlab_backup_nfs_server`, `gitlab_backup_mount_point`, `gitlab_backup_output_dir` を非空, `gitlab_backup_rotation` を正の整数に設定します。 |
+| クリーンインストール後に既存データが消失した | `gitlab_clean_install: true` または `gitlab_remove_container_images: true` により既存ディレクトリ / イメージが削除された | 実行者は本番運用で `gitlab_clean_install` を通常 `false` とし, 実行前に `/srv/gitlab` 配下のバックアップを取得します。必要に応じて `gitlab-backup.py` で退避してから再実行します。 |
+
+## 注意事項
+
+- `gitlab_clean_install: true` は `/srv/gitlab` 配下の設定, ログ, データを削除するため, 本番運用では計画停止と事前バックアップを前提に実行してください。
+- `gitlab_remove_container_images: true` は既存イメージを削除して再取得するため, ネットワーク帯域と再取得時間を考慮してメンテナンス時間帯に実施してください。
+- `gitlab_docker_image` と `gitlab_runner_docker_image` は互換性確保のためメジャー, マイナー版数を揃えて固定し, 無計画な最新化を避けてください。
+- 初期管理者パスワードファイル (`/srv/gitlab/config/initial_root_password`) は構築後 24 時間で消去されるため, 初回ログイン直後に管理者パスワードを変更し, 安全な保管場所へ記録してください。
+- バックアップ運用では, GitLab 公式バックアップに含まれない項目 (Container Registry 実データ, TLS 証明書, `/etc/gitlab` 配下の全ファイル) を別手段で保全してください。
+- `sysctl` 設定によりホストの IPv4/IPv6 フォワーディングと RA 受信設定が変更されるため, 同一ホスト上の他サービスへの影響を事前確認してください。
+- GitLab 関連ディレクトリは UID/GID 998 を前提に所有権を設定するため, 既存環境で同一 UID/GID を他用途で使用している場合は衝突有無を確認してください。
 
 ## 参考資料
 

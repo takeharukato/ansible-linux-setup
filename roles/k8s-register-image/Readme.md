@@ -315,16 +315,13 @@
 
 ## 前提条件
 
-本ロールの実行者は, 対象ホストが inventory に登録済みであることを確認します。
-本ロールの実行者は, 関連する共通変数が vars/all-config.yml または host_vars に定義済みであることを確認します。
+- 対象ホストが inventory に登録済みであること
+- 関連する共通変数が vars/all-config.yml または host_vars に定義済みであること
+- 呼び出しパラメタが適切に設定されていること
 
 ## 実行方法
 
-実行者は制御ホストで以下のコマンドを実行します。
-
-```bash
-ansible-playbook -i inventory/hosts site.yml --tags "k8s-register-image"
-```
+本ロールは他のロールから呼び出されることで使用されます。
 
 ## 主要変数
 
@@ -337,15 +334,23 @@ ansible-playbook -i inventory/hosts site.yml --tags "k8s-register-image"
 本ロールでは以下のテンプレート / ファイルを出力します:
 主な展開先ホストは, 対象ホスト です。
 
-| テンプレートファイル名 | 出力先パス | 説明 |
+| ファイル名 | 出力先パス | 説明 |
 | --- | --- | --- |
-| `(role files script)` | `-` (既定: `-`) | コンテナイメージ tar を対象ノードの CRI に取り込むための実行スクリプトです。 |
+| `files/import-image-on-cri.sh` | 対象ノードの Ansible 一時ディレクトリ(既定: `~/.ansible/tmp/ansible-tmp-*/import-image-on-cri.sh`, 権限昇格時の典型例: `/root/.ansible/tmp/ansible-tmp-*/import-image-on-cri.sh`) | コンテナイメージ tar を対象ノードの CRI に取り込むための実行スクリプトです。 |
 
 ## 実行フロー
 
-1. 実行者が load-params.yml により変数を読み込む。
-2. 実行者が本ロール固有の task を順次実行します。
-3. 実行者が検証コマンドを実行して期待結果を確認します。
+1. `load-params.yml` を実行し, OS別変数, 共通変数, Kubernetes API アドレス関連変数を読み込みます。
+2. `validate.yml` で入力値を検証し, 以下を満たさない場合は `assert` で停止します。
+  - `k8s_register_image_components` が空ではない対応表であること
+  - `k8s_register_image_expected_images` が空ではないこと
+  - 各コンポーネントについて tar パスが絶対パスであり, 期待タグが定義されていること
+3. `k8s_register_image_control_plane_hosts` が1件以上ある場合は `register-control-plane.yml` を実行します。`k8s_register_image_skip_discovery` が `false` のときは `discover-target-hosts.yml` を先行実行し, 代表ノード判定後に代表ノードだけが配布処理を継続します。
+4. control plane 配布処理では対象ノードごとに `register-single-node.yml` を実行し, 接続前確認, 一時ディレクトリ作成, tar 転送, `ctr` による import, 期待タグ検証, 必要に応じた tar 削除を順に実施します。
+5. `k8s_register_image_worker_hosts` が1件以上ある場合は `register-workers.yml` を実行します。`k8s_register_image_skip_discovery` が `false` のときは `discover-target-hosts.yml` を先行実行し, 代表ノード判定後に代表ノードだけが配布処理を継続します。
+6. worker 自動検出が有効(`k8s_register_image_auto_discover_worker_hosts: true`)かつ worker 一覧が空の場合は `discover-worker-hosts.yml` を実行し, Ready 待機, `kubectl` による worker 一覧取得, InternalIP 解決, 動的インベントリ追加を行います。worker が0件の場合は失敗で停止します。
+7. worker 配布処理では対象ノードごとに `register-single-node.yml` を実行し, control plane 配布と同じ手順で import とタグ検証を行います。
+8. `package.yml`, `directory.yml`, `user_group.yml`, `service.yml`, `config.yml` を順に実行します。現行実装ではこれらのファイルに追加処理定義はありません。
 
 ## 検証ポイント
 
@@ -354,7 +359,16 @@ ansible-playbook -i inventory/hosts site.yml --tags "k8s-register-image"
 
 ## トラブルシューティング
 
-実行者はエラー発生時に build-*.log を確認し, 失敗した task 名と不足変数を特定します。
+| 事象 | 主な原因 | 対処方法 |
+| --- | --- | --- |
+| 入力検証で停止し, required inputs エラーが表示される。 | `k8s_register_image_components` または `k8s_register_image_expected_images` が空, もしくは未定義である。 | 呼び出し元ロールで対象コンポーネント定義と期待タグ定義を設定する。最低1件のコンポーネントを登録し, コンポーネント名のキーを両方の対応表で一致させる。 |
+| Missing image tar path or expected image tag for component で停止する。 | コンポーネントに対応する期待タグがない, tar パスが空, または tar パスが絶対パスではない。 | `k8s_register_image_components` の各値を絶対パスで指定し, 同じキー名で `k8s_register_image_expected_images` を定義する。 |
+| worker 自動検出時に No worker nodes found in the cluster で停止する。 | `kubectl` 参照先の kubeconfig が不正, もしくは対象クラスタに worker ノードが存在しない。 | `k8s_kubeconfig_to_discover_workers_path` を確認し, 制御ホストで `kubectl --kubeconfig <path> get nodes` を実行して worker ノードが取得できることを確認する。必要に応じて worker ノードを明示指定へ切り替える。 |
+| worker Ready 待機で失敗する。 | worker ノードが Ready になっていない, または待機時間が短い。 | ノード状態を `kubectl get nodes` で確認する。必要に応じて `k8s_register_image_wait_for_worker_ready_timeout` を延長するか, 待機失敗で停止しない運用にする場合は `k8s_register_image_wait_for_worker_ready_fail_on_timeout` を `false` に設定する。 |
+| 対象ノードへの接続前確認で失敗する。 | 対象ノードへの SSH 接続不可, または権限昇格設定不備。 | inventory の接続情報, 鍵, `ansible_user`, sudo 設定を確認する。再試行間隔や回数が不足する場合は接続前確認関連変数(retries, timeout など)を調整する。 |
+| tar 転送で失敗する。 | 制御ホスト上に tar が存在しない, または対象ノードの一時配置先へ書き込みできない。 | 制御ホストで tar ファイル存在と読み取り権限を確認する。対象ノードで `k8s_register_image_remote_cache_dir` の作成可否と空き容量を確認する。必要に応じて転送再試行回数を増やす。 |
+| expected image tag not found で停止する。 | `ctr image import` は実行されたが, 期待タグまたは補完タグが登録されていない。 | 対象ノードで `ctr -n k8s.io images ls -q` を実行し, 実際に登録されたタグ名を確認する。`k8s_register_image_expected_images` と `k8s_register_image_unqualified_image_registry` の設定値を見直す。 |
+| 後続処理で tar ファイルが見つからない。 | `k8s_register_image_cleanup_remote_tar` が `true` のため, 登録後に tar が削除された。 | 後続処理で同じ tar を再利用する場合は, 呼び出し元で `k8s_register_image_cleanup_remote_tar` を `false` に設定する。 |
 
 ## 注意事項
 
@@ -362,12 +376,11 @@ ansible-playbook -i inventory/hosts site.yml --tags "k8s-register-image"
 - 利用者は, 対象ノードで管理者権限のコマンド実行ができるように, 実行ユーザーの権限設定(sudo設定など)を事前に済ませておく。あわせて, 権限昇格時に対話入力が必要にならない設定であることを確認します。
 - control plane ノードと worker ノードの一覧は, 呼び出し側で明示的に渡すか, 自動検出用変数を設定してロール側で検出します。
 - 登録対象の tar ファイルは, Ansible 制御ノード上の指定ディレクトリに存在している必要がある。
-
 - `k8s_register_image_cleanup_remote_tar` の設定は呼び出し元責務です。後続処理で同じ tar を再利用する場合は `false` を指定します。
 
 ## 参考資料
 
 ### 公式ドキュメント
 
-- Kubernetes Images: https://kubernetes.io/docs/concepts/containers/images/
-- skopeo: https://github.com/containers/skopeo
+- [Kubernetes Images](https://kubernetes.io/docs/concepts/containers/images/)
+- [containerd ctr command](https://github.com/containerd/containerd/blob/main/docs/ctr.md)

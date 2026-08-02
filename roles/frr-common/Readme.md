@@ -8,9 +8,13 @@
   - [用語](#用語)
   - [概要](#概要)
   - [本ロールの動作仕様](#本ロールの動作仕様)
+  - [本ロールでの処理内容](#本ロールでの処理内容)
+    - [パッケージ構築～導入までの流れ](#パッケージ構築導入までの流れ)
+    - [導入版数確認方針](#導入版数確認方針)
   - [前提条件](#前提条件)
   - [実行方法](#実行方法)
   - [主要変数](#主要変数)
+    - [パッケージ構築関連ファイル一覧](#パッケージ構築関連ファイル一覧)
   - [テンプレートと生成ファイル](#テンプレートと生成ファイル)
   - [実行フロー](#実行フロー)
   - [検証ポイント](#検証ポイント)
@@ -18,10 +22,6 @@
     - [RHEL/Alma Linux (RPMパッケージ)の場合の確認方法](#rhelalma-linux-rpmパッケージの場合の確認方法)
   - [トラブルシューティング](#トラブルシューティング)
   - [注意事項](#注意事項)
-  - [本ロールでの処理内容](#本ロールでの処理内容)
-    - [パッケージ構築関連ファイル一覧](#パッケージ構築関連ファイル一覧)
-    - [パッケージ構築～導入までの流れ](#パッケージ構築導入までの流れ)
-    - [導入版数確認方針](#導入版数確認方針)
   - [参考資料](#参考資料)
     - [公式ドキュメント](#公式ドキュメント)
 ## 用語
@@ -119,8 +119,6 @@
 ## 概要
 このロールは Free Range Routing (FRR) の導入処理を共通化し, `frr-basic` と `k8s-worker-frr` から `include_role` で呼び出して使うためのロールです。
 
-本ロールは, frr-common に関する設定処理を実施します。
-
 ## 本ロールの動作仕様
 
 本ロールの役割, 動作仕様は以下の通り:
@@ -129,17 +127,54 @@
 - `frr_version` が指定されている場合: 指定版数の FRR をソースを導入対象ディストリビューション環境を内包するコンテナ内でビルドし, ローカル成果物 (deb/rpm) を対象ホストへ直接配布して導入。
 - 指定版数とビルド結果, さらに導入後の版数が一致しない場合は `fail` で停止。
 
+## 本ロールでの処理内容
+
+本ロールは, パッケージ構築からパッケージ導入までを実施します:
+
+1. `frr_version` が空/未定義時は `frr_packages`変数で指定されたOSディストリビューション標準のパッケージを導入します。
+2. `frr_version` 指定時は OS ごとにパッケージ構築処理, パッケージ導入処理を順次実行します。
+
+### パッケージ構築～導入までの流れ
+
+1. 構築ホスト上にFRRをビルドするためのディレクトリを作成する
+2. 構築ホスト上にFRR パッケージ構築用のコンテナ環境をDockerfileから生成する
+3. FRRパッケージ構築用コンテナ環境の生成が構築ホスト上で完了することを待機する
+4. FRRパッケージを構築ホスト上のコンテナ内で構築する
+5. FRRパッケージ構築が構築ホスト上で完了することを待ち合わせる
+6. FRRパッケージの構築に失敗, または, 生成されたパッケージの版数が`frr_version`で指定された版数と異なる場合は, 処理を中断してplaybookの動作を停止します。
+7. 生成したFRRパッケージを構築ホストから制御ホストに転送する
+8. 生成したFRRパッケージを制御ホストからパッケージ導入先ホストに転送する
+9. 生成したFRRパッケージをパッケージ導入先ホストに導入する
+10. 導入されたパッケージの版数が`frr_version`で指定された版数と異なる場合は, 処理を中断してplaybookの動作を停止します。
+
+### 導入版数確認方針
+
+`frr_version`変数により, 導入版数を明示的に指定した場合, 本ロールは以下の内容を確認し, どれか 1 つでも不一致なら, ロールを失敗で停止させる:
+
+1. 指定版数タグからソース取得に成功すること。
+2. 生成されたパッケージ版数が指定版数と一致すること。
+3. 導入後にホスト上で取得した版数が指定版数と一致すること。
+
 ## 前提条件
 
-本ロールの実行者は, 対象ホストが inventory に登録済みであることを確認します。
-本ロールの実行者は, 関連する共通変数が vars/all-config.yml または host_vars に定義済みであることを確認します。
+- 対象ホストが inventory に登録済みであること
+- 関連する共通変数が vars/all-config.yml または host_vars に定義済みであること
 
 ## 実行方法
 
-実行者は制御ホストで以下のコマンドを実行します。
+本ロールは `frr-basic` または `k8s-worker-frr` から `include_role` で呼び出される内部ロールであるため, 原則として単体実行しません。
+実行者は制御ホストで呼び出し元ロールのタグを指定して実行します。
+
+FRR 専用ノード向け (`frr.yml`) の例:
 
 ```bash
-ansible-playbook -i inventory/hosts site.yml --tags "frr-common"
+ansible-playbook -i inventory/hosts frr.yml --tags "frr-basic"
+```
+
+Kubernetes ワーカーノード向け (`k8s-worker.yml`) の例:
+
+```bash
+ansible-playbook -i inventory/hosts k8s-worker.yml --tags "k8s-worker-frr"
 ```
 
 ## 主要変数
@@ -158,12 +193,31 @@ ansible-playbook -i inventory/hosts site.yml --tags "frr-common"
 | `frr_build_container_image_debian` | Debian 系ビルドに使うコンテナイメージ。 | `"ubuntu:24.04"` |
 | `frr_build_container_image_rhel` | RHEL 系ビルドに使うコンテナイメージ。 | `"almalinux:9.6"` |
 | `frr_build_workspace` | 構築ノード側のビルド作業ディレクトリ。 | `"/tmp/frr-build"` |
-| `frr_build_output_dir` | 構築ノード側の成果物出力先。 | `"{{ frr_build_workspace }}/output"` |
+| `frr_build_output_dir` | 構築ノード側の成果物出力先。 | `"/tmp/frr-build/output"` |
 | `frr_source_git_url` | FRR ソース取得先。 | `"https://github.com/FRRouting/frr.git"` |
 | `frr_source_git_ref_prefix` | Git checkout 時の版数プレフィックス。 | `"frr-"` |
 | `frr_libyang_git_url` | Ubuntu 24.04向けlibyangのソース取得先。 | `"https://github.com/CESNET/libyang.git"` |
 | `frr_libyang_version` | Ubuntu 24.04向けに先行導入するlibyang版数。 | `"2.1.148"` |
 | `frr_libyang_git_ref_prefix` | libyangのGitタグ接頭辞。 | `"v"` |
+
+### パッケージ構築関連ファイル一覧
+
+パッケージ構築処理, パッケージ導入処理に関連するファイルは以下の通り:
+
+|ロール内での相対パス|処理内容|
+|---|---|
+|tasks/package.yml|FRRパッケージ導入メイン処理タスク群の定義(OSディストリビューション標準パッケージからの導入, Ubuntu/Debian/RHEL(Alma Linux)用パッケージ構築・導入処理タスクの呼び出し|
+|tasks/build-source-deb.yml|Ubuntu/Debian用debパッケージ構築処理タスク群の定義|
+|tasks/build-source-rpm.yml|RHEL用rpmパッケージ構築処理タスク群の定義|
+|tasks/install-local-deb.yml|Ubuntu/Debian用debパッケージインストール処理タスク群の定義|
+|tasks/install-local-rpm.yml|RHEL用rpmパッケージインストール処理タスク群の定義|
+|templates/build-frr-deb.sh.j2|コンテナ内で実行されるUbuntu/Debian用debパッケージ構築用シェルスクリプト。|
+|templates/build-frr-rpm.sh.j2|コンテナ内で実行されるRHEL用rpmパッケージ構築用シェルスクリプト|
+|templates/install-libyang.sh.j2|frr-10系で必要となるlibyangのUbuntu/Debian用debパッケージ構築用を構築するシェルスクリプト|
+|templates/install-libyang-dev.control.j2|frr-10系で必要となるlibyang開発関連ファイルのUbuntu/Debian用debパッケージ構築用controlファイル|
+|templates/install-libyang-runtime.control.j2|frr-10系で必要となるlibyangのUbuntu/Debian用debパッケージ構築用controlファイル|
+|templates/Dockerfile.almalinux.j2|RHEL(AlmaLinux9.6)用rpmパッケージ構築に使用するコンテナ環境作成用Dockerfile生成テンプレート|
+|templates/Dockerfile.ubuntu.j2|Ubuntu/Debian(Ubuntu24.04)用debパッケージ構築に使用するコンテナ環境作成用Dockerfile生成テンプレート|
 
 ## テンプレートと生成ファイル
 
@@ -172,16 +226,19 @@ ansible-playbook -i inventory/hosts site.yml --tags "frr-common"
 
 | テンプレートファイル名 | 出力先パス | 説明 |
 | --- | --- | --- |
-| `Dockerfile.ubuntu.j2` | `{{ frr_build_workspace }}/Dockerfile.frr-deb` (既定: `{{ frr_build_workspace }}/Dockerfile.frr-deb`) | ローカルパッケージを再現可能にビルドするためのコンテナイメージ定義です。 |
-| `build-frr-deb.sh.j2` | `{{ frr_build_workspace }}/build-frr-deb.sh` (既定: `{{ frr_build_workspace }}/build-frr-deb.sh`) | 対象ソフトウェアをソースからビルドし, ローカルパッケージを生成する実行スクリプトです。 |
-| `Dockerfile.almalinux.j2` | `{{ frr_build_workspace }}/Dockerfile.frr-rpm` (既定: `{{ frr_build_workspace }}/Dockerfile.frr-rpm`) | ローカルパッケージを再現可能にビルドするためのコンテナイメージ定義です。 |
-| `build-frr-rpm.sh.j2` | `{{ frr_build_workspace }}/build-frr-rpm.sh` (既定: `{{ frr_build_workspace }}/build-frr-rpm.sh`) | 対象ソフトウェアをソースからビルドし, ローカルパッケージを生成する実行スクリプトです。 |
+| `Dockerfile.ubuntu.j2` | `/tmp/frr-build/Dockerfile.frr-deb` | ローカルパッケージを再現可能にビルドするためのコンテナイメージ定義です。 |
+| `build-frr-deb.sh.j2` | `/tmp/frr-build/build-frr-deb.sh` | 対象ソフトウェアをソースからビルドし, ローカルパッケージを生成する実行スクリプトです。 |
+| `Dockerfile.almalinux.j2` | `/tmp/frr-build/Dockerfile.frr-rpm` | ローカルパッケージを再現可能にビルドするためのコンテナイメージ定義です。 |
+| `build-frr-rpm.sh.j2` | `/tmp/frr-build/build-frr-rpm.sh` | 対象ソフトウェアをソースからビルドし, ローカルパッケージを生成する実行スクリプトです。 |
 
 ## 実行フロー
 
-1. 実行者が load-params.yml により変数を読み込む。
-2. 実行者が本ロール固有の task を順次実行します。
-3. 実行者が検証コマンドを実行して期待結果を確認します。
+本ロールは以下の順序で処理を実行します。
+
+1. `load-params.yml` を実行し, OS種別ごとのパッケージ変数, 共通変数, Kubernetes API 広告アドレス変数を読み込みます。
+2. `package.yml` を実行し, `frr_version` が空文字または未定義の場合はディストリビューション標準の FRR パッケージを導入します。Debian 系では libyang シンボル検査と必要時の修復処理を実行します。
+3. `package.yml` 内で `frr_version` が指定されている場合は, OSファミリ別ターゲットを算出し, 構築ワークスペース準備, build スクリプト生成, Debian 系または RHEL 系のコンテナイメージ構築, `pkgbld-common` を介したローカルパッケージ生成/配布/導入, 版数一致検証を実行します。
+4. `frr_version` が指定され, かつ OS ファミリが Debian/RedHat 以外の場合は, サポート対象外として明示的に処理を停止します。
 
 ## 検証ポイント
 
@@ -313,61 +370,24 @@ routing state through standard SNMP MIBs.
 
 ## トラブルシューティング
 
-実行者はエラー発生時に build-*.log を確認し, 失敗した task 名と不足変数を特定します。
+代表的なトラブルと対処を以下に示します。
+
+| 想定トラブル | 主な原因 | 対処方法 |
+| --- | --- | --- |
+| FRR が導入されない | `frr-common` は内部ロールであり, `--tags "frr-common"` では実行対象にならない | 実行者は呼び出し元ロールのタグを指定します。FRR ノードは `--tags "frr-basic"`, Kubernetes ワーカーノードは `--tags "k8s-worker-frr"` を指定して再実行します。 |
+| `Strict FRR source build is supported only on Debian and RedHat families` で停止する | `frr_version` を指定しているが, 対象ホストの OS ファミリが Debian/RedHat 以外である | 実行者は OS ファミリを確認し, 対応 OS へ切り替えるか `frr_version` を空文字にしてディストリビューション標準パッケージ導入へ切り替えます。 |
+| コンテナイメージ構築またはパッケージ構築で失敗する | 構築ホストでコンテナランタイム未導入, イメージ取得失敗, ネットワーク制限, または待機時間超過 | 実行者は構築ホストで `docker --version` と `ubuntu:24.04` / `almalinux:9.6` の取得可否を確認します。必要に応じて `frr_build_timeout_seconds` を延長し, `build-*.log` で停止箇所を確認して再実行します。 |
+| `Installed libyang still misses ... lyd_parent symbol` で停止する | Debian 系で FRR 実行時に必要な libyang シンボルが不足し, 再構築後も改善しない | 実行者は対象ホストの `libyang2` 関連パッケージ競合を解消し, 再実行します。必要に応じて既存の libyang 関連パッケージ状態を整理してから FRR 導入を再試行します。 |
+| 版数検証で失敗する (`Built FRR ... version mismatch`) | 指定した `frr_version` と生成パッケージ版数, または導入後版数が一致しない | 実行者は `frr_version` の値と, 構築成果物の版数, 導入後の `dpkg-query` または `rpm -q --qf '%{VERSION}' frr` の結果を突き合わせて不一致原因を解消して再実行します。 |
+| Debian/Ubuntu 系でロック待ち関連の失敗が発生する | 他プロセスの `apt`/`dpkg` 処理が継続し, ロック待機時間を超過する | 実行者は対象ホストで競合するパッケージ処理を停止し, 必要に応じて `frr_install_deb_lock_wait_seconds` を延長して再実行します。 |
 
 ## 注意事項
 
 - ソースビルドは制御ノード上でコンテナランタイム(Docker)が利用可能であることを前提とします。
-- 構築したパッケージに対する署名付与は行わない。
+- 構築したパッケージに対する署名付与は行いません。
 
-## 本ロールでの処理内容
-
-本ロールは, パッケージ構築からパッケージ導入までを実施する:
-
-1. `frr_version` が空/未定義時は `frr_packages`変数で指定されたOSディストリビューション標準のパッケージを導入します。
-2. `frr_version` 指定時は OS ごとにパッケージ構築処理, パッケージ導入処理を順次実行します。
-
-### パッケージ構築関連ファイル一覧
-
-パッケージ構築処理, パッケージ導入処理に関連するファイルは以下の通り:
-
-|ロール内での相対パス|処理内容|
-|---|---|
-|tasks/package.yml|FRRパッケージ導入メイン処理タスク群の定義(OSディストリビューション標準パッケージからの導入, Ubuntu/Debian/RHEL(Alma Linux)用パッケージ構築・導入処理タスクの呼び出し|
-|tasks/build-source-deb.yml|Ubuntu/Debian用debパッケージ構築処理タスク群の定義|
-|tasks/build-source-rpm.yml|RHEL用rpmパッケージ構築処理タスク群の定義|
-|tasks/install-local-deb.yml|Ubuntu/Debian用debパッケージインストール処理タスク群の定義|
-|tasks/install-local-rpm.yml|RHEL用rpmパッケージインストール処理タスク群の定義|
-|templates/build-frr-deb.sh.j2|コンテナ内で実行されるUbuntu/Debian用debパッケージ構築用シェルスクリプト。|
-|templates/build-frr-rpm.sh.j2|コンテナ内で実行されるRHEL用rpmパッケージ構築用シェルスクリプト|
-|templates/install-libyang.sh.j2|frr-10系で必要となるlibyangのUbuntu/Debian用debパッケージ構築用を構築するシェルスクリプト|
-|templates/install-libyang-dev.control.j2|frr-10系で必要となるlibyang開発関連ファイルのUbuntu/Debian用debパッケージ構築用controlファイル|
-|templates/install-libyang-runtime.control.j2|frr-10系で必要となるlibyangのUbuntu/Debian用debパッケージ構築用controlファイル|
-|templates/Dockerfile.almalinux.j2|RHEL(AlmaLinux9.6)用rpmパッケージ構築に使用するコンテナ環境作成用Dockerfile生成テンプレート|
-|templates/Dockerfile.ubuntu.j2|Ubuntu/Debian(Ubuntu24.04)用debパッケージ構築に使用するコンテナ環境作成用Dockerfile生成テンプレート|
-
-### パッケージ構築～導入までの流れ
-
-1. 構築ホスト上にFRRをビルドするためのディレクトリを作成する
-2. 構築ホスト上にFRR パッケージ構築用のコンテナ環境をDockerfileから生成する
-3. FRRパッケージ構築用コンテナ環境の生成が構築ホスト上で完了することを待機する
-4. FRRパッケージを構築ホスト上のコンテナ内で構築する
-5. FRRパッケージ構築が構築ホスト上で完了することを待ち合わせる
-6. FRRパッケージの構築に失敗, または, 生成されたパッケージの版数が`frr_version`で指定された版数と異なる場合は, 処理を中断してplaybookの動作を停止します。
-7. 生成したFRRパッケージを構築ホストから制御ホストに転送する
-8. 生成したFRRパッケージを制御ホストからパッケージ導入先ホストに転送する
-9. 生成したFRRパッケージをパッケージ導入先ホストに導入する
-10. 導入されたパッケージの版数が`frr_version`で指定された版数と異なる場合は, 処理を中断してplaybookの動作を停止します。
-
-### 導入版数確認方針
-
-`frr_version`変数により, 導入版数を明示的に指定した場合, 本ロールは以下の内容を確認し, どれか 1 つでも不一致なら, ロールを失敗で停止させる:
-
-1. 指定版数タグからソース取得に成功すること。
-2. 生成されたパッケージ版数が指定版数と一致すること。
-3. 導入後にホスト上で取得した版数が指定版数と一致すること。
 ## 参考資料
 
 ### 公式ドキュメント
 
-- FRRouting: https://docs.frrouting.org/en/latest/
+- [FRRouting](https://docs.frrouting.org/en/latest/)
