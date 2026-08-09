@@ -238,9 +238,7 @@ ansible-playbook -i inventory/hosts site.yml --tags "redmine-server"
 
 | 変数名 | 意味 | 既定値 | 設定例 |
 | --- | --- | --- | --- |
-| (該当なし) | 本ロール実装にはロール全体の実行可否を切り替える `*_enabled` 変数はありません。 | - | - |
-| 変数名 | 既定値 | 説明 |
-| --- | --- | --- |
+| `redmine_enabled` | Redmineを導入する場合は, `true`に設定する。| `false` | `true` |
 | `redmine_dir_prefix` | `/data/redmine` | Redmine サーバ用ディレクトリのベースパス。 |
 | `redmine_docker_dir` | `{{redmine_dir_prefix}}/docker` | Docker Compose 定義ファイル (`docker-compose.yml`) の配置先ディレクトリ。 |
 | `redmine_scripts_dir` | `{{redmine_dir_prefix}}/scripts` | バックアップ/リストア用スクリプトの配置先。 |

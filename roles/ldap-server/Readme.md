@@ -258,6 +258,7 @@ ansible-playbook -i inventory/hosts site.yml --tags "ldap-server" --tags "servic
 
 | 変数名 | 既定値 | 説明 |
 | --- | --- | --- |
+| `ldap_enabled` | `false`| LDAPを導入する場合は, `true`に設定する。|
 | `ldap_organization` | `""` | LDAP組織名。OpenLDAPコンテナの`LDAP_ORGANISATION`環境変数として設定されます。**未定義または空文字列の場合, パッケージインストール, ユーザ/グループ作成, ディレクトリ作成, sysctl設定, サービス起動, 設定ファイル生成の各タスクはスキップされます** |
 | `ldap_domain` | `""` | LDAPドメイン名。OpenLDAPコンテナの`LDAP_DOMAIN`環境変数として設定され, DC構成要素に使用されます。**未定義または空文字列の場合, 主要タスクはスキップされます** |
 | `ldap_admin_password` | `""` | LDAP管理者(cn=admin)のパスワード。OpenLDAPコンテナの`LDAP_ADMIN_PASSWORD`環境変数として設定されます。**未定義または空文字列の場合, 主要タスクはスキップされます** |

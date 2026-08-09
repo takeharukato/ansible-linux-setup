@@ -559,20 +559,24 @@ common_selinux_state: "permissive"
 # LDAP設定 (条件的必須: 全4個を定義)
 # ======================================================
 
+# LDAPサーバを導入する場合は, trueに設定する
+# host_vars側で設定し, vars/all-config.ymlには設定しないことを推奨
+# ldap_enabled: true
+
 # LDAP (Lightweight Directory Access Protocol, 階層型ディレクトリサービスへのアクセスプロトコル) 組織名
 # OpenLDAP コンテナの LDAP_ORGANISATION 環境変数として設定される
 # 未定義または空文字列の場合, ロール実行時に fail で停止する
 # ldap_organization: "MyOrganization"
-#
+
 # LDAP ドメイン名
 # OpenLDAP コンテナの LDAP_DOMAIN 環境変数として設定され, DC (Domain Component, DNSドメインをディレクトリツリーに対応付ける構成要素) 構成要素に使用されます
 # 未定義または空文字列の場合, ロール実行時に fail で停止する
 # ldap_domain: "ldap.example.org"
-#
+
 # LDAP 管理者 (cn=admin) のパスワード
 # OpenLDAP コンテナの LDAP_ADMIN_PASSWORD 環境変数として設定される
 # ldap_admin_password: "secure_password"
-#
+
 # phpLDAPadmin (Webベースの管理画面) Web UI の HTTPS 公開ポート番号
 # ldap_admin_port: 10443
 
@@ -580,21 +584,26 @@ common_selinux_state: "permissive"
 # Redmine設定 (オプション)
 # ======================================================
 
+# Redmineサーバを導入する場合は, trueに設定する
+# host_vars側で設定し, vars/all-config.ymlには設定しないことを推奨
+# redmine_enabled: true
+
 # Redmine (プロジェクト管理ソフトウェア) バックアップスクリプトを生成する場合は true を指定する
-# redmine_enable_backup_script: false
-#
+# redmine_enable_backup_script: true
+
+
 # バックアップ世代数 (日数)
 # redmine_backup_rotation: 7
-#
+
 # NFS (Network File System, ネットワーク越しにファイル共有を行う仕組み) サーバー名
 # redmine_backup_nfs_server: "nas.example.org"
-#
+
 # NFS 側の共有ディレクトリ
 # redmine_backup_nfs_dir: "/share"
-#
+
 # NFS マウントポイント (ローカルホスト上で NFS をマウントするディレクトリ)
 # redmine_backup_mount_point: "/mnt"
-#
+
 # NFS マウントポイント配下の保存ディレクトリ
 # redmine_backup_dir_on_nfs: "/Linux/Redmine"
 
@@ -602,25 +611,29 @@ common_selinux_state: "permissive"
 # Gitlab設定 (オプション)
 # ======================================================
 
+# GitLabを導入する場合は, trueに設定する
+# host_vars側で設定し, vars/all-config.ymlには設定しないことを推奨
+# gitlab_enabled: true
+
 # GitLab (バージョン管理システムとDevOpsプラットフォーム) バックアップスクリプトを生成する場合は true を指定する
 # gitlab_enable_backup_script: false
-#
+
 # GitLab Container Registry の認証を必須にする場合は true を指定する
 # false の場合は認証不要で利用する
 # gitlab_registry_require_auth: false
-#
+
 # バックアップ世代数 (日数)
 # gitlab_backup_rotation: 7
-#
+
 # NFS (Network File System, ネットワーク越しにファイル共有を行う仕組み) サーバー名
 # gitlab_backup_nfs_server: "nas.example.org"
-#
+
 # NFS 側の共有ディレクトリ
 # gitlab_backup_nfs_dir: "/share"
-#
+
 # NFS マウントポイント (ローカルホスト上で NFS をマウントするディレクトリ)
 # gitlab_backup_mount_point: "/mnt"
-#
+
 # NFS マウントポイント配下の保存ディレクトリ
 # gitlab_backup_dir_on_nfs: "/Linux/Gitlab"
 

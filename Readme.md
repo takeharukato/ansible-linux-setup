@@ -610,6 +610,7 @@ create_user_emacs_package_list:
 
 |変数名|意味|設定値の例|
 |---|---|---|
+|ldap_enabled|LDAPを導入する場合は, `true`に設定する。規定値は`false`。|`true`|
 |ldap_organization|LDAPの組織名|"user1-private"|
 |ldap_domain|LDAPのドメイン名|"example.org"|
 |ldap_admin_password|LDAP管理者のパスワード|"ldap"|
@@ -628,6 +629,7 @@ Redmineのデイリーバックアップについては, `roles/redmine-server/R
 
 |変数名|意味|設定値の例|
 |---|---|---|
+|redmine_enabled|Redmineを導入する場合は, `true`に設定する。規定値は`false`。|`true`|
 |redmine_enable_backup_script|バックアップスクリプト生成有効化フラグ。`true`に設定すると, backup-redmine-data.sh と restore-redmine-data.sh が配置される。daily-backup-redmine.sh を配置するには, さらに `redmine_backup_nfs_server` と `redmine_backup_nfs_dir` が非空である必要がある。規定値は`false`。|"true" みたは "false"|
 |redmine_backup_rotation|バックアップ世代数|7|
 |redmine_backup_nfs_server|マウントするNFSサーバ|"nas.example.org"|
@@ -647,6 +649,7 @@ Gitlabの公開URL, イメージファイル関連の設定を記載します。
 
 | 変数名 | 意味 | 設定値の例 |
 | --- | --- | --- |
+|gitlab_enabled|Gitlabを導入する場合は, `true`に設定する。規定値は`false`。|`true`|
 | gitlab_hostname | GitLab WEB UI/Container Registryの公開URL中のホスト名部分を指定。本変数が, 未設定または空文字列の場合, Gitlabの導入を行わない。 | "devserver.example.org" |
 | gitlab_https_port | GitLab Web UI (HTTPS) 公開ポート。 | 9443 |
 | gitlab_ssh_port | GitLab SSH (リポジトリ操作用) 公開ポート。 | 2224 |

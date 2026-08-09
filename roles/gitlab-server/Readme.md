@@ -198,6 +198,7 @@ ansible-playbook -i inventory/hosts site.yml --tags "gitlab-server"
 
 | 変数名 | 既定値 | 説明 |
 | --- | --- | --- |
+| `gitlab_enabled` | `false`| GitLabを導入する場合は, `true`に設定する。|
 | `gitlab_hostname` | `""` | GitLab WEB UI/Container Registryの公開URL中のホスト名部分を指定します。本変数が, 未設定または空文字列の場合, gitlabの導入を行いません。|
 | `gitlab_https_port` | `9443` | GitLab Web UI (HTTPS) 公開ポート。|
 | `gitlab_ssh_port` | `2224` | GitLab SSH (リポジトリ操作用) 公開ポート。|

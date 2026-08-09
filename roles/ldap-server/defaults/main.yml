@@ -6,6 +6,9 @@
 #  ロール名/defaults/main.yml に定義している
 ---
 
+# LDAPサーバを導入する場合は, trueに設定する
+ldap_enabled: false
+
 # openldap ユーザ名
 # osixia/openldapのopenldapユーザID, グループIDは911
 openldap_server_user: 911

@@ -56,15 +56,30 @@ netif_list:
     dns_search: "example.org"
 
 #
-# Gitlab
+# LDAP設定
 #
+# LDAPサーバを導入する場合は, trueに設定する
+# host_vars側で設定し, vars/all-config.ymlには設定しないことを推奨
+ldap_enabled: true
+
+#
+# Redmine 設定
+#
+# Redmineサーバを導入する
+redmine_enabled: true
+
+#
+# Gitlab 設定
+#
+# GitLabを導入する
+gitlab_enabled: true
 # GitLabサーバのWEB UI公開URLのホスト名
 gitlab_hostname: "mgmt-server.example.org"
 
 #
-# OpenGrok
+# OpenGrok 設定
 #
-# opengrok_enabled が true の場合, OpenGrok サーバを構築する
+# OpenGrok サーバを導入する
 opengrok_enabled: true
 # ソース同期処理ユーザ
 opengrok_sync_user_list: []
