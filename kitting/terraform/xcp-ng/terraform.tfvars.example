@@ -203,6 +203,24 @@ vm_groups = {
         { network_key = "gpn_mgmt", mac_address = "00:50:56:00:cd:7c" }
       ]
     }
+    observer01 = {
+      template_type = "ubuntu"
+      firmware = "uefi"
+      resource_profile = "infrastructure"
+      networks = [
+        { network_key = "ext_mgmt", mac_address = "00:50:56:00:51:71" },
+        { network_key = "gpn_mgmt", mac_address = "00:50:56:00:51:7b" }
+      ]
+    }
+    observer02 = {
+      template_type = "rhel"
+      firmware = "bios"
+      resource_profile = "infrastructure"
+      networks = [
+        { network_key = "ext_mgmt", mac_address = "00:50:56:00:52:71" },
+        { network_key = "gpn_mgmt", mac_address = "00:50:56:00:52:7b" }
+      ]
+    }
   }
 
   vmlinux = {
