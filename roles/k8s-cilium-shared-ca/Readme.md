@@ -8,11 +8,12 @@
   - [目次](#目次)
   - [用語](#用語)
   - [概要](#概要)
-  - [主な処理](#主な処理)
   - [前提条件](#前提条件)
   - [実行方法](#実行方法)
     - [Makefile を使用](#makefile-を使用)
-    - [Ansible コマンド直接実行](#ansible-コマンド直接実行)
+    - [ansible-playbookコマンドを使用](#ansible-playbookコマンドを使用)
+      - [全対象ホストに適用](#全対象ホストに適用)
+      - [特定ホストのみ適用](#特定ホストのみ適用)
   - [主要変数](#主要変数)
     - [ロール制御変数](#ロール制御変数)
     - [CA管理変数](#ca管理変数)
@@ -20,11 +21,24 @@
     - [Cluster Mesh TLS設定変数](#cluster-mesh-tls設定変数)
     - [cilium-clustermesh Secret設定変数](#cilium-clustermesh-secret設定変数)
   - [テンプレートと生成ファイル](#テンプレートと生成ファイル)
+  - [デフォルト動作](#デフォルト動作)
+  - [テンプレート・ファイル](#テンプレートファイル)
+  - [共通CAを流用する場合](#共通caを流用する場合)
+  - [Cilium Cluster Mesh 用の共通CAを自動生成する場合](#cilium-cluster-mesh-用の共通caを自動生成する場合)
+  - [CA を明示的に指定する場合](#ca-を明示的に指定する場合)
+  - [機密情報保持リソース(`Secret`) 適用時の注意](#機密情報保持リソースsecret-適用時の注意)
+  - [Cluster Mesh 用 TLS 資材](#cluster-mesh-用-tls-資材)
+  - [設定例](#設定例)
+    - [設定例1: 基本設定 (k8s-shared-ca再利用)](#設定例1-基本設定-k8s-shared-ca再利用)
+    - [設定例2: 独立CA自動生成設定](#設定例2-独立ca自動生成設定)
+    - [設定例3: 既存CA指定設定](#設定例3-既存ca指定設定)
+    - [設定例4: Cluster Mesh無効化設定](#設定例4-cluster-mesh無効化設定)
+    - [設定例5: カスタムSAN設定](#設定例5-カスタムsan設定)
   - [実行フロー](#実行フロー)
   - [検証ポイント](#検証ポイント)
     - [検証方法の概要](#検証方法の概要)
     - [パターン1: CA再利用構成の検証](#パターン1-ca再利用構成の検証)
-      - [設定例](#設定例)
+      - [設定例](#設定例-1)
       - [手順1: k8s-shared-ca ロールの CA ファイル存在確認](#手順1-k8s-shared-ca-ロールの-ca-ファイル存在確認)
       - [手順2: cilium-ca Secret の適用確認](#手順2-cilium-ca-secret-の適用確認)
       - [手順3: cilium-ca Secret の内容確認](#手順3-cilium-ca-secret-の内容確認)
@@ -34,7 +48,7 @@
       - [手順7: Cluster Mesh TLS 証明書の CA 一致確認](#手順7-cluster-mesh-tls-証明書の-ca-一致確認)
       - [手順8: Cluster Mesh TLS 証明書の SAN 確認](#手順8-cluster-mesh-tls-証明書の-san-確認)
     - [パターン2: 独立CA自動生成構成の検証](#パターン2-独立ca自動生成構成の検証)
-      - [設定例](#設定例-1)
+      - [設定例](#設定例-2)
       - [手順1: 自動生成された CA ファイルの存在確認](#手順1-自動生成された-ca-ファイルの存在確認)
       - [手順2: CA 証明書の内容確認](#手順2-ca-証明書の内容確認)
       - [手順3: Cluster Mesh TLS 証明書の署名確認](#手順3-cluster-mesh-tls-証明書の署名確認)
@@ -42,10 +56,11 @@
       - [手順5: cilium-ca Secret の適用確認](#手順5-cilium-ca-secret-の適用確認)
       - [手順6: cilium-clustermesh Secret の適用確認](#手順6-cilium-clustermesh-secret-の適用確認)
     - [パターン3: Cluster Mesh無効化構成の検証](#パターン3-cluster-mesh無効化構成の検証)
-      - [設定例](#設定例-2)
+      - [設定例](#設定例-3)
       - [手順1: cilium-ca Secret の適用確認](#手順1-cilium-ca-secret-の適用確認)
       - [手順2: cilium-clustermesh Secret の非存在確認](#手順2-cilium-clustermesh-secret-の非存在確認)
       - [手順3: ローカル CA ファイルの存在確認](#手順3-ローカル-ca-ファイルの存在確認)
+  - [トラブルシューティング (CA 不一致時)](#トラブルシューティング-ca-不一致時)
   - [注意事項](#注意事項)
     - [セキュリティに関する留意事項](#セキュリティに関する留意事項)
       - [CA秘密鍵の保護](#ca秘密鍵の保護)
@@ -56,22 +71,9 @@
       - [Secretの手動削除に関する留意事項](#secretの手動削除に関する留意事項)
       - [Cilium Podの再起動](#cilium-podの再起動)
       - [証明書有効期限の監視](#証明書有効期限の監視)
-  - [デフォルト動作](#デフォルト動作)
-  - [テンプレート・ファイル](#テンプレートファイル)
-  - [共通CAを流用する場合](#共通caを流用する場合)
-  - [Cilium Cluster Mesh 用の共通CAを自動生成する場合](#cilium-cluster-mesh-用の共通caを自動生成する場合)
-  - [CA を明示的に指定する場合](#ca-を明示的に指定する場合)
-  - [機密情報保持リソース(`Secret`) 適用時の注意](#機密情報保持リソースsecret-適用時の注意)
-  - [Cluster Mesh 用 TLS 資材](#cluster-mesh-用-tls-資材)
-  - [トラブルシューティング (CA 不一致時)](#トラブルシューティング-ca-不一致時)
-  - [設定例](#設定例-3)
-    - [設定例1: 基本設定 (k8s-shared-ca再利用)](#設定例1-基本設定-k8s-shared-ca再利用)
-    - [設定例2: 独立CA自動生成設定](#設定例2-独立ca自動生成設定)
-    - [設定例3: 既存CA指定設定](#設定例3-既存ca指定設定)
-    - [設定例4: Cluster Mesh無効化設定](#設定例4-cluster-mesh無効化設定)
-    - [設定例5: カスタムSAN設定](#設定例5-カスタムsan設定)
   - [参考資料](#参考資料)
     - [公式ドキュメント](#公式ドキュメント)
+
 
 
 ## 用語
@@ -111,12 +113,12 @@
 | Playbook | - | 自動化処理の実行手順を記述したファイル。 |
 | Canonical | - | Ubuntu を提供する組織名。 |
 | Key-Value | - | キーと値の組で情報を表す方式。 |
-| Internet Protocol | IP | インターネットプロトコルの略称。 |
+| Internet Protocol | IP | ネットワーク上で宛先を識別し, データを届けるための通信手順。 |
 | Structured Query Language | SQL | データベースを操作するための記述言語。 |
-| Hypertext Transfer Protocol | HTTP | WWW で情報をやり取りする通信手順。 |
-| Hypertext Transfer Protocol Secure | HTTPS | 通信内容を暗号化して WWW 通信を行う方式。 |
-| RPM Package Manager | RPM | RHEL 系で使用するパッケージ形式。 |
-| Virtual Machine | VM | 物理機器上で動作する仮想的な計算機。 |
+| Hypertext Transfer Protocol | HTTP | World Wide Webで情報をやり取りする通信手順。 |
+| Hypertext Transfer Protocol Secure | HTTPS | 通信内容を暗号化してWorld Wide Web通信を行う方式。 |
+| RPM Package Manager | RPM | RPM形式パッケージの導入, 更新, 削除, 情報参照を行う仕組み。 |
+| Virtual Machine | VM | 物理計算機上で動作する仮想的な計算機。 |
 | localhost | - | 同一機器自身を指す名前。 |
 | root | - | Unix 系システムの最上位権限を持つ管理者識別子。 |
 | ソフトウェア | - | 情報処理システムで使用するプログラム, 手順, 規則及び関連文書の全体又は一部分。 |
@@ -145,9 +147,9 @@
 | Service | - | サービスの英語表記。 |
 | Node | - | ノードの英語表記。 |
 | Makefile | - | 実行手順を定義したファイル。 |
-| Application Programming Interface | API | アプリケーション同士がやり取りする方法を定めた仕様。 |
-| Uniform Resource Locator | URL | WWW 上の資源の場所を示す文字列。 |
-| Application Programming Interface | API | API の正式名称。 |
+| Application Programming Interface | API | アプリケーション同士が機能やデータをやり取りするための取り決め。 |
+| Uniform Resource Locator | URL | World Wide Web上の資源の場所を示す文字列。 |
+| Application Programming Interface | API | アプリケーション同士が機能やデータをやり取りするための取り決め。 |
 | Custom Resource Definition | CRD | Kubernetes APIを拡張してユーザ独自のリソース種別を定義する仕組み。 |
 | Role-Based Access Control | RBAC | ユーザやサービスアカウントが実行可能な操作を役割(Role)で制限する仕組み。 |
 | Service Account | - | Kubernetes内部でPodが他のリソースにアクセスする際に用いる仮想的なアカウント。 |
@@ -209,7 +211,7 @@
 | ansible-playbookコマンド | - | Ansible Playbook を実行して自動構成処理を適用するコマンド。 |
 | `cat` | - | ファイル内容を標準出力へ表示するコマンド。 |
 | `ls` | - | ファイルやディレクトリの一覧を表示するコマンド。 |
-| `make` | - | Makefile に定義された処理を実行するコマンド。 |
+| makeコマンド | make | Makefile に定義された処理を実行するコマンド。 |
 | `openssl` | - | 証明書, 鍵, 暗号関連データを生成, 参照, 検証するコマンド。 |
 | サービス | - | 機能を利用者や他システムへ提供する仕組み。 |
 | ディスク | - | 永続的にデータを保存する記憶装置。 |
@@ -219,15 +221,10 @@
 | ローカルファイル | - | 実行中ホスト内に存在するファイル。 |
 | 対象ホスト | - | Playbook による設定変更や導入処理の適用先となるホスト。 |
 | sudoコマンド | sudo | 一時的に管理者権限でコマンドを実行するためのコマンド。 |
-
 ## 概要
 Cilium Cluster Mesh で利用する `cilium-ca` は Kubernetes 上で機密情報を保持するリソース(`Secret`)です。このロールは共通認証局 (Certificate Authority) 証明書 (`CA`) ( 以下, 共通CA )を基に `cilium-ca` を生成して適用し, Cluster Mesh 間で共通CAを統一することで Transport Layer Security (`TLS`) ハンドシェイクの失敗や 機密情報保持リソース(`Secret`) の不一致を防ぎます。
 
 本ロールは, k8s-cilium-shared-ca に関する設定処理を実施します。
-
-## 主な処理
-
-本ロールは tasks/main.yml から task 群を呼び出し, 設定適用と検証を実施します。
 
 ## 前提条件
 
@@ -261,13 +258,17 @@ make run_k8s_ctrl_plane
 
 コントロールプレーンノード向けプレイブックを実行すると, 本ロールも含まれます。
 
-### Ansible コマンド直接実行
+### ansible-playbookコマンドを使用
 
+#### 全対象ホストに適用
+以下のコマンドを実行します:
 ```bash
-# 全対象ホストに適用
 ansible-playbook -i inventory/hosts k8s-ctrl-plane.yml --tags k8s-cilium-shared-ca
+```
 
-# 特定ホストのみ適用
+#### 特定ホストのみ適用
+以下のコマンドを実行します:
+```bash
 ansible-playbook -i inventory/hosts k8s-ctrl-plane.yml --tags k8s-cilium-shared-ca --limit <hostname>
 ```
 
@@ -346,6 +347,200 @@ Cluster Mesh 用の Secret 生成は `k8s_cilium_clustermesh_secret_enabled` が
 | `cilium-clustermesh-openssl.cnf.j2` | `{{ _clustermesh_tmp.path }}/openssl.cnf` (既定: `{{ _clustermesh_tmp.path }}/openssl.cnf`) | Cilium ClusterMesh 用証明書の発行ポリシーと拡張情報を定義する OpenSSL 設定です。 |
 | `cilium-clustermesh-secret.yaml.j2` | `{{ _clustermesh_manifest.path }}` (既定: `{{ _clustermesh_manifest.path }}`) | ClusterMesh 接続で使用する証明書と鍵を Kubernetes Secret として登録するマニフェストです。 |
 | `cilium-ca-secret.yaml.j2` | `{{ _cilium_ca_manifest.path }}` (既定: `{{ _cilium_ca_manifest.path }}`) | Cilium コンポーネントへ共通 CA 証明書を配布する Kubernetes Secret マニフェストです。 |
+
+
+## デフォルト動作
+
+| 条件 | 結果 |
+| --- | --- |
+| `cilium_shared_ca_kubeconfig` が空文字列または未定義 | CA証明書パス決定 (`config-cilium-ca.yml`) と Cluster Mesh TLS 証明書生成 (`clustermesh-ca.yml`) タスクはスキップされます。パッケージインストール, ディレクトリ作成, サービス設定タスクのみが実行されます。 |
+| `k8s_cilium_shared_ca_enabled: false` | このロールは Secret を変更しません。何も実行されません。 |
+| `k8s_cilium_shared_ca_enabled: true` かつ `k8s_cilium_shared_ca_reuse_k8s_ca: true` | k8s-shared-ca ロールが生成した共通CAを使用します。k8s-shared-ca ロールが未実行の場合はタスクが失敗します。 |
+| `k8s_cilium_shared_ca_enabled: true` かつ `k8s_cilium_shared_ca_auto_create: true` | CA ファイルが存在しない場合, openssl で共通CAを自動生成します。既存ファイルがある場合は上書きせずに利用します。 |
+| `k8s_cilium_shared_ca_enabled: true` かつ `k8s_cilium_shared_ca_auto_create: false` | CA ファイルが存在しない場合, タスクが失敗します。既存の CA ファイルを使用する前提で動作します。 |
+| `k8s_cilium_clustermesh_secret_enabled: false` | Cluster Mesh 用 Secret は生成されません。cilium-ca Secret のみが作成, 更新されます。 |
+| `k8s_cilium_clustermesh_secret_enabled: true` | Cluster Mesh 用 TLS 証明書を生成し, cilium-clustermesh Secret (`type: kubernetes.io/tls`) を作成, 更新します。 |
+| `k8s_cilium_shared_ca_cert_path` / `k8s_cilium_shared_ca_key_path` が指定されている | これらのパスが優先され, `output_dir` と `*_filename` の組み合わせは無視されます。 |
+
+## テンプレート・ファイル
+
+本ロールでは以下のテンプレートを使用して Secret Manifest と OpenSSL 設定ファイルを生成します:
+
+| テンプレートファイル名 | 用途 | 出力先 |
+| --- | --- | --- |
+| `cilium-ca-secret.yaml.j2` | cilium-ca Secret Manifest を生成します。`type: Opaque`, `data.ca.crt`, `data.ca.key` を含みます。 | `/tmp` に一時生成後, `kubectl apply` 実行後に削除 |
+| `cilium-clustermesh-secret.yaml.j2` | cilium-clustermesh Secret Manifest を生成します。`type: kubernetes.io/tls`, `data.ca.crt`, `data.tls.crt`, `data.tls.key` を含みます。 | `/tmp` に一時生成後, `kubectl apply` 実行後に削除 |
+| `cilium-clustermesh-openssl.cnf.j2` | Cluster Mesh TLS 証明書生成用の OpenSSL 設定ファイルを生成します。`k8s_cilium_clustermesh_tls_san_dns` の DNS 名を Subject Alternative Name (SAN) に埋め込みます。 | `k8s_cilium_shared_ca_output_dir` 配下に一時生成 |
+| `dummy.j2` | ダミーテンプレートです (実際の処理では使用されません)。 | - |
+
+**重要な注意事項**:
+- Secret Manifest ファイルは一時的に `/tmp` に生成され, `kubectl apply` 実行後に直ちに削除されます。ディスク上に機密情報が残留しないよう配慮されています。
+- OpenSSL 設定ファイル (`cilium-clustermesh-openssl.cnf.j2`) は証明書生成時に使用され, 生成後も `k8s_cilium_shared_ca_output_dir` 配下に保持されます。SAN の設定内容を確認する際に参照できます。
+
+## 共通CAを流用する場合
+
+`k8s_cilium_shared_ca_reuse_k8s_ca` を `true` に設定すると, 同一ホストで事前に実行した `k8s-shared-ca` ロールが展開した共通CA (`k8s_shared_ca_cert_path` / `k8s_shared_ca_key_path`) を利用します。これらの設定値が存在しない場合はタスクが失敗するため, `k8s_cilium_shared_ca_reuse_k8s_ca` を有効にする際は必ず `k8s-shared-ca` ロールを先に適用してください。
+
+## Cilium Cluster Mesh 用の共通CAを自動生成する場合
+
+`k8s_cilium_shared_ca_auto_create` を `true` に設定すると, Cilium Cluster Mesh 用の共通CAを自動生成します。
+
+`k8s_cilium_shared_ca_output_dir` と `k8s_cilium_shared_ca_cert_filename` / `k8s_cilium_shared_ca_key_filename` で指定したファイルが存在しない場合のみ `openssl` を用いて証明書と鍵を生成します。指定したファイルが既に存在する場合は上書きせず, 共通CAと秘密鍵をそのまま利用します。
+Cluster Mesh 用 Transport Layer Security (`TLS`) 証明書 (`k8s_cilium_clustermesh_secret_enabled: true` のとき) も同じ共通CAで署名され, Subject Alternative Name (`SAN`) に指定した Service 名を利用してクライアント検証が行われます。
+
+`k8s_cilium_shared_ca_auto_create` を `false` に設定すると, ロールは `*_filename` で指定したファイルに対して書き込みを行わず, 既存ファイルが存在する前提で動作します。
+
+`k8s_cilium_shared_ca_cert_path` / `k8s_cilium_shared_ca_key_path` を指定した場合は, `k8s_cilium_shared_ca_auto_create` の値に関わらずこれらのファイルを使用します。`*_filename` に指定したファイルが存在しない状態で `k8s_cilium_shared_ca_auto_create: false` として実行すると, 共通CAの入力が不足するためプレイブックはエラーで終了します。
+
+## CA を明示的に指定する場合
+
+独自に作成した CA を使用したい場合は, 証明書と鍵をあらかじめ `k8s_cilium_shared_ca_output_dir` に配置, または `k8s_cilium_shared_ca_cert_path` / `k8s_cilium_shared_ca_key_path` にフルパスを設定してください。必要に応じて `k8s_cilium_shared_ca_auto_create` を `false` に切り替え, 共通CAを明示的に指定します。
+
+## 機密情報保持リソース(`Secret`) 適用時の注意
+
+- `k8s_cilium_shared_ca_enabled` が `false` の場合, このロールは 機密情報保持リソース(`Secret`) を変更しません。
+- Manifest は `/tmp` に一時的に生成し, `kubectl apply` 実行後に削除します。
+- `kubectl` コマンドは `become: true` で実行するため, 対象ホストで sudo 実行が可能である必要があります。
+- 既定では `cilium_shared_ca_kubeconfig: /etc/kubernetes/admin.conf` を参照し, コントロールプレーン上の管理者権限 kubeconfig を利用します。機密情報保持リソース(`Secret`) は etcd に保存され, すべてのコントロールプレーンへ同期されます。
+- 別の kubeconfig を利用したい場合は, `cilium_shared_ca_kubeconfig` を目的のパスに上書きしてください。
+- `k8s_cilium_shared_ca_output_dir` と `k8s_cilium_shared_ca_cert_filename` / `k8s_cilium_shared_ca_key_filename` は自動生成時の保存先を指定する変数です。`*_path` を空文字にしている場合は, これらの組み合わせを自動で利用します。
+- `k8s_cilium_shared_ca_cert_path` / `k8s_cilium_shared_ca_key_path` は既存ディレクトリや任意ファイル名をそのまま利用したい場合に設定します。これらを指定した場合, `output_dir` と `*_filename` の組み合わせより優先されます。
+- `k8s_cilium_shared_ca_reuse_k8s_ca: false` かつ `k8s_cilium_shared_ca_auto_create: true` の場合, `openssl` で証明書と鍵を自動生成します。生成先は `k8s_cilium_shared_ca_output_dir` で, 既存ファイルがあれば上書きせずに利用します。自動生成を無効化したい場合は `k8s_cilium_shared_ca_auto_create: false` を指定してください。
+- 先に `k8s-shared-ca` ロールを適用しておくと, 同じ証明書と鍵のパスがそのまま引き継がれるため, 追加設定なしで共通CAを再利用できます。
+- Cluster Mesh 用 Secret は `kubectl -n kube-system get secret {{ k8s_cilium_clustermesh_secret_name }}` で存在を確認できます。`data.{{ k8s_cilium_clustermesh_secret_tls_cert_key }}`, `data.{{ k8s_cilium_clustermesh_secret_tls_key_key }}`, `data.{{ k8s_cilium_clustermesh_secret_cert_key }}` がすべて非空であることを検証してください。
+
+## Cluster Mesh 用 TLS 資材
+
+Cluster Mesh 向け Transport Layer Security (`TLS`) 資材は `k8s_cilium_shared_ca_output_dir` に保存されます。既定値 `/etc/kubernetes/pki/cilium-shared-ca` の配下には次のファイルが配置されます。
+
+| ファイル名 | 生成元と用途 |
+| --- | --- |
+| `cilium-ca.crt` | 共通CAの証明書です。`k8s_cilium_shared_ca_reuse_k8s_ca` が `true` の場合は `k8s-shared-ca` ロールと同一ファイルを参照します。 |
+| `cilium-ca.key` | 共通CAの秘密鍵です。既存ファイルがあれば上書きせずに流用します。 |
+| `cilium-clustermesh.crt` | Cluster Mesh 用 Transport Layer Security (`TLS`) サーバ証明書です。`k8s_cilium_clustermesh_tls_san_dns` を Subject Alternative Name (`SAN`) に埋め込んだ状態で共通CAが署名します。 |
+| `cilium-clustermesh.key` | Cluster Mesh 用 Transport Layer Security (`TLS`) サーバ秘密鍵です。`k8s_cilium_clustermesh_tls_key_size` で鍵長を制御します。 |
+| `cilium-clustermesh.srl` | `openssl x509` の連番管理ファイルです。証明書を再発行するたびにシリアル番号が更新されます。 |
+
+Cluster Mesh 用 Secret には既定で `app.kubernetes.io/managed-by: Helm` ラベルと `meta.helm.sh/*` アノテーションを付与しています。Helm が管理する `cilium` リリースに Secret を組み込む場合も, 追加の手動操作は不要です。
+
+`k8s_cilium_clustermesh_secret_enabled: true` の場合, これらのファイルから読み込んだ base64 データを `cilium-clustermesh` 機密情報保持リソース(`Secret`) に格納します。Secret の内容を検証したい場合は, 次のコマンド例で展開すると証明書と秘密鍵を確認できます。
+
+```bash
+kubectl --context <context> -n kube-system get secret {{ k8s_cilium_clustermesh_secret_name }} \
+    -o go-template='{{ range $k, $v := .data }}{{$k}}{{"\t"}}{{ $v | base64decode }}{{"\n"}}{{ end }}'
+```
+
+TLS 資材の再発行が必要な場合は, 対象ファイルを一時退避または削除したうえで `ansible-playbook -i inventory/hosts k8s-ctrl-plane.yml --limit <hostname> -t k8s-cilium-shared-ca` を再実行してください。ロールは欠落している証明書や秘密鍵のみを生成し, 既存の共通CAを再利用します。証明書の SAN を変更したい場合は `k8s_cilium_clustermesh_tls_san_dns` を更新してから同じ手順で Secret を再生成します。
+
+## 設定例
+
+### 設定例1: 基本設定 (k8s-shared-ca再利用)
+
+`vars/all-config.yml` で以下のように設定します。`k8s-shared-ca` ロールが生成した共通CAを再利用し, Cluster Mesh用Secretまで適用する最小限の構成です。
+
+```yaml
+k8s_cilium_shared_ca_enabled: true
+k8s_cilium_shared_ca_reuse_k8s_ca: true
+k8s_cilium_clustermesh_secret_enabled: true
+```
+
+**適用条件**:
+- `k8s-shared-ca` ロールが事前に実行済みである
+- `k8s_shared_ca_cert_path` および `k8s_shared_ca_key_path` が定義されている
+
+**動作**:
+- `k8s-shared-ca` ロールが配置した共通CAファイルを読み込む
+- `cilium-ca` Secret (`type: Opaque`) を作成または更新
+- Cluster Mesh TLS証明書を自動生成 (共通CAで署名)
+- `cilium-clustermesh` Secret (`type: kubernetes.io/tls`) を作成または更新
+
+### 設定例2: 独立CA自動生成設定
+
+`k8s-shared-ca` ロールに依存せず, 本ロール独自の共通CAを自動生成する構成です。
+
+```yaml
+k8s_cilium_shared_ca_enabled: true
+k8s_cilium_shared_ca_reuse_k8s_ca: false
+k8s_cilium_shared_ca_auto_create: true
+k8s_cilium_shared_ca_output_dir: "/etc/kubernetes/pki/cilium-shared-ca"
+k8s_cilium_shared_ca_key_size: 4096
+k8s_cilium_shared_ca_valid_days: 3650
+k8s_cilium_clustermesh_secret_enabled: true
+```
+
+**適用条件**:
+- openssl コマンドが利用可能である
+- `k8s_cilium_shared_ca_output_dir` に書き込み権限がある
+
+**動作**:
+- `k8s_cilium_shared_ca_output_dir` 配下に共通CAファイルを自動生成 (既存ファイルがあれば上書きせず再利用)
+- `cilium-ca` Secret を作成または更新
+- Cluster Mesh TLS証明書を自動生成
+- `cilium-clustermesh` Secret を作成または更新
+
+### 設定例3: 既存CA指定設定
+
+既に作成済みのCA証明書と秘密鍵を明示的に指定する構成です。
+
+```yaml
+k8s_cilium_shared_ca_enabled: true
+k8s_cilium_shared_ca_reuse_k8s_ca: false
+k8s_cilium_shared_ca_auto_create: false
+k8s_cilium_shared_ca_cert_path: "/path/to/custom/ca.crt"
+k8s_cilium_shared_ca_key_path: "/path/to/custom/ca.key"
+k8s_cilium_clustermesh_secret_enabled: true
+```
+
+**適用条件**:
+- 指定したパスにCA証明書と秘密鍵が存在する
+- 秘密鍵ファイルに読み取り権限がある
+
+**動作**:
+- 指定したCA証明書と秘密鍵を使用 (自動生成は実行されない)
+- `cilium-ca` Secret を作成または更新
+- 指定したCAでCluster Mesh TLS証明書を署名
+- `cilium-clustermesh` Secret を作成または更新
+
+### 設定例4: Cluster Mesh無効化設定
+
+Cluster Mesh機能を使用せず, `cilium-ca` Secretのみを作成する構成です。
+
+```yaml
+k8s_cilium_shared_ca_enabled: true
+k8s_cilium_shared_ca_reuse_k8s_ca: true
+k8s_cilium_clustermesh_secret_enabled: false
+```
+
+**適用条件**:
+- `k8s-shared-ca` ロールが事前に実行済みである (または独自のCA指定)
+
+**動作**:
+- 共通CAを読み込む (reuse_k8s_caがtrueの場合はk8s-shared-caから, falseの場合は自動生成または明示的指定)
+- `cilium-ca` Secret のみを作成または更新
+- Cluster Mesh TLS証明書は生成されない
+- `cilium-clustermesh` Secret は作成されない
+
+### 設定例5: カスタムSAN設定
+
+Kubernetesクラスタごとに異なる Service ドメイン名を使用する場合の構成例です。
+
+```yaml
+k8s_cilium_shared_ca_enabled: true
+k8s_cilium_shared_ca_reuse_k8s_ca: true
+k8s_cilium_clustermesh_secret_enabled: true
+k8s_cilium_clustermesh_tls_san_dns:
+  - "clustermesh-apiserver.cilium.svc.cluster.local"
+  - "clustermesh-apiserver.cilium.svc"
+  - "custom-domain.example.org"
+```
+
+**適用条件**:
+- Cluster Mesh APIServerが既定の `kube-system` 名前空間以外にデプロイされている
+- カスタムドメイン名でCluster Mesh APIServerにアクセスする必要がある
+
+**動作**:
+- 指定したDNS名をSubject Alternative Name (SAN) に含むTLS証明書を生成
+- クライアント側のTLS検証で, リスト内のいずれかのドメイン名にマッチすれば接続を許可
 
 ## 実行フロー
 
@@ -773,6 +968,43 @@ total 8.0K
 - `cilium-clustermesh.crt`, `cilium-clustermesh.key`, `cilium-clustermesh.srl` などの Cluster Mesh 関連ファイルが存在しない
 - `k8s_cilium_clustermesh_secret_enabled: false` の場合は Cluster Mesh TLS 資材が生成されない
 
+## トラブルシューティング (CA 不一致時)
+
+1. 両Kubernetesクラスタで `cilium-ca` 機密情報保持リソース(`Secret`) が存在することを確認します。
+
+    ```bash
+    kubectl --context <context> -n kube-system get secret cilium-ca
+    ```
+
+    機密情報保持リソース(`Secret`) が片側で欠落している場合は, 該当コントロールプレーンノードに対して `k8s-ctrl-plane` プレイブックを再実行し, `k8s-shared-ca` => `k8s-cilium-shared-ca` の順にロールを適用してください。
+
+2. 機密情報保持リソース(`Secret`) が存在していても内容が一致しない場合は, `ca.crt` のハッシュを比較します。
+
+    ```bash
+    kubectl --context <context> -n kube-system get secret cilium-ca -o jsonpath='{.data.ca\.crt}' | base64 -d | sha256sum
+    ```
+
+    ハッシュが揃わない場合は, 一致していないKubernetesクラスタ側で `kubectl delete secret cilium-ca` を実行した後に, `ansible-playbook -i inventory/hosts k8s-ctrl-plane.yml --limit <hostname> -t k8s-shared-ca,k8s-cilium-shared-ca` を実行して 機密情報保持リソース(`Secret`) を再生成してください。
+
+3. 機密情報保持リソース(`Secret`) を更新した後は, 両Kubernetesクラスタで Cilium DaemonSet を再起動し, 新しい CA を読み込ませます。
+
+    ```bash
+    kubectl --context <context> -n kube-system rollout restart ds cilium
+    ```
+
+4. `cilium clustermesh status` でKubernetesクラスタ間接続を確認し, 全Kubernetes ノードが接続済みであれば復旧完了です。NodePort に関する警告が気になる場合は ServiceType を LoadBalancer などへ変更することも検討してください。
+
+5. Cluster Mesh 用 Secret (`k8s_cilium_clustermesh_secret_enabled: true`) を更新した場合は, `cilium-clustermesh` 機密情報保持リソース(`Secret`) の内容を確認します。
+
+    ```bash
+    kubectl --context <context> -n kube-system get secret cilium-clustermesh -o jsonpath='{.data.{{ k8s_cilium_clustermesh_secret_tls_cert_key }}{"\n"}}{.data.{{ k8s_cilium_clustermesh_secret_tls_key_key }}{"\n"}}{.data.{{ k8s_cilium_clustermesh_secret_cert_key }}{"\n"}}'
+    ```
+
+    各キーの値が空 (`""`) の場合は Secret が正しく適用されていないため, `ansible-playbook -i inventory/hosts k8s-ctrl-plane.yml --limit <hostname> -t k8s-cilium-shared-ca` を再実行して Cluster Mesh 用 TLS 資材を再生成してください。
+
+6. Cluster Mesh 接続が確立しない場合は, `cilium clustermesh connectivity test` を実行して TLS 証明書検証エラーや Service 名の不一致などを確認します。Subject Alternative Name (`SAN`) の DNS 名がKubernetesクラスタの Service 名と一致しない場合は, `k8s_cilium_clustermesh_tls_san_dns` を調整した上で再度 Secret の再生成を実施してください。
+
+
 ## 注意事項
 
 実行者は既存の実行順依存を崩さないことを確認した上で本ロールを実行します。
@@ -861,234 +1093,7 @@ sudo openssl x509 -in /etc/kubernetes/pki/cilium-shared-ca/cilium-clustermesh.cr
 - **自動監視**: Prometheus + Alertmanager や cert-manager など監視ツールを導入し, 有効期限が近づいたら自動でアラートを発報するようにします。
 - **更新猶予期間**: 有効期限の6ヶ月前から更新作業を開始し, 十分な検証期間を確保します。
 
-## デフォルト動作
 
-| 条件 | 結果 |
-| --- | --- |
-| `cilium_shared_ca_kubeconfig` が空文字列または未定義 | CA証明書パス決定 (`config-cilium-ca.yml`) と Cluster Mesh TLS 証明書生成 (`clustermesh-ca.yml`) タスクはスキップされます。パッケージインストール, ディレクトリ作成, サービス設定タスクのみが実行されます。 |
-| `k8s_cilium_shared_ca_enabled: false` | このロールは Secret を変更しません。何も実行されません。 |
-| `k8s_cilium_shared_ca_enabled: true` かつ `k8s_cilium_shared_ca_reuse_k8s_ca: true` | k8s-shared-ca ロールが生成した共通CAを使用します。k8s-shared-ca ロールが未実行の場合はタスクが失敗します。 |
-| `k8s_cilium_shared_ca_enabled: true` かつ `k8s_cilium_shared_ca_auto_create: true` | CA ファイルが存在しない場合, openssl で共通CAを自動生成します。既存ファイルがある場合は上書きせずに利用します。 |
-| `k8s_cilium_shared_ca_enabled: true` かつ `k8s_cilium_shared_ca_auto_create: false` | CA ファイルが存在しない場合, タスクが失敗します。既存の CA ファイルを使用する前提で動作します。 |
-| `k8s_cilium_clustermesh_secret_enabled: false` | Cluster Mesh 用 Secret は生成されません。cilium-ca Secret のみが作成, 更新されます。 |
-| `k8s_cilium_clustermesh_secret_enabled: true` | Cluster Mesh 用 TLS 証明書を生成し, cilium-clustermesh Secret (`type: kubernetes.io/tls`) を作成, 更新します。 |
-| `k8s_cilium_shared_ca_cert_path` / `k8s_cilium_shared_ca_key_path` が指定されている | これらのパスが優先され, `output_dir` と `*_filename` の組み合わせは無視されます。 |
-
-## テンプレート・ファイル
-
-本ロールでは以下のテンプレートを使用して Secret Manifest と OpenSSL 設定ファイルを生成します:
-
-| テンプレートファイル名 | 用途 | 出力先 |
-| --- | --- | --- |
-| `cilium-ca-secret.yaml.j2` | cilium-ca Secret Manifest を生成します。`type: Opaque`, `data.ca.crt`, `data.ca.key` を含みます。 | `/tmp` に一時生成後, `kubectl apply` 実行後に削除 |
-| `cilium-clustermesh-secret.yaml.j2` | cilium-clustermesh Secret Manifest を生成します。`type: kubernetes.io/tls`, `data.ca.crt`, `data.tls.crt`, `data.tls.key` を含みます。 | `/tmp` に一時生成後, `kubectl apply` 実行後に削除 |
-| `cilium-clustermesh-openssl.cnf.j2` | Cluster Mesh TLS 証明書生成用の OpenSSL 設定ファイルを生成します。`k8s_cilium_clustermesh_tls_san_dns` の DNS 名を Subject Alternative Name (SAN) に埋め込みます。 | `k8s_cilium_shared_ca_output_dir` 配下に一時生成 |
-| `dummy.j2` | ダミーテンプレートです (実際の処理では使用されません)。 | - |
-
-**重要な注意事項**:
-- Secret Manifest ファイルは一時的に `/tmp` に生成され, `kubectl apply` 実行後に直ちに削除されます。ディスク上に機密情報が残留しないよう配慮されています。
-- OpenSSL 設定ファイル (`cilium-clustermesh-openssl.cnf.j2`) は証明書生成時に使用され, 生成後も `k8s_cilium_shared_ca_output_dir` 配下に保持されます。SAN の設定内容を確認する際に参照できます。
-
-## 共通CAを流用する場合
-
-`k8s_cilium_shared_ca_reuse_k8s_ca` を `true` に設定すると, 同一ホストで事前に実行した `k8s-shared-ca` ロールが展開した共通CA (`k8s_shared_ca_cert_path` / `k8s_shared_ca_key_path`) を利用します。これらの設定値が存在しない場合はタスクが失敗するため, `k8s_cilium_shared_ca_reuse_k8s_ca` を有効にする際は必ず `k8s-shared-ca` ロールを先に適用してください。
-
-## Cilium Cluster Mesh 用の共通CAを自動生成する場合
-
-`k8s_cilium_shared_ca_auto_create` を `true` に設定すると, Cilium Cluster Mesh 用の共通CAを自動生成します。
-
-`k8s_cilium_shared_ca_output_dir` と `k8s_cilium_shared_ca_cert_filename` / `k8s_cilium_shared_ca_key_filename` で指定したファイルが存在しない場合のみ `openssl` を用いて証明書と鍵を生成します。指定したファイルが既に存在する場合は上書きせず, 共通CAと秘密鍵をそのまま利用します。
-Cluster Mesh 用 Transport Layer Security (`TLS`) 証明書 (`k8s_cilium_clustermesh_secret_enabled: true` のとき) も同じ共通CAで署名され, Subject Alternative Name (`SAN`) に指定した Service 名を利用してクライアント検証が行われます。
-
-`k8s_cilium_shared_ca_auto_create` を `false` に設定すると, ロールは `*_filename` で指定したファイルに対して書き込みを行わず, 既存ファイルが存在する前提で動作します。
-
-`k8s_cilium_shared_ca_cert_path` / `k8s_cilium_shared_ca_key_path` を指定した場合は, `k8s_cilium_shared_ca_auto_create` の値に関わらずこれらのファイルを使用します。`*_filename` に指定したファイルが存在しない状態で `k8s_cilium_shared_ca_auto_create: false` として実行すると, 共通CAの入力が不足するためプレイブックはエラーで終了します。
-
-## CA を明示的に指定する場合
-
-独自に作成した CA を使用したい場合は, 証明書と鍵をあらかじめ `k8s_cilium_shared_ca_output_dir` に配置, または `k8s_cilium_shared_ca_cert_path` / `k8s_cilium_shared_ca_key_path` にフルパスを設定してください。必要に応じて `k8s_cilium_shared_ca_auto_create` を `false` に切り替え, 共通CAを明示的に指定します。
-
-## 機密情報保持リソース(`Secret`) 適用時の注意
-
-- `k8s_cilium_shared_ca_enabled` が `false` の場合, このロールは 機密情報保持リソース(`Secret`) を変更しません。
-- Manifest は `/tmp` に一時的に生成し, `kubectl apply` 実行後に削除します。
-- `kubectl` コマンドは `become: true` で実行するため, 対象ホストで sudo 実行が可能である必要があります。
-- 既定では `cilium_shared_ca_kubeconfig: /etc/kubernetes/admin.conf` を参照し, コントロールプレーン上の管理者権限 kubeconfig を利用します。機密情報保持リソース(`Secret`) は etcd に保存され, すべてのコントロールプレーンへ同期されます。
-- 別の kubeconfig を利用したい場合は, `cilium_shared_ca_kubeconfig` を目的のパスに上書きしてください。
-- `k8s_cilium_shared_ca_output_dir` と `k8s_cilium_shared_ca_cert_filename` / `k8s_cilium_shared_ca_key_filename` は自動生成時の保存先を指定する変数です。`*_path` を空文字にしている場合は, これらの組み合わせを自動で利用します。
-- `k8s_cilium_shared_ca_cert_path` / `k8s_cilium_shared_ca_key_path` は既存ディレクトリや任意ファイル名をそのまま利用したい場合に設定します。これらを指定した場合, `output_dir` と `*_filename` の組み合わせより優先されます。
-- `k8s_cilium_shared_ca_reuse_k8s_ca: false` かつ `k8s_cilium_shared_ca_auto_create: true` の場合, `openssl` で証明書と鍵を自動生成します。生成先は `k8s_cilium_shared_ca_output_dir` で, 既存ファイルがあれば上書きせずに利用します。自動生成を無効化したい場合は `k8s_cilium_shared_ca_auto_create: false` を指定してください。
-- 先に `k8s-shared-ca` ロールを適用しておくと, 同じ証明書と鍵のパスがそのまま引き継がれるため, 追加設定なしで共通CAを再利用できます。
-- Cluster Mesh 用 Secret は `kubectl -n kube-system get secret {{ k8s_cilium_clustermesh_secret_name }}` で存在を確認できます。`data.{{ k8s_cilium_clustermesh_secret_tls_cert_key }}`, `data.{{ k8s_cilium_clustermesh_secret_tls_key_key }}`, `data.{{ k8s_cilium_clustermesh_secret_cert_key }}` がすべて非空であることを検証してください。
-
-## Cluster Mesh 用 TLS 資材
-
-Cluster Mesh 向け Transport Layer Security (`TLS`) 資材は `k8s_cilium_shared_ca_output_dir` に保存されます。既定値 `/etc/kubernetes/pki/cilium-shared-ca` の配下には次のファイルが配置されます。
-
-| ファイル名 | 生成元と用途 |
-| --- | --- |
-| `cilium-ca.crt` | 共通CAの証明書です。`k8s_cilium_shared_ca_reuse_k8s_ca` が `true` の場合は `k8s-shared-ca` ロールと同一ファイルを参照します。 |
-| `cilium-ca.key` | 共通CAの秘密鍵です。既存ファイルがあれば上書きせずに流用します。 |
-| `cilium-clustermesh.crt` | Cluster Mesh 用 Transport Layer Security (`TLS`) サーバ証明書です。`k8s_cilium_clustermesh_tls_san_dns` を Subject Alternative Name (`SAN`) に埋め込んだ状態で共通CAが署名します。 |
-| `cilium-clustermesh.key` | Cluster Mesh 用 Transport Layer Security (`TLS`) サーバ秘密鍵です。`k8s_cilium_clustermesh_tls_key_size` で鍵長を制御します。 |
-| `cilium-clustermesh.srl` | `openssl x509` の連番管理ファイルです。証明書を再発行するたびにシリアル番号が更新されます。 |
-
-Cluster Mesh 用 Secret には既定で `app.kubernetes.io/managed-by: Helm` ラベルと `meta.helm.sh/*` アノテーションを付与しています。Helm が管理する `cilium` リリースに Secret を組み込む場合も, 追加の手動操作は不要です。
-
-`k8s_cilium_clustermesh_secret_enabled: true` の場合, これらのファイルから読み込んだ base64 データを `cilium-clustermesh` 機密情報保持リソース(`Secret`) に格納します。Secret の内容を検証したい場合は, 次のコマンド例で展開すると証明書と秘密鍵を確認できます。
-
-```bash
-kubectl --context <context> -n kube-system get secret {{ k8s_cilium_clustermesh_secret_name }} \
-    -o go-template='{{ range $k, $v := .data }}{{$k}}{{"\t"}}{{ $v | base64decode }}{{"\n"}}{{ end }}'
-```
-
-TLS 資材の再発行が必要な場合は, 対象ファイルを一時退避または削除したうえで `ansible-playbook -i inventory/hosts k8s-ctrl-plane.yml --limit <hostname> -t k8s-cilium-shared-ca` を再実行してください。ロールは欠落している証明書や秘密鍵のみを生成し, 既存の共通CAを再利用します。証明書の SAN を変更したい場合は `k8s_cilium_clustermesh_tls_san_dns` を更新してから同じ手順で Secret を再生成します。
-
-## トラブルシューティング (CA 不一致時)
-
-1. 両Kubernetesクラスタで `cilium-ca` 機密情報保持リソース(`Secret`) が存在することを確認します。
-
-    ```bash
-    kubectl --context <context> -n kube-system get secret cilium-ca
-    ```
-
-    機密情報保持リソース(`Secret`) が片側で欠落している場合は, 該当コントロールプレーンノードに対して `k8s-ctrl-plane` プレイブックを再実行し, `k8s-shared-ca` => `k8s-cilium-shared-ca` の順にロールを適用してください。
-
-2. 機密情報保持リソース(`Secret`) が存在していても内容が一致しない場合は, `ca.crt` のハッシュを比較します。
-
-    ```bash
-    kubectl --context <context> -n kube-system get secret cilium-ca -o jsonpath='{.data.ca\.crt}' | base64 -d | sha256sum
-    ```
-
-    ハッシュが揃わない場合は, 一致していないKubernetesクラスタ側で `kubectl delete secret cilium-ca` を実行した後に, `ansible-playbook -i inventory/hosts k8s-ctrl-plane.yml --limit <hostname> -t k8s-shared-ca,k8s-cilium-shared-ca` を実行して 機密情報保持リソース(`Secret`) を再生成してください。
-
-3. 機密情報保持リソース(`Secret`) を更新した後は, 両Kubernetesクラスタで Cilium DaemonSet を再起動し, 新しい CA を読み込ませます。
-
-    ```bash
-    kubectl --context <context> -n kube-system rollout restart ds cilium
-    ```
-
-4. `cilium clustermesh status` でKubernetesクラスタ間接続を確認し, 全Kubernetes ノードが接続済みであれば復旧完了です。NodePort に関する警告が気になる場合は ServiceType を LoadBalancer などへ変更することも検討してください。
-
-5. Cluster Mesh 用 Secret (`k8s_cilium_clustermesh_secret_enabled: true`) を更新した場合は, `cilium-clustermesh` 機密情報保持リソース(`Secret`) の内容を確認します。
-
-    ```bash
-    kubectl --context <context> -n kube-system get secret cilium-clustermesh -o jsonpath='{.data.{{ k8s_cilium_clustermesh_secret_tls_cert_key }}{"\n"}}{.data.{{ k8s_cilium_clustermesh_secret_tls_key_key }}{"\n"}}{.data.{{ k8s_cilium_clustermesh_secret_cert_key }}{"\n"}}'
-    ```
-
-    各キーの値が空 (`""`) の場合は Secret が正しく適用されていないため, `ansible-playbook -i inventory/hosts k8s-ctrl-plane.yml --limit <hostname> -t k8s-cilium-shared-ca` を再実行して Cluster Mesh 用 TLS 資材を再生成してください。
-
-6. Cluster Mesh 接続が確立しない場合は, `cilium clustermesh connectivity test` を実行して TLS 証明書検証エラーや Service 名の不一致などを確認します。Subject Alternative Name (`SAN`) の DNS 名がKubernetesクラスタの Service 名と一致しない場合は, `k8s_cilium_clustermesh_tls_san_dns` を調整した上で再度 Secret の再生成を実施してください。
-
-## 設定例
-
-### 設定例1: 基本設定 (k8s-shared-ca再利用)
-
-`vars/all-config.yml` で以下のように設定します。`k8s-shared-ca` ロールが生成した共通CAを再利用し, Cluster Mesh用Secretまで適用する最小限の構成です。
-
-```yaml
-k8s_cilium_shared_ca_enabled: true
-k8s_cilium_shared_ca_reuse_k8s_ca: true
-k8s_cilium_clustermesh_secret_enabled: true
-```
-
-**適用条件**:
-- `k8s-shared-ca` ロールが事前に実行済みである
-- `k8s_shared_ca_cert_path` および `k8s_shared_ca_key_path` が定義されている
-
-**動作**:
-- `k8s-shared-ca` ロールが配置した共通CAファイルを読み込む
-- `cilium-ca` Secret (`type: Opaque`) を作成または更新
-- Cluster Mesh TLS証明書を自動生成 (共通CAで署名)
-- `cilium-clustermesh` Secret (`type: kubernetes.io/tls`) を作成または更新
-
-### 設定例2: 独立CA自動生成設定
-
-`k8s-shared-ca` ロールに依存せず, 本ロール独自の共通CAを自動生成する構成です。
-
-```yaml
-k8s_cilium_shared_ca_enabled: true
-k8s_cilium_shared_ca_reuse_k8s_ca: false
-k8s_cilium_shared_ca_auto_create: true
-k8s_cilium_shared_ca_output_dir: "/etc/kubernetes/pki/cilium-shared-ca"
-k8s_cilium_shared_ca_key_size: 4096
-k8s_cilium_shared_ca_valid_days: 3650
-k8s_cilium_clustermesh_secret_enabled: true
-```
-
-**適用条件**:
-- openssl コマンドが利用可能である
-- `k8s_cilium_shared_ca_output_dir` に書き込み権限がある
-
-**動作**:
-- `k8s_cilium_shared_ca_output_dir` 配下に共通CAファイルを自動生成 (既存ファイルがあれば上書きせず再利用)
-- `cilium-ca` Secret を作成または更新
-- Cluster Mesh TLS証明書を自動生成
-- `cilium-clustermesh` Secret を作成または更新
-
-### 設定例3: 既存CA指定設定
-
-既に作成済みのCA証明書と秘密鍵を明示的に指定する構成です。
-
-```yaml
-k8s_cilium_shared_ca_enabled: true
-k8s_cilium_shared_ca_reuse_k8s_ca: false
-k8s_cilium_shared_ca_auto_create: false
-k8s_cilium_shared_ca_cert_path: "/path/to/custom/ca.crt"
-k8s_cilium_shared_ca_key_path: "/path/to/custom/ca.key"
-k8s_cilium_clustermesh_secret_enabled: true
-```
-
-**適用条件**:
-- 指定したパスにCA証明書と秘密鍵が存在する
-- 秘密鍵ファイルに読み取り権限がある
-
-**動作**:
-- 指定したCA証明書と秘密鍵を使用 (自動生成は実行されない)
-- `cilium-ca` Secret を作成または更新
-- 指定したCAでCluster Mesh TLS証明書を署名
-- `cilium-clustermesh` Secret を作成または更新
-
-### 設定例4: Cluster Mesh無効化設定
-
-Cluster Mesh機能を使用せず, `cilium-ca` Secretのみを作成する構成です。
-
-```yaml
-k8s_cilium_shared_ca_enabled: true
-k8s_cilium_shared_ca_reuse_k8s_ca: true
-k8s_cilium_clustermesh_secret_enabled: false
-```
-
-**適用条件**:
-- `k8s-shared-ca` ロールが事前に実行済みである (または独自のCA指定)
-
-**動作**:
-- 共通CAを読み込む (reuse_k8s_caがtrueの場合はk8s-shared-caから, falseの場合は自動生成または明示的指定)
-- `cilium-ca` Secret のみを作成または更新
-- Cluster Mesh TLS証明書は生成されない
-- `cilium-clustermesh` Secret は作成されない
-
-### 設定例5: カスタムSAN設定
-
-Kubernetesクラスタごとに異なる Service ドメイン名を使用する場合の構成例です。
-
-```yaml
-k8s_cilium_shared_ca_enabled: true
-k8s_cilium_shared_ca_reuse_k8s_ca: true
-k8s_cilium_clustermesh_secret_enabled: true
-k8s_cilium_clustermesh_tls_san_dns:
-  - "clustermesh-apiserver.cilium.svc.cluster.local"
-  - "clustermesh-apiserver.cilium.svc"
-  - "custom-domain.example.org"
-```
-
-**適用条件**:
-- Cluster Mesh APIServerが既定の `kube-system` 名前空間以外にデプロイされている
-- カスタムドメイン名でCluster Mesh APIServerにアクセスする必要がある
-
-**動作**:
-- 指定したDNS名をSubject Alternative Name (SAN) に含むTLS証明書を生成
-- クライアント側のTLS検証で, リスト内のいずれかのドメイン名にマッチすれば接続を許可
 ## 参考資料
 
 ### 公式ドキュメント

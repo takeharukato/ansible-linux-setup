@@ -14,6 +14,10 @@
   - [実行フロー](#実行フロー)
   - [検証ポイント](#検証ポイント)
   - [トラブルシューティング](#トラブルシューティング)
+    - [1. ノードが再起動されない場合](#1-ノードが再起動されない場合)
+    - [2. 再起動待機でタイムアウトする場合](#2-再起動待機でタイムアウトする場合)
+    - [3. 権限不足で再起動に失敗する場合](#3-権限不足で再起動に失敗する場合)
+    - [4. 失敗原因を特定できない場合](#4-失敗原因を特定できない場合)
   - [注意事項](#注意事項)
   - [参考資料](#参考資料)
     - [公式ドキュメント](#公式ドキュメント)
@@ -55,12 +59,12 @@
 | Playbook | - | 自動化処理の実行手順を記述したファイル。 |
 | Canonical | - | Ubuntu を提供する組織名。 |
 | Key-Value | - | キーと値の組で情報を表す方式。 |
-| Internet Protocol | IP | インターネットプロトコルの略称。 |
+| Internet Protocol | IP | ネットワーク上で宛先を識別し, データを届けるための通信手順。 |
 | Structured Query Language | SQL | データベースを操作するための記述言語。 |
-| Hypertext Transfer Protocol | HTTP | WWW で情報をやり取りする通信手順。 |
-| Hypertext Transfer Protocol Secure | HTTPS | 通信内容を暗号化して WWW 通信を行う方式。 |
-| RPM Package Manager | RPM | RHEL 系で使用するパッケージ形式。 |
-| Virtual Machine | VM | 物理機器上で動作する仮想的な計算機。 |
+| Hypertext Transfer Protocol | HTTP | World Wide Webで情報をやり取りする通信手順。 |
+| Hypertext Transfer Protocol Secure | HTTPS | 通信内容を暗号化してWorld Wide Web通信を行う方式。 |
+| RPM Package Manager | RPM | RPM形式パッケージの導入, 更新, 削除, 情報参照を行う仕組み。 |
+| Virtual Machine | VM | 物理計算機上で動作する仮想的な計算機。 |
 | localhost | - | 同一機器自身を指す名前。 |
 | root | - | Unix 系システムの最上位権限を持つ管理者識別子。 |
 | ソフトウェア | - | 情報処理システムで使用するプログラム, 手順, 規則及び関連文書の全体又は一部分。 |
@@ -89,8 +93,8 @@
 | Service | - | サービスの英語表記。 |
 | Node | - | ノードの英語表記。 |
 | Makefile | - | 実行手順を定義したファイル。 |
-| Application Programming Interface | API | アプリケーション同士がやり取りする方法を定めた仕様。 |
-| Uniform Resource Locator | URL | WWW 上の資源の場所を示す文字列。 |
+| Application Programming Interface | API | アプリケーション同士が機能やデータをやり取りするための取り決め。 |
+| Uniform Resource Locator | URL | World Wide Web上の資源の場所を示す文字列。 |
 | Operating System | OS | 計算機の基本機能を管理し, アプリケーションを動作させる基盤ソフトウェア。 |
 | Ansible Inventory | inventory | 実行対象ホストの一覧と接続情報を管理する定義。 |
 | Ansible Playbook | playbook | 自動化処理の実行手順を順序付きで記述したファイル。 |
@@ -156,14 +160,73 @@ ansible-playbook -i inventory/hosts site.yml --syntax-check
 
 ## トラブルシューティング
 
-実行者は, 症状ごとに以下の確認手順と対応を実施します。
+### 1. ノードが再起動されない場合
 
-| 症状 | 主な原因 | 確認コマンド | 期待結果 | 対応 |
-| --- | --- | --- | --- | --- |
-| ノードが再起動されない | `force_reboot` が `false` または未定義です。 | `ansible-playbook -i inventory/hosts site.yml --tags "force-reboot" -vv` | `Reboot skipped because force_reboot is not set to true` が出力されます。 | `vars/all-config.yml` または `host_vars/<hostname>` で `force_reboot: true` を設定して再実行します。 |
-| 再起動待機でタイムアウトする | ホストの起動完了までに `reboot_timeout_sec` を超過しています。 | `ansible-playbook -i inventory/hosts site.yml --tags "force-reboot" -vv` | `Reboot host gracefully` タスクで timeout 関連メッセージが出力されます。 | `reboot_timeout_sec` を増やして再実行します (例: `900`)。 |
-| 権限不足で再起動に失敗する | 再起動実行時の権限が不足しています。 | `ansible-playbook -i inventory/hosts site.yml --tags "force-reboot" -vv` | `permission denied` または `sudo` 関連エラーが出力されます。 | 実行ユーザの sudo 権限を確認し, 必要に応じて `become` 設定を見直して再実行します。 |
-| 失敗原因を特定できない | 実行ログの確認範囲が不足しています。 | `ls -1 build*.log` と `grep -n "FAILED\|Reboot host gracefully\|Force reboot if enabled" build*.log` | 失敗タスク名とエラーメッセージが抽出されます。 | 抽出結果を基に不足変数または接続設定を修正して再実行します。 |
+**実施対象ホスト**: 制御ホスト
+
+**実行するコマンド**:
+
+```bash
+ansible-playbook -i inventory/hosts site.yml --tags "force-reboot" -vv
+grep -n "force_reboot" vars/all-config.yml host_vars/*/main.yml
+```
+
+**確認ポイント**:
+
+- `force_reboot` が `true` に設定されていること。
+- `force_reboot` が `false` または未定義の場合は `Reboot skipped because force_reboot is not set to true` が出力されること。
+- `vars/all-config.yml` または `host_vars/<hostname>` で `force_reboot: true` を設定して再実行していること。
+
+### 2. 再起動待機でタイムアウトする場合
+
+**実施対象ホスト**: 制御ホスト, 対象ホスト
+
+**実行するコマンド**:
+
+```bash
+ansible-playbook -i inventory/hosts site.yml --tags "force-reboot" -vv
+grep -n "reboot_timeout_sec" vars/all-config.yml host_vars/*/main.yml
+```
+
+**確認ポイント**:
+
+- `Reboot host gracefully` タスクで timeout 関連メッセージが出力されていないこと。
+- 起動完了までの時間が `reboot_timeout_sec` を超過していないこと。
+- 必要に応じて `reboot_timeout_sec` を増やして再実行していること(例: `900`)。
+
+### 3. 権限不足で再起動に失敗する場合
+
+**実施対象ホスト**: 制御ホスト, 対象ホスト
+
+**実行するコマンド**:
+
+```bash
+ansible-playbook -i inventory/hosts site.yml --tags "force-reboot" -vv
+sudo -n true
+```
+
+**確認ポイント**:
+
+- `permission denied` または `sudo` 関連エラーが出力されていないこと。
+- 実行ユーザに再起動を実行する権限があること。
+- 必要に応じて `become` 設定を見直して再実行していること。
+
+### 4. 失敗原因を特定できない場合
+
+**実施対象ホスト**: 制御ホスト
+
+**実行するコマンド**:
+
+```bash
+ls -1 build*.log
+grep -n "FAILED\|Reboot host gracefully\|Force reboot if enabled" build*.log
+```
+
+**確認ポイント**:
+
+- 失敗タスク名とエラーメッセージが抽出できること。
+- 抽出結果から不足変数または接続設定の不整合を特定できること。
+- 修正後の再実行で同一エラーが再発しないこと。
 
 ## 注意事項
 

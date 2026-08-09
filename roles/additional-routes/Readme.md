@@ -26,6 +26,9 @@
     - [2. Debian/Ubuntu(netplan) の設定ファイル確認](#2-debianubuntunetplan-の設定ファイル確認)
     - [3. RHEL(NetworkManager) の設定確認](#3-rhelnetworkmanager-の設定確認)
   - [トラブルシューティング](#トラブルシューティング)
+    - [1. Debian/Ubuntu 系で netplan 適用が失敗する場合](#1-debianubuntu-系で-netplan-適用が失敗する場合)
+    - [2. RHEL 系でルートが反映されない場合](#2-rhel-系でルートが反映されない場合)
+    - [3. 管理ネットワークインターフェース名が不一致の場合](#3-管理ネットワークインターフェース名が不一致の場合)
   - [注意事項](#注意事項)
   - [参考資料](#参考資料)
     - [公式ドキュメント](#公式ドキュメント)
@@ -67,12 +70,12 @@
 | Playbook | - | 自動化処理の実行手順を記述したファイル。 |
 | Canonical | - | Ubuntu を提供する組織名。 |
 | Key-Value | - | キーと値の組で情報を表す方式。 |
-| Internet Protocol | IP | インターネットプロトコルの略称。 |
+| Internet Protocol | IP | ネットワーク上で宛先を識別し, データを届けるための通信手順。 |
 | Structured Query Language | SQL | データベースを操作するための記述言語。 |
-| Hypertext Transfer Protocol | HTTP | WWW で情報をやり取りする通信手順。 |
-| Hypertext Transfer Protocol Secure | HTTPS | 通信内容を暗号化して WWW 通信を行う方式。 |
-| RPM Package Manager | RPM | RHEL 系で使用するパッケージ形式。 |
-| Virtual Machine | VM | 物理機器上で動作する仮想的な計算機。 |
+| Hypertext Transfer Protocol | HTTP | World Wide Webで情報をやり取りする通信手順。 |
+| Hypertext Transfer Protocol Secure | HTTPS | 通信内容を暗号化してWorld Wide Web通信を行う方式。 |
+| RPM Package Manager | RPM | RPM形式パッケージの導入, 更新, 削除, 情報参照を行う仕組み。 |
+| Virtual Machine | VM | 物理計算機上で動作する仮想的な計算機。 |
 | localhost | - | 同一機器自身を指す名前。 |
 | root | - | Unix 系システムの最上位権限を持つ管理者識別子。 |
 | ソフトウェア | - | 情報処理システムで使用するプログラム, 手順, 規則及び関連文書の全体又は一部分。 |
@@ -102,8 +105,8 @@
 | Service | - | サービスの英語表記。 |
 | Node | - | ノードの英語表記。 |
 | Makefile | - | 実行手順を定義したファイル。 |
-| Application Programming Interface | API | アプリケーション同士がやり取りする方法を定めた仕様。 |
-| Uniform Resource Locator | URL | WWW 上の資源の場所を示す文字列。 |
+| Application Programming Interface | API | アプリケーション同士が機能やデータをやり取りするための取り決め。 |
+| Uniform Resource Locator | URL | World Wide Web上の資源の場所を示す文字列。 |
 | Network Interface Card | NIC | 計算機をネットワークへ接続するための装置または機能。 |
 | NetworkManager | - | RHEL 系でネットワークを管理するサービス。 |
 | netplan | - | Debian/Ubuntu 系でネットワーク設定を生成する仕組み。 |
@@ -111,10 +114,10 @@
 | metric | - | ルート優先度を示す数値。 |
 | Classless Inter-Domain Routing | CIDR | IP アドレスとネットワークプレフィックス長を組み合わせた表記法。 |
 | Operating System | OS | 計算機の基本機能を管理し, アプリケーションを動作させる基盤ソフトウェア。 |
-| Red Hat Enterprise Linux | RHEL | Red Hat 社が提供する商用 Linux ディストリビューション。 |
+| Red Hat Enterprise Linux | RHEL | Red Hatが提供する企業向けLinuxディストリビューション。 |
 | Red Hat Enterprise Linux 9 | RHEL9 | Red Hat Enterprise Linux の第9系統版。 |
 | Secure Shell | SSH | 遠隔の計算機へ安全に接続して操作する方式。 |
-| Virtual Machine | VM | 1台の物理計算機上で動作する仮想的な計算機。 |
+| Virtual Machine | VM | 物理計算機上で動作する仮想的な計算機。 |
 | Host Variables | host_vars | ホスト単位の設定値を格納する変数定義。 |
 | Ansible Task | task | 自動化処理の最小単位となる実行項目。 |
 | ansible-playbookコマンド | - | Ansible Playbook を実行して自動構成処理を適用するコマンド。 |
@@ -124,7 +127,6 @@
 | 制御ホスト | - | Playbook を実行し, 他ホストへの処理指示を行う管理用ホスト。 |
 | 対象ホスト | - | Playbook による設定変更や導入処理の適用先となるホスト。 |
 | sudoコマンド | sudo | 一時的に管理者権限でコマンドを実行するためのコマンド。 |
-
 ## 概要
 
 このロールは, 外部ネットワーク(例: VM Network(VMware), Pool-wide network associated with ethX(xcp-ng))につながるサーバから, 仮想環境内部管理ネットワークへの追加ルートを自動設定します。Debian/Ubuntu 系は netplan, RHEL 系は NetworkManager を利用します。
@@ -281,13 +283,68 @@ nmcli -f connection.id,ipv4.routes,ipv6.routes connection show "${mgmt_nic}"
 
 ## トラブルシューティング
 
-- Debian/Ubuntu 系で適用に失敗する場合は, `netplan generate` のエラー内容を確認してください。
-- RHEL 系で反映されない場合は, `nmcli connection show "${mgmt_nic}"` で接続名とルート設定を確認してください。
+### 1. Debian/Ubuntu 系で netplan 適用が失敗する場合
+
+**実施対象ホスト**: 対象ホスト
+
+**実行するコマンド**:
+
+```bash
+sudo netplan generate
+sudo netplan apply
+sudo ls -l /etc/netplan/30-additional-routes.yaml
+```
+
+**確認ポイント**:
+
+- `netplan generate` がエラーなく完了すること。
+- `/etc/netplan/30-additional-routes.yaml` が存在すること。
+- `additional_network_routes` の `destination` と `gateway` が CIDR 形式およびアドレス形式として有効であること。
+
+### 2. RHEL 系でルートが反映されない場合
+
+**実施対象ホスト**: 対象ホスト
+
+**実行するコマンド**:
+
+```bash
+nmcli -f connection.id,ipv4.routes,ipv6.routes connection show "${mgmt_nic}"
+sudo nmcli connection up "${mgmt_nic}"
+ip route
+ip -6 route
+```
+
+**確認ポイント**:
+
+- `nmcli` の表示に `additional_network_routes` で指定した経路が反映されること。
+- `ip route` と `ip -6 route` に想定経路が表示されること。
+- `address_family` の片系のみを定義した場合は, 未定義側の既存経路がクリアされる挙動を考慮していること。
+
+### 3. 管理ネットワークインターフェース名が不一致の場合
+
+**実施対象ホスト**: 制御ホスト, 対象ホスト
+
+**実行するコマンド**:
+
+```bash
+ansible -i inventory/hosts all -m debug -a "var=mgmt_nic"
+ip link
+nmcli connection show
+```
+
+**確認ポイント**:
+
+- `mgmt_nic` の値が対象ホスト上に実在する接続名又はインターフェース名であること。
+- RHEL 系では `nmcli connection show` の接続名と一致していること。
+- Debian/Ubuntu 系では実在するインターフェース名に対して netplan が生成されていること。
 
 ## 注意事項
 
-- 本ロールは既存のルート設定を書き換えるため, 実行前に対象ホストの現行ルートを確認ください。
-- RHEL 系では `additional_network_routes` で指定していないアドレス系の既存ルートがクリアされるため, 必要な経路を漏れなく定義してください。
+- 本ロールは既存のルート設定を書き換えるため, 実行前に対象ホストの現行ルートを `ip route` と `ip -6 route` で確認し, 復旧手順を事前に準備してください。
+- RHEL 系では `additional_network_routes` で指定していないアドレス系の既存ルートがクリアされるため, 運用で必要な経路を漏れなく定義し, 変更後に `nmcli connection show` で反映結果を確認してください。
+- Debian/Ubuntu 系では netplan 設定生成後の `netplan apply` により通信経路が即時反映されるため, 作業時間帯は業務影響が許容できる時間であることを確認してください。
+- `mgmt_nic` の誤設定は管理ネットワーク到達性の喪失につながるため, 実行前に対象ホストで `ip -o link show` 又は `nmcli connection show` を実行し, 接続名又はインターフェース名が一致していることを確認してください。
+- `additional_network_routes` の `destination` と `gateway` は環境変更時に陳腐化しやすいため, ネットワーク変更作業の都度, 変数定義の見直しと再検証を実施してください。
 
 ## 参考資料
 

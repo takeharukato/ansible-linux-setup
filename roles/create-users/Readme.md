@@ -32,6 +32,7 @@
     - [2. `name` が未定義, または空である場合](#2-name-が未定義-または空である場合)
     - [3. 管理者権限で実行できない場合](#3-管理者権限で実行できない場合)
     - [4. ユーザ属性が不正である場合](#4-ユーザ属性が不正である場合)
+  - [注意事項](#注意事項-1)
   - [参考資料](#参考資料)
     - [公式ドキュメント](#公式ドキュメント)
 
@@ -72,12 +73,12 @@
 | Playbook | - | 自動化処理の実行手順を記述したファイル。 |
 | Canonical | - | Ubuntu を提供する組織名。 |
 | Key-Value | - | キーと値の組で情報を表す方式。 |
-| Internet Protocol | IP | インターネットプロトコルの略称。 |
+| Internet Protocol | IP | ネットワーク上で宛先を識別し, データを届けるための通信手順。 |
 | Structured Query Language | SQL | データベースを操作するための記述言語。 |
-| Hypertext Transfer Protocol | HTTP | WWW で情報をやり取りする通信手順。 |
-| Hypertext Transfer Protocol Secure | HTTPS | 通信内容を暗号化して WWW 通信を行う方式。 |
-| RPM Package Manager | RPM | RHEL 系で使用するパッケージ形式。 |
-| Virtual Machine | VM | 物理機器上で動作する仮想的な計算機。 |
+| Hypertext Transfer Protocol | HTTP | World Wide Webで情報をやり取りする通信手順。 |
+| Hypertext Transfer Protocol Secure | HTTPS | 通信内容を暗号化してWorld Wide Web通信を行う方式。 |
+| RPM Package Manager | RPM | RPM形式パッケージの導入, 更新, 削除, 情報参照を行う仕組み。 |
+| Virtual Machine | VM | 物理計算機上で動作する仮想的な計算機。 |
 | localhost | - | 同一機器自身を指す名前。 |
 | root | - | Unix 系システムの最上位権限を持つ管理者識別子。 |
 | ソフトウェア | - | 情報処理システムで使用するプログラム, 手順, 規則及び関連文書の全体又は一部分。 |
@@ -106,8 +107,8 @@
 | Service | - | サービスの英語表記。 |
 | Node | - | ノードの英語表記。 |
 | Makefile | - | 実行手順を定義したファイル。 |
-| Application Programming Interface | API | アプリケーション同士がやり取りする方法を定めた仕様。 |
-| Uniform Resource Locator | URL | WWW 上の資源の場所を示す文字列。 |
+| Application Programming Interface | API | アプリケーション同士が機能やデータをやり取りするための取り決め。 |
+| Uniform Resource Locator | URL | World Wide Web上の資源の場所を示す文字列。 |
 | Operating System | OS | 計算機の基本機能を管理し, アプリケーションを動作させる基盤ソフトウェア。 |
 | Secure Shell | SSH | 遠隔の計算機へ安全に接続して操作する方式。 |
 | GitHub | - | ソースコードの共有や課題管理を行える開発者向けの公開サービス。本ロールでは公開鍵取得機能を利用します。 |
@@ -143,7 +144,7 @@
 
 ## 実行方法
 
-実行者は制御ホストで以下のコマンドを実行します。
+制御ホストで以下のコマンドを実行します。
 
 ```bash
 ansible-playbook -i inventory/hosts site.yml --tags "create-users"
@@ -345,33 +346,84 @@ ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIExampleKey alice-gh@users.noreply.github.co
 
 ## トラブルシューティング
 
-実行者はエラー発生時に build-*.log を確認し, 失敗した task 名と不足変数を特定します。
-
-```bash
-grep -nE "FAILED|ERROR|fatal" build-*.log
-```
-
 ### 1. `users_list` が空, または未定義である場合
 
-`Create group` と `Create user` は `users_list` が空のときは実行されません。`build-*.log` で task のスキップが確認できる場合は, `users_list` に少なくとも 1 件のユーザ定義を追加します。
+**実施対象ホスト**: 制御ホスト
+
+**実行するコマンド**:
+
+```bash
+grep -n "users_list" host_vars/*.yml group_vars/all/all.yml vars/all-config.yml
+grep -n "Create group\|Create user\|skipping" build-*.log
+```
+
+**確認ポイント**:
+
+- `users_list` が定義され, かつ1件以上のユーザ定義があること。
+- `build-*.log` に `Create group` と `Create user` のスキップ記録が出ている場合は, 入力変数が空であること。
 
 ### 2. `name` が未定義, または空である場合
 
-`name` がないユーザ定義は作成対象になりません。`users_list` の各要素に `name` を設定し, 空文字になっていないことを確認します。
+**実施対象ホスト**: 制御ホスト
+
+**実行するコマンド**:
+
+```bash
+grep -n "users_list\|name:" host_vars/*.yml group_vars/all/all.yml vars/all-config.yml
+grep -n "Create user\|name\|undefined\|empty" build-*.log
+```
+
+**確認ポイント**:
+
+- `users_list` の各要素に `name` が設定され, 空文字列でないこと。
+- `name` 欠落時はユーザ作成タスクが失敗又はスキップするため, ログ上の該当メッセージを確認できること。
 
 ### 3. 管理者権限で実行できない場合
 
-`ansible.builtin.user` と `ansible.builtin.group` は `become: true` で実行されます。`permission denied` や `sudo` 関連のエラーが出る場合は, 制御ホストから対象ホストへ管理者権限で実行できることを確認します。
+**実施対象ホスト**: 制御ホスト
+
+**実行するコマンド**:
+
+```bash
+ansible -i inventory/hosts all -m ping -b
+grep -n "permission denied\|sudo\|become" build-*.log
+```
+
+**確認ポイント**:
+
+- 制御ホストから対象ホストへ `become` 付きでコマンド実行できること。
+- `permission denied` 又は `sudo` 関連エラーが出る場合は, 対象ホスト側の sudo 権限設定を見直すこと。
 
 ### 4. ユーザ属性が不正である場合
 
-`group`, `shell`, `home`, `password` の値が不正だと `Create user` が失敗します。`build-*.log` で該当 task のエラー内容を確認し, 値を修正します。特に `shell` は存在する実行可能ファイルを指定し, `password` は SHA-512 形式のハッシュを指定します。
+**実施対象ホスト**: 制御ホスト, 対象ホスト
 
-期待結果: 失敗した task 名, 不足変数名, または例外メッセージが確認でき, 該当する変数を修正できること。
+**実行するコマンド**:
+
+```bash
+grep -n "Create user\|failed\|invalid\|group\|shell\|password" build-*.log
+ansible -i inventory/hosts all -m shell -a "getent group developers" -b
+ansible -i inventory/hosts all -m shell -a "test -x /bin/bash && echo ok || echo ng" -b
+```
+
+**確認ポイント**:
+
+- `group`, `shell`, `home`, `password` の各属性値が対象OSで有効な値であること。
+- `shell` は対象ホスト上に存在する実行可能ファイルであること。
+- `password` は SHA-512 形式のハッシュであること。
+- `build-*.log` で失敗した task 名と例外メッセージを確認し, 対応する変数を修正できること。
+
+## 注意事項
+
+- `users_list.password` を省略した場合はユーザ名由来の SHA-512 ハッシュが設定されるため, 意図しない認証情報になる場合があります。運用で使用する認証情報を適用する場合は, 事前にハッシュを生成して `users_list.password` を明示してください。
+- `auto_user_add_for_users_authorized_keys: true` を指定した場合は, パスワード未設定のユーザが作成されます。パスワード認証や su 切替が必要な運用では, 事前に `users_list` 側で該当ユーザを定義してパスワードハッシュを設定してください。
+- GitHub 公開鍵取得は `github.com` への外部通信に依存するため, ネットワーク制限時に鍵登録が失敗する場合があります。外部通信を許可できない環境では, `users_authorized_keys` に公開鍵を直接記載してください。
+- `users_authorized_keys` に同一鍵を重複登録した場合は, 実行後の整形処理で重複排除されます。鍵の追加漏れと誤認しないように, 適用後は `authorized_keys` の実体を確認してください。
+- `shell` や `home` に対象ホスト上で無効な値を指定した場合は, ユーザ作成タスクが失敗する場合があります。対象 OS 上に実在するシェルパスと, 作成可能なディレクトリパスを指定してください。
 
 ## 参考資料
 
 ### 公式ドキュメント
 
-- SSH: OpenSSH の authorized_keys 形式の説明は [authorized_keys](https://man.openbsd.org/authorized_keys.5) を参照します。
-- GitHub: GitHub で SSH 公開鍵を登録する手順は [Adding a new SSH key to your GitHub account](https://docs.github.com/en/authentication/connecting-to-github-with-ssh/adding-a-new-ssh-key-to-your-github-account) を参照します。
+- [authorized_keys](https://man.openbsd.org/authorized_keys.5) : OpenSSH の authorized_keys 形式の説明。
+- [Adding a new SSH key to your GitHub account](https://docs.github.com/en/authentication/connecting-to-github-with-ssh/adding-a-new-ssh-key-to-your-github-account) : GitHub で SSH 公開鍵を登録する手順の説明。

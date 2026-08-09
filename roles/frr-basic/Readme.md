@@ -19,6 +19,11 @@
   - [検証ポイント](#検証ポイント)
     - [IPv6 でピアが張れていることの検証手順](#ipv6-でピアが張れていることの検証手順)
   - [トラブルシューティング](#トラブルシューティング)
+    - [1. FRR サービスが起動しない場合](#1-frr-サービスが起動しない場合)
+    - [2. frr-basic ロールを実行しても処理が進まない場合](#2-frr-basic-ロールを実行しても処理が進まない場合)
+    - [3. BGP ピアが Established にならない場合](#3-bgp-ピアが-established-にならない場合)
+    - [4. IPv6 ピア向けの接続確認に失敗する場合](#4-ipv6-ピア向けの接続確認に失敗する場合)
+    - [5. frr-common 呼び出し時のパッケージ導入で失敗する場合](#5-frr-common-呼び出し時のパッケージ導入で失敗する場合)
   - [注意事項](#注意事項)
   - [参考資料](#参考資料)
     - [公式ドキュメント](#公式ドキュメント)
@@ -60,12 +65,12 @@
 | Playbook | - | 自動化処理の実行手順を記述したファイル。 |
 | Canonical | - | Ubuntu を提供する組織名。 |
 | Key-Value | - | キーと値の組で情報を表す方式。 |
-| Internet Protocol | IP | インターネットプロトコルの略称。 |
+| Internet Protocol | IP | ネットワーク上で宛先を識別し, データを届けるための通信手順。 |
 | Structured Query Language | SQL | データベースを操作するための記述言語。 |
-| Hypertext Transfer Protocol | HTTP | WWW で情報をやり取りする通信手順。 |
-| Hypertext Transfer Protocol Secure | HTTPS | 通信内容を暗号化して WWW 通信を行う方式。 |
-| RPM Package Manager | RPM | RHEL 系で使用するパッケージ形式。 |
-| Virtual Machine | VM | 物理機器上で動作する仮想的な計算機。 |
+| Hypertext Transfer Protocol | HTTP | World Wide Webで情報をやり取りする通信手順。 |
+| Hypertext Transfer Protocol Secure | HTTPS | 通信内容を暗号化してWorld Wide Web通信を行う方式。 |
+| RPM Package Manager | RPM | RPM形式パッケージの導入, 更新, 削除, 情報参照を行う仕組み。 |
+| Virtual Machine | VM | 物理計算機上で動作する仮想的な計算機。 |
 | localhost | - | 同一機器自身を指す名前。 |
 | root | - | Unix 系システムの最上位権限を持つ管理者識別子。 |
 | ソフトウェア | - | 情報処理システムで使用するプログラム, 手順, 規則及び関連文書の全体又は一部分。 |
@@ -89,8 +94,8 @@
 | Service | - | サービスの英語表記。 |
 | Node | - | ノードの英語表記。 |
 | Makefile | - | 実行手順を定義したファイル。 |
-| Application Programming Interface | API | アプリケーション同士がやり取りする方法を定めた仕様。 |
-| Uniform Resource Locator | URL | WWW 上の資源の場所を示す文字列。 |
+| Application Programming Interface | API | アプリケーション同士が機能やデータをやり取りするための取り決め。 |
+| Uniform Resource Locator | URL | World Wide Web上の資源の場所を示す文字列。 |
 | Free Range Routing | FRR | 複数の経路制御方式を実装したオープンソースの経路制御ソフトウェア。 |
 | Border Gateway Protocol | BGP | 自律システム間で経路情報を交換する経路制御方式。 |
 | Internet Protocol | IP | ネットワーク上で宛先を識別し, データを届けるための通信手順。 |
@@ -101,7 +106,7 @@
 | Classless Inter-Domain Routing | CIDR | IP アドレスとネットワークプレフィックス長を組み合わせた表記法。 |
 | Internet Protocol version 4 | IPv4 | 32 ビットアドレス空間を持つインターネットプロトコル。現在最も広く使用されているバージョン。 |
 | Internet Protocol version 6 | IPv6 | 128 ビットアドレス空間を持つ次世代インターネットプロトコル。IPv4 アドレス枯渇問題を解決します。 |
-| Application Programming Interface | API | API の正式名称。 |
+| Application Programming Interface | API | アプリケーション同士が機能やデータをやり取りするための取り決め。 |
 | Operating System | OS | 計算機の基本機能を管理し, アプリケーションを動作させる基盤ソフトウェア。 |
 | Debian | - | コミュニティ主導で開発される Linux ディストリビューション。 |
 | Ubuntu | - | Canonical が提供する Debian 系の Linux ディストリビューション。 |
@@ -122,13 +127,13 @@
 | Ansible Handler | handler | 設定変更時など特定条件でのみ実行する後続処理。 |
 | Ansible Inventory | inventory | 実行対象ホストの一覧と接続情報を管理する定義。 |
 | Host Variables | host_vars | ホスト単位の設定値を格納する変数定義。 |
-| Red Hat Enterprise Linux | RHEL | Red Hat 社が提供する商用 Linux ディストリビューション。 |
+| Red Hat Enterprise Linux | RHEL | Red Hatが提供する企業向けLinuxディストリビューション。 |
 | systemd | - | Linux システムの初期化とサービス管理を行う仕組み。 |
 | Cluster 1 | C1 | 文書内で第1クラスタを示す識別名。 |
 | Identifier | ID | 対象を一意に識別するための値。 |
 | ansible-playbookコマンド | - | Ansible Playbook を実行して自動構成処理を適用するコマンド。 |
 | ipコマンド | - | ネットワーク設定や経路情報の確認, 変更を行うコマンド。 |
-| `make` | - | Makefile に定義された処理を実行するコマンド。 |
+| makeコマンド | make | Makefile に定義された処理を実行するコマンド。 |
 | `nc` | - | 任意ポートへの接続可否を確認するコマンド。 |
 | `ping6` | - | IPv6 宛先への到達性と往復遅延を確認するコマンド。 |
 | `sysctl` | - | カーネル動作パラメタを参照, 変更するコマンド。 |
@@ -312,15 +317,107 @@ IPv6 アドレスで BGP ピア (`frr_ibgp_neighbors` / `frr_ebgp_neighbors` の
 
 ## トラブルシューティング
 
-エラー発生時は build-*.log を確認し, 失敗した task 名と不足変数を特定します。
+### 1. FRR サービスが起動しない場合
+
+**実施対象ホスト**: 対象ホスト
+
+**実行するコマンド**:
+
+```bash
+systemctl status frr --no-pager
+journalctl -u frr -n 200 --no-pager | grep -Ei 'error|warn|fail|fatal'
+ls -l /etc/frr/frr.conf /etc/frr/daemons
+```
+
+**確認ポイント**:
+
+- `systemctl status frr` が `active (running)` であること。
+- ログに設定読込失敗や起動失敗が継続出力されていないこと。
+- `/etc/frr/frr.conf` と `/etc/frr/daemons` が配置済みであること。
+
+### 2. frr-basic ロールを実行しても処理が進まない場合
+
+**実施対象ホスト**: 制御ホスト
+
+**実行するコマンド**:
+
+```bash
+grep -n "frr_basic_enabled" vars/all-config.yml host_vars/*/main.yml
+ansible-playbook -i inventory/hosts site.yml --tags "frr-basic" -vv | grep -Ei "frr-basic|skipping|ok|changed"
+```
+
+**確認ポイント**:
+
+- `frr_basic_enabled` が `true` であること。
+- `frr_basic_enabled` が `false` の場合に本ロールの処理がスキップされる仕様を理解していること。
+- 再実行時に対象 task が `skipping` ではなく `ok` または `changed` で進んでいること。
+
+### 3. BGP ピアが Established にならない場合
+
+**実施対象ホスト**: 対象ホスト
+
+**実行するコマンド**:
+
+```bash
+vtysh -c "show ip bgp summary"
+vtysh -c "show bgp ipv6 unicast summary"
+vtysh -c "show running-config | section router bgp"
+```
+
+**確認ポイント**:
+
+- `frr_ibgp_neighbors` / `frr_ebgp_neighbors` で指定したピアが設定へ反映されていること。
+- 交換対象のアドレスファミリ(IPv4/IPv6)でピア状態が `Established` であること。
+- `frr_bgp_asn` と対向 AS 情報の組み合わせに不整合がないこと。
+
+### 4. IPv6 ピア向けの接続確認に失敗する場合
+
+**実施対象ホスト**: 対象ホスト
+
+**実行するコマンド**:
+
+```bash
+ping6 -c 3 <peer_ipv6>
+ip -6 route
+nc -6 -vz <peer_ipv6> 179
+```
+
+**確認ポイント**:
+
+- `ping6` で到達可能であること。
+- `ip -6 route` で対象ピアへの経路が存在すること。
+- TCP/179 への接続確認(`nc -6 -vz`)が成功すること。
+
+### 5. frr-common 呼び出し時のパッケージ導入で失敗する場合
+
+**実施対象ホスト**: 制御ホスト, 構築ホスト, 対象ホスト
+
+**実行するコマンド**:
+
+```bash
+ls -1 build-*.log
+grep -n "FAILED\|fatal" build-*.log
+ansible-playbook -i inventory/hosts site.yml --tags "frr-basic" -vv
+```
+
+**確認ポイント**:
+
+- `build-*.log` で失敗した task 名を特定できること。
+- 失敗 task が参照する変数の未定義や不整合を解消していること。
+- `frr-common` の導入タスク完了後に再実行でエラーが再発しないこと。
 
 ## 注意事項
 
-既存の実行順依存を崩さないことを確認した上で本ロールを実行します。
+- 本ロールは `frr-common` ロールの導入処理に依存するため, 既存の実行順依存を崩さないことを確認した上で実行してください。
+- `frr_basic_enabled` が `false` の場合は FRR 関連タスクをスキップするため, 導入対象ホストでは `true` を設定していることを確認してください。
+- `frr_bgp_asn`, `frr_bgp_router_id`, `frr_ibgp_neighbors`, `frr_ebgp_neighbors` の不整合は BGP セッション確立失敗の主因となるため, 対向装置側設定と対にして変更してください。
+- `frr.conf` の変更は `systemctl restart frr` を伴うため, 経路切替の瞬断が許容できる時間帯に適用してください。
+- `/etc/sysctl.d/90-frr-forwarding.conf` の適用によりホストの IPv4/IPv6 転送設定が変わるため, 同一ホスト上で稼働する他サービスへの影響を事前確認してください。
+- テンプレートは IPv4/IPv6 の両 address-family に対して隣接ピア活性化設定を出力するため, 片系のみを運用する場合は想定どおりのセッション状態であることを `vtysh` で確認してください。
 
 ## 参考資料
 
 ### 公式ドキュメント
 
-- FRRouting: https://docs.frrouting.org/en/latest/
-- systemd: https://www.freedesktop.org/wiki/Software/systemd/
+- [FRRouting](https://docs.frrouting.org/en/latest/)
+- [systemd](https://www.freedesktop.org/wiki/Software/systemd/)

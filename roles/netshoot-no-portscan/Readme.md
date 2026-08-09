@@ -69,6 +69,7 @@
 | ジャーナル | - | 時系列の記録を保持する仕組み。 |
 | アカウント | - | 利用者や処理主体を識別する登録情報。 |
 | エンドポイント | - | 通信の接続先を表す識別点。 |
+| ローカルレジストリエンドポイント | - | 制御ホストから接続するローカルレジストリの接続先情報。 |
 | パターン | - | 繰り返し現れる構造や記述形式。 |
 | パケット | - | ネットワークで転送するデータ単位。 |
 | カーネル | - | 基本ソフトウェアの中核機能。 |
@@ -76,12 +77,12 @@
 | Playbook | - | 自動化処理の実行手順を記述したファイル。 |
 | Canonical | - | Ubuntu を提供する組織名。 |
 | Key-Value | - | キーと値の組で情報を表す方式。 |
-| Internet Protocol | IP | インターネットプロトコルの略称。 |
+| Internet Protocol | IP | ネットワーク上で宛先を識別し, データを届けるための通信手順。 |
 | Structured Query Language | SQL | データベースを操作するための記述言語。 |
-| Hypertext Transfer Protocol | HTTP | WWW で情報をやり取りする通信手順。 |
-| Hypertext Transfer Protocol Secure | HTTPS | 通信内容を暗号化して WWW 通信を行う方式。 |
-| RPM Package Manager | RPM | RHEL 系で使用するパッケージ形式。 |
-| Virtual Machine | VM | 物理機器上で動作する仮想的な計算機。 |
+| Hypertext Transfer Protocol | HTTP | World Wide Webで情報をやり取りする通信手順。 |
+| Hypertext Transfer Protocol Secure | HTTPS | 通信内容を暗号化してWorld Wide Web通信を行う方式。 |
+| RPM Package Manager | RPM | RPM形式パッケージの導入, 更新, 削除, 情報参照を行う仕組み。 |
+| Virtual Machine | VM | 物理計算機上で動作する仮想的な計算機。 |
 | localhost | - | 同一機器自身を指す名前。 |
 | root | - | Unix 系システムの最上位権限を持つ管理者識別子。 |
 | ソフトウェア | - | 情報処理システムで使用するプログラム, 手順, 規則及び関連文書の全体又は一部分。 |
@@ -108,11 +109,11 @@
 | Service | - | サービスの英語表記。 |
 | Node | - | ノードの英語表記。 |
 | Makefile | - | 実行手順を定義したファイル。 |
-| Application Programming Interface | API | アプリケーション同士がやり取りする方法を定めた仕様。 |
-| Uniform Resource Locator | URL | WWW 上の資源の場所を示す文字列。 |
-|ポートスキャン (port scan)|-|ネットワーク上のサーバなどの機器の各ポート(通信端点)にデータを送り, その応答から​​開いているポートや稼働しているサービスを調べること。悪意を持ったポートスキャンを避ける目的から, 本ロールでは, ポートスキャンツール(nmap関連ツール, スクリプト)を除去している。|
-|Denial of Service 攻撃 ( Denial of Service Attack )|DoS攻撃|大量のリクエストを標的のサーバに送り付け、Webサイトやサービスを機能停止に追い込む攻撃方法。|
-|フラッディング攻撃 (Flooding Attack) |-|大量の送信データを一気に送ることにより洪水(flood)を起こさせる攻撃。DoS攻撃の一種。本攻撃用途に使用されることを避ける目的から本ロールでは, 任意パケット生成に使用されるツール(scapy)などを除去している。|
+| Application Programming Interface | API | アプリケーション同士が機能やデータをやり取りするための取り決め。 |
+| Uniform Resource Locator | URL | World Wide Web上の資源の場所を示す文字列。 |
+| ポートスキャン (port scan) | - | ネットワーク上のサーバなどの機器の各ポート(通信端点)にデータを送り, その応答から​​開いているポートや稼働しているサービスを調べること。悪意を持ったポートスキャンを避ける目的から, 本ロールでは, ポートスキャンツール(nmap関連ツール, スクリプト)を除去している。 |
+| Denial of Service 攻撃 ( Denial of Service Attack ) | DoS攻撃 | 大量のリクエストを標的のサーバに送り付け、Webサイトやサービスを機能停止に追い込む攻撃方法。 |
+| フラッディング攻撃 (Flooding Attack) | - | 大量の送信データを一気に送ることにより洪水(flood)を起こさせる攻撃。DoS攻撃の一種。本攻撃用途に使用されることを避ける目的から本ロールでは, 任意パケット生成に使用されるツール(scapy)などを除去している。 |
 | Kubernetes | K8s | コンテナを管理する基盤ソフトウェア。 |
 | Container Runtime Interface | CRI | Kubernetesがコンテナランタイムと通信するための標準インターフェース。 |
 | containerd | - | Dockerから分離された軽量なコンテナランタイム。 |
@@ -127,16 +128,16 @@
 | 構築ホスト | - | パッケージや実行資材を生成するビルド処理を担当するホスト。 |
 | Docker | - | コンテナイメージやコンテナの作成, 実行, 管理を行うコマンド。 |
 | nmap | - | ネットワーク上のホストやポートを探索 ( スキャン ) するツール。本ロールでは, セキュリティポリシー上 nmap 等のポートスキャンツールを搭載できない環境での使用を想定し, nmap関連ツールをコンテナイメージから除去している。 |
-| nicolaka/netshoot | netshoot | ネットワーク診断ツールを多数搭載した公開コンテナイメージ。 詳細は, [netshootのGithub](https://github.com/nicolaka/netshoot)を参照。|
+| nicolaka/netshoot | netshoot | ネットワーク診断ツールを多数搭載した公開コンテナイメージ。 詳細は, [netshootのGithub](https://github.com/nicolaka/netshoot)を参照。 |
 | imagePullPolicy | - | Kubernetes がコンテナイメージを取得する際の方針を指定するフィールド。`Never` はK8sの各ノードのCRI内の既存イメージのみ使用, `IfNotPresent` はノード上に存在しない場合のみ取得, `Always` は常に取得を行う。 |
 | Border Gateway Protocol | BGP | 自律システム間で経路情報を交換する経路制御方式。 |
 | Domain Name System | DNS | 名前と IP アドレスを対応付ける仕組み。 |
-| Hypertext Transfer Protocol | HTTP | HTTP の正式名称。 |
-| Hypertext Transfer Protocol Secure | HTTPS | 通信内容を暗号化して Web 通信を行う方式。 |
+| Hypertext Transfer Protocol | HTTP | World Wide Webで情報をやり取りする通信手順。 |
+| Hypertext Transfer Protocol Secure | HTTPS | 通信内容を暗号化してWorld Wide Web通信を行う方式。 |
 | Open Shortest Path First | OSPF | ルータ同士が内部ネットワークの到達経路を交換するための経路制御方式。 |
 | Secure Shell | SSH | 遠隔の計算機へ安全に接続して操作する方式。 |
 | Transport Layer Security | TLS | 通信経路でデータを暗号化して保護する仕組み。 |
-| Uniform Resource Locator | URL | URL の正式名称。 |
+| Uniform Resource Locator | URL | World Wide Web上の資源の場所を示す文字列。 |
 | BIRD Internet Routing Daemon | BIRD | 複数の経路制御方式を扱う経路制御ソフトウェア。 |
 | Simple Mail Transfer Protocol | SMTP | 電子メール送信で使う通信手順。 |
 | ansible-playbookコマンド | - | Ansible Playbook を実行して自動構成処理を適用するコマンド。 |
@@ -148,7 +149,7 @@
 | `journalctl` | - | systemd ジャーナルのログを参照するコマンド。 |
 | `kubectl` | - | Kubernetesクラスタを操作するためのコマンドラインツール。 |
 | `ls` | - | ファイルやディレクトリの一覧を表示するコマンド。 |
-| `make` | - | Makefile に定義された処理を実行するコマンド。 |
+| makeコマンド | make | Makefile に定義された処理を実行するコマンド。 |
 | `nslookup` | - | 名前解決結果を確認するコマンド。 |
 | `sleep` | - | 指定秒数だけ処理を待機するコマンド。 |
 | `ssh` | - | 遠隔ホストへ安全に接続して操作するコマンド。 |
@@ -297,6 +298,12 @@ kubectl get pod netshoot
 | `netshoot_unqualified_image_registry` | `"registry1.local"` | 未修飾名イメージ参照時に補完するレジストリ名。 |
 | `netshoot_remote_cache_dir` | `"/tmp/netshoot-register"` | 各 K8s ノード上のイメージ転送先一時ディレクトリ。 |
 | `netshoot_kubeconfig_path` | `"/etc/kubernetes/admin.conf"` | ワーカノード自動検出に使用する kubeconfig のパス。 |
+| `netshoot_registry_wait_timeout` | `120` | ローカルレジストリエンドポイント待機のタイムアウト時間(単位: 秒)。 |
+| `netshoot_registry_wait_delay` | `2` | ローカルレジストリエンドポイント待機の開始遅延時間(単位: 秒)。 |
+| `netshoot_registry_wait_sleep` | `2` | ローカルレジストリエンドポイント待機の再試行間隔(単位: 秒)。 |
+| `netshoot_registry_wait_connect_timeout` | `3` | ローカルレジストリエンドポイント待機時の接続タイムアウト時間(単位: 秒)。 |
+| `netshoot_registry_wait_delegate_to` | `"localhost"` | ローカルレジストリエンドポイント待機を実行する接続元ホスト名またはIPアドレス。 |
+| `netshoot_registry_wait_retries` | `5` | ローカルレジストリエンドポイント待機の再試行回数。 |
 | `netshoot_image_registry` | `""` | ローカルレジストリ登録モードで使用するレジストリの URL。未設定の場合は containerd 直接登録モードを使用します。設定例: `"registry1.local:5000/netshoot"` `vars/all-config.yml`, または, K8sコントロールプレインのhost_varsファイルで設定することを想定しています。|
 | `netshoot_k8s_manifest_dir` | `"/opt/maintenance/netshoot/manifests"` | K8sコントロールノード上のマニフェストファイルの格納先ディレクトリ。 |
 | `netshoot_manifest_file_path` | `"{{ netshoot_k8s_manifest_dir }}/netshoot-no-portscan.yml"` | 生成されるマニフェストファイルのパス。 |
@@ -626,140 +633,76 @@ cf-ray: a1a1ab1f891f264a-NRT
 
 ## トラブルシューティング
 
-### Docker ビルドが失敗する場合
+### 1. Docker ビルドが失敗する場合
 
-Alpine の `apk update` で DNS 解決に失敗するエラーが発生する場合は, `netshoot_docker_build_network: "host"` が設定されていることを確認します(`defaults/main.yml`中での規定値は, `"host"`です)。
-`host` を指定することでビルドコンテナがホストの DNS 設定を引き継ぎます。
+**実施対象ホスト**: 制御ホスト, 構築ホスト
 
-なお, 制御ホストの DNS 解決が正常であることを確認するコマンド例は以下のようになります:
-```bash
-nslookup dl-cdn.alpinelinux.org
-```
-または,
-```bash
-dig dl-cdn.alpinelinux.org
-```
-または,
+**実行するコマンド**:
+
 ```bash
 getent hosts dl-cdn.alpinelinux.org
+dig dl-cdn.alpinelinux.org
+grep -n 'netshoot_docker_build_network' vars/all-config.yml host_vars/*.yml
 ```
 
-### containerd へのイメージ登録が失敗する場合
+**確認ポイント**:
 
-各K8sノードで `crictl images|grep netshoot` を実行してイメージが正しく登録されていることを確認した際に, [nicolaka/netshoot](https://github.com/nicolaka/netshoot)のコンテナイメージが見つからなかった場合は, 以下のコマンドによりcontainerd のログを確認し, エラーメッセージが出ていないことを確認し, エラーの内容に応じて対処してください:
+- DNS 名前解決が成功すること。
+- netshoot_docker_build_network が host に設定されていること。
+- apk update の名前解決失敗が継続する場合は, 構築ホスト側 DNS 設定を確認すること。
+
+### 2. containerd へのイメージ登録が失敗する場合
+
+**実施対象ホスト**: Kubernetes のコントロールプレーンノード, ワーカノード
+
+**実行するコマンド**:
 
 ```bash
-sudo journalctl -u containerd -n 50
+sudo crictl images | grep netshoot
+sudo journalctl -u containerd -n 50 --no-pager
 ```
 
-### ローカルレジストリへの push が失敗する場合
+**確認ポイント**:
 
-ローカルレジストリが HTTP (非 TLS) で動作している場合, 制御ホストの Docker が HTTPS で接続しようとしてエラーになります。 以下のコマンドにより`/etc/docker/daemon.json` の `insecure-registries` にローカルレジストリのエントリポイントが登録されていることを確認してください。
+- 各ノードで netshoot イメージが一覧に表示されること。
+- containerd ログに import 失敗のエラーが出ていないこと。
+
+### 3. ローカルレジストリへの push が失敗する場合
+
+**実施対象ホスト**: 制御ホスト
+
+**実行するコマンド**:
 
 ```bash
-# Docker の設定を確認する
 cat /etc/docker/daemon.json
 docker info | grep -A5 "Insecure Registries"
 ```
 
-`/etc/docker/daemon.json` の `insecure-registries`の記載例は以下の通りです。リスト中に`netshoot_image_registry`変数で指定したエンドポイント(下記の場合, `"registry1.local:5000"`)が含まれることを確認してください:
-```json
-{
-  "insecure-registries": ["registry1.local:5000", "registry2.local:5000"]
-}
-```
+**確認ポイント**:
 
-`docker info | grep -A5 "Insecure Registries`コマンドで確認した場合の例:
-```bash
-$ docker info | grep -A5 "Insecure Registries"
- Insecure Registries:
-  registry1.local:5000
-  registry2.local:5000
-  ::1/128
-  127.0.0.0/8
- Live Restore Enabled: false
-```
+- insecure-registries に netshoot_image_registry のエンドポイントが含まれること。
+- HTTP レジストリ利用時に Docker が HTTPS 接続を試行していないこと。
+- 修正後は sudo systemctl restart docker で設定を反映すること。
 
-`/etc/docker/daemon.json`を適切に修正の上, 以下のコマンドによりDocker デーモンを再起動して設定を反映させてください:
-```bash
-sudo systemctl restart docker
-```
+### 4. Pod が起動しない場合
 
-### Pod が起動しない場合
+**実施対象ホスト**: コントロールプレーンノード, ワーカノード
 
-`ErrImagePull` や `ImagePullBackOff` が発生する場合は, ワーカノードの containerd レジストリ設定を確認します。
-
-##### containerdの設定確認
-
-ワーカーノード上で以下のコマンドを実行し, ローカルレジストリからのイメージ取得を可能に設定されていることを確認してください(以下の`<ローカルレジストリのエンドポイント>`の部分は, `netshoot_image_registry`変数で指定したエンドポイントに合わせて修正してください):
-```bash
-cat /etc/containerd/certs.d/<ローカルレジストリのエンドポイント>/hosts.toml
-```
-
-実行結果の例:
-```bash
-$ cat /etc/containerd/certs.d/registry1.local:5000/hosts.toml
-#
-#  -*- coding:utf-8 mode:toml -*-
-# This file is generated by ansible.
-# last update: 2026-07-12 17:09:19 JST
-#
-#
-# registry1.local:5000用のコンテナレジストリ設定
-#
-# コンテナレジストリサーバ
-server = "http://registry1.local:5000"
-
-[host."http://registry1.local:5000"]
-  capabilities = ["pull", "resolve", "push"]
-  skip_verify = true
-```
-
-確認項目は以下の通りです:
-
-- `capabilities`に`"pull"`が含まれること
-- `skip_verify = true`に設定されていること
-
-設定を適切に修正したら, 以下のコマンドによりcontainerd を再起動して設定を反映してください:
-```bash
-sudo systemctl restart containerd
-```
-
-その後, コントロールプレインノード上で, 以下のコマンドを実行し, 既存のpodを削除後, podを再度展開(デプロイ)してください。
-
-```bash
-# 既存のPodを削除する
-kubectl delete pod netshoot
-# Pod を再展開(デプロイ)する
-kubectl apply -f /opt/maintenance/netshoot/manifests/netshoot-no-portscan.yml
-# podの状態を一定周期ごとに出力する
-kubectl get pod netshoot -w
-```
-
-`imagePullPolicy: Never` なのにイメージが見つからない場合は, 対象ノードに containerd 直接登録が完了していることを確認します。Kubernetes スケジューラが別のノードに Pod を配置した可能性があります。
-Pod が配置されたノードを確認するには以下のコマンドを実行してください:
+**実行するコマンド**:
 
 ```bash
 kubectl get pod netshoot -o wide
-```
-
-実行結果の例:
-```bash
-$ kubectl get pod netshoot -o wide
-NAME       READY   STATUS    RESTARTS   AGE   IP                         NODE            NOMINATED NODE   READINESS GATES
-netshoot   1/1     Running   0          9h    fdb6:6e92:3cfb:208::4862   k8sworker0101   <none>           <none>
-```
-
-対象ノードにイメージが存在することを確認するためには, Podが配置されたノード(上記の出力例の場合, `k8sworker0101`)にログイン後, 以下のコマンドを実行します:
-```bash
+kubectl describe pod netshoot
+cat /etc/containerd/certs.d/<ローカルレジストリのエンドポイント>/hosts.toml
 sudo crictl images | grep netshoot
 ```
 
-実行結果の例:
-```bash
-$ sudo crictl images | grep netshoot
-registry1.local:5000/netshoot              v0.16               c52d5254f8d9f       212MB
-```
+**確認ポイント**:
+
+- Pod の状態が ErrImagePull 又は ImagePullBackOff の場合, レジストリ接続設定を優先確認すること。
+- hosts.toml の capabilities に pull が含まれ, skip_verify が運用方針どおりであること。
+- imagePullPolicy が Never の場合, Pod 配置ノードに netshoot イメージが存在すること。
+- 設定修正後は containerd 再起動と Pod 再作成で反映を確認すること。
 
 ## 注意事項
 

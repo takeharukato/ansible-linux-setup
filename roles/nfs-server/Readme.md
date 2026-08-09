@@ -30,10 +30,17 @@
       - [Step 5: ログ確認](#step-5-ログ確認)
       - [Step 6: マウント動作確認(任意)](#step-6-マウント動作確認任意)
   - [トラブルシューティング](#トラブルシューティング)
+    - [1. 主要タスクが実行されず, 変更が入らない場合](#1-主要タスクが実行されず-変更が入らない場合)
+    - [2. nfs-server サービスが active にならない場合](#2-nfs-server-サービスが-active-にならない場合)
+    - [3. idmapd の Domain が意図値にならない場合](#3-idmapd-の-domain-が意図値にならない場合)
+    - [4. /etc/exports が期待どおりに更新されない場合](#4-etcexports-が期待どおりに更新されない場合)
+    - [5. クライアントからマウントできない場合](#5-クライアントからマウントできない場合)
+    - [6. mount 時に access denied が出る場合](#6-mount-時に-access-denied-が出る場合)
+    - [7. GUI 無効化が期待どおりに反映されない場合](#7-gui-無効化が期待どおりに反映されない場合)
+    - [8. restart\_nfs ハンドラが動かない場合](#8-restart_nfs-ハンドラが動かない場合)
   - [注意事項](#注意事項)
   - [参考資料](#参考資料)
     - [公式ドキュメント](#公式ドキュメント)
-
 
 ## 用語
 
@@ -72,12 +79,12 @@
 | Playbook | - | 自動化処理の実行手順を記述したファイル。 |
 | Canonical | - | Ubuntu を提供する組織名。 |
 | Key-Value | - | キーと値の組で情報を表す方式。 |
-| Internet Protocol | IP | インターネットプロトコルの略称。 |
+| Internet Protocol | IP | ネットワーク上で宛先を識別し, データを届けるための通信手順。 |
 | Structured Query Language | SQL | データベースを操作するための記述言語。 |
-| Hypertext Transfer Protocol | HTTP | WWW で情報をやり取りする通信手順。 |
-| Hypertext Transfer Protocol Secure | HTTPS | 通信内容を暗号化して WWW 通信を行う方式。 |
-| RPM Package Manager | RPM | RHEL 系で使用するパッケージ形式。 |
-| Virtual Machine | VM | 物理機器上で動作する仮想的な計算機。 |
+| Hypertext Transfer Protocol | HTTP | World Wide Webで情報をやり取りする通信手順。 |
+| Hypertext Transfer Protocol Secure | HTTPS | 通信内容を暗号化してWorld Wide Web通信を行う方式。 |
+| RPM Package Manager | RPM | RPM形式パッケージの導入, 更新, 削除, 情報参照を行う仕組み。 |
+| Virtual Machine | VM | 物理計算機上で動作する仮想的な計算機。 |
 | localhost | - | 同一機器自身を指す名前。 |
 | root | - | Unix 系システムの最上位権限を持つ管理者識別子。 |
 | ソフトウェア | - | 情報処理システムで使用するプログラム, 手順, 規則及び関連文書の全体又は一部分。 |
@@ -105,8 +112,8 @@
 | Service | - | サービスの英語表記。 |
 | Node | - | ノードの英語表記。 |
 | Makefile | - | 実行手順を定義したファイル。 |
-| Application Programming Interface | API | アプリケーション同士がやり取りする方法を定めた仕様。 |
-| Uniform Resource Locator | URL | WWW 上の資源の場所を示す文字列。 |
+| Application Programming Interface | API | アプリケーション同士が機能やデータをやり取りするための取り決め。 |
+| Uniform Resource Locator | URL | World Wide Web上の資源の場所を示す文字列。 |
 | Network File System | NFS | ネットワーク越しにファイル共有を行う仕組み。 |
 | Network File System version 4 | NFSv4 | NFSの第4版です。 |
 | Domain Name System | DNS | 名前と IP アドレスを対応付ける仕組み。 |
@@ -126,7 +133,7 @@
 | export table manager command | exportfs | NFS公開設定を表示, 更新するコマンドです。 |
 | NFS export list viewer | showmount | NFSサーバの公開一覧を確認するコマンドです。 |
 | journalctl | journalctl | systemd ジャーナルのログを参照するコマンド。 |
-| Red Hat Enterprise Linux | RHEL | Red Hat 社が提供する商用 Linux ディストリビューション。 |
+| Red Hat Enterprise Linux | RHEL | Red Hatが提供する企業向けLinuxディストリビューション。 |
 | Ansible | Ansible | 設定の同一化や導入作業を所定の手順に従って自動化する仕組み。 |
 | Ansible Playbook | playbook | 自動化処理の実行手順を順序付きで記述したファイル。 |
 | role | role | 特定の名前空間内で有効な権限の集合。 |
@@ -136,7 +143,7 @@
 | Ansible Task | task | 自動化処理の最小単位となる実行項目。 |
 | ansible-playbookコマンド | - | Ansible Playbook を実行して自動構成処理を適用するコマンド。 |
 | `grep` | - | テキストから条件に一致する行を抽出するコマンド。 |
-| `make` | - | Makefile に定義された処理を実行するコマンド。 |
+| makeコマンド | make | Makefile に定義された処理を実行するコマンド。 |
 | `mkdir` | - | ディレクトリを作成するコマンド。 |
 | `systemctl` | - | systemd 管理下のサービスを起動, 停止, 状態確認するコマンド。 |
 | サービス | - | 機能を利用者や他システムへ提供する仕組み。 |
@@ -392,18 +399,136 @@ mount | grep /mnt/nfs-test
 
 ## トラブルシューティング
 
-エラー発生時に build-*.log と対象ホストの systemd ジャーナルを確認し, 失敗した task 名と前提条件未充足を特定します。代表的なトラブルと対処を以下に示します。
+### 1. 主要タスクが実行されず, 変更が入らない場合
 
-| 想定トラブル | 主な原因 | 対処方法 |
-| --- | --- | --- |
-| 主要タスクが実行されず, 変更が入らない | nfs_export_directory, dns_domain, nfs_network のいずれかが空文字で when 条件を満たしていない |  group_vars または host_vars で 3 変数が空文字でないことを確認し, 再実行します。実行ログで Package, Directory, Config が skipped でないことを確認します。 |
-| nfs-server サービスが active にならない | nfs パッケージ未導入, 設定不整合, 依存サービス未起動 |  systemctl status nfs-server と journalctl -u nfs-server -n 100 --no-pager を確認し, 不足パッケージ導入または設定修正後に systemctl restart nfs-server を実行します。 |
-| idmapd の Domain が意図値にならない | dns_domain の設定誤り, 既存設定の手動変更 |  /etc/idmapd.conf の Domain 行を確認し, 変数値を修正してロールを再実行します。必要に応じて systemctl restart nfs-server で反映を確認します。 |
-| /etc/exports が期待どおりに更新されない | nfs_network の書式誤り, nfs_options の記述誤り, 既存行との競合 |  /etc/exports の対象行を確認し, nfs_network を CIDR 形式で定義します。nfs_options はカンマ区切りの有効値へ修正し, 再実行後に exportfs -v で反映を確認します。 |
-| クライアントからマウントできない | サーバ到達性不足, 公開ネットワーク不一致, ファイアウォール遮断 |  showmount -e localhost で公開状態を確認し, クライアント側の接続元アドレスが nfs_network に含まれることを確認します。必要に応じてファイアウォール設定を見直し, 再試行します。 |
-| mount 時に access denied が出る | nfs_network と接続元アドレス不一致, exports 反映漏れ |  exportfs -v で公開先ネットワークを確認し, 必要であれば nfs_network を修正してロール再実行後に exportfs -ra を実行します。 |
-| GUI 無効化が期待どおりに反映されない | package タスクに変更がなく disable_gui ハンドラが通知されていない |  package タスクの changed 状態を確認します。即時反映が必要な場合は systemctl set-default multi-user.target を管理者権限で実行し, default target を確認します。 |
-| role内の restart_nfs ハンドラが動かない | restart_nfs への notify 元が現状未定義 | 実装仕様として正常です。NFS 再起動は Config フェーズの通常 task で実行されます。ハンドラ経由へ統一する場合は notify と handler の設計を追加します。 |
+**実施対象ホスト**: 制御ホスト
+
+**実行するコマンド**:
+
+```bash
+grep -nE '^(nfs_export_directory|dns_domain|nfs_network):' group_vars/all/all.yml host_vars/*.yml
+grep -nE 'Package|Directory|Config' build*.log
+```
+
+**確認ポイント**:
+
+- nfs_export_directory, dns_domain, nfs_network の3変数が空文字でないこと。
+- 実行ログで Package, Directory, Config が skipped ではないこと。
+
+### 2. nfs-server サービスが active にならない場合
+
+**実施対象ホスト**: NFSサーバノード
+
+**実行するコマンド**:
+
+```bash
+systemctl status nfs-server --no-pager
+journalctl -u nfs-server -n 100 --no-pager
+```
+
+**確認ポイント**:
+
+- サービス状態が active (running) であること。
+- ログに起動失敗や依存サービス不足が出ていないこと。
+- 不足パッケージ又は設定不整合を修正後に systemctl restart nfs-server で再確認すること。
+
+### 3. idmapd の Domain が意図値にならない場合
+
+**実施対象ホスト**: NFSサーバノード
+
+**実行するコマンド**:
+
+```bash
+grep -E '^\s*Domain\s*=\s*' /etc/idmapd.conf
+```
+
+**確認ポイント**:
+
+- Domain 行が存在すること。
+- Domain の値が dns_domain と一致すること。
+- 値を修正した場合はロール再実行後に反映状態を再確認すること。
+
+### 4. /etc/exports が期待どおりに更新されない場合
+
+**実施対象ホスト**: NFSサーバノード
+
+**実行するコマンド**:
+
+```bash
+grep -n '/etc/exports\|{{ nfs_export_directory }}' /etc/exports
+exportfs -v
+```
+
+**確認ポイント**:
+
+- /etc/exports の対象行に nfs_export_directory, nfs_network, nfs_options が反映されていること。
+- nfs_network が CIDR 形式であること。
+- nfs_options が有効なカンマ区切り書式であること。
+
+### 5. クライアントからマウントできない場合
+
+**実施対象ホスト**: NFSサーバノード, NFSクライアントノード
+
+**実行するコマンド**:
+
+```bash
+showmount -e localhost
+exportfs -v
+```
+
+**確認ポイント**:
+
+- 公開ディレクトリが showmount の一覧に表示されること。
+- クライアント側の接続元アドレスが nfs_network に含まれること。
+- サーバ到達性とファイアウォール設定が運用要件と一致すること。
+
+### 6. mount 時に access denied が出る場合
+
+**実施対象ホスト**: NFSサーバノード
+
+**実行するコマンド**:
+
+```bash
+exportfs -v
+exportfs -ra
+```
+
+**確認ポイント**:
+
+- exportfs -v の公開先ネットワークがクライアント接続元と一致すること。
+- exports の再読込後も失敗する場合は nfs_network の設定値を見直すこと。
+
+### 7. GUI 無効化が期待どおりに反映されない場合
+
+**実施対象ホスト**: NFSサーバノード
+
+**実行するコマンド**:
+
+```bash
+systemctl get-default
+systemctl status nfs-server --no-pager
+```
+
+**確認ポイント**:
+
+- package タスクが changed にならない場合は disable_gui ハンドラが通知されないこと。
+- 即時反映が必要な場合は systemctl set-default multi-user.target 実行後に default target を再確認すること。
+
+### 8. restart_nfs ハンドラが動かない場合
+
+**実施対象ホスト**: 制御ホスト
+
+**実行するコマンド**:
+
+```bash
+grep -n 'notify\|restart_nfs' roles/nfs-server/tasks/*.yml roles/nfs-server/handlers/*.yml
+```
+
+**確認ポイント**:
+
+- 現行実装では restart_nfs の notify 元が未定義であること。
+- NFS 再起動は Config フェーズの通常 task で実行される設計であること。
+- ハンドラ経由へ統一する場合は notify と handler の設計追加が必要であること。
 
 
 ## 注意事項

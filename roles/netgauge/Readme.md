@@ -1,10 +1,10 @@
-# Netgauge関連
+# Netgauge関連ロール
 
 本ロールは, Netgaugeをビルドして配置し, OSノイズ計測用スクリプトを導入するためのロールです。
 
 ## 目次
 
-- [Netgauge関連](#netgauge関連)
+- [Netgauge関連ロール](#netgauge関連ロール)
   - [目次](#目次)
   - [用語](#用語)
   - [概要](#概要)
@@ -32,6 +32,13 @@
       - [Step 6: 生成物確認](#step-6-生成物確認)
       - [Step 7: FFT描画確認(任意)](#step-7-fft描画確認任意)
   - [トラブルシューティング](#トラブルシューティング)
+    - [1. ロール実行開始直後に変数未定義エラーで停止する場合](#1-ロール実行開始直後に変数未定義エラーで停止する場合)
+    - [2. Netgauge アーカイブ取得に失敗する場合](#2-netgauge-アーカイブ取得に失敗する場合)
+    - [3. build.yml 実行時に configure 又は gmake が失敗する場合](#3-buildyml-実行時に-configure-又は-gmake-が失敗する場合)
+    - [4. 10\_prepare\_cgroup.sh 実行時に Permission denied が発生する場合](#4-10_prepare_cgroupsh-実行時に-permission-denied-が発生する場合)
+    - [5. 90\_get\_app\_cpu\_noise.sh 実行後に rank\*.val や画像が生成されない場合](#5-90_get_app_cpu_noisesh-実行後に-rankval-や画像が生成されない場合)
+    - [6. FFT 描画ステップで Python import エラーが発生する場合](#6-fft-描画ステップで-python-import-エラーが発生する場合)
+    - [7. APP\_RANGE が空になり計測が開始できない場合](#7-app_range-が空になり計測が開始できない場合)
   - [注意事項](#注意事項)
   - [参考資料](#参考資料)
     - [公式ドキュメント](#公式ドキュメント)
@@ -74,12 +81,12 @@
 | Playbook | - | 自動化処理の実行手順を記述したファイル。 |
 | Canonical | - | Ubuntu を提供する組織名。 |
 | Key-Value | - | キーと値の組で情報を表す方式。 |
-| Internet Protocol | IP | インターネットプロトコルの略称。 |
+| Internet Protocol | IP | ネットワーク上で宛先を識別し, データを届けるための通信手順。 |
 | Structured Query Language | SQL | データベースを操作するための記述言語。 |
-| Hypertext Transfer Protocol | HTTP | WWW で情報をやり取りする通信手順。 |
-| Hypertext Transfer Protocol Secure | HTTPS | 通信内容を暗号化して WWW 通信を行う方式。 |
-| RPM Package Manager | RPM | RHEL 系で使用するパッケージ形式。 |
-| Virtual Machine | VM | 物理機器上で動作する仮想的な計算機。 |
+| Hypertext Transfer Protocol | HTTP | World Wide Webで情報をやり取りする通信手順。 |
+| Hypertext Transfer Protocol Secure | HTTPS | 通信内容を暗号化してWorld Wide Web通信を行う方式。 |
+| RPM Package Manager | RPM | RPM形式パッケージの導入, 更新, 削除, 情報参照を行う仕組み。 |
+| Virtual Machine | VM | 物理計算機上で動作する仮想的な計算機。 |
 | localhost | - | 同一機器自身を指す名前。 |
 | root | - | Unix 系システムの最上位権限を持つ管理者識別子。 |
 | ソフトウェア | - | 情報処理システムで使用するプログラム, 手順, 規則及び関連文書の全体又は一部分。 |
@@ -108,8 +115,8 @@
 | Service | - | サービスの英語表記。 |
 | Node | - | ノードの英語表記。 |
 | Makefile | - | 実行手順を定義したファイル。 |
-| Application Programming Interface | API | アプリケーション同士がやり取りする方法を定めた仕様。 |
-| Uniform Resource Locator | URL | WWW 上の資源の場所を示す文字列。 |
+| Application Programming Interface | API | アプリケーション同士が機能やデータをやり取りするための取り決め。 |
+| Uniform Resource Locator | URL | World Wide Web上の資源の場所を示す文字列。 |
 | Netgauge | Netgauge | Zurich工科大学が公開するネットワーク性能とOSノイズの計測ツールです。 |
 | Message Passing Interface | MPI | 並列処理でプロセス間通信を行うための規約です。 |
 | Transmission Control Protocol | TCP | 通信相手との接続を確立してからデータを送受信する通信方式。 |
@@ -122,7 +129,7 @@
 | Fixed Time Quantum | FTQ | 固定時間で処理量の変動を測る手法です。 |
 | Selfish Detour | Selfish Detour | OSノイズ観測で使う計測パターンの1つです。 |
 | Operating System | OS | 計算機の基本機能を管理し, アプリケーションを動作させる基盤ソフトウェア。 |
-| Red Hat Enterprise Linux | RHEL | Red Hat 社が提供する商用 Linux ディストリビューション。 |
+| Red Hat Enterprise Linux | RHEL | Red Hatが提供する企業向けLinuxディストリビューション。 |
 | Central Processing Unit | CPU | 計算処理を実行する中核部品。 |
 | Housekeeping/Application core split | HK/APP | CPUを管理処理用と計測処理用に分ける考え方です。 |
 | control group | cgroup | Linuxでプロセス資源を制御する仕組みです。 |
@@ -141,7 +148,7 @@
 | matplotlib | matplotlib | Python向けのグラフ描画ライブラリです。 |
 | NumPy | numpy | Python向けの数値計算ライブラリです。 |
 | Yet Another Markup Language | YAML | 設定ファイル形式です。 |
-| Uniform Resource Locator | URL | URL の正式名称。 |
+| Uniform Resource Locator | URL | World Wide Web上の資源の場所を示す文字列。 |
 | Portable Network Graphics | PNG | 可逆圧縮形式の画像ファイルです。 |
 | Ansible Playbook | playbook | 自動化処理の実行手順を順序付きで記述したファイル。 |
 | role | role | 特定の名前空間内で有効な権限の集合。 |
@@ -152,13 +159,13 @@
 | ansible-playbookコマンド | - | Ansible Playbook を実行して自動構成処理を適用するコマンド。 |
 | `cat` | - | ファイル内容を標準出力へ表示するコマンド。 |
 | `ls` | - | ファイルやディレクトリの一覧を表示するコマンド。 |
-| `make` | - | Makefile に定義された処理を実行するコマンド。 |
+| makeコマンド | make | Makefile に定義された処理を実行するコマンド。 |
 | `python3` | - | Python 3 系インタプリタを実行するコマンド。 |
 | サービス | - | 機能を利用者や他システムへ提供する仕組み。 |
 | ノード | - | ネットワークに接続された機器または処理単位。 |
+| 制御ホスト | - | Playbook を実行し, 他ホストへの処理指示を行う管理用ホスト。 |
 | 対象ホスト | - | Playbook による設定変更や導入処理の適用先となるホスト。 |
 | sudoコマンド | sudo | 一時的に管理者権限でコマンドを実行するためのコマンド。 |
-
 ## 概要
 このロールは, Netgaugeをビルドして配置し, OSノイズ計測用スクリプトを導入するためのロールです。Netgauge本体のビルドはAnsibleの制御ノード(localhost)で実行し, 生成したバイナリを対象ノードへ配置します。
 
@@ -472,17 +479,124 @@ ls -l "$latest_dir/fft_plots"
 
 ## トラブルシューティング
 
-実行者はエラー発生時に build-*.log と対象ホスト上の `/opt/netgauge/bin` 配下ログを確認し, 失敗した task と前提条件未充足を特定します。代表的なトラブルと対処を以下に示します。
+### 1. ロール実行開始直後に変数未定義エラーで停止する場合
 
-| 想定トラブル | 主な原因 | 対処方法 |
-| --- | --- | --- |
-| ロール実行開始直後に変数未定義エラーで停止する | `netgauge_version` が未設定, または空文字列 | 実行者は `group_vars` または `host_vars` で `netgauge_version` を定義し, 空文字列でないことを確認してから再実行します。 |
-| Netgauge アーカイブ取得に失敗する | 取得元 URL の到達不可, DNS 解決失敗, 制御ノードの外向き通信制限 | 実行者は制御ホストで `curl -I https://htor.inf.ethz.ch/research/netgauge/` を実行し, 到達性を確認します。到達できない場合は名前解決設定, プロキシ設定, ファイアウォール設定を見直して再実行します。 |
-| build.yml 実行時に configure または gmake が失敗する | 制御ホストに `gmake`, コンパイラ, 開発用ライブラリが不足 | 実行者は制御ホストで `gmake --version` と `cc --version` を確認し, 必要パッケージを導入してから再実行します。 |
-| `10_prepare_cgroup.sh` 実行時に Permission denied が発生する | `sudo` なしで実行, または cgroup 書き込み権限不足 | 実行者は対象ホストで `sudo /opt/netgauge/bin/10_prepare_cgroup.sh` を実行し, `sudo` 権限が有効であることを確認します。必要に応じて実行ユーザの sudo 権限を見直します。 |
-| `90_get_app_cpu_noise.sh` 実行後に `rank*.val` や画像が生成されない | 前段スクリプト失敗, `gnuplot` 未導入, 計測コマンド異常終了 | 実行者は `/tmp/runs/<timestamp>` 配下の `_values_all.txt` と `plots` ディレクトリ有無を確認し, `gnuplot --version` で導入状態を確認します。前段の `00_detect_cpus.sh` と `20_launch_netgauge.sh` を個別実行して失敗箇所を切り分けます。 |
-| FFT 描画ステップで Python import エラーが発生する | `matplotlib` または `numpy` が未導入 | 実行者は対象ホストで `python3 -c "import matplotlib, numpy"` を実行し, 不足パッケージを導入してから `60_fft_plot.py` を再実行します。 |
-| `APP_RANGE` が空になり計測が開始できない | CPU コア数が少ない環境, `00_detect_cpus.sh` の検出結果が前提に合わない | 実行者は `.cpu_env` の `HK_RANGE`, `PRESENT`, `APP_RANGE` を確認し, 必要に応じて計測対象ホストの CPU 構成を見直します。最小構成で検証する場合は `20_launch_netgauge.sh` の実行条件を調整して再試行します。 |
+**実施対象ホスト**: 制御ホスト
+
+**実行するコマンド**:
+
+```bash
+grep -n '^netgauge_version:' vars/all-config.yml group_vars/all/all.yml host_vars/*.yml
+```
+
+**確認ポイント**:
+
+- netgauge_version が定義されていること。
+- netgauge_version が空文字列ではないこと。
+
+### 2. Netgauge アーカイブ取得に失敗する場合
+
+**実施対象ホスト**: 制御ホスト
+
+**実行するコマンド**:
+
+```bash
+curl -I https://htor.inf.ethz.ch/research/netgauge/
+getent hosts htor.inf.ethz.ch
+```
+
+**確認ポイント**:
+
+- 取得元 URL へ到達できること。
+- DNS 解決に失敗していないこと。
+- 到達不可の場合は名前解決設定, プロキシ設定, ファイアウォール設定を見直すこと。
+
+### 3. build.yml 実行時に configure 又は gmake が失敗する場合
+
+**実施対象ホスト**: 制御ホスト
+
+**実行するコマンド**:
+
+```bash
+gmake --version
+cc --version
+```
+
+**確認ポイント**:
+
+- gmake が実行可能であること。
+- C コンパイラが実行可能であること。
+- 必要な開発用ライブラリが導入済みであること。
+
+### 4. 10_prepare_cgroup.sh 実行時に Permission denied が発生する場合
+
+**実施対象ホスト**: Netgauge導入対象ノード
+
+**実行するコマンド**:
+
+```bash
+sudo /opt/netgauge/bin/10_prepare_cgroup.sh
+```
+
+**確認ポイント**:
+
+- sudo 権限で実行していること。
+- cgroup 書き込み権限不足がないこと。
+- 必要に応じて実行ユーザの sudo 権限を見直すこと。
+
+### 5. 90_get_app_cpu_noise.sh 実行後に rank*.val や画像が生成されない場合
+
+**実施対象ホスト**: Netgauge導入対象ノード
+
+**実行するコマンド**:
+
+```bash
+latest_dir=$(ls -td /tmp/runs/* | head -1)
+ls -l "$latest_dir"
+ls -l "$latest_dir/plots"
+gnuplot --version
+```
+
+**確認ポイント**:
+
+- _values_all.txt と rank*.val が生成されていること。
+- plots ディレクトリ配下に画像が生成されていること。
+- gnuplot が導入済みであること。
+- 失敗時は 00_detect_cpus.sh と 20_launch_netgauge.sh を個別実行して失敗箇所を切り分けること。
+
+### 6. FFT 描画ステップで Python import エラーが発生する場合
+
+**実施対象ホスト**: Netgauge導入対象ノード
+
+**実行するコマンド**:
+
+```bash
+python3 -c "import matplotlib, numpy"
+python3 /opt/netgauge/bin/60_fft_plot.py "$(ls -td /tmp/runs/* | head -1)" --dt 0.00005
+```
+
+**確認ポイント**:
+
+- matplotlib と numpy が import できること。
+- 60_fft_plot.py 実行時に依存ライブラリ不足エラーが出ないこと。
+
+### 7. APP_RANGE が空になり計測が開始できない場合
+
+**実施対象ホスト**: Netgauge導入対象ノード
+
+**実行するコマンド**:
+
+```bash
+cd /opt/netgauge/bin
+./00_detect_cpus.sh
+cat .cpu_env
+```
+
+**確認ポイント**:
+
+- .cpu_env の HK_RANGE, PRESENT, APP_RANGE が出力されること。
+- APP_RANGE が空文字列ではないこと。
+- CPU 構成が最小要件を満たさない場合は計測条件を見直すこと。
 
 
 ## 注意事項

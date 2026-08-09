@@ -14,6 +14,12 @@
   - [実行フロー](#実行フロー)
   - [検証ポイント](#検証ポイント)
   - [トラブルシューティング](#トラブルシューティング)
+    - [1. RHEL で BaseOS/AppStream/CRB の有効化に失敗する場合](#1-rhel-で-baseosappstreamcrb-の有効化に失敗する場合)
+    - [2. AlmaLinux/Rocky で `dnf config-manager --set-enabled crb` に失敗する場合](#2-almalinuxrocky-で-dnf-config-manager---set-enabled-crb-に失敗する場合)
+    - [3. EPEL 設定後に `dnf makecache` が失敗する場合](#3-epel-設定後に-dnf-makecache-が失敗する場合)
+    - [4. Kubernetes/Chrome/Docker CE の鍵取得に失敗する場合](#4-kuberneteschromedocker-ce-の鍵取得に失敗する場合)
+    - [5. Docker CE リポジトリが作成されない場合](#5-docker-ce-リポジトリが作成されない場合)
+    - [6. 優先度が意図どおりに反映されない場合](#6-優先度が意図どおりに反映されない場合)
   - [注意事項](#注意事項)
     - [リポジトリの優先度制御仕様](#リポジトリの優先度制御仕様)
     - [本ロールでの EPEL 健全化処理](#本ロールでの-epel-健全化処理)
@@ -58,12 +64,12 @@
 | Playbook | - | 自動化処理の実行手順を記述したファイル。 |
 | Canonical | - | Ubuntu を提供する組織名。 |
 | Key-Value | - | キーと値の組で情報を表す方式。 |
-| Internet Protocol | IP | インターネットプロトコルの略称。 |
+| Internet Protocol | IP | ネットワーク上で宛先を識別し, データを届けるための通信手順。 |
 | Structured Query Language | SQL | データベースを操作するための記述言語。 |
-| Hypertext Transfer Protocol | HTTP | WWW で情報をやり取りする通信手順。 |
-| Hypertext Transfer Protocol Secure | HTTPS | 通信内容を暗号化して WWW 通信を行う方式。 |
-| RPM Package Manager | RPM | RHEL 系で使用するパッケージ形式。 |
-| Virtual Machine | VM | 物理機器上で動作する仮想的な計算機。 |
+| Hypertext Transfer Protocol | HTTP | World Wide Webで情報をやり取りする通信手順。 |
+| Hypertext Transfer Protocol Secure | HTTPS | 通信内容を暗号化してWorld Wide Web通信を行う方式。 |
+| RPM Package Manager | RPM | RPM形式パッケージの導入, 更新, 削除, 情報参照を行う仕組み。 |
+| Virtual Machine | VM | 物理計算機上で動作する仮想的な計算機。 |
 | localhost | - | 同一機器自身を指す名前。 |
 | root | - | Unix 系システムの最上位権限を持つ管理者識別子。 |
 | ノード | - | ネットワークに接続された機器または処理単位。 |
@@ -81,8 +87,8 @@
 | Service | - | サービスの英語表記。 |
 | Node | - | ノードの英語表記。 |
 | Makefile | - | 実行手順を定義したファイル。 |
-| Application Programming Interface | API | アプリケーション同士がやり取りする方法を定めた仕様。 |
-| Uniform Resource Locator | URL | WWW 上の資源の場所を示す文字列。 |
+| Application Programming Interface | API | アプリケーション同士が機能やデータをやり取りするための取り決め。 |
+| Uniform Resource Locator | URL | World Wide Web上の資源の場所を示す文字列。 |
 | ソフトウェア | - | 情報処理システムで使用するプログラム, 手順, 規則及び関連文書の全体又は一部分。 |
 | 基本ソフトウェア | - | 応用ソフトウェアの実行を支援する, 応用に依存しないソフトウェア。 |
 | オペレーティングシステム | OS | プログラムの実行を制御し, 入出力制御とデータ管理を行う基本ソフトウェア。 |
@@ -97,24 +103,21 @@
 | ホスト | - | 管理対象として識別される個別の計算機。 |
 | アプリケーション | - | 利用者の目的を実現するために動作するソフトウェア。 |
 | Linux | - | 多くの機器で使われる, 基本ソフトウェアの系統。 |
-| Red Hat | - | Linux 関連製品を提供する企業名。 |
+| Red Hat | - | Red Hat Enterprise Linuxなどを提供する組織。 |
 | AlmaLinux | - | RHEL と互換性を持つ Linux の配布形態。 |
 | World Wide Web | WWW | ネットワーク上で文書や情報を相互参照できる仕組み。 |
-| RPM Package Manager | RPM | RHEL/AlmaLinux 系で使用するパッケージ形式。 |
 | Dandified YUM | DNF | YUM の後継として利用するパッケージ管理ツール。 |
 | Yellowdog Updater Modified | YUM | RPM パッケージの導入, 更新, 削除を行う管理ツール。 |
 | GNU Privacy Guard | GPG | 公開鍵暗号方式でデータを保護するためのソフトウェア。 |
 | Extra Packages for Enterprise Linux | EPEL | Red Hat Enterprise Linux 系向けの追加パッケージ提供元。 |
-| Red Hat Enterprise Linux | RHEL | Red Hat 社が提供する商用 Linux ディストリビューション。 |
+| Red Hat Enterprise Linux | RHEL | Red Hatが提供する企業向けLinuxディストリビューション。 |
 | BaseOS | - | RHEL 系の基本パッケージを提供するリポジトリ。 |
 | AppStream | - | RHEL 系の追加パッケージを提供するリポジトリ。 |
 | cloud-init | - | 起動時の初期設定を自動化する仕組み。 |
 | Kickstart | - | 設定ファイルを用いて RHEL 導入手順を自動化する仕組み。 |
 | Ansible | - | 設定の同一化や導入作業を所定の手順に従って自動化する仕組み。 |
 | Ansible Playbook | playbook | 自動化処理の実行手順を順序付きで記述したファイル。 |
-| Uniform Resource Locator | URL | URL の正式名称。 |
 | Secure Sockets Layer | SSL | 通信を暗号化する旧来方式の名称。現在は主に TLS を使用する。 |
-| Hypertext Transfer Protocol | HTTP | HTTP の正式名称。 |
 | Operating System | OS | 計算機の基本機能を管理し, アプリケーションを動作させる基盤ソフトウェア。 |
 | Transport Layer Security | TLS | 通信経路でデータを暗号化して保護する仕組み。 |
 | Host Variables | host_vars | ホスト単位の設定値を格納する変数定義。 |
@@ -123,13 +126,16 @@
 | Community Edition | CE | 商用版と区別する無償版の製品区分。 |
 | CodeReady Builder | CRB | RHEL 系追加パッケージ提供リポジトリ。 |
 | ansible-playbookコマンド | - | Ansible Playbook を実行して自動構成処理を適用するコマンド。 |
+| createrepoコマンド | createrepo | RPM パッケージのリポジトリ情報を生成, 更新するコマンド。 |
 | `dnf` | - | RHEL 系でパッケージを導入, 更新, 削除するコマンド。 |
 | システム | - | 複数の要素が連携して目的を実現する仕組み全体。 |
 | 制御ホスト | - | Playbook を実行し, 他ホストへの処理指示を行う管理用ホスト。 |
 | 対象ホスト | - | Playbook による設定変更や導入処理の適用先となるホスト。 |
 
 ## 概要
+
 RHEL/AlmaLinux/Rocky Linux のパッケージリポジトリを設定するためのロールです。以下の方針で作成しています:
+
 - テンプレートファイルを避け, `ansible.builtin.yum_repository` モジュールを使用してリポジトリを宣言的に管理。
 - 署名鍵は `/etc/pki/rpm-gpg/` に配置し, `ansible.builtin.rpm_key` でインポート ( RPM パッケージ管理システムの標準的な鍵管理方法 ) 。
 - 二段検証を実施: `gpgcheck=1` ( パッケージ署名検証 ) と `repo_gpgcheck=1` ( メタデータ署名検証 ) を原則有効化。
@@ -222,16 +228,105 @@ ansible-playbook -i inventory/hosts site.yml --syntax-check
 
 ## トラブルシューティング
 
-実行者はエラー発生時に build-*.log を確認し, 失敗した task 名と不足変数を特定します。代表的なトラブルと対処を以下に示します。
+### 1. RHEL で BaseOS/AppStream/CRB の有効化に失敗する場合
 
-| 想定トラブル | 主な原因 | 対処方法 |
-| --- | --- | --- |
-| RHEL で BaseOS/AppStream/CRB の有効化に失敗する | `subscription-manager` 未登録, または対象サブスクリプション未付与 | 実行者は対象ホストで `subscription-manager status` と `subscription-manager repos --list-enabled` を確認します。未登録の場合は登録とアタッチを実施し, `codeready-builder-for-rhel-<major>-<arch>-rpms` を有効化してから再実行します。 |
-| AlmaLinux/Rocky で `dnf config-manager --set-enabled crb` に失敗する | `dnf-plugins-core` 未導入, CRB 名称不一致, ミラー到達不可 | 実行者は `dnf -y install dnf-plugins-core` を確認し, `dnf repolist all | grep -Ei 'crb|codeready'` で利用可能なリポジトリ名を確認します。必要に応じて `repo_enable_crb` を見直し, 再実行します。 |
-| EPEL 設定後に `dnf makecache` が失敗する | 既存 `epel*.repo` の競合, `repo_gpgcheck` 強制設定, ネットワーク到達不可 | 実行者は `/etc/yum.repos.d/epel*.repo` の重複有無と `/etc/dnf/dnf.conf` の `repo_gpgcheck` 行を確認します。その後, `dnf clean all && dnf makecache` を実行して復旧可否を確認します。 |
-| Kubernetes/Chrome/Docker CE の鍵取得に失敗する | 外部 URL 到達不可, HTTPS 経路不安定, プロキシ未設定 | 実行者は `curl -fsSL <鍵URL>` の単体実行で到達性を確認します。HTTPS 経路問題がある環境では URL プローブ結果により curl 回避処理へ自動切替されるため, `ansible_url_module_https_workaround_enabled` が `true` になっていることを確認します。 |
-| Docker CE リポジトリが作成されない | 条件変数の不一致 (`repo_enable_docker_ce` と `repo_enable_docker`) | 本ロール既定値は `repo_enable_docker_ce: true` ですが, 外部リポジトリ処理では `repo_enable_docker` 条件も参照します。実行者は `vars/all-config.yml` または `host_vars` で `repo_enable_docker` の定義有無を確認し, 必要に応じて両方を整合させます。 |
-| 優先度が意図どおりに反映されない | priority 値の上書き, 既存 `.repo` ファイル競合 | 実行者は `/etc/yum.repos.d/*.repo` を確認し, `priority_baseos: 1`, `priority_appstream: 2`, `priority_epel: 90`, `priority_kubernetes: 80`, `priority_docker_ce: 70` が反映されていることを確認します。競合定義を整理後に再実行します。 |
+**実施対象ホスト**: 対象ホスト
+
+**実行するコマンド**:
+
+```bash
+subscription-manager status
+subscription-manager repos --list-enabled
+```
+
+**確認ポイント**:
+
+- `subscription-manager` が登録済みであること。
+- 対象サブスクリプションが付与済みであること。
+- `codeready-builder-for-rhel-<major>-<arch>-rpms` が有効であること。
+
+### 2. AlmaLinux/Rocky で `dnf config-manager --set-enabled crb` に失敗する場合
+
+**実施対象ホスト**: 対象ホスト
+
+**実行するコマンド**:
+
+```bash
+dnf -y install dnf-plugins-core
+dnf repolist all | grep -Ei 'crb|codeready'
+```
+
+**確認ポイント**:
+
+- `dnf-plugins-core` が導入済みであること。
+- 利用可能な CRB 系リポジトリ名を確認できること。
+- `repo_enable_crb` の設定値が環境と一致していること。
+
+### 3. EPEL 設定後に `dnf makecache` が失敗する場合
+
+**実施対象ホスト**: 対象ホスト
+
+**実行するコマンド**:
+
+```bash
+ls -1 /etc/yum.repos.d/epel*.repo
+grep -n '^repo_gpgcheck' /etc/dnf/dnf.conf
+dnf clean all
+dnf makecache
+```
+
+**確認ポイント**:
+
+- `/etc/yum.repos.d/epel*.repo` に重複定義がないこと。
+- `/etc/dnf/dnf.conf` の `repo_gpgcheck` 設定が想定どおりであること。
+- `dnf clean all` 後の `dnf makecache` が成功すること。
+
+### 4. Kubernetes/Chrome/Docker CE の鍵取得に失敗する場合
+
+**実施対象ホスト**: 対象ホスト
+
+**実行するコマンド**:
+
+```bash
+curl -fsSL <鍵URL>
+ansible -i inventory/hosts <対象ホスト> -m ansible.builtin.debug -a "var=ansible_url_module_https_workaround_enabled"
+```
+
+**確認ポイント**:
+
+- `curl -fsSL <鍵URL>` が成功し, 外部 URL 到達性があること。
+- HTTPS 経路に問題がある環境では, `ansible_url_module_https_workaround_enabled` が `true` であること。
+
+### 5. Docker CE リポジトリが作成されない場合
+
+**実施対象ホスト**: 制御ホスト
+
+**実行するコマンド**:
+
+```bash
+grep -n "repo_enable_docker_ce\|repo_enable_docker" vars/all-config.yml host_vars/*.yml
+```
+
+**確認ポイント**:
+
+- `repo_enable_docker_ce` の設定値を確認できること。
+- 外部リポジトリ処理で参照する `repo_enable_docker` の設定値を確認できること。
+- `repo_enable_docker_ce` と `repo_enable_docker` が意図した動作になる組み合わせであること。
+
+### 6. 優先度が意図どおりに反映されない場合
+
+**実施対象ホスト**: 対象ホスト
+
+**実行するコマンド**:
+
+```bash
+grep -R -n '^priority=' /etc/yum.repos.d/*.repo
+```
+
+**確認ポイント**:
+
+- 既存 `.repo` ファイルと競合する priority 定義がないこと。
+- `priority_baseos: 1`, `priority_appstream: 2`, `priority_epel: 90`, `priority_kubernetes: 80`, `priority_docker_ce: 70` が反映されていること。
 
 ## 注意事項
 

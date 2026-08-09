@@ -21,6 +21,12 @@
     - [Debian/Ubuntuパッケージの場合の確認方法](#debianubuntuパッケージの場合の確認方法)
     - [RHEL/Alma Linux (RPMパッケージ)の場合の確認方法](#rhelalma-linux-rpmパッケージの場合の確認方法)
   - [トラブルシューティング](#トラブルシューティング)
+    - [1. FRR が導入されない場合](#1-frr-が導入されない場合)
+    - [2. 対応外 OS でソースビルド指定を行い停止する場合](#2-対応外-os-でソースビルド指定を行い停止する場合)
+    - [3. コンテナイメージ構築またはパッケージ構築で失敗する場合](#3-コンテナイメージ構築またはパッケージ構築で失敗する場合)
+    - [4. libyang シンボル不足で停止する場合](#4-libyang-シンボル不足で停止する場合)
+    - [5. 版数検証で失敗する場合](#5-版数検証で失敗する場合)
+    - [6. Debian/Ubuntu 系でロック待ち関連の失敗が発生する場合](#6-debianubuntu-系でロック待ち関連の失敗が発生する場合)
   - [注意事項](#注意事項)
   - [参考資料](#参考資料)
     - [公式ドキュメント](#公式ドキュメント)
@@ -61,12 +67,12 @@
 | Playbook | - | 自動化処理の実行手順を記述したファイル。 |
 | Canonical | - | Ubuntu を提供する組織名。 |
 | Key-Value | - | キーと値の組で情報を表す方式。 |
-| Internet Protocol | IP | インターネットプロトコルの略称。 |
+| Internet Protocol | IP | ネットワーク上で宛先を識別し, データを届けるための通信手順。 |
 | Structured Query Language | SQL | データベースを操作するための記述言語。 |
-| Hypertext Transfer Protocol | HTTP | WWW で情報をやり取りする通信手順。 |
-| Hypertext Transfer Protocol Secure | HTTPS | 通信内容を暗号化して WWW 通信を行う方式。 |
-| RPM Package Manager | RPM | RHEL 系で使用するパッケージ形式。 |
-| Virtual Machine | VM | 物理機器上で動作する仮想的な計算機。 |
+| Hypertext Transfer Protocol | HTTP | World Wide Webで情報をやり取りする通信手順。 |
+| Hypertext Transfer Protocol Secure | HTTPS | 通信内容を暗号化してWorld Wide Web通信を行う方式。 |
+| RPM Package Manager | RPM | RPM形式パッケージの導入, 更新, 削除, 情報参照を行う仕組み。 |
+| Virtual Machine | VM | 物理計算機上で動作する仮想的な計算機。 |
 | localhost | - | 同一機器自身を指す名前。 |
 | root | - | Unix 系システムの最上位権限を持つ管理者識別子。 |
 | ソフトウェア | - | 情報処理システムで使用するプログラム, 手順, 規則及び関連文書の全体又は一部分。 |
@@ -95,15 +101,15 @@
 | Service | - | サービスの英語表記。 |
 | Node | - | ノードの英語表記。 |
 | Makefile | - | 実行手順を定義したファイル。 |
-| Application Programming Interface | API | アプリケーション同士がやり取りする方法を定めた仕様。 |
-| Uniform Resource Locator | URL | WWW 上の資源の場所を示す文字列。 |
+| Application Programming Interface | API | アプリケーション同士が機能やデータをやり取りするための取り決め。 |
+| Uniform Resource Locator | URL | World Wide Web上の資源の場所を示す文字列。 |
 | Free Range Routing | FRR | 複数の経路制御方式を実装したオープンソースの経路制御ソフトウェア。 |
 | Border Gateway Protocol | BGP | 自律システム間で経路情報を交換する経路制御方式。 |
 | Autonomous System Number | ASN | インターネット上で各組織や管理ドメインを識別するために割り当てられる一意の番号。BGP でルーティング情報を交換する際の識別子として使用される。 |
 | Internal BGP | iBGP | 同一自律システム内の BGP ルータ間で経路情報を交換するための BGP の動作モード。AS 番号が同じルータ間で使用される。 |
 | External BGP | eBGP | 異なる自律システム間で経路情報を交換するための BGP の動作モード。AS 番号が異なるルータ間で使用される。 |
 | Operating System | OS | 計算機の基本機能を管理し, アプリケーションを動作させる基盤ソフトウェア。 |
-| Red Hat Enterprise Linux | RHEL | Red Hat 社が提供する商用 Linux ディストリビューション。 |
+| Red Hat Enterprise Linux | RHEL | Red Hatが提供する企業向けLinuxディストリビューション。 |
 | Host Variables | host_vars | ホスト単位の設定値を格納する変数定義。 |
 | Ansible Inventory | inventory | 実行対象ホストの一覧と接続情報を管理する定義。 |
 | Ansible Task | task | 自動化処理の最小単位となる実行項目。 |
@@ -117,6 +123,7 @@
 | 構築ホスト | - | パッケージや実行資材を生成するビルド処理を担当するホスト。 |
 
 ## 概要
+
 このロールは Free Range Routing (FRR) の導入処理を共通化し, `frr-basic` と `k8s-worker-frr` から `include_role` で呼び出して使うためのロールです。
 
 ## 本ロールの動作仕様
@@ -163,7 +170,7 @@
 ## 実行方法
 
 本ロールは `frr-basic` または `k8s-worker-frr` から `include_role` で呼び出される内部ロールであるため, 原則として単体実行しません。
-実行者は制御ホストで呼び出し元ロールのタグを指定して実行します。
+制御ホストで呼び出し元ロールのタグを指定して実行します。
 
 FRR 専用ノード向け (`frr.yml`) の例:
 
@@ -370,16 +377,113 @@ routing state through standard SNMP MIBs.
 
 ## トラブルシューティング
 
-代表的なトラブルと対処を以下に示します。
+### 1. FRR が導入されない場合
 
-| 想定トラブル | 主な原因 | 対処方法 |
-| --- | --- | --- |
-| FRR が導入されない | `frr-common` は内部ロールであり, `--tags "frr-common"` では実行対象にならない | 実行者は呼び出し元ロールのタグを指定します。FRR ノードは `--tags "frr-basic"`, Kubernetes ワーカーノードは `--tags "k8s-worker-frr"` を指定して再実行します。 |
-| `Strict FRR source build is supported only on Debian and RedHat families` で停止する | `frr_version` を指定しているが, 対象ホストの OS ファミリが Debian/RedHat 以外である | 実行者は OS ファミリを確認し, 対応 OS へ切り替えるか `frr_version` を空文字にしてディストリビューション標準パッケージ導入へ切り替えます。 |
-| コンテナイメージ構築またはパッケージ構築で失敗する | 構築ホストでコンテナランタイム未導入, イメージ取得失敗, ネットワーク制限, または待機時間超過 | 実行者は構築ホストで `docker --version` と `ubuntu:24.04` / `almalinux:9.6` の取得可否を確認します。必要に応じて `frr_build_timeout_seconds` を延長し, `build-*.log` で停止箇所を確認して再実行します。 |
-| `Installed libyang still misses ... lyd_parent symbol` で停止する | Debian 系で FRR 実行時に必要な libyang シンボルが不足し, 再構築後も改善しない | 実行者は対象ホストの `libyang2` 関連パッケージ競合を解消し, 再実行します。必要に応じて既存の libyang 関連パッケージ状態を整理してから FRR 導入を再試行します。 |
-| 版数検証で失敗する (`Built FRR ... version mismatch`) | 指定した `frr_version` と生成パッケージ版数, または導入後版数が一致しない | 実行者は `frr_version` の値と, 構築成果物の版数, 導入後の `dpkg-query` または `rpm -q --qf '%{VERSION}' frr` の結果を突き合わせて不一致原因を解消して再実行します。 |
-| Debian/Ubuntu 系でロック待ち関連の失敗が発生する | 他プロセスの `apt`/`dpkg` 処理が継続し, ロック待機時間を超過する | 実行者は対象ホストで競合するパッケージ処理を停止し, 必要に応じて `frr_install_deb_lock_wait_seconds` を延長して再実行します。 |
+**実施対象ホスト**: 制御ホスト
+
+**実行するコマンド**:
+
+```bash
+ansible-playbook -i inventory/hosts devel.yml --tags "frr-common" -vv
+ansible-playbook -i inventory/hosts devel.yml --tags "frr-basic" -vv
+ansible-playbook -i inventory/hosts devel.yml --tags "k8s-worker-frr" -vv
+```
+
+**確認ポイント**:
+
+- `frr-common` が内部ロールであり, `--tags "frr-common"` 単体では実行対象にならないこと。
+- FRR ノードは `--tags "frr-basic"`, Kubernetes ワーカーノードは `--tags "k8s-worker-frr"` を指定して再実行していること。
+
+### 2. 対応外 OS でソースビルド指定を行い停止する場合
+
+**実施対象ホスト**: 対象ホスト, 制御ホスト
+
+**実行するコマンド**:
+
+```bash
+ansible -i inventory/hosts all -m setup -a 'filter=ansible_os_family'
+grep -n "frr_version" vars/all-config.yml host_vars/*/main.yml
+```
+
+**確認ポイント**:
+
+- `frr_version` を指定している対象ホストの OS ファミリが Debian または RedHat であること。
+- `Strict FRR source build is supported only on Debian and RedHat families` が発生した場合は, 対応外 OS を対象に含めていないこと。
+- 対応外 OS の場合は `frr_version` を空文字にして標準パッケージ導入へ切り替えていること。
+
+### 3. コンテナイメージ構築またはパッケージ構築で失敗する場合
+
+**実施対象ホスト**: 構築ホスト, 制御ホスト
+
+**実行するコマンド**:
+
+```bash
+docker --version
+docker pull ubuntu:24.04
+docker pull almalinux:9.6
+ls -1 build-*.log
+grep -n "frr_build_timeout_seconds" vars/all-config.yml host_vars/*/main.yml
+```
+
+**確認ポイント**:
+
+- 構築ホストでコンテナランタイムが利用可能であること。
+- `ubuntu:24.04` と `almalinux:9.6` を取得可能であること。
+- 必要に応じて `frr_build_timeout_seconds` を延長し, `build-*.log` で停止箇所を特定していること。
+
+### 4. libyang シンボル不足で停止する場合
+
+**実施対象ホスト**: Debian/Ubuntu 系の対象ホスト
+
+**実行するコマンド**:
+
+```bash
+dpkg -l | grep -E "libyang|frr"
+ldconfig -p | grep libyang
+journalctl -u frr -n 200 --no-pager
+```
+
+**確認ポイント**:
+
+- `libyang2` 関連パッケージの競合が解消されていること。
+- `ldconfig -p` で有効な `libyang` ライブラリが参照されること。
+- `Installed libyang still misses ... lyd_parent symbol` が継続出力されないこと。
+- 必要に応じて既存の libyang 関連パッケージ状態を整理してから FRR 導入を再試行していること。
+
+### 5. 版数検証で失敗する場合
+
+**実施対象ホスト**: 対象ホスト, 制御ホスト
+
+**実行するコマンド**:
+
+```bash
+grep -n "frr_version" vars/all-config.yml host_vars/*/main.yml
+dpkg-query -W -f='${Version}\n' frr 2>/dev/null || true
+rpm -q --qf '%{VERSION}\n' frr 2>/dev/null || true
+```
+
+**確認ポイント**:
+
+- `frr_version` の指定値と構築成果物の版数が一致していること。
+- 導入後版数(`dpkg-query` または `rpm -q --qf '%{VERSION}' frr`)が指定値と一致していること。
+- `Built FRR ... version mismatch` が継続出力されないこと。
+- 不一致原因を解消して再実行していること。
+
+### 6. Debian/Ubuntu 系でロック待ち関連の失敗が発生する場合
+
+**実施対象ホスト**: Debian/Ubuntu 系の対象ホスト
+
+**実行するコマンド**:
+
+```bash
+ps -ef | grep -E "apt|dpkg" | grep -v grep
+grep -n "frr_install_deb_lock_wait_seconds" vars/all-config.yml host_vars/*/main.yml
+```
+
+**確認ポイント**:
+
+- 他プロセスの `apt`/`dpkg` 処理が継続していないこと。
+- 必要に応じて `frr_install_deb_lock_wait_seconds` を延長して再実行していること。
 
 ## 注意事項
 

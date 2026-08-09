@@ -4,16 +4,49 @@
 
 ## 目次
 
-- [用語](#用語)
-- [概要](#概要)
-- [前提条件](#前提条件)
-- [実行方法](#実行方法)
-- [主要変数](#主要変数)
+- [radvd ロール](#radvd-ロール)
+  - [目次](#目次)
+  - [用語](#用語)
+  - [概要](#概要)
+  - [テンプレートと出力](#テンプレートと出力)
+    - [ルーター広告 ( RA ) の基本設定](#ルーター広告--ra--の基本設定)
+    - [SLAAC とプレフィックス設定](#slaac-とプレフィックス設定)
+    - [DNS 情報配布 (RDNSS/DNSSL)](#dns-情報配布-rdnssdnssl)
+  - [ハンドラ](#ハンドラ)
+    - [restart-radvd (handlers/restart-radvd.yml)](#restart-radvd-handlersrestart-radvdyml)
+  - [前提条件](#前提条件)
+  - [実行方法](#実行方法)
+    - [前提条件](#前提条件-1)
+    - [Make ターゲットを使用した実行](#make-ターゲットを使用した実行)
+    - [ansible-playbook を使用した直接実行](#ansible-playbook-を使用した直接実行)
+      - [site.yml (全ロール) を実行する場合](#siteyml-全ロール-を実行する場合)
+      - [radvd ロールのみを実行 ( タグ指定 )する場合](#radvd-ロールのみを実行--タグ指定-する場合)
+      - [特定ホストのみを実行する場合](#特定ホストのみを実行する場合)
+      - [Playbook を検証モードで実行 ( 実際は変更しない )する場合](#playbook-を検証モードで実行--実際は変更しない-する場合)
+    - [主要なオプション](#主要なオプション)
+    - [変数の上書き](#変数の上書き)
+  - [主要変数](#主要変数)
   - [テンプレートと生成ファイル](#テンプレートと生成ファイル)
-- [実行フロー](#実行フロー)
-- [検証ポイント](#検証ポイント)
-- [注意事項](#注意事項)
-- [参考資料](#参考資料)
+  - [実行フロー](#実行フロー)
+    - [OS 差異](#os-差異)
+  - [検証ポイント](#検証ポイント)
+    - [検証前提条件](#検証前提条件)
+    - [Step 1: radvd サービスの起動状態確認](#step-1-radvd-サービスの起動状態確認)
+    - [Step 2: 設定ファイルの内容確認](#step-2-設定ファイルの内容確認)
+    - [Step 3: ルーター広告送信の確認](#step-3-ルーター広告送信の確認)
+    - [Step 4: クライアント側での SLAAC アドレス取得確認](#step-4-クライアント側での-slaac-アドレス取得確認)
+    - [Step 5: DNS 設定情報の確認](#step-5-dns-設定情報の確認)
+    - [Step 6: ログの確認](#step-6-ログの確認)
+    - [トラブルシューティング](#トラブルシューティング)
+      - [1. RA が受信されない場合](#1-ra-が受信されない場合)
+      - [2. クライアント側に IPv6 アドレスが付与されない場合](#2-クライアント側に-ipv6-アドレスが付与されない場合)
+      - [3. DNS が解決されない場合](#3-dns-が解決されない場合)
+  - [注意事項](#注意事項)
+    - [SLAAC と DHCPv6 の使い分け](#slaac-と-dhcpv6-の使い分け)
+    - [デフォルトルートの配布制御](#デフォルトルートの配布制御)
+  - [参考資料](#参考資料)
+    - [公式ドキュメント](#公式ドキュメント)
+
 
 ## 用語
 
@@ -52,12 +85,12 @@
 | Playbook | - | 自動化処理の実行手順を記述したファイル。 |
 | Canonical | - | Ubuntu を提供する組織名。 |
 | Key-Value | - | キーと値の組で情報を表す方式。 |
-| Internet Protocol | IP | インターネットプロトコルの略称。 |
+| Internet Protocol | IP | ネットワーク上で宛先を識別し, データを届けるための通信手順。 |
 | Structured Query Language | SQL | データベースを操作するための記述言語。 |
-| Hypertext Transfer Protocol | HTTP | WWW で情報をやり取りする通信手順。 |
-| Hypertext Transfer Protocol Secure | HTTPS | 通信内容を暗号化して WWW 通信を行う方式。 |
-| RPM Package Manager | RPM | RHEL 系で使用するパッケージ形式。 |
-| Virtual Machine | VM | 物理機器上で動作する仮想的な計算機。 |
+| Hypertext Transfer Protocol | HTTP | World Wide Webで情報をやり取りする通信手順。 |
+| Hypertext Transfer Protocol Secure | HTTPS | 通信内容を暗号化してWorld Wide Web通信を行う方式。 |
+| RPM Package Manager | RPM | RPM形式パッケージの導入, 更新, 削除, 情報参照を行う仕組み。 |
+| Virtual Machine | VM | 物理計算機上で動作する仮想的な計算機。 |
 | localhost | - | 同一機器自身を指す名前。 |
 | root | - | Unix 系システムの最上位権限を持つ管理者識別子。 |
 | ソフトウェア | - | 情報処理システムで使用するプログラム, 手順, 規則及び関連文書の全体又は一部分。 |
@@ -84,8 +117,8 @@
 | Service | - | サービスの英語表記。 |
 | Node | - | ノードの英語表記。 |
 | Makefile | - | 実行手順を定義したファイル。 |
-| Application Programming Interface | API | アプリケーション同士がやり取りする方法を定めた仕様。 |
-| Uniform Resource Locator | URL | WWW 上の資源の場所を示す文字列。 |
+| Application Programming Interface | API | アプリケーション同士が機能やデータをやり取りするための取り決め。 |
+| Uniform Resource Locator | URL | World Wide Web上の資源の場所を示す文字列。 |
 | Router Advertisement | RA | IPv6 で経路情報を通知する仕組み。 |
 | Stateless Address Autoconfiguration | SLAAC | IPv6 の自動設定方式。 |
 | Recursive DNS Server | RDNSS | ルーター広告で配布されるDNSサーバアドレス情報 |
@@ -103,7 +136,7 @@
 | Internet Protocol | IP | ネットワーク上で宛先を識別し, データを届けるための通信手順。 |
 | Process Identifier | PID | 実行中の処理を識別する番号。 |
 | Request for Comments | RFC | インターネット技術の仕様を公開する文書体系。 |
-| Red Hat Enterprise Linux | RHEL | Red Hat 社が提供する商用 Linux ディストリビューション。 |
+| Red Hat Enterprise Linux | RHEL | Red Hatが提供する企業向けLinuxディストリビューション。 |
 | Ansible Playbook | playbook | 自動化処理の実行手順を順序付きで記述したファイル。 |
 | systemd | - | Linux システムの初期化とサービス管理を行う仕組み。 |
 | IPv6 Link-Local Prefix | FE80 | 同一リンク内通信で使う IPv6 接頭辞。 |
@@ -113,7 +146,7 @@
 | `getent` | - | システムの名前解決データベースを参照するコマンド。 |
 | ipコマンド | - | ネットワーク設定や経路情報の確認, 変更を行うコマンド。 |
 | `journalctl` | - | systemd ジャーナルのログを参照するコマンド。 |
-| `make` | - | Makefile に定義された処理を実行するコマンド。 |
+| makeコマンド | make | Makefile に定義された処理を実行するコマンド。 |
 | `systemctl` | - | systemd 管理下のサービスを起動, 停止, 状態確認するコマンド。 |
 | アドレス | - | 宛先や所在を識別するための情報。 |
 | サービス | - | 機能を利用者や他システムへ提供する仕組み。 |
@@ -123,7 +156,6 @@
 | ローカルアドレス | - | 実行中ホスト上で利用するアドレス。 |
 | 対象ホスト | - | Playbook による設定変更や導入処理の適用先となるホスト。 |
 | sudoコマンド | sudo | 一時的に管理者権限でコマンドを実行するためのコマンド。 |
-
 ## 概要
 このロールは Router Advertisement Daemon (radvd) を導入し, 管理ネットワーク向けに IPv6 ルーター広告 (Router Advertisement - RA) を配布します。Stateless Address Autoconfiguration (SLAAC) 用プレフィックスとデフォルトルート, RDNSS/DNSSL (DNS サーバ, サーチドメイン) 情報を RA で広告し, 設定ファイル `/etc/radvd.conf` から生成します。設定変更時は radvd を再起動します。
 
@@ -178,29 +210,40 @@
 - ロール実行前に, ansible インベントリファイル (`inventory/hosts`) で対象ホストを指定してください。
 - 対象ホストへのログイン権限とルート実行 ( `become: true` ) の権限が必要です。
 
-### Make を使用した実行
+### Make ターゲットを使用した実行
 
-Makefile に `run_radvd` ターゲットが定義されている場合：
-
+以下のコマンドを実行します:
 ```bash
 make run_radvd
 ```
 
-このコマンドは以下の ansible-playbook 実行と同等です。
-
 ### ansible-playbook を使用した直接実行
 
+#### site.yml (全ロール) を実行する場合
+
+以下のコマンドを実行します:
 ```bash
-# site.yml (全ロール) を実行
 ansible-playbook -i inventory/hosts site.yml
+```
 
-# radvd ロールのみを実行 ( タグ指定 )
+#### radvd ロールのみを実行 ( タグ指定 )する場合
+
+以下のコマンドを実行します:
+```bash
 ansible-playbook -i inventory/hosts site.yml --tags "radvd"
+```
 
-# 特定ホストのみを実行
+#### 特定ホストのみを実行する場合
+
+以下のコマンドを実行します:
+```bash
 ansible-playbook -i inventory/hosts site.yml --tags "radvd" -l router.local
+```
 
-# Playbook を検証モードで実行 ( 実際は変更しない )
+#### Playbook を検証モードで実行 ( 実際は変更しない )する場合
+
+以下のコマンドを実行します:
+```bash
 ansible-playbook -i inventory/hosts site.yml --tags "radvd" --check
 ```
 
@@ -268,15 +311,18 @@ ansible-playbook -i inventory/hosts site.yml --tags "radvd" -e @vars/custom-radv
 
 各ステップは **`radvd_nic` が定義されており, かつ対象ホストのインターフェース一覧に存在する場合にのみ実行**されます。
 
+### OS 差異
+
+radvd パッケージ, サービス名は OS によって異なります。`vars/cross-distro.yml` で以下のように定義されています。
+
+| 項目 | Debian/Ubuntu | RHEL/CentOS | 説明 |
+| --- | --- | --- | --- |
+| パッケージ名 | `radvd` | `radvd` | 両 OS で共通 |
+| サービス名 | `radvd` | `radvd` | 両 OS で共通 |
+| 設定ファイルパス | `/etc/radvd.conf` | `/etc/radvd.conf` | 両 OS で共通 |
+
+
 ## 検証ポイント
-
-実行者は以下の検証コマンドを実行し, 構文検査が成功することを確認します。
-
-```bash
-ansible-playbook -i inventory/hosts site.yml --syntax-check
-```
-
-期待結果: エラーが出力されず, syntax check が成功します。
 
 このセクションでは, ロール実行後に radvd が正常に動作していることを確認する検証手順を記載します。
 
@@ -485,21 +531,64 @@ Jan 20 10:30:10 router radvd[1234]: Sending RA on ens192
 - 定期的に RA を送信していること ( `Sending RA on ens192` が周期的に出力 ) 。
 - エラーやワーニングがないこと。
 
+### トラブルシューティング
+
+
+#### 1. RA が受信されない場合
+
+**実施対象ホスト**: 対象ホスト
+
+**実行するコマンド**:
+
+```bash
+systemctl status radvd --no-pager
+cat /etc/radvd.conf
+journalctl -u radvd -n 200 --no-pager | grep -Ei 'error|warn|fail'
+```
+
+**確認ポイント**:
+
+- radvd サービスが active (running) であること。
+- `/etc/radvd.conf` の `interface` セクションに, 想定する `radvd_nic` が設定されていること。
+- ログに設定読込失敗, インターフェースバインド失敗が継続出力されていないこと。
+
+#### 2. クライアント側に IPv6 アドレスが付与されない場合
+
+**実施対象ホスト**: 対象ホスト, クライアントホスト
+
+**実行するコマンド**:
+
+```bash
+cat /etc/radvd.conf
+ip -6 addr
+ip -6 route
+```
+
+**確認ポイント**:
+
+- `prefix` 節に `AdvAutonomous on;` と `AdvOnLink on;` が設定されていること。
+- クライアント側に広告プレフィックスに対応するグローバル IPv6 アドレスが生成されていること。
+- クライアント側の経路表にデフォルトルートが生成されていること。
+
+#### 3. DNS が解決されない場合
+
+**実施対象ホスト**: 対象ホスト, クライアントホスト
+
+**実行するコマンド**:
+
+```bash
+cat /etc/radvd.conf
+getent hosts $(hostname)
+cat /etc/resolv.conf
+```
+
+**確認ポイント**:
+
+- `RDNSS` と `DNSSL` が `/etc/radvd.conf` に正しく展開されていること。
+- クライアント側の名前解決設定に, 配布対象の DNS サーバ又は検索ドメインが反映されていること。
+- 名前解決コマンドの実行で DNS 参照失敗が継続しないこと。
+
 ## 注意事項
-
-実行者は既存の実行順依存を崩さないことを確認した上で本ロールを実行します。
-
-## OS 差異
-
-radvd パッケージ, サービス名は OS によって異なります。`vars/cross-distro.yml` で以下のように定義されています。
-
-| 項目 | Debian/Ubuntu | RHEL/CentOS | 説明 |
-| --- | --- | --- | --- |
-| パッケージ名 | `radvd` | `radvd` | 両 OS で共通 |
-| サービス名 | `radvd` | `radvd` | 両 OS で共通 |
-| 設定ファイルパス | `/etc/radvd.conf` | `/etc/radvd.conf` | 両 OS で共通 |
-
-## 補足
 
 ### SLAAC と DHCPv6 の使い分け
 
@@ -511,19 +600,13 @@ radvd パッケージ, サービス名は OS によって異なります。`vars
 - `AdvDefaultLifetime 0;` — デフォルトルートを配布しない。
 - `AdvDefaultLifetime 300;` — デフォルトルータの有効期限を 300 秒に設定 ( 推奨: `MaxRtrAdvInterval` の 3 倍 ) 。
 
-### トラブルシューティング
-
-- **RA が受信されない**: radvd サービスが起動していること, およびインターフェースが正しくバインドされていることを確認。`systemctl status radvd` と `/etc/radvd.conf` の `interface` セクションを確認。
-- **クライアント側にアドレスが付与されない**: SLAAC が有効化されていることを確認 ( `AdvAutonomous on;` ) 。クライアント側の IPv6 設定を確認 ( `ip -6 addr` ) 。
-- **DNS が解決されない**: RDNSS/DNSSL がテンプレートに正しく展開されていることを確認 ( Step 2 ) 。クライアント側の `/etc/resolv.conf` または `systemd-resolved` を確認 ( Step 5 ) 。
 ## 参考資料
 
 ### 公式ドキュメント
 
-- radvd: https://www.litech.org/radvd/
-
-- [radvd - Router Advertisement Daemon](https://linux.die.net/man/8/radvd) — manページ ( 英語 ) 。
-- [RFC 4861 - Neighbor Discovery for IP version 6 (IPv6)](https://tools.ietf.org/html/rfc4861) — ルーター広告の仕様 ( 英語 ) 。
-- [RFC 6106 - IPv6 Router Advertisement Flags Option](https://tools.ietf.org/html/rfc6106) — RDNSS/DNSSL オプション仕様 ( 英語 ) 。
-- [Debian/Ubuntu manページ: resolvconf](https://manpages.debian.org/resolvconf.5) — resolv.conf の設定方法 ( 英語 ) 。
-- [systemd-resolved](https://www.freedesktop.org/wiki/Software/systemd/resolved/) — systemd によるDNS 管理 ( 英語 ) 。
+- [radvd](https://www.litech.org/radvd/)
+- [radvd - Router Advertisement Daemon](https://linux.die.net/man/8/radvd)  manページ ( 英語 ) 。
+- [RFC 4861 - Neighbor Discovery for IP version 6 (IPv6)](https://tools.ietf.org/html/rfc4861)  ルーター広告の仕様 ( 英語 ) 。
+- [RFC 6106 - IPv6 Router Advertisement Flags Option](https://tools.ietf.org/html/rfc6106) RDNSS/DNSSL オプション仕様 ( 英語 ) 。
+- [Debian/Ubuntu manページ: resolvconf](https://manpages.debian.org/resolvconf.5) resolv.conf の設定方法 ( 英語 ) 。
+- [systemd-resolved](https://www.freedesktop.org/wiki/Software/systemd/resolved/) systemd によるDNS 管理 ( 英語 ) 。

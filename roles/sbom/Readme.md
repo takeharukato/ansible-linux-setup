@@ -17,8 +17,13 @@
   - [実行フロー](#実行フロー)
   - [検証ポイント](#検証ポイント)
   - [トラブルシューティング](#トラブルシューティング)
+    - [1. ロール実行後に manifest.spdx.json が生成されない場合](#1-ロール実行後に-manifestspdxjson-が生成されない場合)
+    - [2. sbom-tool 実行で失敗する場合](#2-sbom-tool-実行で失敗する場合)
+    - [3. 追加SBOMが生成されない場合](#3-追加sbomが生成されない場合)
+    - [4. k8s-components や k8s-images が空になる場合](#4-k8s-components-や-k8s-images-が空になる場合)
+    - [5. compose-images.spdx.json が生成されない場合](#5-compose-imagesspdxjson-が生成されない場合)
+    - [6. 制御ホストへ \*.spdx.json が収集されない場合](#6-制御ホストへ-spdxjson-が収集されない場合)
   - [注意事項](#注意事項)
-    - [RHEL系の `copyrightText`について](#rhel系の-copyrighttextについて)
   - [参考資料](#参考資料)
     - [公式ドキュメント](#公式ドキュメント)
 
@@ -59,12 +64,12 @@
 | Playbook | - | 自動化処理の実行手順を記述したファイル。 |
 | Canonical | - | Ubuntu を提供する組織名。 |
 | Key-Value | - | キーと値の組で情報を表す方式。 |
-| Internet Protocol | IP | インターネットプロトコルの略称。 |
+| Internet Protocol | IP | ネットワーク上で宛先を識別し, データを届けるための通信手順。 |
 | Structured Query Language | SQL | データベースを操作するための記述言語。 |
-| Hypertext Transfer Protocol | HTTP | WWW で情報をやり取りする通信手順。 |
-| Hypertext Transfer Protocol Secure | HTTPS | 通信内容を暗号化して WWW 通信を行う方式。 |
-| RPM Package Manager | RPM | RHEL 系で使用するパッケージ形式。 |
-| Virtual Machine | VM | 物理機器上で動作する仮想的な計算機。 |
+| Hypertext Transfer Protocol | HTTP | World Wide Webで情報をやり取りする通信手順。 |
+| Hypertext Transfer Protocol Secure | HTTPS | 通信内容を暗号化してWorld Wide Web通信を行う方式。 |
+| RPM Package Manager | RPM | RPM形式パッケージの導入, 更新, 削除, 情報参照を行う仕組み。 |
+| Virtual Machine | VM | 物理計算機上で動作する仮想的な計算機。 |
 | localhost | - | 同一機器自身を指す名前。 |
 | root | - | Unix 系システムの最上位権限を持つ管理者識別子。 |
 | ソフトウェア | - | 情報処理システムで使用するプログラム, 手順, 規則及び関連文書の全体又は一部分。 |
@@ -89,8 +94,8 @@
 | Service | - | サービスの英語表記。 |
 | Node | - | ノードの英語表記。 |
 | Makefile | - | 実行手順を定義したファイル。 |
-| Application Programming Interface | API | アプリケーション同士がやり取りする方法を定めた仕様。 |
-| Uniform Resource Locator | URL | WWW 上の資源の場所を示す文字列。 |
+| Application Programming Interface | API | アプリケーション同士が機能やデータをやり取りするための取り決め。 |
+| Uniform Resource Locator | URL | World Wide Web上の資源の場所を示す文字列。 |
 | Software Bill of Materials | SBOM | ソフトウェア構成部品の明細書, 使用しているライブラリや依存関係を記録 |
 | Software Package Data Exchange | SPDX | ソフトウェアパッケージのメタデータとライセンス情報を記述する標準形式 |
 | JavaScript Object Notation | JSON | 人間が読みやすいテキスト形式のデータ交換フォーマット。キーと値のペアで構成され, 設定ファイルやAPI レスポンスに広く使用される。 |
@@ -114,6 +119,7 @@
 | 対象ホスト | - | Playbook による設定変更や導入処理の適用先となるホスト。 |
 
 ## 概要
+
 このロールは `sbom-tool` を用いて、対象ホスト上で SPDX JSON 形式 ( 既定: SPDX 2.2 ) の SBOM を生成します。
 併せて, 対象ホストの状態 ( OSパッケージ、K8sコンポーネント、Helm、Podのimage、docker-composeのimage ) を収集し、追加の SPDX JSON を生成し, 生成された `*.spdx.json` を `ansible-playbook` 実行ノード ( 以下、制御ノード ) へ収集します。
 
@@ -133,19 +139,21 @@
 
 ## 前提条件
 
-本ロールの実行者は, 対象ホストが inventory に登録済みであることを確認します。
-本ロールの実行者は, 関連する共通変数が vars/all-config.yml または host_vars に定義済みであることを確認します。
+- 対象ホストが inventory に登録済みであること
+- 関連する共通変数が vars/all-config.yml または host_vars に定義済みであること
 
 ## 実行方法
 
-制御ホストで以下のコマンドを実行します。
+制御ホストで以下のコマンドを実行します:
+
+```bash
+make run_sbom
+```
+
+または,
 
 ```bash
 ansible-playbook -i inventory/hosts site.yml --tags "sbom"
-```
-または,
-```bash
-make run_sbom
 ```
 
 ## 主要変数
@@ -204,14 +212,121 @@ make run_sbom
 
 ## トラブルシューティング
 
-エラー発生時に build-*.log を確認し, 失敗した task 名と不足変数を特定します。
+### 1. ロール実行後に manifest.spdx.json が生成されない場合
+
+**実施対象ホスト**: 制御ホスト, 対象ホスト
+
+**実行するコマンド**:
+
+```bash
+grep -n "sbom_enabled\|sbom_drop_path\|sbom_manifest_dir" vars/all-config.yml host_vars/*.yml
+ansible-playbook -i inventory/hosts site.yml --tags "sbom"
+ls -l {{ sbom_drop_path }}/_manifest/{{ sbom_manifest_dir }}/manifest.spdx.json
+```
+
+**確認ポイント**:
+
+- `sbom_enabled: true` が設定されていること。
+- 実行ログで sbom 関連タスクが skipping になっていないこと。
+- 対象ホストで `manifest.spdx.json` が生成されていること。
+
+### 2. sbom-tool 実行で失敗する場合
+
+**実施対象ホスト**: 対象ホスト
+
+**実行するコマンド**:
+
+```bash
+ls -l {{ sbom_tool_bin_path }}
+{{ sbom_tool_bin_path }} --help
+grep -n "sbom_tool_download_url\|sbom_package_name\|sbom_package_version\|sbom_package_supplier\|sbom_manifest_info" vars/all-config.yml host_vars/*.yml
+```
+
+**確認ポイント**:
+
+- `sbom_tool_bin_path` に実行可能ファイルが存在すること。
+- `sbom-tool --help` が正常終了すること。
+- 必須パラメータに空値や不正値がないこと。
+
+### 3. 追加SBOMが生成されない場合
+
+**実施対象ホスト**: 制御ホスト, 対象ホスト
+
+**実行するコマンド**:
+
+```bash
+grep -n "sbom_extra_sboms_enabled\|sbom_extra_output_dir\|sbom_os_packages_sbom_enabled\|sbom_k8s_components_sbom_enabled\|sbom_helm_sbom_enabled\|sbom_k8s_images_sbom_enabled\|sbom_compose_sbom_enabled" vars/all-config.yml host_vars/*.yml
+ansible-playbook -i inventory/hosts site.yml --tags "sbom"
+ls -l {{ sbom_extra_output_dir }}/*.spdx.json
+```
+
+**確認ポイント**:
+
+- `sbom_extra_sboms_enabled: true` が設定されていること。
+- 個別 SBOM の有効化フラグが必要なものだけ `true` になっていること。
+- `{{ sbom_extra_output_dir }}` 配下に対象ファイルが生成されること。
+
+### 4. k8s-components や k8s-images が空になる場合
+
+**実施対象ホスト**: 対象ホスト
+
+**実行するコマンド**:
+
+```bash
+kubectl version --client
+kubectl get pods -A -o json | head -n 20
+{{ sbom_tool_bin_path }} --help
+```
+
+**確認ポイント**:
+
+- `kubectl` が利用可能であること。
+- 対象ホストから Kubernetes API へ接続できること。
+- 接続不可環境では空一覧になる仕様であることを運用側で許容していること。
+
+### 5. compose-images.spdx.json が生成されない場合
+
+**実施対象ホスト**: 対象ホスト
+
+**実行するコマンド**:
+
+```bash
+grep -n "sbom_compose_sbom_enabled\|sbom_compose_files" vars/all-config.yml host_vars/*.yml
+ls -l <sbom_compose_files で指定したファイル>
+```
+
+**確認ポイント**:
+
+- `sbom_compose_sbom_enabled: true` が設定されていること。
+- `sbom_compose_files` に存在する compose YAML パスが指定されていること。
+- 指定ファイルに image 定義が存在すること。
+
+### 6. 制御ホストへ *.spdx.json が収集されない場合
+
+**実施対象ホスト**: 制御ホスト
+
+**実行するコマンド**:
+
+```bash
+grep -n "sbom_collect_artifacts_enabled\|sbom_artifact_dir" vars/all-config.yml host_vars/*.yml
+ansible-playbook -i inventory/hosts site.yml --tags "sbom"
+ls -l {{ sbom_artifact_dir }}/<inventory_hostname>/
+```
+
+**確認ポイント**:
+
+- `sbom_collect_artifacts_enabled: true` が設定されていること。
+- 制御ホストの `{{ sbom_artifact_dir }}/<inventory_hostname>/` 配下に `*.spdx.json` が配置されること。
+- 対象ホスト側で生成済みファイルが存在すること。
 
 ## 注意事項
 
-### RHEL系の `copyrightText`について
-
-RHEL系では、インストール済み実体に含まれるライセンス/著作権文書 ( 例: `/usr/share/licenses/<pkg>` や `rpm -q --licensefiles/--docfiles` ) から `copyrightText`
-を抽出します。パッケージによっては文書が同梱されない場合があり、その場合は `NOASSERTION` になります。
+- `{{ sbom_drop_path }}` と `{{ sbom_extra_output_dir }}` には SBOM 生成物が蓄積されるため, 運用開始前に保存期間と削除方針を決め, 容量監視を実施してください。
+- `sbom_force_regenerate: true` では再実行のたびに `manifest.spdx.json` が再生成されるため, 差分比較運用を行う場合は取得時刻と対象ホストを成果物に紐付けて管理してください。
+- `sbom_collect_artifacts_enabled: true` で収集を有効化する場合は, 制御ホスト側の `{{ sbom_artifact_dir }}` の保管容量とアクセス権限を事前に確認してください。
+- `sbom_k8s_components_sbom_enabled`, `sbom_helm_sbom_enabled`, `sbom_k8s_images_sbom_enabled` を有効化した場合, 対象ホストから Kubernetes API へ接続できない環境では空一覧が出力されることを前提に結果を評価してください。
+- RHEL系では, インストール済み実体に含まれるライセンス/著作権文書 (例: `/usr/share/licenses/<pkg>` や `rpm -q --licensefiles --docfiles`) から `copyrightText` を抽出します。パッケージによっては文書が同梱されないため, `NOASSERTION` が出力される場合があります。
+- `sbom_compose_sbom_enabled: true` を利用する場合は, `sbom_compose_files` に指定したファイルの存在確認を定期的に実施し, パス変更時は変数定義を更新してください。
 
 ## 参考資料
 

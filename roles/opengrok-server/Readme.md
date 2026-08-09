@@ -1,21 +1,49 @@
 # OpenGrok
 
-本ロールは, OpenGrok 導入ロール。
+本ロールは, OpenGrok によるソース検索機能を導入するロールです。
 
 ## 目次
 
 - [OpenGrok](#opengrok)
+  - [目次](#目次)
   - [用語](#用語)
   - [概要](#概要)
   - [前提条件](#前提条件)
   - [実行方法](#実行方法)
   - [主要変数](#主要変数)
+  - [ポートマッピング(ホストとコンテナ間)定義一覧](#ポートマッピングホストとコンテナ間定義一覧)
+  - [環境変数一覧](#環境変数一覧)
+    - [`opengrok` サービス](#opengrok-サービス)
+    - [ボリューム実体パスについて](#ボリューム実体パスについて)
+      - [事前条件](#事前条件)
+      - [Mountpoint の確認](#mountpoint-の確認)
+  - [ソース同期スクリプト(`opengrok-source-sync`)を用いたソース同期処理手順](#ソース同期スクリプトopengrok-source-syncを用いたソース同期処理手順)
+    - [ソース同期スクリプト(`opengrok-source-sync`)のコマンドラインオプション](#ソース同期スクリプトopengrok-source-syncのコマンドラインオプション)
+    - [同期対象リポジトリ定義ファイル(`source-urls.yml`)](#同期対象リポジトリ定義ファイルsource-urlsyml)
+  - [ソース同期処理の定期実行手順](#ソース同期処理の定期実行手順)
+    - [ソース同期処理の定期実行ログのローテーション設定](#ソース同期処理の定期実行ログのローテーション設定)
+    - [ソース同期処理の定期実行に関する留意事項](#ソース同期処理の定期実行に関する留意事項)
+  - [手動でのインデクス更新手順](#手動でのインデクス更新手順)
+    - [手動でのインデクス更新処理用のREST API(`/reindex` エンドポイント)に関する留意事項:](#手動でのインデクス更新処理用のrest-apireindex-エンドポイントに関する留意事項)
   - [テンプレートと生成ファイル](#テンプレートと生成ファイル)
   - [実行フロー](#実行フロー)
   - [検証ポイント](#検証ポイント)
+    - [`/opt/opengrok` 以下に docker, etc, scripts, src ディレクトリが作成されていることの確認](#optopengrok-以下に-docker-etc-scripts-src-ディレクトリが作成されていることの確認)
+    - [OpenGrok コンテナが稼働していることの確認](#opengrok-コンテナが稼働していることの確認)
+    - [OpenGrok サービスが `http://ホスト名:28080/` でアクセス可能なことの確認](#opengrok-サービスが-httpホスト名28080-でアクセス可能なことの確認)
+    - [ソース同期スクリプト(`opengrok-source-sync`)が適切に導入されていることの確認](#ソース同期スクリプトopengrok-source-syncが適切に導入されていることの確認)
+    - [`crontab -l` に手動登録したエントリが反映されていること](#crontab--l-に手動登録したエントリが反映されていること)
   - [トラブルシューティング](#トラブルシューティング)
+    - [1. OpenGrok コンテナが起動しない](#1-opengrok-コンテナが起動しない)
+    - [2. Web UI へアクセスできない](#2-web-ui-へアクセスできない)
+    - [3. ソース同期スクリプトが失敗する](#3-ソース同期スクリプトが失敗する)
+    - [4. ソースコード配置ディレクトリの権限エラーが発生する](#4-ソースコード配置ディレクトリの権限エラーが発生する)
+    - [5. 手動再インデクスが実行できない](#5-手動再インデクスが実行できない)
+    - [6. ログローテーションが期待どおり動作しない](#6-ログローテーションが期待どおり動作しない)
   - [注意事項](#注意事項)
   - [参考資料](#参考資料)
+    - [公式ドキュメント](#公式ドキュメント)
+
 
 ## 用語
 
@@ -54,12 +82,12 @@
 | Playbook | - | 自動化処理の実行手順を記述したファイル。 |
 | Canonical | - | Ubuntu を提供する組織名。 |
 | Key-Value | - | キーと値の組で情報を表す方式。 |
-| Internet Protocol | IP | インターネットプロトコルの略称。 |
+| Internet Protocol | IP | ネットワーク上で宛先を識別し, データを届けるための通信手順。 |
 | Structured Query Language | SQL | データベースを操作するための記述言語。 |
-| Hypertext Transfer Protocol | HTTP | WWW で情報をやり取りする通信手順。 |
-| Hypertext Transfer Protocol Secure | HTTPS | 通信内容を暗号化して WWW 通信を行う方式。 |
-| RPM Package Manager | RPM | RHEL 系で使用するパッケージ形式。 |
-| Virtual Machine | VM | 物理機器上で動作する仮想的な計算機。 |
+| Hypertext Transfer Protocol | HTTP | World Wide Webで情報をやり取りする通信手順。 |
+| Hypertext Transfer Protocol Secure | HTTPS | 通信内容を暗号化してWorld Wide Web通信を行う方式。 |
+| RPM Package Manager | RPM | RPM形式パッケージの導入, 更新, 削除, 情報参照を行う仕組み。 |
+| Virtual Machine | VM | 物理計算機上で動作する仮想的な計算機。 |
 | localhost | - | 同一機器自身を指す名前。 |
 | root | - | Unix 系システムの最上位権限を持つ管理者識別子。 |
 | ソフトウェア | - | 情報処理システムで使用するプログラム, 手順, 規則及び関連文書の全体又は一部分。 |
@@ -87,14 +115,14 @@
 | Service | - | サービスの英語表記。 |
 | Node | - | ノードの英語表記。 |
 | Makefile | - | 実行手順を定義したファイル。 |
-| Application Programming Interface | API | アプリケーション同士がやり取りする方法を定めた仕様。 |
-| Uniform Resource Locator | URL | WWW 上の資源の場所を示す文字列。 |
+| Application Programming Interface | API | アプリケーション同士が機能やデータをやり取りするための取り決め。 |
+| Uniform Resource Locator | URL | World Wide Web上の資源の場所を示す文字列。 |
 | OpenGrok | - | ソースコード検索およびクロスリファレンス生成ツール。 |
-| Docker Compose | - | 複数のコンテナからなるマルチコンテナアプリケーション(docker-compose.yml)を一括管理, 起動するツール |
+| Docker Compose | - | 複数のコンテナ定義をまとめて作成, 起動, 停止, 更新する仕組み。 |
 | ソース同期 | - | Git リポジトリの clone/pull により, 解析対象のソースを更新する処理。 |
 | インデクス更新処理 | - | 取り込んだファイル一覧を作り直し, 検索結果を最新化する処理。 |
-| Application Programming Interface | API | API の正式名称。 |
-| Hypertext Transfer Protocol | HTTP | HTTP の正式名称。 |
+| Application Programming Interface | API | アプリケーション同士が機能やデータをやり取りするための取り決め。 |
+| Hypertext Transfer Protocol | HTTP | World Wide Webで情報をやり取りする通信手順。 |
 | Java Virtual Machine | JVM | Java プログラムを実行するための実行環境。 |
 | Operating System | OS | 計算機の基本機能を管理し, アプリケーションを動作させる基盤ソフトウェア。 |
 | Representational State Transfer | REST | Web API を設計するための基本方針。 |
@@ -109,7 +137,7 @@
 | `curl` | - | URL を指定してデータ送受信を行うコマンド。 |
 | `docker` | - | コンテナイメージやコンテナの作成, 実行, 管理を行うコマンド。 |
 | `ls` | - | ファイルやディレクトリの一覧を表示するコマンド。 |
-| `make` | - | Makefile に定義された処理を実行するコマンド。 |
+| makeコマンド | make | Makefile に定義された処理を実行するコマンド。 |
 | コード | - | 処理内容を記述した文字列。 |
 | サービス | - | 機能を利用者や他システムへ提供する仕組み。 |
 | ノード | - | ネットワークに接続された機器または処理単位。 |
@@ -119,25 +147,20 @@
 | 対象ホスト | - | Playbook による設定変更や導入処理の適用先となるホスト。 |
 
 ## 概要
-OpenGrok 導入ロール。
+
 本ロールを適用すると,
 ```text
 http://ホスト名:28080/
 ```
-で OpenGrok サーバにアクセス可能となる。
-以下, {{と}}で囲んだ文字列はansible playbookの変数名を表す。
+で OpenGrok サーバにアクセス可能となります。
+
+以下, {{と}}で囲んだ文字列はansible playbookの変数名を表します。
 実行例中, `$`は一般ユーザのシェルプロンプト, `#`は`root`ユーザのシェルプロンプトを意味します。
-
-本ロールは, opengrok-server に関する設定処理を実施します。
-
-## 主な処理
-
-本ロールは tasks/main.yml から task 群を呼び出し, 設定適用と検証を実施します。
 
 ## 前提条件
 
-本ロールの実行者は, 対象ホストが inventory に登録済みであることを確認します。
-本ロールの実行者は, 関連する共通変数が vars/all-config.yml または host_vars に定義済みであることを確認します。
+- 対象ホストが inventory に登録済みであること
+- 関連する共通変数が vars/all-config.yml または host_vars に定義済みであること
 
 ## 実行方法
 
@@ -150,7 +173,6 @@ make run_opengrok_server
 または,
 
 ```bash
-# OpenGrok タスクのみ実行
 ansible-playbook --tags "opengrok-server" -i inventory/hosts site.yml
 ```
 
@@ -181,6 +203,7 @@ ansible-playbook --tags "opengrok-server" -i inventory/hosts site.yml
 | `opengrok_wait_timeout` | `300` | サービス待ち合わせ時間(秒)。 |
 | `opengrok_wait_delay` | `5` | サービス待ち合わせ開始遅延(秒)。 |
 | `opengrok_wait_sleep` | `2` | サービス待ち合わせ間隔(秒)。 |
+| `opengrok_wait_retries` | `5` | サービス待ち合わせの再試行回数。 |
 | `opengrok_wait_delegate_to_waitnode` | `localhost` | サービス待ち合わせ実行元ホスト(対象ホスト外, 制御ノード側)。 |
 | `opengrok_source_urls_file` | `{{ opengrok_etc_dir }}/source-urls.yml` | 同期対象リポジトリ定義ファイル。 |
 | `opengrok_gitconfig_file` | `{{ opengrok_etc_dir }}/gitconfig` | OpenGrok コンテナへ mount する Git system config。reindex 時の `opengrok-mirror` が bind mount 済みリポジトリを扱えるようにします。 |
@@ -210,191 +233,6 @@ ansible-playbook --tags "opengrok-server" -i inventory/hosts site.yml
 | `opengrok_daily_sync_extra_args` | `""` | 日次同期スクリプトへ渡す追加引数。 |
 | `opengrok_completion_enabled` | `true` | bash/zsh 補完導入有効化フラグ。 |
 
-## テンプレートと生成ファイル
-
-本ロールを適用すると, `/opt/opengrok` 配下に以下のファイルが作られる。
-
-- docker ディレクトリ
-  - docker-compose.yml OpenGrok サーバを起動するための docker compose ファイル。
-- etc ディレクトリ
-  - source-urls.yml 同期対象リポジトリ定義ファイル。
-  - gitconfig OpenGrok コンテナに mount する Git system config。
-- scripts ディレクトリ
-  - opengrok-source-sync.py リポジトリ同期を実行する Python スクリプト。
-  - opengrok-source-sync.sh Python スクリプト呼び出し用ラッパシェルスクリプト。
-  - daily-sync-opengrok-sources.sh 日次同期実行用シェルスクリプト。crontab からの呼び出しを想定。
-  - opengrok-reindex.sh 手動再インデクス実行用シェルスクリプト。
-- src ディレクトリ
-  - source-urls.yml 記述に従って clone/pull されるソースを展開する先となるディレクトリ。
-
-| テンプレートファイル名 | 出力先パス | 説明 |
-| --- | --- | --- |
-| `docker-compose.yml.j2` | `/opt/opengrok/docker/docker-compose.yml` (既定: `/opt/opengrok/docker/docker-compose.yml`) | OpenGrok の Docker Compose 定義ファイル。コンテナ実行ユーザはOpenGrok公式コンテナイメージの既定値(ユーザID/グループID共に1111)を使用します。`NOMIRROR=1` を設定し, 自動的にリポジトリを同期する処理(コンテナ内で Git リポジトリに対して `git pull --ff-only` を実行して更新を取り込む処理)を常に無効化します。 |
-| `source-urls.yml.j2` | `/opt/opengrok/etc/source-urls.yml` (既定: `/opt/opengrok/etc/source-urls.yml`) | 同期対象リポジトリ定義ファイル。 |
-| `gitconfig.j2` | `{{ opengrok_gitconfig_file }}` (既定: `{{ opengrok_gitconfig_file }}`) | OpenGrok コンテナへ mount する Git system config。reindex 時に `opengrok-mirror` が bind mount 済みリポジトリで `dubious ownership` エラーにならないよう `safe.directory` を設定します。 |
-| `opengrok-source-sync.py.j2` | `/opt/opengrok/scripts/opengrok-source-sync.py` (既定: `/opt/opengrok/scripts/opengrok-source-sync.py`) | source-urls.yml を読み取り clone/pull を行うスクリプト。 |
-| `opengrok-source-sync.sh.j2` | `/opt/opengrok/scripts/opengrok-source-sync.sh` (既定: `/opt/opengrok/scripts/opengrok-source-sync.sh`) | Python 同期スクリプトを呼び出すラッパシェルスクリプト。 |
-| `daily-sync-opengrok-sources.sh.j2` | `/opt/opengrok/scripts/daily-sync-opengrok-sources.sh` (既定: `/opt/opengrok/scripts/daily-sync-opengrok-sources.sh`) | 日次同期実行用ラッパシェルスクリプト。 |
-| `opengrok-reindex.sh.j2` | `/opt/opengrok/scripts/opengrok-reindex.sh` (既定: `/opt/opengrok/scripts/opengrok-reindex.sh`) | 手動再インデクス実行用 処理用スクリプト。 |
-| `opengrok-source-sync.logrotate.j2` | `/etc/logrotate.d/opengrok-source-sync` (既定: `/etc/logrotate.d/opengrok-source-sync`) | 同期ログ(`/var/log/opengrok-source-sync.log`)のローテーション設定。 |
-| `opengrok-source-sync.bash-completion.j2` | `/etc/bash_completion.d/opengrok-source-sync` (既定: `/etc/bash_completion.d/opengrok-source-sync`) | bash 補完定義。 |
-| `_opengrok-source-sync.zsh-completion.j2` | `{{ opengrok_sync_zsh_completion_path }}` (既定: `{{ opengrok_sync_zsh_completion_path }}`) | zsh 補完定義。 |
-
-## 実行フロー
-
-1. [tasks/load-params.yml](tasks/load-params.yml) で OS 別パッケージ名や共通変数を読み込む。
-2. [tasks/package.yml](tasks/package.yml) で Python 依存を含む前提パッケージを導入します。
-3. [tasks/directory.yml](tasks/directory.yml) で Docker ボリューム作成, 主要ディレクトリ作成, [templates/docker-compose.yml.j2](templates/docker-compose.yml.j2) を配置します。あわせて [templates/source-urls.yml.j2](templates/source-urls.yml.j2), [templates/gitconfig.j2](templates/gitconfig.j2), [templates/opengrok-source-sync.py.j2](templates/opengrok-source-sync.py.j2), [templates/opengrok-source-sync.sh.j2](templates/opengrok-source-sync.sh.j2), [templates/daily-sync-opengrok-sources.sh.j2](templates/daily-sync-opengrok-sources.sh.j2), [templates/opengrok-reindex.sh.j2](templates/opengrok-reindex.sh.j2) を配置します。
-4. [tasks/user_group.yml](tasks/user_group.yml) で 以下の処理を実施する:
-   1. OpenGrok公式コンテナイメージ内で設定されているグループIDを基準に, 対象ホスト側で使用するグループを決定する(競合時は既存アカウントを優先利用)。
-   2. `{{ opengrok_source_dir }}` の所有者は `root` のまま, グループを OpenGrok公式コンテナイメージ内で設定されているグループIDに対応するグループID(`1111`)に設定します。
-   3. 以下のようにアクセス権を設定(8進数で, `2775`に設定):
-      1. グループIDを継承するよう指定(`setgid`ビットを設定)
-      2. 所有者/所有グループに対して, 読み書き実行可能
-      3. その他に対して読み取りと実行可能
-   4. `opengrok_sync_user_list` に列挙されたユーザを当該グループに追加します。
-5. [tasks/service.yml](tasks/service.yml) で `docker compose down` / `docker compose up -d` を実行し, `{{ opengrok_service_port }}` の起動待ち合わせを2段階で実施します。第1段階で対象ホスト内 (localhost) の待受を確認し, 第2段階で制御ノードから inventory ホスト名への到達性を確認します。コンテナ内で自動的にリポジトリを同期する処理(コンテナ内で Git リポジトリに対して `git pull --ff-only` を実行して更新を取り込む処理)は, [templates/docker-compose.yml.j2](templates/docker-compose.yml.j2) で `NOMIRROR=1` を設定することで常に無効化します。
-6. [tasks/logrotate.yml](tasks/logrotate.yml) で 同期ログ向け logrotate 設定を配備します。
-7. [tasks/config.yml](tasks/config.yml) で bash/zsh 補完を導入します。
-
-## 検証ポイント
-
-- `/opt/opengrok` 以下に docker, etc, scripts, src ディレクトリが作成されていること。
-- `docker compose -f /opt/opengrok/docker/docker-compose.yml ps` で OpenGrok コンテナが稼働していること。
-- OpenGrok サービスが `http://ホスト名:28080/` でアクセス可能なこと。
-- `/usr/local/bin/opengrok-source-sync --dry-run` が正常終了すること。
-- `crontab -l` に手動登録したエントリが反映されていること。
-- `logrotate -d /etc/logrotate.conf` で `/etc/logrotate.d/opengrok-source-sync` の設定が解釈されること。
-
-### `/opt/opengrok` 以下に docker, etc, scripts, src ディレクトリが作成されていることの確認
-
-本作業は, 本ロールを適用したホスト上で実施します。実行するコマンドは以下の通り:
-```bash
-ls -l /opt/opengrok
-```
-
-実行例:
-```bash
-$ ls -l /opt/opengrok
-合計 16K
-drwxr-xr-x 2 root     root     4096  7月 19 16:33 docker
-drwxr-xr-x 2 root     root     4096  7月 19 16:09 etc
-drwxr-xr-x 2 root     root     4096  7月 19 16:47 scripts
-drwxrwsr-x 3 opengrok opengrok 4096  7月 19 16:48 src
-```
-
-docker, etc, scripts, src ディレクトリが作成されていること, `src` ディレクトリの所有者が `root` であること, グループがコンテナ内規定の実行グループGID(`1111`)に対応するグループであること, パーミッションが `2775` であることを確認します。
-
-### `docker compose -f /opt/opengrok/docker/docker-compose.yml ps` で OpenGrok コンテナが稼働していることの確認
-
-本作業は, 本ロールを適用したホスト上で実施します。実行するコマンドは以下の通り:
-```bash
-docker compose -f /opt/opengrok/docker/docker-compose.yml ps
-```
-
-実行例:
-```bash
-$ docker compose -f /opt/opengrok/docker/docker-compose.yml ps
-
-NAME                  IMAGE                        COMMAND                   SERVICE       CREATED         STATUS         PORTS
-opengrok              opengrok/docker:1.14         "/scripts/entrypoint…"   opengrok      6 minutes ago   Up 6 minutes   0.0.0.0:25000->5000/tcp, [::]:25000->5000/tcp, 0.0.0.0:28080->8080/tcp, [::]:28080->8080/tcp
-```
-
-以下の項目を確認する:
-- `NAME`の列にopengrokという名前のコンテナが含まれること
-- `IMAGE`の列のコンテナイメージのタグ名部分が`opengrok_image_version`変数での指定値と一致すること
-- PORTSの項目に以下の項目が含まれること
-  - `0.0.0.0:25000->5000/tcp`
-  - `[::]:25000->5000/tcp`
-  - `0.0.0.0:28080->8080/tcp`
-  - `[::]:28080->8080/tcp`
-
-### OpenGrok サービスが `http://ホスト名:28080/` でアクセス可能なことの確認
-
-本作業は, 本ロールを適用したホストに接続可能なホスト上で実施します。実行するコマンドは以下の通り:
-```bash
-curl -I http://ホスト名:28080/
-```
-
-実行例:
-```bash
-$ curl -I http://mgmt-server.local:28080/
-HTTP/1.1 200
-Set-Cookie: JSESSIONID=1CD3D328266E6160A6535AC0694A0296; Path=/; HttpOnly; Secure; SameSite=Strict
-Set-Cookie: OpenGrokProject=VirtualCluster; Secure; SameSite=Strict
-Content-Type: text/html;charset=UTF-8
-Date: Sun, 19 Jul 2026 08:01:08 GMT
-
-```
-
-以下の項目を確認する:
-- 応答コードが, 正常系の応答(`200`など)となっていること
-
-### `/usr/local/bin/opengrok-source-sync --dry-run` が正常終了すること
-
-本作業は, 本ロールを適用したホスト上で実施します。実行するコマンドは以下の通り:
-```bash
-/usr/local/bin/opengrok-source-sync --dry-run
-```
-
-実行例:
-```bash
-$ /usr/local/bin/opengrok-source-sync --dry-run
-2026-07-19 17:04:40 INFO [VirtualCluster] synchronized default branch=main
-2026-07-19 17:04:40 INFO Synchronization completed successfully
-```
-
-以下の項目を確認する:
-- 端末上の出力結果に`Synchronization completed successfully`という文字列が含まれること
-
-### `crontab -l` に手動登録したエントリが反映されていること
-
-本作業は, 本ロールを適用したホスト上で, かつ, crontabに登録する際に使用したユーザアカウントで実施します。実行するコマンドは以下の通り:
-
-```bash
-crontab -l
-```
-
-実行例:
-```bash
-$ crontab -l
-# Edit this file to introduce tasks to be run by cron.
-#
-# Each task to run has to be defined through a single line
-# indicating with different fields when the task will be run
-# and what command to run for the task
-#
-# To define the time you can provide concrete values for
-# minute (m), hour (h), day of month (dom), month (mon),
-# and day of week (dow) or use '*' in these fields (for 'any').
-#
-# Notice that tasks will be started based on the cron's system
-# daemon's notion of time and timezones.
-#
-# Output of the crontab jobs (including errors) is sent through
-# email to the user the crontab file belongs to (unless redirected).
-#
-# For example, you can run a backup of all your user accounts
-# at 5 a.m every week with:
-# 0 5 * * 1 tar -zcf /var/backups/home.tgz /home/
-#
-# For more information see the manual pages of crontab(5) and cron(8)
-#
-# m h  dom mon dow   command
-0 3 * * * /opt/opengrok/scripts/daily-sync-opengrok-sources.sh >> /var/log/opengrok-source-sync.log 2>&1
-```
-
-以下の項目を確認する:
-- 端末上の出力結果に`/opt/opengrok/scripts/daily-sync-opengrok-sources.sh`という文字列が含まれること, 当該文字列を含む行の実行時刻やコマンドラインが意図通りに設定されていること
-
-## トラブルシューティング
-
-実行者はエラー発生時に build-*.log を確認し, 失敗した task 名と不足変数を特定します。
-
-## 注意事項
-
-実行者は既存の実行順依存を崩さないことを確認した上で本ロールを実行します。
-
 ## ポートマッピング(ホストとコンテナ間)定義一覧
 
 | サービス名 | ホスト側ポート | コンテナ側ポート | プロトコル | 厳密な用途 |
@@ -411,9 +249,9 @@ $ crontab -l
 | `JAVA_OPTS` | `{{ opengrok_java_opts }} {{ opengrok_java_module_opts }}` | OpenGrok コンテナ JVM オプション。既定では suggester 用 ChronicleMap の Java module export/open 設定を含む。 |
 | `SYNC_PERIOD_MINUTES` | `{{ opengrok_sync_period_minutes }}` | OpenGrok コンテナ内でのインデックス更新周期(分)。 |
 
-## ボリューム実体パスについて
+### ボリューム実体パスについて
 
-### 事前条件
+#### 事前条件
 
 ホスト上の既存のボリュームを使用する設定(`external: true`) で, docker composeのボリュームを定義しているため, 外部ボリュームは docker compose 実行前に存在している必要がある。
 
@@ -428,7 +266,7 @@ docker volume create {{ opengrok_data_volume }}
 docker volume create opengrok_data
 ```
 
-### Mountpoint の確認
+#### Mountpoint の確認
 
 各ボリュームの Mountpoint 確認方法は以下の通り。
 
@@ -541,14 +379,282 @@ curl -H "Authorization: Bearer trigger" http://127.0.0.1:25000/reindex
 ### 手動でのインデクス更新処理用のREST API(`/reindex` エンドポイント)に関する留意事項:
 
 ブラウザから `http://mgmt-server.local:25000/reindex` を直接開くと, Authorization ヘッダが付かないため `Unauthorized Access` になりうるため, OpenGrok動作ホスト上で, `/opt/opengrok/scripts/opengrok-reindex.sh`を実行することを推奨します。OpenGrok公式のコンテナイメージの仕様上, 環境変数 `REST_TOKEN` を未設定にしても, `/reindex` 呼び出し時は `Authorization: Bearer <任意文字列>` ヘッダ自体が必要となる。 `REST_TOKEN` 未設定時はトークン値の一致検証は行われないため, 任意の値でよい。
+
+
+## テンプレートと生成ファイル
+
+本ロールを適用すると, `/opt/opengrok` 配下に以下のファイルが作られる。
+
+- docker ディレクトリ
+  - docker-compose.yml OpenGrok サーバを起動するための docker compose ファイル。
+- etc ディレクトリ
+  - source-urls.yml 同期対象リポジトリ定義ファイル。
+  - gitconfig OpenGrok コンテナに mount する Git system config。
+- scripts ディレクトリ
+  - opengrok-source-sync.py リポジトリ同期を実行する Python スクリプト。
+  - opengrok-source-sync.sh Python スクリプト呼び出し用ラッパシェルスクリプト。
+  - daily-sync-opengrok-sources.sh 日次同期実行用シェルスクリプト。crontab からの呼び出しを想定。
+  - opengrok-reindex.sh 手動再インデクス実行用シェルスクリプト。
+- src ディレクトリ
+  - source-urls.yml 記述に従って clone/pull されるソースを展開する先となるディレクトリ。
+
+| テンプレートファイル名 | 出力先パス | 説明 |
+| --- | --- | --- |
+| `docker-compose.yml.j2` | `/opt/opengrok/docker/docker-compose.yml` (既定: `/opt/opengrok/docker/docker-compose.yml`) | OpenGrok の Docker Compose 定義ファイル。コンテナ実行ユーザはOpenGrok公式コンテナイメージの既定値(ユーザID/グループID共に1111)を使用します。`NOMIRROR=1` を設定し, 自動的にリポジトリを同期する処理(コンテナ内で Git リポジトリに対して `git pull --ff-only` を実行して更新を取り込む処理)を常に無効化します。 |
+| `source-urls.yml.j2` | `/opt/opengrok/etc/source-urls.yml` (既定: `/opt/opengrok/etc/source-urls.yml`) | 同期対象リポジトリ定義ファイル。 |
+| `gitconfig.j2` | `{{ opengrok_gitconfig_file }}` (既定: `{{ opengrok_gitconfig_file }}`) | OpenGrok コンテナへ mount する Git system config。reindex 時に `opengrok-mirror` が bind mount 済みリポジトリで `dubious ownership` エラーにならないよう `safe.directory` を設定します。 |
+| `opengrok-source-sync.py.j2` | `/opt/opengrok/scripts/opengrok-source-sync.py` (既定: `/opt/opengrok/scripts/opengrok-source-sync.py`) | source-urls.yml を読み取り clone/pull を行うスクリプト。 |
+| `opengrok-source-sync.sh.j2` | `/opt/opengrok/scripts/opengrok-source-sync.sh` (既定: `/opt/opengrok/scripts/opengrok-source-sync.sh`) | Python 同期スクリプトを呼び出すラッパシェルスクリプト。 |
+| `daily-sync-opengrok-sources.sh.j2` | `/opt/opengrok/scripts/daily-sync-opengrok-sources.sh` (既定: `/opt/opengrok/scripts/daily-sync-opengrok-sources.sh`) | 日次同期実行用ラッパシェルスクリプト。 |
+| `opengrok-reindex.sh.j2` | `/opt/opengrok/scripts/opengrok-reindex.sh` (既定: `/opt/opengrok/scripts/opengrok-reindex.sh`) | 手動再インデクス実行用 処理用スクリプト。 |
+| `opengrok-source-sync.logrotate.j2` | `/etc/logrotate.d/opengrok-source-sync` (既定: `/etc/logrotate.d/opengrok-source-sync`) | 同期ログ(`/var/log/opengrok-source-sync.log`)のローテーション設定。 |
+| `opengrok-source-sync.bash-completion.j2` | `/etc/bash_completion.d/opengrok-source-sync` (既定: `/etc/bash_completion.d/opengrok-source-sync`) | bash 補完定義。 |
+| `_opengrok-source-sync.zsh-completion.j2` | `{{ opengrok_sync_zsh_completion_path }}` (既定: `{{ opengrok_sync_zsh_completion_path }}`) | zsh 補完定義。 |
+
+## 実行フロー
+
+1. [tasks/load-params.yml](tasks/load-params.yml) で OS 別パッケージ名や共通変数を読み込む。
+2. [tasks/package.yml](tasks/package.yml) で Python 依存を含む前提パッケージを導入します。
+3. [tasks/directory.yml](tasks/directory.yml) で Docker ボリューム作成, 主要ディレクトリ作成, [templates/docker-compose.yml.j2](templates/docker-compose.yml.j2) を配置します。あわせて [templates/source-urls.yml.j2](templates/source-urls.yml.j2), [templates/gitconfig.j2](templates/gitconfig.j2), [templates/opengrok-source-sync.py.j2](templates/opengrok-source-sync.py.j2), [templates/opengrok-source-sync.sh.j2](templates/opengrok-source-sync.sh.j2), [templates/daily-sync-opengrok-sources.sh.j2](templates/daily-sync-opengrok-sources.sh.j2), [templates/opengrok-reindex.sh.j2](templates/opengrok-reindex.sh.j2) を配置します。
+4. [tasks/user_group.yml](tasks/user_group.yml) で 以下の処理を実施する:
+   1. OpenGrok公式コンテナイメージ内で設定されているグループIDを基準に, 対象ホスト側で使用するグループを決定する(競合時は既存アカウントを優先利用)。
+   2. `{{ opengrok_source_dir }}` の所有者は `root` のまま, グループを OpenGrok公式コンテナイメージ内で設定されているグループIDに対応するグループID(`1111`)に設定します。
+   3. 以下のようにアクセス権を設定(8進数で, `2775`に設定):
+      1. グループIDを継承するよう指定(`setgid`ビットを設定)
+      2. 所有者/所有グループに対して, 読み書き実行可能
+      3. その他に対して読み取りと実行可能
+   4. `opengrok_sync_user_list` に列挙されたユーザを当該グループに追加します。
+5. [tasks/service.yml](tasks/service.yml) で `docker compose down` / `docker compose up -d` を実行し, `{{ opengrok_service_port }}` の起動待ち合わせを2段階で実施します。第1段階で対象ホスト内 (localhost) の待受を確認し, 第2段階で制御ノードから inventory ホスト名への到達性を確認します。コンテナ内で自動的にリポジトリを同期する処理(コンテナ内で Git リポジトリに対して `git pull --ff-only` を実行して更新を取り込む処理)は, [templates/docker-compose.yml.j2](templates/docker-compose.yml.j2) で `NOMIRROR=1` を設定することで常に無効化します。
+6. [tasks/logrotate.yml](tasks/logrotate.yml) で 同期ログ向け logrotate 設定を配備します。
+7. [tasks/config.yml](tasks/config.yml) で bash/zsh 補完を導入します。
+
+## 検証ポイント
+
+- `/opt/opengrok` 以下に docker, etc, scripts, src ディレクトリが作成されていること。
+- OpenGrok コンテナが稼働していること。
+- OpenGrok サービスが `http://ホスト名:28080/` でアクセス可能なこと。
+- ソース同期スクリプト(`opengrok-source-sync`)が適切に導入されていること。
+- `crontab -l` に手動登録したエントリが反映されていること。
+- `logrotate -d /etc/logrotate.conf` で `/etc/logrotate.d/opengrok-source-sync` の設定が解釈されること。
+
+### `/opt/opengrok` 以下に docker, etc, scripts, src ディレクトリが作成されていることの確認
+
+本作業は, 本ロールを適用したホスト上で実施します。実行するコマンドは以下の通り:
+```bash
+ls -l /opt/opengrok
+```
+
+実行例:
+```bash
+$ ls -l /opt/opengrok
+合計 16K
+drwxr-xr-x 2 root     root     4096  7月 19 16:33 docker
+drwxr-xr-x 2 root     root     4096  7月 19 16:09 etc
+drwxr-xr-x 2 root     root     4096  7月 19 16:47 scripts
+drwxrwsr-x 3 opengrok opengrok 4096  7月 19 16:48 src
+```
+
+docker, etc, scripts, src ディレクトリが作成されていること, `src` ディレクトリの所有者が `root` であること, グループがコンテナ内規定の実行グループGID(`1111`)に対応するグループであること, パーミッションが `2775` であることを確認します。
+
+### OpenGrok コンテナが稼働していることの確認
+
+本作業は, 本ロールを適用したホスト上で実施します。実行するコマンドは以下の通り:
+```bash
+docker compose -f /opt/opengrok/docker/docker-compose.yml ps
+```
+
+実行例:
+```bash
+$ docker compose -f /opt/opengrok/docker/docker-compose.yml ps
+
+NAME                  IMAGE                        COMMAND                   SERVICE       CREATED         STATUS         PORTS
+opengrok              opengrok/docker:1.14         "/scripts/entrypoint…"   opengrok      6 minutes ago   Up 6 minutes   0.0.0.0:25000->5000/tcp, [::]:25000->5000/tcp, 0.0.0.0:28080->8080/tcp, [::]:28080->8080/tcp
+```
+
+以下の項目を確認する:
+- `NAME`の列にopengrokという名前のコンテナが含まれること
+- `IMAGE`の列のコンテナイメージのタグ名部分が`opengrok_image_version`変数での指定値と一致すること
+- PORTSの項目に以下の項目が含まれること
+  - `0.0.0.0:25000->5000/tcp`
+  - `[::]:25000->5000/tcp`
+  - `0.0.0.0:28080->8080/tcp`
+  - `[::]:28080->8080/tcp`
+
+### OpenGrok サービスが `http://ホスト名:28080/` でアクセス可能なことの確認
+
+本作業は, 本ロールを適用したホストに接続可能なホスト上で実施します。実行するコマンドは以下の通り:
+```bash
+curl -I http://ホスト名:28080/
+```
+
+実行例:
+```bash
+$ curl -I http://mgmt-server.local:28080/
+HTTP/1.1 200
+Set-Cookie: JSESSIONID=1CD3D328266E6160A6535AC0694A0296; Path=/; HttpOnly; Secure; SameSite=Strict
+Set-Cookie: OpenGrokProject=VirtualCluster; Secure; SameSite=Strict
+Content-Type: text/html;charset=UTF-8
+Date: Sun, 19 Jul 2026 08:01:08 GMT
+
+```
+
+以下の項目を確認する:
+- 応答コードが, 正常系の応答(`200`など)となっていること
+
+### ソース同期スクリプト(`opengrok-source-sync`)が適切に導入されていることの確認
+
+本作業は, 本ロールを適用したホスト上で実施します。実行するコマンドは以下の通り:
+```bash
+/usr/local/bin/opengrok-source-sync --dry-run
+```
+
+実行例:
+```bash
+$ /usr/local/bin/opengrok-source-sync --dry-run
+2026-07-19 17:04:40 INFO [VirtualCluster] synchronized default branch=main
+2026-07-19 17:04:40 INFO Synchronization completed successfully
+```
+
+以下の項目を確認する:
+- 端末上の出力結果に`Synchronization completed successfully`という文字列が含まれること
+
+### `crontab -l` に手動登録したエントリが反映されていること
+
+本作業は, 本ロールを適用したホスト上で, かつ, crontabに登録する際に使用したユーザアカウントで実施します。実行するコマンドは以下の通り:
+
+```bash
+crontab -l
+```
+
+実行例:
+```bash
+$ crontab -l
+# Edit this file to introduce tasks to be run by cron.
+#
+# Each task to run has to be defined through a single line
+# indicating with different fields when the task will be run
+# and what command to run for the task
+#
+# To define the time you can provide concrete values for
+# minute (m), hour (h), day of month (dom), month (mon),
+# and day of week (dow) or use '*' in these fields (for 'any').
+#
+# Notice that tasks will be started based on the cron's system
+# daemon's notion of time and timezones.
+#
+# Output of the crontab jobs (including errors) is sent through
+# email to the user the crontab file belongs to (unless redirected).
+#
+# For example, you can run a backup of all your user accounts
+# at 5 a.m every week with:
+# 0 5 * * 1 tar -zcf /var/backups/home.tgz /home/
+#
+# For more information see the manual pages of crontab(5) and cron(8)
+#
+# m h  dom mon dow   command
+0 3 * * * /opt/opengrok/scripts/daily-sync-opengrok-sources.sh >> /var/log/opengrok-source-sync.log 2>&1
+```
+
+以下の項目を確認する:
+- 端末上の出力結果に`/opt/opengrok/scripts/daily-sync-opengrok-sources.sh`という文字列が含まれること, 当該文字列を含む行の実行時刻やコマンドラインが意図通りに設定されていること
+
+## トラブルシューティング
+
+### 1. OpenGrok コンテナが起動しない
+
+**確認内容**:
+
+- `docker compose -f /opt/opengrok/docker/docker-compose.yml ps` の状態
+- `docker compose -f /opt/opengrok/docker/docker-compose.yml logs` のエラー出力
+- 競合しているホスト側ポートがないこと
+
+**対処**:
+
+- 既存コンテナやボリュームに起因する問題では, `docker compose -f /opt/opengrok/docker/docker-compose.yml down` を実行した後にロールを再適用します。
+- `docker volume create {{ opengrok_data_volume }}` で外部ボリュームを作成した後に, ロールを再適用します。
+- ホスト側ポート `{{ opengrok_service_port }}` または `{{ opengrok_reindex_service_port }}` が他サービスと衝突していないことを確認します。
+
+### 2. Web UI へアクセスできない
+
+**確認内容**:
+
+- `curl -I http://ホスト名:{{ opengrok_service_port }}/` の応答コード
+- `ss -lntp | grep :{{ opengrok_service_port }}` で待ち受け状態
+- `docker compose -f /opt/opengrok/docker/docker-compose.yml ps` でコンテナが `Up` であること
+
+**対処**:
+
+- `docker compose -f /opt/opengrok/docker/docker-compose.yml up -d` を再実行します。
+- ファイアウォールやセキュリティグループで対象ポートが許可されていることを確認します。
+- `docker compose -f /opt/opengrok/docker/docker-compose.yml logs` で Web UI 起動時のエラーを確認します。
+
+### 3. ソース同期スクリプトが失敗する
+
+**確認内容**:
+
+- `/usr/local/bin/opengrok-source-sync --dry-run` の終了コードと出力
+- `/var/log/opengrok-source-sync.log` の最新ログ
+- `/opt/opengrok/etc/source-urls.yml` の記述内容
+
+**対処**:
+
+- `source-urls.yml` の `url`, `tag`, `token` を確認し, 参照先リポジトリへアクセス可能なことを確認します。
+- `git` がインストールされていること, 対象ホストに必要なネットワーク到達性があることを確認します。
+- 同期に失敗したリポジトリがある場合は, そのエントリを一時的に削除した後に再実行します。
+
+### 4. ソースコード配置ディレクトリの権限エラーが発生する
+
+**確認内容**:
+
+- `ls -ld /opt/opengrok/src` の所有者とグループ
+- `stat -c '%a %U %G' /opt/opengrok/src` のパーミッション
+- `journalctl -u docker` や `docker compose` の出力に `permission denied` が含まれること
+
+**対処**:
+
+- ロールを再適用して, `{{ opengrok_source_dir }}` の所有者, グループ, 及び setgid ビットを再設定します。
+- 必要に応じて `chgrp -R {{ opengrok_sync_group_name }} /opt/opengrok/src` と `chmod 2775 /opt/opengrok/src` を実行します。
+- `opengrok_sync_user_list` に指定したユーザが対象グループに追加されていることを確認します。
+
+### 5. 手動再インデクスが実行できない
+
+**確認内容**:
+
+- `/usr/local/bin/opengrok-reindex` の出力内容
+- `curl -H "Authorization: Bearer trigger" http://127.0.0.1:{{ opengrok_reindex_service_port }}/reindex` の応答
+- `docker compose -f /opt/opengrok/docker/docker-compose.yml ps` で REST ポートが公開されていること
+
+**対処**:
+
+- `opengrok-reindex` コマンドを実行して, `Reindex triggered` が返ることを確認します。
+- `{{ opengrok_reindex_service_port }}` がホスト側で待ち受けていることを確認します。
+- OpenGrok 公式コンテナの仕様に従い, `Authorization: Bearer <任意文字列>` ヘッダを付与した状態で再試行します。
+
+### 6. ログローテーションが期待どおり動作しない
+
+**確認内容**:
+
+- `/etc/logrotate.d/opengrok-source-sync` の内容
+- `logrotate -d /etc/logrotate.conf` の評価結果
+- `/var/log/opengrok-source-sync.log` の存在有無
+
+**対処**:
+
+- `opengrok_logrotate_enabled: true` であることを確認します。
+- ログファイルが存在しない場合は, `touch /var/log/opengrok-source-sync.log` を実行した後に logrotate を再評価します。
+- `logrotate` パッケージが導入されていることを確認します。
+
+## 注意事項
+
+- 本ロールは Docker Compose とホスト側ポート公開に依存するため, 競合するポートや既存コンテナがないことを確認した上で適用してください。
+- ソース同期処理はホスト側の共有ディレクトリへ書き込むため, 対象ユーザが適切なグループ権限を持つことを確認してください。
+- リポジトリのアクセスにトークンが必要な場合は, 認証情報をプレーンテキストで配布せず, 対象ホストの安全な設定方法で管理するなどセキュリティ要件に応じた対策を実施してください。
+- 本ロールはコンテナ内の自動同期処理を無効化しているため, 更新対象リポジトリの同期はホスト側スクリプトで一元管理する運用を推奨します。
+- データボリュームに保持される同期済みソースとインデックスは, ロール再適用やコンテナ再作成後に再構築可能な要素が多いため, 本ロールでは, バックアップ/リストア用のツール等は提供しません。必要に応じて別途バックアップ/リストア策を講じてください。
+
 ## 参考資料
 
 ### 公式ドキュメント
-
-- OpenGrok: https://github.com/oracle/opengrok
-- Docker Compose: https://docs.docker.com/compose/
-
-### 参考リンク
 
 - [OpenGrok Docker image](https://hub.docker.com/r/opengrok/docker)
 - [OpenGrok project](https://github.com/oracle/opengrok)

@@ -40,6 +40,13 @@
     - [7. プロキシ関連テンプレート展開確認](#7-プロキシ関連テンプレート展開確認)
     - [既存ユーザに対する Emacs パッケージインストールおよびオプション設定ファイル配布の検証について](#既存ユーザに対する-emacs-パッケージインストールおよびオプション設定ファイル配布の検証について)
   - [トラブルシューティング](#トラブルシューティング)
+    - [1. /etc/skel の設定ファイルが生成されない場合](#1-etcskel-の設定ファイルが生成されない場合)
+    - [2. /etc/skel/.ssh/config の Host エントリが期待どおり生成されない場合](#2-etcskelsshconfig-の-host-エントリが期待どおり生成されない場合)
+    - [3. Emacs 設定ファイルが配置されない場合](#3-emacs-設定ファイルが配置されない場合)
+    - [4. backup-home スクリプトが配置されない場合](#4-backup-home-スクリプトが配置されない場合)
+    - [5. backup-home 実行時に NFS マウントで失敗する場合](#5-backup-home-実行時に-nfs-マウントで失敗する場合)
+    - [6. Docker 補助スクリプトが生成されない場合](#6-docker-補助スクリプトが生成されない場合)
+    - [7. systemd ssh-agent を有効化したのに利用できない場合](#7-systemd-ssh-agent-を有効化したのに利用できない場合)
   - [注意事項](#注意事項)
   - [参考資料](#参考資料)
     - [公式ドキュメント](#公式ドキュメント)
@@ -82,12 +89,12 @@
 | Playbook | - | 自動化処理の実行手順を記述したファイル。 |
 | Canonical | - | Ubuntu を提供する組織名。 |
 | Key-Value | - | キーと値の組で情報を表す方式。 |
-| Internet Protocol | IP | インターネットプロトコルの略称。 |
+| Internet Protocol | IP | ネットワーク上で宛先を識別し, データを届けるための通信手順。 |
 | Structured Query Language | SQL | データベースを操作するための記述言語。 |
-| Hypertext Transfer Protocol | HTTP | WWW で情報をやり取りする通信手順。 |
-| Hypertext Transfer Protocol Secure | HTTPS | 通信内容を暗号化して WWW 通信を行う方式。 |
-| RPM Package Manager | RPM | RHEL 系で使用するパッケージ形式。 |
-| Virtual Machine | VM | 物理機器上で動作する仮想的な計算機。 |
+| Hypertext Transfer Protocol | HTTP | World Wide Webで情報をやり取りする通信手順。 |
+| Hypertext Transfer Protocol Secure | HTTPS | 通信内容を暗号化してWorld Wide Web通信を行う方式。 |
+| RPM Package Manager | RPM | RPM形式パッケージの導入, 更新, 削除, 情報参照を行う仕組み。 |
+| Virtual Machine | VM | 物理計算機上で動作する仮想的な計算機。 |
 | localhost | - | 同一機器自身を指す名前。 |
 | ソフトウェア | - | 情報処理システムで使用するプログラム, 手順, 規則及び関連文書の全体又は一部分。 |
 | アプリケーション | - | 利用者の目的を実現するために動作するソフトウェア。 |
@@ -111,14 +118,14 @@
 | Service | - | サービスの英語表記。 |
 | Node | - | ノードの英語表記。 |
 | Makefile | - | 実行手順を定義したファイル。 |
-| Application Programming Interface | API | アプリケーション同士がやり取りする方法を定めた仕様。 |
-| Uniform Resource Locator | URL | WWW 上の資源の場所を示す文字列。 |
+| Application Programming Interface | API | アプリケーション同士が機能やデータをやり取りするための取り決め。 |
+| Uniform Resource Locator | URL | World Wide Web上の資源の場所を示す文字列。 |
 | Ansible | - | 設定の同一化や導入作業を所定の手順に従って自動化する仕組み。 |
 | GNU Bourne Again Shell | Bash | GNU プロジェクトが提供する Unix 系シェル。 |
 | C/C++ | - | C 言語と C++ 言語をまとめて示す表記。 |
 | aspell | - | スペルチェッカープログラム, テキストファイルの綴字をチェック |
 | Bash | - | GNU Bourne Again Shell, Linuxで標準的に使用されるシェル |
-| cron | - | スケジューラデーモン, 定期的にコマンドやスクリプトを実行 |
+| cron | - | 指定した時刻や周期でコマンドを自動実行する仕組み。 |
 | crontab | - | 定期実行設定を登録, 表示, 削除するコマンド。 |
 | curl | - | URL を指定してデータ送受信を行うコマンド。 |
 | Debian | - | コミュニティ主導で開発される Linux ディストリビューション。 |
@@ -129,12 +136,12 @@
 | GNU Debugger | GDB | GNU プロジェクトのデバッガ, C/C++ などのプログラムのデバッグに使用 |
 | GNU Screen | - | 画面マルチプレクサ, 複数のシェルセッションを単一の接続で管理 |
 | Grand Unified Debugger | GUD | Emacs に統合されたデバッガインターフェース, gdb など外部デバッガと連携 |
-| Hypertext Transfer Protocol | HTTP | HTTP の正式名称。 |
-| Hypertext Transfer Protocol Secure | HTTPS | 通信内容を暗号化して Web 通信を行う方式。 |
+| Hypertext Transfer Protocol | HTTP | World Wide Webで情報をやり取りする通信手順。 |
+| Hypertext Transfer Protocol Secure | HTTPS | 通信内容を暗号化してWorld Wide Web通信を行う方式。 |
 | multicast DNS | mDNS | 同一ネットワーク内の名前解決方式。 |
 | Network File System | NFS | ネットワーク越しにファイル共有を行う仕組み。 |
 | proxy | - | ネットワーク中継サーバ, クライアントとサーバの間で通信を仲介 |
-| Red Hat Enterprise Linux | RHEL | Red Hat 社が提供する商用 Linux ディストリビューション。 |
+| Red Hat Enterprise Linux | RHEL | Red Hatが提供する企業向けLinuxディストリビューション。 |
 | root | - | Unix 系システムの最上位権限を持つ管理者識別子。 |
 | Secure Shell | SSH | 遠隔の計算機へ安全に接続して操作する方式。 |
 | Superuser Do | - | 別のユーザ (通常は root) の権限で指定されたコマンドを実行することを可能にする Unix 系システムのプログラム。管理者以外のユーザが管理作業を行うときに使用される |
@@ -154,7 +161,7 @@
 | Recap | RECAP | Ansible 実行結果を要約表示する区画。 |
 | ansible-playbookコマンド | - | Ansible Playbook を実行して自動構成処理を適用するコマンド。 |
 | `ls` | - | ファイルやディレクトリの一覧を表示するコマンド。 |
-| `make` | - | Makefile に定義された処理を実行するコマンド。 |
+| makeコマンド | make | Makefile に定義された処理を実行するコマンド。 |
 | `systemctl` | - | systemd 管理下のサービスを起動, 停止, 状態確認するコマンド。 |
 | コード | - | 処理内容を記述した文字列。 |
 | サービス | - | 機能を利用者や他システムへ提供する仕組み。 |
@@ -167,6 +174,7 @@
 | sudoコマンド | sudo | 一時的に管理者権限でコマンドを実行するためのコマンド。 |
 
 ## 概要
+
 本ロールは新規ユーザ作成時に複製される `/etc/skel` 以下のスケルトン環境を構築します。プロキシ設定やシェル初期化ファイル, Emacs 関連ファイルをテンプレートとして配布し, `/etc/skel` にスケルトン環境を整備します。すべてのタスクは再実行可能で, 既存ファイルがある場合は整形, 追記のみを行い冪等性を維持します。
 
 本ロールは `/etc/skel` を基点とした標準環境を提供します。運用ポリシーに応じて, `vars/all-config.yml` や `host_vars` で必要な変数を上書きして利用してください。
@@ -313,8 +321,6 @@ dns_host_list:
 
 `Host <dns_host_listで指定したホスト名>.<dns_domainで指定したドメイン名>`形式で, `.ssh/config`のホストエントリが作成されます。`
 `dns_domain` が未定義または空文字列の場合は, `Host <dns_host_listで指定したホスト名>` 形式 (ドメイン名を除いたホスト名のみを指定)で出力されます。
-
-実行者は既存の実行順依存を崩さないことを確認した上で本ロールを実行します。
 
 ## systemd ssh-agent の使用方法
 
@@ -597,20 +603,131 @@ sudo -n grep -E "proxy|ProxyCommand|no_proxy|NO_PROXY" /etc/skel/.bashrc.proxy /
 
 ## トラブルシューティング
 
-実行者はエラー発生時に build-*.log を確認し, 失敗した task 名と不足変数を特定します。代表的なトラブルと対処を以下に示します。
+### 1. /etc/skel の設定ファイルが生成されない場合
 
-| 想定トラブル | 主な原因 | 対処方法 |
-| --- | --- | --- |
-| `/etc/skel/.bashrc` や `/etc/skel/.zshrc` が生成されない | 対応する `user_settings_create_*_skel` 変数が `false` のため, 個別タスクがスキップされている | 実行者は `user_settings_create_bash_skel`, `user_settings_create_zsh_skel`, `user_settings_create_ssh_skel` など対象機能の変数を確認し, 必要な項目だけ `true` に変更して再実行します。Ansible 出力で `Directory Bash` や `Directory Zsh` が `skipping` になっていないことを確認します。 |
-| `/etc/skel/.ssh/config` はあるが新規ユーザで SSH 接続設定が期待どおり生成されない | `mdns_host_list`, `dns_host_list`, `dns_domain` が空, または必要な要素が不足している | 実行者は `mdns_host_list` と `dns_host_list` の定義内容を確認し, `name` を含む辞書形式で指定されていることを確認します。`dns_domain` が空の場合はドメイン名なしの Host エントリになる点も踏まえて設定を見直します。 |
-| Emacs 設定ファイルが配置されない | `user_settings_create_emacs_skel` が `false` のため, `directory-emacs.yml` がスキップされている | 実行者は `user_settings_create_emacs_skel: true` を設定し, `/etc/skel/.emacs.d/init.el` と `/etc/skel/.emacs.d/user_settings/` 配下の必須ファイルが生成されることを確認します。 |
-| `backup-home` スクリプトが配置されない | バックアップスクリプトの有効化条件を満たしていないため, `directory-home-backup-script.yml` 全体がスキップされている | 実行者は `user_settings_backup_home_script_enabled: true` に加え, `user_settings_backup_home_nfs_server`, `user_settings_backup_home_nfs_dir`, `user_settings_backup_home_mount_point`, `user_settings_backup_dir_on_nfs`, `user_settings_backup_users_list`, `user_settings_backup_home_rotation` がすべて有効値になっていることを確認して再実行します。 |
-| `backup-home` 実行時に NFS マウントで失敗する | NFS サーバ到達不可, 共有ディレクトリ名誤り, `sudo` 権限不足 | 実行者は対象ホストで `mount -t nfs <server>:<dir> /mnt` を手動で確認し, `user_settings_backup_home_nfs_server` と `user_settings_backup_home_nfs_dir` の値を見直します。非 root 実行時は `sudo` が利用可能であることも確認します。 |
-| `clean-all-docker-images.sh` や `run-docker.sh` が生成されない | `create_docker_image_operation_script` が `false` のため, `home-command.yml` の個別テンプレート配置がスキップされている | 実行者は `create_docker_image_operation_script: true` を設定し, `/etc/skel/bin/clean-all-docker-images.sh` と `/etc/skel/bin/run-docker.sh` が作成されることを確認します。 |
-| systemd ssh-agent を有効化したのに新規ユーザで利用できない | ユーザ作成後に `systemctl --user enable --now ssh-agent.socket` を実行していない, または `user_settings_systemd_ssh_agent_skel` が `false` | 実行者は `user_settings_systemd_ssh_agent_skel: true` で `/etc/skel/.config/systemd/user/ssh-agent.socket` が配置されていることを確認し, 作成済みユーザ側で `systemctl --user enable --now ssh-agent.socket` を実行します。 |
+**実施対象ホスト**: 制御ホスト, 対象ホスト
+
+**実行するコマンド**:
+
+```bash
+grep -n "user_settings_create_.*_skel" vars/all-config.yml host_vars/*.yml
+ansible-playbook -i inventory/hosts site.yml --tags user-settings
+ls -l /etc/skel/.bashrc /etc/skel/.zshrc /etc/skel/.ssh/config
+```
+
+**確認ポイント**:
+
+- 対象機能の `user_settings_create_*_skel` 変数が `true` であること。
+- 実行ログで `Directory Bash`, `Directory Zsh`, `Directory SSH` のタスクが skipping になっていないこと。
+- `/etc/skel` 配下に対象ファイルが生成されていること。
+
+### 2. /etc/skel/.ssh/config の Host エントリが期待どおり生成されない場合
+
+**実施対象ホスト**: 制御ホスト, 対象ホスト
+
+**実行するコマンド**:
+
+```bash
+grep -n "mdns_host_list\|dns_host_list\|dns_domain" vars/all-config.yml host_vars/*.yml
+grep -n "^Host " /etc/skel/.ssh/config
+```
+
+**確認ポイント**:
+
+- `mdns_host_list` と `dns_host_list` の要素に `name` が定義されていること。
+- `dns_domain` が未定義又は空文字列の場合はドメインなしの Host エントリになること。
+- `/etc/skel/.ssh/config` の Host エントリが設定値と一致していること。
+
+### 3. Emacs 設定ファイルが配置されない場合
+
+**実施対象ホスト**: 制御ホスト, 対象ホスト
+
+**実行するコマンド**:
+
+```bash
+grep -n "user_settings_create_emacs_skel" vars/all-config.yml host_vars/*.yml
+ansible-playbook -i inventory/hosts site.yml --tags user-settings
+ls -l /etc/skel/.emacs.d/init.el /etc/skel/.emacs.d/user_settings/
+```
+
+**確認ポイント**:
+
+- `user_settings_create_emacs_skel: true` が設定されていること。
+- 実行ログで `directory-emacs.yml` のタスクが skipping になっていないこと。
+- `/etc/skel/.emacs.d/init.el` と必須設定ファイルが存在すること。
+
+### 4. backup-home スクリプトが配置されない場合
+
+**実施対象ホスト**: 制御ホスト, 対象ホスト
+
+**実行するコマンド**:
+
+```bash
+grep -n "user_settings_backup_home_script_enabled\|user_settings_backup_home_nfs_server\|user_settings_backup_home_nfs_dir\|user_settings_backup_home_mount_point\|user_settings_backup_dir_on_nfs\|user_settings_backup_users_list\|user_settings_backup_home_rotation" vars/all-config.yml host_vars/*.yml
+ansible-playbook -i inventory/hosts site.yml --tags user-settings
+ls -l /usr/local/bin/backup-home
+```
+
+**確認ポイント**:
+
+- `user_settings_backup_home_script_enabled: true` であること。
+- NFS 関連変数, バックアップ対象ユーザ, 世代数の条件を満たしていること。
+- 実行後に `/usr/local/bin/backup-home` が生成されていること。
+
+### 5. backup-home 実行時に NFS マウントで失敗する場合
+
+**実施対象ホスト**: 対象ホスト
+
+**実行するコマンド**:
+
+```bash
+mount -t nfs <server>:<dir> /mnt
+sudo -n /usr/local/bin/backup-home
+```
+
+**確認ポイント**:
+
+- NFS サーバへ到達可能であること。
+- `user_settings_backup_home_nfs_server` と `user_settings_backup_home_nfs_dir` の設定値が正しいこと。
+- 非 root 実行時に `sudo` 権限が利用可能であること。
+
+### 6. Docker 補助スクリプトが生成されない場合
+
+**実施対象ホスト**: 制御ホスト, 対象ホスト
+
+**実行するコマンド**:
+
+```bash
+grep -n "create_docker_image_operation_script" vars/all-config.yml host_vars/*.yml
+ansible-playbook -i inventory/hosts site.yml --tags user-settings
+ls -l /etc/skel/bin/clean-all-docker-images.sh /etc/skel/bin/run-docker.sh
+```
+
+**確認ポイント**:
+
+- `create_docker_image_operation_script: true` が設定されていること。
+- 実行ログで `home-command.yml` の対象タスクが skipping になっていないこと。
+- `/etc/skel/bin` 配下に対象スクリプトが生成されていること。
+
+### 7. systemd ssh-agent を有効化したのに利用できない場合
+
+**実施対象ホスト**: 対象ホスト
+
+**実行するコマンド**:
+
+```bash
+ls -l /etc/skel/.config/systemd/user/ssh-agent.socket /etc/skel/.config/systemd/user/ssh-agent.service
+systemctl --user enable --now ssh-agent.socket
+systemctl --user status ssh-agent.socket --no-pager
+```
+
+**確認ポイント**:
+
+- `user_settings_systemd_ssh_agent_skel: true` の設定でユニットファイルが配置されていること。
+- ユーザ作成後に `systemctl --user enable --now ssh-agent.socket` を実行していること。
+- `ssh-agent.socket` が active 状態であること。
 
 ## 注意事項
-
 
 1. ユーザ作成フロー: 本ロール,  `create-users` ロール,  `post-user-create` ロール の順序で実行されます。既存ユーザに対する Emacs パッケージ導入は `post-user-create` ロールで行われるため, 同じプレイブックで適切な順序に配置してください。詳細は `post-user-create` ロールの Readme.md を参照してください。
 2. 各スケルトン設定ファイルの作成要否は `user_settings_create_*_skel` 変数で個別に制御できます。不要な設定ファイルは `false` に設定してスキップしてください。

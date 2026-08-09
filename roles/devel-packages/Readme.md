@@ -28,6 +28,9 @@
       - [Debian/Ubuntu 系](#debianubuntu-系-1)
       - [RHEL 系](#rhel-系-1)
   - [トラブルシューティング](#トラブルシューティング)
+    - [1. パッケージ導入に失敗する場合](#1-パッケージ導入に失敗する場合)
+    - [2. GUI が無効化されない場合](#2-gui-が無効化されない場合)
+    - [3. kubectl 補完が導入されない場合](#3-kubectl-補完が導入されない場合)
   - [注意事項](#注意事項)
   - [参考資料](#参考資料)
     - [公式ドキュメント](#公式ドキュメント)
@@ -69,12 +72,12 @@
 | Playbook | - | 自動化処理の実行手順を記述したファイル。 |
 | Canonical | - | Ubuntu を提供する組織名。 |
 | Key-Value | - | キーと値の組で情報を表す方式。 |
-| Internet Protocol | IP | インターネットプロトコルの略称。 |
+| Internet Protocol | IP | ネットワーク上で宛先を識別し, データを届けるための通信手順。 |
 | Structured Query Language | SQL | データベースを操作するための記述言語。 |
-| Hypertext Transfer Protocol | HTTP | WWW で情報をやり取りする通信手順。 |
-| Hypertext Transfer Protocol Secure | HTTPS | 通信内容を暗号化して WWW 通信を行う方式。 |
-| RPM Package Manager | RPM | RHEL 系で使用するパッケージ形式。 |
-| Virtual Machine | VM | 物理機器上で動作する仮想的な計算機。 |
+| Hypertext Transfer Protocol | HTTP | World Wide Webで情報をやり取りする通信手順。 |
+| Hypertext Transfer Protocol Secure | HTTPS | 通信内容を暗号化してWorld Wide Web通信を行う方式。 |
+| RPM Package Manager | RPM | RPM形式パッケージの導入, 更新, 削除, 情報参照を行う仕組み。 |
+| Virtual Machine | VM | 物理計算機上で動作する仮想的な計算機。 |
 | localhost | - | 同一機器自身を指す名前。 |
 | root | - | Unix 系システムの最上位権限を持つ管理者識別子。 |
 | ソフトウェア | - | 情報処理システムで使用するプログラム, 手順, 規則及び関連文書の全体又は一部分。 |
@@ -102,15 +105,15 @@
 | Service | - | サービスの英語表記。 |
 | Node | - | ノードの英語表記。 |
 | Makefile | - | 実行手順を定義したファイル。 |
-| Application Programming Interface | API | アプリケーション同士がやり取りする方法を定めた仕様。 |
-| Uniform Resource Locator | URL | WWW 上の資源の場所を示す文字列。 |
+| Application Programming Interface | API | アプリケーション同士が機能やデータをやり取りするための取り決め。 |
+| Uniform Resource Locator | URL | World Wide Web上の資源の場所を示す文字列。 |
 | Operating System | OS | 計算機の基本機能を管理し, アプリケーションを動作させる基盤ソフトウェア。 |
 | Graphical User Interface | GUI | 画面操作中心の利用形態です。 |
 | Kubernetes | K8s | コンテナを管理する基盤ソフトウェア。 |
 | kubectl | - | Kubernetesクラスタを操作するためのコマンドラインツール。 |
 | Advanced Package Tool | APT | Debian 系のパッケージ管理ツール。 |
 | Dandified YUM | DNF | YUM の後継として利用するパッケージ管理ツール。 |
-| Red Hat Enterprise Linux | RHEL | Red Hat 社が提供する商用 Linux ディストリビューション。 |
+| Red Hat Enterprise Linux | RHEL | Red Hatが提供する企業向けLinuxディストリビューション。 |
 | Red Hat Enterprise Linux 9 | RHEL9 | Red Hat Enterprise Linux の第9系統版。 |
 | Secure Shell | SSH | 遠隔の計算機へ安全に接続して操作する方式。 |
 | Host Variables | host_vars | ホスト単位の設定値を格納する変数定義。 |
@@ -150,7 +153,7 @@
 
 ## 実行方法
 
-実行者は制御ホストで以下のコマンドを実行します。
+制御ホストで以下のコマンドを実行します。
 
 ```bash
 ansible-playbook -i inventory/hosts site.yml --tags "devel-packages"
@@ -294,9 +297,55 @@ ls -l /usr/share/zsh/site-functions/_kubectl
 
 ## トラブルシューティング
 
-- パッケージ導入に失敗する場合は, リポジトリ設定とネットワーク疎通を確認してください。
-- GUI が無効化されない場合は, `systemctl set-default multi-user.target` の実行結果を確認してください。
-- kubectl 補完が導入されない場合は, `kubectl_completion_enabled` と kubectl の有無を確認してください。
+### 1. パッケージ導入に失敗する場合
+
+**実施対象ホスト**: 対象ホスト
+
+**実行するコマンド**:
+
+```bash
+dpkg -l | grep -E "(gcc|make|git)" || rpm -qa | grep -E "(gcc|make|git)"
+```
+
+**確認ポイント**:
+
+- `devel_packages` に含まれる主要パッケージが導入済みであること。
+- 導入されていない場合は, パッケージリポジトリ設定とネットワーク疎通を見直すこと。
+
+### 2. GUI が無効化されない場合
+
+**実施対象ホスト**: 対象ホスト
+
+**実行するコマンド**:
+
+```bash
+systemctl get-default
+sudo systemctl set-default multi-user.target
+systemctl get-default
+```
+
+**確認ポイント**:
+
+- `systemctl get-default` の結果が `multi-user.target` であること。
+- 反映されない場合は, 権限不足や systemd 設定変更の失敗有無を確認すること。
+
+### 3. kubectl 補完が導入されない場合
+
+**実施対象ホスト**: 対象ホスト
+
+**実行するコマンド**:
+
+```bash
+command -v kubectl
+ls -l /usr/share/bash-completion/completions/kubectl
+ls -l /usr/share/zsh/vendor-completions/_kubectl 2>/dev/null || ls -l /usr/share/zsh/site-functions/_kubectl
+```
+
+**確認ポイント**:
+
+- `kubectl` コマンドが存在すること。
+- `kubectl_completion_enabled: true` が設定されていること。
+- 対象 OS に対応した補完ファイル配置先へファイルが作成されていること。
 
 ## 注意事項
 

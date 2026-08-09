@@ -11,8 +11,11 @@
   - [主な処理](#主な処理)
   - [前提条件](#前提条件)
   - [実行方法](#実行方法)
-    - [Makefile を使用](#makefile-を使用)
-    - [Ansible コマンド直接実行](#ansible-コマンド直接実行)
+    - [Makeターゲットを使用する場合](#makeターゲットを使用する場合)
+    - [ansible-playbook コマンドを使用する場合](#ansible-playbook-コマンドを使用する場合)
+      - [すべての対象ホストに適用](#すべての対象ホストに適用)
+      - [特定ホストだけ実行](#特定ホストだけ実行)
+      - [主要タグのみ実行](#主要タグのみ実行)
   - [主要変数](#主要変数)
     - [API待機・kubeadm関連](#api待機kubeadm関連)
     - [Cilium/Helm関連](#ciliumhelm関連)
@@ -43,11 +46,11 @@
     - [パターン C: Cluster Mesh ツール生成](#パターン-c-cluster-mesh-ツール生成)
     - [パターン D: Cilium BGP Control Plane 適用時確認](#パターン-d-cilium-bgp-control-plane-適用時確認)
   - [トラブルシューティング](#トラブルシューティング)
-    - [kubeadm init が失敗する](#kubeadm-init-が失敗する)
-    - [Cilium が起動しない](#cilium-が起動しない)
-    - [firewall 設定が反映されない](#firewall-設定が反映されない)
-    - [Cluster Mesh 用埋め込み kubeconfig 生成に失敗する](#cluster-mesh-用埋め込み-kubeconfig-生成に失敗する)
-    - [BGP マニフェスト適用で失敗する](#bgp-マニフェスト適用で失敗する)
+    - [1. kubeadm init が失敗する場合](#1-kubeadm-init-が失敗する場合)
+    - [2. Cilium が起動しない場合](#2-cilium-が起動しない場合)
+    - [3. firewall 設定が反映されない場合](#3-firewall-設定が反映されない場合)
+    - [4. Cluster Mesh 用埋め込み kubeconfig 生成に失敗する場合](#4-cluster-mesh-用埋め込み-kubeconfig-生成に失敗する場合)
+    - [5. BGP マニフェスト適用で失敗する場合](#5-bgp-マニフェスト適用で失敗する場合)
   - [注意事項](#注意事項)
   - [参考資料](#参考資料)
     - [公式ドキュメント](#公式ドキュメント)
@@ -89,12 +92,12 @@
 | Playbook | - | 自動化処理の実行手順を記述したファイル。 |
 | Canonical | - | Ubuntu を提供する組織名。 |
 | Key-Value | - | キーと値の組で情報を表す方式。 |
-| Internet Protocol | IP | インターネットプロトコルの略称。 |
+| Internet Protocol | IP | ネットワーク上で宛先を識別し, データを届けるための通信手順。 |
 | Structured Query Language | SQL | データベースを操作するための記述言語。 |
-| Hypertext Transfer Protocol | HTTP | WWW で情報をやり取りする通信手順。 |
-| Hypertext Transfer Protocol Secure | HTTPS | 通信内容を暗号化して WWW 通信を行う方式。 |
-| RPM Package Manager | RPM | RHEL 系で使用するパッケージ形式。 |
-| Virtual Machine | VM | 物理機器上で動作する仮想的な計算機。 |
+| Hypertext Transfer Protocol | HTTP | World Wide Webで情報をやり取りする通信手順。 |
+| Hypertext Transfer Protocol Secure | HTTPS | 通信内容を暗号化してWorld Wide Web通信を行う方式。 |
+| RPM Package Manager | RPM | RPM形式パッケージの導入, 更新, 削除, 情報参照を行う仕組み。 |
+| Virtual Machine | VM | 物理計算機上で動作する仮想的な計算機。 |
 | localhost | - | 同一機器自身を指す名前。 |
 | root | - | Unix 系システムの最上位権限を持つ管理者識別子。 |
 | ソフトウェア | - | 情報処理システムで使用するプログラム, 手順, 規則及び関連文書の全体又は一部分。 |
@@ -124,9 +127,9 @@
 | Service | - | サービスの英語表記。 |
 | Node | - | ノードの英語表記。 |
 | Makefile | - | 実行手順を定義したファイル。 |
-| Application Programming Interface | API | アプリケーション同士がやり取りする方法を定めた仕様。 |
-| Uniform Resource Locator | URL | WWW 上の資源の場所を示す文字列。 |
-| Application Programming Interface | API | API の正式名称。 |
+| Application Programming Interface | API | アプリケーション同士が機能やデータをやり取りするための取り決め。 |
+| Uniform Resource Locator | URL | World Wide Web上の資源の場所を示す文字列。 |
+| Application Programming Interface | API | アプリケーション同士が機能やデータをやり取りするための取り決め。 |
 | Custom Resource Definition | CRD | Kubernetes APIを拡張してユーザ独自のリソース種別を定義する仕組み。 |
 | Role-Based Access Control | RBAC | ユーザやサービスアカウントが実行可能な操作を役割(Role)で制限する仕組み。 |
 | Service Account | - | Kubernetes内部でPodが他のリソースにアクセスする際に用いる仮想的なアカウント。 |
@@ -181,7 +184,7 @@
 | Command Line Interface | CLI | 文字入力で操作する利用者向け操作方式。 |
 | Network Interface Card | NIC | 計算機をネットワークへ接続するための装置または機能。 |
 | Operating System | OS | 計算機の基本機能を管理し, アプリケーションを動作させる基盤ソフトウェア。 |
-| Red Hat Enterprise Linux | RHEL | Red Hat 社が提供する商用 Linux ディストリビューション。 |
+| Red Hat Enterprise Linux | RHEL | Red Hatが提供する企業向けLinuxディストリビューション。 |
 | Uncomplicated Firewall | UFW | 簡易な操作で設定できるパケット制御機能。 |
 | Host Variables | host_vars | ホスト単位の設定値を格納する変数定義。 |
 | Current | CURRENT | 現在値を示す表示項目。 |
@@ -194,14 +197,11 @@
 | `grep` | - | テキストから条件に一致する行を抽出するコマンド。 |
 | `helm` | - | Kubernetesアプリケーションのパッケージ管理ツール。Chart形式でアプリケーションを配布, インストールします。 |
 | `ls` | - | ファイルやディレクトリの一覧を表示するコマンド。 |
-| `make` | - | Makefile に定義された処理を実行するコマンド。 |
+| makeコマンド | make | Makefile に定義された処理を実行するコマンド。 |
 | 対象ホスト | - | Playbook による設定変更や導入処理の適用先となるホスト。 |
 | sudoコマンド | sudo | 一時的に管理者権限でコマンドを実行するためのコマンド。 |
-
 ## 概要
 Kubernetes コントロールプレーンノードを構築するロールです。`k8s-common` で整えた共通前提の上に, kubeadm 設定の生成と実行, Cilium の導入, Cluster Mesh 用 kubeconfig 生成ツールの配布, Helm/Cilium CLI 環境整備を行います。IPv4/IPv6 デュアルスタックを前提にしており, 再実行にも対応するよう設計されています。
-
-本ロールは, k8s-ctrlplane に関する設定処理を実施します。
 
 ## 主な処理
 
@@ -223,22 +223,29 @@ Kubernetes コントロールプレーンノードを構築するロールです
 
 ## 実行方法
 
-### Makefile を使用
-
+### Makeターゲットを使用する場合
+以下のコマンドを実行します:
 ```bash
 make run_k8s_ctrlplane
 ```
 
-### Ansible コマンド直接実行
+### ansible-playbook コマンドを使用する場合
 
+#### すべての対象ホストに適用
+以下のコマンドを実行します:
 ```bash
-# すべての対象ホストに適用
 ansible-playbook -i inventory/hosts k8s-ctrl-plane.yml
+```
 
-# 特定ホストだけ実行
+#### 特定ホストだけ実行
+以下のコマンドを実行します:
+```bash
 ansible-playbook -i inventory/hosts k8s-ctrl-plane.yml --limit <hostname>
+```
 
-# 主要タグのみ実行
+#### 主要タグのみ実行
+以下のコマンドを実行します:
+```bash
 ansible-playbook -i inventory/hosts k8s-ctrl-plane.yml -t k8s-ctrlplane
 ```
 
@@ -611,25 +618,27 @@ sudo -n ls -la /home/ansible/kubeadm/cilium/bgp
 
 ## トラブルシューティング
 
-### kubeadm init が失敗する
+### 1. kubeadm init が失敗する場合
 
-**症状**: `kubeadm init` が `service IP family ... must match public address family ...` で失敗します。
+**実施対象ホスト**: コントロールプレーンノード
 
-**確認**:
+**実行するコマンド**:
 
 ```bash
 cat /home/ansible/kubeadm/ctrlplane-kubeadm.config.yml
 ```
 
-**原因**: APIエンドポイントのファミリと Service CIDR の順序が不一致。
+**確認ポイント**:
 
-**対処**: `k8s_ctrlplane_endpoint` と Pod/Service CIDR 変数を見直して再実行します。
+- 症状: `kubeadm init` が `service IP family ... must match public address family ...` で失敗していること。
+- 原因: APIエンドポイントのアドレスファミリと Service CIDR の順序が不一致であること。
+- 対処: `k8s_ctrlplane_endpoint` と Pod/Service CIDR 変数を見直し, 修正後にロールを再実行すること。
 
-### Cilium が起動しない
+### 2. Cilium が起動しない場合
 
-**症状**: `kubectl -n kube-system get pods` で cilium Pod が `CrashLoopBackOff`。
+**実施対象ホスト**: コントロールプレーンノード
 
-**確認**:
+**実行するコマンド**:
 
 ```bash
 kubectl -n kube-system get pods -l k8s-app=cilium
@@ -637,15 +646,17 @@ kubectl -n kube-system logs ds/cilium --tail=200
 cat /home/ansible/kubeadm/cilium/cilium-install.yml
 ```
 
-**原因**: `k8sServiceHost`, native routing CIDR, kube-proxy 削除順序の不整合。
+**確認ポイント**:
 
-**対処**: values と API 到達性を確認し, 必要なら `helm delete cilium -n kube-system` 後に再実行します。
+- 症状: `kubectl -n kube-system get pods` で cilium Pod が `CrashLoopBackOff` になっていること。
+- 原因: `k8sServiceHost`, native routing CIDR, kube-proxy 削除順序の不整合があること。
+- 対処: values 設定と API 到達性を確認し, 必要に応じて `helm delete cilium -n kube-system` 実施後にロールを再実行すること。
 
-### firewall 設定が反映されない
+### 3. firewall 設定が反映されない場合
 
-**症状**: 6443/tcp などが外部から到達しない。
+**実施対象ホスト**: コントロールプレーンノード
 
-**確認**:
+**実行するコマンド**:
 
 ```bash
 # Debian/Ubuntu
@@ -655,29 +666,33 @@ sudo ufw status verbose
 sudo firewall-cmd --list-ports
 ```
 
-**原因**: `enable_firewall` が `false` または `firewall_backend` の指定不整合。
+**確認ポイント**:
 
-**対処**: 変数設定を修正し, ロールを再実行します。
+- 症状: 6443/tcp などの必要ポートへ外部から到達できないこと。
+- 原因: `enable_firewall` が `false` である, または `firewall_backend` の指定が実環境と不整合であること。
+- 対処: 変数設定を修正し, ロールを再実行すること。
 
-### Cluster Mesh 用埋め込み kubeconfig 生成に失敗する
+### 4. Cluster Mesh 用埋め込み kubeconfig 生成に失敗する場合
 
-**症状**: `Abort when shared CA certificate is missing` で失敗します。
+**実施対象ホスト**: コントロールプレーンノード
 
-**確認**:
+**実行するコマンド**:
 
 ```bash
 ls -la /etc/kubernetes/pki/ca.crt
 ```
 
-**原因**: 共有CAファイル未生成, もしくは読み取り不可。
+**確認ポイント**:
 
-**対処**: `k8s-shared-ca` / `k8s-cilium-shared-ca` 側の生成結果を確認して再実行します。
+- 症状: `Abort when shared CA certificate is missing` で処理が停止していること。
+- 原因: 共有CAファイルが未生成である, または読み取り権限不足であること。
+- 対処: `k8s-shared-ca` と `k8s-cilium-shared-ca` の生成結果を確認してから再実行すること。
 
-### BGP マニフェスト適用で失敗する
+### 5. BGP マニフェスト適用で失敗する場合
 
-**症状**: `k8s_bgp.neighbors must not be empty` や CRD未検出で失敗します。
+**実施対象ホスト**: コントロールプレーンノード
 
-**確認**:
+**実行するコマンド**:
 
 ```bash
 kubectl get crd ciliumbgpadvertisements.cilium.io
@@ -685,35 +700,13 @@ kubectl get crd ciliumbgppeerconfigs.cilium.io
 kubectl get crd ciliumbgpclusterconfigs.cilium.io
 ```
 
-**期待される結果**:
-
-```
-NAME                                 CREATED AT
-ciliumbgpadvertisements.cilium.io    2026-03-05T10:30:15Z
-```
-
-```
-NAME                              CREATED AT
-ciliumbgppeerconfigs.cilium.io    2026-03-05T10:30:15Z
-```
-
-```
-NAME                                CREATED AT
-ciliumbgpclusterconfigs.cilium.io   2026-03-05T10:30:15Z
-```
-
 **確認ポイント**:
 
-- 各CRD (`ciliumbgpadvertisements.cilium.io`, `ciliumbgppeerconfigs.cilium.io`, `ciliumbgpclusterconfigs.cilium.io`) が存在すること
-- これらのCRDが存在しない場合は, Cilium で BGP Control Plane機能が有効化されていない可能性, または Cilium のバージョンが古い可能性があります
-
-**原因**: `k8s_bgp` 設定不足, もしくは Cilium 側 CRD の未準備。
-
-**対処**: `k8s_bgp.neighbors` を含む設定を修正し, Cilium が CRD を作成したことを確認して再実行します。
+- 症状: `k8s_bgp.neighbors must not be empty` が表示される, または CRD 未検出で失敗していること。
+- 原因: `k8s_bgp` 設定不足, もしくは Cilium 側 CRD (`ciliumbgpadvertisements.cilium.io`, `ciliumbgppeerconfigs.cilium.io`, `ciliumbgpclusterconfigs.cilium.io`) が未準備であること。
+- 対処: `k8s_bgp.neighbors` を含む BGP 変数を修正し, Cilium が CRD を作成済みであることを確認して再実行すること。
 
 ## 注意事項
-
-実行者は既存の実行順依存を崩さないことを確認した上で本ロールを実行します。
 
 - **破壊的操作**: `config.yml` は `kubeadm reset` を実行します。既存クラスタ適用時は必ず停止計画を立ててください。
 - **Helm リポジトリの再構成**: `config-helm.yml` は既存 Helm リポジトリを全削除して `cilium` を再登録します。既存運用がある場合は事前に退避してください。
@@ -727,5 +720,5 @@ ciliumbgpclusterconfigs.cilium.io   2026-03-05T10:30:15Z
 
 ### 公式ドキュメント
 
-- Kubernetes: https://kubernetes.io/docs/home/
-- kubeadm: https://kubernetes.io/docs/reference/setup-tools/kubeadm/
+- [Kubernetes](https://kubernetes.io/docs/home/)
+- [kubeadm](https://kubernetes.io/docs/reference/setup-tools/kubeadm/)

@@ -5,15 +5,34 @@
 ## 目次
 
 - [python-k8s-client-local ロール](#python-k8s-client-local-ロール)
+  - [目次](#目次)
+  - [用語](#用語)
   - [概要](#概要)
   - [前提条件](#前提条件)
-  - [テンプレートと生成ファイル](#テンプレートと生成ファイル)
-  - [実行フロー](#実行フロー)
+  - [実行方法](#実行方法)
   - [主要変数](#主要変数)
   - [パッケージ導入確認方法](#パッケージ導入確認方法)
     - [Debian/Ubuntu環境での実行例](#debianubuntu環境での実行例)
-    - [Red Hat/AlmaLinux環境での実行例](#redhatalmalinux環境での実行例)
+    - [Red Hat/AlmaLinux環境での実行例](#red-hatalmalinux環境での実行例)
+  - [テンプレートと生成ファイル](#テンプレートと生成ファイル)
+  - [実行フロー](#実行フロー)
+  - [検証ポイント](#検証ポイント)
+    - [検証の前提条件](#検証の前提条件)
+    - [検証環境の設定](#検証環境の設定)
+    - [検証コマンドと期待結果](#検証コマンドと期待結果)
+      - [1. Playbook 実行結果の確認](#1-playbook-実行結果の確認)
+      - [2. Debian/Ubuntu での導入確認](#2-debianubuntu-での導入確認)
+      - [3. Red Hat/AlmaLinux での導入確認](#3-red-hatalmalinux-での導入確認)
+      - [4. 指定 Python 版での導入確認](#4-指定-python-版での導入確認)
+  - [トラブルシューティング](#トラブルシューティング)
+    - [1. パッケージのビルドが失敗する場合](#1-パッケージのビルドが失敗する場合)
+    - [2. 対象ホストへパッケージを導入できない場合](#2-対象ホストへパッケージを導入できない場合)
+    - [3. 導入後に kubernetes モジュールを import できない場合](#3-導入後に-kubernetes-モジュールを-import-できない場合)
+    - [4. 変数設定不備で処理が停止する場合](#4-変数設定不備で処理が停止する場合)
+    - [5. 成果物配置先を確認する場合](#5-成果物配置先を確認する場合)
   - [注意事項](#注意事項)
+  - [参考資料](#参考資料)
+    - [公式ドキュメント](#公式ドキュメント)
 
 ## 用語
 
@@ -52,12 +71,12 @@
 | Playbook | - | 自動化処理の実行手順を記述したファイル。 |
 | Canonical | - | Ubuntu を提供する組織名。 |
 | Key-Value | - | キーと値の組で情報を表す方式。 |
-| Internet Protocol | IP | インターネットプロトコルの略称。 |
+| Internet Protocol | IP | ネットワーク上で宛先を識別し, データを届けるための通信手順。 |
 | Structured Query Language | SQL | データベースを操作するための記述言語。 |
-| Hypertext Transfer Protocol | HTTP | WWW で情報をやり取りする通信手順。 |
-| Hypertext Transfer Protocol Secure | HTTPS | 通信内容を暗号化して WWW 通信を行う方式。 |
-| RPM Package Manager | RPM | RHEL 系で使用するパッケージ形式。 |
-| Virtual Machine | VM | 物理機器上で動作する仮想的な計算機。 |
+| Hypertext Transfer Protocol | HTTP | World Wide Webで情報をやり取りする通信手順。 |
+| Hypertext Transfer Protocol Secure | HTTPS | 通信内容を暗号化してWorld Wide Web通信を行う方式。 |
+| RPM Package Manager | RPM | RPM形式パッケージの導入, 更新, 削除, 情報参照を行う仕組み。 |
+| Virtual Machine | VM | 物理計算機上で動作する仮想的な計算機。 |
 | localhost | - | 同一機器自身を指す名前。 |
 | root | - | Unix 系システムの最上位権限を持つ管理者識別子。 |
 | ソフトウェア | - | 情報処理システムで使用するプログラム, 手順, 規則及び関連文書の全体又は一部分。 |
@@ -86,8 +105,8 @@
 | Service | - | サービスの英語表記。 |
 | Node | - | ノードの英語表記。 |
 | Makefile | - | 実行手順を定義したファイル。 |
-| Application Programming Interface | API | アプリケーション同士がやり取りする方法を定めた仕様。 |
-| Uniform Resource Locator | URL | WWW 上の資源の場所を示す文字列。 |
+| Application Programming Interface | API | アプリケーション同士が機能やデータをやり取りするための取り決め。 |
+| Uniform Resource Locator | URL | World Wide Web上の資源の場所を示す文字列。 |
 | Operating System | OS | 計算機の基本機能を管理し, アプリケーションを動作させる基盤ソフトウェア。 |
 | Red Hat Enterprise Linux 9 | RHEL9 | Red Hat Enterprise Linux の第9系統版。 |
 | Ansible Task | task | 自動化処理の最小単位となる実行項目。 |
@@ -101,6 +120,7 @@
 | 構築ホスト | - | パッケージや実行資材を生成するビルド処理を担当するホスト。 |
 
 ## 概要
+
 本ロールは, Python 言語版 Kubernetes client を対象ノード上で直接 pip install せずに, 構築ホスト上のコンテナでローカルパッケージ (deb/rpm) を生成して配布, 導入するロールです。
 
 - 他のロールからの入力として python_k8s_client_version_spec (例: ~=31.0, ==31.0.0) を受け取り, ローカルパッケージを作成します。
@@ -108,10 +128,6 @@
 - ローカルパッケージの転送経路は, 構築ホスト -> 制御ノード -> 対象ホストです。
 - k8s_python_packages_version が定義され, かつ空文字列でない場合は, /usr/bin/python{{ k8s_python_packages_version }} 向けにパッケージを構築し, 同じPythonで導入確認します。
 - k8s_python_packages_version が未定義または空文字列の場合は, /usr/bin/python3 向けにパッケージを構築し, /usr/bin/python3 で導入確認します。
-
-## 主な処理
-
-本ロールは tasks/main.yml から task 群を呼び出し, 設定適用と検証を実施します。
 
 ## 前提条件
 
@@ -122,7 +138,7 @@
 
 ## 実行方法
 
-実行者は制御ホストで以下のコマンドを実行します。
+制御ホストで以下のコマンドを実行します。
 
 ```bash
 ansible-playbook -i inventory/hosts site.yml --tags "python-k8s-client-local"
@@ -143,56 +159,6 @@ ansible-playbook -i inventory/hosts site.yml --tags "python-k8s-client-local"
 | python_k8s_client_build_container_image_rhel | "python-k8s-client-build-almalinux:9.6" | RHEL系ビルド用イメージ名。 |
 
 構築ワークスペースは入力変数ではなく, タスク内で実行ユーザごとに `/tmp/python-k8s-client-build-<USER>` を自動選択します。
-
-## テンプレートと生成ファイル
-
-本ロールでは以下のテンプレート / ファイルを出力します:
-主な展開先ホストは, 構築ホスト , 対象ホスト(既定) , 制御ホスト です。
-
-| テンプレートファイル名 | 出力先パス | 説明 |
-| --- | --- | --- |
-| `build-python-k8s-client-deb.sh.j2` | `{{ python_k8s_client_build_workspace_effective }}/build-python-k8s-client-deb.sh` (既定: `{{ python_k8s_client_build_workspace_effective }}/build-python-k8s-client-deb.sh`) | 対象ソフトウェアをソースからビルドし, ローカルパッケージを生成する実行スクリプトです。 |
-| `python-k8s-client.control.j2` | `{{ python_k8s_client_build_workspace_effective }}/python-k8s-client.control` (既定: `{{ python_k8s_client_build_workspace_effective }}/python-k8s-client.control`) | Debian パッケージの依存関係やメタデータを定義する control ファイルです。 |
-| `Dockerfile.ubuntu.j2` | `{{ python_k8s_client_build_workspace_effective }}/Dockerfile.python-k8s-client-deb` (既定: `{{ python_k8s_client_build_workspace_effective }}/Dockerfile.python-k8s-client-deb`) | ローカルパッケージを再現可能にビルドするためのコンテナイメージ定義です。 |
-| `build-python-k8s-client-rpm.sh.j2` | `{{ python_k8s_client_build_workspace_effective }}/build-python-k8s-client-rpm.sh` (既定: `{{ python_k8s_client_build_workspace_effective }}/build-python-k8s-client-rpm.sh`) | 対象ソフトウェアをソースからビルドし, ローカルパッケージを生成する実行スクリプトです。 |
-| `python-k8s-client.spec.j2` | `{{ python_k8s_client_build_workspace_effective }}/python-k8s-client.spec` (既定: `{{ python_k8s_client_build_workspace_effective }}/python-k8s-client.spec`) | RPM パッケージのビルド手順, 依存関係, ファイル構成を定義する spec ファイルです。 |
-| `Dockerfile.almalinux.j2` | `{{ python_k8s_client_build_workspace_effective }}/Dockerfile.python-k8s-client-rpm` (既定: `{{ python_k8s_client_build_workspace_effective }}/Dockerfile.python-k8s-client-rpm`) | ローカルパッケージを再現可能にビルドするためのコンテナイメージ定義です。 |
-| `verify_python_version_spec.py` | `/tmp/verify_python_version_spec.py` (既定: `/tmp/verify_python_version_spec.py`) | 導入した Python Kubernetes クライアントの版数制約を検証し, 実行時互換性を確認するスクリプトです。 |
-
-## 実行フロー
-
-1. load-params.yml で OS別/共通変数を読み込む。
-2. package.yml で, check mode 以外の場合にパッケージ構築/導入を実行します。
-3. Debian系では build-python-client-source-deb.yml でコンテナ内ビルドを行い, install-python-client-local-deb.yml で導入します。
-4. RHEL系では build-python-client-source-rpm.yml でコンテナ内ビルドを行い, install-python-client-local-rpm.yml で導入します。
-5. k8s_python_packages_version が定義され, かつ空文字列でない場合は, /usr/bin/python{{ k8s_python_packages_version }} を導入対象Pythonとしてビルド/導入を実行します。
-6. k8s_python_packages_version が未定義または空文字列の場合は, /usr/bin/python3 を導入対象Pythonとしてビルド/導入を実行します。
-7. 導入後に, 選択された導入対象Pythonで kubernetes を import し, 版数が python_k8s_client_version_spec を満たすことを確認します。
-
-playbook中で実施する導入確認の要点:
-
-- k8s_python_packages_version変数の定義に基づいて, パッケージ導入検証に用いるPythonインタプリタ(以下, 導入対象Pythonと記載)を決定の上, パッケージの導入, 指定された版数のpython版 Kubernetes クライアントライブラリが導入されていることを確認する:
-  - k8s_python_packages_version が定義され, かつ, 空文字列でない場合は, 指定された版数のpythonインタプリタ ( /usr/bin/python{{ k8s_python_packages_version }} )を用いて, kubernetes の import と版数制約検証を実行します。
-  - k8s_python_packages_version が未定義または空文字列の場合は, /usr/bin/python3 を用いて, kubernetes の import と版数制約検証を実行します。
-
-## 検証ポイント
-
-実行者は以下の検証コマンドを実行し, 構文検査が成功することを確認します。
-
-```bash
-ansible-playbook -i inventory/hosts site.yml --syntax-check
-```
-
-期待結果: エラーが出力されず, syntax check が成功します。
-
-## トラブルシューティング
-
-実行者はエラー発生時に build-*.log を確認し, 失敗した task 名と不足変数を特定します。
-
-## 注意事項
-
-- ansibleがcheck mode で動作している場合は, 本処理をスキップする
-- 生成パッケージの署名付与は行わない。
 
 ## パッケージ導入確認方法
 
@@ -261,10 +227,262 @@ $ /usr/bin/python3.12 -c 'import kubernetes; print(kubernetes.__version__)'
 $ rpm -q python3-k8s-client
 python3-k8s-client-31.0.0-1.el9.x86_64
 ```
+
+## テンプレートと生成ファイル
+
+本ロールでは以下のテンプレート / ファイルを出力します:
+主な展開先ホストは, 構築ホスト , 対象ホスト(既定) , 制御ホスト です。
+
+| テンプレートファイル名 | 出力先パス | 説明 |
+| --- | --- | --- |
+| `build-python-k8s-client-deb.sh.j2` | `{{ python_k8s_client_build_workspace_effective }}/build-python-k8s-client-deb.sh` (既定: `{{ python_k8s_client_build_workspace_effective }}/build-python-k8s-client-deb.sh`) | 対象ソフトウェアをソースからビルドし, ローカルパッケージを生成する実行スクリプトです。 |
+| `python-k8s-client.control.j2` | `{{ python_k8s_client_build_workspace_effective }}/python-k8s-client.control` (既定: `{{ python_k8s_client_build_workspace_effective }}/python-k8s-client.control`) | Debian パッケージの依存関係やメタデータを定義する control ファイルです。 |
+| `Dockerfile.ubuntu.j2` | `{{ python_k8s_client_build_workspace_effective }}/Dockerfile.python-k8s-client-deb` (既定: `{{ python_k8s_client_build_workspace_effective }}/Dockerfile.python-k8s-client-deb`) | ローカルパッケージを再現可能にビルドするためのコンテナイメージ定義です。 |
+| `build-python-k8s-client-rpm.sh.j2` | `{{ python_k8s_client_build_workspace_effective }}/build-python-k8s-client-rpm.sh` (既定: `{{ python_k8s_client_build_workspace_effective }}/build-python-k8s-client-rpm.sh`) | 対象ソフトウェアをソースからビルドし, ローカルパッケージを生成する実行スクリプトです。 |
+| `python-k8s-client.spec.j2` | `{{ python_k8s_client_build_workspace_effective }}/python-k8s-client.spec` (既定: `{{ python_k8s_client_build_workspace_effective }}/python-k8s-client.spec`) | RPM パッケージのビルド手順, 依存関係, ファイル構成を定義する spec ファイルです。 |
+| `Dockerfile.almalinux.j2` | `{{ python_k8s_client_build_workspace_effective }}/Dockerfile.python-k8s-client-rpm` (既定: `{{ python_k8s_client_build_workspace_effective }}/Dockerfile.python-k8s-client-rpm`) | ローカルパッケージを再現可能にビルドするためのコンテナイメージ定義です。 |
+| `verify_python_version_spec.py` | `/tmp/verify_python_version_spec.py` (既定: `/tmp/verify_python_version_spec.py`) | 導入した Python Kubernetes クライアントの版数制約を検証し, 実行時互換性を確認するスクリプトです。 |
+
+## 実行フロー
+
+1. load-params.yml で OS別/共通変数を読み込む。
+2. package.yml で, check mode 以外の場合にパッケージ構築/導入を実行します。
+3. Debian系では build-python-client-source-deb.yml でコンテナ内ビルドを行い, install-python-client-local-deb.yml で導入します。
+4. RHEL系では build-python-client-source-rpm.yml でコンテナ内ビルドを行い, install-python-client-local-rpm.yml で導入します。
+5. k8s_python_packages_version が定義され, かつ空文字列でない場合は, /usr/bin/python{{ k8s_python_packages_version }} を導入対象Pythonとしてビルド/導入を実行します。
+6. k8s_python_packages_version が未定義または空文字列の場合は, /usr/bin/python3 を導入対象Pythonとしてビルド/導入を実行します。
+7. 導入後に, 選択された導入対象Pythonで kubernetes を import し, 版数が python_k8s_client_version_spec を満たすことを確認します。
+
+playbook中で実施する導入確認の要点:
+
+- k8s_python_packages_version変数の定義に基づいて, パッケージ導入検証に用いるPythonインタプリタ(以下, 導入対象Pythonと記載)を決定の上, パッケージの導入, 指定された版数のpython版 Kubernetes クライアントライブラリが導入されていることを確認する:
+  - k8s_python_packages_version が定義され, かつ, 空文字列でない場合は, 指定された版数のpythonインタプリタ ( /usr/bin/python{{ k8s_python_packages_version }} )を用いて, kubernetes の import と版数制約検証を実行します。
+  - k8s_python_packages_version が未定義または空文字列の場合は, /usr/bin/python3 を用いて, kubernetes の import と版数制約検証を実行します。
+
+## 検証ポイント
+
+### 検証の前提条件
+
+検証を始める前に, 次の条件が満たされていることを確認します。
+
+- `k8s_devel_python_client_enabled` が `true` であること。
+- `python_k8s_client_version_spec` が未定義又は空文字列でないこと。
+- 構築ホストでコンテナランタイム (`python_k8s_client_build_container_runtime`) を実行できること。
+- 制御ホストから対象ホストへパッケージ転送が可能であること。
+- 対象ホストで `/usr/bin/python3` 又は `k8s_python_packages_version` で指定した Python 実行ファイルが利用可能であること。
+
+### 検証環境の設定
+
+検証用の host_vars と vars/all-config.yml を次の値で設定します。
+
+```yaml
+1: k8s_devel_python_client_enabled: true
+2: python_k8s_client_version_spec: "~=31.0"
+3: python_k8s_client_build_host: "localhost"
+4: python_k8s_client_build_container_runtime: "docker"
+5: k8s_python_packages_version: "3.12"
+```
+
+| 行番号 | 設定値 | 有効になる動作 | 設定背景(未設定時/誤設定時の問題と防止理由) |
+| --- | --- | --- | --- |
+| 1 | k8s_devel_python_client_enabled: true | ロールの package/directory/user_group/service/config 各タスクを実行します。 | `false` の場合は主要タスクが実行されず, 導入検証を実施できないためです。 |
+| 2 | python_k8s_client_version_spec: "~=31.0" | 導入する kubernetes パッケージの版数制約を指定します。 | 未設定又は空文字列の場合はアサーションで停止し, 導入処理へ進まないためです。 |
+| 3 | python_k8s_client_build_host: "localhost" | ローカルパッケージの構築先を指定します。 | 構築先が誤っている場合は成果物を取得できず, 導入処理が失敗するためです。 |
+| 4 | python_k8s_client_build_container_runtime: "docker" | ビルドコンテナの起動コマンドを指定します。 | 実行不能なランタイム名を指定するとビルドが開始できないためです。 |
+| 5 | k8s_python_packages_version: "3.12" | `/usr/bin/python3.12` を導入対象 Python として版数検証します。 | 変数未設定時は `/usr/bin/python3` が使われるため, 検証対象 Python を明示したい場合に必要です。 |
+
+`k8s_python_packages_version` を指定しない運用では, 5行目を削除して `/usr/bin/python3` を検証対象にします。
+
+### 検証コマンドと期待結果
+
+#### 1. Playbook 実行結果の確認
+
+**実施対象ホスト**: 制御ホスト
+
+**実行するコマンド**:
+
+```bash
+ansible-playbook -i inventory/hosts site.yml --tags "python-k8s-client-local"
+```
+
+**期待される出力**:
+
+```plaintext
+failed=0
+```
+
+**確認ポイント**:
+
+- `failed=0` で完了すること。
+- `Assert python_k8s_client_version_spec is not empty` タスクが成功していること。
+
+#### 2. Debian/Ubuntu での導入確認
+
+**実施対象ホスト**: Debian/Ubuntu 系の対象ホスト
+
+**実行するコマンド**:
+
+```bash
+dpkg-query -W -f='${Status} ${Version}\n' python3-k8s-client
+/usr/bin/python3 -c 'import kubernetes; print(kubernetes.__version__)'
+```
+
+**期待される出力**:
+
+```plaintext
+install ok installed
+31.0.0
+```
+
+**確認ポイント**:
+
+- `python3-k8s-client` が導入済みであること。
+- Python 実行結果の版数が `python_k8s_client_version_spec` の制約を満たすこと。
+
+#### 3. Red Hat/AlmaLinux での導入確認
+
+**実施対象ホスト**: Red Hat/AlmaLinux 系の対象ホスト
+
+**実行するコマンド**:
+
+```bash
+rpm -q python3-k8s-client
+/usr/bin/python3 -c 'import kubernetes; print(kubernetes.__version__)'
+```
+
+**期待される出力**:
+
+```plaintext
+python3-k8s-client-<version>
+31.0.0
+```
+
+**確認ポイント**:
+
+- `python3-k8s-client` パッケージ名で導入状態を取得できること。
+- Python 実行結果の版数が `python_k8s_client_version_spec` の制約を満たすこと。
+
+#### 4. 指定 Python 版での導入確認
+
+**実施対象ホスト**: `k8s_python_packages_version` を設定した対象ホスト
+
+**実行するコマンド**:
+
+```bash
+/usr/bin/python3.12 -c 'import kubernetes; print(kubernetes.__version__)'
+```
+
+**期待される出力**:
+
+```plaintext
+31.0.0
+```
+
+**確認ポイント**:
+
+- `k8s_python_packages_version` で指定した Python 実行ファイルで `kubernetes` を import できること。
+- 出力版数が playbook 実行時に導入した版数と一致していること。
+
+## トラブルシューティング
+
+### 1. パッケージのビルドが失敗する場合
+
+**実施対象ホスト**: 制御ホスト, 構築ホスト
+
+**実行するコマンド**:
+
+```bash
+ansible-playbook -i inventory/hosts site.yml --tags "python-k8s-client-local" -vv
+ls -1 build-*.log
+grep -nE 'ERROR|Error|failed|No python k8s client|Traceback' build-*.log
+```
+
+**確認ポイント**:
+
+- `Build and install local python k8s client packages` の実行結果が成功であること。
+- ログにコンテナ起動失敗, 依存解決失敗, 成果物未生成のいずれが出ているかを切り分けできること。
+- `python_k8s_client_build_container_runtime` で指定したランタイムが構築ホストで実行可能であること。
+
+### 2. 対象ホストへパッケージを導入できない場合
+
+**実施対象ホスト**: 制御ホスト, 対象ホスト
+
+**実行するコマンド**:
+
+```bash
+ansible-playbook -i inventory/hosts site.yml --tags "python-k8s-client-local" -vv
+dpkg-query -W -f='${Status} ${Version}\n' python3-k8s-client || true
+rpm -q python3-k8s-client || true
+```
+
+**確認ポイント**:
+
+- playbook の実行結果で `failed=0` になっていること。
+- Debian/Ubuntu 系では `dpkg-query` で `install ok installed` を確認できること。
+- Red Hat/AlmaLinux 系では `rpm -q` で `python3-k8s-client-<version>` を確認できること。
+
+### 3. 導入後に kubernetes モジュールを import できない場合
+
+**実施対象ホスト**: 対象ホスト
+
+**実行するコマンド**:
+
+```bash
+/usr/bin/python3 -c 'import kubernetes; print(kubernetes.__version__)'
+/usr/bin/python3.12 -c 'import kubernetes; print(kubernetes.__version__)' || true
+```
+
+**確認ポイント**:
+
+- `k8s_python_packages_version` 未設定時は `/usr/bin/python3` で import 成功すること。
+- `k8s_python_packages_version` を設定した場合は, 対応する `/usr/bin/python<version>` で import 成功すること。
+- 取得した版数が `python_k8s_client_version_spec` の制約を満たしていること。
+
+### 4. 変数設定不備で処理が停止する場合
+
+**実施対象ホスト**: 制御ホスト
+
+**実行するコマンド**:
+
+```bash
+grep -n 'k8s_devel_python_client_enabled\|python_k8s_client_version_spec\|k8s_python_packages_version' vars/all-config.yml host_vars/*.yml
+ansible-playbook -i inventory/hosts site.yml --tags "python-k8s-client-local" -vv
+```
+
+**確認ポイント**:
+
+- `python_k8s_client_version_spec` が未定義又は空文字列でないこと。
+- `k8s_devel_python_client_enabled` が `true` であること。
+- `k8s_python_packages_version` を設定した場合は, 対象ホストに該当 Python 実行ファイルが存在すること。
+
+### 5. 成果物配置先を確認する場合
+
+**実施対象ホスト**: 構築ホスト
+
+**実行するコマンド**:
+
+```bash
+ls -ld /tmp/python-k8s-client-build-* /tmp/python-k8s-client-build-fallback-*
+find /tmp/python-k8s-client-build-* /tmp/python-k8s-client-build-fallback-* -maxdepth 2 -type f \( -name '*.deb' -o -name '*.rpm' \)
+```
+
+**確認ポイント**:
+
+- ビルドワークスペース又はフォールバックワークスペースが作成されていること。
+- `.deb` 又は `.rpm` の成果物が出力されていること。
+
+## 注意事項
+
+- ansible が check mode で動作している場合は本処理をスキップするため, 導入確認を行う場合は check mode を無効にして実行すること。
+- `python_k8s_client_version_spec` が未定義又は空文字列の場合はアサーションで停止するため, 呼び出し元ロールで必ず値を設定すること。
+- `k8s_python_packages_version` を設定した場合は, 対象ホストに対応する `/usr/bin/python<version>` が存在すること。存在しない場合は導入後の import 検証が失敗する。
+- ローカルパッケージの生成成果物は `/tmp/python-k8s-client-build-*` 又は `/tmp/python-k8s-client-build-fallback-*` に出力されるため, 作業ディレクトリの空き容量と削除方針を事前に確認すること。
+- `python_k8s_client_build_container_runtime` で指定したコンテナランタイムが構築ホストで利用可能であること。実行不可の場合はビルド処理が開始できない。
+- 生成パッケージには署名付与を実施しないため, 配布経路と導入対象を運用手順で管理し, 信頼境界外へ持ち出さないこと。
+
 ## 参考資料
 
 ### 公式ドキュメント
 
-- Kubernetes Python Client: https://github.com/kubernetes-client/python
-- Python: https://docs.python.org/3/
-
+- [Python](https://docs.python.org/3/)
+- [Kubernetes Python Client](https://github.com/kubernetes-client/python)

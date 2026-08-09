@@ -18,6 +18,13 @@
       - [Debian/Ubuntu環境での確認方法](#debianubuntu環境での確認方法)
       - [RHEL/AlmaLinux環境での確認方法](#rhelalmalinux環境での確認方法)
   - [トラブルシューティング](#トラブルシューティング)
+    - [1. ロール実行後も yq が導入されない場合](#1-ロール実行後も-yq-が導入されない場合)
+    - [2. Validate yq version format で失敗する場合](#2-validate-yq-version-format-で失敗する場合)
+    - [3. ローカルパッケージ構築でタイムアウトする場合](#3-ローカルパッケージ構築でタイムアウトする場合)
+    - [4. Build and install yq local packages via pkgbld-common で失敗する場合](#4-build-and-install-yq-local-packages-via-pkgbld-common-で失敗する場合)
+    - [5. Debian/Ubuntu 系でパッケージ導入がロック待ち失敗する場合](#5-debianubuntu-系でパッケージ導入がロック待ち失敗する場合)
+    - [6. 補完ファイルが配置されない場合](#6-補完ファイルが配置されない場合)
+    - [7. yq --version 検証で版数不一致になる場合](#7-yq---version-検証で版数不一致になる場合)
   - [注意事項](#注意事項)
   - [参考資料](#参考資料)
     - [公式ドキュメント](#公式ドキュメント)
@@ -59,12 +66,12 @@
 | Playbook | - | 自動化処理の実行手順を記述したファイル。 |
 | Canonical | - | Ubuntu を提供する組織名。 |
 | Key-Value | - | キーと値の組で情報を表す方式。 |
-| Internet Protocol | IP | インターネットプロトコルの略称。 |
+| Internet Protocol | IP | ネットワーク上で宛先を識別し, データを届けるための通信手順。 |
 | Structured Query Language | SQL | データベースを操作するための記述言語。 |
-| Hypertext Transfer Protocol | HTTP | WWW で情報をやり取りする通信手順。 |
-| Hypertext Transfer Protocol Secure | HTTPS | 通信内容を暗号化して WWW 通信を行う方式。 |
-| RPM Package Manager | RPM | RHEL 系で使用するパッケージ形式。 |
-| Virtual Machine | VM | 物理機器上で動作する仮想的な計算機。 |
+| Hypertext Transfer Protocol | HTTP | World Wide Webで情報をやり取りする通信手順。 |
+| Hypertext Transfer Protocol Secure | HTTPS | 通信内容を暗号化してWorld Wide Web通信を行う方式。 |
+| RPM Package Manager | RPM | RPM形式パッケージの導入, 更新, 削除, 情報参照を行う仕組み。 |
+| Virtual Machine | VM | 物理計算機上で動作する仮想的な計算機。 |
 | localhost | - | 同一機器自身を指す名前。 |
 | root | - | Unix 系システムの最上位権限を持つ管理者識別子。 |
 | ソフトウェア | - | 情報処理システムで使用するプログラム, 手順, 規則及び関連文書の全体又は一部分。 |
@@ -92,35 +99,32 @@
 | Service | - | サービスの英語表記。 |
 | Node | - | ノードの英語表記。 |
 | Makefile | - | 実行手順を定義したファイル。 |
-| Application Programming Interface | API | アプリケーション同士がやり取りする方法を定めた仕様。 |
-| Uniform Resource Locator | URL | WWW 上の資源の場所を示す文字列。 |
+| Application Programming Interface | API | アプリケーション同士が機能やデータをやり取りするための取り決め。 |
+| Uniform Resource Locator | URL | World Wide Web上の資源の場所を示す文字列。 |
 | 制御ホスト | - | Playbook を実行し, 他ホストへの処理指示を行う管理用ホスト。 |
 | 構築ホスト | - | パッケージや実行資材を生成するビルド処理を担当するホスト。 |
 | Debian package | deb | Debian/Ubuntu 系で使用するパッケージ形式。 |
-| RPM Package Manager | RPM | RHEL/AlmaLinux 系で使用するパッケージ形式。 |
+| RPM Package Manager | RPM | RPM形式パッケージの導入, 更新, 削除, 情報参照を行う仕組み。 |
 | コンテナ ( Container ) | - | アプリケーションと依存関係を一つのパッケージ化したもの。軽量で, どの環境でも一貫して実行可能。 |
 | Kubernetes | K8s | コンテナを管理する基盤ソフトウェア。 |
 | Yet Another Markup Language | YAML | 設定ファイル形式です。 |
 | JavaScript Object Notation | JSON | 人間が読みやすいテキスト形式のデータ交換フォーマット。キーと値のペアで構成され, 設定ファイルやAPI レスポンスに広く使用される。 |
 | Extensible Markup Language | XML | 構造を持ったデータを記述するための拡張可能なマークアップ言語のこと。 |
-| Red Hat Enterprise Linux | RHEL | Red Hat 社が提供する商用 Linux ディストリビューション。 |
+| Red Hat Enterprise Linux | RHEL | Red Hatが提供する企業向けLinuxディストリビューション。 |
 | Host Variables | host_vars | ホスト単位の設定値を格納する変数定義。 |
 | Ansible Inventory | inventory | 実行対象ホストの一覧と接続情報を管理する定義。 |
 | Ansible Task | task | 自動化処理の最小単位となる実行項目。 |
 | ansible-playbookコマンド | - | Ansible Playbook を実行して自動構成処理を適用するコマンド。 |
 | `dpkg` | - | Debian パッケージの情報参照や導入確認を行うコマンド。 |
 | `ls` | - | ファイルやディレクトリの一覧を表示するコマンド。 |
-| `make` | - | Makefile に定義された処理を実行するコマンド。 |
+| makeコマンド | make | Makefile に定義された処理を実行するコマンド。 |
 | rpmコマンド | - | RPM パッケージの情報参照や導入確認を行うコマンド。 |
 | `yq` | - | YAML を抽出, 変換, 更新するコマンド。 |
 | ノード | - | ネットワークに接続された機器または処理単位。 |
 | ローカルパッケージ | - | 外部配布元ではなく, 手元環境で作成または保管した導入用パッケージ。 |
 | 対象ホスト | - | Playbook による設定変更や導入処理の適用先となるホスト。 |
-
 ## 概要
 本ロールでは, Yet Another Markup Language (YAML), JavaScript Object Notation (JSON), Extensible Markup Language (XML)などを処理するためのコマンドラインツールである yq コマンドをソースコードから構築し, ローカルパッケージ(deb/rpm)として対象ホストへ導入します。
-
-本ロールは, yq に関する設定処理を実施します。
 
 ## 動作仕様
 
@@ -258,17 +262,124 @@ $ ls -l /usr/share/zsh/site-functions/_yq
 
 ## トラブルシューティング
 
-代表的なトラブルと対処を以下に示します。
+### 1. ロール実行後も yq が導入されない場合
 
-| 想定トラブル | 主な原因 | 対処方法 |
-| --- | --- | --- |
-| ロール実行後も `yq` が導入されない | `yq_enabled` が `false` のままで, `package.yml` がスキップされている | 実行者は `vars/all-config.yml` または `host_vars` で `yq_enabled: true` を設定し, Ansible 出力で `Package` タスクが `skipping` になっていないことを確認して再実行します。 |
-| `Validate yq version format` で失敗する | `yq_version` が `vX.Y.Z` または `X.Y.Z` 形式ではない | 実行者は `yq_version` を `v4.47.1` のような形式へ修正して再実行します。 |
-| ローカルパッケージ構築でタイムアウトする | 構築ホストの性能不足, ネットワーク遅延, イメージ取得遅延により `yq_pkg_build_timeout_seconds` 内で完了しない | 実行者は `build-*.log` を確認して停滞箇所を特定し, 必要に応じて `yq_pkg_build_timeout_seconds` を増やした上で再実行します。 |
-| `Build and install yq local packages via pkgbld-common` で失敗する | `yq_build_host` への接続不可, `yq_build_container_runtime` コマンド未導入, ビルド用イメージ取得失敗 | 実行者は構築ホストで `docker --version` などランタイムの動作確認と, `ubuntu:24.04` / `almalinux:9.6` の取得可否を確認します。必要に応じてランタイム, イメージ, 接続設定を見直して再実行します。 |
-| Debian/Ubuntu 系でパッケージ導入がロック待ち失敗する | `apt` ロック競合が `yq_install_deb_lock_wait_seconds` (既定: `600`) を超えて継続している | 実行者は対象ホストで他の `apt` 実行を終了させ, `yq_install_deb_lock_wait_seconds` を必要に応じて延長して再実行します。 |
-| 補完ファイルが配置されない | `yq_completion_enabled` が `false` で補完同梱が無効になっている | 実行者は `yq_completion_enabled: true` を設定して再実行し, Debian では `/usr/share/zsh/vendor-completions/_yq`, RHEL では `/usr/share/zsh/site-functions/_yq` を確認します。 |
-| `yq --version` 検証で版数不一致になる | 既存の別バイナリが優先されている, または構築版数と `yq_version` 指定値が一致していない | 実行者は `which yq` と `yq --version` を確認し, 既存導入物の影響がある場合は `yq_remove_existing_package: true` のまま再実行します。必要に応じて `PATH` 上の重複バイナリを整理します。 |
+**実施対象ホスト**: 制御ホスト, 対象ホスト
+
+**実行するコマンド**:
+
+```bash
+grep -n "yq_enabled" vars/all-config.yml host_vars/*.yml
+ansible-playbook -i inventory/hosts site.yml --tags "yq"
+which yq
+```
+
+**確認ポイント**:
+
+- `yq_enabled: true` が設定されていること。
+- 実行ログで package タスクが skipping になっていないこと。
+- 対象ホストで `which yq` が実行ファイルパスを返すこと。
+
+### 2. Validate yq version format で失敗する場合
+
+**実施対象ホスト**: 制御ホスト
+
+**実行するコマンド**:
+
+```bash
+grep -n "yq_version" vars/all-config.yml host_vars/*.yml
+```
+
+**確認ポイント**:
+
+- `yq_version` が `vX.Y.Z` 又は `X.Y.Z` 形式であること。
+- 形式不一致の場合は `v4.47.1` のように修正して再実行すること。
+
+### 3. ローカルパッケージ構築でタイムアウトする場合
+
+**実施対象ホスト**: 制御ホスト, 構築ホスト
+
+**実行するコマンド**:
+
+```bash
+grep -n "yq_pkg_build_timeout_seconds\|yq_pkg_build_loop_delay_seconds" vars/all-config.yml host_vars/*.yml
+ls -1 build-*.log
+```
+
+**確認ポイント**:
+
+- `build-*.log` で停滞箇所を特定できること。
+- 必要に応じて `yq_pkg_build_timeout_seconds` を延長して再実行すること。
+
+### 4. Build and install yq local packages via pkgbld-common で失敗する場合
+
+**実施対象ホスト**: 構築ホスト
+
+**実行するコマンド**:
+
+```bash
+docker --version
+docker pull ubuntu:24.04
+docker pull almalinux:9.6
+```
+
+**確認ポイント**:
+
+- `yq_build_container_runtime` で指定したコンテナランタイムが利用可能であること。
+- ビルド用イメージを取得できること。
+- `yq_build_host` へ接続可能であること。
+
+### 5. Debian/Ubuntu 系でパッケージ導入がロック待ち失敗する場合
+
+**実施対象ホスト**: 対象ホスト
+
+**実行するコマンド**:
+
+```bash
+ps -ef | grep -E "apt|dpkg" | grep -v grep
+grep -n "yq_install_deb_lock_wait_seconds" vars/all-config.yml host_vars/*.yml
+```
+
+**確認ポイント**:
+
+- 他の apt 実行が継続していないこと。
+- `yq_install_deb_lock_wait_seconds` が環境に対して十分な値であること。
+
+### 6. 補完ファイルが配置されない場合
+
+**実施対象ホスト**: 対象ホスト
+
+**実行するコマンド**:
+
+```bash
+grep -n "yq_completion_enabled" vars/all-config.yml host_vars/*.yml
+ls -l /usr/share/bash-completion/completions/yq
+ls -l /usr/share/zsh/vendor-completions/_yq 2>/dev/null || ls -l /usr/share/zsh/site-functions/_yq
+```
+
+**確認ポイント**:
+
+- `yq_completion_enabled: true` が設定されていること。
+- Debian/Ubuntu では `/usr/share/zsh/vendor-completions/_yq` が存在すること。
+- RHEL/AlmaLinux では `/usr/share/zsh/site-functions/_yq` が存在すること。
+
+### 7. yq --version 検証で版数不一致になる場合
+
+**実施対象ホスト**: 対象ホスト
+
+**実行するコマンド**:
+
+```bash
+which yq
+yq --version
+echo "$PATH"
+```
+
+**確認ポイント**:
+
+- `which yq` が想定する実行パスを返すこと。
+- `yq --version` の版数が `yq_version` 指定値と一致すること。
+- 既存導入物の影響がある場合は `yq_remove_existing_package: true` で再実行し, 必要に応じて `PATH` 上の重複バイナリを整理すること。
 
 ## 注意事項
 

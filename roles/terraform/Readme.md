@@ -20,6 +20,12 @@
     - [5. リポジトリ設定の確認 (RHEL 系)](#5-リポジトリ設定の確認-rhel-系)
     - [6. パッケージ情報の確認](#6-パッケージ情報の確認)
   - [トラブルシューティング](#トラブルシューティング)
+    - [1. ロール実行後も terraform が導入されない場合](#1-ロール実行後も-terraform-が導入されない場合)
+    - [2. Debian/Ubuntu 系で Add HashiCorp GPG key が失敗する場合](#2-debianubuntu-系で-add-hashicorp-gpg-key-が失敗する場合)
+    - [3. Debian/Ubuntu 系で apt-cache policy terraform に HashiCorp リポジトリが表示されない場合](#3-debianubuntu-系で-apt-cache-policy-terraform-に-hashicorp-リポジトリが表示されない場合)
+    - [4. RHEL 系で terraform パッケージが見つからない場合](#4-rhel-系で-terraform-パッケージが見つからない場合)
+    - [5. keyring ファイルが存在しても apt update で署名検証に失敗する場合](#5-keyring-ファイルが存在しても-apt-update-で署名検証に失敗する場合)
+    - [6. terraform version は成功するが期待版数にならない場合](#6-terraform-version-は成功するが期待版数にならない場合)
   - [注意事項](#注意事項)
   - [参考資料](#参考資料)
     - [公式ドキュメント](#公式ドキュメント)
@@ -62,12 +68,12 @@
 | Playbook | - | 自動化処理の実行手順を記述したファイル。 |
 | Canonical | - | Ubuntu を提供する組織名。 |
 | Key-Value | - | キーと値の組で情報を表す方式。 |
-| Internet Protocol | IP | インターネットプロトコルの略称。 |
+| Internet Protocol | IP | ネットワーク上で宛先を識別し, データを届けるための通信手順。 |
 | Structured Query Language | SQL | データベースを操作するための記述言語。 |
-| Hypertext Transfer Protocol | HTTP | WWW で情報をやり取りする通信手順。 |
-| Hypertext Transfer Protocol Secure | HTTPS | 通信内容を暗号化して WWW 通信を行う方式。 |
-| RPM Package Manager | RPM | RHEL 系で使用するパッケージ形式。 |
-| Virtual Machine | VM | 物理機器上で動作する仮想的な計算機。 |
+| Hypertext Transfer Protocol | HTTP | World Wide Webで情報をやり取りする通信手順。 |
+| Hypertext Transfer Protocol Secure | HTTPS | 通信内容を暗号化してWorld Wide Web通信を行う方式。 |
+| RPM Package Manager | RPM | RPM形式パッケージの導入, 更新, 削除, 情報参照を行う仕組み。 |
+| Virtual Machine | VM | 物理計算機上で動作する仮想的な計算機。 |
 | localhost | - | 同一機器自身を指す名前。 |
 | root | - | Unix 系システムの最上位権限を持つ管理者識別子。 |
 | ソフトウェア | - | 情報処理システムで使用するプログラム, 手順, 規則及び関連文書の全体又は一部分。 |
@@ -94,8 +100,8 @@
 | Service | - | サービスの英語表記。 |
 | Node | - | ノードの英語表記。 |
 | Makefile | - | 実行手順を定義したファイル。 |
-| Application Programming Interface | API | アプリケーション同士がやり取りする方法を定めた仕様。 |
-| Uniform Resource Locator | URL | WWW 上の資源の場所を示す文字列。 |
+| Application Programming Interface | API | アプリケーション同士が機能やデータをやり取りするための取り決め。 |
+| Uniform Resource Locator | URL | World Wide Web上の資源の場所を示す文字列。 |
 | Advanced Package Tool | APT | Debian 系のパッケージ管理ツール |
 | Ansible | - | 設定の同一化や導入作業を所定の手順に従って自動化する仕組み。 |
 | curl | - | URL を指定してデータ送受信を行うコマンド。 |
@@ -109,8 +115,8 @@
 | Infrastructure as Code | IaC | インフラ構成をコードで定義・管理する手法, 再現性と保守性を向上 |
 | keyring | - | GPG公開鍵の保管形式。複数の公開鍵をまとめて管理し, パッケージ署名の検証に使用 |
 | Operating System | OS | 計算機の基本機能を管理し, アプリケーションを動作させる基盤ソフトウェア。 |
-| Red Hat Enterprise Linux | RHEL | Red Hat 社が提供する商用 Linux ディストリビューション。 |
-| RPM Package Manager | RPM | RHEL/AlmaLinux 系で使用するパッケージ形式。 |
+| Red Hat Enterprise Linux | RHEL | Red Hatが提供する企業向けLinuxディストリビューション。 |
+| RPM Package Manager | RPM | RPM形式パッケージの導入, 更新, 削除, 情報参照を行う仕組み。 |
 | Secure Shell | SSH | 遠隔の計算機へ安全に接続して操作する方式。 |
 | software-properties-common | - | APTリポジトリ管理用のユーティリティパッケージ。add-apt-repositoryコマンドなどを提供し, サードパーティリポジトリの追加を支援 |
 | Superuser Do | - | 別のユーザ (通常は root) の権限で指定されたコマンドを実行することを可能にする Unix 系システムのプログラム。管理者以外のユーザが管理作業を行うときに使用される |
@@ -118,17 +124,17 @@
 | Ubuntu | - | Canonical が提供する Debian 系の Linux ディストリビューション。 |
 | Yellowdog Updater Modified | YUM | RPM パッケージの導入, 更新, 削除を行う管理ツール。 |
 | Red Hat Enterprise Linux 9 | RHEL9 | Red Hat Enterprise Linux の第9系統版。 |
-| Uniform Resource Locator | URL | URL の正式名称。 |
+| Uniform Resource Locator | URL | World Wide Web上の資源の場所を示す文字列。 |
 | Ansible Task | task | 自動化処理の最小単位となる実行項目。 |
 | ansible-playbookコマンド | - | Ansible Playbook を実行して自動構成処理を適用するコマンド。 |
 | `dnf` | - | RHEL 系でパッケージを導入, 更新, 削除するコマンド。 |
 | `ls` | - | ファイルやディレクトリの一覧を表示するコマンド。 |
-| `make` | - | Makefile に定義された処理を実行するコマンド。 |
+| makeコマンド | make | Makefile に定義された処理を実行するコマンド。 |
 | rpmコマンド | - | RPM パッケージの情報参照や導入確認を行うコマンド。 |
 | サービス | - | 機能を利用者や他システムへ提供する仕組み。 |
 | リモートホスト | - | ネットワーク越しに接続して操作する別ホスト。 |
+| 対象ホスト | - | Playbook による設定変更や導入処理の適用先となるホスト。 |
 | sudoコマンド | sudo | 一時的に管理者権限でコマンドを実行するためのコマンド。 |
-
 ## 概要
 
 このロールは HashiCorp 提供の公式リポジトリを登録し, `terraform` パッケージをインストールします。Debian/Ubuntu 系では APT リポジトリを, RHEL 系では YUM/DNF リポジトリを設定し, GPG 公開鍵による署名検証を有効化します。Ansible 2.15 以降では Deb822 の設定に対応します。
@@ -326,16 +332,113 @@ terraform-1.9.8-1.x86_64
 
 ## トラブルシューティング
 
-代表的なトラブルと対処を以下に示します。
+### 1. ロール実行後も terraform が導入されない場合
 
-| 想定トラブル | 主な原因 | 対処方法 |
-| --- | --- | --- |
-| ロール実行後も `terraform` が導入されない | `terraform_enabled` が `false` のままで, `package.yml` または `package-on-rhel9.yml` がスキップされている | 実行者は `vars/all-config.yml` または `host_vars` で `terraform_enabled: true` を設定し, Ansible 出力で package 系タスクが `skipping` になっていないことを確認して再実行します。 |
-| Debian/Ubuntu 系で `Add HashiCorp GPG key` が失敗する | `curl` での鍵取得失敗, `gpg --dearmor` 実行失敗, リポジトリ URL 到達不可 | 実行者は対象ホストで `curl -fsSL https://apt.releases.hashicorp.com/gpg` を単体実行し, ネットワーク到達性とプロキシ設定を確認します。社内ミラーを利用する場合は `terraform_repository_url_debian` を到達可能な URL に上書きして再実行します。 |
-| Debian/Ubuntu 系で `apt-cache policy terraform` に HashiCorp リポジトリが出ない | Ansible 版数に応じたリポジトリ形式差異, suite 不一致, Deb822/APT repository 登録失敗 | 実行者は `ansible --version` を確認し, 2.15 以上では Deb822, 2.15 未満では `apt_repository` 形式になることを前提に `/etc/apt/sources.list.d/` 配下の HashiCorp 定義を確認します。`ansible_distribution_release` に対応する suite が正しいことも確認します。 |
-| RHEL 系で `terraform` パッケージが見つからない | HashiCorp YUM リポジトリ未登録, `https://rpm.releases.hashicorp.com` への到達不可, `$releasever` / `$basearch` 差異 | 実行者は `dnf repolist | grep -i hashicorp` と `dnf info terraform` を確認します。社内ミラー使用時は `terraform_repository_url_rhel` を上書きし, RHEL9 系であることを確認して再実行します。 |
-| keyring ファイルが存在するのに `apt update` で署名検証に失敗する | `/etc/apt/trusted.gpg.d/hashicorp.gpg` が壊れている, 古い鍵が残っている, 鍵取得途中で失敗した | 実行者は `/etc/apt/trusted.gpg.d/hashicorp.gpg` を退避または削除し, ロールを再実行して鍵を再生成します。その後 `apt update` と `apt-cache policy terraform` を再確認します。 |
-| `terraform version` は通るが期待版数にならない | HashiCorp リポジトリから最新安定版を導入する実装であり, 版数固定機能がない | 実行者は本ロールが特定版数固定に未対応であることを確認します。特定版数が必要な場合は, リポジトリ側の提供版数を制御するか, 別途パッケージ固定手順を追加してください。 |
+**実施対象ホスト**: 制御ホスト, 対象ホスト
+
+**実行するコマンド**:
+
+```bash
+grep -n "terraform_enabled" vars/all-config.yml host_vars/*.yml
+ansible-playbook -i inventory/hosts site.yml --tags terraform
+terraform version
+```
+
+**確認ポイント**:
+
+- `terraform_enabled: true` が設定されていること。
+- 実行ログで package 系タスクが skipping になっていないこと。
+- 対象ホストで `terraform version` が実行できること。
+
+### 2. Debian/Ubuntu 系で Add HashiCorp GPG key が失敗する場合
+
+**実施対象ホスト**: 対象ホスト
+
+**実行するコマンド**:
+
+```bash
+curl -fsSL https://apt.releases.hashicorp.com/gpg
+ls -l /etc/apt/trusted.gpg.d/hashicorp.gpg
+```
+
+**確認ポイント**:
+
+- HashiCorp の GPG 公開鍵 URL へ到達可能であること。
+- `gpg --dearmor` 後の keyring ファイルが生成されていること。
+- 社内ミラーを利用する場合は `terraform_repository_url_debian` が到達可能な URL であること。
+
+### 3. Debian/Ubuntu 系で apt-cache policy terraform に HashiCorp リポジトリが表示されない場合
+
+**実施対象ホスト**: 制御ホスト, 対象ホスト
+
+**実行するコマンド**:
+
+```bash
+ansible --version
+apt-cache policy terraform
+ls -l /etc/apt/sources.list.d/
+```
+
+**確認ポイント**:
+
+- Ansible 2.15 以上では Deb822, 2.15 未満では `apt_repository` 形式を利用すること。
+- `/etc/apt/sources.list.d/` 配下に HashiCorp のリポジトリ定義が存在すること。
+- `ansible_distribution_release` に対応する suite が正しいこと。
+
+### 4. RHEL 系で terraform パッケージが見つからない場合
+
+**実施対象ホスト**: 対象ホスト
+
+**実行するコマンド**:
+
+```bash
+dnf repolist | grep -i hashicorp
+dnf info terraform
+```
+
+**確認ポイント**:
+
+- HashiCorp リポジトリが有効になっていること。
+- `https://rpm.releases.hashicorp.com` へ到達可能であること。
+- 社内ミラー利用時は `terraform_repository_url_rhel` の設定値が正しいこと。
+
+### 5. keyring ファイルが存在しても apt update で署名検証に失敗する場合
+
+**実施対象ホスト**: 対象ホスト
+
+**実行するコマンド**:
+
+```bash
+ls -l /etc/apt/trusted.gpg.d/hashicorp.gpg
+sudo rm -f /etc/apt/trusted.gpg.d/hashicorp.gpg
+ansible-playbook -i inventory/hosts site.yml --tags terraform
+apt update
+apt-cache policy terraform
+```
+
+**確認ポイント**:
+
+- 破損した keyring が残っていないこと。
+- ロール再実行後に keyring が再生成されること。
+- `apt update` と `apt-cache policy terraform` で署名検証とリポジトリ参照が正常であること。
+
+### 6. terraform version は成功するが期待版数にならない場合
+
+**実施対象ホスト**: 制御ホスト, 対象ホスト
+
+**実行するコマンド**:
+
+```bash
+terraform version
+apt-cache policy terraform  # Debian/Ubuntu 系
+dnf info terraform          # RHEL 系
+```
+
+**確認ポイント**:
+
+- 本ロールは HashiCorp リポジトリの提供版数を導入する仕様であること。
+- 特定版数の固定機能は未実装であること。
+- 特定版数が必要な場合はリポジトリ側の提供版数制御又は別途固定手順が必要であること。
 
 ## 注意事項
 

@@ -5,7 +5,9 @@
 ## 目次
 
 - [pkgbld-common ロール](#pkgbld-common-ロール)
+  - [目次](#目次)
   - [用語](#用語)
+  - [概要](#概要)
   - [本ロールの動作仕様](#本ロールの動作仕様)
   - [呼び出し元ロールからの使用方法](#呼び出し元ロールからの使用方法)
     - [呼び出し元ロール作成者が実施する作業](#呼び出し元ロール作成者が実施する作業)
@@ -17,9 +19,35 @@
     - [go-lang-local ロールでの設定パラメタの例](#go-lang-local-ロールでの設定パラメタの例)
       - [Debian/Ubuntuホスト用の呼び出し例](#debianubuntuホスト用の呼び出し例)
       - [RHEL(AlmaLinuxなど)ホスト用の呼び出し例](#rhelalmalinuxなどホスト用の呼び出し例)
-  - [トラブルシューティング](#トラブルシューティング)
-  - [注意事項](#注意事項)
   - [検証項目](#検証項目)
+  - [前提条件](#前提条件)
+  - [実行方法](#実行方法)
+  - [主要変数](#主要変数)
+  - [実行フロー](#実行フロー)
+  - [検証ポイント](#検証ポイント)
+    - [検証の前提条件](#検証の前提条件)
+    - [検証環境の設定](#検証環境の設定)
+    - [検証コマンドと期待結果](#検証コマンドと期待結果)
+      - [1. Playbook 実行結果の確認](#1-playbook-実行結果の確認)
+      - [2. 構築ホスト上の成果物生成確認](#2-構築ホスト上の成果物生成確認)
+      - [3. 導入対象ホスト上の導入状態確認](#3-導入対象ホスト上の導入状態確認)
+      - [4. 版数照合結果の確認](#4-版数照合結果の確認)
+    - [異常時の確認項目](#異常時の確認項目)
+      - [1. 必須変数不足による停止確認](#1-必須変数不足による停止確認)
+      - [2. 成果物探索失敗時の確認](#2-成果物探索失敗時の確認)
+      - [3. Red Hat 系導入前互換パス確認](#3-red-hat-系導入前互換パス確認)
+  - [トラブルシューティング](#トラブルシューティング)
+    - [1. 必須変数不足で停止する場合](#1-必須変数不足で停止する場合)
+    - [2. 成果物作成用シェルスクリプトが見つからない場合](#2-成果物作成用シェルスクリプトが見つからない場合)
+    - [3. パッケージ成果物が見つからない場合](#3-パッケージ成果物が見つからない場合)
+    - [4. 成果物回収で失敗する場合](#4-成果物回収で失敗する場合)
+    - [5. Debian系統で待機時間を超過する場合](#5-debian系統で待機時間を超過する場合)
+    - [6. Red Hat系統で chkconfig 導入時に失敗する場合](#6-red-hat系統で-chkconfig-導入時に失敗する場合)
+    - [7. Red Hat系統で署名検証に失敗する場合](#7-red-hat系統で署名検証に失敗する場合)
+    - [8. 版数照合で不一致になる場合](#8-版数照合で不一致になる場合)
+  - [注意事項](#注意事項)
+  - [参考資料](#参考資料)
+    - [公式ドキュメント](#公式ドキュメント)
 
 ## 用語
 
@@ -60,12 +88,12 @@
 | Playbook | - | 自動化処理の実行手順を記述したファイル。 |
 | Canonical | - | Ubuntu を提供する組織名。 |
 | Key-Value | - | キーと値の組で情報を表す方式。 |
-| Internet Protocol | IP | インターネットプロトコルの略称。 |
+| Internet Protocol | IP | ネットワーク上で宛先を識別し, データを届けるための通信手順。 |
 | Structured Query Language | SQL | データベースを操作するための記述言語。 |
-| Hypertext Transfer Protocol | HTTP | WWW で情報をやり取りする通信手順。 |
-| Hypertext Transfer Protocol Secure | HTTPS | 通信内容を暗号化して WWW 通信を行う方式。 |
-| RPM Package Manager | RPM | RHEL 系で使用するパッケージ形式。 |
-| Virtual Machine | VM | 物理機器上で動作する仮想的な計算機。 |
+| Hypertext Transfer Protocol | HTTP | World Wide Webで情報をやり取りする通信手順。 |
+| Hypertext Transfer Protocol Secure | HTTPS | 通信内容を暗号化してWorld Wide Web通信を行う方式。 |
+| RPM Package Manager | RPM | RPM形式パッケージの導入, 更新, 削除, 情報参照を行う仕組み。 |
+| Virtual Machine | VM | 物理計算機上で動作する仮想的な計算機。 |
 | localhost | - | 同一機器自身を指す名前。 |
 | root | - | Unix 系システムの最上位権限を持つ管理者識別子。 |
 | ソフトウェア | - | 情報処理システムで使用するプログラム, 手順, 規則及び関連文書の全体又は一部分。 |
@@ -92,8 +120,8 @@
 | Service | - | サービスの英語表記。 |
 | Node | - | ノードの英語表記。 |
 | Makefile | - | 実行手順を定義したファイル。 |
-| Application Programming Interface | API | アプリケーション同士がやり取りする方法を定めた仕様。 |
-| Uniform Resource Locator | URL | WWW 上の資源の場所を示す文字列。 |
+| Application Programming Interface | API | アプリケーション同士が機能やデータをやり取りするための取り決め。 |
+| Uniform Resource Locator | URL | World Wide Web上の資源の場所を示す文字列。 |
 | ロール | - | Ansible における処理のまとまり。 |
 | 変数 | - | 実行時に値を切り替えるための設定項目。 |
 | 実行メッセージ | - | 実行中または失敗時に表示される文字列。 |
@@ -124,8 +152,8 @@
 | 署名検証 | - | パッケージに付与された署名を導入時に確認する処理。 |
 | 排他制御待機 | - | パッケージ管理コマンドの同時実行を避けるための待ち合わせ処理のこと。 |
 | GNU Privacy Guard | GPG | 公開鍵暗号方式でデータを保護するためのソフトウェア。 |
-| Red Hat Enterprise Linux | RHEL | Red Hat 社が提供する商用 Linux ディストリビューション。 |
-| RPM Package Manager | RPM | RHEL/AlmaLinux 系で使用するパッケージ形式。 |
+| Red Hat Enterprise Linux | RHEL | Red Hatが提供する企業向けLinuxディストリビューション。 |
+| RPM Package Manager | RPM | RPM形式パッケージの導入, 更新, 削除, 情報参照を行う仕組み。 |
 | Host Variables | host_vars | ホスト単位の設定値を格納する変数定義。 |
 | Ansible Inventory | inventory | 実行対象ホストの一覧と接続情報を管理する定義。 |
 | Ansible Task | task | 自動化処理の最小単位となる実行項目。 |
@@ -136,8 +164,9 @@
 | 対象ホスト | - | Playbook による設定変更や導入処理の適用先となるホスト。 |
 
 ## 概要
-本ロールは, ディストリビューション用パッケージ構築から導入までの処理をロール間で共通化して使用可能にするためのロールです。
+
 本ロールでは, 以下の機能を実現するための他のロールから呼び出し可能なロールを定義する:
+
 1. deb/rpm 形式のパッケージを構築ホスト上のコンテナ環境で作成
 2. 作成されたパッケージをAnsible 制御ホストにダウンロード
 3. Ansible 制御ホストから導入先ホストへのパッケージの配布
@@ -483,34 +512,320 @@ ansible-playbook -i inventory/hosts site.yml --tags "pkgbld-common"
 
 ## 実行フロー
 
-1. 実行者が load-params.yml により変数を読み込む。
-2. 実行者が本ロール固有の task を順次実行します。
-3. 実行者が検証コマンドを実行して期待結果を確認します。
+1. [tasks/main.yml](tasks/main.yml) の `Load Params` で [tasks/load-params.yml](tasks/load-params.yml) を読み込み, ロール単独実行時に必要な変数を再読込します。
+2. [tasks/main.yml](tasks/main.yml) の `Package` で [tasks/package.yml](tasks/package.yml) を実行し, パッケージ作成から導入までの本処理を開始します。
+3. [tasks/package.yml](tasks/package.yml) の `Validate` で [tasks/validate.yml](tasks/validate.yml) を実行し, 必須変数, OS系統別ビルダーイメージ, 成果物探索パターン, build スクリプト存在を検証します。
+4. [tasks/package.yml](tasks/package.yml) の `Prepare build workdir` と `Run build container` で [tasks/prepare-build-workdir.yml](tasks/prepare-build-workdir.yml), [tasks/run-build-container.yml](tasks/run-build-container.yml) を実行し, 構築ホスト上で作業ディレクトリ準備とコンテナ内ビルドを実施します。
+5. [tasks/package.yml](tasks/package.yml) の `Collect artifacts` と `Distribute artifacts` で [tasks/collect.yml](tasks/collect.yml), [tasks/distribute.yml](tasks/distribute.yml) を実行し, 構築ホストから制御ホスト, 制御ホストから導入対象ホストへ成果物を配布します。
+6. [tasks/package.yml](tasks/package.yml) の `Install local packages` で [tasks/install.yml](tasks/install.yml) を実行し, OS系統に応じて `.deb` 又は `.rpm` を導入します。
+7. [tasks/package.yml](tasks/package.yml) の `Verify installation` で [tasks/verify.yml](tasks/verify.yml) を実行し, 導入済み状態と版数照合条件を検証します。
+8. [tasks/package.yml](tasks/package.yml) の `Cleanup build workspace` で [tasks/cleanup-build-workdir.yml](tasks/cleanup-build-workdir.yml) を実行し, 設定に応じて構築ホスト上の作業ディレクトリを削除します。
+9. [tasks/main.yml](tasks/main.yml) で `Directory`, `User Group`, `Service`, `Config` の各 include を順に評価します。現行実装ではそれぞれ [tasks/directory.yml](tasks/directory.yml), [tasks/user_group.yml](tasks/user_group.yml), [tasks/service.yml](tasks/service.yml), [tasks/config.yml](tasks/config.yml) は空実装です。
 
 ## 検証ポイント
 
-実行者は以下の検証コマンドを実行し, 構文検査が成功することを確認します。
+### 検証の前提条件
 
-```bash
-ansible-playbook -i inventory/hosts site.yml --syntax-check
+検証を始める前に, 次の条件が満たされていることを確認します。
+
+- 構築ホストで `pkgbld_container_runtime` に指定したコンテナ実行コマンドが利用可能であること。
+- 呼び出し元ロールで成果物作成用シェルスクリプトとコンテナイメージが準備済みであること。
+- `package_targets` に導入対象ホストが1台以上設定されていること。
+- 構築ホスト, 制御ホスト, 導入対象ホスト間で成果物配布に必要な通信が可能であること。
+- 版数照合を有効化する場合は `pkgbld_verify_version_command`, `pkgbld_verify_version_regex`, `pkgbld_verify_version_expected` が定義済みであること。
+
+### 検証環境の設定
+
+検証用の host_vars と vars/all-config.yml を次の値で設定します:
+
+```yaml
+1: package_build_host: "localhost"
+2: package_build_workspace: "/tmp/go-build"
+3: package_build_output_dir: "/tmp/go-build/output"
+4: pkgbld_install_dest_dir: "/tmp"
+5: pkgbld_package_name: "go-lang"
+6: pkgbld_verify_version_enabled: true
+7: pkgbld_verify_version_expected: "1.25.12"
 ```
 
-期待結果: エラーが出力されず, syntax check が成功します。
+| 行番号 | 設定値 | 有効になる動作 | 設定背景(未設定時/誤設定時の問題と防止理由) |
+| --- | --- | --- | --- |
+| 1 | package_build_host: "localhost" | パッケージ作成処理の実行先を指定します。 | 構築ホスト未指定の場合は run_once 処理で成果物回収元を特定できず失敗するためです。 |
+| 2-3 | package_build_workspace, package_build_output_dir | 構築作業ディレクトリと成果物出力先を指定します。 | パス不整合の場合は成果物探索と回収処理で失敗するためです。 |
+| 4 | pkgbld_install_dest_dir: "/tmp" | 導入対象ホスト上の成果物一時配置先を指定します。 | 配置先未指定の場合は配布処理のコピー先を解決できないためです。 |
+| 5 | pkgbld_package_name: "go-lang" | 導入済み判定と版数照合対象のパッケージ名を指定します。 | パッケージ名不一致の場合は導入済み確認が誤検知になるためです。 |
+| 6-7 | pkgbld_verify_version_enabled, pkgbld_verify_version_expected | 版数照合処理を有効化し, 期待版数を指定します。 | 期待版数未指定又は不一致の場合は照合結果が失敗となるためです。 |
+
+### 検証コマンドと期待結果
+
+#### 1. Playbook 実行結果の確認
+
+**実施対象ホスト**: 制御ホスト
+
+**実行するコマンド**:
+
+```bash
+ansible-playbook -i inventory/hosts site.yml --tags "pkgbld-common"
+```
+
+**期待される出力**:
+
+```plaintext
+failed=0
+```
+
+**確認ポイント**:
+
+- 実行結果が `failed=0` で完了すること。
+- `Validate required variables for pkgbld-common` が成功していること。
+
+#### 2. 構築ホスト上の成果物生成確認
+
+**実施対象ホスト**: 構築ホスト
+
+**実行するコマンド**:
+
+```bash
+ls -l /tmp/go-build/output
+find /tmp/go-build/output -maxdepth 1 -type f \( -name '*.deb' -o -name '*.rpm' \)
+```
+
+**期待される出力**:
+
+```plaintext
+...go-lang_*.deb
+または
+...go-lang-*.rpm
+```
+
+**確認ポイント**:
+
+- `package_build_output_dir` 配下に成果物ファイルが存在すること。
+- 生成された成果物名が `pkgbld_package_file_patterns_*` の規則と一致すること。
+
+#### 3. 導入対象ホスト上の導入状態確認
+
+**実施対象ホスト**: 導入対象ホスト
+
+**実行するコマンド**:
+
+```bash
+dpkg-query -W -f='${Status} ${Version}\n' go-lang || true
+rpm -q go-lang || true
+```
+
+**期待される出力**:
+
+```plaintext
+install ok installed
+または
+go-lang-<version>
+```
+
+**確認ポイント**:
+
+- Debian系統では `dpkg-query` が導入済み状態を返すこと。
+- Red Hat系統では `rpm -q` が導入済みパッケージ名を返すこと。
+
+#### 4. 版数照合結果の確認
+
+**実施対象ホスト**: 導入対象ホスト
+
+**実行するコマンド**:
+
+```bash
+/usr/local/go/bin/go version
+```
+
+**期待される出力**:
+
+```plaintext
+go version go1.25.12 ...
+```
+
+**確認ポイント**:
+
+- コマンド出力から抽出された版数が `pkgbld_verify_version_expected` と一致すること。
+- Debian系統で付加版番号差分がある場合は `pkgbld_verify_strip_after_hyphen` の設定意図と一致すること。
+
+### 異常時の確認項目
+
+#### 1. 必須変数不足による停止確認
+
+**実施対象ホスト**: 制御ホスト
+
+**実行するコマンド**:
+
+```bash
+grep -n 'package_build_host\|pkgbld_build_script_src_debian\|pkgbld_build_script_src_rhel\|package_targets' vars/all-config.yml host_vars/*.yml
+```
+
+**確認ポイント**:
+
+- 必須変数が未定義又は空文字列になっていないこと。
+- `package_targets` が空配列でないこと。
+
+#### 2. 成果物探索失敗時の確認
+
+**実施対象ホスト**: 構築ホスト, 制御ホスト
+
+**実行するコマンド**:
+
+```bash
+ls -l /tmp/go-build/output
+```
+
+**確認ポイント**:
+
+- 成果物ファイル名が `pkgbld_package_file_patterns_debian` 又は `pkgbld_package_file_patterns_rhel` と一致していること。
+- 成果物出力先ディレクトリと探索対象ディレクトリが同一であること。
+
+#### 3. Red Hat 系導入前互換パス確認
+
+**実施対象ホスト**: Red Hat系統の導入対象ホスト
+
+**実行するコマンド**:
+
+```bash
+ls -ld /etc/init.d /etc/rc.d/init.d
+```
+
+**確認ポイント**:
+
+- `/etc/init.d` が `/etc/rc.d/init.d` を参照する互換 symlink であること。
+- `/etc/init.d.ansible-backup` が存在する場合は, 既存運用との整合を確認済みであること。
+
 
 ## トラブルシューティング
 
-主なトラブルの症状, 原因, 確認項目, 対処方法を以下に示す:
+### 1. 必須変数不足で停止する場合
 
-| 症状 | 主な原因 | 確認項目 | 対処 |
-| --- | --- | --- | --- |
-| 必須変数不足で停止する | 必須変数未設定 | package_build_host, pkgbld_build_script_src_debian/rhel, package_targets などの必須変数値 | 呼び出し側の必須変数設定値を見直す。実行メッセージ例: Validate required variables。 |
-| 成果物作成用シェルスクリプトが見つからない | スクリプト未生成, パス不整合 | pkgbld_build_script_src_debian / pkgbld_build_script_src_rhel が指す成果物作成用シェルスクリプトファイル | 成果物作成用シェルスクリプト生成処理を先に実行し, 成果物作成用シェルスクリプトファイルの絶対パスを統一します。実行メッセージ例: Build script source does not exist。 |
-| パッケージ成果物が見つからない | 成果物パターン不一致 | pkgbld_package_file_patterns_* と実ファイル名 | パッケージ成果物探索パターンを実ファイル名に合わせる。実行メッセージ例: No package artifact was generated。 |
-| 成果物回収で失敗する | 構築ホストの権限不足, パス不整合 | package_build_output_dir と成果物権限 | パッケージ成果物出力先ディレクトリと成果物ファイルの読み取り権限を確認します。実行メッセージ例: Fetch built packages ...。 |
-| Debian系統で待機時間を超過する | 他プロセスがパッケージ管理処理の排他制御を保持 | `apt` / `dpkg` の排他制御状態 | 排他制御待機時間パラメタ `pkgbld_install_deb_lock_wait_seconds` を延長します。実行メッセージ例: lock timeout。 |
-| Red Hat系統で `chkconfig` 導入時に失敗する (`error: unpacking of archive failed on file /etc/init.d...`) | `/etc/init.d` の型不整合 (ディレクトリ/不正リンク/不正ファイル) | `ls -ld /etc/init.d /etc/rc.d/init.d` の結果, `pkgbld-common` 実行ログの `Normalize /etc/init.d compatibility path on Red Hat family hosts` タスク結果 | `pkgbld-common` は導入前に `/etc/init.d` を自動正規化します。失敗が継続する場合は `/etc/init.d` が通常ファイルや特殊ファイルになっていないことを確認します。 |
-| Red Hat系統で署名検証に失敗する | 署名未設定の rpm ファイルを導入 | `dnf` エラーメッセージ | 署名検証方針パラメタ `pkgbld_disable_gpg_check` を調整します。実行メッセージ例: GPG error。 |
-| 版数照合で不一致になる | 版数照合用コマンド, 版数抽出式, 期待版数の不整合 | 版数照合コマンド出力, 版数抽出式, 期待版数 | 版数抽出式と期待版数を見直し, Debianで付加版番号差分がある場合は `pkgbld_verify_strip_after_hyphen` の設定値を検討します。実行メッセージ例: version mismatch。 |
+**実施対象ホスト**: 制御ホスト
+
+**実行するコマンド**:
+
+```bash
+grep -n 'package_build_host\|pkgbld_build_script_src_debian\|pkgbld_build_script_src_rhel\|package_targets' vars/all-config.yml host_vars/*.yml
+```
+
+**確認ポイント**:
+
+- package_build_host, pkgbld_build_script_src_debian, pkgbld_build_script_src_rhel が定義済みであること。
+- package_targets が空配列ではないこと。
+- 実行ログに Validate required variables の失敗が出る場合は, 呼び出し元の変数値を見直すこと。
+
+### 2. 成果物作成用シェルスクリプトが見つからない場合
+
+**実施対象ホスト**: 構築ホスト
+
+**実行するコマンド**:
+
+```bash
+ls -l "${pkgbld_build_script_src_debian}" "${pkgbld_build_script_src_rhel}"
+```
+
+**確認ポイント**:
+
+- 成果物作成用シェルスクリプトファイルが存在すること。
+- 呼び出し元ロールが成果物作成用シェルスクリプト生成処理を先に完了していること。
+- 実行ログに Build script source does not exist が出る場合は, 成果物作成用シェルスクリプトファイルの絶対パスを統一すること。
+
+### 3. パッケージ成果物が見つからない場合
+
+**実施対象ホスト**: 構築ホスト
+
+**実行するコマンド**:
+
+```bash
+ls -l /tmp/go-build/output
+find /tmp/go-build/output -maxdepth 1 -type f \( -name '*.deb' -o -name '*.rpm' \)
+```
+
+**確認ポイント**:
+
+- package_build_output_dir 配下に成果物ファイルが存在すること。
+- 成果物ファイル名が pkgbld_package_file_patterns_debian 又は pkgbld_package_file_patterns_rhel と一致すること。
+- 実行ログに No package artifact was generated が出る場合は, パターンと実ファイル名の差分を解消すること。
+
+### 4. 成果物回収で失敗する場合
+
+**実施対象ホスト**: 構築ホスト, 制御ホスト
+
+**実行するコマンド**:
+
+```bash
+ls -ld /tmp/go-build /tmp/go-build/output
+find /tmp/go-build/output -maxdepth 1 -type f -ls
+```
+
+**確認ポイント**:
+
+- package_build_output_dir が構築ホスト上で参照可能であること。
+- 成果物ファイルに制御ホストから読取可能な権限が付与されていること。
+- 実行ログに Fetch built packages の失敗が出る場合は, パス不整合と権限を優先確認すること。
+
+### 5. Debian系統で待機時間を超過する場合
+
+**実施対象ホスト**: Debian系統の導入対象ホスト
+
+**実行するコマンド**:
+
+```bash
+sudo fuser /var/lib/dpkg/lock-frontend /var/lib/dpkg/lock || true
+ps -ef | grep -E 'apt|dpkg' | grep -v grep
+```
+
+**確認ポイント**:
+
+- apt 又は dpkg の排他制御を他プロセスが保持していないこと。
+- lock timeout が出る場合は, pkgbld_install_deb_lock_wait_seconds の値を延長すること。
+
+### 6. Red Hat系統で chkconfig 導入時に失敗する場合
+
+**実施対象ホスト**: Red Hat系統の導入対象ホスト
+
+**実行するコマンド**:
+
+```bash
+ls -ld /etc/init.d /etc/rc.d/init.d /etc/init.d.ansible-backup
+```
+
+**確認ポイント**:
+
+- /etc/init.d が /etc/rc.d/init.d を参照する互換 symlink であること。
+- /etc/init.d が通常ファイル又は特殊ファイルになっていないこと。
+- 実行ログの Normalize /etc/init.d compatibility path on Red Hat family hosts タスク結果に失敗がないこと。
+
+### 7. Red Hat系統で署名検証に失敗する場合
+
+**実施対象ホスト**: Red Hat系統の導入対象ホスト
+
+**実行するコマンド**:
+
+```bash
+dnf -y install /tmp/go-lang-*.rpm
+```
+
+**確認ポイント**:
+
+- dnf 実行結果に GPG error が含まれる場合は署名検証失敗であること。
+- 署名未設定の rpm を導入する運用の場合は pkgbld_disable_gpg_check の設定値を見直すこと。
+
+### 8. 版数照合で不一致になる場合
+
+**実施対象ホスト**: 導入対象ホスト
+
+**実行するコマンド**:
+
+```bash
+/usr/local/go/bin/go version
+```
+
+**確認ポイント**:
+
+- 版数照合コマンド出力から抽出される版数が pkgbld_verify_version_expected と一致すること。
+- Debianで付加版番号差分がある場合は pkgbld_verify_strip_after_hyphen の設定値を見直すこと。
+- version mismatch が出る場合は, 版数抽出式と期待版数の両方を確認すること。
 
 ## 注意事項
 
@@ -525,5 +840,5 @@ ansible-playbook -i inventory/hosts site.yml --syntax-check
 
 ### 公式ドキュメント
 
-- Debian New Maintainers Guide: https://www.debian.org/doc/manuals/maint-guide/
-- RPM Packaging Guide: https://rpm-packaging-guide.github.io/
+- [Debian New Maintainers Guide](https://www.debian.org/doc/manuals/maint-guide/)
+- [RPM Packaging Guide](https://rpm-packaging-guide.github.io/)

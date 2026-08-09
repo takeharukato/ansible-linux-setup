@@ -25,9 +25,18 @@
     - [公式のソースからDebian/Ubuntu用パッケージ(debパッケージ)を構築して導入した場合の確認方法](#公式のソースからdebianubuntu用パッケージdebパッケージを構築して導入した場合の確認方法)
     - [公式のソースからRHEL/Alma Linux用パッケージ(RPMパッケージ)を構築して導入した場合の確認方法](#公式のソースからrhelalma-linux用パッケージrpmパッケージを構築して導入した場合の確認方法)
   - [トラブルシューティング](#トラブルシューティング)
+    - [1. Go導入が実行されず, 警告だけ出て終了する場合](#1-go導入が実行されず-警告だけ出て終了する場合)
+    - [2. Go 公式 API 取得で失敗する場合](#2-go-公式-api-取得で失敗する場合)
+    - [3. 構築ホストでコンテナイメージ作成/パッケージ構築が失敗する場合](#3-構築ホストでコンテナイメージ作成パッケージ構築が失敗する場合)
+    - [4. Go deb/rpm package was not generated for requested version で停止する場合](#4-go-debrpm-package-was-not-generated-for-requested-version-で停止する場合)
+    - [5. No go deb/rpm file found in both host and localhost scopes で停止する場合](#5-no-go-debrpm-file-found-in-both-host-and-localhost-scopes-で停止する場合)
+    - [6. Fetched go deb/rpm package is missing on controller で停止する場合](#6-fetched-go-debrpm-package-is-missing-on-controller-で停止する場合)
+    - [7. Installed Go version mismatch で停止する場合](#7-installed-go-version-mismatch-で停止する場合)
+    - [8. チェックモードで導入確認が進まない場合](#8-チェックモードで導入確認が進まない場合)
   - [注意事項](#注意事項)
   - [参考資料](#参考資料)
     - [公式ドキュメント](#公式ドキュメント)
+
 ## 用語
 
 | 正式名称 | 略称 | 意味 |
@@ -65,12 +74,12 @@
 | Playbook | - | 自動化処理の実行手順を記述したファイル。 |
 | Canonical | - | Ubuntu を提供する組織名。 |
 | Key-Value | - | キーと値の組で情報を表す方式。 |
-| Internet Protocol | IP | インターネットプロトコルの略称。 |
+| Internet Protocol | IP | ネットワーク上で宛先を識別し, データを届けるための通信手順。 |
 | Structured Query Language | SQL | データベースを操作するための記述言語。 |
-| Hypertext Transfer Protocol | HTTP | WWW で情報をやり取りする通信手順。 |
-| Hypertext Transfer Protocol Secure | HTTPS | 通信内容を暗号化して WWW 通信を行う方式。 |
-| RPM Package Manager | RPM | RHEL 系で使用するパッケージ形式。 |
-| Virtual Machine | VM | 物理機器上で動作する仮想的な計算機。 |
+| Hypertext Transfer Protocol | HTTP | World Wide Webで情報をやり取りする通信手順。 |
+| Hypertext Transfer Protocol Secure | HTTPS | 通信内容を暗号化してWorld Wide Web通信を行う方式。 |
+| RPM Package Manager | RPM | RPM形式パッケージの導入, 更新, 削除, 情報参照を行う仕組み。 |
+| Virtual Machine | VM | 物理計算機上で動作する仮想的な計算機。 |
 | localhost | - | 同一機器自身を指す名前。 |
 | root | - | Unix 系システムの最上位権限を持つ管理者識別子。 |
 | ソフトウェア | - | 情報処理システムで使用するプログラム, 手順, 規則及び関連文書の全体又は一部分。 |
@@ -99,18 +108,18 @@
 | Service | - | サービスの英語表記。 |
 | Node | - | ノードの英語表記。 |
 | Makefile | - | 実行手順を定義したファイル。 |
-| Application Programming Interface | API | アプリケーション同士がやり取りする方法を定めた仕様。 |
-| Uniform Resource Locator | URL | WWW 上の資源の場所を示す文字列。 |
+| Application Programming Interface | API | アプリケーション同士が機能やデータをやり取りするための取り決め。 |
+| Uniform Resource Locator | URL | World Wide Web上の資源の場所を示す文字列。 |
 | 制御ホスト | - | Playbook を実行し, 他ホストへの処理指示を行う管理用ホスト。 |
 | 構築ホスト | - | パッケージや実行資材を生成するビルド処理を担当するホスト。 |
 | Go Programming Language | Go | Google が開発したプログラミング言語。 |
 | End Of Life | EOL | サポート終了。公式APIから旧系列版数が返らない場合がある。 |
 | Debian package | deb | Debian/Ubuntu 系で使用するパッケージ形式。 |
-| RPM Package Manager | RPM | RHEL/AlmaLinux 系で使用するパッケージ形式。 |
-| Application Programming Interface | API | API の正式名称。 |
+| RPM Package Manager | RPM | RPM形式パッケージの導入, 更新, 削除, 情報参照を行う仕組み。 |
+| Application Programming Interface | API | アプリケーション同士が機能やデータをやり取りするための取り決め。 |
 | Operating System | OS | 計算機の基本機能を管理し, アプリケーションを動作させる基盤ソフトウェア。 |
-| Red Hat Enterprise Linux | RHEL | Red Hat 社が提供する商用 Linux ディストリビューション。 |
-| Uniform Resource Locator | URL | URL の正式名称。 |
+| Red Hat Enterprise Linux | RHEL | Red Hatが提供する企業向けLinuxディストリビューション。 |
+| Uniform Resource Locator | URL | World Wide Web上の資源の場所を示す文字列。 |
 | Host Variables | host_vars | ホスト単位の設定値を格納する変数定義。 |
 | Ansible Inventory | inventory | 実行対象ホストの一覧と接続情報を管理する定義。 |
 | Ansible Task | task | 自動化処理の最小単位となる実行項目。 |
@@ -125,10 +134,9 @@
 | 対象ホスト | - | Playbook による設定変更や導入処理の適用先となるホスト。 |
 
 ## 概要
+
 本ロールは, 特定の版数のGo言語ソースを公式サイトからダウンロードし, Go 言語パッケージを構築, 導入するロールです。
 Go 言語版 Kubernetes client のローカルパッケージ配布は本ロールでは実施せず, `go-k8s-client-local` ロールで実施します。
-
-本ロールは, go-lang-local に関する設定処理を実施します。
 
 ## 本ロールの動作仕様
 
@@ -176,12 +184,12 @@ Go 言語版 Kubernetes client のローカルパッケージ配布は本ロー�
 
 ## 前提条件
 
-本ロールの実行者は, 対象ホストが inventory に登録済みであることを確認します。
-本ロールの実行者は, 関連する共通変数が vars/all-config.yml または host_vars に定義済みであることを確認します。
+- 対象ホストが inventory に登録済みであること
+- 関連する共通変数が vars/all-config.yml または host_vars に定義済みであること
 
 ## 実行方法
 
-実行者は制御ホストで以下のコマンドを実行します。
+制御ホストで以下のコマンドを実行します。
 
 ```bash
 ansible-playbook -i inventory/hosts site.yml --tags "go-lang-local"
@@ -367,16 +375,142 @@ go-lang-1.25.11-1.el9.x86_64
 
 ## トラブルシューティング
 
-| 事象 | 主な原因 | 対処方法 |
-| --- | --- | --- |
-| Go導入が実行されず, 警告だけ出て終了する。 | `go_lang_version` が `x.y` または `x.y.z` 形式ではない, もしくは `x.y` 形式で API 解決不能かつフォールバック未定義である。 | `go_lang_version` を `1.25` または `1.25.11` のような形式で指定する。EOL 系列を利用する場合は `vars/cross-distro.yml` の `go_series_fallback_versions` に対象系列を追加する。 |
-| Go 公式 API 取得で失敗する。 | 制御ホストから `https://go.dev/dl/?mode=json&include=all` へ到達できない, または名前解決ができない。 | 制御ホストで `curl -fsS "https://go.dev/dl/?mode=json&include=all"` を実行して疎通を確認する。プロキシ環境では Playbook 実行環境にプロキシ設定を反映する。 |
-| 構築ホストでコンテナイメージ作成/パッケージ構築が失敗する。 | 構築ホストで Docker が利用できない, もしくは `go_build_container_runtime` と実行可能コマンドが一致していない。 | 構築ホストで `docker version` を実行してコンテナランタイムの動作を確認する。必要に応じて `go_build_host` と `go_build_container_runtime` の指定を実環境に合わせる。 |
-| 「Go deb/rpm package was not generated for requested version」で停止する。 | ビルドスクリプト内部でダウンロード/展開/ビルドに失敗した, または期待ファイル名パターンで成果物が生成されていない。 | 構築ホスト上の `/tmp/go-build-<実行ユーザ名>/output` とフォールバック先の `output` を確認する。あわせて `build-*.log` の該当 task の標準出力/標準エラーを確認し, 失敗した工程を修正する。 |
-| 「No go deb/rpm file found in both host and localhost scopes」で停止する。 | 構築ホストで作成した成果物情報が空のままになっている, または成果物回収前にファイルが消えている。 | 構築ホストの成果物ディレクトリに対象版数のファイルが存在することを確認する。`go_build_host` が意図したホスト名と一致していることを確認する。 |
-| 「Fetched go deb/rpm package is missing on controller」で停止する。 | 構築ホストから制御ホストへの `fetch` が失敗した, または制御ホスト一時領域への書き込みに失敗した。 | 制御ホストの `~/.ansible/tmp` 配下に一時ディレクトリが作成されていることを確認する。制御ホストのディスク空き容量と権限を確認し, 必要なら不要ファイルを削除して再実行する。 |
-| 「Installed Go version mismatch」で停止する。 | 生成パッケージ版数と導入後バイナリ版数が一致しない, または旧版の `go` が優先参照されている。 | 対象ホストで `/usr/local/go/bin/go version` と `which go` を確認する。`go_lang_remove_existing_package` を `true` にして再実行し, 旧版パッケージ残存を解消する。 |
-| チェックモードで導入確認が進まない。 | `--check` 実行時は仕様としてビルド/導入処理をスキップする。 | 版数解決以外の検証(成果物生成, 導入, 版数一致確認)を行う場合は `--check` を外して通常実行する。 |
+### 1. Go導入が実行されず, 警告だけ出て終了する場合
+
+**実施対象ホスト**: 制御ホスト
+
+**実行するコマンド**:
+
+```bash
+grep -n "go_lang_version\|go_series_fallback_versions" vars/cross-distro.yml vars/all-config.yml host_vars/*/main.yml
+```
+
+**確認ポイント**:
+
+- `go_lang_version` が `x.y` または `x.y.z` 形式であること。
+- `x.y` 形式で API 解決不能の場合, `go_series_fallback_versions` に対象系列が定義されていること。
+
+### 2. Go 公式 API 取得で失敗する場合
+
+**実施対象ホスト**: 制御ホスト
+
+**実行するコマンド**:
+
+```bash
+curl -fsS "https://go.dev/dl/?mode=json&include=all" | head -c 300
+getent hosts go.dev
+```
+
+**確認ポイント**:
+
+- 制御ホストから `https://go.dev/dl/?mode=json&include=all` へ到達できること。
+- `go.dev` の名前解決ができること。
+- プロキシ環境の場合, Playbook 実行環境へプロキシ設定を反映していること。
+
+### 3. 構築ホストでコンテナイメージ作成/パッケージ構築が失敗する場合
+
+**実施対象ホスト**: 構築ホスト, 制御ホスト
+
+**実行するコマンド**:
+
+```bash
+docker version
+ansible -i inventory/hosts <go_build_host> -m ping
+grep -n "go_build_host\|go_build_container_runtime" vars/all-config.yml host_vars/*/main.yml
+```
+
+**確認ポイント**:
+
+- 構築ホストでコンテナランタイムが動作すること。
+- `go_build_host` が到達可能であること。
+- `go_build_container_runtime` と実行可能コマンドが一致していること。
+
+### 4. Go deb/rpm package was not generated for requested version で停止する場合
+
+**実施対象ホスト**: 構築ホスト, 制御ホスト
+
+**実行するコマンド**:
+
+```bash
+ls -la /tmp/go-build-*/output
+ls -1 build-*.log
+grep -n "Go deb/rpm package was not generated for requested version" build-*.log
+```
+
+**確認ポイント**:
+
+- `/tmp/go-build-<実行ユーザ名>/output` とフォールバック先 `output` に成果物が生成されていること。
+- `build-*.log` の該当 task で失敗工程を特定できること。
+- ダウンロード, 展開, ビルドのいずれで失敗したか切り分けていること。
+
+### 5. No go deb/rpm file found in both host and localhost scopes で停止する場合
+
+**実施対象ホスト**: 構築ホスト, 制御ホスト
+
+**実行するコマンド**:
+
+```bash
+ls -la /tmp/go-build-*/output
+grep -n "No go deb/rpm file found in both host and localhost scopes" build-*.log
+grep -n "go_build_host" vars/all-config.yml host_vars/*/main.yml
+```
+
+**確認ポイント**:
+
+- 構築ホストの成果物ディレクトリに対象版数のファイルが存在すること。
+- 成果物回収前にファイルが消えていないこと。
+- `go_build_host` が意図したホスト名と一致していること。
+
+### 6. Fetched go deb/rpm package is missing on controller で停止する場合
+
+**実施対象ホスト**: 制御ホスト, 構築ホスト
+
+**実行するコマンド**:
+
+```bash
+ls -la ~/.ansible/tmp
+df -h
+grep -n "Fetched go deb/rpm package is missing on controller" build-*.log
+```
+
+**確認ポイント**:
+
+- 制御ホストの `~/.ansible/tmp` 配下に一時ディレクトリが作成されていること。
+- 制御ホストのディスク空き容量と書き込み権限に問題がないこと。
+- 構築ホストから制御ホストへの `fetch` 失敗がログで確認できること。
+
+### 7. Installed Go version mismatch で停止する場合
+
+**実施対象ホスト**: 対象ホスト
+
+**実行するコマンド**:
+
+```bash
+/usr/local/go/bin/go version
+which go
+go version
+```
+
+**確認ポイント**:
+
+- 生成パッケージ版数と導入後バイナリ版数が一致していること。
+- `which go` の参照先が意図した導入先であること。
+- 旧版が優先参照される場合は `go_lang_remove_existing_package: true` で再実行して解消できること。
+
+### 8. チェックモードで導入確認が進まない場合
+
+**実施対象ホスト**: 制御ホスト
+
+**実行するコマンド**:
+
+```bash
+ansible-playbook -i inventory/hosts devel.yml --tags go-lang-local --check -vv
+```
+
+**確認ポイント**:
+
+- `--check` 実行時は仕様としてビルド/導入処理をスキップすること。
+- 成果物生成, 導入, 版数一致確認を行う場合は `--check` を外して通常実行していること。
 
 ## 注意事項
 

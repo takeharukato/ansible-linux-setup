@@ -8,7 +8,6 @@
   - [目次](#目次)
   - [用語](#用語)
   - [概要](#概要)
-  - [主な処理](#主な処理)
   - [前提条件](#前提条件)
   - [実行方法](#実行方法)
   - [主要変数](#主要変数)
@@ -33,7 +32,24 @@
   - [テンプレートと生成ファイル](#テンプレートと生成ファイル)
   - [実行フロー](#実行フロー)
   - [検証ポイント](#検証ポイント)
+    - [検証の前提条件](#検証の前提条件)
+    - [検証環境の設定](#検証環境の設定)
+    - [検証コマンドと期待結果](#検証コマンドと期待結果)
+      - [1. GitLab 関連ディレクトリの作成確認](#1-gitlab-関連ディレクトリの作成確認)
+      - [2. sysctl 設定の反映確認](#2-sysctl-設定の反映確認)
+      - [3. GitLab コンテナ稼働確認](#3-gitlab-コンテナ稼働確認)
+      - [4. 公開ポート応答確認](#4-公開ポート応答確認)
+      - [5. バックアップスクリプト動作確認](#5-バックアップスクリプト動作確認)
+    - [異常時の確認項目](#異常時の確認項目)
+      - [1. コンテナ起動失敗時のログ確認](#1-コンテナ起動失敗時のログ確認)
+      - [2. リストア実行時の復旧確認](#2-リストア実行時の復旧確認)
   - [トラブルシューティング](#トラブルシューティング)
+    - [1. ロールを実行しても GitLab が導入されない場合](#1-ロールを実行しても-gitlab-が導入されない場合)
+    - [2. docker compose ... up -d で失敗する場合](#2-docker-compose--up--d-で失敗する場合)
+    - [3. Wait for GitLab HTTPS/SSH/Registry port ... でタイムアウトする場合](#3-wait-for-gitlab-httpssshregistry-port--でタイムアウトする場合)
+    - [4. Wait for gitlab self-signed certificate で失敗する場合](#4-wait-for-gitlab-self-signed-certificate-で失敗する場合)
+    - [5. バックアップ / リストア用スクリプトが配置されない場合](#5-バックアップ--リストア用スクリプトが配置されない場合)
+    - [6. クリーンインストール後に既存データが消失した場合](#6-クリーンインストール後に既存データが消失した場合)
   - [注意事項](#注意事項)
   - [参考資料](#参考資料)
     - [公式ドキュメント](#公式ドキュメント)
@@ -75,12 +91,12 @@
 | Playbook | - | 自動化処理の実行手順を記述したファイル。 |
 | Canonical | - | Ubuntu を提供する組織名。 |
 | Key-Value | - | キーと値の組で情報を表す方式。 |
-| Internet Protocol | IP | インターネットプロトコルの略称。 |
+| Internet Protocol | IP | ネットワーク上で宛先を識別し, データを届けるための通信手順。 |
 | Structured Query Language | SQL | データベースを操作するための記述言語。 |
-| Hypertext Transfer Protocol | HTTP | WWW で情報をやり取りする通信手順。 |
-| Hypertext Transfer Protocol Secure | HTTPS | 通信内容を暗号化して WWW 通信を行う方式。 |
-| RPM Package Manager | RPM | RHEL 系で使用するパッケージ形式。 |
-| Virtual Machine | VM | 物理機器上で動作する仮想的な計算機。 |
+| Hypertext Transfer Protocol | HTTP | World Wide Webで情報をやり取りする通信手順。 |
+| Hypertext Transfer Protocol Secure | HTTPS | 通信内容を暗号化してWorld Wide Web通信を行う方式。 |
+| RPM Package Manager | RPM | RPM形式パッケージの導入, 更新, 削除, 情報参照を行う仕組み。 |
+| Virtual Machine | VM | 物理計算機上で動作する仮想的な計算機。 |
 | localhost | - | 同一機器自身を指す名前。 |
 | root | - | Unix 系システムの最上位権限を持つ管理者識別子。 |
 | ソフトウェア | - | 情報処理システムで使用するプログラム, 手順, 規則及び関連文書の全体又は一部分。 |
@@ -108,19 +124,19 @@
 | Service | - | サービスの英語表記。 |
 | Node | - | ノードの英語表記。 |
 | Makefile | - | 実行手順を定義したファイル。 |
-| Application Programming Interface | API | アプリケーション同士がやり取りする方法を定めた仕様。 |
-| Uniform Resource Locator | URL | WWW 上の資源の場所を示す文字列。 |
+| Application Programming Interface | API | アプリケーション同士が機能やデータをやり取りするための取り決め。 |
+| Uniform Resource Locator | URL | World Wide Web上の資源の場所を示す文字列。 |
 | GitLab | - | Git リポジトリ管理とCI/CD機能を統合した開発プラットフォーム |
 | Docker | - | コンテナイメージやコンテナの作成, 実行, 管理を行うコマンド。 |
 | Secure Shell | SSH | 遠隔の計算機へ安全に接続して操作する方式。 |
-| Hypertext Transfer Protocol Secure | HTTPS | 通信内容を暗号化して Web 通信を行う方式。 |
+| Hypertext Transfer Protocol Secure | HTTPS | 通信内容を暗号化してWorld Wide Web通信を行う方式。 |
 | PostgreSQL | - | オープンソースのリレーショナルデータベース管理システム, GitLabのデータ保存に使用 |
 | Git | - | 分散バージョン管理システム, ソースコード変更の履歴管理と協業を支援 |
 | Continuous Integration/Continuous Delivery | CI/CD | ソフトウェア開発における継続的な統合と継続的な配信の自動化プロセス |
 | Secure Sockets Layer/Transport Layer Security | SSL/TLS | ネットワーク通信を暗号化するセキュリティプロトコル |
 | Router Advertisement | RA | IPv6 で経路情報を通知する仕組み。 |
 | User Interface | UI | 利用者がソフトウェアを操作するための見た目と操作方法。 |
-| Uniform Resource Locator | URL | URL の正式名称。 |
+| Uniform Resource Locator | URL | World Wide Web上の資源の場所を示す文字列。 |
 | Network File System | NFS | ネットワーク越しにファイル共有を行う仕組み。 |
 | Operating System | OS | 計算機の基本機能を管理し, アプリケーションを動作させる基盤ソフトウェア。 |
 | User Identifier | UID | 利用者を識別する番号。 |
@@ -143,7 +159,6 @@
 | 制御ホスト | - | Playbook を実行し, 他ホストへの処理指示を行う管理用ホスト。 |
 | 対象ホスト | - | Playbook による設定変更や導入処理の適用先となるホスト。 |
 | sudoコマンド | sudo | 一時的に管理者権限でコマンドを実行するためのコマンド。 |
-
 ## 概要
 
 本ロールは GitLab Omnibus の公式 Docker イメージと GitLab Runner をホスト上で運用するための基盤を構築します。`docker compose` によるコンテナ起動 / 停止, 永続化ディレクトリの準備, バックアップ / リストア補助スクリプトの展開を自動化し, 再実行可能な手順で GitLab サービスを維持します。
@@ -159,18 +174,20 @@
 
 GitLab の初期ルートパスワードファイルや公開 URL, 通信ポートもロールの変数で一元管理します。
 
-## 主な処理
-
-本ロールは tasks/main.yml から task 群を呼び出し, 設定適用と検証を実施します。
-
 ## 前提条件
 
-本ロールの実行者は, 対象ホストが inventory に登録済みであることを確認します。
-本ロールの実行者は, 関連する共通変数が vars/all-config.yml または host_vars に定義済みであることを確認します。
+- 対象ホストが inventory に登録済みであること
+- 関連する共通変数が vars/all-config.yml または host_vars に定義済みであること
 
 ## 実行方法
 
-実行者は制御ホストで以下のコマンドを実行します。
+制御ホストで以下のコマンドを実行します。
+
+```bash
+make run_gitlab_server
+```
+
+または,
 
 ```bash
 ansible-playbook -i inventory/hosts site.yml --tags "gitlab-server"
@@ -190,6 +207,7 @@ ansible-playbook -i inventory/hosts site.yml --tags "gitlab-server"
 | `gitlab_wait_timeout` | `600` | GitLabサービス待ち合わせ時間(単位: 秒)。|
 | `gitlab_wait_delay` | `5` | GitLabサービス待ち合わせる際の開始遅延時間(単位: 秒)。|
 | `gitlab_wait_sleep` | `2` | GitLabサービス待ち合わせる際の待機間隔(単位: 秒)。|
+| `gitlab_wait_retries` | `5` | GitLabサービス待ち合わせる際の再試行回数。|
 | `gitlab_wait_delegate_to` | `"localhost"` | GitLabサービス待ち合わせる際の接続元ホスト名/IPアドレス。|
 | `gitlab_external_url` | `https://<gitlab_hostname>:9443` | Web UI へアクセスする外部 URL。|
 | `gitlab_docker_image` | `gitlab/gitlab-ce:18.6.2-ce.0` | GitLab Omnibus Docker イメージ。公式の推奨に従って, バージョン名を明示してイメージを指定してください。|
@@ -626,27 +644,294 @@ GitLabのバックアップを作成およびアーカイブする
 
 ## 検証ポイント
 
-- `/srv/gitlab` 以下に設定, ログ, データ, バックアップ, scripts ディレクトリが期待した所有者 ( `gitlab_user_id` / `gitlab_group_id` ) で作成されていること。
-- `/etc/sysctl.d/90-gitlab-forwarding.conf` が配備され, `sysctl net.ipv4.ip_forward`, `sysctl net.ipv6.conf.all.forwarding` が `1` に設定されていること。
-- `docker compose -f /srv/gitlab/docker-compose.yml ps` で GitLab と GitLab Runner コンテナが稼働していること。
-- Web UI (User Interface, ユーザインターフェース), SSH (Secure Shell), Container Registry が指定したポートで応答すること。
-- `gitlab-backup.py` 実行時にメタ情報付きのバンドルが生成されること。
-- `gitlab-restore.py --verbose <バックアップバンドルファイル>` 実行時に, `puma/sidekiq` の停止, 復旧ログが確認できること。
-- `gitlab-restore.py --verbose <バックアップバンドルファイル>` 実行後にバックアップしたリポジトリやユーザ情報が復元されていること。
-- クリーンインストール実施時は既存ディレクトリや Docker イメージが削除され, 再実行で初期状態から構築されていること。
+### 検証の前提条件
+
+検証を始める前に, 次の条件が満たされていることを確認します。
+
+- `gitlab_hostname` が定義され, かつ空文字列でないこと。
+- 対象ホストで Docker サービスが起動済みであること。
+- `gitlab_https_port`, `gitlab_ssh_port`, `gitlab_registry_port` に重複がないこと。
+- `/srv/gitlab` 配下へ書き込み可能な権限があること。
+- `gitlab_enable_backup_script` を有効にする場合は, `/usr/local/bin` 配下へスクリプト配置可能な権限があること。
+
+### 検証環境の設定
+
+検証用の host_vars と vars/all-config.yml を次の値で整えます。
+
+```yaml
+1: gitlab_hostname: "gitlab.example.local"
+2: gitlab_external_url: "https://gitlab.example.local"
+3: gitlab_https_port: 443
+4: gitlab_ssh_port: 22
+5: gitlab_registry_port: 5050
+6: gitlab_wait_timeout: 600
+7: gitlab_enable_backup_script: true
+```
+
+| 行番号 | 設定値 | 有効になる動作 | 設定背景(未設定時/誤設定時の問題と防止理由) |
+| --- | --- | --- | --- |
+| 1 | gitlab_hostname: "gitlab.example.local" | GitLab のホスト名を定義し, ロール実行時の主要 task を有効化します。 | 未設定又は空文字の場合は `when` 条件で task がスキップされ, 導入処理が進行しないためです。 |
+| 2 | gitlab_external_url: "https://gitlab.example.local" | 外部公開 URL を明示し, 証明書生成や案内 URL を整合させます。 | `gitlab_hostname` と不整合の場合は証明書生成待機やアクセス確認で失敗するためです。 |
+| 3-5 | gitlab_https_port: 443, gitlab_ssh_port: 22, gitlab_registry_port: 5050 | Web UI, SSH, Container Registry の公開ポートを確定します。 | ポート重複又は既存サービスとの競合がある場合は起動確認や接続確認に失敗するためです。 |
+| 6 | gitlab_wait_timeout: 600 | GitLab 起動待機の上限時間を設定します。 | 初期化に時間がかかる環境で短い値を設定すると待機タイムアウトが発生するためです。 |
+| 7 | gitlab_enable_backup_script: true | バックアップ/リストア補助スクリプトの配備を有効化します。 | 無効の場合は運用に必要なスクリプトが配置されず, 検証手順を完了できないためです。 |
+
+この設定により, 本ロールの導入結果とバックアップ運用の基本機能を同一条件で検証できます。
+
+### 検証コマンドと期待結果
+
+#### 1. GitLab 関連ディレクトリの作成確認
+
+**実施対象ホスト**: 対象ホスト
+
+**実行するコマンド**:
+
+```bash
+ls -ld /srv/gitlab /srv/gitlab/config /srv/gitlab/logs /srv/gitlab/data /srv/gitlab/backup /srv/gitlab/scripts
+```
+
+**期待される出力**:
+
+```plaintext
+drwxr-xr-x ... /srv/gitlab
+drwxr-xr-x ... /srv/gitlab/config
+```
+
+**確認ポイント**:
+
+- `/srv/gitlab` 配下の主要ディレクトリが作成済みであること。
+- 所有者が `gitlab_user_id` / `gitlab_group_id` の想定に一致すること。
+
+#### 2. sysctl 設定の反映確認
+
+**実施対象ホスト**: 対象ホスト
+
+**実行するコマンド**:
+
+```bash
+ls -l /etc/sysctl.d/90-gitlab-forwarding.conf
+sysctl net.ipv4.ip_forward
+sysctl net.ipv6.conf.all.forwarding
+```
+
+**期待される出力**:
+
+```plaintext
+net.ipv4.ip_forward = 1
+net.ipv6.conf.all.forwarding = 1
+```
+
+**確認ポイント**:
+
+- `/etc/sysctl.d/90-gitlab-forwarding.conf` が配備されていること。
+- IPv4/IPv6 フォワーディング値が `1` であること。
+
+#### 3. GitLab コンテナ稼働確認
+
+**実施対象ホスト**: 対象ホスト
+
+**実行するコマンド**:
+
+```bash
+docker compose -f /srv/gitlab/docker-compose.yml ps
+```
+
+**期待される出力**:
+
+```plaintext
+... gitlab ... Up ...
+... gitlab-runner ... Up ...
+```
+
+**確認ポイント**:
+
+- GitLab と GitLab Runner コンテナが稼働していること。
+
+#### 4. 公開ポート応答確認
+
+**実施対象ホスト**: 対象ホスト
+
+**実行するコマンド**:
+
+```bash
+ss -ltnp | grep -E ":(443|22|5050) "
+```
+
+**期待される出力**:
+
+```plaintext
+LISTEN ... :443 ...
+LISTEN ... :22 ...
+LISTEN ... :5050 ...
+```
+
+**確認ポイント**:
+
+- Web UI, SSH, Container Registry の各ポートで待受していること。
+
+#### 5. バックアップスクリプト動作確認
+
+**実施対象ホスト**: 対象ホスト
+
+**実行するコマンド**:
+
+```bash
+/usr/local/bin/gitlab-backup.py --help
+```
+
+**期待される出力**:
+
+```plaintext
+usage: gitlab-backup.py ...
+```
+
+**確認ポイント**:
+
+- `gitlab-backup.py` が配置され, ヘルプ表示が成功すること。
+- 必要に応じてバックアップ実行時にメタ情報付きバンドルが生成されること。
+
+### 異常時の確認項目
+
+#### 1. コンテナ起動失敗時のログ確認
+
+**実施対象ホスト**: 対象ホスト
+
+**実行するコマンド**:
+
+```bash
+docker logs gitlab --tail 200
+docker compose -f /srv/gitlab/docker-compose.yml ps
+```
+
+**確認ポイント**:
+
+- `docker logs gitlab` に初期化失敗や設定不整合が出力されていないこと。
+- コンテナ状態が `Exit` で停止していないこと。
+
+#### 2. リストア実行時の復旧確認
+
+**実施対象ホスト**: 対象ホスト
+
+**実行するコマンド**:
+
+```bash
+/usr/local/bin/gitlab-restore.py --verbose <バックアップバンドルファイル>
+```
+
+**確認ポイント**:
+
+- `puma/sidekiq` の停止, 復旧ログが出力されること。
+- 実行後にバックアップしたリポジトリやユーザ情報が復元されていること。
 
 ## トラブルシューティング
 
-代表的なトラブルと対処を以下に示します。
+### 1. ロールを実行しても GitLab が導入されない場合
 
-| 想定トラブル | 主な原因 | 対処方法 |
-| --- | --- | --- |
-| ロールを実行しても GitLab が導入されない | `gitlab_hostname` が未設定または空文字で, `Package` 以降の task が `when` 条件でスキップされる | 実行者は `vars/all-config.yml` または `host_vars` で `gitlab_hostname` を設定し, 再実行時に `skipping` ではなく `ok` / `changed` で進むことを確認します。 |
-| `docker compose ... up -d` で失敗する | 対象ホストに Docker が未導入, または Docker サービス停止中 | 実行者は対象ホストで `docker --version` と `systemctl status docker` を確認し, Docker を起動したうえで再実行します。 |
-| `Wait for GitLab HTTPS/SSH/Registry port ...` でタイムアウトする | GitLab コンテナの起動に時間がかかる, ポート競合がある, または公開ポート設定が不整合 | 実行者は `docker compose -f /srv/gitlab/docker-compose.yml ps` と `docker logs gitlab` を確認します。必要に応じて `gitlab_wait_timeout` を延長し, `gitlab_https_port` / `gitlab_ssh_port` / `gitlab_registry_port` の重複を解消して再実行します。 |
-| `Wait for gitlab self-signed certificate` で失敗する | `gitlab_ssl_cert_path` の証明書が生成されないまま待機上限に到達している | 実行者は `docker logs gitlab` で初期化エラーを確認し, `gitlab_hostname` と `gitlab_external_url` の整合, ディスク容量, 権限を確認して再実行します。 |
-| バックアップ / リストア用スクリプトが配置されない | `gitlab_enable_backup_script` が `false` のためスキップされている | 実行者は `gitlab_enable_backup_script: true` を設定して再実行します。加えて `daily-backup-gitlab.sh` が必要な場合は, `gitlab_backup_nfs_server`, `gitlab_backup_mount_point`, `gitlab_backup_output_dir` を非空, `gitlab_backup_rotation` を正の整数に設定します。 |
-| クリーンインストール後に既存データが消失した | `gitlab_clean_install: true` または `gitlab_remove_container_images: true` により既存ディレクトリ / イメージが削除された | 実行者は本番運用で `gitlab_clean_install` を通常 `false` とし, 実行前に `/srv/gitlab` 配下のバックアップを取得します。必要に応じて `gitlab-backup.py` で退避してから再実行します。 |
+**実施対象ホスト**: 制御ホスト, 対象ホスト
+
+**実行するコマンド**:
+
+```bash
+grep -n "gitlab_hostname" vars/all-config.yml host_vars/*/main.yml
+ansible-playbook -i inventory/hosts devel.yml --tags gitlab-server -vv | grep -Ei "Package|skipping|ok|changed"
+```
+
+**確認ポイント**:
+
+- `gitlab_hostname` が未設定または空文字でないこと。
+- `Package` 以降の task が `when` 条件で `skipping` されていないこと。
+- 再実行時に `ok` または `changed` で進んでいること。
+
+### 2. docker compose ... up -d で失敗する場合
+
+**実施対象ホスト**: 対象ホスト
+
+**実行するコマンド**:
+
+```bash
+docker --version
+systemctl status docker --no-pager
+docker compose -f /srv/gitlab/docker-compose.yml ps
+```
+
+**確認ポイント**:
+
+- Docker が導入済みであること。
+- Docker サービスが起動中であること。
+- `docker compose` 実行基盤に異常がないこと。
+
+### 3. Wait for GitLab HTTPS/SSH/Registry port ... でタイムアウトする場合
+
+**実施対象ホスト**: 対象ホスト
+
+**実行するコマンド**:
+
+```bash
+docker compose -f /srv/gitlab/docker-compose.yml ps
+docker logs gitlab --tail 200
+ss -ltnp | grep -E ":(443|22|5050) "
+grep -n "gitlab_wait_timeout\|gitlab_https_port\|gitlab_ssh_port\|gitlab_registry_port" vars/all-config.yml host_vars/*/main.yml
+```
+
+**確認ポイント**:
+
+- GitLab コンテナが起動中であること。
+- 公開ポート設定 (`gitlab_https_port`, `gitlab_ssh_port`, `gitlab_registry_port`) に重複や不整合がないこと。
+- 必要に応じて `gitlab_wait_timeout` を延長して再実行していること。
+
+### 4. Wait for gitlab self-signed certificate で失敗する場合
+
+**実施対象ホスト**: 対象ホスト
+
+**実行するコマンド**:
+
+```bash
+docker logs gitlab --tail 200
+ls -la /srv/gitlab/config
+grep -n "gitlab_ssl_cert_path\|gitlab_hostname\|gitlab_external_url" vars/all-config.yml host_vars/*/main.yml
+df -h
+```
+
+**確認ポイント**:
+
+- `gitlab_ssl_cert_path` に指定した証明書が生成されていること。
+- `gitlab_hostname` と `gitlab_external_url` が整合していること。
+- ディスク容量と権限不足がないこと。
+
+### 5. バックアップ / リストア用スクリプトが配置されない場合
+
+**実施対象ホスト**: 制御ホスト, 対象ホスト
+
+**実行するコマンド**:
+
+```bash
+grep -n "gitlab_enable_backup_script\|gitlab_backup_nfs_server\|gitlab_backup_mount_point\|gitlab_backup_output_dir\|gitlab_backup_rotation" vars/all-config.yml host_vars/*/main.yml
+ls -la /usr/local/bin | grep -E "gitlab-backup.py|gitlab-restore.py|daily-backup-gitlab.sh"
+```
+
+**確認ポイント**:
+
+- `gitlab_enable_backup_script` が `true` であること。
+- `daily-backup-gitlab.sh` が必要な場合は `gitlab_backup_nfs_server`, `gitlab_backup_mount_point`, `gitlab_backup_output_dir` が非空であること。
+- `gitlab_backup_rotation` が正の整数であること。
+
+### 6. クリーンインストール後に既存データが消失した場合
+
+**実施対象ホスト**: 対象ホスト, 制御ホスト
+
+**実行するコマンド**:
+
+```bash
+grep -n "gitlab_clean_install\|gitlab_remove_container_images" vars/all-config.yml host_vars/*/main.yml
+ls -la /srv/gitlab
+ls -1 /srv/gitlab/backup
+```
+
+**確認ポイント**:
+
+- `gitlab_clean_install: true` または `gitlab_remove_container_images: true` が既存ディレクトリ/イメージ削除を伴うことを確認していること。
+- 本番運用では `gitlab_clean_install` を通常 `false` で運用していること。
+- 実行前に `/srv/gitlab` 配下をバックアップし, 必要に応じて `gitlab-backup.py` で退避していること。
 
 ## 注意事項
 

@@ -20,6 +20,8 @@
     - [パッケージ, サービス, ノード再起動](#パッケージ-サービス-ノード再起動)
     - [ネットワーク関連 (必須)](#ネットワーク関連-必須)
   - [テンプレートと生成ファイル](#テンプレートと生成ファイル)
+    - [テンプレートから生成されるファイル](#テンプレートから生成されるファイル)
+    - [その他の生成ファイル](#その他の生成ファイル)
   - [実行フロー](#実行フロー)
     - [ハンドラ](#ハンドラ)
       - [bastion\_config\_reload\_sysctl (`handlers/reload-sysctl.yml`)](#bastion_config_reload_sysctl-handlersreload-sysctlyml)
@@ -44,9 +46,13 @@
       - [5.1 ルール未設定確認](#51-ルール未設定確認)
       - [5.2 ルール残骸がある場合の対処](#52-ルール残骸がある場合の対処)
   - [トラブルシューティング](#トラブルシューティング)
+    - [1. 実行後に FORWARD/NAT ルールが反映されない場合](#1-実行後に-forwardnat-ルールが反映されない場合)
+    - [2. 変数設定が有効なのにルール投入タスクが実行されない場合](#2-変数設定が有効なのにルール投入タスクが実行されない場合)
+    - [3. NAT モードのはずなのに MASQUERADE が追加されない場合](#3-nat-モードのはずなのに-masquerade-が追加されない場合)
+    - [4. 再起動後にルールが消える場合](#4-再起動後にルールが消える場合)
+    - [5. モード切替後に旧ルールが残る場合](#5-モード切替後に旧ルールが残る場合)
+    - [6. run\_router\_config の途中で再起動待機がタイムアウトする場合](#6-run_router_config-の途中で再起動待機がタイムアウトする場合)
   - [注意事項](#注意事項)
-  - [テンプレート / 出力ファイル](#テンプレート--出力ファイル)
-  - [補足](#補足)
     - [動作モード](#動作モード)
     - [設定値による動作の違い](#設定値による動作の違い)
     - [makeターゲット `run_router_clear_rules`の処理内容](#makeターゲット-run_router_clear_rulesの処理内容)
@@ -91,12 +97,12 @@
 | Playbook | - | 自動化処理の実行手順を記述したファイル。 |
 | Canonical | - | Ubuntu を提供する組織名。 |
 | Key-Value | - | キーと値の組で情報を表す方式。 |
-| Internet Protocol | IP | インターネットプロトコルの略称。 |
+| Internet Protocol | IP | ネットワーク上で宛先を識別し, データを届けるための通信手順。 |
 | Structured Query Language | SQL | データベースを操作するための記述言語。 |
-| Hypertext Transfer Protocol | HTTP | WWW で情報をやり取りする通信手順。 |
-| Hypertext Transfer Protocol Secure | HTTPS | 通信内容を暗号化して WWW 通信を行う方式。 |
-| RPM Package Manager | RPM | RHEL 系で使用するパッケージ形式。 |
-| Virtual Machine | VM | 物理機器上で動作する仮想的な計算機。 |
+| Hypertext Transfer Protocol | HTTP | World Wide Webで情報をやり取りする通信手順。 |
+| Hypertext Transfer Protocol Secure | HTTPS | 通信内容を暗号化してWorld Wide Web通信を行う方式。 |
+| RPM Package Manager | RPM | RPM形式パッケージの導入, 更新, 削除, 情報参照を行う仕組み。 |
+| Virtual Machine | VM | 物理計算機上で動作する仮想的な計算機。 |
 | localhost | - | 同一機器自身を指す名前。 |
 | root | - | Unix 系システムの最上位権限を持つ管理者識別子。 |
 | ソフトウェア | - | 情報処理システムで使用するプログラム, 手順, 規則及び関連文書の全体又は一部分。 |
@@ -122,8 +128,8 @@
 | Service | - | サービスの英語表記。 |
 | Node | - | ノードの英語表記。 |
 | Makefile | - | 実行手順を定義したファイル。 |
-| Application Programming Interface | API | アプリケーション同士がやり取りする方法を定めた仕様。 |
-| Uniform Resource Locator | URL | WWW 上の資源の場所を示す文字列。 |
+| Application Programming Interface | API | アプリケーション同士が機能やデータをやり取りするための取り決め。 |
+| Uniform Resource Locator | URL | World Wide Web上の資源の場所を示す文字列。 |
 | Operating System | OS | 計算機の基本機能を管理し, アプリケーションを動作させる基盤ソフトウェア。 |
 | Ansible | - | 設定の同一化や導入作業を所定の手順に従って自動化する仕組み。 |
 | systemd | - | Linux システムの初期化とサービス管理を行う仕組み。 |
@@ -163,7 +169,7 @@
 | Accept | ACCEPT | 通信を許可する判定結果。 |
 | ansible-playbookコマンド | - | Ansible Playbook を実行して自動構成処理を適用するコマンド。 |
 | `cat` | - | ファイル内容を標準出力へ表示するコマンド。 |
-| `make` | - | Makefile に定義された処理を実行するコマンド。 |
+| makeコマンド | make | Makefile に定義された処理を実行するコマンド。 |
 | `ping` | - | 対象への到達性と往復遅延を確認するコマンド。 |
 | アドレス | - | 宛先や所在を識別するための情報。 |
 | サービス | - | 機能を利用者や他システムへ提供する仕組み。 |
@@ -174,6 +180,7 @@
 | sudoコマンド | sudo | 一時的に管理者権限でコマンドを実行するためのコマンド。 |
 
 ## 概要
+
 本ロールは, ルータホストで IPv4/IPv6 パケット転送と Network Address Translation (NAT) を制御する設定を行います。実装では, sysctl 設定ファイルの生成, iptables/ip6tables ルール投入, OS 別の永続化, サービス有効化, およびノード再起動を実施します。
 
 ## 主な処理
@@ -282,9 +289,20 @@ ansible-playbook -i inventory/hosts router-clear-rules.yml
 本ロールでは以下のテンプレート / ファイルを出力します:
 主な展開先ホストは, 対象ホスト(既定) です。
 
+### テンプレートから生成されるファイル
+
 | テンプレートファイル名 | 出力先パス | 説明 |
 | --- | --- | --- |
-| `95-ipfoward.j2` | `/etc/sysctl.d/95-ipfoward.conf` (既定) | ルータノードで必要な IPv4/IPv6 転送と逆経路フィルタ設定を定義する sysctl 設定です。 |
+| `templates/95-ipfoward.j2` | `/etc/sysctl.d/95-ipfoward.conf` | IPv4/IPv6 転送, RPF, `accept_ra` を設定します。 |
+
+### その他の生成ファイル
+
+| 生成処理 | タスクファイル | 出力先パス | 説明 |
+| --- | --- | --- | --- |
+| 永続化処理 (Debian 系, IPv4) | `tasks/config-forward.yml`, `tasks/config-nat.yml` | `/etc/iptables/rules.v4` (既定値展開: `/etc/iptables/rules.v4`) | `netfilter-persistent save` で IPv4 ルールを保存します。 |
+| 永続化処理 (Debian 系, IPv6) | `tasks/config-forward.yml`, `tasks/config-nat.yml` | `/etc/iptables/rules.v6` (既定値展開: `/etc/iptables/rules.v6`) | `netfilter-persistent save` で IPv6 ルールを保存します。 |
+| 永続化処理 (Red Hat 系, IPv4) | `tasks/config-forward.yml`, `tasks/config-nat.yml` | `{{ etc_default_dir }}/iptables` (既定値展開: `/etc/sysconfig/iptables`) | `iptables-save` の出力先。 |
+| 永続化処理 (Red Hat 系, IPv6) | `tasks/config-forward.yml`, `tasks/config-nat.yml` | `{{ etc_default_dir }}/ip6tables` (既定値展開: `/etc/sysconfig/ip6tables`) | `ip6tables-save` の出力先。 |
 
 ## 実行フロー
 
@@ -799,23 +817,125 @@ router.local               : ok=15   changed=3    unreachable=0    failed=0
 
 ## トラブルシューティング
 
-実行者はエラー発生時に build-*.log を確認し, 失敗した task 名と不足変数を特定します。
+### 1. 実行後に FORWARD/NAT ルールが反映されない場合
+
+**実施対象ホスト**: 制御ホスト, 対象ホスト
+
+**実行するコマンド**:
+
+```bash
+ansible-playbook -i inventory/hosts site.yml --tags "router-config" -l <対象ホスト>
+sudo iptables -L FORWARD -nv --line-numbers
+sudo iptables -t nat -L POSTROUTING -nv --line-numbers
+sudo ip6tables -L FORWARD -nv --line-numbers
+sudo ip6tables -t nat -L POSTROUTING -nv --line-numbers
+```
+
+**確認ポイント**:
+
+- 実行ログで `config-clear-rules.yml`, `config-forward.yml`, `config-nat.yml` の実行状態を確認すること。
+- 期待するモードに対応する FORWARD ルールが存在すること。
+- NAT モード時は POSTROUTING の MASQUERADE ルールが存在すること。
+
+### 2. 変数設定が有効なのにルール投入タスクが実行されない場合
+
+**実施対象ホスト**: 制御ホスト
+
+**実行するコマンド**:
+
+```bash
+grep -n "router_forwarding_enabled\|router_nat_enabled\|additional_network_routes\|mgmt_nic\|gpm_mgmt_nic\|gpm_mgmt_ipv4_network_cidr\|gpm_mgmt_ipv6_network_cidr" vars/all-config.yml host_vars/*.yml
+ansible-playbook -i inventory/hosts site.yml --tags "router-config" -l <対象ホスト>
+```
+
+**確認ポイント**:
+
+- 必須変数 (`mgmt_nic`, `gpm_mgmt_nic`, `gpm_mgmt_ipv4_network_cidr`, `gpm_mgmt_ipv6_network_cidr`) が定義済みであること。
+- `router_forwarding_enabled` と `router_nat_enabled` の組み合わせが意図したモードに一致していること。
+- 実行ログで条件式により `skipping` されていないこと。
+
+### 3. NAT モードのはずなのに MASQUERADE が追加されない場合
+
+**実施対象ホスト**: 制御ホスト, 対象ホスト
+
+**実行するコマンド**:
+
+```bash
+grep -n "router_forwarding_enabled\|router_nat_enabled\|additional_network_routes" vars/all-config.yml host_vars/*.yml
+sudo iptables -t nat -L POSTROUTING -nv --line-numbers
+sudo ip6tables -t nat -L POSTROUTING -nv --line-numbers
+```
+
+**確認ポイント**:
+
+- `router_nat_enabled: true` かつ `router_forwarding_enabled: false` であること。
+- `additional_network_routes` が未定義又は空であること。
+- 条件不一致の場合は NAT タスクが実行されない設計であること。
+
+### 4. 再起動後にルールが消える場合
+
+**実施対象ホスト**: 対象ホスト
+
+**実行するコマンド**:
+
+```bash
+sudo systemctl status netfilter-persistent 2>/dev/null || true
+sudo systemctl is-enabled netfilter-persistent 2>/dev/null || true
+sudo systemctl status iptables 2>/dev/null || true
+sudo systemctl status ip6tables 2>/dev/null || true
+```
+
+**確認ポイント**:
+
+- Debian/Ubuntu 系では `netfilter-persistent` が有効であること。
+- RHEL 系では `iptables`, `ip6tables` サービスが有効であること。
+- 永続化ファイル (`/etc/iptables/rules.v4`, `/etc/iptables/rules.v6`, `/etc/sysconfig/iptables`, `/etc/sysconfig/ip6tables`) が更新されていること。
+
+### 5. モード切替後に旧ルールが残る場合
+
+**実施対象ホスト**: 制御ホスト, 対象ホスト
+
+**実行するコマンド**:
+
+```bash
+make run_router_clear_rules
+make run_router_config
+sudo iptables -L FORWARD -nv --line-numbers
+sudo iptables -t nat -L POSTROUTING -nv --line-numbers
+```
+
+**確認ポイント**:
+
+- 先に `run_router_clear_rules` を実行して旧ルールを削除していること。
+- クリア後に `run_router_config` を実行して新モードのルールだけが存在すること。
+- `build-router-clear-rules.log` と `build-router-config.log` に失敗タスクがないこと。
+
+### 6. run_router_config の途中で再起動待機がタイムアウトする場合
+
+**実施対象ホスト**: 制御ホスト
+
+**実行するコマンド**:
+
+```bash
+grep -n "reboot_timeout_sec" vars/all-config.yml host_vars/*.yml
+make run_router_config
+```
+
+**確認ポイント**:
+
+- `reboot_timeout_sec` が環境に対して十分な値であること。
+- 対象ホストの再起動に伴う復帰時間を考慮して値を調整すること。
+- タイムアウト時は対象ホストの起動状態とネットワーク復帰を確認すること。
 
 ## 注意事項
 
-実行者は既存の実行順依存を崩さないことを確認した上で本ロールを実行します。
+- 実行者は, 既存の実行順依存を崩さないことを確認した上で本ロールを実行してください。特に `router.yml` では `docker-ce` の後に `router-config` を実行する順序を維持してください。
+- 実行者は, モード切替時に旧ルール残骸を防ぐため, 先に `make run_router_clear_rules` を実行してから `make run_router_config` を実行してください。
+- 実行者は, `router_forwarding_enabled`, `router_nat_enabled`, `additional_network_routes` の組み合わせが意図した動作モードと一致していることを事前に確認してください。
+- 実行者は, 対象ホストの `mgmt_nic` と `gpm_mgmt_nic` が実在するインターフェースであることを確認してください。不一致の場合はルール投入が想定どおりに適用されません。
+- 実行者は, 変更作業前に現在の FORWARD と POSTROUTING ルール, および永続化ファイルを確認し, 復旧手順を準備してください。
+- 実行者は, `reboot_timeout_sec` を環境に合わせて設定し, 再起動を伴う適用時の疎通断を許容できる時間帯で作業してください。
 
-## テンプレート / 出力ファイル
-
-| テンプレートまたは生成物 | 出力先 | 説明 |
-| --- | --- | --- |
-| `templates/95-ipfoward.j2` | `/etc/sysctl.d/95-ipfoward.conf` | IPv4/IPv6 転送, RPF, `accept_ra` を設定します。 |
-| 永続化処理 (Debian 系, IPv4) | `/etc/iptables/rules.v4` | `netfilter-persistent save` で IPv4 ルールを保存します。 |
-| 永続化処理 (Debian 系, IPv6) | `/etc/iptables/rules.v6` | `netfilter-persistent save` で IPv6 ルールを保存します。 |
-| 永続化処理 (Red Hat 系, IPv4) | `{{ etc_default_dir }}/iptables` (`/etc/sysconfig/iptables`) | `iptables-save` の出力先。 |
-| 永続化処理 (Red Hat 系, IPv6) | `{{ etc_default_dir }}/ip6tables` (`/etc/sysconfig/ip6tables`) | `ip6tables-save` の出力先。 |
-
-## 補足
 
 ### 動作モード
 
@@ -841,18 +961,18 @@ router.local               : ok=15   changed=3    unreachable=0    failed=0
 
 ### makeターゲット `run_router_clear_rules`の処理内容
 
-ルータノードで設定している各種ルールを削除するためのmakeターゲットとして, `run_router_clear_rules`ターゲットを用意しています。
-本makeターゲット実行時の処理内容は以下の通りです:
+ルータノードで設定している各種ルールを削除するためのmakeターゲットとして, `run_router_clear_rules`ターゲットを用意しています。 本makeターゲット実行時の処理内容は以下の通りです:
 
 - NAT から純粋ルーティングへ切替える前に NAT ルールを削除します。
 - 純粋ルーティングから NAT へ切替える前に FORWARD ルールを削除します。
 - ルーティング機能を停止する前に, ルール残骸を削除します。
 - クリア処理は削除対象ルールが存在しない場合でも `|| true` により継続されます。
 - `make run_router_clear_rules` 実行時のログは `build-router-clear-rules.log` に保存されます。
+
 ## 参考資料
 
 ### 公式ドキュメント
 
-- iptables: https://man7.org/linux/man-pages/man8/iptables.8.html
-- ip6tables: https://man7.org/linux/man-pages/man8/ip6tables.8.html
-- sysctl: https://man7.org/linux/man-pages/man8/sysctl.8.html
+- [iptables](https://man7.org/linux/man-pages/man8/iptables.8.html)
+- [ip6tables](https://man7.org/linux/man-pages/man8/ip6tables.8.html)
+- [sysctl](https://man7.org/linux/man-pages/man8/sysctl.8.html)

@@ -16,8 +16,7 @@
     - [出力ディレクトリ](#出力ディレクトリ)
     - [ホスト間連携](#ホスト間連携)
   - [テンプレートと生成ファイル](#テンプレートと生成ファイル)
-    - [生成されるファイル一覧](#生成されるファイル一覧)
-    - [キャッシング機構](#キャッシング機構)
+  - [キャッシング機構](#キャッシング機構)
   - [実行フロー](#実行フロー)
     - [全ノード共通フロー](#全ノード共通フロー)
     - [コントロールプレーンノード向けフロー](#コントロールプレーンノード向けフロー)
@@ -27,14 +26,17 @@
     - [統合 kubeconfig 内容確認(全ノード)](#統合-kubeconfig-内容確認全ノード)
     - [kubectl コマンド実行確認(全ノード)](#kubectl-コマンド実行確認全ノード)
     - [ワーカーノード kubeconfig 同期確認](#ワーカーノード-kubeconfig-同期確認)
+  - [トラブルシューティング](#トラブルシューティング)
+    - [1. kubectl コマンドが実行できない場合](#1-kubectl-コマンドが実行できない場合)
+    - [2. 統合 kubeconfig に期待したコンテキストが含まれない場合](#2-統合-kubeconfig-に期待したコンテキストが含まれない場合)
+    - [3. ワーカーノードへ配布した kubeconfig が同期しない場合](#3-ワーカーノードへ配布した-kubeconfig-が同期しない場合)
+    - [4. ワーカーノード配布で旧内容が残る場合](#4-ワーカーノード配布で旧内容が残る場合)
   - [注意事項](#注意事項)
-  - [運用上の注意](#運用上の注意)
     - [スクリプト配置の確認](#スクリプト配置の確認)
     - [ロール実行順序の制約](#ロール実行順序の制約)
     - [ワーカーノードの必須変数](#ワーカーノードの必須変数)
     - [キャッシング機構と単発実行](#キャッシング機構と単発実行)
     - [ファイルパーミッション](#ファイルパーミッション)
-    - [トラブルシューティング](#トラブルシューティング)
   - [参考資料](#参考資料)
     - [公式ドキュメント](#公式ドキュメント)
 
@@ -75,12 +77,12 @@
 | Playbook | - | 自動化処理の実行手順を記述したファイル。 |
 | Canonical | - | Ubuntu を提供する組織名。 |
 | Key-Value | - | キーと値の組で情報を表す方式。 |
-| Internet Protocol | IP | インターネットプロトコルの略称。 |
+| Internet Protocol | IP | ネットワーク上で宛先を識別し, データを届けるための通信手順。 |
 | Structured Query Language | SQL | データベースを操作するための記述言語。 |
-| Hypertext Transfer Protocol | HTTP | WWW で情報をやり取りする通信手順。 |
-| Hypertext Transfer Protocol Secure | HTTPS | 通信内容を暗号化して WWW 通信を行う方式。 |
-| RPM Package Manager | RPM | RHEL 系で使用するパッケージ形式。 |
-| Virtual Machine | VM | 物理機器上で動作する仮想的な計算機。 |
+| Hypertext Transfer Protocol | HTTP | World Wide Webで情報をやり取りする通信手順。 |
+| Hypertext Transfer Protocol Secure | HTTPS | 通信内容を暗号化してWorld Wide Web通信を行う方式。 |
+| RPM Package Manager | RPM | RPM形式パッケージの導入, 更新, 削除, 情報参照を行う仕組み。 |
+| Virtual Machine | VM | 物理計算機上で動作する仮想的な計算機。 |
 | localhost | - | 同一機器自身を指す名前。 |
 | root | - | Unix 系システムの最上位権限を持つ管理者識別子。 |
 | ソフトウェア | - | 情報処理システムで使用するプログラム, 手順, 規則及び関連文書の全体又は一部分。 |
@@ -108,9 +110,9 @@
 | Service | - | サービスの英語表記。 |
 | Node | - | ノードの英語表記。 |
 | Makefile | - | 実行手順を定義したファイル。 |
-| Application Programming Interface | API | アプリケーション同士がやり取りする方法を定めた仕様。 |
-| Uniform Resource Locator | URL | WWW 上の資源の場所を示す文字列。 |
-| Application Programming Interface | API | API の正式名称。 |
+| Application Programming Interface | API | アプリケーション同士が機能やデータをやり取りするための取り決め。 |
+| Uniform Resource Locator | URL | World Wide Web上の資源の場所を示す文字列。 |
+| Application Programming Interface | API | アプリケーション同士が機能やデータをやり取りするための取り決め。 |
 | Custom Resource Definition | CRD | Kubernetes APIを拡張してユーザ独自のリソース種別を定義する仕組み。 |
 | Role-Based Access Control | RBAC | ユーザやサービスアカウントが実行可能な操作を役割(Role)で制限する仕組み。 |
 | Service Account | - | Kubernetes内部でPodが他のリソースにアクセスする際に用いる仮想的なアカウント。 |
@@ -118,7 +120,7 @@
 | ClusterRoleBinding | - | ClusterRoleをユーザやサービスアカウントに紐付ける仕組み。 |
 | Role | - | 特定の名前空間内で有効な権限の集合。 |
 | RoleBinding | - | Roleをユーザやサービスアカウントに紐付ける仕組み。 |
-| 名前空間 ( namespace )  | - | Kubernetes内部でリソースを論理的に分離する単位。 |
+| 名前空間 ( namespace ) | - | Kubernetes内部でリソースを論理的に分離する単位。 |
 | ポッド ( Pod ) | - | Kubernetes上で動作するコンテナの最小単位。 |
 | デーモンセット ( DaemonSet ) | - | Kubernetesクラスタ内の全ノード(または指定した一部のノード)で必ずPodを1つずつ起動させるリソース。 |
 | デプロイメント ( Deployment ) | - | 指定した数のPodを維持し, ローリングアップデート等を管理するリソース。 |
@@ -176,6 +178,7 @@
 | 制御ホスト | - | Playbook を実行し, 他ホストへの処理指示を行う管理用ホスト。 |
 
 ## 概要
+
 Kubernetes クラスタの各ノード(コントロールプレーン・ワーカー)で利用する `kubeconfig` を生成, 統合, 配布するロールです。証明書埋め込みやコンテキスト統合により, 複数クラスタ環境での運用を効率化します。
 
 本ロールは Kubernetes の kubeconfig ライフサイクル全体を管理します。主な特徴は以下の通りです:
@@ -200,7 +203,7 @@ Kubernetes クラスタの各ノード(コントロールプレーン・ワー�
 
 ## 実行方法
 
-実行者は制御ホストで以下のコマンドを実行します。
+制御ホストで以下のコマンドを実行します。
 
 ```bash
 ansible-playbook -i inventory/hosts site.yml --tags "k8s-kubeconfig"
@@ -239,9 +242,7 @@ ansible-playbook -i inventory/hosts site.yml --tags "k8s-kubeconfig"
 
 ## テンプレートと生成ファイル
 
-本ロールはコントロールプレーンノード配下に生成ファイル群を作成し, 最終的に全Kubernetesノードに統合 kubeconfig を配布します。主な生成物は以下の通りです:
-
-### 生成されるファイル一覧
+本ロールはコントロールプレーンノード配下に生成ファイル群を作成し, 最終的に全Kubernetesノードに統合 kubeconfig を配布します。
 
 | テンプレートファイル名 | 出力先パス | 説明 |
 | --- | --- | --- |
@@ -254,9 +255,10 @@ ansible-playbook -i inventory/hosts site.yml --tags "k8s-kubeconfig"
 | `テンプレート未使用 (ランタイム生成)` | `~{{ k8s_operator_user }}/.kube/config` (既定: `~{{ k8s_operator_user }}/.kube/config`) | 統合 `kubeconfig` (`merged-kubeconfig.conf`) への相対シンボリックリンク。既存ファイルは `config-default` に退避。 配置ホスト: 全Kubernetes ノード, 権限: リンク。 |
 | `テンプレート未使用 (ランタイム生成)` | `~{{ k8s_operator_user }}/.kube/config-default` (既定: `~{{ k8s_operator_user }}/.kube/config-default`) | `symlink.yml` 実行前の既存 `~/.kube/config` のバックアップ(存在した場合のみ)。 配置ホスト: 全Kubernetes ノード, 権限: `0600`。 |
 
-### キャッシング機構
+## キャッシング機構
 
 制御ノード上の `~/.ansible/kubeconfig-cache/` にはコントロールプレーンノードから取得した最新の `/etc/kubernetes/merged-kubeconfig.conf` がキャッシュされます。ワーカーノード配布時にこのキャッシュを参照するため, プレイブック再実行時の効率化と一貫性が確保されます。 キャッシュディレクトリのパーミッションは `0700`(ユーザのみアクセス可能)に設定されます。
+
 ## 実行フロー
 
 ### 全ノード共通フロー
@@ -381,11 +383,82 @@ lrwxrwxrwx 1 kube kube 24 Jul 15 10:35 /home/kube/.kube/config -> merged-kubecon
 - ワーカーノードのファイル内容がコントロールプレーンノードと同期していること(ワーカーノードも MD5 で確認)
 - 権限が正しく設定されていること
 
+## トラブルシューティング
+
+### 1. kubectl コマンドが実行できない場合
+
+**実施対象ホスト**: コントロールプレーンノード, ワーカーノード
+
+**実行するコマンド**:
+
+```bash
+ls -lh /etc/kubernetes/merged-kubeconfig.conf
+ls -lh ~/.kube/{config,merged-kubeconfig.conf}
+kubectl config get-contexts
+kubectl get nodes
+```
+
+**確認ポイント**:
+
+- `/etc/kubernetes/merged-kubeconfig.conf` が作成されていること。
+- `~/.kube/config` が `merged-kubeconfig.conf` を参照するシンボリックリンクであること。
+- `kubectl config get-contexts` と `kubectl get nodes` が接続エラーなしで実行できること。
+
+### 2. 統合 kubeconfig に期待したコンテキストが含まれない場合
+
+**実施対象ホスト**: コントロールプレーンノード
+
+**実行するコマンド**:
+
+```bash
+kubectl config get-contexts
+kubectl config get-clusters
+ls -lh ~/.kube/cluster*-embedded.kubeconfig
+```
+
+**確認ポイント**:
+
+- `kubectl config get-contexts` に全コントロールプレーンノード分のコンテキストが含まれていること。
+- `kubectl config get-clusters` に運用対象クラスタ名がすべて表示されること。
+- `~/.kube/cluster*-embedded.kubeconfig` が生成されており, 統合元ファイルが欠落していないこと。
+
+### 3. ワーカーノードへ配布した kubeconfig が同期しない場合
+
+**実施対象ホスト**: コントロールプレーンノード, ワーカーノード
+
+**実行するコマンド**:
+
+```bash
+md5sum ~/.kube/merged-kubeconfig.conf
+ls -l ~/.kube/config ~/.kube/merged-kubeconfig.conf
+```
+
+**確認ポイント**:
+
+- コントロールプレーンノードとワーカーノードで `~/.kube/merged-kubeconfig.conf` のハッシュ値が一致していること。
+- `~/.kube/config` が `merged-kubeconfig.conf` を参照するシンボリックリンクであること。
+- `~/.kube/merged-kubeconfig.conf` の権限が `0600` であること。
+
+### 4. ワーカーノード配布で旧内容が残る場合
+
+**実施対象ホスト**: 制御ノード, コントロールプレーンノード, ワーカーノード
+
+**実行するコマンド**:
+
+```bash
+ls -ld ~/.ansible/kubeconfig-cache
+ls -l ~/.ansible/kubeconfig-cache
+ansible-playbook -i inventory/hosts k8s-ctrl-plane.yml --tags k8s-kubeconfig
+ansible-playbook -i inventory/hosts k8s-worker.yml --tags k8s-kubeconfig
+```
+
+**確認ポイント**:
+
+- 制御ノードの `~/.ansible/kubeconfig-cache` が存在し, 実行ユーザのみアクセス可能な権限で管理されていること。
+- コントロールプレーンノード側のロール実行後にワーカーノード配布を実施していること。
+- 再配布後にワーカーノードの `~/.kube/merged-kubeconfig.conf` が最新内容へ更新されていること。
+
 ## 注意事項
-
-実行者は既存の実行順依存を崩さないことを確認した上で本ロールを実行します。
-
-## 運用上の注意
 
 ### スクリプト配置の確認
 
@@ -420,22 +493,9 @@ k8s_ctrlplane_host: k8sctrlplane01.local
 setfacl -m u:otheruser:r ~/.kube/merged-kubeconfig.conf
 ```
 
-### トラブルシューティング
-
-**症状**: `kubectl` コマンドが実行できない
-
-- **原因**: kubeconfig ファイルが正しく配置されていない可能性があります。
-- **確認**: 検証セクションの「kubeconfig ファイルの生成確認」を実行し, `/etc/kubernetes/merged-kubeconfig.conf` と `~/.kube/config` の存在を確認。
-- **対処**: ロールを再実行, または手動で検証セクションのコマンドを試行してください。
-
-**症状**: ワーカーノードとコントロールプレーンで kubeconfig 内容が異なる
-
-- **原因**: キャッシュ更新が行われていない可能性があります。
-- **確認**: `md5sum ~/.kube/merged-kubeconfig.conf` で両ノードを比較。
-- **対処**: `~/.ansible/kubeconfig-cache/` を削除してプレイブックを再実行し, キャッシュを再生成してください。
 ## 参考資料
 
 ### 公式ドキュメント
 
-- Kubernetes kubeconfig: https://kubernetes.io/docs/concepts/configuration/organize-cluster-access-kubeconfig/
-- kubectl: https://kubernetes.io/docs/reference/kubectl/
+- [Kubernetes kubeconfig](https://kubernetes.io/docs/concepts/configuration/organize-cluster-access-kubeconfig/)
+- [kubectl](https://kubernetes.io/docs/reference/kubectl/)

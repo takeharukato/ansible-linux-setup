@@ -19,6 +19,12 @@
     - [Step 4: 再起動と SELinux ログ確認](#step-4-再起動と-selinux-ログ確認)
     - [Step 5: SELinux 非搭載ホストでのスキップ確認](#step-5-selinux-非搭載ホストでのスキップ確認)
   - [トラブルシューティング](#トラブルシューティング)
+    - [1. Validate desired state で停止する場合](#1-validate-desired-state-で停止する場合)
+    - [2. SELinux を有効化したいのに変更されない場合](#2-selinux-を有効化したいのに変更されない場合)
+    - [3. setenforce 実行後も期待モードに変わらない場合](#3-setenforce-実行後も期待モードに変わらない場合)
+    - [4. 再起動後の復帰待ちでタイムアウトする場合](#4-再起動後の復帰待ちでタイムアウトする場合)
+    - [5. /.autorelabel が毎回作成される場合](#5-autorelabel-が毎回作成される場合)
+    - [6. /etc/selinux/config が更新されない場合](#6-etcselinuxconfig-が更新されない場合)
   - [注意事項](#注意事項)
     - [動作モード遷移時の処理](#動作モード遷移時の処理)
   - [参考資料](#参考資料)
@@ -61,12 +67,12 @@
 | Playbook | - | 自動化処理の実行手順を記述したファイル。 |
 | Canonical | - | Ubuntu を提供する組織名。 |
 | Key-Value | - | キーと値の組で情報を表す方式。 |
-| Internet Protocol | IP | インターネットプロトコルの略称。 |
+| Internet Protocol | IP | ネットワーク上で宛先を識別し, データを届けるための通信手順。 |
 | Structured Query Language | SQL | データベースを操作するための記述言語。 |
-| Hypertext Transfer Protocol | HTTP | WWW で情報をやり取りする通信手順。 |
-| Hypertext Transfer Protocol Secure | HTTPS | 通信内容を暗号化して WWW 通信を行う方式。 |
-| RPM Package Manager | RPM | RHEL 系で使用するパッケージ形式。 |
-| Virtual Machine | VM | 物理機器上で動作する仮想的な計算機。 |
+| Hypertext Transfer Protocol | HTTP | World Wide Webで情報をやり取りする通信手順。 |
+| Hypertext Transfer Protocol Secure | HTTPS | 通信内容を暗号化してWorld Wide Web通信を行う方式。 |
+| RPM Package Manager | RPM | RPM形式パッケージの導入, 更新, 削除, 情報参照を行う仕組み。 |
+| Virtual Machine | VM | 物理計算機上で動作する仮想的な計算機。 |
 | localhost | - | 同一機器自身を指す名前。 |
 | root | - | Unix 系システムの最上位権限を持つ管理者識別子。 |
 | ソフトウェア | - | 情報処理システムで使用するプログラム, 手順, 規則及び関連文書の全体又は一部分。 |
@@ -94,14 +100,14 @@
 | Service | - | サービスの英語表記。 |
 | Node | - | ノードの英語表記。 |
 | Makefile | - | 実行手順を定義したファイル。 |
-| Application Programming Interface | API | アプリケーション同士がやり取りする方法を定めた仕様。 |
-| Uniform Resource Locator | URL | WWW 上の資源の場所を示す文字列。 |
+| Application Programming Interface | API | アプリケーション同士が機能やデータをやり取りするための取り決め。 |
+| Uniform Resource Locator | URL | World Wide Web上の資源の場所を示す文字列。 |
 | Security-Enhanced Linux | SELinux | 強制アクセス制御の仕組み。 |
 | AppArmor | - | プロセスごとにアクセス権限を制御するLinuxセキュリティモジュール, Debian/Ubuntu系で標準採用 |
 | enforcing | - | SELinuxがポリシー違反を検出しアクセスを拒否する動作モード |
 | permissive | - | SELinuxがポリシー違反をログ記録のみ行い拒否しない動作モード, デバッグ用 |
 | disabled | - | SELinuxが完全に無効化されている状態, 有効化には再起動が必要 |
-| Red Hat Enterprise Linux | RHEL | Red Hat 社が提供する商用 Linux ディストリビューション。 |
+| Red Hat Enterprise Linux | RHEL | Red Hatが提供する企業向けLinuxディストリビューション。 |
 | Debian | - | コミュニティ主導で開発される Linux ディストリビューション。 |
 | Ubuntu | - | Canonical が提供する Debian 系の Linux ディストリビューション。 |
 | Operating System | OS | 計算機の基本機能を管理し, アプリケーションを動作させる基盤ソフトウェア。 |
@@ -110,8 +116,8 @@
 | Ansible Task | task | 自動化処理の最小単位となる実行項目。 |
 | ansible-playbookコマンド | - | Ansible Playbook を実行して自動構成処理を適用するコマンド。 |
 | `journalctl` | - | systemd ジャーナルのログを参照するコマンド。 |
+| 制御ホスト | - | Playbook を実行し, 他ホストへの処理指示を行う管理用ホスト。 |
 | 対象ホスト | - | Playbook による設定変更や導入処理の適用先となるホスト。 |
-
 ## 概要
 
 本ロールは SELinux を利用するホストに対して, 期待するモード (`enforcing` / `permissive` / `disabled`) を永続設定およびランタイム設定に反映し, 必要に応じて再ラベルや再起動を自動化します。SELinux が無い (Debian/Ubuntu 系など) 環境では自動的にスキップし, AppArmor など別メカニズムを採用するホストに影響を与えません。
@@ -261,16 +267,109 @@ ok: [ubuntu-server.local] => {
 
 ## トラブルシューティング
 
-代表的なトラブルと対処を以下に示します。
+### 1. Validate desired state で停止する場合
 
-| 想定トラブル | 主な原因 | 対処方法 |
-| --- | --- | --- |
-| `Validate desired state` で停止する | `common_selinux_state` が `enforcing` / `permissive` / `disabled` 以外になっている | 実行者は `vars/all-config.yml` または `host_vars` の `common_selinux_state` を確認し, 許容値へ修正して再実行します。既定値は `permissive` です。 |
-| SELinux を有効化したいのに何も変更されない | 対象ホストで `/sys/fs/selinux/enforce` と `/etc/selinux/config` の両方が存在せず, `selinux_present` が `false` になっている | 実行者は対象ホストが SELinux 搭載の RHEL 系であることを確認します。Debian/Ubuntu 系では本ロールはスキップ動作が正しく, SELinux 導入予定がある場合は別途 SELinux パッケージ群を導入してから再実行します。 |
-| `setenforce` 実行後も期待モードに変わらない | 現在状態が `Disabled` であり, ランタイム切替では有効化できない | 実行者は `/etc/selinux/config` の `SELINUX=` が更新されていることと `/.autorelabel` が作成されていることを確認します。その後, 再起動完了まで待機し, 起動後に `getenforce` を再確認します。 |
-| 再起動後の復帰待ちでタイムアウトする | フルリラベルに時間がかかっている, または `reboot_timeout_sec` が不足している | 実行者はコンソールから起動進行を確認し, 大容量ディスクや大量ファイル環境では `reboot_timeout_sec` を既定値 `600` より大きく設定します。再ラベル中は復帰に長時間を要する場合があります。 |
-| `/.autorelabel` が毎回作成される | `force_relabel: true` が残っている | 実行者は `force_relabel` の設定値を確認します。強制再ラベルが不要になったら `false` に戻して再実行します。既定値は `false` です。 |
-| `/etc/selinux/config` が更新されない | 対象ホストに設定ファイルが存在しないため, 永続設定タスクが条件分岐でスキップされている | 実行者は `/etc/selinux/config` の有無を確認します。SELinux を利用するホストでこのファイルが欠落している場合は, SELinux 関連パッケージや初期設定状態を修復してから再実行します。 |
+**実施対象ホスト**: 制御ホスト
+
+**実行するコマンド**:
+
+```bash
+grep -n "common_selinux_state" vars/all-config.yml host_vars/*.yml
+ansible-playbook -i inventory/hosts common.yml --tags selinux
+```
+
+**確認ポイント**:
+
+- `common_selinux_state` が `enforcing`, `permissive`, `disabled` のいずれかであること。
+- 許容値以外が設定されていないこと。
+- 修正後に再実行して停止しないこと。
+
+### 2. SELinux を有効化したいのに変更されない場合
+
+**実施対象ホスト**: 制御ホスト, 対象ホスト
+
+**実行するコマンド**:
+
+```bash
+test -e /sys/fs/selinux/enforce; echo $?
+test -e /etc/selinux/config; echo $?
+ansible-playbook -i inventory/hosts common.yml --tags selinux -l <対象ホスト>
+```
+
+**確認ポイント**:
+
+- `/sys/fs/selinux/enforce` と `/etc/selinux/config` が存在すること。
+- SELinux 非搭載ホストではスキップ動作になること。
+- SELinux 搭載ホストで設定変更タスクが実行されること。
+
+### 3. setenforce 実行後も期待モードに変わらない場合
+
+**実施対象ホスト**: 対象ホスト
+
+**実行するコマンド**:
+
+```bash
+getenforce
+grep -E '^SELINUX=' /etc/selinux/config
+ls -l /.autorelabel 2>/dev/null || echo 'no autorelabel file'
+```
+
+**確認ポイント**:
+
+- 現在状態が `Disabled` の場合はランタイム切替で有効化できないので再起動後に再度確認すること。
+- `/etc/selinux/config` の `SELINUX=` が目標値になっていること。
+- 有効化時は `/.autorelabel` が作成され, 再起動後に反映されること。
+
+### 4. 再起動後の復帰待ちでタイムアウトする場合
+
+**実施対象ホスト**: 制御ホスト, 対象ホスト
+
+**実行するコマンド**:
+
+```bash
+grep -n "reboot_timeout_sec" vars/all-config.yml host_vars/*.yml
+journalctl -b --no-pager | grep -Ei 'selinux|relabel' | tail -n 20
+```
+
+**確認ポイント**:
+
+- フルリラベル処理に時間がかかっている場合は, 完了を待ち合わせること。
+- 大容量ディスク環境では `reboot_timeout_sec` を既定値より増やすこと。
+- 再起動後に SELinux 初期化ログが出力されること。
+
+### 5. /.autorelabel が毎回作成される場合
+
+**実施対象ホスト**: 制御ホスト, 対象ホスト
+
+**実行するコマンド**:
+
+```bash
+grep -n "force_relabel" vars/all-config.yml host_vars/*.yml
+ls -l /.autorelabel 2>/dev/null || echo 'no autorelabel file'
+```
+
+**確認ポイント**:
+
+- `force_relabel: true` が残っていないこと。
+- 強制再ラベルが不要な運用では `force_relabel: false` であること。
+- 再起動完了後に `/.autorelabel` が残存しないこと。
+
+### 6. /etc/selinux/config が更新されない場合
+
+**実施対象ホスト**: 対象ホスト
+
+**実行するコマンド**:
+
+```bash
+ls -l /etc/selinux/config
+grep -E '^(SELINUX|SELINUXTYPE)=' /etc/selinux/config
+```
+
+**確認ポイント**:
+
+- `/etc/selinux/config` が存在すること。
+- ファイルが欠落している場合は永続設定タスクがスキップされること。
+- SELinux を利用するホストでは関連パッケージと初期設定が整っていること。
 
 ## 注意事項
 

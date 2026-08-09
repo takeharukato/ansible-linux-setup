@@ -70,7 +70,7 @@
 ## 用語
 
 | 正式名称 | 略称 | 意味 |
-|---------|------|------|
+| --------- | ------ | ------ |
 | Berkeley Internet Name Domain | BIND | DNS サーバ機能を提供するソフトウェア。 |
 | Domain Name System | DNS | 名前と IP アドレスを対応付ける仕組み。 |
 | named | - | BIND の DNS サーバープロセス名。 |
@@ -98,7 +98,7 @@
 | Operating System | OS | 計算機の基本機能を管理し, アプリケーションを動作させる基盤ソフトウェア。 |
 | Process Identifier | PID | 実行中の処理を識別する番号。 |
 | Pointer Record | PTR | DNS で IP アドレスから名前を逆引きするレコード種別。 |
-| Red Hat Enterprise Linux | RHEL | Red Hat 社が提供する商用 Linux ディストリビューション。 |
+| Red Hat Enterprise Linux | RHEL | Red Hatが提供する企業向けLinuxディストリビューション。 |
 | Red Hat Enterprise Linux 9 | RHEL9 | Red Hat Enterprise Linux の第9系統版。 |
 | Start of Authority | SOA | DNS ゾーンの管理情報を持つレコード種別。 |
 | Secure Shell | SSH | 遠隔の計算機へ安全に接続して操作する方式。 |
@@ -121,7 +121,7 @@
 | `dig` | - | DNS 問い合わせ結果を詳細表示するコマンド。 |
 | `journalctl` | - | systemd ジャーナルのログを参照するコマンド。 |
 | `ls` | - | ファイルやディレクトリの一覧を表示するコマンド。 |
-| `make` | - | Makefile に定義された処理を実行するコマンド。 |
+| makeコマンド | make | Makefile に定義された処理を実行するコマンド。 |
 | `systemctl` | - | systemd 管理下のサービスを起動, 停止, 状態確認するコマンド。 |
 | アドレス | - | 宛先や所在を識別するための情報。 |
 | オクテット | - | 8ビットを1単位とするデータ長。 |
@@ -135,13 +135,10 @@
 | リモートホスト | - | ネットワーク越しに接続して操作する別ホスト。 |
 | 対象ホスト | - | Playbook による設定変更や導入処理の適用先となるホスト。 |
 | sudoコマンド | sudo | 一時的に管理者権限でコマンドを実行するためのコマンド。 |
-
 ## 概要
 BIND を用いた権威兼キャッシュ DNS サーバーを構成するロールです。対象 OS に応じて Debian 系と RHEL 系の差異を吸収の上, ゾーンファイルと `named.conf`/`named.conf.options` をテンプレートから生成します。
 また, クライアントからのホスト名, IPアドレス登録を受け付けるためのDynamic DNS 更新用 Transaction SIGnature (TSIG) キーを組み込み, IPv4/IPv6 双方の順引き, 逆引きゾーンを作成します。
 必要に応じて systemd, Security-Enhanced Linux (SELinux), Firewall の周辺設定も行います。
-
-本ロールは, dns-server に関する設定処理を実施します。
 
 ## 前提条件
 
@@ -506,7 +503,7 @@ RHEL 系では以下の専用処理を実施します:
 
 ## 検証ポイント
 
-実行者は以下の検証コマンドを実行し, 構文検査が成功することを確認します。
+以下の検証コマンドを実行し, 構文検査が成功することを確認します。
 
 ```bash
 ansible-playbook -i inventory/hosts site.yml --syntax-check

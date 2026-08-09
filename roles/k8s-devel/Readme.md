@@ -8,7 +8,6 @@
   - [目次](#目次)
   - [用語](#用語)
   - [概要](#概要)
-  - [主な処理](#主な処理)
   - [前提条件](#前提条件)
   - [実行方法](#実行方法)
   - [主要変数](#主要変数)
@@ -28,6 +27,12 @@
   - [実行フロー](#実行フロー)
   - [検証ポイント](#検証ポイント)
   - [トラブルシューティング](#トラブルシューティング)
+    - [1. k8s\_major\_minor の形式エラーで package.yml が実行されない場合](#1-k8s_major_minor-の形式エラーで-packageyml-が実行されない場合)
+    - [2. Go ローカルパッケージ導入で失敗する場合](#2-go-ローカルパッケージ導入で失敗する場合)
+    - [3. Go 言語版 Kubernetes client 導入で失敗する場合](#3-go-言語版-kubernetes-client-導入で失敗する場合)
+    - [4. Python 言語版 Kubernetes client 導入で失敗する場合](#4-python-言語版-kubernetes-client-導入で失敗する場合)
+    - [5. Ubuntu 24.04 で externally-managed-environment エラーが出る場合](#5-ubuntu-2404-で-externally-managed-environment-エラーが出る場合)
+  - [注意事項](#注意事項)
   - [参考資料](#参考資料)
     - [公式ドキュメント](#公式ドキュメント)
 
@@ -68,12 +73,12 @@
 | Playbook | - | 自動化処理の実行手順を記述したファイル。 |
 | Canonical | - | Ubuntu を提供する組織名。 |
 | Key-Value | - | キーと値の組で情報を表す方式。 |
-| Internet Protocol | IP | インターネットプロトコルの略称。 |
+| Internet Protocol | IP | ネットワーク上で宛先を識別し, データを届けるための通信手順。 |
 | Structured Query Language | SQL | データベースを操作するための記述言語。 |
-| Hypertext Transfer Protocol | HTTP | WWW で情報をやり取りする通信手順。 |
-| Hypertext Transfer Protocol Secure | HTTPS | 通信内容を暗号化して WWW 通信を行う方式。 |
-| RPM Package Manager | RPM | RHEL 系で使用するパッケージ形式。 |
-| Virtual Machine | VM | 物理機器上で動作する仮想的な計算機。 |
+| Hypertext Transfer Protocol | HTTP | World Wide Webで情報をやり取りする通信手順。 |
+| Hypertext Transfer Protocol Secure | HTTPS | 通信内容を暗号化してWorld Wide Web通信を行う方式。 |
+| RPM Package Manager | RPM | RPM形式パッケージの導入, 更新, 削除, 情報参照を行う仕組み。 |
+| Virtual Machine | VM | 物理計算機上で動作する仮想的な計算機。 |
 | localhost | - | 同一機器自身を指す名前。 |
 | root | - | Unix 系システムの最上位権限を持つ管理者識別子。 |
 | ソフトウェア | - | 情報処理システムで使用するプログラム, 手順, 規則及び関連文書の全体又は一部分。 |
@@ -101,9 +106,9 @@
 | Service | - | サービスの英語表記。 |
 | Node | - | ノードの英語表記。 |
 | Makefile | - | 実行手順を定義したファイル。 |
-| Application Programming Interface | API | アプリケーション同士がやり取りする方法を定めた仕様。 |
-| Uniform Resource Locator | URL | WWW 上の資源の場所を示す文字列。 |
-| Application Programming Interface | API | API の正式名称。 |
+| Application Programming Interface | API | アプリケーション同士が機能やデータをやり取りするための取り決め。 |
+| Uniform Resource Locator | URL | World Wide Web上の資源の場所を示す文字列。 |
+| Application Programming Interface | API | アプリケーション同士が機能やデータをやり取りするための取り決め。 |
 | Custom Resource Definition | CRD | Kubernetes APIを拡張してユーザ独自のリソース種別を定義する仕組み。 |
 | Role-Based Access Control | RBAC | ユーザやサービスアカウントが実行可能な操作を役割(Role)で制限する仕組み。 |
 | Service Account | - | Kubernetes内部でPodが他のリソースにアクセスする際に用いる仮想的なアカウント。 |
@@ -156,7 +161,7 @@
 | Python Enhancement Proposal | PEP | Python の機能改善や標準化を提案・議論するための公式文書体系。ソフトウェア開発における仕様策定の枠組み。 |
 | End-of-Life | EOL | ソフトウェアやシステムのサポート終了状態。セキュリティ更新や機能追加が停止される。 |
 | Operating System | OS | 計算機の基本機能を管理し, アプリケーションを動作させる基盤ソフトウェア。 |
-| Red Hat Enterprise Linux | RHEL | Red Hat 社が提供する商用 Linux ディストリビューション。 |
+| Red Hat Enterprise Linux | RHEL | Red Hatが提供する企業向けLinuxディストリビューション。 |
 | Red Hat Enterprise Linux 9 | RHEL9 | Red Hat Enterprise Linux の第9系統版。 |
 | Secure Shell | SSH | 遠隔の計算機へ安全に接続して操作する方式。 |
 | Ansible Playbook | playbook | 自動化処理の実行手順を順序付きで記述したファイル。 |
@@ -164,7 +169,7 @@
 | ansible-playbookコマンド | - | Ansible Playbook を実行して自動構成処理を適用するコマンド。 |
 | `cat` | - | ファイル内容を標準出力へ表示するコマンド。 |
 | `ls` | - | ファイルやディレクトリの一覧を表示するコマンド。 |
-| `make` | - | Makefile に定義された処理を実行するコマンド。 |
+| makeコマンド | make | Makefile に定義された処理を実行するコマンド。 |
 | `python3` | - | Python 3 系インタプリタを実行するコマンド。 |
 | rpmコマンド | - | RPM パッケージの情報参照や導入確認を行うコマンド。 |
 | オフライン | - | ネットワーク未接続で動作する状態。 |
@@ -176,7 +181,6 @@
 | 対象ホスト | - | Playbook による設定変更や導入処理の適用先となるホスト。 |
 | 構築ホスト | - | パッケージや実行資材を生成するビルド処理を担当するホスト。 |
 | sudoコマンド | sudo | 一時的に管理者権限でコマンドを実行するためのコマンド。 |
-
 ## 概要
 Kubernetes 開発向けの言語別 Client ライブラリ導入を行うロールです。
 
@@ -191,10 +195,6 @@ Kubernetes 開発向けの言語別 Client ライブラリ導入を行うロー�
 - **PEP 668 対応 (pip導入モード時)**: Ubuntu 24.04 以降では PEP 668 (外部管理環境) によりシステム Python への直接導入が制限されるため, pip導入モードでは自動的に `--break-system-packages` を付与します。
 - **Go client 導入前の事前検証**: `k8s_devel_go_client_enabled=true` の場合, `golang` / `golang-go` / `go-lang` の導入有無を確認し, 未導入なら `fail` で停止します。
 
-## 主な処理
-
-本ロールは tasks/main.yml から task 群を呼び出し, 設定適用と検証を実施します。
-
 ## 前提条件
 
 - 対象 OS: Debian/Ubuntu系 (Ubuntu 24.04を想定), RHEL9 系 (Rocky Linux, AlmaLinux など, AlmaLinux 9.6を想定)
@@ -203,23 +203,35 @@ Kubernetes 開発向けの言語別 Client ライブラリ導入を行うロー�
 
 ## 実行方法
 
+以下のいずれかのコマンドを制御ホスト上で実行します:
+
+**make コマンドで実行 (全ホスト対象)**:
 ```bash
-# make コマンドで実行 (全ホスト対象)
 make run_k8s_devel
+```
 
-# コントロールプレーンノードに適用
+**コントロールプレーンノードに適用**:
+```bash
 ansible-playbook k8s-ctrl-plane.yml
+```
 
-# ワーカーノードに適用
+**ワーカーノードに適用**:
+```bash
 ansible-playbook k8s-worker.yml
+```
 
-# 開発環境に適用
+**開発環境に適用**:
+```bash
 ansible-playbook devel.yml
+```
 
-# 特定ホストのみ対象
+**特定ホストのみに適用**:
+```bash
 ansible-playbook k8s-ctrl-plane.yml -l k8sctrlplane01.local
+```
 
-# k8s-devel タスクのみ実行
+**k8s-devel タスクのみ実行**:
+```bash
 ansible-playbook k8s-ctrl-plane.yml -t k8s-devel
 ```
 
@@ -456,11 +468,99 @@ RHEL で `k8s_python_packages_version` を指定している場合は, 必要に
 
 ## トラブルシューティング
 
-- `k8s_major_minor` 形式エラー時は, 本ロールは `package.yml` 実行をスキップします。`major.minor` 形式(例: `1.31`)に修正後, 再実行してください。
-- Go ローカルパッケージ導入失敗時: ビルドホストから `https://go.dev/dl/` へのネットワーク接続と, `/tmp/go-build` 配下の成果物生成状況を確認してください。
-- Go 言語版 Kubernetes client 導入で失敗する場合は, `golang`/`golang-go`/`go-lang` の導入有無に加え, 構築ホストでのコンテナ実行可否とローカルパッケージ生成状況を確認してください。
-- Python 言語版 Kubernetes client 導入で失敗する場合は, 既定方式では `python-k8s-client-local` ロールのビルドホストでのローカルパッケージ生成状況を, pip導入モードでは pip 実行環境と外部リポジトリアクセス可否を確認してください。
-- Ubuntu 24.04 で "externally-managed-environment" エラーが出る場合: pip導入モードでは本ロールが `--break-system-packages` を付与します。手動で導入する場合は `pip install --break-system-packages <package>` を使用してください。
+### 1. k8s_major_minor の形式エラーで package.yml が実行されない場合
+
+**実施対象ホスト**: 制御ホスト
+
+**実行するコマンド**:
+
+```bash
+grep -n "k8s_major_minor" host_vars/*/main.yml group_vars/all/all.yml
+ansible-playbook -i inventory/hosts devel.yml --tags k8s-devel -vv | grep -Ei "k8s_major_minor|skip|package.yml"
+```
+
+**確認ポイント**:
+
+- `k8s_major_minor` が `major.minor` 形式 (例: `1.31`) で指定されていること。
+- 形式が不正な場合は `package.yml` がスキップされるため, 変数修正後に再実行していること。
+
+### 2. Go ローカルパッケージ導入で失敗する場合
+
+**実施対象ホスト**: 構築ホスト, 制御ホスト
+
+**実行するコマンド**:
+
+```bash
+curl -I https://go.dev/dl/
+ls -la /tmp/go-build
+```
+
+**確認ポイント**:
+
+- 構築ホストから `https://go.dev/dl/` へ到達できること。
+- `/tmp/go-build` 配下にローカルパッケージ成果物が生成されていること。
+- 生成物がない場合は, ビルド手順またはネットワーク到達性を見直していること。
+
+### 3. Go 言語版 Kubernetes client 導入で失敗する場合
+
+**実施対象ホスト**: 対象ホスト, 構築ホスト
+
+**実行するコマンド**:
+
+```bash
+command -v golang || command -v golang-go || command -v go-lang
+go version
+ansible-playbook -i inventory/hosts devel.yml --tags k8s-devel -vv | grep -Ei "go-k8s-client-local|fail|error"
+```
+
+**確認ポイント**:
+
+- 対象ホストで `golang`/`golang-go`/`go-lang` のいずれかが導入済みであること。
+- 構築ホストでコンテナ実行が可能で, `go-k8s-client-local` のローカルパッケージ生成が完了していること。
+- 導入後検証で `go.mod` の `k8s.io/client-go` 版数が実効版数と一致していること。
+
+### 4. Python 言語版 Kubernetes client 導入で失敗する場合
+
+**実施対象ホスト**: 構築ホスト, 対象ホスト
+
+**実行するコマンド**:
+
+```bash
+ansible-playbook -i inventory/hosts devel.yml --tags k8s-devel -vv | grep -Ei "python-k8s-client-local|pip|error|fail"
+python3 -m pip --version
+```
+
+**確認ポイント**:
+
+- 既定方式では `python-k8s-client-local` ロールによるローカルパッケージ生成が完了していること。
+- `k8s_devel_python_client_install_via_pip=true` の場合は, pip 実行環境と外部リポジトリアクセスが確保されていること。
+- 仮想環境導入先 (`/opt/k8s-devel/python-client`) が作成され, 依存パッケージが解決されていること。
+
+### 5. Ubuntu 24.04 で externally-managed-environment エラーが出る場合
+
+**実施対象ホスト**: 対象ホスト
+
+**実行するコマンド**:
+
+```bash
+python3 --version
+python3 -m pip install --break-system-packages <package>
+```
+
+**確認ポイント**:
+
+- pip 導入モードでは本ロールが `--break-system-packages` を付与すること。
+- 手動導入時は `pip install --break-system-packages <package>` を使用していること。
+- 手動導入で回避できる場合は, pip 実行時オプション不足が主因であること。
+
+## 注意事項
+
+- `k8s_devel_python_client_enabled`, `k8s_devel_go_client_enabled`, `k8s_devel_c_client_enabled` は既定で `false` のため, 必要な言語だけを明示的に有効化していること。
+- `k8s_major_minor` の値は Python 言語版 Kubernetes client と Go 言語版 Kubernetes client の既定版数導出に使用するため, `major.minor` 形式 (例: `1.31`) で指定していること。
+- Go 言語版 Kubernetes client 導入では Go 本体を本ロールで導入しないため, 対象ホストに `golang`/`golang-go`/`go-lang` のいずれかが事前導入済みであること。
+- 既定方式の Python 言語版 Kubernetes client 導入は `python-k8s-client-local` ロールへ委譲するため, 構築ホストでローカルパッケージ生成が可能な実行環境 (コンテナ実行可否, 必要なネットワーク到達性) を満たしていること。
+- `k8s_devel_python_client_install_via_pip=true` の互換方式を使用する場合は, pip 実行環境と外部リポジトリアクセスを確保していること。Ubuntu 24.04 では externally-managed-environment 対応のため, `--break-system-packages` が必要になること。
+- `/opt/k8s-devel/go-client` および `/opt/k8s-devel/python-client` 配下の内容は開発用の運用資産を含むため, 削除や再配置の前にバックアップ方針を確認していること。
 
 ## 参考資料
 

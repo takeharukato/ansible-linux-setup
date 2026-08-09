@@ -5,7 +5,9 @@
 ## 目次
 
 - [reboot-common ロール](#reboot-common-ロール)
+	- [目次](#目次)
 	- [用語](#用語)
+	- [概要](#概要)
 	- [本ロールの動作仕様](#本ロールの動作仕様)
 	- [呼び出し元ロールからの使用方法](#呼び出し元ロールからの使用方法)
 		- [呼び出し元ロール作成者が実施する作業](#呼び出し元ロール作成者が実施する作業)
@@ -13,9 +15,20 @@
 		- [呼び出し元ロールから本ロールを呼び出すansibleタスクの記載方法](#呼び出し元ロールから本ロールを呼び出すansibleタスクの記載方法)
 		- [ハンドラから本ロール相当処理を呼び出すansibleタスクの記載方法](#ハンドラから本ロール相当処理を呼び出すansibleタスクの記載方法)
 		- [各パラメタ変数に設定する値](#各パラメタ変数に設定する値)
-	- [トラブルシューティング](#トラブルシューティング)
-	- [注意事項](#注意事項)
 	- [検証項目](#検証項目)
+	- [前提条件](#前提条件)
+	- [実行方法](#実行方法)
+	- [主要変数](#主要変数)
+	- [実行フロー](#実行フロー)
+	- [検証ポイント](#検証ポイント)
+	- [トラブルシューティング](#トラブルシューティング)
+		- [1. 再起動後に SSH 再接続で失敗する場合](#1-再起動後に-ssh-再接続で失敗する場合)
+		- [2. 再起動直後の接続が不安定になる場合](#2-再起動直後の接続が不安定になる場合)
+		- [3. 権限不足で再起動できない場合](#3-権限不足で再起動できない場合)
+		- [4. handler から再起動共通処理を呼び出せない場合](#4-handler-から再起動共通処理を呼び出せない場合)
+	- [注意事項](#注意事項)
+	- [参考資料](#参考資料)
+		- [公式ドキュメント](#公式ドキュメント)
 
 ## 用語
 
@@ -56,12 +69,12 @@
 | Playbook | - | 自動化処理の実行手順を記述したファイル。 |
 | Canonical | - | Ubuntu を提供する組織名。 |
 | Key-Value | - | キーと値の組で情報を表す方式。 |
-| Internet Protocol | IP | インターネットプロトコルの略称。 |
+| Internet Protocol | IP | ネットワーク上で宛先を識別し, データを届けるための通信手順。 |
 | Structured Query Language | SQL | データベースを操作するための記述言語。 |
-| Hypertext Transfer Protocol | HTTP | WWW で情報をやり取りする通信手順。 |
-| Hypertext Transfer Protocol Secure | HTTPS | 通信内容を暗号化して WWW 通信を行う方式。 |
-| RPM Package Manager | RPM | RHEL 系で使用するパッケージ形式。 |
-| Virtual Machine | VM | 物理機器上で動作する仮想的な計算機。 |
+| Hypertext Transfer Protocol | HTTP | World Wide Webで情報をやり取りする通信手順。 |
+| Hypertext Transfer Protocol Secure | HTTPS | 通信内容を暗号化してWorld Wide Web通信を行う方式。 |
+| RPM Package Manager | RPM | RPM形式パッケージの導入, 更新, 削除, 情報参照を行う仕組み。 |
+| Virtual Machine | VM | 物理計算機上で動作する仮想的な計算機。 |
 | localhost | - | 同一機器自身を指す名前。 |
 | root | - | Unix 系システムの最上位権限を持つ管理者識別子。 |
 | ソフトウェア | - | 情報処理システムで使用するプログラム, 手順, 規則及び関連文書の全体又は一部分。 |
@@ -91,8 +104,8 @@
 | Service | - | サービスの英語表記。 |
 | Node | - | ノードの英語表記。 |
 | Makefile | - | 実行手順を定義したファイル。 |
-| Application Programming Interface | API | アプリケーション同士がやり取りする方法を定めた仕様。 |
-| Uniform Resource Locator | URL | WWW 上の資源の場所を示す文字列。 |
+| Application Programming Interface | API | アプリケーション同士が機能やデータをやり取りするための取り決め。 |
+| Uniform Resource Locator | URL | World Wide Web上の資源の場所を示す文字列。 |
 | ロール | - | Ansible における処理のまとまり。 |
 | 実行メッセージ | - | 実行中または失敗時に表示される文字列。 |
 | 呼び出し元ロール | - | `reboot-common` を `include_role` などで呼び出す側のロール。 |
@@ -111,7 +124,6 @@
 | 制御ホスト | - | Playbook を実行し, 他ホストへの処理指示を行う管理用ホスト。 |
 | 対象ホスト | - | Playbook による設定変更や導入処理の適用先となるホスト。 |
 | sudoコマンド | sudo | 一時的に管理者権限でコマンドを実行するためのコマンド。 |
-
 ## 概要
 本ロールは, 再起動処理をロール間で共通化し, 呼び出し元ロールから同一の手順で再利用可能にするためのロールです。
 本ロールでは, 以下の機能を実現するための他のロールから呼び出し可能なロールを定義する:
@@ -263,12 +275,12 @@ Ansible の仕様上, handler では `include_role` を直接利用できない�
 
 ## 前提条件
 
-本ロールの実行者は, 対象ホストが inventory に登録済みであることを確認します。
-本ロールの実行者は, 関連する共通変数が vars/all-config.yml または host_vars に定義済みであることを確認します。
+- 対象ホストが inventory に登録済みであること
+- 関連する共通変数が vars/all-config.yml または host_vars に定義済みであること
 
 ## 実行方法
 
-実行者は制御ホストで以下のコマンドを実行します。
+制御ホストで以下のコマンドを実行します。
 
 ```bash
 ansible-playbook -i inventory/hosts site.yml --tags "reboot-common"
@@ -282,9 +294,11 @@ ansible-playbook -i inventory/hosts site.yml --tags "reboot-common"
 
 ## 実行フロー
 
-1. 実行者が load-params.yml により変数を読み込む。
-2. 実行者が本ロール固有の task を順次実行します。
-3. 実行者が検証コマンドを実行して期待結果を確認します。
+1. [tasks/main.yml](tasks/main.yml) の `Normalize reboot-common parameters` で, 呼び出し元から未指定の入力値へ既定値を補完します。handler から `include_tasks` で呼び出された場合も同じ補完を適用します。
+2. `reboot_common_disable_controlmaster_during_reboot: true` の場合は, [tasks/main.yml](tasks/main.yml) で現在の `ansible_ssh_common_args` を退避し, 再起動フェーズ用の無効化引数を一時追加した後, `meta: reset_connection` で反映します。
+3. [tasks/main.yml](tasks/main.yml) の `Reboot host gracefully` で `ansible.builtin.reboot` を実行し, 対象ホストを再起動します。
+4. `reboot_common_wait_for_connection_enabled: true` の場合は, [tasks/main.yml](tasks/main.yml) の `Wait for host connection after reboot` で `ansible.builtin.wait_for_connection` を実行し, 指定した timeout/retries/delay の条件で接続再確立を待機します。
+5. 再起動フェーズ終了時は [tasks/main.yml](tasks/main.yml) の `always` 節で `ansible_ssh_common_args` を復元し, `meta: reset_connection` を実行して通常時の接続条件へ戻します。
 
 ## 検証ポイント
 
@@ -298,25 +312,82 @@ ansible-playbook -i inventory/hosts site.yml --syntax-check
 
 ## トラブルシューティング
 
-主なトラブルの症状, 原因, 確認項目, 対処方法を以下に示す:
+### 1. 再起動後に SSH 再接続で失敗する場合
 
-| 症状 | 主な原因 | 確認項目 | 対処 |
-| --- | --- | --- | --- |
-| 再起動後に SSH 再接続で失敗する | 起動直後のネットワーク未収束, sshd 起動遅延 | 実行ログの `Wait for host connection after reboot` タスク結果 | `reboot_common_wait_for_connection_timeout`, `retries`, `delay` を調整します。 |
-| 再起動直後に接続が不安定になる | ControlMaster の既存接続再利用不整合 | 実行ログの SSH 接続失敗メッセージ | `reboot_common_disable_controlmaster_during_reboot: true` を検討します。 |
-| 権限不足で再起動できない | 再起動実行ユーザに権限が無い | `permission denied` などのエラー | `reboot_common_become: true` を指定し, sudo 権限を確認します。 |
-| handler から再起動共通処理を呼び出せない | handler で `include_role` を使用している | syntax-check エラー内容 | handler では `include_tasks` で [roles/reboot-common/tasks/main.yml](roles/reboot-common/tasks/main.yml) を読み込む。 |
+**実施対象ホスト**: 制御ホスト
+
+**実行するコマンド**:
+
+```bash
+ansible-playbook -i inventory/hosts site.yml --tags "reboot-common" -vv
+```
+
+**確認ポイント**:
+
+- `Wait for host connection after reboot` タスクが失敗していないこと。
+- 一時的な接続揺らぎで失敗する場合は, `reboot_common_wait_for_connection_timeout`, `reboot_common_wait_for_connection_retries`, `reboot_common_wait_for_connection_delay_seconds` を環境に合わせて調整していること。
+
+### 2. 再起動直後の接続が不安定になる場合
+
+**実施対象ホスト**: 制御ホスト
+
+**実行するコマンド**:
+
+```bash
+ansible-playbook -i inventory/hosts site.yml --tags "reboot-common" -vv
+```
+
+**確認ポイント**:
+
+- SSH 接続失敗が再起動直後に集中して発生していること。
+- `reboot_common_disable_controlmaster_during_reboot` を `true` に設定し, 再起動フェーズ限定で ControlMaster 無効化を適用していること。
+
+### 3. 権限不足で再起動できない場合
+
+**実施対象ホスト**: 制御ホスト, 対象ホスト
+
+**実行するコマンド**:
+
+```bash
+ansible-playbook -i inventory/hosts site.yml --tags "reboot-common" -vv
+sudo -n true
+```
+
+**確認ポイント**:
+
+- 実行ログに `permission denied` などの権限エラーが出ていないこと。
+- `reboot_common_become` が `true` に設定されていること。
+- 対象ホストで再起動実行ユーザの sudo 権限が有効であること。
+
+### 4. handler から再起動共通処理を呼び出せない場合
+
+**実施対象ホスト**: 制御ホスト
+
+**実行するコマンド**:
+
+```bash
+ansible-playbook -i inventory/hosts site.yml --syntax-check
+grep -n "include_role\|include_tasks" roles/*/handlers/*.yml
+```
+
+**確認ポイント**:
+
+- handler で `include_role` を使用していないこと。
+- handler では `include_tasks` で [roles/reboot-common/tasks/main.yml](roles/reboot-common/tasks/main.yml) を読み込んでいること。
+- `--syntax-check` で handler 定義に関するエラーが出ていないこと。
 
 ## 注意事項
 
-- 再起動を実行する条件 (`when`) は呼び出し元ロールで定義すること。
-- 本ロールは再起動処理そのものを提供するため, 「再起動条件に関する業務判断」は呼び出し元ロール側の責務です。
-- handler では `include_role` が使えないため, 本ロール相当処理を呼ぶ場合は `include_tasks` 方式を使うこと。
-- `reboot_common_disable_controlmaster_during_reboot` を有効化する場合, SSH 接続確立回数が増えるため処理時間が増える可能性がある。
-- [roles/force-reboot](roles/force-reboot) は最終フェーズ用の再起動ロールであり, 途中処理の共通再起動には本ロールを使うこと。
+- 再起動を実行する条件 (`when`) は呼び出し元ロールで定義し, 業務影響のある時間帯を避けて実施すること。
+- `reboot_common_become` を `true` で運用する場合は, 対象ホストで実行ユーザに sudo 権限が付与されていること。権限不足のまま実行すると再起動タスクが失敗します。
+- `reboot_common_wait_for_connection_enabled` を `false` に設定した場合は, 再起動直後に後続タスクが実行されるため接続未復旧による失敗が起こり得ます。後続処理がある運用では `true` を維持すること。
+- `reboot_common_wait_for_connection_timeout`, `reboot_common_wait_for_connection_retries`, `reboot_common_wait_for_connection_delay_seconds` は対象環境の起動時間に合わせて設定すること。値が短すぎる場合は正常再起動でも失敗判定になります。
+- `reboot_common_disable_controlmaster_during_reboot` を有効化する場合は, SSH 再接続回数が増えるため処理時間が延びる可能性があることを踏まえて適用すること。
+- handler では `include_role` を使用できないため, handler から呼び出す場合は `include_tasks` で [roles/reboot-common/tasks/main.yml](roles/reboot-common/tasks/main.yml) を読み込むこと。
+- [roles/force-reboot](roles/force-reboot) は最終フェーズ向けであるため, 途中フェーズの共通再起動には本ロールを使用し, 役割を混在させないこと。
 
 ## 参考資料
 
 ### 公式ドキュメント
 
-- Ansible reboot module: https://docs.ansible.com/ansible/latest/collections/ansible/builtin/reboot_module.html
+- [Ansible reboot module](https://docs.ansible.com/ansible/latest/collections/ansible/builtin/reboot_module.html)

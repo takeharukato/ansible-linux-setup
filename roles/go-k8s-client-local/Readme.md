@@ -1,6 +1,6 @@
 # go-k8s-client-local ロール
 
-本ロールは, Go 言語版 Kubernetes client (client-go) を対象ノード上で直接 `go get` せずに, 構築ホスト上のコンテナでローカルパッケージ (deb/rpm) を生成して配布, 導入するロールです。
+本ロールは, 構築ホスト上のコンテナ環境を用いてGo 言語版 Kubernetes clientのローカルパッケージ (deb/rpm) を生成し導入します。
 
 ## 目次
 
@@ -15,6 +15,13 @@
   - [実行フロー](#実行フロー)
   - [検証ポイント](#検証ポイント)
   - [トラブルシューティング](#トラブルシューティング)
+    - [1. Validate go k8s client version format で失敗する場合](#1-validate-go-k8s-client-version-format-で失敗する場合)
+    - [2. パッケージビルド処理がタイムアウトする場合](#2-パッケージビルド処理がタイムアウトする場合)
+    - [3. Go k8s client ... package was not generated で失敗する場合](#3-go-k8s-client--package-was-not-generated-で失敗する場合)
+    - [4. No go k8s client deb/rpm file found ... または Fetched ... package is missing on controller で失敗する場合](#4-no-go-k8s-client-debrpm-file-found--または-fetched--package-is-missing-on-controller-で失敗する場合)
+    - [5. 導入後の go.mod / go.sum / vendor 存在確認で失敗する場合](#5-導入後の-gomod--gosum--vendor-存在確認で失敗する場合)
+    - [6. Installed client-go module version mismatch で失敗する場合](#6-installed-client-go-module-version-mismatch-で失敗する場合)
+    - [7. --check 実行で成果物が作成されない場合](#7---check-実行で成果物が作成されない場合)
   - [注意事項](#注意事項)
   - [参考資料](#参考資料)
     - [公式ドキュメント](#公式ドキュメント)
@@ -56,12 +63,12 @@
 | Playbook | - | 自動化処理の実行手順を記述したファイル。 |
 | Canonical | - | Ubuntu を提供する組織名。 |
 | Key-Value | - | キーと値の組で情報を表す方式。 |
-| Internet Protocol | IP | インターネットプロトコルの略称。 |
+| Internet Protocol | IP | ネットワーク上で宛先を識別し, データを届けるための通信手順。 |
 | Structured Query Language | SQL | データベースを操作するための記述言語。 |
-| Hypertext Transfer Protocol | HTTP | WWW で情報をやり取りする通信手順。 |
-| Hypertext Transfer Protocol Secure | HTTPS | 通信内容を暗号化して WWW 通信を行う方式。 |
-| RPM Package Manager | RPM | RHEL 系で使用するパッケージ形式。 |
-| Virtual Machine | VM | 物理機器上で動作する仮想的な計算機。 |
+| Hypertext Transfer Protocol | HTTP | World Wide Webで情報をやり取りする通信手順。 |
+| Hypertext Transfer Protocol Secure | HTTPS | 通信内容を暗号化してWorld Wide Web通信を行う方式。 |
+| RPM Package Manager | RPM | RPM形式パッケージの導入, 更新, 削除, 情報参照を行う仕組み。 |
+| Virtual Machine | VM | 物理計算機上で動作する仮想的な計算機。 |
 | localhost | - | 同一機器自身を指す名前。 |
 | root | - | Unix 系システムの最上位権限を持つ管理者識別子。 |
 | ソフトウェア | - | 情報処理システムで使用するプログラム, 手順, 規則及び関連文書の全体又は一部分。 |
@@ -90,9 +97,9 @@
 | Service | - | サービスの英語表記。 |
 | Node | - | ノードの英語表記。 |
 | Makefile | - | 実行手順を定義したファイル。 |
-| Application Programming Interface | API | アプリケーション同士がやり取りする方法を定めた仕様。 |
-| Uniform Resource Locator | URL | WWW 上の資源の場所を示す文字列。 |
-| Application Programming Interface | API | API の正式名称。 |
+| Application Programming Interface | API | アプリケーション同士が機能やデータをやり取りするための取り決め。 |
+| Uniform Resource Locator | URL | World Wide Web上の資源の場所を示す文字列。 |
+| Application Programming Interface | API | アプリケーション同士が機能やデータをやり取りするための取り決め。 |
 | Operating System | OS | 計算機の基本機能を管理し, アプリケーションを動作させる基盤ソフトウェア。 |
 | Ansible Task | task | 自動化処理の最小単位となる実行項目。 |
 | ansible-playbookコマンド | - | Ansible Playbook を実行して自動構成処理を適用するコマンド。 |
@@ -105,7 +112,6 @@
 | 制御ホスト | - | Playbook を実行し, 他ホストへの処理指示を行う管理用ホスト。 |
 | 対象ホスト | - | Playbook による設定変更や導入処理の適用先となるホスト。 |
 | 構築ホスト | - | パッケージや実行資材を生成するビルド処理を担当するホスト。 |
-
 ## 概要
 
 本ロールは, Go 言語版 Kubernetes client (client-go) を対象ノード上で直接 `go get` せずに, 構築ホスト上のコンテナでローカルパッケージ (deb/rpm) を生成して配布, 導入するロールです。
@@ -208,17 +214,124 @@ $ echo $?
 
 ## トラブルシューティング
 
-代表的なトラブルと対処を以下に示します。
+### 1. Validate go k8s client version format で失敗する場合
 
-| 想定トラブル | 主な原因 | 対処方法 |
-| --- | --- | --- |
-| `Validate go k8s client version format` で失敗する | `go_k8s_client_version` が `vX.Y.Z` 形式になっていない |  `go_k8s_client_version` を `v0.31.0` のような形式へ修正して再実行します。 |
-| パッケージビルド処理がタイムアウトする | 構築ホストの性能不足, イメージ取得遅延, ネットワーク遅延により待機時間を超過している |  `build-*.log` で停止箇所を確認し, 必要に応じて `go_k8s_client_build_timeout_seconds` を延長して再実行します。 |
-| `Go k8s client ... package was not generated` で失敗する | コンテナ内ビルドは実行されたが, 指定パターンに合致する deb/rpm 成果物が出力されていない | 構築ホスト上の `/tmp/go-k8s-client-build-<実行ユーザ名>/output` を確認し, パッケージ名設定 (`go_k8s_client_deb_package_name` / `go_k8s_client_rpm_package_name`) と build スクリプトの出力を見直して再実行します。 |
-| `No go k8s client deb/rpm file found ...` または `Fetched ... package is missing on controller` で失敗する | 構築ホストから制御ホストへの回収に失敗している, または中間ファイルが削除されている | 構築ホスト上の成果物存在と読み取り権限を確認し, 制御ホストの `~/.ansible/tmp` 配下に回収されることを確認して再実行します。 |
-| 導入後の `go.mod` / `go.sum` / `vendor` 存在確認で失敗する | パッケージ導入は完了したが, `go_k8s_client_install_dir` の内容が欠落している | 対象ホストで `/opt/k8s-devel/go-client` 配下を確認し, 既存ファイル競合の有無を確認した上で再導入します。必要に応じて導入先ディレクトリを退避して再実行します。 |
-| `Installed client-go module version mismatch` で失敗する | 導入済みの `k8s.io/client-go` 版数が `go_k8s_client_version` と一致していない | 対象ホストで `go list -m k8s.io/client-go` の結果を確認し, 指定版数と一致するように `go_k8s_client_version` を修正するか, 既存導入物の影響を除去して再実行します。 |
-| `--check` 実行で成果物が作成されない | チェックモードでは構築/導入処理をスキップする仕様 | 動作確認時に通常実行 (check モードなし) で再実行します。 |
+**実施対象ホスト**: 制御ホスト
+
+**実行するコマンド**:
+
+```bash
+grep -n "go_k8s_client_version" vars/all-config.yml host_vars/*/main.yml
+```
+
+**確認ポイント**:
+
+- `go_k8s_client_version` が `vX.Y.Z` 形式であること。
+- 不正形式の場合は `v0.31.0` のような形式へ修正して再実行していること。
+
+### 2. パッケージビルド処理がタイムアウトする場合
+
+**実施対象ホスト**: 構築ホスト, 制御ホスト
+
+**実行するコマンド**:
+
+```bash
+ls -1 build-*.log
+tail -n 200 build.log
+grep -n "go_k8s_client_build_timeout_seconds" vars/all-config.yml host_vars/*/main.yml
+```
+
+**確認ポイント**:
+
+- `build-*.log` で停止箇所を特定できること。
+- 構築ホストの性能不足, イメージ取得遅延, ネットワーク遅延の有無を確認していること。
+- 必要に応じて `go_k8s_client_build_timeout_seconds` を延長して再実行していること。
+
+### 3. Go k8s client ... package was not generated で失敗する場合
+
+**実施対象ホスト**: 構築ホスト, 制御ホスト
+
+**実行するコマンド**:
+
+```bash
+ls -la /tmp/go-k8s-client-build-*/output
+grep -n "Go k8s client .* package was not generated" build-*.log
+grep -n "go_k8s_client_deb_package_name\|go_k8s_client_rpm_package_name" vars/all-config.yml host_vars/*/main.yml
+```
+
+**確認ポイント**:
+
+- `/tmp/go-k8s-client-build-<実行ユーザ名>/output` に deb/rpm 成果物が生成されていること。
+- `go_k8s_client_deb_package_name` / `go_k8s_client_rpm_package_name` と成果物名が一致すること。
+- `build-*.log` で build スクリプトの失敗工程を特定できること。
+
+### 4. No go k8s client deb/rpm file found ... または Fetched ... package is missing on controller で失敗する場合
+
+**実施対象ホスト**: 構築ホスト, 制御ホスト
+
+**実行するコマンド**:
+
+```bash
+ls -la /tmp/go-k8s-client-build-*/output
+ls -la ~/.ansible/tmp
+grep -n "No go k8s client deb/rpm file found\|Fetched .* package is missing on controller" build-*.log
+```
+
+**確認ポイント**:
+
+- 構築ホスト上で成果物ファイルが存在し, 読み取り可能であること。
+- 制御ホストの `~/.ansible/tmp` 配下に回収用一時ディレクトリが作成されていること。
+- 回収前に中間ファイルが削除されていないこと。
+
+### 5. 導入後の go.mod / go.sum / vendor 存在確認で失敗する場合
+
+**実施対象ホスト**: 対象ホスト
+
+**実行するコマンド**:
+
+```bash
+ls -la /opt/k8s-devel/go-client
+test -f /opt/k8s-devel/go-client/go.mod; echo $?
+test -f /opt/k8s-devel/go-client/go.sum; echo $?
+test -d /opt/k8s-devel/go-client/vendor; echo $?
+```
+
+**確認ポイント**:
+
+- `/opt/k8s-devel/go-client` 配下に `go.mod`, `go.sum`, `vendor` が存在すること。
+- 欠落時は `go_k8s_client_install_dir` の内容欠落や既存ファイル競合の有無を確認していること。
+- 必要に応じて導入先ディレクトリを退避して再導入していること。
+
+### 6. Installed client-go module version mismatch で失敗する場合
+
+**実施対象ホスト**: 対象ホスト
+
+**実行するコマンド**:
+
+```bash
+go list -m k8s.io/client-go
+grep -n "go_k8s_client_version" vars/all-config.yml host_vars/*/main.yml
+```
+
+**確認ポイント**:
+
+- `go list -m k8s.io/client-go` の結果が `go_k8s_client_version` と一致していること。
+- 不一致時は `go_k8s_client_version` の指定値または既存導入物の影響を見直して再実行していること。
+
+### 7. --check 実行で成果物が作成されない場合
+
+**実施対象ホスト**: 制御ホスト
+
+**実行するコマンド**:
+
+```bash
+ansible-playbook -i inventory/hosts devel.yml --tags go-k8s-client-local --check -vv
+```
+
+**確認ポイント**:
+
+- チェックモードでは仕様として構築/導入処理をスキップすること。
+- 成果物生成や導入確認を行う場合は通常実行 (check モードなし) を使用していること。
 
 
 ## 注意事項

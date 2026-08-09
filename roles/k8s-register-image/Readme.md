@@ -23,6 +23,14 @@
   - [実行フロー](#実行フロー)
   - [検証ポイント](#検証ポイント)
   - [トラブルシューティング](#トラブルシューティング)
+    - [1. 入力検証で停止し, required inputs エラーが表示される場合](#1-入力検証で停止し-required-inputs-エラーが表示される場合)
+    - [2. Missing image tar path or expected image tag for component で停止する場合](#2-missing-image-tar-path-or-expected-image-tag-for-component-で停止する場合)
+    - [3. worker 自動検出時に No worker nodes found in the cluster で停止する場合](#3-worker-自動検出時に-no-worker-nodes-found-in-the-cluster-で停止する場合)
+    - [4. worker Ready 待機で失敗する場合](#4-worker-ready-待機で失敗する場合)
+    - [5. 対象ノードへの接続前確認で失敗する場合](#5-対象ノードへの接続前確認で失敗する場合)
+    - [6. tar 転送で失敗する場合](#6-tar-転送で失敗する場合)
+    - [7. expected image tag not found で停止する場合](#7-expected-image-tag-not-found-で停止する場合)
+    - [8. 後続処理で tar ファイルが見つからない場合](#8-後続処理で-tar-ファイルが見つからない場合)
   - [注意事項](#注意事項)
   - [参考資料](#参考資料)
     - [公式ドキュメント](#公式ドキュメント)
@@ -66,12 +74,12 @@
 | Playbook | - | 自動化処理の実行手順を記述したファイル。 |
 | Canonical | - | Ubuntu を提供する組織名。 |
 | Key-Value | - | キーと値の組で情報を表す方式。 |
-| Internet Protocol | IP | インターネットプロトコルの略称。 |
+| Internet Protocol | IP | ネットワーク上で宛先を識別し, データを届けるための通信手順。 |
 | Structured Query Language | SQL | データベースを操作するための記述言語。 |
-| Hypertext Transfer Protocol | HTTP | WWW で情報をやり取りする通信手順。 |
-| Hypertext Transfer Protocol Secure | HTTPS | 通信内容を暗号化して WWW 通信を行う方式。 |
-| RPM Package Manager | RPM | RHEL 系で使用するパッケージ形式。 |
-| Virtual Machine | VM | 物理機器上で動作する仮想的な計算機。 |
+| Hypertext Transfer Protocol | HTTP | World Wide Webで情報をやり取りする通信手順。 |
+| Hypertext Transfer Protocol Secure | HTTPS | 通信内容を暗号化してWorld Wide Web通信を行う方式。 |
+| RPM Package Manager | RPM | RPM形式パッケージの導入, 更新, 削除, 情報参照を行う仕組み。 |
+| Virtual Machine | VM | 物理計算機上で動作する仮想的な計算機。 |
 | localhost | - | 同一機器自身を指す名前。 |
 | root | - | Unix 系システムの最上位権限を持つ管理者識別子。 |
 | ソフトウェア | - | 情報処理システムで使用するプログラム, 手順, 規則及び関連文書の全体又は一部分。 |
@@ -99,8 +107,8 @@
 | Service | - | サービスの英語表記。 |
 | Node | - | ノードの英語表記。 |
 | Makefile | - | 実行手順を定義したファイル。 |
-| Application Programming Interface | API | アプリケーション同士がやり取りする方法を定めた仕様。 |
-| Uniform Resource Locator | URL | WWW 上の資源の場所を示す文字列。 |
+| Application Programming Interface | API | アプリケーション同士が機能やデータをやり取りするための取り決め。 |
+| Uniform Resource Locator | URL | World Wide Web上の資源の場所を示す文字列。 |
 | ロール | - | Ansible における処理のまとまり。 |
 | 変数 | - | 実行時に値を切り替えるための設定項目。 |
 | 制御ホスト | - | Playbook を実行し, 他ホストへの処理指示を行う管理用ホスト。 |
@@ -111,7 +119,7 @@
 | Container Runtime Interface | CRI | Kubernetesがコンテナランタイムと通信するための標準インターフェース。 |
 | containerd | containerd | Dockerから分離された軽量なコンテナランタイム。 |
 | ctr | ctr | containerd に付属する低レベル操作コマンド。image import によるコンテナイメージ登録やコンテナイメージへのタグ (tag) 付けに使用します。 |
-| コンテナイメージ tar ファイル| - | コンテナイメージをアーカイブ化したファイル。呼び出し元ロールが事前準備する成果物。 |
+| コンテナイメージ tar ファイル | - | コンテナイメージをアーカイブ化したファイル。呼び出し元ロールが事前準備する成果物。 |
 | 未修飾名イメージ | - | レジストリ名が付かないイメージ名。例: `library/busybox:latest`。 |
 | 既定レジストリ | - | 未修飾名イメージへ補完するレジストリ名。`k8s_register_image_unqualified_image_registry` で指定します。 |
 | kubeconfig | kubeconfig | Kubernetes 接続設定ファイルを指す名称。kubectl などが参照する。 |
@@ -124,9 +132,8 @@
 | sudoコマンド | sudo | 一時的に管理者権限でコマンドを実行するためのコマンド。 |
 
 ## 概要
-本ロールは, 呼び出し元ロールが事前に用意したコンテナイメージ tar を Kubernetes ノードへ配布し, control plane ノードと worker ノード上の Container Runtime Interface (CRI, containerd など) に登録するための共通ロールです。
 
-本ロールは, k8s-register-image に関する設定処理を実施します。
+本ロールは, 呼び出し元ロールが事前に用意したコンテナイメージ tar を Kubernetes ノードへ配布し, control plane ノードと worker ノード上の Container Runtime Interface (CRI, containerd など) に登録するための共通ロールです。
 
 ## 本ロールの動作仕様
 
@@ -359,16 +366,133 @@
 
 ## トラブルシューティング
 
-| 事象 | 主な原因 | 対処方法 |
-| --- | --- | --- |
-| 入力検証で停止し, required inputs エラーが表示される。 | `k8s_register_image_components` または `k8s_register_image_expected_images` が空, もしくは未定義である。 | 呼び出し元ロールで対象コンポーネント定義と期待タグ定義を設定する。最低1件のコンポーネントを登録し, コンポーネント名のキーを両方の対応表で一致させる。 |
-| Missing image tar path or expected image tag for component で停止する。 | コンポーネントに対応する期待タグがない, tar パスが空, または tar パスが絶対パスではない。 | `k8s_register_image_components` の各値を絶対パスで指定し, 同じキー名で `k8s_register_image_expected_images` を定義する。 |
-| worker 自動検出時に No worker nodes found in the cluster で停止する。 | `kubectl` 参照先の kubeconfig が不正, もしくは対象クラスタに worker ノードが存在しない。 | `k8s_kubeconfig_to_discover_workers_path` を確認し, 制御ホストで `kubectl --kubeconfig <path> get nodes` を実行して worker ノードが取得できることを確認する。必要に応じて worker ノードを明示指定へ切り替える。 |
-| worker Ready 待機で失敗する。 | worker ノードが Ready になっていない, または待機時間が短い。 | ノード状態を `kubectl get nodes` で確認する。必要に応じて `k8s_register_image_wait_for_worker_ready_timeout` を延長するか, 待機失敗で停止しない運用にする場合は `k8s_register_image_wait_for_worker_ready_fail_on_timeout` を `false` に設定する。 |
-| 対象ノードへの接続前確認で失敗する。 | 対象ノードへの SSH 接続不可, または権限昇格設定不備。 | inventory の接続情報, 鍵, `ansible_user`, sudo 設定を確認する。再試行間隔や回数が不足する場合は接続前確認関連変数(retries, timeout など)を調整する。 |
-| tar 転送で失敗する。 | 制御ホスト上に tar が存在しない, または対象ノードの一時配置先へ書き込みできない。 | 制御ホストで tar ファイル存在と読み取り権限を確認する。対象ノードで `k8s_register_image_remote_cache_dir` の作成可否と空き容量を確認する。必要に応じて転送再試行回数を増やす。 |
-| expected image tag not found で停止する。 | `ctr image import` は実行されたが, 期待タグまたは補完タグが登録されていない。 | 対象ノードで `ctr -n k8s.io images ls -q` を実行し, 実際に登録されたタグ名を確認する。`k8s_register_image_expected_images` と `k8s_register_image_unqualified_image_registry` の設定値を見直す。 |
-| 後続処理で tar ファイルが見つからない。 | `k8s_register_image_cleanup_remote_tar` が `true` のため, 登録後に tar が削除された。 | 後続処理で同じ tar を再利用する場合は, 呼び出し元で `k8s_register_image_cleanup_remote_tar` を `false` に設定する。 |
+### 1. 入力検証で停止し, required inputs エラーが表示される場合
+
+**実施対象ホスト**: 制御ホスト
+
+**実行するコマンド**:
+
+```bash
+grep -n 'k8s_register_image_components\|k8s_register_image_expected_images' vars/all-config.yml host_vars/*.yml group_vars/**/*.yml
+```
+
+**確認ポイント**:
+
+- k8s_register_image_components と k8s_register_image_expected_images が定義済みであること。
+- 両方の対応表が空ではないこと。
+- コンポーネント名のキーが両方の対応表で一致していること。
+
+### 2. Missing image tar path or expected image tag for component で停止する場合
+
+**実施対象ホスト**: 制御ホスト
+
+**実行するコマンド**:
+
+```bash
+grep -n 'k8s_register_image_components\|k8s_register_image_expected_images' vars/all-config.yml host_vars/*.yml group_vars/**/*.yml
+```
+
+**確認ポイント**:
+
+- k8s_register_image_components の各 tar パスが絶対パスであること。
+- コンポーネントごとの expected image tag が設定されていること。
+- 同じキー名で両方の対応表が定義されていること。
+
+### 3. worker 自動検出時に No worker nodes found in the cluster で停止する場合
+
+**実施対象ホスト**: 制御ホスト
+
+**実行するコマンド**:
+
+```bash
+kubectl --kubeconfig <path> get nodes
+```
+
+**確認ポイント**:
+
+- k8s_kubeconfig_to_discover_workers_path の参照先が有効であること。
+- kubectl で worker ノードが取得できること。
+- 自動検出が成立しない場合は worker ノードを明示指定へ切り替えること。
+
+### 4. worker Ready 待機で失敗する場合
+
+**実施対象ホスト**: 制御ホスト
+
+**実行するコマンド**:
+
+```bash
+kubectl get nodes -o wide
+```
+
+**確認ポイント**:
+
+- worker ノードが Ready になっていること。
+- 待機時間が不足する場合は k8s_register_image_wait_for_worker_ready_timeout を延長すること。
+- 停止せず継続する運用の場合は k8s_register_image_wait_for_worker_ready_fail_on_timeout を false に設定すること。
+
+### 5. 対象ノードへの接続前確認で失敗する場合
+
+**実施対象ホスト**: 制御ホスト
+
+**実行するコマンド**:
+
+```bash
+ansible -i inventory/hosts <target-host> -m ping -b
+```
+
+**確認ポイント**:
+
+- 対象ノードへ SSH 接続可能であること。
+- 権限昇格設定が有効であること。
+- ansible_user, 鍵, sudo 設定が運用設定と一致していること。
+
+### 6. tar 転送で失敗する場合
+
+**実施対象ホスト**: 制御ホスト, 対象ノード
+
+**実行するコマンド**:
+
+```bash
+ls -l <image-tar-path>
+ssh <target-host> "mkdir -p <k8s_register_image_remote_cache_dir> && df -h <k8s_register_image_remote_cache_dir>"
+```
+
+**確認ポイント**:
+
+- 制御ホスト上に tar ファイルが存在し, 読み取り可能であること。
+- 対象ノードで一時配置先ディレクトリの作成と書き込みが可能であること。
+- 対象ノードに十分な空き容量があること。
+
+### 7. expected image tag not found で停止する場合
+
+**実施対象ホスト**: 対象ノード
+
+**実行するコマンド**:
+
+```bash
+ctr -n k8s.io images ls -q
+```
+
+**確認ポイント**:
+
+- 期待タグ名が登録されていること。
+- 未修飾名補完タグが必要な場合は補完タグも登録されていること。
+- k8s_register_image_expected_images と k8s_register_image_unqualified_image_registry の設定値が一致していること。
+
+### 8. 後続処理で tar ファイルが見つからない場合
+
+**実施対象ホスト**: 対象ノード
+
+**実行するコマンド**:
+
+```bash
+ls -l <k8s_register_image_remote_cache_dir>
+```
+
+**確認ポイント**:
+
+- k8s_register_image_cleanup_remote_tar が true の場合は登録後に tar が削除されること。
+- 後続処理で再利用する場合は k8s_register_image_cleanup_remote_tar を false に設定すること。
 
 ## 注意事項
 

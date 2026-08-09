@@ -157,12 +157,12 @@
 | Playbook | - | 自動化処理の実行手順を記述したファイル。 |
 | Canonical | - | Ubuntu を提供する組織名。 |
 | Key-Value | - | キーと値の組で情報を表す方式。 |
-| Internet Protocol | IP | インターネットプロトコルの略称。 |
+| Internet Protocol | IP | ネットワーク上で宛先を識別し, データを届けるための通信手順。 |
 | Structured Query Language | SQL | データベースを操作するための記述言語。 |
-| Hypertext Transfer Protocol | HTTP | WWW で情報をやり取りする通信手順。 |
-| Hypertext Transfer Protocol Secure | HTTPS | 通信内容を暗号化して WWW 通信を行う方式。 |
-| RPM Package Manager | RPM | RHEL 系で使用するパッケージ形式。 |
-| Virtual Machine | VM | 物理機器上で動作する仮想的な計算機。 |
+| Hypertext Transfer Protocol | HTTP | World Wide Webで情報をやり取りする通信手順。 |
+| Hypertext Transfer Protocol Secure | HTTPS | 通信内容を暗号化してWorld Wide Web通信を行う方式。 |
+| RPM Package Manager | RPM | RPM形式パッケージの導入, 更新, 削除, 情報参照を行う仕組み。 |
+| Virtual Machine | VM | 物理計算機上で動作する仮想的な計算機。 |
 | localhost | - | 同一機器自身を指す名前。 |
 | root | - | Unix 系システムの最上位権限を持つ管理者識別子。 |
 | ソフトウェア | - | 情報処理システムで使用するプログラム, 手順, 規則及び関連文書の全体又は一部分。 |
@@ -190,10 +190,10 @@
 | Service | - | サービスの英語表記。 |
 | Node | - | ノードの英語表記。 |
 | Makefile | - | 実行手順を定義したファイル。 |
-| Application Programming Interface | API | アプリケーション同士がやり取りする方法を定めた仕様。 |
-| Uniform Resource Locator | URL | WWW 上の資源の場所を示す文字列。 |
+| Application Programming Interface | API | アプリケーション同士が機能やデータをやり取りするための取り決め。 |
+| Uniform Resource Locator | URL | World Wide Web上の資源の場所を示す文字列。 |
 | Kubernetes | K8s | コンテナを管理する基盤ソフトウェア。 |
-| Application Programming Interface | API | API の正式名称。 |
+| Application Programming Interface | API | アプリケーション同士が機能やデータをやり取りするための取り決め。 |
 | Custom Resource Definition | CRD | Kubernetes APIを拡張してユーザ独自のリソース種別を定義する仕組み。 |
 | Role-Based Access Control | RBAC | ユーザやサービスアカウントが実行可能な操作を役割(Role)で制限する仕組み。 |
 | Transport Layer Security | TLS | 通信経路でデータを暗号化して保護する仕組み。 |
@@ -237,11 +237,11 @@
 | ラベル ( label ) | - | リソースに対する付加情報の一種で, key=value 形式で指定される。典型的には, リソースの検索, 選別 ( selector ) のために用いられる。 |
 | アノテーション ( annotation ) | - | リソースに対する付加情報の一種で, key: value 形式で指定される。リソースの検索, 選別 ( selector ) を目的としない用途の付加情報を指定するために用いられる。 |
 | セレクタ ( selector ) | - | Kubernetes において, ラベル ( label ) に基づいてリソースを識別, 選択するための仕組み。たとえば, Service が特定のラベルを持つ Pod を選択して通信電文を転送する際に使用される。 |
-| サービスアカウント (Service Account)| - | 人間以外の実体をKubernetesクラスタ内で一意に識別するために提供されるアカウントの一種。 アプリケーションPod, システムコンポーネント, および, Kubernetesクラスター内外の実体に紐づけられたServiceAccountの認証情報を通して, これらの実体を互いに識別することが可能です。|
+| サービスアカウント (Service Account) | - | 人間以外の実体をKubernetesクラスタ内で一意に識別するために提供されるアカウントの一種。 アプリケーションPod, システムコンポーネント, および, Kubernetesクラスター内外の実体に紐づけられたServiceAccountの認証情報を通して, これらの実体を互いに識別することが可能です。 |
 | Fully Qualified Domain Name | FQDN | 末尾まで省略せず書いた完全なドメイン名。 |
 | Public Key Infrastructure | PKI | 公開鍵証明書を運用するための仕組み。 |
-| Red Hat Enterprise Linux | RHEL | Red Hat 社が提供する商用 Linux ディストリビューション。 |
-| Uniform Resource Locator | URL | URL の正式名称。 |
+| Red Hat Enterprise Linux | RHEL | Red Hatが提供する企業向けLinuxディストリビューション。 |
+| Uniform Resource Locator | URL | World Wide Web上の資源の場所を示す文字列。 |
 | Host Variables | host_vars | ホスト単位の設定値を格納する変数定義。 |
 | Ansible Inventory | inventory | 実行対象ホストの一覧と接続情報を管理する定義。 |
 | Central Processing Unit | CPU | 計算処理を実行する中核部品。 |
@@ -253,7 +253,7 @@
 | `export` | - | シェル変数を子プロセスへ引き継ぐ環境変数として設定するコマンド。 |
 | `grep` | - | テキストから条件に一致する行を抽出するコマンド。 |
 | `ls` | - | ファイルやディレクトリの一覧を表示するコマンド。 |
-| `make` | - | Makefile に定義された処理を実行するコマンド。 |
+| makeコマンド | make | Makefile に定義された処理を実行するコマンド。 |
 | `mkdir` | - | ディレクトリを作成するコマンド。 |
 | `rm` | - | ファイルやディレクトリを削除するコマンド。 |
 | `sed` | - | テキストを置換, 抽出, 整形するコマンド。 |
@@ -277,7 +277,6 @@
 | ローカルマシン | - | 処理を実行している同一の計算機。 |
 | 対象ホスト | - | Playbook による設定変更や導入処理の適用先となるホスト。 |
 | sudoコマンド | sudo | 一時的に管理者権限でコマンドを実行するためのコマンド。 |
-
 ## 概要
 [VirtualCluster - Enabling Kubernetes Hard Multi-tenancy](https://github.com/kubernetes-retired/cluster-api-provider-nested/tree/main/virtualcluster) の基盤コンポーネントを展開 (デプロイ) するロールです。このロールは, Kubernetes API を仮想化し, 複数の論理的な Kubernetes クラスタを単一の Kubernetes クラスタ上で動作させるための基盤を構築します。
 

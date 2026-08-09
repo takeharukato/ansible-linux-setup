@@ -10,10 +10,10 @@
   - [概要](#概要)
     - [本ロールの目的](#本ロールの目的)
     - [主な処理](#主な処理)
+      - [標準CoreDNSにテナント対応用パッチを適用](#標準corednsにテナント対応用パッチを適用)
       - [コンテナイメージ構築処理 (`build-vc-tenant-dns.yml`)](#コンテナイメージ構築処理-build-vc-tenant-dnsyml)
       - [containerd 直接登録によるコンテナイメージ配布処理 (`distribute-vc-tenant-dns.yml`)](#containerd-直接登録によるコンテナイメージ配布処理-distribute-vc-tenant-dnsyml)
       - [ローカルレジストリ登録処理 (`register-vc-tenant-dns.yml`)](#ローカルレジストリ登録処理-register-vc-tenant-dnsyml)
-    - [パッチ適用の概要](#パッチ適用の概要)
   - [前提条件](#前提条件)
   - [実行方法](#実行方法)
   - [主要変数](#主要変数)
@@ -24,9 +24,6 @@
         - [port-forward処理用ターミナルでの作業](#port-forward処理用ターミナルでの作業)
         - [コンテナイメージ投入用ターミナルでの作業](#コンテナイメージ投入用ターミナルでの作業)
     - [ロールが生成したマニフェストを使ってテナント用CoreDNSを展開する](#ロールが生成したマニフェストを使ってテナント用corednsを展開する)
-  - [テンプレートと生成ファイル](#テンプレートと生成ファイル)
-  - [実行フロー](#実行フロー)
-    - [コンテナイメージの構築と配布の流れ](#コンテナイメージの構築と配布の流れ)
     - [イメージ配布モードの選択](#イメージ配布モードの選択)
       - [containerd 直接登録モード](#containerd-直接登録モード)
       - [ローカルレジストリ登録モード](#ローカルレジストリ登録モード)
@@ -46,11 +43,11 @@
       - [検証用 Pod を削除する](#検証用-pod-を削除する)
       - [導入した Deployment と Service を確認する](#導入した-deployment-と-service-を確認する)
   - [トラブルシューティング](#トラブルシューティング)
-    - [Git 取得が失敗する場合](#git-取得が失敗する場合)
-    - [Docker ビルドが失敗する場合](#docker-ビルドが失敗する場合)
-    - [ローカルレジストリへの push が失敗する場合](#ローカルレジストリへの-push-が失敗する場合)
-    - [Kubernetes ノードでの pull が失敗する場合](#kubernetes-ノードでの-pull-が失敗する場合)
-    - [CoreDNS が READY 0/1 のまま回復しない場合](#coredns-が-ready-01-のまま回復しない場合)
+    - [1. Git 取得が失敗する場合](#1-git-取得が失敗する場合)
+    - [2. Docker ビルドが失敗する場合](#2-docker-ビルドが失敗する場合)
+    - [3. ローカルレジストリへの push が失敗する場合](#3-ローカルレジストリへの-push-が失敗する場合)
+    - [4. Kubernetes ノードでの pull が失敗する場合](#4-kubernetes-ノードでの-pull-が失敗する場合)
+    - [5. CoreDNS が READY 0/1 のまま回復しない場合](#5-coredns-が-ready-01-のまま回復しない場合)
   - [注意事項](#注意事項)
   - [付録 本ロールから導入されるマニュフェストファイルについて](#付録-本ロールから導入されるマニュフェストファイルについて)
     - [1. ServiceAccount 定義 (10-14行)](#1-serviceaccount-定義-10-14行)
@@ -100,12 +97,12 @@
 | Playbook | - | 自動化処理の実行手順を記述したファイル。 |
 | Canonical | - | Ubuntu を提供する組織名。 |
 | Key-Value | - | キーと値の組で情報を表す方式。 |
-| Internet Protocol | IP | インターネットプロトコルの略称。 |
+| Internet Protocol | IP | ネットワーク上で宛先を識別し, データを届けるための通信手順。 |
 | Structured Query Language | SQL | データベースを操作するための記述言語。 |
-| Hypertext Transfer Protocol | HTTP | WWW で情報をやり取りする通信手順。 |
-| Hypertext Transfer Protocol Secure | HTTPS | 通信内容を暗号化して WWW 通信を行う方式。 |
-| RPM Package Manager | RPM | RHEL 系で使用するパッケージ形式。 |
-| Virtual Machine | VM | 物理機器上で動作する仮想的な計算機。 |
+| Hypertext Transfer Protocol | HTTP | World Wide Webで情報をやり取りする通信手順。 |
+| Hypertext Transfer Protocol Secure | HTTPS | 通信内容を暗号化してWorld Wide Web通信を行う方式。 |
+| RPM Package Manager | RPM | RPM形式パッケージの導入, 更新, 削除, 情報参照を行う仕組み。 |
+| Virtual Machine | VM | 物理計算機上で動作する仮想的な計算機。 |
 | localhost | - | 同一機器自身を指す名前。 |
 | root | - | Unix 系システムの最上位権限を持つ管理者識別子。 |
 | ソフトウェア | - | 情報処理システムで使用するプログラム, 手順, 規則及び関連文書の全体又は一部分。 |
@@ -131,40 +128,35 @@
 | Service | - | サービスの英語表記。 |
 | Node | - | ノードの英語表記。 |
 | Makefile | - | 実行手順を定義したファイル。 |
-| Application Programming Interface | API | アプリケーション同士がやり取りする方法を定めた仕様。 |
-| Uniform Resource Locator | URL | WWW 上の資源の場所を示す文字列。 |
+| Application Programming Interface | API | アプリケーション同士が機能やデータをやり取りするための取り決め。 |
+| Uniform Resource Locator | URL | World Wide Web上の資源の場所を示す文字列。 |
 | Kubernetes | K8s | コンテナを管理する基盤ソフトウェア。 |
-| CoreDNS | - | Kubernetes の Service 名や Pod 名から対応する IP アドレスを返す DNS サーバで, K8sにおけるサービス検出(Service Detection) 機能を提供します。 詳細は, [CoreDNS](https://coredns.io/)を参照。|
+| CoreDNS | - | Kubernetes の Service 名や Pod 名から対応する IP アドレスを返す DNS サーバで, K8sにおけるサービス検出(Service Detection) 機能を提供します。 詳細は, [CoreDNS](https://coredns.io/)を参照。 |
 | Container Runtime Interface | CRI | Kubernetesがコンテナランタイムと通信するための標準インターフェース。 |
 | containerd | - | Dockerから分離された軽量なコンテナランタイム。 |
-| ConfigMap | - | 機密情報を含まないデータをキーと値のペアで保存するために使用されるK8sのオブジェクトのこと。詳細は, [ConfigMap](https://kubernetes.io/docs/concepts/configuration/configmap/)を参照。|
+| ConfigMap | - | 機密情報を含まないデータをキーと値のペアで保存するために使用されるK8sのオブジェクトのこと。詳細は, [ConfigMap](https://kubernetes.io/docs/concepts/configuration/configmap/)を参照。 |
 | ポッド ( Pod ) | - | Kubernetes上で動作するコンテナの最小単位。 |
 | デプロイメント ( Deployment ) | - | 指定した数のPodを維持し, ローリングアップデート等を管理するリソース。 |
 | デーモンセット ( DaemonSet ) | - | Kubernetesクラスタ内の全ノード(または指定した一部のノード)で必ずPodを1つずつ起動させるリソース。 |
 | ステートレス ( Stateless ) | - | アプリケーションの性質を表す用語で，アプリケーションから使用される各種データの状態を永続記憶(ストレージ)に保持しなくとも，動作可能なアプリケーションであることを示す。 |
-| サービス ( Service ) | - | Podへのアクセスを抽象化し, 負荷分散やサービスディスカバリを提供するリソース。 |
 | Custom Resource Definition | CRD | Kubernetes APIを拡張してユーザ独自のリソース種別を定義する仕組み。 |
 | Custom Resource | CR | CRDで定義されたユーザ独自のリソースの実体。 |
 | Label | - | リソースに付与するKey-Value形式のメタデータ。リソースの分類, 検索に利用される。 |
 | Selector | - | Labelを利用してリソースを選択する条件式。 |
 | Annotation | - | リソースに付与するKey-Value形式の補足情報。ツールやコントローラが参照するメタデータ。 |
-|Prometheus| - | K8s環境で, システムおよびサービスの監視に使用されるソフトウェアの一種です。詳細は, [Prometheus公式サイト](https://prometheus.io/)参照。|
-| Docker | - | コンテナイメージやコンテナの作成, 実行, 管理を行うコマンド。 |
+| Prometheus | - | K8s環境で, システムおよびサービスの監視に使用されるソフトウェアの一種です。詳細は, [Prometheus公式サイト](https://prometheus.io/)参照。 |
 | ローカルレジストリ | - | 実行中ホストまたは同一環境内で運用する成果物保管先。 |
 | マニフェスト | - | Kubernetes リソースを YAML 形式で定義したファイル。 |
 | 名前空間 ( namespace ) | - | Kubernetes内部でリソースを論理的に分離する単位。 |
 | テナント | - | VirtualCluster 上で独立した Kubernetes API 空間を利用する論理利用者。 |
-|サービス (Service) | - | K8sが提供するPodの集合上で実行しているアプリケーションを抽象的に公開する手段のこと。詳細は, [Service](https://kubernetes.io/docs/concepts/services-networking/service/)参照。|
-|ClusterIP| - | K8sの各サービスに割り当てられる仮想的なIPアドレスのこと。詳細は, [Virtual IPs and Service Proxies](https://kubernetes.io/docs/reference/networking/virtual-ips/)参照。|
-| Application Programming Interface | API | API の正式名称。 |
+| サービス (Service) | - | K8sが提供するPodの集合上で実行しているアプリケーションを抽象的に公開する手段のこと。詳細は, [Service](https://kubernetes.io/docs/concepts/services-networking/service/)参照。 |
+| ClusterIP | - | K8sの各サービスに割り当てられる仮想的なIPアドレスのこと。詳細は, [Virtual IPs and Service Proxies](https://kubernetes.io/docs/reference/networking/virtual-ips/)参照。 |
 | Certificate Authority | CA | 電子証明書を発行して正当性を保証する組織または仕組み。 |
 | Domain Name System | DNS | 名前と IP アドレスを対応付ける仕組み。 |
-| Hypertext Transfer Protocol Secure | HTTPS | 通信内容を暗号化して Web 通信を行う方式。 |
 | Secure Shell | SSH | 遠隔の計算機へ安全に接続して操作する方式。 |
 | Transmission Control Protocol | TCP | 通信相手との接続を確立してからデータを送受信する通信方式。 |
 | Transport Layer Security | TLS | 通信経路でデータを暗号化して保護する仕組み。 |
 | User Datagram Protocol | UDP | 接続確立を行わずにデータを送受信する通信方式。 |
-| Uniform Resource Locator | URL | URL の正式名称。 |
 | Central Processing Unit | CPU | 計算処理を実行する中核部品。 |
 | Ready | READY | 処理を実行可能な状態を示す表示。 |
 | ansible-playbookコマンド | - | Ansible Playbook を実行して自動構成処理を適用するコマンド。 |
@@ -174,10 +166,9 @@
 | `kubeconfig` | - | Kubernetes 接続設定ファイルを指す名称。kubectl などが参照する。 |
 | `kubectl` | - | Kubernetesクラスタを操作するためのコマンドラインツール。 |
 | `ls` | - | ファイルやディレクトリの一覧を表示するコマンド。 |
-| `make` | - | Makefile に定義された処理を実行するコマンド。 |
+| makeコマンド | make | Makefile に定義された処理を実行するコマンド。 |
 | `sed` | - | テキストを置換, 抽出, 整形するコマンド。 |
 | アドレス | - | 宛先や所在を識別するための情報。 |
-| サービス | - | 機能を利用者や他システムへ提供する仕組み。 |
 | データベース | - | 検索や更新ができるよう整理した情報の集合。 |
 | ノード | - | ネットワークに接続された機器または処理単位。 |
 | ポート | - | 通信の出入口を識別する番号または接点。 |
@@ -188,6 +179,7 @@
 | sudoコマンド | sudo | 一時的に管理者権限でコマンドを実行するためのコマンド。 |
 
 ## 概要
+
 VirtualCluster テナント内で利用する CoreDNS コンテナイメージを構築し, Kubernetes クラスタの各ノード上の Container Runtime Interface (CRI) へ直接登録, または, ローカルレジストリへ登録するロールです。本ロールは CoreDNS のソースコードへ `vc-tenant-dns-support.patch` を適用し, VirtualCluster テナント環境で必要な名前解決動作を反映したコンテナイメージを生成します。
 
 本ロールは以下の流れで処理します。
@@ -207,27 +199,12 @@ VirtualCluster テナント内で利用する CoreDNS コンテナイメージ�
 
 本ロールは以下の処理を実施します:
 
+- 標準CoreDNSにテナント対応用パッチを適用
 - コンテナイメージ構築処理
 - containerd 直接登録によるコンテナイメージ配布処理
 - ローカルレジストリ登録処理
 
-#### コンテナイメージ構築処理 (`build-vc-tenant-dns.yml`)
-
-このタスクでは, ビルドホスト上に作業ディレクトリを作成し, CoreDNS ソースコードの取得, パッチファイル配置, Dockerfile 生成, ビルドスクリプト生成, テナント内で動作するように修正したCoreDNSバイナリの構築(`docker build`), コンテナイメージの生成()`docker save`), 制御ホストへの tar 回収を実施します。
-
-#### containerd 直接登録によるコンテナイメージ配布処理 (`distribute-vc-tenant-dns.yml`)
-
-`k8s-register-image` ロールを用いて, コントロールプレインノードとワーカノードの両方へイメージ tar を配布し, CRI に登録します。ワーカノードは自動検出します。
-
-#### ローカルレジストリ登録処理 (`register-vc-tenant-dns.yml`)
-
-制御ホスト上で, 以下の処理を実施します:
-
-1. tar ファイルを Docker に読み込む
-2. tar ファイルのタグ名を付け替える
-3. ローカルレジストリにコンテナイメージを登録する
-
-### パッチ適用の概要
+#### 標準CoreDNSにテナント対応用パッチを適用
 
 [VirtualCluster - Enabling Kubernetes Hard Multi-tenancy](https://github.com/kubernetes-retired/cluster-api-provider-nested/tree/main/virtualcluster) ( Kubernetes 仮想クラスタ )では, テナント内のPodから参照されるClusterIPには, 実効性のない値(ダミー値)が格納される仕様です(詳細は, [VirtualCluster - Enabling Kubernetes Hard Multi-tenancy](https://github.com/kubernetes-retired/cluster-api-provider-nested/tree/main/virtualcluster) の[Readme.md](https://github.com/kubernetes-retired/cluster-api-provider-nested/blob/main/virtualcluster/README.md)中の["Limitations"](https://github.com/kubernetes-retired/cluster-api-provider-nested/tree/main/virtualcluster#limitations)節を参照)。
 
@@ -256,6 +233,22 @@ syncerは, スーパークラスタで使用されているclusterIPをテナン
 
 本パッチは, CoreDNS の `plugin/kubernetes/object/service.go` を修正し, テナント内から参照されるServiceの `ClusterIP` (ダミー値)の代わりに, スーパークラスタ側の`ClusterIP` を返すように修正します。
 
+#### コンテナイメージ構築処理 (`build-vc-tenant-dns.yml`)
+
+このタスクでは, ビルドホスト上に作業ディレクトリを作成し, CoreDNS ソースコードの取得, パッチファイル配置, Dockerfile 生成, ビルドスクリプト生成, テナント内で動作するように修正したCoreDNSバイナリの構築(`docker build`), コンテナイメージの生成()`docker save`), 制御ホストへの tar 回収を実施します。
+
+#### containerd 直接登録によるコンテナイメージ配布処理 (`distribute-vc-tenant-dns.yml`)
+
+`k8s-register-image` ロールを用いて, コントロールプレインノードとワーカノードの両方へイメージ tar を配布し, CRI に登録します。ワーカノードは自動検出します。
+
+#### ローカルレジストリ登録処理 (`register-vc-tenant-dns.yml`)
+
+制御ホスト上で, 以下の処理を実施します:
+
+1. tar ファイルを Docker に読み込む
+2. tar ファイルのタグ名を付け替える
+3. ローカルレジストリにコンテナイメージを登録する
+
 ## 前提条件
 
 - 制御ホストとビルドホスト上で Docker が利用可能であること。
@@ -266,17 +259,16 @@ syncerは, スーパークラスタで使用されているclusterIPをテナン
 
 ## 実行方法
 
-`vars/all-config.yml`, または, 対象ホストの `host_vars` 内で必要な変数を設定したうえで, 以下のいずれかで本ロールを実行します。
+`vars/all-config.yml`, または, 対象ホストの `host_vars` 内で必要な変数を設定したうえで, 以下のいずれかで本ロールを実行します:
 
 ```bash
-# site.yml 経由で実行する
-ansible-playbook -i inventory/hosts site.yml
-
-# k8s-management.yml の対象ロールだけ実行する
-ansible-playbook -i inventory/hosts k8s-management.yml --tags k8s-vc-tenant-dns
-
-# makeターゲットで本ロールの実行を指示する
 make run_k8s_vc_tenant_dns
+```
+
+または,
+
+```bash
+ansible-playbook -i inventory/hosts k8s-management.yml --tags k8s-vc-tenant-dns
 ```
 
 ## 主要変数
@@ -387,66 +379,24 @@ kubectl --kubeconfig ~/.kube/${TENANT_NAME}.conf get namespace
 
 ### ロールが生成したマニフェストを使ってテナント用CoreDNSを展開する
 
-まず, 生成済みマニフェストを確認します。
+1. 生成済みマニフェストを確認します。
 
 ```bash
-sudo ls -l /opt/k8snodes/vc-tenant-dns/manifests/vc-tenant-dns-${TENANT_NAME}.yml
+ls -l /opt/k8snodes/vc-tenant-dns/manifests/vc-tenant-dns-tenant-alpha.yml
 ```
 
-出力例:
-
-```text
--rw-r--r-- 1 root root 5xxx Jul 14 12:34 /opt/k8snodes/vc-tenant-dns/manifests/vc-tenant-dns-tenant-alpha.yml
-```
-
-続いて, テナント側へマニフェストを適用します。
+2. テナント用 kubeconfig を指定してマニフェストを適用します。
 
 ```bash
-kubectl --kubeconfig ~/.kube/${TENANT_NAME}.conf apply -f /opt/k8snodes/vc-tenant-dns/manifests/vc-tenant-dns-${TENANT_NAME}.yml
+kubectl --kubeconfig ~/.kube/tenant-alpha.conf apply -f /opt/k8snodes/vc-tenant-dns/manifests/vc-tenant-dns-tenant-alpha.yml
 ```
 
-出力例:
+3. CoreDNS Pod と Service を確認します。
 
-```text
-serviceaccount/coredns created
-clusterrole.rbac.authorization.k8s.io/system:coredns created
-clusterrolebinding.rbac.authorization.k8s.io/system:coredns created
-configmap/coredns created
-service/kube-dns created
-deployment.apps/coredns created
+```bash
+kubectl --kubeconfig ~/.kube/tenant-alpha.conf -n kube-system get pods -l k8s-app=kube-dns
+kubectl --kubeconfig ~/.kube/tenant-alpha.conf -n kube-system get service kube-dns
 ```
-
-## テンプレートと生成ファイル
-
-| テンプレートファイル名 | 出力先パス | 説明 |
-| --- | --- | --- |
-| `templates/Dockerfile.j2` | `{{ k8s_vc_tenant_dns_build_dir }}/Dockerfile` (既定: `{{ k8s_vc_tenant_dns_build_dir }}/Dockerfile`) | CoreDNS ビルド用の Dockerfile。 |
-| `templates/build-vc-tenant-dns.sh.j2` | `{{ k8s_vc_tenant_dns_build_dir }}/build-vc-tenant-dns.sh` (既定: `{{ k8s_vc_tenant_dns_build_dir }}/build-vc-tenant-dns.sh`) | `docker build` と `docker save` を実行するシェルスクリプト。 |
-
-関連入力ファイル:
-
-- `files/vc-tenant-dns-support.patch`: CoreDNS ソースコードへ適用するパッチ。
-
-## 実行フロー
-
-### コンテナイメージの構築と配布の流れ
-
-```mermaid
-flowchart TD
-    A[開始] --> B{k8s_vc_tenant_dns_enabled=true\nand vcinstances_virtualclusters 非空?}
-    B -- いいえ --> Z[package.yml をスキップして終了]
-    B -- はい --> C[package.yml]
-    C --> D[build-vc-tenant-dns.yml\nrun_once: true で1回のみ実行]
-    D --> E{k8s_vc_tenant_dns_image_registry\n設定あり?}
-    E -- いいえ --> F[distribute-vc-tenant-dns.yml\ncontainerd 直接登録モード]
-    E -- はい --> G[register-vc-tenant-dns.yml\nローカルレジストリ登録モード]
-    F --> H[create-manifest.yml]
-    G --> H
-    H --> I[vcinstances_virtualclusters を走査]
-    I --> J[create-manifest-per-tenant.yml\nvc-tenant-dns-<tenant>.yml を生成]
-    J --> K[終了]
-```
-
 `package.yml` は `k8s_vc_tenant_dns_enabled`が真の場合, かつ `vcinstances_virtualclusters` が空でない場合のみ実行されます。
 
 ### イメージ配布モードの選択
@@ -729,64 +679,100 @@ linux/amd64, go1.22.12,
 
 ## トラブルシューティング
 
-### Git 取得が失敗する場合
+### 1. Git 取得が失敗する場合
 
-既定値は HTTPS 取得です。独自 URL を SSH 形式へ変更している場合は, 制御ホスト上で GitHub などへの SSH 鍵設定と `known_hosts` 登録が必要です。
+**実施対象ホスト**: 制御ホスト
 
-### Docker ビルドが失敗する場合
+**実行するコマンド**:
 
-`golang:<version>-alpine<version>` のタグが存在することを確認してください。`k8s_vc_tenant_dns_go_version` と `k8s_vc_tenant_dns_alpine_version` の組み合わせが Docker Hub 上に存在しないとビルドに失敗します。
+```bash
+git ls-remote https://github.com/coredns/coredns.git
+ssh -T git@github.com
+ssh-keygen -F github.com
+```
+
+**確認ポイント**:
+
+- HTTPS 取得を使用する場合は git ls-remote が成功すること。
+- 独自 URL を SSH 形式へ変更している場合は, 制御ホストに SSH 鍵が設定されていること。
+- SSH 形式を使用する場合は known_hosts に接続先が登録済みであること。
+
+### 2. Docker ビルドが失敗する場合
+
+**実施対象ホスト**: 制御ホスト
+
+**実行するコマンド**:
 
 ```bash
 docker pull golang:1.22-alpine3.20
 docker pull alpine:3.20
+docker images | grep -E 'golang|alpine'
 ```
 
-### ローカルレジストリへの push が失敗する場合
+**確認ポイント**:
 
-Docker からレジストリへ接続できることと, `insecure-registries` などの設定が必要な環境では制御ホスト側設定が済んでいることを確認してください。
+- k8s_vc_tenant_dns_go_version と k8s_vc_tenant_dns_alpine_version の組み合わせが Docker Hub 上に存在すること。
+- ベースイメージ pull が成功し, ローカルに取得済みであること。
+- ビルド失敗時はタグの誤り, ネットワーク不達, レート制限を疑って再確認すること。
+
+### 3. ローカルレジストリへの push が失敗する場合
+
+**実施対象ホスト**: 制御ホスト
+
+**実行するコマンド**:
 
 ```bash
 curl -k -s http://registry1.local:5000/v2/_catalog
 docker images registry1.local:5000/vc-tenant-dns:v1.11.3
+docker push registry1.local:5000/vc-tenant-dns:v1.11.3
 ```
 
-### Kubernetes ノードでの pull が失敗する場合
+**確認ポイント**:
 
-`ImagePullBackOff` になる場合は, ノード側の containerd が対象レジストリを参照可能か確認してください。`/etc/containerd/certs.d/<registry>/hosts.toml` の設定や名前解決, 到達性を見直してください。
+- 制御ホストから対象レジストリへ HTTP/HTTPS 接続できること。
+- push 対象イメージがローカルに存在すること。
+- insecure-registries 設定が必要な環境では, 制御ホスト側設定が完了していること。
+
+### 4. Kubernetes ノードでの pull が失敗する場合
+
+**実施対象ホスト**: コントロールプレーンノード, ワーカーノード
+
+**実行するコマンド**:
 
 ```bash
 kubectl describe pod vc-tenant-dns-smoke -n default
+ls -l /etc/containerd/certs.d/<registry>/hosts.toml
+crictl pull registry1.local:5000/vc-tenant-dns:v1.11.3
 ```
 
-また, 仮想クラスタ側へ展開していることを確認してください。スーパークラスタ側へ直接 `kubectl apply` した場合, テナント環境に期待した名前解決設定を検証できません。
+**確認ポイント**:
 
-### CoreDNS が READY 0/1 のまま回復しない場合
+- Pod イベントに ImagePullBackOff が出る場合は, ノード側 containerd が対象レジストリを参照可能であること。
+- /etc/containerd/certs.d/<registry>/hosts.toml が対象ノードで正しく設定されていること。
+- 名前解決と到達性が確保されていること。
+- マニフェスト適用先が仮想クラスタ側であり, スーパークラスタ側へ直接 apply していないこと。
 
-複数の要因がありえるため, 以下の順で確認の上, 問題を切り分けることを推奨する:
+### 5. CoreDNS が READY 0/1 のまま回復しない場合
 
-1. `x509: certificate signed by unknown authority`
-  - 事象: CoreDNS が tenant API へ接続する TLS 検証で失敗します。
-  - 確認: ConfigMap `coredns` の `kubeconfig` に tenant 用の CA / クライアント認証情報が入っていることを確認します。
+**実施対象ホスト**: 仮想クラスタ操作端末, コントロールプレーンノード
 
-2. `Unauthorized`
-  - 事象: 認証情報は読めるが, API 呼び出し権限または資格情報が不一致で失敗します。
-  - 確認: `controller-manager-kubeconfig` を利用していること, および反映後に Pod が再作成されていることを確認します。
-
-3. `dial tcp: lookup apiserver-svc.<clusterNamespace>: no such host`
-  - 事象: テナント側の Pod から `apiserver-svc.<clusterNamespace>` を解決できず失敗します。
-  - 確認: マニフェスト内 kubeconfig の `server` が `https://kubernetes.default.svc:443` に置換されていることを確認します。
-
-確認コマンド例:
+**実行するコマンド**:
 
 ```bash
 TENANT_NAME=tenant-alpha
 MANIFEST=/opt/k8snodes/vc-tenant-dns/manifests/vc-tenant-dns-${TENANT_NAME}.yml
 grep -n 'server:' "${MANIFEST}"
 kubectl --kubeconfig ~/.kube/${TENANT_NAME}.conf -n kube-system get configmap coredns -o yaml | grep -n 'server:'
+kubectl --kubeconfig ~/.kube/${TENANT_NAME}.conf -n kube-system get pods
+kubectl --kubeconfig ~/.kube/${TENANT_NAME}.conf -n kube-system logs deploy/coredns --tail=200
 ```
 
-`grep -n 'server:' "${MANIFEST}"`の出力に, `server: https://kubernetes.default.svc:443` が含まれること, `kubectl --kubeconfig ~/.kube/${TENANT_NAME}.conf -n kube-system get configmap coredns -o yaml | grep -n 'server:'`コマンドの実行結果中に含まれる対象テナントの名前空間 ( namespace ) 内の Pod が `READY 1/1` になっていることを確認してください。
+**確認ポイント**:
+
+- x509: certificate signed by unknown authority が出る場合は, ConfigMap coredns の kubeconfig に tenant 用 CA とクライアント認証情報が含まれていること。
+- Unauthorized が出る場合は, controller-manager-kubeconfig を利用していること, および反映後に Pod が再作成されていること。
+- dial tcp: lookup apiserver-svc.<clusterNamespace>: no such host が出る場合は, マニフェスト内 kubeconfig の server が https://kubernetes.default.svc:443 に置換されていること。
+- 対象テナント名前空間内で CoreDNS Pod が READY 1/1 へ遷移すること。
 
 ## 注意事項
 

@@ -39,6 +39,13 @@
       - [OSディストリビューションから導入されたパッケージの導入状態の確認方法](#osディストリビューションから導入されたパッケージの導入状態の確認方法)
     - [シェル補完スクリプトの導入確認方法](#シェル補完スクリプトの導入確認方法)
   - [トラブルシューティング](#トラブルシューティング)
+    - [1. ロール実行後も skopeo が導入されない場合](#1-ロール実行後も-skopeo-が導入されない場合)
+    - [2. RHEL 系で skopeo パッケージ導入に失敗する場合](#2-rhel-系で-skopeo-パッケージ導入に失敗する場合)
+    - [3. backup/restore コマンドが配置されない場合](#3-backuprestore-コマンドが配置されない場合)
+    - [4. registry-backup-restore.yml を変更しても再実行で更新されない場合](#4-registry-backup-restoreyml-を変更しても再実行で更新されない場合)
+    - [5. backup-skopeo-images が registry\_endpoints is empty で失敗する場合](#5-backup-skopeo-images-が-registry_endpoints-is-empty-で失敗する場合)
+    - [6. restore-skopeo-images が最新アーカイブを見つけられない場合](#6-restore-skopeo-images-が最新アーカイブを見つけられない場合)
+    - [7. daily-backup-skopeo-images が NFS マウントで失敗する場合](#7-daily-backup-skopeo-images-が-nfs-マウントで失敗する場合)
   - [注意事項](#注意事項)
   - [参考資料](#参考資料)
     - [公式ドキュメント](#公式ドキュメント)
@@ -80,12 +87,12 @@
 | Playbook | - | 自動化処理の実行手順を記述したファイル。 |
 | Canonical | - | Ubuntu を提供する組織名。 |
 | Key-Value | - | キーと値の組で情報を表す方式。 |
-| Internet Protocol | IP | インターネットプロトコルの略称。 |
+| Internet Protocol | IP | ネットワーク上で宛先を識別し, データを届けるための通信手順。 |
 | Structured Query Language | SQL | データベースを操作するための記述言語。 |
-| Hypertext Transfer Protocol | HTTP | WWW で情報をやり取りする通信手順。 |
-| Hypertext Transfer Protocol Secure | HTTPS | 通信内容を暗号化して WWW 通信を行う方式。 |
-| RPM Package Manager | RPM | RHEL 系で使用するパッケージ形式。 |
-| Virtual Machine | VM | 物理機器上で動作する仮想的な計算機。 |
+| Hypertext Transfer Protocol | HTTP | World Wide Webで情報をやり取りする通信手順。 |
+| Hypertext Transfer Protocol Secure | HTTPS | 通信内容を暗号化してWorld Wide Web通信を行う方式。 |
+| RPM Package Manager | RPM | RPM形式パッケージの導入, 更新, 削除, 情報参照を行う仕組み。 |
+| Virtual Machine | VM | 物理計算機上で動作する仮想的な計算機。 |
 | localhost | - | 同一機器自身を指す名前。 |
 | root | - | Unix 系システムの最上位権限を持つ管理者識別子。 |
 | ソフトウェア | - | 情報処理システムで使用するプログラム, 手順, 規則及び関連文書の全体又は一部分。 |
@@ -113,16 +120,16 @@
 | Service | - | サービスの英語表記。 |
 | Node | - | ノードの英語表記。 |
 | Makefile | - | 実行手順を定義したファイル。 |
-| Application Programming Interface | API | アプリケーション同士がやり取りする方法を定めた仕様。 |
-| Uniform Resource Locator | URL | WWW 上の資源の場所を示す文字列。 |
+| Application Programming Interface | API | アプリケーション同士が機能やデータをやり取りするための取り決め。 |
+| Uniform Resource Locator | URL | World Wide Web上の資源の場所を示す文字列。 |
 | Secure Open Container Initiative Operations | skopeo | コンテナレジストリ間コピーやイメージ検査を行う CLI ツール。 |
-| Red Hat Enterprise Linux | RHEL | Red Hat 社が提供する商用 Linux ディストリビューション。 |
+| Red Hat Enterprise Linux | RHEL | Red Hatが提供する企業向けLinuxディストリビューション。 |
 | Extra Packages for Enterprise Linux | EPEL | Red Hat Enterprise Linux 系向けの追加パッケージ提供元。 |
 | Domain Name System | DNS | 名前と IP アドレスを対応付ける仕組み。 |
 | Command Line Interface | CLI | 文字入力で操作する利用者向け操作方式。 |
 | Yet Another Markup Language | YAML | 設定ファイル形式です。 |
 | Docker | - | コンテナイメージやコンテナの作成, 実行, 管理を行うコマンド。 |
-| Application Programming Interface | API | API の正式名称。 |
+| Application Programming Interface | API | アプリケーション同士が機能やデータをやり取りするための取り決め。 |
 | Operating System | OS | 計算機の基本機能を管理し, アプリケーションを動作させる基盤ソフトウェア。 |
 | Ansible Playbook | playbook | 自動化処理の実行手順を順序付きで記述したファイル。 |
 | Ansible Task | task | 自動化処理の最小単位となる実行項目。 |
@@ -131,7 +138,7 @@
 | `curl` | - | URL を指定してデータ送受信を行うコマンド。 |
 | `dpkg` | - | Debian パッケージの情報参照や導入確認を行うコマンド。 |
 | `ls` | - | ファイルやディレクトリの一覧を表示するコマンド。 |
-| `make` | - | Makefile に定義された処理を実行するコマンド。 |
+| makeコマンド | make | Makefile に定義された処理を実行するコマンド。 |
 | rpmコマンド | - | RPM パッケージの情報参照や導入確認を行うコマンド。 |
 | `tar` | - | 複数ファイルを一つにまとめる, 展開するコマンド。 |
 | アドレス | - | 宛先や所在を識別するための情報。 |
@@ -142,6 +149,7 @@
 | sudoコマンド | sudo | 一時的に管理者権限でコマンドを実行するためのコマンド。 |
 
 ## 概要
+
 このロールは, skopeo を OS 標準パッケージから導入し, bash/zsh の補完ファイルを配置します。さらに, レジストリ内のコンテナイメージを tar 形式で保存し, イメージ名/タグのディレクトリ構造でまとめたうえで バックアップアーカイブを作成して, バックアップ/リストアを行うスクリプトを導入します。
 
 ### 主な処理
@@ -549,17 +557,128 @@ $ ls -l /usr/share/zsh/vendor-completions/_skopeo
 
 ## トラブルシューティング
 
-代表的なトラブルと対処を以下に示します。
+### 1. ロール実行後も skopeo が導入されない場合
 
-| 想定トラブル | 主な原因 | 対処方法 |
-| --- | --- | --- |
-| ロール実行後も skopeo が導入されない | `skopeo_enabled` が `false` のままで, `tasks/package.yml` 以降がすべてスキップされている | 実行者は `vars/all-config.yml` または `host_vars` で `skopeo_enabled: true` を設定し, 対象ホストに対して再実行します。Ansible 出力で `Package`, `Directory`, `Config` が `skipping` になっていないことを確認します。 |
-| RHEL 系で skopeo パッケージ導入に失敗する | 標準リポジトリで `skopeo` が解決できず, `epel-release` 導入後の再試行も失敗している | 実行者は `dnf info skopeo` と `dnf repolist` を確認し, EPEL が有効かどうかを確認します。必要に応じて [roles/repo-rpm/Readme.md](roles/repo-rpm/Readme.md) の設定を先に適用し, 再度ロールを実行します。 |
-| backup / restore コマンドが配置されない | `skopeo_enable_backup_script` が `false` のため, 設定ファイル, Python スクリプト, ラッパスクリプト, シンボリックリンク作成が全てスキップされている | 実行者は `skopeo_enable_backup_script: true` を設定し, `/opt/skopeo/scripts` と `/usr/local/bin/backup-skopeo-images` などが生成されることを確認します。 |
-| `/opt/skopeo/etc/registry-backup-restore.yml` の内容を変更しても再実行で更新されない | 設定ファイル生成タスクが `force: false` のため, 初回作成後はユーザ編集を保持する実装になっている | 実行者は既存ファイルを直接見直すか, 必要であれば対象ファイルを退避・削除してからロールを再実行します。ロールの再実行だけでは既存設定ファイルは上書きされません。 |
-| `backup-skopeo-images` が `registry_endpoints is empty` や `no valid entries found in registry_endpoints` で失敗する | `registry_endpoints` が空, または `endpoint` / `scheme` / `skip_verify` の形式が不正 | 実行者は `/opt/skopeo/etc/registry-backup-restore.yml` の `registry_endpoints` を確認し, `endpoint`, `scheme`, `skip_verify` を持つ辞書の配列に修正します。少なくとも1件の有効なエントリが必要です。 |
-| `restore-skopeo-images` が最新アーカイブを見つけられない | `/opt/skopeo/backup` 配下に `.tar.gz` が存在しない, または `backup_dir` 設定が不正 | 実行者は `/opt/skopeo/backup` の内容と `/opt/skopeo/etc/registry-backup-restore.yml` の `backup_dir` を確認します。必要に応じてバックアップを先に実行するか, 復元元アーカイブを第2引数で明示指定します。 |
-| `daily-backup-skopeo-images` が NFS マウントで失敗する | `skopeo_backup_nfs_server` が空, NFS 到達不可, 非 root 実行で `sudo` 不可 | 実行者は `skopeo_backup_nfs_server`, `skopeo_backup_nfs_dir`, `skopeo_backup_output_dir` を確認し, `mount -t nfs <server>:<dir> /mnt` が成功することを手動で確認します。非 root 実行時は `sudo` が利用可能であることも確認します。 |
+**実施対象ホスト**: 制御ホスト, 対象ホスト
+
+**実行するコマンド**:
+
+```bash
+grep -n "skopeo_enabled" vars/all-config.yml host_vars/*.yml
+ansible-playbook -i inventory/hosts site.yml --tags "skopeo"
+skopeo --version
+```
+
+**確認ポイント**:
+
+- `skopeo_enabled: true` が設定されていること。
+- 実行ログで `Package`, `Directory`, `Config` が skipping になっていないこと。
+- 対象ホストで `skopeo --version` が実行できること。
+
+### 2. RHEL 系で skopeo パッケージ導入に失敗する場合
+
+**実施対象ホスト**: 対象ホスト
+
+**実行するコマンド**:
+
+```bash
+dnf repolist
+dnf info skopeo
+```
+
+**確認ポイント**:
+
+- 標準リポジトリで `skopeo` が解決できること。
+- 解決できない場合は `epel-release` 導入後の再試行結果を確認すること。
+- 必要に応じて [roles/repo-rpm/Readme.md](roles/repo-rpm/Readme.md) の設定を先に適用すること。
+
+### 3. backup/restore コマンドが配置されない場合
+
+**実施対象ホスト**: 制御ホスト, 対象ホスト
+
+**実行するコマンド**:
+
+```bash
+grep -n "skopeo_enable_backup_script" vars/all-config.yml host_vars/*.yml
+ansible-playbook -i inventory/hosts site.yml --tags "skopeo"
+ls -l /opt/skopeo/scripts /usr/local/bin/backup-skopeo-images /usr/local/bin/restore-skopeo-images /usr/local/bin/daily-backup-skopeo-images
+```
+
+**確認ポイント**:
+
+- `skopeo_enable_backup_script: true` が設定されていること。
+- 実行ログでバックアップ/リストアスクリプト関連タスクが skipping になっていないこと。
+- `/opt/skopeo/scripts` とシンボリックリンクが生成されていること。
+
+### 4. registry-backup-restore.yml を変更しても再実行で更新されない場合
+
+**実施対象ホスト**: 対象ホスト
+
+**実行するコマンド**:
+
+```bash
+ls -l /opt/skopeo/etc/registry-backup-restore.yml
+grep -n "registry_endpoints\|backup_dir\|restore" /opt/skopeo/etc/registry-backup-restore.yml
+```
+
+**確認ポイント**:
+
+- 設定ファイル生成タスクが `force: false` であるため, 初回作成後はロール再実行で上書きされないこと。
+- 設定変更は既存ファイルを直接更新する運用であること。
+- 再生成が必要な場合は対象ファイルを退避又は削除してからロールを再実行すること。
+
+### 5. backup-skopeo-images が registry_endpoints is empty で失敗する場合
+
+**実施対象ホスト**: 対象ホスト
+
+**実行するコマンド**:
+
+```bash
+grep -n "registry_endpoints" -A 20 /opt/skopeo/etc/registry-backup-restore.yml
+/usr/local/bin/backup-skopeo-images
+```
+
+**確認ポイント**:
+
+- `registry_endpoints` が空配列でないこと。
+- 各要素が `endpoint`, `scheme`, `skip_verify` を持つ辞書形式であること。
+- 少なくとも1件の有効エントリがあること。
+
+### 6. restore-skopeo-images が最新アーカイブを見つけられない場合
+
+**実施対象ホスト**: 対象ホスト
+
+**実行するコマンド**:
+
+```bash
+ls -l /opt/skopeo/backup
+grep -n "backup_dir" /opt/skopeo/etc/registry-backup-restore.yml
+/usr/local/bin/restore-skopeo-images
+```
+
+**確認ポイント**:
+
+- `/opt/skopeo/backup` 配下に `.tar.gz` が存在すること。
+- 設定ファイルの `backup_dir` が実在ディレクトリを指していること。
+- 必要に応じて復元元アーカイブを第2引数で明示指定すること。
+
+### 7. daily-backup-skopeo-images が NFS マウントで失敗する場合
+
+**実施対象ホスト**: 対象ホスト
+
+**実行するコマンド**:
+
+```bash
+grep -n "skopeo_backup_nfs_server\|skopeo_backup_nfs_dir\|skopeo_backup_mount_point\|skopeo_backup_output_dir" vars/all-config.yml host_vars/*.yml
+mount -t nfs <server>:<dir> /mnt
+/usr/local/bin/daily-backup-skopeo-images
+```
+
+**確認ポイント**:
+
+- `skopeo_backup_nfs_server`, `skopeo_backup_nfs_dir`, `skopeo_backup_output_dir` が正しく設定されていること。
+- `mount -t nfs <server>:<dir> /mnt` が成功すること。
+- 非 root 実行時に `sudo` が利用可能であること。
 
 ## 注意事項
 

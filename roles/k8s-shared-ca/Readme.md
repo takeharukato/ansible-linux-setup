@@ -10,7 +10,6 @@
   - [概要](#概要)
     - [共通CA の主な用途](#共通ca-の主な用途)
     - [共通CA の供給元と優先順位](#共通ca-の供給元と優先順位)
-  - [主な処理](#主な処理)
   - [前提条件](#前提条件)
   - [実行方法](#実行方法)
   - [主要変数](#主要変数)
@@ -28,11 +27,11 @@
     - [オプション: kubeconfig 埋め込みの確認](#オプション-kubeconfig-埋め込みの確認)
     - [Cilium Cluster Mesh 接続時の確認](#cilium-cluster-mesh-接続時の確認)
   - [トラブルシューティング](#トラブルシューティング)
-    - [`enable_create_k8s_ca: false` かつ CA ファイルが見つからない](#enable_create_k8s_ca-false-かつ-ca-ファイルが見つからない)
-    - [ファイルパーミッション エラー](#ファイルパーミッション-エラー)
-    - [OpenSSL 不在またはCA 生成失敗](#openssl-不在またはca-生成失敗)
-    - [`k8s_shared_ca_replace_kube_ca: true` 後, クライアント接続が TLS エラー](#k8s_shared_ca_replace_kube_ca-true-後-クライアント接続が-tls-エラー)
-    - [Cilium Cluster Mesh が TLS エラーで接続できない](#cilium-cluster-mesh-が-tls-エラーで接続できない)
+    - [1. enable\_create\_k8s\_ca: false かつ CA ファイルが見つからない場合](#1-enable_create_k8s_ca-false-かつ-ca-ファイルが見つからない場合)
+    - [2. 秘密鍵のパーミッションエラーが発生する場合](#2-秘密鍵のパーミッションエラーが発生する場合)
+    - [3. OpenSSL 不在または CA 生成失敗が発生する場合](#3-openssl-不在または-ca-生成失敗が発生する場合)
+    - [4. k8s\_shared\_ca\_replace\_kube\_ca: true の後にクライアント接続で TLS エラーが発生する場合](#4-k8s_shared_ca_replace_kube_ca-true-の後にクライアント接続で-tls-エラーが発生する場合)
+    - [5. Cilium Cluster Mesh が TLS エラーで接続できない場合](#5-cilium-cluster-mesh-が-tls-エラーで接続できない場合)
   - [注意事項](#注意事項)
     - [保管ポリシー](#保管ポリシー)
     - [ローテーション手順の指針](#ローテーション手順の指針)
@@ -77,12 +76,12 @@
 | Playbook | - | 自動化処理の実行手順を記述したファイル。 |
 | Canonical | - | Ubuntu を提供する組織名。 |
 | Key-Value | - | キーと値の組で情報を表す方式。 |
-| Internet Protocol | IP | インターネットプロトコルの略称。 |
+| Internet Protocol | IP | ネットワーク上で宛先を識別し, データを届けるための通信手順。 |
 | Structured Query Language | SQL | データベースを操作するための記述言語。 |
-| Hypertext Transfer Protocol | HTTP | WWW で情報をやり取りする通信手順。 |
-| Hypertext Transfer Protocol Secure | HTTPS | 通信内容を暗号化して WWW 通信を行う方式。 |
-| RPM Package Manager | RPM | RHEL 系で使用するパッケージ形式。 |
-| Virtual Machine | VM | 物理機器上で動作する仮想的な計算機。 |
+| Hypertext Transfer Protocol | HTTP | World Wide Webで情報をやり取りする通信手順。 |
+| Hypertext Transfer Protocol Secure | HTTPS | 通信内容を暗号化してWorld Wide Web通信を行う方式。 |
+| RPM Package Manager | RPM | RPM形式パッケージの導入, 更新, 削除, 情報参照を行う仕組み。 |
+| Virtual Machine | VM | 物理計算機上で動作する仮想的な計算機。 |
 | localhost | - | 同一機器自身を指す名前。 |
 | root | - | Unix 系システムの最上位権限を持つ管理者識別子。 |
 | ソフトウェア | - | 情報処理システムで使用するプログラム, 手順, 規則及び関連文書の全体又は一部分。 |
@@ -111,9 +110,9 @@
 | Service | - | サービスの英語表記。 |
 | Node | - | ノードの英語表記。 |
 | Makefile | - | 実行手順を定義したファイル。 |
-| Application Programming Interface | API | アプリケーション同士がやり取りする方法を定めた仕様。 |
-| Uniform Resource Locator | URL | WWW 上の資源の場所を示す文字列。 |
-| Application Programming Interface | API | API の正式名称。 |
+| Application Programming Interface | API | アプリケーション同士が機能やデータをやり取りするための取り決め。 |
+| Uniform Resource Locator | URL | World Wide Web上の資源の場所を示す文字列。 |
+| Application Programming Interface | API | アプリケーション同士が機能やデータをやり取りするための取り決め。 |
 | Custom Resource Definition | CRD | Kubernetes APIを拡張してユーザ独自のリソース種別を定義する仕組み。 |
 | Role-Based Access Control | RBAC | ユーザやサービスアカウントが実行可能な操作を役割(Role)で制限する仕組み。 |
 | Certificate Authority | CA | 電子証明書を発行して正当性を保証する組織または仕組み。 |
@@ -124,7 +123,7 @@
 | ClusterRoleBinding | - | ClusterRoleをユーザやサービスアカウントに紐付ける仕組み。 |
 | Role | - | 特定の名前空間内で有効な権限の集合。 |
 | RoleBinding | - | Roleをユーザやサービスアカウントに紐付ける仕組み。 |
-| 名前空間 ( namespace )  | - | Kubernetes内部でリソースを論理的に分離する単位。 |
+| 名前空間 ( namespace ) | - | Kubernetes内部でリソースを論理的に分離する単位。 |
 | ポッド ( Pod ) | - | Kubernetes上で動作するコンテナの最小単位。 |
 | デーモンセット ( DaemonSet ) | - | Kubernetesクラスタ内の全ノード(または指定した一部のノード)で必ずPodを1つずつ起動させるリソース。 |
 | デプロイメント ( Deployment ) | - | 指定した数のPodを維持し, ローリングアップデート等を管理するリソース。 |
@@ -192,7 +191,6 @@
 | 制御ホスト | - | Playbook を実行し, 他ホストへの処理指示を行う管理用ホスト。 |
 | 対象ホスト | - | Playbook による設定変更や導入処理の適用先となるホスト。 |
 | sudoコマンド | sudo | 一時的に管理者権限でコマンドを実行するためのコマンド。 |
-
 ## 概要
 
 本ロールは, Kubernetes クラスタ間の通信を保護するための共通認証局(Certificate Authority, 以下「共通CA」)の証明書と秘密鍵を `ansible-playbook` コマンド実行ノード(以下, 「制御ホスト」)上で準備し, 各コントロールプレーンノードへ配置します。共通CAは, Cilium Cluster Mesh による複数クラスタ間の mTLS(相互認証 TLS)を同一発行元で統一するほか, kubeconfig に埋め込むクラスタ認証局として, また Kubernetes のデフォルトルート CA を置き換える際に使用されます。
@@ -218,10 +216,6 @@
 
 本ロールは再実行可能な設計になっており, 既存ファイルがある場合は作成済みの証明書, 鍵ファイルを再利用します。生成した共通CA はセキュリティ要件に応じて, 適切に運用, 管理してください。
 
-## 主な処理
-
-本ロールは tasks/main.yml から task 群を呼び出し, 設定適用と検証を実施します。
-
 ## 前提条件
 
 本ロールを実行する前に, 以下の条件が満たされている必要があります:
@@ -234,7 +228,7 @@
 
 ## 実行方法
 
-実行者は制御ホストで以下のコマンドを実行します。
+制御ホストで以下のコマンドを実行します。
 
 ```bash
 ansible-playbook -i inventory/hosts site.yml --tags "k8s-shared-ca"
@@ -485,107 +479,97 @@ cilium clustermesh status
 
 ## トラブルシューティング
 
-### `enable_create_k8s_ca: false` かつ CA ファイルが見つからない
+### 1. enable_create_k8s_ca: false かつ CA ファイルが見つからない場合
 
-**症状**: playbook がエラーで終了
+**実施対象ホスト**: 制御ホスト
 
-```
-FAILED - The following required files are missing: cluster-mesh-ca.crt, cluster-mesh-ca.key
-```
-
-**対処方法**:
-
-1. `k8s_common_ca` が存在し, 読み取り可能か確認:
-   ```bash
-   ls -la "$k8s_common_ca"/{cluster-mesh-ca.crt,cluster-mesh-ca.key}
-   ```
-
-2. アクセス不可の場合, パス指定を確認し, `enable_create_k8s_ca: true` に変更, または `k8s_common_ca` を正しい値に修正してからプレイブックを再実行します。
-
-### ファイルパーミッション エラー
-
-**症状**: 秘密鍵が読み取り可能な権限で配置されている
-
-```
-ERROR: cluster-mesh-ca.key has insecure permissions (644, expected 600)
-```
-
-**対処方法**:
-
-各ノード上で以下で権限を修正:
+**実行するコマンド**:
 
 ```bash
+ls -la "$k8s_common_ca"/{cluster-mesh-ca.crt,cluster-mesh-ca.key}
+```
+
+**確認ポイント**:
+
+- k8s_common_ca 配下に cluster-mesh-ca.crt と cluster-mesh-ca.key が存在すること。
+- 実行ユーザが両ファイルを読み取り可能であること。
+- ファイルが見つからない場合は, enable_create_k8s_ca を true に設定する, または k8s_common_ca の指定値を修正して再実行すること。
+
+### 2. 秘密鍵のパーミッションエラーが発生する場合
+
+**実施対象ホスト**: コントロールプレーンノード
+
+**実行するコマンド**:
+
+```bash
+ls -l /etc/kubernetes/pki/shared-ca/cluster-mesh-ca.key
 sudo chmod 600 /etc/kubernetes/pki/shared-ca/cluster-mesh-ca.key
+ls -l /etc/kubernetes/pki/shared-ca/cluster-mesh-ca.key
 ```
 
-### OpenSSL 不在またはCA 生成失敗
+**確認ポイント**:
 
-**症状**: `enable_create_k8s_ca: true` 時に CA 生成が失敗
+- 秘密鍵の所有者が root:root であること。
+- 修正後の権限が 600 であること。
+- 再実行時に insecure permissions エラーが発生しないこと。
 
-```
-ERROR: openssl not found or certificate generation failed
-```
+### 3. OpenSSL 不在または CA 生成失敗が発生する場合
 
-**対処方法**:
+**実施対象ホスト**: 制御ホスト
 
-1. 制御ホスト上で OpenSSL がインストール済みか確認:
-   ```bash
-   which openssl && openssl version
-   ```
+**実行するコマンド**:
 
-2. インストール済みでない場合:
-   ```bash
-   sudo apt-get install openssl         # Ubuntu
-   # または
-   sudo dnf install openssl            # RHEL
-   ```
-
-3. 既に存在するCA をロール同梱ディレクトリに手動配置:
-   ```bash
-   mkdir -p roles/k8s-shared-ca/files/shared-ca/
-   cp /path/to/cluster-mesh-ca.{crt,key} roles/k8s-shared-ca/files/shared-ca/
-   ```
-
-### `k8s_shared_ca_replace_kube_ca: true` 後, クライアント接続が TLS エラー
-
-**症状**: kubectl コマンドで TLS エラー
-
-```
-error: x509: certificate signed by unknown authority
+```bash
+which openssl && openssl version
+sudo apt-get install openssl
+# または
+sudo dnf install openssl
+mkdir -p roles/k8s-shared-ca/files/shared-ca/
+cp /path/to/cluster-mesh-ca.{crt,key} roles/k8s-shared-ca/files/shared-ca/
 ```
 
-**対処方法**:
+**確認ポイント**:
 
-1. ワーカーノードが新しいルート CA を信頼していない可能性があります。ワーカーノードの再 join が必須です:
-   ```bash
-   # 各ワーカーノードで:
-   sudo kubeadm reset -f
-   <新しい join トークン情報で再 join>
-   ```
+- openssl コマンドが実行可能であること。
+- enable_create_k8s_ca が true の場合に証明書生成コマンドが失敗しないこと。
+- 既存 CA を手動配置する場合は, roles/k8s-shared-ca/files/shared-ca 配下に証明書と秘密鍵がそろっていること。
 
-2. クライアント側の kubeconfig が古い CA を参照している場合は, `create-embedded-kubeconfig.py --shared-ca` で新しい kubeconfig を生成してください。
+### 4. k8s_shared_ca_replace_kube_ca: true の後にクライアント接続で TLS エラーが発生する場合
 
-### Cilium Cluster Mesh が TLS エラーで接続できない
+**実施対象ホスト**: ワーカーノード, クライアント端末
 
-**症状**: `cilium clustermesh status` で TLS エラーが表示される
+**実行するコマンド**:
 
+```bash
+sudo kubeadm reset -f
+create-embedded-kubeconfig.py --shared-ca
+kubectl get nodes
 ```
-TLS: failed to verify peer certificate
+
+**確認ポイント**:
+
+- ワーカーノードが新しい join トークンで再参加済みであること。
+- クライアントが使用する kubeconfig が新しい共通 CA を参照していること。
+- kubectl 実行時に x509: certificate signed by unknown authority が発生しないこと。
+
+### 5. Cilium Cluster Mesh が TLS エラーで接続できない場合
+
+**実施対象ホスト**: 現在クラスタのコントロールプレーンノード, 対向クラスタのコントロールプレーンノード
+
+**実行するコマンド**:
+
+```bash
+openssl x509 -noout -subject -in /etc/kubernetes/pki/shared-ca/cluster-mesh-ca.crt
+ssh <対向クラスタのコントロールプレーン> \
+  openssl x509 -noout -subject -in /etc/kubernetes/pki/shared-ca/cluster-mesh-ca.crt
+cilium clustermesh status
 ```
 
-**対処方法**:
+**確認ポイント**:
 
-1. 対向クラスタの `k8s-shared-ca` ロールが同じ共通CA を使用していることを確認:
-   ```bash
-   # 現在のクラスタ
-   openssl x509 -noout -subject -in /etc/kubernetes/pki/shared-ca/cluster-mesh-ca.crt
-
-   # 対向クラスタ (対向クラスタのコントロールプレーンノードで実行)
-   ssh <対向クラスタのコントロールプレーン> \
-     openssl x509 -noout -subject -in /etc/kubernetes/pki/shared-ca/cluster-mesh-ca.crt
-   ```
-
-2. 同じ CA を使用していない場合, `k8s_cilium_shared_ca_enabled: true` かつ `k8s_cilium_shared_ca_reuse_k8s_ca: true` を指定して, 両クラスタで `k8s-cilium-shared-ca` ロールを再実行してください。
+- 双方クラスタで cluster-mesh-ca.crt の Subject が一致していること。
+- k8s_cilium_shared_ca_enabled と k8s_cilium_shared_ca_reuse_k8s_ca が両クラスタで意図した値で設定されていること。
+- cilium clustermesh status で TLS: failed to verify peer certificate が表示されないこと。
 
 ## 注意事項
 
@@ -611,5 +595,5 @@ TLS: failed to verify peer certificate
 
 ### 公式ドキュメント
 
-- Kubernetes Secrets: https://kubernetes.io/docs/concepts/configuration/secret/
-- OpenSSL: https://www.openssl.org/docs/
+- [Kubernetes Secrets](https://kubernetes.io/docs/concepts/configuration/secret/)
+- [OpenSSL](https://www.openssl.org/docs/)

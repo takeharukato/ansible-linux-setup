@@ -59,18 +59,11 @@
       - [4. PV の確認 (PVC と Bound していること)](#4-pv-の確認-pvc-と-bound-していること)
     - [9. イベントの確認](#9-イベントの確認)
   - [トラブルシューティング](#トラブルシューティング-1)
-    - [ClusterVersionインスタンスが作成されない場合](#clusterversionインスタンスが作成されない場合)
-      - [原因 1: k8s-virtual-cluster ロールが未実行](#原因-1-k8s-virtual-cluster-ロールが未実行)
-      - [原因 2: イメージ検出に失敗した場合](#原因-2-イメージ検出に失敗した場合)
-    - [VirtualClusterインスタンスが `Pending` から遷移しない場合](#virtualclusterインスタンスが-pending-から遷移しない場合)
-      - [原因 1: vc-manager が起動していない](#原因-1-vc-manager-が起動していない)
-      - [原因 2: ClusterVersionインスタンスが存在しない](#原因-2-clusterversionインスタンスが存在しない)
-      - [原因 3: vc-manager のログにエラーがある](#原因-3-vc-manager-のログにエラーがある)
-      - [原因 4: local-storage 用 PV が不足している](#原因-4-local-storage-用-pv-が不足している)
-      - [原因 5: PV が Failed 状態で古い Claim を保持している](#原因-5-pv-が-failed-状態で古い-claim-を保持している)
-    - [マニフェストファイルが生成されない場合](#マニフェストファイルが生成されない場合)
-      - [原因: k8s\_vcinstances\_enabled が false](#原因-k8s_vcinstances_enabled-が-false)
-    - [kubectl apply で権限エラーが発生する場合](#kubectl-apply-で権限エラーが発生する場合)
+    - [1. ClusterVersionインスタンスが作成されない場合](#1-clusterversionインスタンスが作成されない場合)
+    - [2. VirtualClusterインスタンスが Pending から遷移しない場合](#2-virtualclusterインスタンスが-pending-から遷移しない場合)
+    - [3. PV が Failed 状態で古い Claim を保持し, PVC が Bound にならない場合](#3-pv-が-failed-状態で古い-claim-を保持し-pvc-が-bound-にならない場合)
+    - [4. マニフェストファイルが生成されない場合](#4-マニフェストファイルが生成されない場合)
+    - [5. kubectl apply で権限エラーが発生する場合](#5-kubectl-apply-で権限エラーが発生する場合)
   - [参考資料](#参考資料)
     - [公式ドキュメント](#公式ドキュメント)
 
@@ -112,12 +105,12 @@
 | Playbook | - | 自動化処理の実行手順を記述したファイル。 |
 | Canonical | - | Ubuntu を提供する組織名。 |
 | Key-Value | - | キーと値の組で情報を表す方式。 |
-| Internet Protocol | IP | インターネットプロトコルの略称。 |
+| Internet Protocol | IP | ネットワーク上で宛先を識別し, データを届けるための通信手順。 |
 | Structured Query Language | SQL | データベースを操作するための記述言語。 |
-| Hypertext Transfer Protocol | HTTP | WWW で情報をやり取りする通信手順。 |
-| Hypertext Transfer Protocol Secure | HTTPS | 通信内容を暗号化して WWW 通信を行う方式。 |
-| RPM Package Manager | RPM | RHEL 系で使用するパッケージ形式。 |
-| Virtual Machine | VM | 物理機器上で動作する仮想的な計算機。 |
+| Hypertext Transfer Protocol | HTTP | World Wide Webで情報をやり取りする通信手順。 |
+| Hypertext Transfer Protocol Secure | HTTPS | 通信内容を暗号化してWorld Wide Web通信を行う方式。 |
+| RPM Package Manager | RPM | RPM形式パッケージの導入, 更新, 削除, 情報参照を行う仕組み。 |
+| Virtual Machine | VM | 物理計算機上で動作する仮想的な計算機。 |
 | localhost | - | 同一機器自身を指す名前。 |
 | root | - | Unix 系システムの最上位権限を持つ管理者識別子。 |
 | ソフトウェア | - | 情報処理システムで使用するプログラム, 手順, 規則及び関連文書の全体又は一部分。 |
@@ -145,10 +138,10 @@
 | Service | - | サービスの英語表記。 |
 | Node | - | ノードの英語表記。 |
 | Makefile | - | 実行手順を定義したファイル。 |
-| Application Programming Interface | API | アプリケーション同士がやり取りする方法を定めた仕様。 |
-| Uniform Resource Locator | URL | WWW 上の資源の場所を示す文字列。 |
+| Application Programming Interface | API | アプリケーション同士が機能やデータをやり取りするための取り決め。 |
+| Uniform Resource Locator | URL | World Wide Web上の資源の場所を示す文字列。 |
 | Kubernetes | K8s | コンテナを管理する基盤ソフトウェア。 |
-| Application Programming Interface | API | API の正式名称。 |
+| Application Programming Interface | API | アプリケーション同士が機能やデータをやり取りするための取り決め。 |
 | Custom Resource Definition | CRD | Kubernetes APIを拡張してユーザ独自のリソース種別を定義する仕組み。 |
 | Custom Resource | CR | CRDで定義されたユーザ独自のリソースの実体。 |
 | Role-Based Access Control | RBAC | ユーザやサービスアカウントが実行可能な操作を役割(Role)で制限する仕組み。 |
@@ -192,7 +185,7 @@
 | ラベル ( label ) | - | リソースに対する付加情報の一種で, key=value 形式で指定される。典型的には, リソースの検索, 選別 ( selector ) のために用いられる。 |
 | アノテーション ( annotation ) | - | リソースに対する付加情報の一種で, key: value 形式で指定される。リソースの検索, 選別 ( selector ) を目的としない用途の付加情報を指定するために用いられる。 |
 | セレクタ ( selector ) | - | Kubernetes において, ラベル ( label ) に基づいてリソースを識別, 選択するための仕組み。たとえば, Service が特定のラベルを持つ Pod を選択して通信電文を転送する際に使用される。 |
-| Uniform Resource Locator | URL | URL の正式名称。 |
+| Uniform Resource Locator | URL | World Wide Web上の資源の場所を示す文字列。 |
 | Host Variables | host_vars | ホスト単位の設定値を格納する変数定義。 |
 | Claim | CLAIM | 利用要求として確保した資源を表す項目。 |
 | Central Processing Unit | CPU | 計算処理を実行する中核部品。 |
@@ -202,13 +195,12 @@
 | ansible-playbookコマンド | - | Ansible Playbook を実行して自動構成処理を適用するコマンド。 |
 | `grep` | - | テキストから条件に一致する行を抽出するコマンド。 |
 | `ls` | - | ファイルやディレクトリの一覧を表示するコマンド。 |
-| `make` | - | Makefile に定義された処理を実行するコマンド。 |
+| makeコマンド | make | Makefile に定義された処理を実行するコマンド。 |
 | `rm` | - | ファイルやディレクトリを削除するコマンド。 |
 | ノード | - | ネットワークに接続された機器または処理単位。 |
 | メモリ | - | 処理中の情報を一時保持する記憶領域。 |
 | ローカルストレージ | - | 実行中ホストに直結した保存領域。 |
 | sudoコマンド | sudo | 一時的に管理者権限でコマンドを実行するためのコマンド。 |
-
 ## 概要
 
 本ロールは, Virtual Cluster 基盤上に ClusterVersion と VirtualCluster の各インスタンスを作成し, テナント環境を構成します。
@@ -1037,180 +1029,147 @@ LAST SEEN   TYPE      REASON             OBJECT               MESSAGE
 
 ## トラブルシューティング
 
-### ClusterVersionインスタンスが作成されない場合
+### 1. ClusterVersionインスタンスが作成されない場合
 
-#### 原因 1: k8s-virtual-cluster ロールが未実行
+**症状と原因の対応**:
 
-**症状**:
-```
-Error from server (NotFound): customresourcedefinitions.apiextensions.k8s.io "clusterversions.tenancy.x-k8s.io" not found
-```
+- 症状: `clusterversions.tenancy.x-k8s.io not found` が表示される。
+  - 原因: `k8s-virtual-cluster` ロールが未実行である。
+  - 原因: CRD の適用が失敗している。
+- 症状: テンプレート生成後にイメージ参照エラーが発生する。
+  - 原因: 自動検出した Super Cluster イメージ情報が実環境と不一致である。
 
-**解決方法**:
-1. k8s-virtual-cluster ロールを先に実行してください:
-   ```bash
-   ansible-playbook -i inventory/hosts k8s-management.yml -t k8s-virtual-cluster
-   ```
+**実施対象ホスト**: 制御ホスト, コントロールプレーンノード
 
-2. CRD が登録されていることを確認:
-   ```bash
-   kubectl get crd clusterversions.tenancy.x-k8s.io
-   ```
+**実行するコマンド**:
 
-#### 原因 2: イメージ検出に失敗した場合
-
-**症状**:
-テンプレート生成時に不正な形式のイメージ情報が使用される。
-
-**確認コマンド**:
 ```bash
-# Ansible 実行ログで検出されたイメージを確認
+ansible-playbook -i inventory/hosts k8s-management.yml -t k8s-virtual-cluster
+kubectl get crd clusterversions.tenancy.x-k8s.io
 grep "Detected Super Cluster images" /tmp/ansible.log
 ```
 
-**解決方法**:
-`vcinstances_auto_detect_supercluster_images` を `false` に設定し, ClusterVersionインスタンス定義で明示的にイメージを指定してください:
+**確認ポイント**:
 
-```yaml
-vcinstances_auto_detect_supercluster_images: false
-vcinstances_clusterversions:
-  - name: "cv-k8s-1-31"
-    etcd:
-      image: "registry.k8s.io/etcd"
-      imageTag: "3.5.15-0"
-    apiServer:
-      image: "registry.k8s.io/kube-apiserver"
-      imageTag: "v1.31.0"
-    controllerManager:
-      image: "registry.k8s.io/kube-controller-manager"
-      imageTag: "v1.31.0"
-```
+- clusterversions.tenancy.x-k8s.io の CRD が登録済みであること。未登録の場合の原因として, k8s-virtual-cluster ロールの未実行, または CRD 適用失敗が考えられること。
+- k8s-virtual-cluster ロールの事前実行が完了していること。未完了の場合の原因として, 実行対象ホストの誤り, タグ指定漏れ, 途中タスク失敗が考えられること。
+- 自動検出したイメージ情報が不正な場合は, vcinstances_auto_detect_supercluster_images を false に設定し, vcinstances_clusterversions で image と imageTag を明示していること。不正な検出値になる原因として, レジストリ応答の差異, 事前に配置されたイメージタグとの差異が考えられること。
 
-### VirtualClusterインスタンスが `Pending` から遷移しない場合
+### 2. VirtualClusterインスタンスが Pending から遷移しない場合
 
-#### 原因 1: vc-manager が起動していない
+**症状と原因の対応**:
 
-**確認コマンド**:
+- 症状: `kubectl -n vc-manager get pods` で vc-manager Pod が Running にならない。
+  - 原因: vc-manager デプロイメントが不整合である。
+  - 原因: ノード資源が不足している。
+  - 原因: イメージ取得に失敗している。
+- 症状: VirtualCluster の `spec.clusterVersionName` 解決で NotFound が発生する。
+  - 原因: 参照先 ClusterVersion マニフェストが未適用である。
+  - 原因: 参照名の設定が誤っている。
+- 症状: etcd 関連 PVC が Pending のまま。
+  - 原因: `storageClassName` が不一致である。
+  - 原因: PV が未作成である。
+  - 原因: ノード選択条件が不一致である。
+
+**実施対象ホスト**: コントロールプレーンノード
+
+**実行するコマンド**:
+
 ```bash
 kubectl -n vc-manager get pods -l app=vc-manager
-```
-
-**解決方法**:
-vc-manager Pod が Running でない場合, k8s-virtual-cluster ロールを再実行してください。
-
-#### 原因 2: ClusterVersionインスタンスが存在しない
-
-**確認コマンド**:
-```bash
 kubectl get clusterversion cv-k8s-1-31
-```
-
-**解決方法**:
-VirtualClusterインスタンスの `spec.clusterVersionName` で指定した ClusterVersionインスタンスが存在することを確認してください。
-
-#### 原因 3: vc-manager のログにエラーがある
-
-**確認コマンド**:
-```bash
 kubectl -n vc-manager logs deployment/vc-manager --tail=100 | grep -i error
-```
-
-**解決方法**:
-エラーメッセージに応じて対処してください。一般的な問題:
-- リソース不足: Kubernetes ノードのリソース (CPU, メモリ) を確認
-- イメージ取得失敗: イメージレジストリへの疎通を確認
-
-#### 原因 4: local-storage 用 PV が不足している
-
-**症状**:
-- `kubectl get pvc -A | grep etcd` で `Pending` のままになる。
-- `kubectl describe pod etcd-0 -n <tenant-namespace>` に `didn't find available persistent volumes to bind` が出る。
-
-**確認コマンド**:
-```bash
 kubectl get pv
 kubectl get pvc -A | grep etcd
 kubectl describe pod etcd-0 -n <tenant-namespace>
 ```
 
-**解決方法**:
-- `vcinstances_auto_create_pv: true` を有効にして本ロールを再実行してください。
-- `vcinstances_etcd_storage_class` と PV の `storageClassName` が一致していることを確認してください。
+**確認ポイント**:
 
-#### 原因 5: PV が Failed 状態で古い Claim を保持している
+- vc-manager Pod が Running 状態であること。Running でない場合の原因として, vc-manager デプロイメント自体の不整合, ノード資源不足, イメージ取得失敗が考えられること。
+- VirtualCluster インスタンスの spec.clusterVersionName で参照する ClusterVersion インスタンスが存在すること。存在しない場合の原因として, ClusterVersion マニフェスト未適用, 参照名の設定誤りが考えられること。
+- vc-manager ログにリソース不足やイメージ取得失敗などの致命エラーが出ていないこと。致命エラーがある場合の原因として, ノードの CPU/メモリ不足, レジストリ疎通不良, 認証情報不足が考えられること。
+- etcd 用 PVC が Pending のままの場合は, vcinstances_etcd_storage_class と PV 側の storageClassName が一致していること。不一致の場合の原因として, ストレージクラス名の設定差異, PV 作成元テンプレートの値ずれが考えられること。
+- vcinstances_auto_create_pv を true に設定した場合, 必要な PV が自動作成されていること。自動作成されない場合の原因として, 自動作成フラグの未設定, PV 作成タスクの条件不一致が考えられること。
 
-**症状**:
-- PVC が `Pending` 状態のまま。
-- `kubectl get pv` で PV が `Failed` 状態になっている。
-- PV の CLAIM が現在の名前空間 ( namespace ) と一致しない ( 例: PV が `vc-manager-c55f6e-tenant-alpha/data-etcd-0` を参照しているが, 実際の PVC は `vc-manager-476dc1-tenant-alpha` 名前空間 ( namespace ) にある ) 。
+### 3. PV が Failed 状態で古い Claim を保持し, PVC が Bound にならない場合
 
-**原因**:
-VirtualCluster が再作成されると名前空間 ( namespace ) のサフィックス ( ハッシュ値 ) が変わりますが, 既存の PV は古い Claim 情報を保持し続けるため, バインドできなくなります。
+**症状と原因の対応**:
 
-**確認コマンド**:
+- 症状: PV が Failed かつ CLAIM の名前空間が現行テナントと不一致である。
+  - 原因: VirtualCluster 再作成後に名前空間サフィックスが変わり, PV が古い Claim を保持している。
+- 症状: `vcinstances_cleanup_failed_pvs: true` でも Failed PV が残る。
+  - 原因: 変数上書きにより自動クリーンアップが無効化されている。
+  - 原因: クリーンアップ条件に一致していない。
+
+**実施対象ホスト**: コントロールプレーンノード
+
+**実行するコマンド**:
+
 ```bash
-# PV の状態と Claim を確認
 kubectl get pv -o custom-columns=NAME:.metadata.name,STATUS:.status.phase,CLAIM:.spec.claimRef.name,NAMESPACE:.spec.claimRef.namespace
-
-# 現在の PVC の名前空間を確認
+kubectl get pvc -A | grep etcd
+kubectl delete pv pv-etcd-tenant-alpha-0 pv-etcd-tenant-beta-1
+ansible-playbook -i inventory/hosts k8s-management.yml -t k8s-vc-instances
 kubectl get pvc -A | grep etcd
 ```
 
-**自動解決**:
-このロールでは, `vcinstances_cleanup_failed_pvs: true` ( デフォルト ) の場合, PV作成前に自動的にFailed状態のPVをクリーンアップします。通常は手動対応は不要です。
+**確認ポイント**:
 
-**手動解決方法** ( 自動クリーンアップが無効の場合 ) :
-1. Failed 状態の古い PV を削除:
-   ```bash
-   kubectl delete pv pv-etcd-tenant-alpha-0 pv-etcd-tenant-beta-1
-   ```
+- PV の STATUS が Failed で, CLAIM の名前空間が現行テナント名前空間と一致しない場合は古い Claim 残存であること。発生原因として, VirtualCluster 再作成時のテナント名前空間サフィックス変更により Claim 参照先が古くなることが考えられること。
+- vcinstances_cleanup_failed_pvs が true の場合は, ロール実行時に Failed PV が自動で整理されること。整理されない場合の原因として, フラグ値の上書き, 条件分岐の不一致が考えられること。
+- 手動削除後にロールを再実行した場合, etcd 用 PVC が Bound へ遷移すること。遷移しない場合の原因として, 新規 PV の供給不足, ストレージクラス不一致, ノード選択条件不一致が考えられること。
 
-2. 本ロールを再実行して新しい PV を作成:
-   ```bash
-   ansible-playbook -i inventory/hosts k8s-management.yml -t k8s-vc-instances
-   ```
+### 4. マニフェストファイルが生成されない場合
 
-3. PVC が Bound になることを確認:
-   ```bash
-   kubectl get pvc -A | grep etcd
-   ```
+**症状と原因の対応**:
 
-**クリーンアップの無効化** ( 通常は非推奨 ) :
-```yaml
-# host_vars/k8sctrlplane01.local
-vcinstances_cleanup_failed_pvs: false  # 自動クリーンアップを無効化
-```
+- 症状: `/tmp/vcinstances` に生成物が出力されない。
+  - 原因: `k8s_vcinstances_enabled` が false である。
+  - 原因: テンプレート描画タスクが条件未達でスキップされている。
 
-### マニフェストファイルが生成されない場合
+**実施対象ホスト**: 制御ホスト
 
-#### 原因: k8s_vcinstances_enabled が false
+**実行するコマンド**:
 
-**確認コマンド**:
 ```bash
 grep k8s_vcinstances_enabled host_vars/k8sctrlplane01.local
+ls -l /tmp/vcinstances
 ```
 
-**解決方法**:
-host_vars で `k8s_vcinstances_enabled: true` を設定してください。
+**確認ポイント**:
 
-### kubectl apply で権限エラーが発生する場合
+- host_vars の対象ホストで k8s_vcinstances_enabled が true であること。false の場合の原因として, ホスト単位上書き, 環境別変数ファイルでの無効化が考えられること。
+- マニフェスト出力先ディレクトリに ClusterVersion と VirtualCluster の生成物が作成されていること。生成物が無い場合の原因として, 変数評価条件の未達, テンプレート描画タスクのスキップが考えられること。
 
-**症状**:
+### 5. kubectl apply で権限エラーが発生する場合
+
+**症状と原因の対応**:
+
+- 症状: `Error from server (Forbidden)` が返る。
+  - 原因: 利用中 kubeconfig に ClusterVersion/VirtualCluster 作成権限がない。
+- 症状: `/etc/kubernetes/admin.conf` 指定でも `can-i create` が `no` になる。
+  - 原因: Role/ClusterRole と Binding が未設定である。
+  - 原因: API グループ名や対象リソース名が不一致である。
+
+**実施対象ホスト**: コントロールプレーンノード
+
+**実行するコマンド**:
+
+```bash
+kubectl auth can-i create clusterversions.tenancy.x-k8s.io
+kubectl auth can-i create virtualclusters.tenancy.x-k8s.io
+kubectl --kubeconfig /etc/kubernetes/admin.conf auth can-i create virtualclusters.tenancy.x-k8s.io
 ```
-Error from server (Forbidden): error when creating ...
-```
 
-**解決方法**:
-使用している kubeconfig に ClusterVersionインスタンス, VirtualClusterインスタンスの作成権限があることを確認してください。本ロールは既定で `/etc/kubernetes/admin.conf` を使用します。
+**確認ポイント**:
 
-
-
+- 利用中の kubeconfig に ClusterVersion インスタンスと VirtualCluster インスタンスの作成権限が付与されていること。権限が無い場合の原因として, Role/ClusterRole と Binding の未設定, 誤ったサービスアカウント利用が考えられること。
+- 既定で使用する /etc/kubernetes/admin.conf を用いた場合に create 権限があること。権限が無い場合の原因として, 実行時に別 kubeconfig が参照されている, 管理者資格情報が想定外に差し替わっていることが考えられること。
+- Forbidden エラーが継続する場合は, 利用ロールとバインディング定義を見直し, 権限付与後に再実行すること。継続原因として, API グループ名相違, 対象リソース名相違, 名前空間スコープ不一致が考えられること。
 
 ## 参考資料
 
 ### 公式ドキュメント
-
-- vCluster: https://www.vcluster.com/docs
-- Kubernetes: https://kubernetes.io/docs/home/
 
 - [VirtualCluster - Enabling Kubernetes Hard Multi-tenancy](https://github.com/kubernetes-retired/cluster-api-provider-nested/tree/main/virtualcluster)

@@ -22,6 +22,9 @@
     - [Whereabouts Helm チャート設定](#whereabouts-helm-チャート設定)
     - [ネットワーク範囲設定 (NAD 生成用)](#ネットワーク範囲設定-nad-生成用)
     - [ネットワークおよびインタフェース設定](#ネットワークおよびインタフェース設定)
+  - [設定例](#設定例)
+    - [IPv6 範囲を有効化する手順](#ipv6-範囲を有効化する手順)
+    - [NAD の 名前空間 ( namespace ) を変更する手順](#nad-の-名前空間--namespace--を変更する手順)
   - [テンプレートと生成ファイル](#テンプレートと生成ファイル)
   - [実行フロー](#実行フロー)
     - [パラメータおよび設定情報の読み込み](#パラメータおよび設定情報の読み込み)
@@ -49,11 +52,8 @@
     - [問題 5: NAD 名前空間が不正](#問題-5-nad-名前空間が不正)
   - [注意事項](#注意事項)
     - [必須設定項目](#必須設定項目)
-    - [IPv6 範囲を有効化する手順](#ipv6-範囲を有効化する手順)
-    - [NAD の 名前空間 ( namespace ) を変更する手順](#nad-の-名前空間--namespace--を変更する手順)
   - [参考資料](#参考資料)
     - [公式ドキュメント](#公式ドキュメント)
-
 
 ## 用語
 
@@ -92,12 +92,12 @@
 | Playbook | - | 自動化処理の実行手順を記述したファイル。 |
 | Canonical | - | Ubuntu を提供する組織名。 |
 | Key-Value | - | キーと値の組で情報を表す方式。 |
-| Internet Protocol | IP | インターネットプロトコルの略称。 |
+| Internet Protocol | IP | ネットワーク上で宛先を識別し, データを届けるための通信手順。 |
 | Structured Query Language | SQL | データベースを操作するための記述言語。 |
-| Hypertext Transfer Protocol | HTTP | WWW で情報をやり取りする通信手順。 |
-| Hypertext Transfer Protocol Secure | HTTPS | 通信内容を暗号化して WWW 通信を行う方式。 |
-| RPM Package Manager | RPM | RHEL 系で使用するパッケージ形式。 |
-| Virtual Machine | VM | 物理機器上で動作する仮想的な計算機。 |
+| Hypertext Transfer Protocol | HTTP | World Wide Webで情報をやり取りする通信手順。 |
+| Hypertext Transfer Protocol Secure | HTTPS | 通信内容を暗号化してWorld Wide Web通信を行う方式。 |
+| RPM Package Manager | RPM | RPM形式パッケージの導入, 更新, 削除, 情報参照を行う仕組み。 |
+| Virtual Machine | VM | 物理計算機上で動作する仮想的な計算機。 |
 | localhost | - | 同一機器自身を指す名前。 |
 | root | - | Unix 系システムの最上位権限を持つ管理者識別子。 |
 | ソフトウェア | - | 情報処理システムで使用するプログラム, 手順, 規則及び関連文書の全体又は一部分。 |
@@ -125,9 +125,9 @@
 | Service | - | サービスの英語表記。 |
 | Node | - | ノードの英語表記。 |
 | Makefile | - | 実行手順を定義したファイル。 |
-| Application Programming Interface | API | アプリケーション同士がやり取りする方法を定めた仕様。 |
-| Uniform Resource Locator | URL | WWW 上の資源の場所を示す文字列。 |
-| Application Programming Interface | API | API の正式名称。 |
+| Application Programming Interface | API | アプリケーション同士が機能やデータをやり取りするための取り決め。 |
+| Uniform Resource Locator | URL | World Wide Web上の資源の場所を示す文字列。 |
+| Application Programming Interface | API | アプリケーション同士が機能やデータをやり取りするための取り決め。 |
 | Custom Resource Definition | CRD | Kubernetes APIを拡張してユーザ独自のリソース種別を定義する仕組み。 |
 | Role-Based Access Control | RBAC | ユーザやサービスアカウントが実行可能な操作を役割(Role)で制限する仕組み。 |
 | Service Account | - | Kubernetes内部でPodが他のリソースにアクセスする際に用いる仮想的なアカウント。 |
@@ -135,7 +135,7 @@
 | ClusterRoleBinding | - | ClusterRoleをユーザやサービスアカウントに紐付ける仕組み。 |
 | Role | - | 特定の名前空間内で有効な権限の集合。 |
 | RoleBinding | - | Roleをユーザやサービスアカウントに紐付ける仕組み。 |
-| 名前空間 ( namespace )  | - | Kubernetes内部でリソースを論理的に分離する単位。 |
+| 名前空間 ( namespace ) | - | Kubernetes内部でリソースを論理的に分離する単位。 |
 | ポッド ( Pod ) | - | Kubernetes上で動作するコンテナの最小単位。 |
 | デーモンセット ( DaemonSet ) | - | Kubernetesクラスタ内の全ノード(または指定した一部のノード)で必ずPodを1つずつ起動させるリソース。 |
 | デプロイメント ( Deployment ) | - | 指定した数のPodを維持し, ローリングアップデート等を管理するリソース。 |
@@ -186,8 +186,8 @@
 | IP Address Management | IPAM | IP アドレス割当を管理する仕組み。 |
 | Open Container Initiative | OCI | コンテナ形式と実行方式の標準仕様。 |
 | Operating System | OS | 計算機の基本機能を管理し, アプリケーションを動作させる基盤ソフトウェア。 |
-| Red Hat Enterprise Linux | RHEL | Red Hat 社が提供する商用 Linux ディストリビューション。 |
-| Uniform Resource Locator | URL | URL の正式名称。 |
+| Red Hat Enterprise Linux | RHEL | Red Hatが提供する企業向けLinuxディストリビューション。 |
+| Uniform Resource Locator | URL | World Wide Web上の資源の場所を示す文字列。 |
 | Yet Another Markup Language | YAML | 設定ファイル形式です。 |
 | Ansible Task | task | 自動化処理の最小単位となる実行項目。 |
 | Layer 3 | L3 | IP アドレスを使って宛先までの経路を判断する通信層。 |
@@ -206,6 +206,7 @@
 | 制御ホスト | - | Playbook を実行し, 他ホストへの処理指示を行う管理用ホスト。 |
 
 ## 概要
+
 Kubernetes コントロールプレーンノード上に Whereabouts を導入し, Network Attachment Definition (NAD) を適用するロールです。`k8s-common`, `k8s-ctrlplane`, `k8s-multus` で整えた共通前提の上に, Whereabouts の Helm チャート導入と NAD の適用を行います。再実行にも対応するよう設計されています。
 
 本ロールは, Kubernetes クラスタに対して複数ネットワークインタフェースを提供するために必要な IPAM (IP Address Management) プラグインである **Whereabouts** をコントロールプレーンノード上に Helm チャートで導入し, 関連設定を適用します。
@@ -267,7 +268,7 @@ Whereabouts は Multus を通じて複数ネットワーク機能を提供する
 
 ## 実行方法
 
-実行者は制御ホストで以下のコマンドを実行します。
+制御ホストで以下のコマンドを実行します。
 
 ```bash
 ansible-playbook -i inventory/hosts site.yml --tags "k8s-whereabouts"
@@ -332,6 +333,79 @@ ansible-playbook -i inventory/hosts site.yml --tags "k8s-whereabouts"
 | `network_ipv4_cidr` | `vars/all-config.yml` | NAD で使用する IPv4 CIDR (例: `10.0.0.0/16`)。 |
 | `network_ipv6_cidr` | `vars/all-config.yml` | NAD で使用する IPv6 CIDR (例: `fd00::/64`)。 |
 | `mgmt_nic` | `group_vars/all/all.yml` | NAD の `master` インタフェース名。既定: `ens160` |
+
+## 設定例
+
+### IPv6 範囲を有効化する手順
+
+IPv6 対応のネットワークを構築する場合, 以下の手順に従います。
+
+1. **変数設定**: 以下の変数を設定ファイル (`host_vars`, `group_vars`) に追加します。
+
+```yaml
+k8s_whereabouts_ipv6_range_start: "<IPv6の開始アドレス>"
+k8s_whereabouts_ipv6_range_end: "<IPv6の終了アドレス>"
+```
+
+例:
+```yaml
+k8s_whereabouts_ipv6_range_start: "fd00:100::1"
+k8s_whereabouts_ipv6_range_end: "fd00:100::ff"
+```
+
+2. **ロール再実行**: ロールを再実行して NAD を再生成・再適用します。
+
+```bash
+ansible-playbook -i inventory/hosts site.yml --tags=k8s-whereabouts
+```
+
+3. **検証**: IPv6 アドレスが付与されていることを確認します。
+
+```bash
+kubectl get networkattachmentdefinition ipvlan-wb -o yaml
+kubectl run test-pod --image=busybox -- sleep 3600
+kubectl exec test-pod -- ip -6 addr
+```
+
+### NAD の 名前空間 ( namespace ) を変更する手順
+
+デフォルトでは NAD は `kube-system` 名前空間に新規作成されます。これを別の名前空間に変更する場合, 以下の手順に従います。
+
+1. **テンプレート確認**: テンプレートの現在の namespace を確認します。
+
+```bash
+grep "namespace:" roles/k8s-whereabouts/templates/ipvlan-wb-nad.yml.j2
+```
+
+2. **編集**: テンプレート内の `metadata.namespace` を変更します。
+
+例: `default` に変更する場合
+
+```yaml
+metadata:
+  name: ipvlan-wb
+  namespace: default
+```
+
+3. **既存 NAD 削除**: 旧 namespace の NAD を削除します (必要に応じて)。
+
+```bash
+kubectl delete networkattachmentdefinition ipvlan-wb -n kube-system
+```
+
+4. **ロール再実行**: NAD を再生成・再適用します。
+
+```bash
+ansible-playbook -i inventory/hosts site.yml --tags=k8s-whereabouts
+```
+
+5. **参照側更新**: Pod や Deployment の `k8s.v1.cni.cncf.io/networks` アノテーションが namespace 指定を含む場合は,合わせて更新します。
+
+```yaml
+metadata:
+  annotations:
+    k8s.v1.cni.cncf.io/networks: "default/ipvlan-wb"  # namespace/nad-name
+```
 
 ## テンプレートと生成ファイル
 
@@ -834,80 +908,9 @@ cat roles/k8s-whereabouts/templates/ipvlan-wb-nad.yml.j2 | grep -A2 "metadata:"
 - `k8s_whereabouts_ipv6_range_start` / `k8s_whereabouts_ipv6_range_end` を事前に設定してください (IPv6 を使う場合)。
 - IPv4/IPv6 のいずれかが揃っていない場合, `config-whereabouts.yml` は実行されません。
 
-### IPv6 範囲を有効化する手順
-
-IPv6 対応のネットワークを構築する場合, 以下の手順に従います。
-
-1. **変数設定**: 以下の変数を設定ファイル (`host_vars`, `group_vars`) に追加します。
-
-```yaml
-k8s_whereabouts_ipv6_range_start: "<IPv6の開始アドレス>"
-k8s_whereabouts_ipv6_range_end: "<IPv6の終了アドレス>"
-```
-
-例:
-```yaml
-k8s_whereabouts_ipv6_range_start: "fd00:100::1"
-k8s_whereabouts_ipv6_range_end: "fd00:100::ff"
-```
-
-2. **ロール再実行**: ロールを再実行して NAD を再生成・再適用します。
-
-```bash
-ansible-playbook -i inventory/hosts site.yml --tags=k8s-whereabouts
-```
-
-3. **検証**: IPv6 アドレスが付与されていることを確認します。
-
-```bash
-kubectl get networkattachmentdefinition ipvlan-wb -o yaml
-kubectl run test-pod --image=busybox -- sleep 3600
-kubectl exec test-pod -- ip -6 addr
-```
-
-### NAD の 名前空間 ( namespace ) を変更する手順
-
-デフォルトでは NAD は `kube-system` 名前空間に新規作成されます。これを別の名前空間に変更する場合, 以下の手順に従います。
-
-1. **テンプレート確認**: テンプレートの現在の namespace を確認します。
-
-```bash
-grep "namespace:" roles/k8s-whereabouts/templates/ipvlan-wb-nad.yml.j2
-```
-
-2. **編集**: テンプレート内の `metadata.namespace` を変更します。
-
-例: `default` に変更する場合
-
-```yaml
-metadata:
-  name: ipvlan-wb
-  namespace: default
-```
-
-3. **既存 NAD 削除**: 旧 namespace の NAD を削除します (必要に応じて)。
-
-```bash
-kubectl delete networkattachmentdefinition ipvlan-wb -n kube-system
-```
-
-4. **ロール再実行**: NAD を再生成・再適用します。
-
-```bash
-ansible-playbook -i inventory/hosts site.yml --tags=k8s-whereabouts
-```
-
-5. **参照側更新**: Pod や Deployment の `k8s.v1.cni.cncf.io/networks` アノテーションが namespace 指定を含む場合は,合わせて更新します。
-
-```yaml
-metadata:
-  annotations:
-    k8s.v1.cni.cncf.io/networks: "default/ipvlan-wb"  # namespace/nad-name
-```
-
 ## 参考資料
 
 ### 公式ドキュメント
 
-- Whereabouts CNI: https://github.com/k8snetworkplumbingwg/whereabouts
-- Multus CNI: https://github.com/k8snetworkplumbingwg/multus-cni
+- [Whereabouts CNI](https://github.com/k8snetworkplumbingwg/whereabouts)
+- [Multus CNI](https://github.com/k8snetworkplumbingwg/multus-cni)

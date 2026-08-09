@@ -39,7 +39,25 @@
       - [権限整合 (PostgreSQLデータ)](#権限整合-postgresqlデータ)
   - [実行フロー](#実行フロー)
   - [検証ポイント](#検証ポイント)
+    - [検証の前提条件](#検証の前提条件)
+    - [検証環境の設定](#検証環境の設定)
+    - [検証コマンドと期待結果](#検証コマンドと期待結果)
+      - [1. ディレクトリ生成状態確認](#1-ディレクトリ生成状態確認)
+      - [2. sysctl 設定反映確認](#2-sysctl-設定反映確認)
+      - [3. コンテナ稼働状態確認](#3-コンテナ稼働状態確認)
+      - [4. Redmine HTTP 応答確認](#4-redmine-http-応答確認)
+      - [5. バックアップファイル生成確認](#5-バックアップファイル生成確認)
+    - [異常時の確認項目](#異常時の確認項目)
+      - [1. コンテナログ確認](#1-コンテナログ確認)
+      - [2. バックアップ/リストアスクリプト配置確認](#2-バックアップリストアスクリプト配置確認)
+      - [3. リストア後のデータ復元確認](#3-リストア後のデータ復元確認)
   - [トラブルシューティング](#トラブルシューティング)
+    - [1. Redmine の画面へ接続できない場合](#1-redmine-の画面へ接続できない場合)
+    - [2. Redmine コンテナが起動しない場合](#2-redmine-コンテナが起動しない場合)
+    - [3. PostgreSQL へ接続できない場合](#3-postgresql-へ接続できない場合)
+    - [4. sysctl 設定が反映されない場合](#4-sysctl-設定が反映されない場合)
+    - [5. バックアップスクリプトが見つからない場合](#5-バックアップスクリプトが見つからない場合)
+    - [6. バックアップ/リストア後にデータが一致しない場合](#6-バックアップリストア後にデータが一致しない場合)
   - [注意事項](#注意事項)
   - [参考資料](#参考資料)
     - [公式ドキュメント](#公式ドキュメント)
@@ -81,12 +99,12 @@
 | Playbook | - | 自動化処理の実行手順を記述したファイル。 |
 | Canonical | - | Ubuntu を提供する組織名。 |
 | Key-Value | - | キーと値の組で情報を表す方式。 |
-| Internet Protocol | IP | インターネットプロトコルの略称。 |
+| Internet Protocol | IP | ネットワーク上で宛先を識別し, データを届けるための通信手順。 |
 | Structured Query Language | SQL | データベースを操作するための記述言語。 |
-| Hypertext Transfer Protocol | HTTP | WWW で情報をやり取りする通信手順。 |
-| Hypertext Transfer Protocol Secure | HTTPS | 通信内容を暗号化して WWW 通信を行う方式。 |
-| RPM Package Manager | RPM | RHEL 系で使用するパッケージ形式。 |
-| Virtual Machine | VM | 物理機器上で動作する仮想的な計算機。 |
+| Hypertext Transfer Protocol | HTTP | World Wide Webで情報をやり取りする通信手順。 |
+| Hypertext Transfer Protocol Secure | HTTPS | 通信内容を暗号化してWorld Wide Web通信を行う方式。 |
+| RPM Package Manager | RPM | RPM形式パッケージの導入, 更新, 削除, 情報参照を行う仕組み。 |
+| Virtual Machine | VM | 物理計算機上で動作する仮想的な計算機。 |
 | localhost | - | 同一機器自身を指す名前。 |
 | root | - | Unix 系システムの最上位権限を持つ管理者識別子。 |
 | ソフトウェア | - | 情報処理システムで使用するプログラム, 手順, 規則及び関連文書の全体又は一部分。 |
@@ -114,10 +132,10 @@
 | Service | - | サービスの英語表記。 |
 | Node | - | ノードの英語表記。 |
 | Makefile | - | 実行手順を定義したファイル。 |
-| Application Programming Interface | API | アプリケーション同士がやり取りする方法を定めた仕様。 |
-| Uniform Resource Locator | URL | WWW 上の資源の場所を示す文字列。 |
+| Application Programming Interface | API | アプリケーション同士が機能やデータをやり取りするための取り決め。 |
+| Uniform Resource Locator | URL | World Wide Web上の資源の場所を示す文字列。 |
 | Docker | - | コンテナイメージやコンテナの作成, 実行, 管理を行うコマンド。 |
-| Docker Compose | - | 複数のコンテナからなるマルチコンテナアプリケーション(docker-compose.yml)を一括管理, 起動するツール |
+| Docker Compose | - | 複数のコンテナ定義をまとめて作成, 起動, 停止, 更新する仕組み。 |
 | サービス | - | 機能を利用者や他システムへ提供する仕組み。 |
 | ポート | - | 通信の出入口を識別する番号または接点。 |
 | Port publishing | ポート公開 | ホスト側のポート番号を, コンテナ側のポート番号に結び付ける設定。 |
@@ -126,11 +144,11 @@
 | Domain Name System | DNS | 名前と IP アドレスを対応付ける仕組み。 |
 | Container | コンテナ | コンテナの英語表記。 |
 | Database | DB | データを整理して保存し, 検索や更新を行う仕組み。 |
-| Hypertext Transfer Protocol | HTTP | HTTP の正式名称。 |
+| Hypertext Transfer Protocol | HTTP | World Wide Webで情報をやり取りする通信手順。 |
 | Network File System | NFS | ネットワーク越しにファイル共有を行う仕組み。 |
 | Operating System | OS | 計算機の基本機能を管理し, アプリケーションを動作させる基盤ソフトウェア。 |
 | Transmission Control Protocol | TCP | 通信相手との接続を確立してからデータを送受信する通信方式。 |
-| Virtual Machine | VM | 1台の物理計算機上で動作する仮想的な計算機。 |
+| Virtual Machine | VM | 物理計算機上で動作する仮想的な計算機。 |
 | Host Variables | host_vars | ホスト単位の設定値を格納する変数定義。 |
 | Ansible Inventory | inventory | 実行対象ホストの一覧と接続情報を管理する定義。 |
 | Ansible Task | task | 自動化処理の最小単位となる実行項目。 |
@@ -184,16 +202,16 @@
 | 対象ホスト | - | Playbook による設定変更や導入処理の適用先となるホスト。 |
 
 ## 概要
-Redmine導入ロール。
+
+Redmine導入ロールです。
+
 本ロールを適用すると,
 ```:text
 http://ホスト名:8080/
 ```
-でRedmineサーバにアクセス可能となる。
-以下, {{と}}で囲んだ文字列はansible playbookの変数名を表す。
-実行例中, `$`は一般ユーザのシェルプロンプト, `#`は`root`ユーザのシェルプロンプトを意味します。
+でRedmineサーバにアクセス可能となります。
 
-本ロールは, redmine-server に関する設定処理を実施します。
+以下, {{と}}で囲んだ文字列はansible playbookの変数名を表し, 実行例中, `$`は一般ユーザのシェルプロンプト, `#`は`root`ユーザのシェルプロンプトを意味します。
 
 ### 主な処理
 
@@ -241,6 +259,7 @@ ansible-playbook -i inventory/hosts site.yml --tags "redmine-server"
 | `redmine_wait_timeout` | `300` | Redmineサービス待ち合わせ時間(単位: 秒)。 |
 | `redmine_wait_delay` | `5` | Redmineサービス待ち合わせる際の開始遅延時間(単位: 秒)。 |
 | `redmine_wait_sleep` | `2` | Redmineサービス待ち合わせる際の待機間隔(単位: 秒)。 |
+| `redmine_wait_retries` | `5` | Redmineサービス待ち合わせる際の再試行回数。 |
 | `redmine_wait_delegate_to` | `"localhost"` | Redmineサービス待ち合わせる際の接続元ホスト名/IPアドレス。 |
 | `redmine_db_image` | `postgres:15.1-bullseye` | PostgreSQL コンテナイメージ。 |
 | `redmine_db_service` | `redmine-db` | PostgreSQL サービス名 (docker compose)。 |
@@ -636,7 +655,6 @@ chown -R "$uid:$gid" "$mp"
 
 ## 実行フロー
 
-
 1. [tasks/load-params.yml](tasks/load-params.yml) で OS 別パッケージ名や共通変数を読み込み。
 2. [tasks/directory.yml](tasks/directory.yml) で Docker ボリューム作成, 主要ディレクトリ作成, [templates/docker-compose.yml.j2](templates/docker-compose.yml.j2) を配置します。`redmine_enable_backup_script` が有効な場合, backup-redmine-data.sh ([templates/backup-redmine-data.sh.j2](templates/backup-redmine-data.sh.j2)) と restore-redmine-data.sh ([templates/restore-redmine-data.sh.j2](templates/restore-redmine-data.sh.j2)) を配置します。さらに `redmine_backup_nfs_server` と `redmine_backup_nfs_dir` が非空の場合のみ, daily-backup-redmine.sh ([templates/daily-backup-redmine.sh.j2](templates/daily-backup-redmine.sh.j2)) を配置します。
 3. [tasks/sysctl.yml](tasks/sysctl.yml) が `templates/90-redmine-forwarding.conf.j2` を `/etc/sysctl.d/90-redmine-forwarding.conf` に配置し, IPv4/IPv6 フォワーディング (`net.ipv4.ip_forward`, `net.ipv6.conf.all.forwarding`, `net.ipv6.conf.default.forwarding`), 管理 IF (Interface, インターフェース) の RA (Router Advertisement, ルータ広告) 受信 (`net.ipv6.conf.<mgmt_nic>.accept_ra`) を有効化します。配置時は `redmine_reload_sysctl` ハンドラを通知し, `sysctl --system` で設定を反映します。
@@ -645,24 +663,310 @@ chown -R "$uid:$gid" "$mp"
 
 ## 検証ポイント
 
-- `/data/redmine` 以下に docker, scripts, backup ディレクトリが作成されていること。
-- `/etc/sysctl.d/90-redmine-forwarding.conf` が配備され, `sysctl net.ipv4.ip_forward`, `sysctl net.ipv6.conf.all.forwarding` が `1` に設定されていること。
-- `docker compose -f /data/redmine/docker/docker-compose.yml ps` で Redmine と PostgreSQL (ポストグレスキューエル, リレーショナルデータベース管理システム) コンテナが稼働していること。
-- Redmine サービスが `http://ホスト名:8080/` でアクセス可能なこと。
-- バックアップスクリプト実行時に `/data/redmine/backup/redmine.dump.gz`, `/data/redmine/backup/redmine_files.tgz` が生成されること。
-- リストアスクリプト実行後にバックアップしたプロジェクトやチケットが復元されていること。
+### 検証の前提条件
+
+検証を始める前に, 次の条件が満たされていることを確認します。
+
+- 対象ホストで Docker Engine と Docker Compose が利用可能であること。
+- 本ロールの適用が完了し, `docker compose` で Redmine 関連コンテナを操作できること。
+- `redmine_enable_backup_script` が `true` の場合は, バックアップ/リストアスクリプトが配置済みであること。
+
+### 検証環境の設定
+
+検証用の `host_vars` と `vars/all-config.yml` を次の値で整えます。
+
+```yaml
+1: redmine_dir_prefix: "/data/redmine"
+2: redmine_docker_dir: "{{ redmine_dir_prefix }}/docker"
+3: redmine_scripts_dir: "{{ redmine_dir_prefix }}/scripts"
+4: redmine_backup_dir: "{{ redmine_dir_prefix }}/backup"
+5: redmine_service_port: 8080
+6: redmine_enable_backup_script: true
+```
+
+| 行番号 | 設定値 | 有効になる動作 | 設定背景(未設定時/誤設定時の問題と防止理由) |
+| --- | --- | --- | --- |
+| 1-4 | redmine_dir_prefix, redmine_docker_dir, redmine_scripts_dir, redmine_backup_dir | 生成物の配置先を `/data/redmine` 配下へ統一し, 検証対象を固定します。 | 配置先が環境ごとに分散すると確認先を誤り, 検証漏れが発生するためです。 |
+| 5 | redmine_service_port: 8080 | Redmine の公開ポートを `8080/TCP` に設定します。 | ポート番号が不一致の場合は HTTP 疎通確認で誤検知が発生するためです。 |
+| 6 | redmine_enable_backup_script: true | バックアップ/リストアスクリプトを配置し, 検証対象に含めます。 | `false` の場合はスクリプト自体が生成されず, スクリプト検証を実施できないためです。 |
+
+この設定により, Redmine のサービス疎通, ファイル生成, バックアップ運用の検証を同一条件で実施できます。
+
+### 検証コマンドと期待結果
+
+#### 1. ディレクトリ生成状態確認
+
+**実施対象ホスト**: 対象ホスト
+
+**実行するコマンド**:
+
+```bash
+ls -ld /data/redmine /data/redmine/docker /data/redmine/scripts /data/redmine/backup
+```
+
+**期待される出力**:
+
+```plaintext
+/data/redmine, /data/redmine/docker, /data/redmine/scripts, /data/redmine/backup が存在する
+```
+
+**確認ポイント**:
+
+- `/data/redmine` 配下に `docker`, `scripts`, `backup` ディレクトリが存在すること。
+
+#### 2. sysctl 設定反映確認
+
+**実施対象ホスト**: 対象ホスト
+
+**実行するコマンド**:
+
+```bash
+cat /etc/sysctl.d/90-redmine-forwarding.conf
+sysctl net.ipv4.ip_forward net.ipv6.conf.all.forwarding
+```
+
+**期待される出力**:
+
+```plaintext
+net.ipv4.ip_forward = 1
+net.ipv6.conf.all.forwarding = 1
+```
+
+**確認ポイント**:
+
+- `/etc/sysctl.d/90-redmine-forwarding.conf` が存在すること。
+- `net.ipv4.ip_forward`, `net.ipv6.conf.all.forwarding` が `1` であること。
+
+#### 3. コンテナ稼働状態確認
+
+**実施対象ホスト**: 対象ホスト
+
+**実行するコマンド**:
+
+```bash
+docker compose -f /data/redmine/docker/docker-compose.yml ps
+```
+
+**期待される出力**:
+
+```plaintext
+redmine, redmine-db が Up (running) で表示される
+```
+
+**確認ポイント**:
+
+- Redmine コンテナと PostgreSQL コンテナが稼働中であること。
+
+#### 4. Redmine HTTP 応答確認
+
+**実施対象ホスト**: 対象ホスト
+
+**実行するコマンド**:
+
+```bash
+curl -I --max-time 10 http://127.0.0.1:8080/
+```
+
+**期待される出力**:
+
+```plaintext
+HTTP/1.1 200 または HTTP/1.1 302
+```
+
+**確認ポイント**:
+
+- `http://ホスト名:8080/` が応答可能であること。
+- 接続タイムアウトや接続拒否が発生しないこと。
+
+#### 5. バックアップファイル生成確認
+
+**実施対象ホスト**: 対象ホスト
+
+**実行するコマンド**:
+
+```bash
+/data/redmine/scripts/backup-redmine-data.sh
+ls -l /data/redmine/backup/redmine.dump.gz /data/redmine/backup/redmine_files.tgz
+```
+
+**期待される出力**:
+
+```plaintext
+/data/redmine/backup/redmine.dump.gz と /data/redmine/backup/redmine_files.tgz が存在する
+```
+
+**確認ポイント**:
+
+- バックアップスクリプト実行後に `redmine.dump.gz`, `redmine_files.tgz` が生成されること。
+- 生成ファイルが 0 バイトではないこと。
+
+### 異常時の確認項目
+
+#### 1. コンテナログ確認
+
+**実施対象ホスト**: 対象ホスト
+
+**実行するコマンド**:
+
+```bash
+docker compose -f /data/redmine/docker/docker-compose.yml logs --tail=200 redmine redmine-db
+```
+
+**確認ポイント**:
+
+- Redmine 起動失敗, DB 接続失敗, マイグレーション失敗が継続出力されないこと。
+
+#### 2. バックアップ/リストアスクリプト配置確認
+
+**実施対象ホスト**: 対象ホスト
+
+**実行するコマンド**:
+
+```bash
+ls -l /data/redmine/scripts/backup-redmine-data.sh /data/redmine/scripts/restore-redmine-data.sh
+```
+
+**確認ポイント**:
+
+- `redmine_enable_backup_script` が `true` の場合に, 上記スクリプトが存在すること。
+- 実行権限が付与されていること。
+
+#### 3. リストア後のデータ復元確認
+
+**実施対象ホスト**: 対象ホスト
+
+**実行するコマンド**:
+
+```bash
+/data/redmine/scripts/restore-redmine-data.sh
+curl -I --max-time 10 http://127.0.0.1:8080/
+```
+
+**確認ポイント**:
+
+- リストア実行後に Redmine が再起動し, HTTP 応答可能であること。
+- バックアップ時点のプロジェクト/チケットが復元されていること。
 
 ## トラブルシューティング
 
-実行者はエラー発生時に build-*.log を確認し, 失敗した task 名と不足変数を特定します。
+### 1. Redmine の画面へ接続できない場合
+
+**実施対象ホスト**: 対象ホスト
+
+**実行するコマンド**:
+
+```bash
+docker compose -f /data/redmine/docker/docker-compose.yml ps
+ss -ltnp | grep ':8080 '
+curl -I --max-time 10 http://127.0.0.1:8080/
+```
+
+**確認ポイント**:
+
+- `redmine` コンテナが稼働中であること。
+- TCPプロトコルのポート番号8080番 が待受状態であること。
+- `curl` で HTTP 応答を取得できること。
+
+### 2. Redmine コンテナが起動しない場合
+
+**実施対象ホスト**: 対象ホスト
+
+**実行するコマンド**:
+
+```bash
+docker compose -f /data/redmine/docker/docker-compose.yml ps
+docker compose -f /data/redmine/docker/docker-compose.yml logs --tail=200 redmine
+```
+
+**確認ポイント**:
+
+- `redmine` サービスが Exit 状態になっていないこと。
+- コンテナログに設定不備, 接続失敗, 起動失敗が継続出力されていないこと。
+
+### 3. PostgreSQL へ接続できない場合
+
+**実施対象ホスト**: 対象ホスト
+
+**実行するコマンド**:
+
+```bash
+docker compose -f /data/redmine/docker/docker-compose.yml ps
+docker compose -f /data/redmine/docker/docker-compose.yml logs --tail=200 redmine-db
+docker compose -f /data/redmine/docker/docker-compose.yml logs --tail=200 redmine
+```
+
+**確認ポイント**:
+
+- `redmine-db` コンテナが稼働中であること。
+- `redmine` 側ログで DB 接続失敗が継続していないこと。
+- `redmine_db_name`, `redmine_db_user`, `redmine_db_password` の設定値が一致していること。
+
+### 4. sysctl 設定が反映されない場合
+
+**実施対象ホスト**: 対象ホスト
+
+**実行するコマンド**:
+
+```bash
+cat /etc/sysctl.d/90-redmine-forwarding.conf
+sysctl net.ipv4.ip_forward net.ipv6.conf.all.forwarding net.ipv6.conf.default.forwarding
+```
+
+**確認ポイント**:
+
+- `/etc/sysctl.d/90-redmine-forwarding.conf` が存在すること。
+- `net.ipv4.ip_forward`, `net.ipv6.conf.all.forwarding`, `net.ipv6.conf.default.forwarding` が `1` であること。
+- 値が不一致の場合は playbook を再実行し, `redmine_reload_sysctl` が実行されること。
+
+### 5. バックアップスクリプトが見つからない場合
+
+**実施対象ホスト**: 制御ホスト, 対象ホスト
+
+**実行するコマンド**:
+
+```bash
+grep -n 'redmine_enable_backup_script\|redmine_backup_nfs_server\|redmine_backup_nfs_dir' vars/all-config.yml host_vars/*.yml
+ls -l /data/redmine/scripts/backup-redmine-data.sh /data/redmine/scripts/restore-redmine-data.sh
+ls -l /data/redmine/scripts/daily-backup-redmine.sh
+```
+
+**確認ポイント**:
+
+- `redmine_enable_backup_script` が `true` であること。
+- `backup-redmine-data.sh` と `restore-redmine-data.sh` が配置されていること。
+- `daily-backup-redmine.sh` は `redmine_backup_nfs_server` と `redmine_backup_nfs_dir` が非空の場合のみ配置されること。
+
+### 6. バックアップ/リストア後にデータが一致しない場合
+
+**実施対象ホスト**: 対象ホスト
+
+**実行するコマンド**:
+
+```bash
+ls -l /data/redmine/backup/redmine.dump.gz /data/redmine/backup/redmine_files.tgz
+/data/redmine/scripts/restore-redmine-data.sh
+docker compose -f /data/redmine/docker/docker-compose.yml logs --tail=200 redmine redmine-db
+```
+
+**確認ポイント**:
+
+- `redmine.dump.gz`, `redmine_files.tgz` が 0 バイトではないこと。
+- リストア実行後に Redmine と PostgreSQL のログに致命的エラーがないこと。
+- リストア元のバックアップ時点のプロジェクト, チケット, 添付ファイルが復元されていること。
 
 ## 注意事項
 
-実行者は既存の実行順依存を崩さないことを確認した上で本ロールを実行します。
+- `redmine_admin_password` が未定義又は空文字列の場合は管理者パスワードが `admin` になるため, 初回ログイン後に運用用の値へ変更すること。
+- `redmine_db_password` と `REDMINE_DB_PASSWORD` は Redmine と PostgreSQL の接続成立に直結するため, 変更時は両者の整合を維持すること。
+- `redmine_service_port` を既定値 `8080` から変更する場合は, 監視設定, ファイアウォール設定, 利用者向け接続先 URL を同時に更新すること。
+- `/data/redmine/backup` 配下には業務データを含むバックアップファイルが生成されるため, 削除又は上書き前に保管方針を確認すること。
+- `redmine_enable_backup_script` が `false` の場合は `backup-redmine-data.sh` と `restore-redmine-data.sh` が配置されないため, バックアップ運用を有効化する場合は `true` を設定すること。
+- `daily-backup-redmine.sh` は `redmine_backup_nfs_server` と `redmine_backup_nfs_dir` が非空の場合のみ生成されるため, 定期バックアップを運用する場合は両変数に有効値を設定すること。
+- `redmine_files_volume`, `redmine_database_volume` のデータは Docker ボリュームとして永続化されるため, 障害復旧時はコンテナ再作成だけではなくボリューム整合も確認すること。
 
 ## 参考資料
 
 ### 公式ドキュメント
 
-- Redmine: https://www.redmine.org/guide
-- PostgreSQL: https://www.postgresql.org/docs/
+- [Redmine](https://www.redmine.org/guide)
+- [PostgreSQL](https://www.postgresql.org/docs/)

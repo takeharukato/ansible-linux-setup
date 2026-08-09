@@ -15,6 +15,11 @@ RHEL と Ubuntu のパッケージから導入します。
   - [実行フロー](#実行フロー)
   - [検証ポイント](#検証ポイント)
   - [トラブルシューティング](#トラブルシューティング)
+    - [1. `aide: command not found` が表示される場合](#1-aide-command-not-found-が表示される場合)
+    - [2. `aide --version` が失敗する場合](#2-aide---version-が失敗する場合)
+    - [3. `sudo aide --check` でデータベース未存在エラーが出る場合](#3-sudo-aide---check-でデータベース未存在エラーが出る場合)
+    - [4. 設定ファイルが見つからない場合](#4-設定ファイルが見つからない場合)
+    - [5. `aide --check` 実行時に権限エラーが出る場合](#5-aide---check-実行時に権限エラーが出る場合)
   - [注意事項](#注意事項)
     - [AIDEの設定ファイルに対するドロップインディレクトリの扱いについて](#aideの設定ファイルに対するドロップインディレクトリの扱いについて)
   - [参考資料](#参考資料)
@@ -57,12 +62,12 @@ RHEL と Ubuntu のパッケージから導入します。
 | Playbook | - | 自動化処理の実行手順を記述したファイル。 |
 | Canonical | - | Ubuntu を提供する組織名。 |
 | Key-Value | - | キーと値の組で情報を表す方式。 |
-| Internet Protocol | IP | インターネットプロトコルの略称。 |
+| Internet Protocol | IP | ネットワーク上で宛先を識別し, データを届けるための通信手順。 |
 | Structured Query Language | SQL | データベースを操作するための記述言語。 |
-| Hypertext Transfer Protocol | HTTP | WWW で情報をやり取りする通信手順。 |
-| Hypertext Transfer Protocol Secure | HTTPS | 通信内容を暗号化して WWW 通信を行う方式。 |
-| RPM Package Manager | RPM | RHEL 系で使用するパッケージ形式。 |
-| Virtual Machine | VM | 物理機器上で動作する仮想的な計算機。 |
+| Hypertext Transfer Protocol | HTTP | World Wide Webで情報をやり取りする通信手順。 |
+| Hypertext Transfer Protocol Secure | HTTPS | 通信内容を暗号化してWorld Wide Web通信を行う方式。 |
+| RPM Package Manager | RPM | RPM形式パッケージの導入, 更新, 削除, 情報参照を行う仕組み。 |
+| Virtual Machine | VM | 物理計算機上で動作する仮想的な計算機。 |
 | localhost | - | 同一機器自身を指す名前。 |
 | root | - | Unix 系システムの最上位権限を持つ管理者識別子。 |
 | ソフトウェア | - | 情報処理システムで使用するプログラム, 手順, 規則及び関連文書の全体又は一部分。 |
@@ -90,10 +95,10 @@ RHEL と Ubuntu のパッケージから導入します。
 | Service | - | サービスの英語表記。 |
 | Node | - | ノードの英語表記。 |
 | Makefile | - | 実行手順を定義したファイル。 |
-| Application Programming Interface | API | アプリケーション同士がやり取りする方法を定めた仕様。 |
-| Uniform Resource Locator | URL | WWW 上の資源の場所を示す文字列。 |
+| Application Programming Interface | API | アプリケーション同士が機能やデータをやり取りするための取り決め。 |
+| Uniform Resource Locator | URL | World Wide Web上の資源の場所を示す文字列。 |
 | Advanced Intrusion Detection Environment | AIDE | ファイルシステムの改ざん検知を行うホスト型侵入検知システム, ファイルハッシュでの整合性確認 |
-| Red Hat Enterprise Linux | RHEL | Red Hat 社が提供する商用 Linux ディストリビューション。 |
+| Red Hat Enterprise Linux | RHEL | Red Hatが提供する企業向けLinuxディストリビューション。 |
 | Debian | - | コミュニティ主導で開発される Linux ディストリビューション。 |
 | Ubuntu | - | Canonical が提供する Debian 系の Linux ディストリビューション。 |
 | Operating System | OS | 計算機の基本機能を管理し, アプリケーションを動作させる基盤ソフトウェア。 |
@@ -101,10 +106,9 @@ RHEL と Ubuntu のパッケージから導入します。
 | Ansible Inventory | inventory | 実行対象ホストの一覧と接続情報を管理する定義。 |
 | Ansible Task | task | 自動化処理の最小単位となる実行項目。 |
 | ansible-playbookコマンド | - | Ansible Playbook を実行して自動構成処理を適用するコマンド。 |
-| `make` | - | Makefile に定義された処理を実行するコマンド。 |
+| makeコマンド | make | Makefile に定義された処理を実行するコマンド。 |
 | 制御ホスト | - | Playbook を実行し, 他ホストへの処理指示を行う管理用ホスト。 |
 | 対象ホスト | - | Playbook による設定変更や導入処理の適用先となるホスト。 |
-
 ## 概要
 
 本ロールでは, Advanced Intrusion Detection Environment (AIDE) を,
@@ -139,7 +143,6 @@ ansible-playbook -i inventory/hosts site.yml --tags "aide"
 | `aide_config_dropin_dir` | AIDE の設定ファイルのドロップイン用ディレクトリのパス。 | Debian/Ubuntu 系では `"/etc/aide/aide.conf.d"`, RHEL 系では未使用 | `aide_config_dropin_dir: "/etc/aide/aide.conf.d"` |
 
 ## 実行フロー
-
 
 1. [tasks/load-params.yml](tasks/load-params.yml) で OS ごとのパッケージ定義, クロスディストリビューション定義, 共通定義を取り込みます。
 2. [tasks/package.yml](tasks/package.yml) が `aide_packages` で定義されたパッケージ (`aide`) を `state: present` で導入します。
@@ -332,13 +335,87 @@ End timestamp: 2026-08-02 11:05:56 +0900 (run time: 2m 2s)
 
 ## トラブルシューティング
 
-| 事象 | 主な原因 | 対処方法 |
-| --- | --- | --- |
-| `aide: command not found` が表示される。 | パッケージ導入に失敗している, または PATH に `/usr/bin` が含まれていない。 | `dpkg -l` または `rpm -q` で `aide` 導入有無を確認する。未導入ならロールを再実行し, 導入済みなら `echo "$PATH"` を確認する。 |
-| `aide --version` が失敗する。 | パッケージ破損, 依存関係不整合, 実行権限異常。 | `command -v aide` とパッケージ検証(`rpm -V aide` またはパッケージ再導入)を実施する。必要に応じて `aide` を再導入する。 |
-| `sudo aide --check` 実行時にデータベース未存在エラーが出る。 | 初期化(`aide --init`)を未実施。 | `sudo aide --init` を実行し, `/var/lib/aide/aide.db.new.gz` を `/var/lib/aide/aide.db.gz` へ配置してから再実行する。 |
-| 設定ファイルが見つからない。 | OS別の設定ファイルパスを誤って参照している。 | Ubuntu/Debian 系は `/etc/aide/aide.conf`, RHEL 系は `/etc/aide.conf` を確認する。実環境の `aide_config_path` 定義値を見直す。 |
-| `aide --check` 実行時に権限エラーが出る。 | root 権限が必要なパスを一般ユーザで参照している。 | `sudo aide --check` で実行する。sudo 実行権限がない場合は対象ホストの権限設定を見直す。 |
+### 1. `aide: command not found` が表示される場合
+
+**実施対象ホスト**: 対象ホスト
+
+**実行するコマンド**:
+
+```bash
+command -v aide
+echo "$PATH"
+dpkg -l | grep -E '^ii\s+aide\b' || rpm -q aide
+```
+
+**確認ポイント**:
+
+- `command -v aide` が `/usr/bin/aide` を返すこと。
+- パッケージ導入状態を確認できること。
+- 未導入の場合はロールを再実行し, 導入後に再確認すること。
+
+### 2. `aide --version` が失敗する場合
+
+**実施対象ホスト**: 対象ホスト
+
+**実行するコマンド**:
+
+```bash
+aide --version
+rpm -V aide 2>/dev/null || true
+```
+
+**確認ポイント**:
+
+- `aide --version` が終了コード 0 で完了すること。
+- 失敗する場合はパッケージ破損や依存関係不整合を疑い, パッケージ再導入を検討すること。
+
+### 3. `sudo aide --check` でデータベース未存在エラーが出る場合
+
+**実施対象ホスト**: 対象ホスト
+
+**実行するコマンド**:
+
+```bash
+sudo aide --init
+sudo cp /var/lib/aide/aide.db.new.gz /var/lib/aide/aide.db.gz
+sudo aide --check
+```
+
+**確認ポイント**:
+
+- 初期化後に `/var/lib/aide/aide.db.gz` が存在すること。
+- `sudo aide --check` が実行可能になること。
+
+### 4. 設定ファイルが見つからない場合
+
+**実施対象ホスト**: 対象ホスト
+
+**実行するコマンド**:
+
+```bash
+ls -l /etc/aide/aide.conf /etc/aide.conf
+```
+
+**確認ポイント**:
+
+- Ubuntu/Debian 系は `/etc/aide/aide.conf` を参照すること。
+- RHEL 系は `/etc/aide.conf` を参照すること。
+- 実環境の `aide_config_path` 定義値が OS と一致すること。
+
+### 5. `aide --check` 実行時に権限エラーが出る場合
+
+**実施対象ホスト**: 対象ホスト
+
+**実行するコマンド**:
+
+```bash
+sudo aide --check
+```
+
+**確認ポイント**:
+
+- root 権限での実行が必要であること。
+- sudo 実行権限が不足する場合は対象ホスト側の権限設定を見直すこと。
 
 ## 注意事項
 

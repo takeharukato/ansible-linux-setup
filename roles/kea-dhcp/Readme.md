@@ -8,7 +8,6 @@
   - [目次](#目次)
   - [用語](#用語)
   - [概要](#概要)
-  - [主な処理](#主な処理)
   - [前提条件](#前提条件)
   - [実行方法](#実行方法)
   - [主要変数](#主要変数)
@@ -36,6 +35,13 @@
       - [6. ログ出力確認](#6-ログ出力確認)
       - [7. リースデータベース確認](#7-リースデータベース確認)
   - [トラブルシューティング](#トラブルシューティング)
+    - [1. kea-dhcp サービスが起動しない場合](#1-kea-dhcp-サービスが起動しない場合)
+    - [2. サービスは起動しているがクライアントへアドレスが配布されない場合](#2-サービスは起動しているがクライアントへアドレスが配布されない場合)
+    - [3. クライアントが期待外の DNS / ドメインを受け取る場合](#3-クライアントが期待外の-dns--ドメインを受け取る場合)
+    - [4. kea\_dhcp\_interfaces が意図しない値になる場合](#4-kea_dhcp_interfaces-が意図しない値になる場合)
+    - [5. リースファイルが更新されない, または空のままの場合](#5-リースファイルが更新されない-または空のままの場合)
+    - [6. 設定変更後に反映されない場合](#6-設定変更後に反映されない場合)
+    - [7. ログが急増してディスク使用量が増える場合](#7-ログが急増してディスク使用量が増える場合)
   - [注意事項](#注意事項)
   - [参考資料](#参考資料)
     - [公式ドキュメント](#公式ドキュメント)
@@ -77,12 +83,12 @@
 | Playbook | - | 自動化処理の実行手順を記述したファイル。 |
 | Canonical | - | Ubuntu を提供する組織名。 |
 | Key-Value | - | キーと値の組で情報を表す方式。 |
-| Internet Protocol | IP | インターネットプロトコルの略称。 |
+| Internet Protocol | IP | ネットワーク上で宛先を識別し, データを届けるための通信手順。 |
 | Structured Query Language | SQL | データベースを操作するための記述言語。 |
-| Hypertext Transfer Protocol | HTTP | WWW で情報をやり取りする通信手順。 |
-| Hypertext Transfer Protocol Secure | HTTPS | 通信内容を暗号化して WWW 通信を行う方式。 |
-| RPM Package Manager | RPM | RHEL 系で使用するパッケージ形式。 |
-| Virtual Machine | VM | 物理機器上で動作する仮想的な計算機。 |
+| Hypertext Transfer Protocol | HTTP | World Wide Webで情報をやり取りする通信手順。 |
+| Hypertext Transfer Protocol Secure | HTTPS | 通信内容を暗号化してWorld Wide Web通信を行う方式。 |
+| RPM Package Manager | RPM | RPM形式パッケージの導入, 更新, 削除, 情報参照を行う仕組み。 |
+| Virtual Machine | VM | 物理計算機上で動作する仮想的な計算機。 |
 | localhost | - | 同一機器自身を指す名前。 |
 | root | - | Unix 系システムの最上位権限を持つ管理者識別子。 |
 | ソフトウェア | - | 情報処理システムで使用するプログラム, 手順, 規則及び関連文書の全体又は一部分。 |
@@ -109,8 +115,8 @@
 | Service | - | サービスの英語表記。 |
 | Node | - | ノードの英語表記。 |
 | Makefile | - | 実行手順を定義したファイル。 |
-| Application Programming Interface | API | アプリケーション同士がやり取りする方法を定めた仕様。 |
-| Uniform Resource Locator | URL | WWW 上の資源の場所を示す文字列。 |
+| Application Programming Interface | API | アプリケーション同士が機能やデータをやり取りするための取り決め。 |
+| Uniform Resource Locator | URL | World Wide Web上の資源の場所を示す文字列。 |
 | Dynamic Host Configuration Protocol | DHCP | IP アドレスを自動配布する仕組み。 |
 | Domain Name System | DNS | 名前と IP アドレスを対応付ける仕組み。 |
 | Classless Inter-Domain Routing | CIDR | IP アドレスとネットワークプレフィックス長を組み合わせた表記法。 |
@@ -129,7 +135,7 @@
 | netplan | - | Debian/Ubuntu 系でネットワーク設定を生成する仕組み。 |
 | dhclient | - | Unix/Linux システムで DHCP クライアント機能を提供するツール。`dhclient` コマンドでインターフェースに対して IP アドレスやネットワーク設定を DHCP サーバーに要求します。 |
 | Operating System | OS | 計算機の基本機能を管理し, アプリケーションを動作させる基盤ソフトウェア。 |
-| Red Hat Enterprise Linux | RHEL | Red Hat 社が提供する商用 Linux ディストリビューション。 |
+| Red Hat Enterprise Linux | RHEL | Red Hatが提供する企業向けLinuxディストリビューション。 |
 | systemctl | - | systemd 管理下のサービスを起動, 停止, 状態確認するコマンド。 |
 | Process Identifier | PID | 実行中の処理を識別する番号。 |
 | Media Access Control Address | MAC | ネットワーク機器の識別子。 |
@@ -148,7 +154,7 @@
 | プレイブック | - | Ansible で使用される YAML 形式の設定ファイル。複数のタスクやロールを組み合わせて, システムの構成や操作手順を定義します。 |
 | systemd-networkd | - | systemd の一部として提供されるネットワーク管理デーモン。ネットワークインターフェースの設定, ルーティング, DHCP クライアント機能などを提供します。 |
 | NetworkManager | - | RHEL 系でネットワークを管理するサービス。 |
-| Application Programming Interface | API | API の正式名称。 |
+| Application Programming Interface | API | アプリケーション同士が機能やデータをやり取りするための取り決め。 |
 | Database | DB | データを整理して保存し, 検索や更新を行う仕組み。 |
 | Internet Protocol | IP | ネットワーク上で宛先を識別し, データを届けるための通信手順。 |
 | Red Hat Enterprise Linux 9 | RHEL9 | Red Hat Enterprise Linux の第9系統版。 |
@@ -160,7 +166,7 @@
 | ansible-playbookコマンド | - | Ansible Playbook を実行して自動構成処理を適用するコマンド。 |
 | `cat` | - | ファイル内容を標準出力へ表示するコマンド。 |
 | ipコマンド | - | ネットワーク設定や経路情報の確認, 変更を行うコマンド。 |
-| `make` | - | Makefile に定義された処理を実行するコマンド。 |
+| makeコマンド | make | Makefile に定義された処理を実行するコマンド。 |
 | アドレス | - | 宛先や所在を識別するための情報。 |
 | サービス | - | 機能を利用者や他システムへ提供する仕組み。 |
 | データベース | - | 検索や更新ができるよう整理した情報の集合。 |
@@ -169,14 +175,10 @@
 | リモートホスト | - | ネットワーク越しに接続して操作する別ホスト。 |
 | 対象ホスト | - | Playbook による設定変更や導入処理の適用先となるホスト。 |
 | sudoコマンド | sudo | 一時的に管理者権限でコマンドを実行するためのコマンド。 |
-
 ## 概要
 このロールは Kea DHCPv4 サーバーをインストールし, Jinja2 テンプレートで `/etc/kea/kea-dhcp4.conf` を生成してサービスを有効化します。
 
 本ロールは, kea-dhcp に関する設定処理を実施します。
-
-## 主な処理
-
 本ロールの主な処理は以下の通りです。
 
 - **Kea パッケージのインストール**: OS に応じた適切なパッケージ (`kea-dhcp4-server` / `kea-dhcp4`) をインストール。
@@ -651,17 +653,122 @@ address,hwaddr,client_id,valid_lifetime,expire,subnet_id,fqdn_fwd,fqdn_rev,hostn
 
 ## トラブルシューティング
 
-代表的なトラブルと対処を以下に示します。
+### 1. kea-dhcp サービスが起動しない場合
 
-| 想定トラブル | 主な原因 | 対処方法 |
-| --- | --- | --- |
-| kea-dhcp サービスが起動しない | 生成された `/etc/kea/kea-dhcp4.conf` の構文誤り, または必須パラメータ不足 | 実行者は `sudo kea-dhcp4 -t /etc/kea/kea-dhcp4.conf` で構文検証を実施し, エラー行を修正した後に `sudo systemctl restart kea-dhcp4-server` (RHEL 系は `kea-dhcp4`) を実行します。 |
-| サービスは起動しているがクライアントへアドレスが配布されない | `kea_dhcp_interfaces` の誤設定, 対象 NIC の未リンクアップ, またはサブネット/プール不整合 | 実行者は `sudo ss -ulnp | grep kea` で UDP 67 の待受を確認し, `ip addr` で NIC 状態を確認します。あわせて `kea_subnet`, `kea_pool`, `kea_gateway` の整合を見直して再適用します。 |
-| クライアントが期待外の DNS / ドメインを受け取る | `kea_dns_servers`, `kea_domain_name`, `kea_domain_search` の設定漏れ, または値の誤り | 実行者は `resolvectl status` と `cat /etc/resolv.conf` で配布結果を確認し, 該当変数を修正してロールを再実行します。 |
-| `kea_dhcp_interfaces` が意図しない値になる | `gpm_mgmt_nic` または `mgmt_nic` が環境実態と不一致 | 実行者は `host_vars` で `kea_dhcp_interfaces` を明示指定し, NIC 名を固定します。必要に応じて `ip link` で実 NIC 名を確認します。 |
-| リースファイルが更新されない, または空のまま | リース DB パス不一致, 権限問題, サービス再起動失敗 | 実行者は OS に応じたリースファイル (`/var/lib/kea/kea-leases4.csv` または `/var/lib/kea/kea-dhcp4.leases`) の存在と更新時刻を確認し, `systemctl status` とログを照合して原因を切り分けます。 |
-| 設定変更後に反映されない | ハンドラ未実行, もしくは対象ホスト誤指定で Playbook を実行 | 実行者は実行ログで `restart_kea_dhcp4_server` ハンドラの実行有無を確認し, `-l` 指定先とインベントリ対象を見直して再実行します。 |
-| ログが急増してディスク使用量が増える | 高頻度な DHCP 要求, またはログレベル/ローテーション設定不適切 | 実行者は `kea_dhcp_log_maxsize` と `kea_dhcp_log_maxver` を環境に合わせて調整し, 必要に応じて要求元クライアントの再送頻度を調査します。 |
+**実施対象ホスト**: DHCPサーバノード
+
+**実行するコマンド**:
+
+```bash
+sudo kea-dhcp4 -t /etc/kea/kea-dhcp4.conf
+sudo systemctl status kea-dhcp4-server --no-pager || sudo systemctl status kea-dhcp4 --no-pager
+journalctl -u kea-dhcp4-server -n 100 --no-pager || journalctl -u kea-dhcp4 -n 100 --no-pager
+```
+
+**確認ポイント**:
+
+- /etc/kea/kea-dhcp4.conf の構文検証が成功すること。
+- サービス状態が active (running) であること。
+- 必須パラメータ不足や構文エラーがログに出ていないこと。
+
+### 2. サービスは起動しているがクライアントへアドレスが配布されない場合
+
+**実施対象ホスト**: DHCPサーバノード
+
+**実行するコマンド**:
+
+```bash
+sudo ss -ulnp | grep kea
+ip addr
+grep -n 'interfaces-config\|subnet4\|pools' /etc/kea/kea-dhcp4.conf
+```
+
+**確認ポイント**:
+
+- UDP ポート 67 で待受していること。
+- kea_dhcp_interfaces で指定した NIC がリンクアップしていること。
+- kea_subnet, kea_pool, kea_gateway の整合が取れていること。
+
+### 3. クライアントが期待外の DNS / ドメインを受け取る場合
+
+**実施対象ホスト**: DHCPクライアントノード
+
+**実行するコマンド**:
+
+```bash
+resolvectl status
+cat /etc/resolv.conf
+```
+
+**確認ポイント**:
+
+- 配布された DNS サーバーが kea_dns_servers と一致すること。
+- ドメイン名とサーチドメインが kea_domain_name, kea_domain_search と一致すること。
+
+### 4. kea_dhcp_interfaces が意図しない値になる場合
+
+**実施対象ホスト**: 制御ホスト, DHCPサーバノード
+
+**実行するコマンド**:
+
+```bash
+grep -n '^kea_dhcp_interfaces:' vars/all-config.yml group_vars/all/all.yml host_vars/*.yml
+ip link
+```
+
+**確認ポイント**:
+
+- host_vars で kea_dhcp_interfaces を明示指定していること。
+- gpm_mgmt_nic 又は mgmt_nic の値が実 NIC 名と一致していること。
+
+### 5. リースファイルが更新されない, または空のままの場合
+
+**実施対象ホスト**: DHCPサーバノード
+
+**実行するコマンド**:
+
+```bash
+ls -l /var/lib/kea/kea-leases4.csv /var/lib/kea/kea-dhcp4.leases 2>/dev/null
+sudo systemctl status kea-dhcp4-server --no-pager || sudo systemctl status kea-dhcp4 --no-pager
+journalctl -u kea-dhcp4-server -n 100 --no-pager || journalctl -u kea-dhcp4 -n 100 --no-pager
+```
+
+**確認ポイント**:
+
+- OS に応じたリースファイルが存在し, 更新時刻が進むこと。
+- 権限問題やサービス再起動失敗がログに出ていないこと。
+
+### 6. 設定変更後に反映されない場合
+
+**実施対象ホスト**: 制御ホスト
+
+**実行するコマンド**:
+
+```bash
+grep -n 'restart_kea_dhcp4_server' roles/kea-dhcp/tasks/*.yml roles/kea-dhcp/handlers/*.yml
+```
+
+**確認ポイント**:
+
+- restart_kea_dhcp4_server ハンドラが実行対象として定義されていること。
+- Playbook 実行時の -l 指定先が対象ホストと一致していること。
+- 実行ログでハンドラが通知されていること。
+
+### 7. ログが急増してディスク使用量が増える場合
+
+**実施対象ホスト**: DHCPサーバノード
+
+**実行するコマンド**:
+
+```bash
+ls -lh /var/log/kea/kea-dhcp4.log*
+grep -n 'maxsize\|maxver' /etc/kea/kea-dhcp4.conf
+```
+
+**確認ポイント**:
+
+- kea_dhcp_log_maxsize と kea_dhcp_log_maxver が運用要件に合っていること。
+- 高頻度 DHCP 要求がないか要求元クライアントの再送頻度を確認すること。
 
 ## 注意事項
 

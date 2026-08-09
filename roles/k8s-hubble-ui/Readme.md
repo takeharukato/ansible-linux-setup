@@ -84,12 +84,12 @@
 | Playbook | - | 自動化処理の実行手順を記述したファイル。 |
 | Canonical | - | Ubuntu を提供する組織名。 |
 | Key-Value | - | キーと値の組で情報を表す方式。 |
-| Internet Protocol | IP | インターネットプロトコルの略称。 |
+| Internet Protocol | IP | ネットワーク上で宛先を識別し, データを届けるための通信手順。 |
 | Structured Query Language | SQL | データベースを操作するための記述言語。 |
-| Hypertext Transfer Protocol | HTTP | WWW で情報をやり取りする通信手順。 |
-| Hypertext Transfer Protocol Secure | HTTPS | 通信内容を暗号化して WWW 通信を行う方式。 |
-| RPM Package Manager | RPM | RHEL 系で使用するパッケージ形式。 |
-| Virtual Machine | VM | 物理機器上で動作する仮想的な計算機。 |
+| Hypertext Transfer Protocol | HTTP | World Wide Webで情報をやり取りする通信手順。 |
+| Hypertext Transfer Protocol Secure | HTTPS | 通信内容を暗号化してWorld Wide Web通信を行う方式。 |
+| RPM Package Manager | RPM | RPM形式パッケージの導入, 更新, 削除, 情報参照を行う仕組み。 |
+| Virtual Machine | VM | 物理計算機上で動作する仮想的な計算機。 |
 | localhost | - | 同一機器自身を指す名前。 |
 | root | - | Unix 系システムの最上位権限を持つ管理者識別子。 |
 | ソフトウェア | - | 情報処理システムで使用するプログラム, 手順, 規則及び関連文書の全体又は一部分。 |
@@ -117,9 +117,9 @@
 | Service | - | サービスの英語表記。 |
 | Node | - | ノードの英語表記。 |
 | Makefile | - | 実行手順を定義したファイル。 |
-| Application Programming Interface | API | アプリケーション同士がやり取りする方法を定めた仕様。 |
-| Uniform Resource Locator | URL | WWW 上の資源の場所を示す文字列。 |
-| Application Programming Interface | API | API の正式名称。 |
+| Application Programming Interface | API | アプリケーション同士が機能やデータをやり取りするための取り決め。 |
+| Uniform Resource Locator | URL | World Wide Web上の資源の場所を示す文字列。 |
+| Application Programming Interface | API | アプリケーション同士が機能やデータをやり取りするための取り決め。 |
 | Custom Resource Definition | CRD | Kubernetes APIを拡張してユーザ独自のリソース種別を定義する仕組み。 |
 | Role-Based Access Control | RBAC | ユーザやサービスアカウントが実行可能な操作を役割(Role)で制限する仕組み。 |
 | Service Account | - | Kubernetes内部でPodが他のリソースにアクセスする際に用いる仮想的なアカウント。 |
@@ -173,11 +173,11 @@
 | Toleration | - | PodがTaintを持つNodeへ配置されることを許可する設定。 |
 | Border Gateway Protocol | BGP | 自律システム間で経路情報を交換する経路制御方式。 |
 | HyperText Markup Language | HTML | Web ページの構造を記述するための形式。 |
-| Hypertext Transfer Protocol | HTTP | HTTP の正式名称。 |
+| Hypertext Transfer Protocol | HTTP | World Wide Webで情報をやり取りする通信手順。 |
 | Internet Protocol | IP | ネットワーク上で宛先を識別し, データを届けるための通信手順。 |
 | Operating System | OS | 計算機の基本機能を管理し, アプリケーションを動作させる基盤ソフトウェア。 |
 | User Interface | UI | 利用者がソフトウェアを操作するための見た目と操作方法。 |
-| Uniform Resource Locator | URL | URL の正式名称。 |
+| Uniform Resource Locator | URL | World Wide Web上の資源の場所を示す文字列。 |
 | Ansible Task | task | 自動化処理の最小単位となる実行項目。 |
 | ansible-playbookコマンド | - | Ansible Playbook を実行して自動構成処理を適用するコマンド。 |
 | `curl` | - | URL を指定してデータ送受信を行うコマンド。 |
@@ -190,7 +190,9 @@
 | 制御ホスト | - | Playbook を実行し, 他ホストへの処理指示を行う管理用ホスト。 |
 
 ## 概要
+
 Cilium Hubble UI を Kubernetes クラスタへ導入するロールです。
+
 主な機能:
 - **Helm チャート統合**: 既存の Cilium Helm リリースを `helm upgrade --install` でアップグレードし, `hubble.ui.enabled: true` を追加設定します。
 - **既存設定保護 (マージ機能)**: デフォルトで有効な `yq` ベースのマージ機能により, 既存 Cilium 設定を完全に保護しながら Hubble UI 設定を追加できます。
@@ -198,8 +200,6 @@ Cilium Hubble UI を Kubernetes クラスタへ導入するロールです。
 - **Service 公開方法の選択**: NodePort/LoadBalancer/ClusterIP を変数で切り替え, 運用環境に応じたアクセス方法を提供します。
 - **Hubble Relay 依存性確認**: Hubble UI 動作に必須の Hubble Relay 有効化を事前確認し, 問題を早期に検出します。
 - **Deployment 起動確認**: Helm upgrade 後, Hubble UI Deployment が正常に Ready 状態になるまで待ち合わせます。
-
-本ロールは, k8s-hubble-ui に関する設定処理を実施します。
 
 ## 前提条件
 
@@ -213,7 +213,13 @@ Cilium Hubble UI を Kubernetes クラスタへ導入するロールです。
 
 ## 実行方法
 
-実行者は制御ホストで以下のコマンドを実行します。
+制御ホストで以下のコマンドを実行します。
+
+```bash
+make run_k8s_hubble_ui
+```
+
+または,
 
 ```bash
 ansible-playbook -i inventory/hosts site.yml --tags "k8s-hubble-ui"
@@ -642,4 +648,4 @@ Hubble UI は Hubble Relay を経由してKubernetesクラスタ内のフロー�
 
 ### 公式ドキュメント
 
-- Cilium Hubble UI: https://docs.cilium.io/en/stable/observability/hubble/setup/#hubble-ui
+- [Cilium Hubble UI](https://docs.cilium.io/en/stable/observability/hubble/setup/#hubble-ui)

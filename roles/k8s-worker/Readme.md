@@ -39,6 +39,13 @@
     - [6. Cilium BGP Control Plane リソースの確認 (Cilium BGP Control Plane 有効構成時)](#6-cilium-bgp-control-plane-リソースの確認-cilium-bgp-control-plane-有効構成時)
     - [7. ファイアウォール設定の確認 (`enable_firewall: true` の場合)](#7-ファイアウォール設定の確認-enable_firewall-true-の場合)
   - [トラブルシューティング](#トラブルシューティング)
+    - [1. k8s-worker の実処理がスキップされる場合](#1-k8s-worker-の実処理がスキップされる場合)
+    - [2. kubeadm join が失敗する場合](#2-kubeadm-join-が失敗する場合)
+    - [3. Cilium BGP Control Plane のマニフェスト生成で失敗する場合](#3-cilium-bgp-control-plane-のマニフェスト生成で失敗する場合)
+    - [4. Cilium BGP Control Plane の適用で resource type エラーが出る場合](#4-cilium-bgp-control-plane-の適用で-resource-type-エラーが出る場合)
+    - [5. ファイアウォール関連タスクが失敗する場合](#5-ファイアウォール関連タスクが失敗する場合)
+    - [6. 低遅延化タスクが実行されない場合](#6-低遅延化タスクが実行されない場合)
+    - [7. リブート後にノードが Ready へ戻らない場合](#7-リブート後にノードが-ready-へ戻らない場合)
   - [注意事項](#注意事項)
   - [参考資料](#参考資料)
     - [公式ドキュメント](#公式ドキュメント)
@@ -81,12 +88,12 @@
 | Playbook | - | 自動化処理の実行手順を記述したファイル。 |
 | Canonical | - | Ubuntu を提供する組織名。 |
 | Key-Value | - | キーと値の組で情報を表す方式。 |
-| Internet Protocol | IP | インターネットプロトコルの略称。 |
+| Internet Protocol | IP | ネットワーク上で宛先を識別し, データを届けるための通信手順。 |
 | Structured Query Language | SQL | データベースを操作するための記述言語。 |
-| Hypertext Transfer Protocol | HTTP | WWW で情報をやり取りする通信手順。 |
-| Hypertext Transfer Protocol Secure | HTTPS | 通信内容を暗号化して WWW 通信を行う方式。 |
-| RPM Package Manager | RPM | RHEL 系で使用するパッケージ形式。 |
-| Virtual Machine | VM | 物理機器上で動作する仮想的な計算機。 |
+| Hypertext Transfer Protocol | HTTP | World Wide Webで情報をやり取りする通信手順。 |
+| Hypertext Transfer Protocol Secure | HTTPS | 通信内容を暗号化してWorld Wide Web通信を行う方式。 |
+| RPM Package Manager | RPM | RPM形式パッケージの導入, 更新, 削除, 情報参照を行う仕組み。 |
+| Virtual Machine | VM | 物理計算機上で動作する仮想的な計算機。 |
 | localhost | - | 同一機器自身を指す名前。 |
 | root | - | Unix 系システムの最上位権限を持つ管理者識別子。 |
 | ソフトウェア | - | 情報処理システムで使用するプログラム, 手順, 規則及び関連文書の全体又は一部分。 |
@@ -113,9 +120,9 @@
 | Service | - | サービスの英語表記。 |
 | Node | - | ノードの英語表記。 |
 | Makefile | - | 実行手順を定義したファイル。 |
-| Application Programming Interface | API | アプリケーション同士がやり取りする方法を定めた仕様。 |
-| Uniform Resource Locator | URL | WWW 上の資源の場所を示す文字列。 |
-| Application Programming Interface | API | API の正式名称。 |
+| Application Programming Interface | API | アプリケーション同士が機能やデータをやり取りするための取り決め。 |
+| Uniform Resource Locator | URL | World Wide Web上の資源の場所を示す文字列。 |
+| Application Programming Interface | API | アプリケーション同士が機能やデータをやり取りするための取り決め。 |
 | Custom Resource Definition | CRD | Kubernetes APIを拡張してユーザ独自のリソース種別を定義する仕組み。 |
 | Role-Based Access Control | RBAC | ユーザやサービスアカウントが実行可能な操作を役割(Role)で制限する仕組み。 |
 | Service Account | - | Kubernetes内部でPodが他のリソースにアクセスする際に用いる仮想的なアカウント。 |
@@ -123,7 +130,7 @@
 | ClusterRoleBinding | - | ClusterRoleをユーザやサービスアカウントに紐付ける仕組み。 |
 | Role | - | 特定の名前空間内で有効な権限の集合。 |
 | RoleBinding | - | Roleをユーザやサービスアカウントに紐付ける仕組み。 |
-| 名前空間 ( namespace )  | - | Kubernetes内部でリソースを論理的に分離する単位。 |
+| 名前空間 ( namespace ) | - | Kubernetes内部でリソースを論理的に分離する単位。 |
 | ポッド ( Pod ) | - | Kubernetes上で動作するコンテナの最小単位。 |
 | デーモンセット ( DaemonSet ) | - | Kubernetesクラスタ内の全ノード(または指定した一部のノード)で必ずPodを1つずつ起動させるリソース。 |
 | デプロイメント ( Deployment ) | - | 指定した数のPodを維持し, ローリングアップデート等を管理するリソース。 |
@@ -175,12 +182,12 @@
 | ReplicaSet | - | 指定した数の Pod レプリカを維持する Kubernetes リソース。通常は Deployment が内部的に管理します。 |
 | kubeconfig | - | Kubernetes 接続設定ファイルを指す名称。kubectl などが参照する。 |
 | Extended Berkeley Packet Filter | eBPF | Linux カーネル内で安全にプログラムを実行する仕組み。高性能なパケット処理や観測機能の実装に利用される。 |
-| Hypertext Transfer Protocol | HTTP | HTTP の正式名称。 |
-| Hypertext Transfer Protocol Secure | HTTPS | 通信内容を暗号化して Web 通信を行う方式。 |
+| Hypertext Transfer Protocol | HTTP | World Wide Webで情報をやり取りする通信手順。 |
+| Hypertext Transfer Protocol Secure | HTTPS | 通信内容を暗号化してWorld Wide Web通信を行う方式。 |
 | Internet Protocol | IP | ネットワーク上で宛先を識別し, データを届けるための通信手順。 |
 | Operating System | OS | 計算機の基本機能を管理し, アプリケーションを動作させる基盤ソフトウェア。 |
 | systemd スライス ( systemd slice ) | - | Linux の systemd でプロセスを階層的にまとめて管理するための単位。CPU やメモリなどの資源制御に利用します。 |
-| Red Hat Enterprise Linux | RHEL | Red Hat 社が提供する商用 Linux ディストリビューション。 |
+| Red Hat Enterprise Linux | RHEL | Red Hatが提供する企業向けLinuxディストリビューション。 |
 | Secure Shell | SSH | 遠隔の計算機へ安全に接続して操作する方式。 |
 | Certificate Authority | CA | 電子証明書を発行して正当性を保証する組織または仕組み。 |
 | Basic Input/Output System | BIOS | 起動時にハードウェア初期化とブート処理を実行するファームウェア方式。 |
@@ -194,7 +201,7 @@
 | ansible-playbookコマンド | - | Ansible Playbook を実行して自動構成処理を適用するコマンド。 |
 | `cat` | - | ファイル内容を標準出力へ表示するコマンド。 |
 | `journalctl` | - | systemd ジャーナルのログを参照するコマンド。 |
-| `make` | - | Makefile に定義された処理を実行するコマンド。 |
+| makeコマンド | make | Makefile に定義された処理を実行するコマンド。 |
 | `systemctl` | - | systemd 管理下のサービスを起動, 停止, 状態確認するコマンド。 |
 | アドレス | - | 宛先や所在を識別するための情報。 |
 | サービス | - | 機能を利用者や他システムへ提供する仕組み。 |
@@ -207,6 +214,7 @@
 | sudoコマンド | sudo | 一時的に管理者権限でコマンドを実行するためのコマンド。 |
 
 ## 概要
+
 Kubernetes ワーカーノードを Kubernetes クラスタへ参加させるためのロールです。`k8s-common` で整えた前提の上に, 低遅延化向けの OS チューニング, ワーカーノードを Kubernetes クラスタへ参加させる設定, ワーカーノードで必要な通信を許可するファイアウォール設定 (NodePort を使う場合の設定を含む), Cilium BGP Control Plane の設定をまとめて適用します。既存ワーカーノードのスケジュール停止 (`kubectl cordon`), Pod退避 (`kubectl drain`), Kubernetes クラスタからの削除 (`kubectl delete node`) まで一括で扱います。
 
 本ロールは, ワーカーノードの参加処理, 低遅延向け設定, ファイアウォール設定, Cilium BGP Control Plane 設定をまとめて適用します。
@@ -232,8 +240,17 @@ Kubernetes ワーカーノードを Kubernetes クラスタへ参加させるた
 
 ```bash
 make run_k8s_worker
+```
 
+または,
+
+```bash
 ansible-playbook -i inventory/hosts k8s-worker.yml --tags "k8s-worker"
+```
+
+または,
+
+```
 ansible-playbook -i inventory/hosts site.yml --tags "k8s-worker"
 ```
 
@@ -261,6 +278,8 @@ ansible-playbook -i inventory/hosts site.yml --tags "k8s-worker"
 | 変数名 | 既定値 | 説明 |
 | --- | --- | --- |
 | `k8s_containerd_wait_timeout` | `60` | containerd ソケット待機タイムアウト (秒)。 |
+| `k8s_containerd_wait_retries` | `5` | containerd ソケット待機処理の再試行回数。 |
+| `k8s_containerd_wait_sleep` | `2` | containerd ソケット待機処理の再試行間隔 (秒)。 |
 | `k8s_containerd_wait_delegate_to` | `localhost` | containerd 待機処理を実行する接続元ホスト。 |
 
 ### Kubernetes オペレータユーザ設定
@@ -650,17 +669,123 @@ sudo: ufw: コマンドが見つかりません
 
 ## トラブルシューティング
 
-実行者はエラー発生時に `build-k8s-worker.log` を確認し, 失敗した task 名と不足変数を特定します。代表的なトラブルと対処を以下に示します。
+### 1. k8s-worker の実処理がスキップされる場合
 
-| 想定トラブル | 主な原因 | 対処方法 |
-| --- | --- | --- |
-| `k8s-worker` の実処理がスキップされる | `k8s_ctrlplane_endpoint` または `k8s_ctrlplane_host` が未設定, または空文字列 | 実行者は対象ホストの `host_vars` に `k8s_ctrlplane_endpoint`, `k8s_ctrlplane_host` を設定し, `ansible-playbook -i inventory/hosts k8s-worker.yml --tags "k8s-worker"` を再実行します。 |
-| `kubeadm join` が失敗する | コントロールプレーン API への到達不能, トークン取得失敗, 時刻ずれ | 実行者は `k8s_ctrlplane_endpoint` と `k8s_ctrlplane_port` を確認し, コントロールプレーンで `kubeadm token create` が成功する状態を確認します。必要に応じて対象ホストの時刻同期状態を確認した後に再実行します。 |
-| Cilium BGP Control Plane のマニフェスト生成で失敗する | `k8s_bgp.enabled: true` の環境で `k8s_bgp.neighbors` が空, または必須キー不足 | 実行者は `k8s_bgp.neighbors` 配下に `peer_address` と `peer_asn` を設定し, 再実行します。 |
-| Cilium BGP Control Plane の適用で `resource type` エラーが出る | Cilium BGP 関連 CRD が未導入 | 実行者はコントロールプレーンで `kubectl get crd ciliumbgpadvertisements.cilium.io`, `kubectl get crd ciliumbgppeerconfigs.cilium.io`, `kubectl get crd ciliumbgpclusterconfigs.cilium.io` を実行し, CRD 導入状態を確認してから再実行します。 |
-| ファイアウォール関連タスクが失敗する | `firewall_backend` と OS の組み合わせ不整合, または必要コマンド未導入 | 実行者は Debian/Ubuntu 系で `ufw`, RHEL 系で `firewalld` を使用する設定になっていることを確認し, `enable_firewall` を `false` に戻して切り分けた後に段階的に有効化します。 |
-| 低遅延化タスクが実行されない | `k8s_reserved_system_cpus_default` が未設定 | 実行者は `k8s_reserved_system_cpus_default` に CPU 範囲 (例: `0-3`) を設定し, 再実行します。 |
-| リブート後にノードが `Ready` へ戻らない | kubelet/containerd の起動不良, またはノード再参加未完了 | 実行者は対象ホストで `systemctl status containerd kubelet` と `journalctl -u kubelet -n 100 --no-pager` を確認し, コントロールプレーンで `kubectl get nodes -o wide` を確認して原因を特定します。 |
+**実施対象ホスト**: 制御ホスト
+
+**実行するコマンド**:
+
+```bash
+grep -nE '^(k8s_ctrlplane_endpoint|k8s_ctrlplane_host):' vars/all-config.yml host_vars/*.yml
+ansible-playbook -i inventory/hosts k8s-worker.yml --tags "k8s-worker" --list-tasks
+```
+
+**確認ポイント**:
+
+- k8s_ctrlplane_endpoint と k8s_ctrlplane_host が定義済みであること。
+- 2つの変数が空文字列ではないこと。
+- list-tasks 出力で k8s-worker の実処理タスクが含まれること。
+
+### 2. kubeadm join が失敗する場合
+
+**実施対象ホスト**: ワーカーノード, コントロールプレーンノード
+
+**実行するコマンド**:
+
+```bash
+nc -zv <k8s_ctrlplane_endpoint> <k8s_ctrlplane_port>
+kubeadm token create
+timedatectl status
+```
+
+**確認ポイント**:
+
+- コントロールプレーン API へ到達可能であること。
+- kubeadm token create が成功すること。
+- 時刻同期状態に異常がないこと。
+
+### 3. Cilium BGP Control Plane のマニフェスト生成で失敗する場合
+
+**実施対象ホスト**: 制御ホスト
+
+**実行するコマンド**:
+
+```bash
+grep -nE 'k8s_bgp|peer_address|peer_asn' vars/all-config.yml host_vars/*.yml
+```
+
+**確認ポイント**:
+
+- k8s_bgp.enabled が true の場合, k8s_bgp.neighbors が空ではないこと。
+- 各 neighbor に peer_address と peer_asn が設定されていること。
+
+### 4. Cilium BGP Control Plane の適用で resource type エラーが出る場合
+
+**実施対象ホスト**: コントロールプレーンノード
+
+**実行するコマンド**:
+
+```bash
+kubectl get crd ciliumbgpadvertisements.cilium.io
+kubectl get crd ciliumbgppeerconfigs.cilium.io
+kubectl get crd ciliumbgpclusterconfigs.cilium.io
+```
+
+**確認ポイント**:
+
+- Cilium BGP 関連 CRD がすべて存在すること。
+- CRD が不足している場合は Cilium 側の導入状態を整えてから再適用すること。
+
+### 5. ファイアウォール関連タスクが失敗する場合
+
+**実施対象ホスト**: ワーカーノード
+
+**実行するコマンド**:
+
+```bash
+cat /etc/os-release
+which ufw || true
+which firewall-cmd || true
+```
+
+**確認ポイント**:
+
+- Debian/Ubuntu 系では ufw, RHEL 系では firewalld を利用する設定であること。
+- firewall_backend と OS の組み合わせが一致していること。
+- 切り分け時は enable_firewall を false にして段階的に再有効化すること。
+
+### 6. 低遅延化タスクが実行されない場合
+
+**実施対象ホスト**: 制御ホスト
+
+**実行するコマンド**:
+
+```bash
+grep -n '^k8s_reserved_system_cpus_default:' vars/all-config.yml host_vars/*.yml
+```
+
+**確認ポイント**:
+
+- k8s_reserved_system_cpus_default が定義済みであること。
+- CPU 範囲 (例: 0-3) が空でないこと。
+
+### 7. リブート後にノードが Ready へ戻らない場合
+
+**実施対象ホスト**: ワーカーノード, コントロールプレーンノード
+
+**実行するコマンド**:
+
+```bash
+systemctl status containerd kubelet --no-pager
+journalctl -u kubelet -n 100 --no-pager
+kubectl get nodes -o wide
+```
+
+**確認ポイント**:
+
+- containerd と kubelet が active (running) であること。
+- kubelet ログに再参加失敗のエラーが継続出力されていないこと。
+- kubectl get nodes で対象ワーカーノードが Ready へ復帰していること。
 
 ## 注意事項
 

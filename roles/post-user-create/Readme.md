@@ -4,17 +4,41 @@
 
 ## 目次
 
-- [用語](#用語)
-- [概要](#概要)
-- [前提条件](#前提条件)
-- [実行方法](#実行方法)
-- [主要変数](#主要変数)
-- [テンプレートと生成ファイル](#テンプレートと生成ファイル)
-- [実行フロー](#実行フロー)
-- [検証ポイント](#検証ポイント)
-- [トラブルシューティング](#トラブルシューティング)
-- [注意事項](#注意事項)
-- [参考資料](#参考資料)
+- [post-user-create ロール](#post-user-create-ロール)
+  - [目次](#目次)
+  - [用語](#用語)
+  - [概要](#概要)
+  - [前提条件](#前提条件)
+  - [実行方法](#実行方法)
+  - [主要変数](#主要変数)
+    - [Git関連変数](#git関連変数)
+    - [Emacs関連変数](#emacs関連変数)
+    - [ユーザ情報変数](#ユーザ情報変数)
+  - [オプション設定ファイルの更新手順](#オプション設定ファイルの更新手順)
+    - [生成手順](#生成手順)
+    - [例: 新しい Emacs モードを追加する場合](#例-新しい-emacs-モードを追加する場合)
+  - [テンプレートと生成ファイル](#テンプレートと生成ファイル)
+    - [Emacs設定ファイル](#emacs設定ファイル)
+      - [必須設定ファイル (user-settings ロールで配布)](#必須設定ファイル-user-settings-ロールで配布)
+      - [オプション設定ファイル (post-user-create ロールで配布)](#オプション設定ファイル-post-user-create-ロールで配布)
+    - [その他のテンプレート](#その他のテンプレート)
+  - [実行フロー](#実行フロー)
+  - [検証ポイント](#検証ポイント)
+    - [1. Git設定ファイルの存在確認](#1-git設定ファイルの存在確認)
+    - [2. Git設定内容の確認](#2-git設定内容の確認)
+    - [3. インストールスクリプトの存在確認](#3-インストールスクリプトの存在確認)
+    - [4. インストールスクリプトの内容確認](#4-インストールスクリプトの内容確認)
+    - [5. Emacsオプション設定ファイルの配置確認](#5-emacsオプション設定ファイルの配置確認)
+    - [6. Emacsパッケージのインストール確認 (オプション)](#6-emacsパッケージのインストール確認-オプション)
+  - [トラブルシューティング](#トラブルシューティング)
+    - [1. .gitconfig が作成されない場合](#1-gitconfig-が作成されない場合)
+    - [2. install-emacs-packages.sh が生成されない場合](#2-install-emacs-packagessh-が生成されない場合)
+    - [3. Emacs オプション設定ファイルが配置されない場合](#3-emacs-オプション設定ファイルが配置されない場合)
+    - [4. Emacs パッケージが導入されない場合](#4-emacs-パッケージが導入されない場合)
+  - [注意事項](#注意事項)
+  - [参考資料](#参考資料)
+    - [公式ドキュメント](#公式ドキュメント)
+
 
 ## 用語
 
@@ -53,12 +77,12 @@
 | Playbook | - | 自動化処理の実行手順を記述したファイル。 |
 | Canonical | - | Ubuntu を提供する組織名。 |
 | Key-Value | - | キーと値の組で情報を表す方式。 |
-| Internet Protocol | IP | インターネットプロトコルの略称。 |
+| Internet Protocol | IP | ネットワーク上で宛先を識別し, データを届けるための通信手順。 |
 | Structured Query Language | SQL | データベースを操作するための記述言語。 |
-| Hypertext Transfer Protocol | HTTP | WWW で情報をやり取りする通信手順。 |
-| Hypertext Transfer Protocol Secure | HTTPS | 通信内容を暗号化して WWW 通信を行う方式。 |
-| RPM Package Manager | RPM | RHEL 系で使用するパッケージ形式。 |
-| Virtual Machine | VM | 物理機器上で動作する仮想的な計算機。 |
+| Hypertext Transfer Protocol | HTTP | World Wide Webで情報をやり取りする通信手順。 |
+| Hypertext Transfer Protocol Secure | HTTPS | 通信内容を暗号化してWorld Wide Web通信を行う方式。 |
+| RPM Package Manager | RPM | RPM形式パッケージの導入, 更新, 削除, 情報参照を行う仕組み。 |
+| Virtual Machine | VM | 物理計算機上で動作する仮想的な計算機。 |
 | localhost | - | 同一機器自身を指す名前。 |
 | root | - | Unix 系システムの最上位権限を持つ管理者識別子。 |
 | ソフトウェア | - | 情報処理システムで使用するプログラム, 手順, 規則及び関連文書の全体又は一部分。 |
@@ -84,8 +108,8 @@
 | Service | - | サービスの英語表記。 |
 | Node | - | ノードの英語表記。 |
 | Makefile | - | 実行手順を定義したファイル。 |
-| Application Programming Interface | API | アプリケーション同士がやり取りする方法を定めた仕様。 |
-| Uniform Resource Locator | URL | WWW 上の資源の場所を示す文字列。 |
+| Application Programming Interface | API | アプリケーション同士が機能やデータをやり取りするための取り決め。 |
+| Uniform Resource Locator | URL | World Wide Web上の資源の場所を示す文字列。 |
 | Ansible | - | 設定の同一化や導入作業を所定の手順に従って自動化する仕組み。 |
 | Role | - | 特定の名前空間内で有効な権限の集合。 |
 | Ansible Task | task | 自動化処理の最小単位となる実行項目。 |
@@ -126,7 +150,7 @@
 | ansible-playbookコマンド | - | Ansible Playbook を実行して自動構成処理を適用するコマンド。 |
 | `cat` | - | ファイル内容を標準出力へ表示するコマンド。 |
 | `ls` | - | ファイルやディレクトリの一覧を表示するコマンド。 |
-| `make` | - | Makefile に定義された処理を実行するコマンド。 |
+| makeコマンド | make | Makefile に定義された処理を実行するコマンド。 |
 | サービス | - | 機能を利用者や他システムへ提供する仕組み。 |
 | システム | - | 複数の要素が連携して目的を実現する仕組み全体。 |
 | データベース | - | 検索や更新ができるよう整理した情報の集合。 |
@@ -149,49 +173,6 @@
 3. post-user-create ロール: 作成済みユーザのホームディレクトリに対して個別処理を実行 -- Emacs パッケージ管理 (インストールスクリプト作成とパッケージインストール), オプション Emacs 設定ファイル (20個) をテンプレートから直接配置
 
 本ロールは, `make run_post_user_create` により, 単体での実行が可能です。
-
-## オプション設定ファイルの更新手順
-
-オプション Emacs 設定ファイル（auctex-mode-settings.el, cmake-settings.el 等）は `defaults/main.yml` で定義されている `emacs_optional_settings_files` リストから、自動的に `tasks/emacs-package-el-setting.yml` を生成します。
-
-### 生成手順
-
-1. `defaults/main.yml` の `emacs_optional_settings_files` にファイルを追加・削除
-2. 次のコマンドを実行してタスクファイルを再生成:
-
-```bash
-cd roles/post-user-create/tasks
-bash generate-emacs-settings.sh ..
-```
-
-または、ansible ディレクトリから実行する場合:
-
-```bash
-bash roles/post-user-create/tasks/generate-emacs-settings.sh roles/post-user-create
-```
-
-3. 生成結果を確認:
-
-```bash
-git diff tasks/emacs-package-el-setting.yml
-```
-
-### 例: 新しい Emacs モードを追加する場合
-
-1. テンプレートを作成: `templates/_emacs_d__new-mode-settings.el.j2`
-2. `defaults/main.yml` の `emacs_optional_settings_files` に `new-mode-settings.el` を追加
-3. 以下のいずれかの方法でタスクファイルを再生成:
-
-```bash
-# 方法1: role の tasks/ ディレクトリから実行
-cd roles/post-user-create/tasks
-bash generate-emacs-settings.sh ..
-
-# 方法2: ansible ディレクトリから実行
-bash roles/post-user-create/tasks/generate-emacs-settings.sh roles/post-user-create
-```
-
-すると新しいタスク「Deploy new-mode-settings.el from template to user home」が自動生成されます。
 
 ## 前提条件
 
@@ -242,6 +223,49 @@ ansible-playbook -i inventory/hosts site.yml --tags "post-user-create" -l hostna
 | 変数名 | 既定値 | 説明 |
 | --- | --- | --- |
 | `users_list` | `[]` | ロールが処理対象とするユーザ情報 (`vars/all-config.yml` で定義)。`name`, `home`, `shell` などを参照し, Emacsパッケージインストール時のアカウントとホームディレクトリを決定します。 |
+
+## オプション設定ファイルの更新手順
+
+オプション Emacs 設定ファイル（auctex-mode-settings.el, cmake-settings.el 等）は `defaults/main.yml` で定義されている `emacs_optional_settings_files` リストから、自動的に `tasks/emacs-package-el-setting.yml` を生成します。
+
+### 生成手順
+
+1. `defaults/main.yml` の `emacs_optional_settings_files` にファイルを追加・削除
+2. 次のコマンドを実行してタスクファイルを再生成:
+
+```bash
+cd roles/post-user-create/tasks
+bash generate-emacs-settings.sh ..
+```
+
+または、ansible ディレクトリから実行する場合:
+
+```bash
+bash roles/post-user-create/tasks/generate-emacs-settings.sh roles/post-user-create
+```
+
+3. 生成結果を確認:
+
+```bash
+git diff tasks/emacs-package-el-setting.yml
+```
+
+### 例: 新しい Emacs モードを追加する場合
+
+1. テンプレートを作成: `templates/_emacs_d__new-mode-settings.el.j2`
+2. `defaults/main.yml` の `emacs_optional_settings_files` に `new-mode-settings.el` を追加
+3. 以下のいずれかの方法でタスクファイルを再生成:
+
+```bash
+# 方法1: role の tasks/ ディレクトリから実行
+cd roles/post-user-create/tasks
+bash generate-emacs-settings.sh ..
+
+# 方法2: ansible ディレクトリから実行
+bash roles/post-user-create/tasks/generate-emacs-settings.sh roles/post-user-create
+```
+
+すると新しいタスク「Deploy new-mode-settings.el from template to user home」が自動生成されます。
 
 ## テンプレートと生成ファイル
 
@@ -486,28 +510,88 @@ yaml-mode-20231211.732
 
 ## トラブルシューティング
 
-実行者はエラー発生時に build-*.log を確認し, 失敗した task 名と不足変数を特定します。
+### 1. .gitconfig が作成されない場合
+
+**実施対象ホスト**: 制御ホスト, 対象ホスト
+
+**実行するコマンド**:
+
+```bash
+ansible-playbook -i inventory/hosts site.yml --tags "post-user-create" -vv
+grep -n 'post_user_create_gitconfig_enabled\|post_user_create_gitconfig_use_login_name' vars/all-config.yml host_vars/*.yml
+ls -la /home/username/.gitconfig
+```
+
+**確認ポイント**:
+
+- `post_user_create_gitconfig_enabled` が `true` であること。
+- playbook 実行結果で `failed=0` になっていること。
+- 対象ユーザのホームディレクトリに `.gitconfig` が存在すること。
+
+### 2. install-emacs-packages.sh が生成されない場合
+
+**実施対象ホスト**: 制御ホスト, 対象ホスト
+
+**実行するコマンド**:
+
+```bash
+ansible-playbook -i inventory/hosts site.yml --tags "post-user-create" -vv
+ls -la /etc/skel/bin/install-emacs-packages.sh
+```
+
+**確認ポイント**:
+
+- `templates/install-emacs-packages.sh.j2` から `/etc/skel/bin/install-emacs-packages.sh` が生成されていること。
+- 生成ファイルに実行権限が設定されていること。
+- ログに template 配置失敗が出ていないこと。
+
+### 3. Emacs オプション設定ファイルが配置されない場合
+
+**実施対象ホスト**: 対象ホスト
+
+**実行するコマンド**:
+
+```bash
+ls -la /home/username/.emacs.d/user_settings/
+grep -n 'emacs_optional_settings_files' roles/post-user-create/defaults/main.yml
+```
+
+**確認ポイント**:
+
+- `/home/username/.emacs.d/user_settings/` にオプション設定ファイルが配置されていること。
+- `emacs_optional_settings_files` に定義したファイル名と配置結果が一致していること。
+- 所有者とグループが対象ユーザに設定されていること。
+
+### 4. Emacs パッケージが導入されない場合
+
+**実施対象ホスト**: 対象ホスト
+
+**実行するコマンド**:
+
+```bash
+grep -n 'create_user_emacs_package_list\|create_emacs_package_install_script' vars/all-config.yml host_vars/*.yml
+ls -la /home/username/bin/install-emacs-packages.sh
+ls -1 /home/username/.emacs.d/elpa/
+```
+
+**確認ポイント**:
+
+- `create_user_emacs_package_list` が空又は未定義でないこと。
+- `create_emacs_package_install_script` の条件が成立し, インストールスクリプトが配置されていること。
+- スクリプト実行後に `elpa` 配下へ指定パッケージ名のディレクトリが作成されていること。
+
 
 ## 注意事項
 
-実行者は既存の実行順依存を崩さないことを確認した上で本ロールを実行します。
+- 本ロールは `create-users` ロール実行後の後処理を前提とするため, `create-users` 未実行の状態で単独適用しないこと。
+- `post_user_create_gitconfig_enabled` を `true` に設定した場合は, 各ユーザのホームディレクトリに `.gitconfig` を作成するため, 既存 `.gitconfig` の上書き要否を事前に確認すること。
+- `post_user_create_gitconfig_use_login_name` を `false` に設定した場合は, passwd データベースから取得した GECOS フィールドを `user.name` に使用するため, 対象ユーザの GECOS 情報が運用上の表示名として適切であること。
+- GECOS フィールド参照位置は `vars/cross-distro.yml` の `getent_passwd_field_gecos` で定義されるため, ディストリビューション差異がある環境では `getent_passwd_field_gecos_debian` と `getent_passwd_field_gecos_rhel` の設定値を確認すること。
+- `create_user_emacs_package_list` が空又は未定義の場合は Emacs パッケージ導入処理をスキップするため, 自動導入が必要な場合はパッケージ名を定義すること。
+- `install-emacs-packages.sh` の生成は本ロールで実施しますが, スクリプト実行は利用者操作であるため, 導入完了判定時は実行有無を分けて確認すること。
 
-## 補足
-
-### GECOSフィールド取得について
-
-Git設定ファイル作成時に `post_user_create_gitconfig_use_login_name: false` を指定すると, システムのpasswdデータベースからGECOSフィールドを取得して `user.name` に設定します。
-
-GECOSフィールドのインデックスは `vars/cross-distro.yml` の `getent_passwd_field_gecos` 変数で定義されています。将来的に, ディストリビューション間で乖離が発生した場合は, 以下の変数を修正してください:
-
-```yaml
-getent_passwd_field_gecos_debian: 3
-getent_passwd_field_gecos_rhel:   3
-```
-
-現在は両ディストリビューションとも, フィールドインデックス `3` でGECOS情報を取得しています。
 ## 参考資料
 
 ### 公式ドキュメント
 
-- Ansible User module: https://docs.ansible.com/ansible/latest/collections/ansible/builtin/user_module.html
+- [Ansible User module](https://docs.ansible.com/ansible/latest/collections/ansible/builtin/user_module.html)
