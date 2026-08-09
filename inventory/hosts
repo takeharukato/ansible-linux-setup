@@ -42,8 +42,8 @@
 # k8sctrlplane01.local
 # k8sctrlplane02.local
 [logging_backend]
-# observer01.local ansible_host=observer01.example.org
-# observer02.local ansible_host=observer02.example.org
+# observer01.local
+# observer02.local
 [logging_collector]
 # extgw.local
 # frr01.local
