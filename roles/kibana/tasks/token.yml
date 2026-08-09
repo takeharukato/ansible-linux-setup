@@ -1,0 +1,125 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  Kibana service account token 管理タスク
+#
+---
+
+# 既存の Kibana service account token ファイルを確認する。
+- name: Check existing kibana service account token file
+  ansible.builtin.stat:
+    path: "{{ kibana_service_token_file }}"
+  register: kibana_service_token_file_stat
+
+# 既存トークンを読み込み, 再実行時に同一トークンを再利用する。
+- name: Read existing kibana service account token file
+  ansible.builtin.slurp:
+    path: "{{ kibana_service_token_file }}"
+  register: kibana_service_token_file_raw
+  no_log: true
+  when:
+    - kibana_service_token_file_stat.stat.exists
+
+# 既存トークンの内容を内部変数へ反映する。
+- name: Set kibana service token value from existing file
+  ansible.builtin.set_fact:
+    kibana_service_token_value: "{{ kibana_service_token_file_raw.content | b64decode | trim }}"
+  no_log: true
+  when:
+    - kibana_service_token_file_stat.stat.exists
+
+# トークン未配置かつ自動発行無効の場合は, 後続起動が必ず失敗するため停止する。
+- name: Fail when kibana service account token file is missing and auto-create is disabled
+  ansible.builtin.fail:
+    msg: >-
+      Kibana service account token file '{{ kibana_service_token_file }}' is missing.
+      Set kibana_service_token_auto_create=true to auto-create it,
+      or provision the token file beforehand.
+  when:
+    - not kibana_service_token_file_stat.stat.exists
+    - not (kibana_service_token_auto_create | default(false) | bool)
+
+# Kibana 用 service account token を Elasticsearch API で発行する。
+# 正規表現'^https?'はURL先頭の'http'又は'https'に一致し, 明示URLから接続方式を抽出する。
+# 抽出結果が'https'でTLSモードが'full'の場合だけ証明書検証を有効化する。
+- name: Issue kibana service account token
+  ansible.builtin.uri:
+    url: >-
+      {{
+        elastic_search_api_runtime_endpoint_url ~
+        '/_security/service/' ~
+        kibana_service_token_namespace ~
+        '/' ~
+        kibana_service_token_service_name ~
+        '/credential/token/' ~
+        kibana_service_token_name
+      }}
+    method: POST
+    user: "{{ kibana_service_token_issue_username }}"
+    password: "{{ kibana_service_token_issue_password }}"
+    force_basic_auth: true
+    validate_certs: >-
+      {{
+        (
+          (
+            (
+              (elastic_search_api_endpoint_url_explicit | default('', true) | string | trim | lower)
+              | regex_search('^https?')
+              | default(logging_backend_default_scheme, true)
+            ) == 'https'
+          ) and
+          (
+            (elastic_search_tls_mode | default(logging_backend_default_tls_mode, true) | string | lower | trim) == 'full'
+          )
+        ) | bool
+      }}
+    return_content: true
+    status_code:
+      - 200
+    timeout: "{{ kibana_service_token_issue_timeout_seconds | int }}"
+  register: kibana_service_token_issue_result
+  no_log: true
+  until:
+    - kibana_service_token_issue_result is succeeded
+    - kibana_service_token_issue_result.status | default(0) | int == 200
+  retries: "{{ kibana_service_token_issue_retries | int }}"
+  delay: "{{ kibana_service_token_issue_retry_delay_seconds | int }}"
+  when:
+    - not kibana_service_token_file_stat.stat.exists
+    - kibana_service_token_auto_create | default(false) | bool
+
+# 自動発行したトークンをファイルへ保存し, 再利用可能にする。
+- name: Persist kibana service account token to file
+  ansible.builtin.copy:
+    dest: "{{ kibana_service_token_file }}"
+    content: "{{ kibana_service_token_issue_result.json.token.value | trim }}\n"
+    owner: root
+    group: root
+    mode: '0600'
+  no_log: true
+  when:
+    - kibana_service_token_issue_result is defined
+    - kibana_service_token_issue_result.json is defined
+    - kibana_service_token_issue_result.json.token is defined
+    - kibana_service_token_issue_result.json.token.value is defined
+
+# 自動発行したトークンを内部変数へ反映する。
+- name: Set kibana service token value from issued token
+  ansible.builtin.set_fact:
+    kibana_service_token_value: "{{ kibana_service_token_issue_result.json.token.value | trim }}"
+  no_log: true
+  when:
+    - kibana_service_token_issue_result is defined
+    - kibana_service_token_issue_result.json is defined
+    - kibana_service_token_issue_result.json.token is defined
+    - kibana_service_token_issue_result.json.token.value is defined
+
+# Kibana 起動前に service account token が利用可能であることを最終確認する。
+- name: Validate kibana service account token value
+  ansible.builtin.assert:
+    that:
+      - (kibana_service_token_value | default('', true) | string | trim | length) > 0
+    fail_msg: >-
+      Kibana service account token value is empty.
+      Check kibana_service_token_file or token issue API settings.

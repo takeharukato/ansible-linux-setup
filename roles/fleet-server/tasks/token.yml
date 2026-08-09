@@ -1,0 +1,125 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  サービストークン関連処理
+#
+---
+
+# 既存のサービストークンファイル有無を確認する。
+- name: Check fleet-server service token file
+  ansible.builtin.stat:
+    path: "{{ fleet_server_runtime_service_token_path }}"
+  register: fleet_server_service_token_file_stat
+
+# 既存のサービストークン内容を読み取り, 改行混入を正規化できるようにする。
+- name: Read existing fleet-server service token file
+  ansible.builtin.slurp:
+    path: "{{ fleet_server_runtime_service_token_path }}"
+  register: fleet_server_service_token_file_raw
+  no_log: true
+  when:
+    - not (ansible_check_mode | bool)
+    - fleet_server_service_token_file_stat.stat.exists | default(false)
+
+# 既存トークン末尾の改行を除去し, Authorization ヘッダ不正を防止する。
+- name: Normalize fleet-server service token file content
+  ansible.builtin.copy:
+    content: "{{ fleet_server_service_token_file_raw.content | b64decode | trim }}"
+    dest: "{{ fleet_server_runtime_service_token_path }}"
+    owner: "{{ logging_backend_container_user_id }}"
+    group: "{{ logging_backend_container_group_id }}"
+    mode: "0400"
+  become: true
+  no_log: true
+  when:
+    - not (ansible_check_mode | bool)
+    - fleet_server_service_token_file_stat.stat.exists | default(false)
+
+# チェックモードでトークン未作成の場合は, 実行時に自動発行されることを通知する。
+- name: Notify token auto-create behavior in check mode
+  ansible.builtin.debug:
+    msg: >-
+      Check mode: fleet-server service token file is missing and will be created at runtime.
+  when:
+    - ansible_check_mode | bool
+    - not (fleet_server_service_token_file_stat.stat.exists | default(false))
+    - fleet_server_runtime_service_token_auto_create | bool
+
+# トークン未作成かつ自動発行を有効にした場合は, 発行API接続用資格情報の有無を検証する。
+- name: Validate token issue API credentials
+  ansible.builtin.assert:
+    that:
+      - fleet_server_token_issue_username is defined
+      - fleet_server_token_issue_username | string | trim | length > 0
+      - fleet_server_token_issue_password is defined
+      - fleet_server_token_issue_password | string | trim | length > 0
+    fail_msg: >-
+      Token file is missing and auto-create is enabled, but token issue API credentials are not set.
+      Set fleet_server_token_issue_username and fleet_server_token_issue_password.
+  when:
+    - not (ansible_check_mode | bool)
+    - not (fleet_server_service_token_file_stat.stat.exists | default(false))
+    - fleet_server_runtime_service_token_auto_create | bool
+
+# Elasticsearch security APIでfleet-server用サービストークンを初回発行する。
+- name: Issue fleet-server service token
+  ansible.builtin.uri:
+    url: >-
+      {{
+        fleet_server_runtime_elasticsearch_api_endpoint_url ~
+        '/_security/service/elastic/fleet-server/credential/token/' ~
+        fleet_server_runtime_service_token_name
+      }}
+    method: POST
+    force_basic_auth: true
+    url_username: "{{ fleet_server_token_issue_username }}"
+    url_password: "{{ fleet_server_token_issue_password }}"
+    validate_certs: "{{ fleet_server_runtime_token_issue_validate_certs | bool }}"
+    status_code: 200
+    return_content: true
+    timeout: "{{ fleet_server_token_issue_timeout_seconds | int }}"
+  register: fleet_server_service_token_issue_result
+  no_log: true
+  until:
+    - fleet_server_service_token_issue_result is succeeded
+    - fleet_server_service_token_issue_result.status | default(0) | int == 200
+  retries: "{{ fleet_server_token_issue_retries | int }}"
+  delay: "{{ fleet_server_token_issue_retry_delay_seconds | int }}"
+  when:
+    - not (ansible_check_mode | bool)
+    - not (fleet_server_service_token_file_stat.stat.exists | default(false))
+    - fleet_server_runtime_service_token_auto_create | bool
+
+# 発行したサービストークンをホストへ保存し, 再実行時に再利用する。
+- name: Persist fleet-server service token file
+  ansible.builtin.copy:
+    content: "{{ fleet_server_service_token_issue_result.json.token.value | trim }}"
+    dest: "{{ fleet_server_runtime_service_token_path }}"
+    owner: "{{ logging_backend_container_user_id }}"
+    group: "{{ logging_backend_container_group_id }}"
+    mode: "0400"
+  become: true
+  no_log: true
+  when:
+    - not (ansible_check_mode | bool)
+    - not (fleet_server_service_token_file_stat.stat.exists | default(false))
+    - fleet_server_runtime_service_token_auto_create | bool
+
+# 実行モードでは, サービストークンファイルの最終存在を確認する。
+- name: Recheck fleet-server service token file
+  ansible.builtin.stat:
+    path: "{{ fleet_server_runtime_service_token_path }}"
+  register: fleet_server_service_token_file_stat_final
+  when: not (ansible_check_mode | bool)
+
+# 実行モードでは, 最終的にトークンファイルが存在することを保証する。
+- name: Assert fleet-server service token file exists
+  ansible.builtin.assert:
+    that:
+      - fleet_server_service_token_file_stat_final.stat.exists | default(false)
+      - fleet_server_service_token_file_stat_final.stat.isreg | default(false)
+    fail_msg: >-
+      fleet-server service token file does not exist after token preparation.
+      path={{ fleet_server_runtime_service_token_path }}
+  when: not (ansible_check_mode | bool)

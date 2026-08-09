@@ -1,0 +1,49 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  実行時変数解決
+#
+---
+
+# 明示 URL 指定がある場合はそれを優先し, 未指定時は logging backendの共通接続先として解決したホスト名と HTTP ポートからランタイムエンドポイントを組み立てる。
+# 判定式と分岐式の対応関係は以下のとおりである。
+# - 明示指定の有無判定: (elastic_search_api_endpoint_url_explicit | default('', true) | string | trim | length) > 0
+# - 明示指定時の採用値: (elastic_search_api_endpoint_url_explicit | string | trim)
+# - 未指定時の採用値: ('http://' ~ logging_backend_resolved_host ~ ':' ~ (elastic_search_http_port | string))
+- name: Resolve Elasticsearch runtime endpoint fact
+  ansible.builtin.set_fact:
+    elastic_search_api_runtime_endpoint_url: >-
+      {{
+        (elastic_search_api_endpoint_url_explicit | string | trim)
+        if ((elastic_search_api_endpoint_url_explicit | default('', true) | string | trim | length) > 0)
+        else (elastic_search_runtime_scheme ~ '://' ~ logging_backend_resolved_host ~ ':' ~ (elastic_search_http_port | string))
+      }}
+
+# 検証系の runtime 変数を確定し, HTTPS 判定はランタイムエンドポイントの先頭が https:// であることを条件として判断する。
+# HTTPS 判定式の対応関係は以下のとおりである。
+# - 正規表現判定: ((elastic_search_api_runtime_endpoint_url | default('') | lower) is regex('^https://'))
+# - '^'は文字列先頭, 'https://'は方式と区切りを表し, 'https://elasticsearch:9200'に一致する。
+# - 真偽値化: (...) | bool
+# - ローカル検証 URL のプロトコル選択: (...) | ternary('https', 'http')
+- name: Resolve Elasticsearch verify facts
+  ansible.builtin.set_fact:
+    elastic_search_api_endpoint_url: "{{ elastic_search_api_runtime_endpoint_url }}"
+    elastic_search_api_validate_certs: "{{ (elastic_search_runtime_tls_mode == 'full') | bool }}"
+    elastic_search_local_verify_endpoint_url: "{{ elastic_search_runtime_scheme }}://{{ elastic_search_wait_host }}:{{ elastic_search_http_port }}"
+    elastic_search_local_verify_validate_certs: false
+    elastic_search_external_verify_enabled: "{{ logging_verify_external_enabled | bool }}"
+    elastic_search_external_verify_delegate_to: "{{ logging_verify_external_delegate_to }}"
+    elastic_search_external_verify_validate_certs: "{{ (elastic_search_runtime_tls_mode == 'full') | bool }}"
+    elastic_search_http_ssl_runtime_certificate_host_path: >-
+      {{
+        (elastic_search_http_ssl_certificate_host_path | string | trim)
+        if ((elastic_search_http_ssl_certificate_host_path | default('', true) | string | trim | length) > 0)
+        else (logging_backend_tls_certificate_host_path | default('', true) | string | trim)
+      }}
+    elastic_search_http_ssl_runtime_key_host_path: >-
+      {{
+        (elastic_search_http_ssl_key_host_path | string | trim)
+        if ((elastic_search_http_ssl_key_host_path | default('', true) | string | trim | length) > 0)
+        else (logging_backend_tls_key_host_path | default('', true) | string | trim)
+      }}

@@ -1,0 +1,53 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  実行時フラグ解決タスク
+#
+---
+
+# Elasticsearch endpoint の実行時スキームと TLS 検証モードを確定する。
+# 正規表現'^https?'は, '^'が文字列先頭, 'http'が必須文字列, 's?'が省略可能なsを表し,
+# 'http://elasticsearch:9200'では'http', 'https://elasticsearch:9200'では'https'に一致する。
+# 明示URLから方式を抽出し, 未抽出時は既定方式を採用した後, TLSモードとHTTPSフラグを算出する。
+- name: Resolve Elasticsearch runtime flags
+  ansible.builtin.set_fact:
+    elastic_search_runtime_scheme: >-
+      {{
+        (
+          (elastic_search_api_endpoint_url_explicit | default('', true) | string | trim | lower)
+          | regex_search('^https?')
+          | default(logging_backend_default_scheme, true)
+        )
+      }}
+    elastic_search_runtime_tls_mode: >-
+      {{
+        (
+          'off'
+          if (
+            (
+              (elastic_search_api_endpoint_url_explicit | default('', true) | string | trim | lower)
+              | regex_search('^https?')
+              | default(logging_backend_default_scheme, true)
+            ) == 'http'
+          )
+          else (
+            (elastic_search_tls_mode | default(logging_backend_default_tls_mode, true) | string | lower | trim)
+          )
+        )
+      }}
+    elastic_search_runtime_is_https: >-
+      {{
+        (
+          (
+            (elastic_search_api_endpoint_url_explicit | default('', true) | string | trim | lower)
+            | regex_search('^https?')
+            | default(logging_backend_default_scheme, true)
+          ) == 'https'
+        ) | bool
+      }}
+
+# Elasticsearch HTTP層TLS有効化フラグを runtime scheme に連動させる。
+- name: Resolve Elasticsearch HTTP TLS enablement from runtime scheme
+  ansible.builtin.set_fact:
+    elastic_search_http_ssl_enabled: "{{ (elastic_search_runtime_scheme == 'https') | bool }}"

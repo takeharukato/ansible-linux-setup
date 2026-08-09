@@ -1,0 +1,45 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  入力検証タスク
+#
+---
+
+# 外部通信や秘密値利用を開始する前に, 必須入力と数値範囲を検証する。
+# 正規表現'^https?://'は, '^'が文字列先頭, 'http'が必須文字列, 's?'が省略可能なs,
+# '://'が方式区切りを表し, 'https://fleet-server:8220'のようなHTTP又はHTTPS URLに一致する。
+# Fleet Server接続先が対応方式で始まることを確認してから通信処理へ進む。
+- name: Validate Elastic Agent installation inputs
+  ansible.builtin.assert:
+    that:
+      - elastic_agent_runtime_architecture | default('', true) | string | length > 0
+      - elastic_agent_version | default('', true) | string | trim | length > 0
+      - elastic_agent_runtime_fleet_server_url | default('', true) | string | trim is regex('^https?://')
+      - elastic_agent_enrollment_token | default('', true) | string | trim | length > 0
+      - elastic_agent_tls_mode | default('', true) | string | trim in ['off', 'none', 'full']
+      - elastic_agent_download_timeout_seconds | int > 0
+      - elastic_agent_download_retries | int > 0
+      - elastic_agent_download_retry_delay_seconds | int >= 0
+      - elastic_agent_install_timeout_seconds | int > 0
+      - elastic_agent_install_retries | int > 0
+      - elastic_agent_install_retry_delay_seconds | int >= 0
+      - elastic_agent_service_retries | int > 0
+      - elastic_agent_service_retry_delay_seconds | int >= 0
+      - >-
+        not (logging_elastic_agent_k8s_system_enabled | default(false) | bool)
+        or (logging_elastic_agent_host_enabled | default(false) | bool)
+      - >-
+        not (logging_elastic_agent_k8s_workload_enabled | default(false) | bool)
+        or (logging_elastic_agent_k8s_system_enabled | default(false) | bool)
+      - >-
+        (elastic_agent_runtime_scheme == 'http' and elastic_agent_insecure | bool) or
+        (elastic_agent_runtime_scheme == 'https')
+      - >-
+        (elastic_agent_certificate_authorities | default('', true) | string | trim | length == 0) or
+        (elastic_agent_runtime_scheme == 'https')
+    fail_msg: >-
+      Invalid Elastic Agent installation settings. Configure a supported CPU architecture,
+      Fleet Server URL, Enrollment Token, hierarchical collection flags, TLS mode,
+      and positive timeout/retry values.
+  no_log: true

@@ -9,7 +9,10 @@
 # docker compose が実行可能であることを確認し, backend 起動前提を固定する。
 - name: Verify docker compose is available
   ansible.builtin.command:
-    cmd: docker compose version
+    argv:
+      - docker
+      - compose
+      - version
   changed_when: false
 
 # vm.max_map_count を満たすための sysctl ドロップインを配置する。

@@ -1,0 +1,48 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  実行時フラグ解決タスク
+#
+---
+
+# Kibana endpoint の実行時スキームと TLS 検証モードを確定する。
+# 正規表現'^https?'は, '^'が文字列先頭, 'http'が必須文字列, 's?'が省略可能なsを表し,
+# 'http://kibana:5601'では'http', 'https://kibana:5601'では'https'に一致する。
+# 明示URLから方式を抽出し, 未抽出時は既定方式を採用した後, TLSモードとHTTPSフラグを算出する。
+- name: Resolve Kibana runtime flags
+  ansible.builtin.set_fact:
+    kibana_runtime_scheme: >-
+      {{
+        (
+          (kibana_endpoint_url_explicit | default('', true) | string | trim | lower)
+          | regex_search('^https?')
+          | default(logging_backend_default_scheme, true)
+        )
+      }}
+    kibana_runtime_tls_mode: >-
+      {{
+        (
+          'off'
+          if (
+            (
+              (kibana_endpoint_url_explicit | default('', true) | string | trim | lower)
+              | regex_search('^https?')
+              | default(logging_backend_default_scheme, true)
+            ) == 'http'
+          )
+          else (
+            (kibana_tls_mode | default(logging_backend_default_tls_mode, true) | string | lower | trim)
+          )
+        )
+      }}
+    kibana_runtime_is_https: >-
+      {{
+        (
+          (
+            (kibana_endpoint_url_explicit | default('', true) | string | trim | lower)
+            | regex_search('^https?')
+            | default(logging_backend_default_scheme, true)
+          ) == 'https'
+        ) | bool
+      }}

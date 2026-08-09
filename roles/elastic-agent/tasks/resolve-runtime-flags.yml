@@ -1,0 +1,28 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+# 実行時フラグ解決タスク
+#
+---
+
+# Fleet Server URLの明示値から通信方式を抽出し, 未指定時は共通方式を使用する。
+# 正規表現'^https?'はURL先頭の'http'又は'https'に一致する。
+- name: Resolve Elastic Agent runtime flags
+  ansible.builtin.set_fact:
+    elastic_agent_runtime_scheme: >-
+      {{
+        (
+          elastic_agent_fleet_server_url_explicit | default('', true) | string | trim | lower
+        ) | regex_search('^https?') | default(logging_backend_default_scheme, true)
+      }}
+    elastic_agent_insecure: >-
+      {{
+        (
+          (
+            elastic_agent_fleet_server_url_explicit | default('', true) | string | trim | lower
+          ) | regex_search('^https?') | default(logging_backend_default_scheme, true)
+        ) == 'http'
+        or
+        (elastic_agent_tls_mode | default(logging_backend_default_tls_mode, true) != 'full')
+      }}

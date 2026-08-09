@@ -1,0 +1,17 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  ファイル・ディレクトリ作成関連タスク
+#
+---
+
+# 対象ホスト上で公式配布物を安全に展開できる作業ディレクトリを作成する。
+- name: Create Elastic Agent work directory
+  become: true
+  ansible.builtin.file:
+    path: "{{ elastic_agent_work_dir }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0700"

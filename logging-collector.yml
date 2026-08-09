@@ -7,7 +7,6 @@
   remote_user: '{{ ansible_user }}'
   become: true
   roles:
-    - role: filebeat
-      tags: filebeat
-    - role: metricbeat
-      tags: metricbeat
+    # Fleet Bootstrapが配布する方針へ登録し, 共通のElastic Agent本体を導入する。
+    - role: elastic-agent
+      tags: elastic-agent

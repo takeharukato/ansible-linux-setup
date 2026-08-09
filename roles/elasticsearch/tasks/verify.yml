@@ -6,6 +6,41 @@
 #
 ---
 
+# チェックモードでは実行時検証を行わない。
+- name: Skip Elasticsearch runtime verification in check mode
+  ansible.builtin.debug:
+    msg: >-
+      Check mode: skipping runtime verification for Elasticsearch.
+  when: ansible_check_mode | bool
+
+# Elasticsearch コンテナが稼働状態へ遷移したことを確認する。
+- name: Inspect Elasticsearch container state
+  ansible.builtin.command:
+    argv:
+      - docker
+      - container
+      - inspect
+      - "{{ elastic_search_container_name }}"
+  register: elastic_search_container_state_cmd
+  changed_when: false
+  until:
+    - elastic_search_container_state_cmd is succeeded
+    - elastic_search_container_state_cmd.stdout | length > 0
+    - ((elastic_search_container_state_cmd.stdout | from_json | first).State.Running | default(false)) | bool
+  retries: "{{ elastic_search_wait_retries }}"
+  delay: "{{ elastic_search_wait_sleep }}"
+  when: not (ansible_check_mode | bool)
+
+# コンテナが稼働状態であることを最終確認し, 異常終了ループを検出する。
+- name: Assert Elasticsearch container is running
+  ansible.builtin.assert:
+    that:
+      - ((elastic_search_container_state_cmd.stdout | from_json | first).State.Running | default(false)) | bool
+    fail_msg: >-
+      Elasticsearch container is not running.
+      container={{ elastic_search_container_name }}
+  when: not (ansible_check_mode | bool)
+
 # service のポートが開くまで待ち, その後の HTTP 検査が失敗しないようにする。
 - name: Wait for Elasticsearch port
   ansible.builtin.wait_for:
@@ -20,15 +55,45 @@
   until: elastic_search_wait_result is succeeded
   retries: "{{ elastic_search_wait_retries }}"
   delay: "{{ elastic_search_wait_sleep }}"
+  when: not (ansible_check_mode | bool)
 
 # cluster health を確認し, backend として応答可能であることを検証する。
-- name: Verify Elasticsearch cluster health
+- name: Verify Elasticsearch cluster health locally (security enabled)
   ansible.builtin.uri:
-    url: "http://127.0.0.1:{{ elastic_search_http_port }}/_cluster/health?wait_for_status=yellow&timeout=60s"
+    url: "{{ elastic_search_local_verify_endpoint_url }}/_cluster/health?wait_for_status=yellow&timeout=60s"
     method: GET
+    force_basic_auth: true
+    url_username: "{{ elastic_search_security_username }}"
+    url_password: "{{ elastic_search_bootstrap_password }}"
+    validate_certs: "{{ elastic_search_local_verify_validate_certs | bool }}"
     return_content: true
     status_code:
       - 200
+    timeout: "{{ elastic_search_wait_timeout | int }}"
+  register: elastic_search_health_result
+  until:
+    - elastic_search_health_result is succeeded
+    - elastic_search_health_result.json.status is defined
+    - elastic_search_health_result.json.status in ['yellow', 'green']
+
+  # クラスタ復旧や shard 再配置に時間を要する場合があるため,
+  # 応答確認の試行回数は timeout と sleep から導出する。
+  retries: "{{ ((elastic_search_wait_timeout | int) // ([elastic_search_wait_sleep | int, 1] | max)) + 1 }}"
+  delay: "{{ elastic_search_wait_sleep }}"
+  when:
+    - not (ansible_check_mode | bool)
+    - elastic_search_security_enabled | default(false) | bool
+
+# cluster health を確認し, backend として応答可能であることを検証する。
+- name: Verify Elasticsearch cluster health locally (security disabled)
+  ansible.builtin.uri:
+    url: "{{ elastic_search_local_verify_endpoint_url }}/_cluster/health?wait_for_status=yellow&timeout=60s"
+    method: GET
+    validate_certs: "{{ elastic_search_local_verify_validate_certs | bool }}"
+    return_content: true
+    status_code:
+      - 200
+    timeout: "{{ elastic_search_wait_timeout | int }}"
   register: elastic_search_health_result
   until:
     - elastic_search_health_result is succeeded
@@ -38,5 +103,55 @@
   # 応答確認の試行回数は timeout と sleep から導出する。
   retries: "{{ ((elastic_search_wait_timeout | int) // ([elastic_search_wait_sleep | int, 1] | max)) + 1 }}"
   delay: "{{ elastic_search_wait_sleep }}"
-  failed_when:
-    - elastic_search_health_result.json.status not in ['yellow', 'green']
+  when:
+    - not (ansible_check_mode | bool)
+    - not (elastic_search_security_enabled | default(false) | bool)
+
+# 外部ホストから cluster health を確認し, 外部ホストからの疎通確認を任意で実施する。
+- name: Verify Elasticsearch cluster health externally (security enabled)
+  ansible.builtin.uri:
+    url: "{{ elastic_search_api_runtime_endpoint_url }}/_cluster/health?wait_for_status=yellow&timeout=60s"
+    method: GET
+    force_basic_auth: true
+    url_username: "{{ elastic_search_security_username }}"
+    url_password: "{{ elastic_search_bootstrap_password }}"
+    validate_certs: "{{ elastic_search_external_verify_validate_certs | bool }}"
+    return_content: true
+    status_code:
+      - 200
+    timeout: "{{ elastic_search_wait_timeout | int }}"
+  register: elastic_search_external_health_result
+  delegate_to: "{{ elastic_search_external_verify_delegate_to }}"
+  until:
+    - elastic_search_external_health_result is succeeded
+    - elastic_search_external_health_result.json.status is defined
+    - elastic_search_external_health_result.json.status in ['yellow', 'green']
+  retries: "{{ ((elastic_search_wait_timeout | int) // ([elastic_search_wait_sleep | int, 1] | max)) + 1 }}"
+  delay: "{{ elastic_search_wait_sleep }}"
+  when:
+    - not (ansible_check_mode | bool)
+    - elastic_search_security_enabled | default(false) | bool
+    - elastic_search_external_verify_enabled | bool
+
+# 外部ホストから cluster health を確認し, 外部ホストからの疎通確認を任意で実施する。
+- name: Verify Elasticsearch cluster health externally (security disabled)
+  ansible.builtin.uri:
+    url: "{{ elastic_search_api_runtime_endpoint_url }}/_cluster/health?wait_for_status=yellow&timeout=60s"
+    method: GET
+    validate_certs: "{{ elastic_search_external_verify_validate_certs | bool }}"
+    return_content: true
+    status_code:
+      - 200
+    timeout: "{{ elastic_search_wait_timeout | int }}"
+  register: elastic_search_external_health_result
+  delegate_to: "{{ elastic_search_external_verify_delegate_to }}"
+  until:
+    - elastic_search_external_health_result is succeeded
+    - elastic_search_external_health_result.json.status is defined
+    - elastic_search_external_health_result.json.status in ['yellow', 'green']
+  retries: "{{ ((elastic_search_wait_timeout | int) // ([elastic_search_wait_sleep | int, 1] | max)) + 1 }}"
+  delay: "{{ elastic_search_wait_sleep }}"
+  when:
+    - not (ansible_check_mode | bool)
+    - not (elastic_search_security_enabled | default(false) | bool)
+    - elastic_search_external_verify_enabled | bool

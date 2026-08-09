@@ -1,0 +1,39 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  ディレクトリ関連タスク
+#
+---
+
+# compose と設定ファイルの配置先ディレクトリを作成する。
+- name: Create fleet-server compose and config directories
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    mode: "0755"
+  loop:
+    - "{{ fleet_server_compose_dir }}"
+    - "{{ fleet_server_runtime_state_dir }}"
+    - "{{ fleet_server_runtime_service_token_path | dirname }}"
+
+# コンテナ実行ユーザだけがサービストークンを読み取れるように格納ディレクトリを制限する。
+- name: Set permissions for fleet-server token directory
+  ansible.builtin.file:
+    path: "{{ fleet_server_runtime_service_token_path | dirname }}"
+    state: directory
+    owner: "{{ logging_backend_container_user_id }}"
+    group: "{{ logging_backend_container_group_id }}"
+    mode: "0700"
+  become: true
+
+# state ディレクトリをコンテナ実行ユーザ(UID/GID 1000)で書き込み可能にする。
+- name: Set ownership for fleet-server state directory
+  ansible.builtin.file:
+    path: "{{ fleet_server_runtime_state_dir }}"
+    state: directory
+    owner: "{{ logging_backend_container_user_id }}"
+    group: "{{ logging_backend_container_group_id }}"
+    mode: "0755"
+    recurse: true
+  become: true

@@ -1,0 +1,145 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  実行時変数解決
+#
+---
+
+# Elasticsearch Security 有効時のみサービストークン自動発行を有効化する内部実行時フラグを確定する。
+# 正規表現'[^A-Za-z0-9_-]'は, 識別子に使用できる英数字, '_', '-'以外の1文字に一致し,
+# 'fleet.server/01'を'fleet-server-01'へ変換してトークン名とAPIキー名へ使用する。
+# 正規表現'^https?'はURL先頭の'http'又は'https'に一致し, Elasticsearch接続方式を抽出する。
+- name: Resolve fleet-server runtime facts
+  ansible.builtin.set_fact:
+    fleet_server_runtime_network_name: "{{ logging_backend_network_name | default('elastic-backend') }}"
+    fleet_server_runtime_compose_file: "{{ fleet_server_compose_dir }}/docker-compose.yml"
+    fleet_server_runtime_state_dir: "{{ fleet_server_compose_dir }}/state"
+    fleet_server_runtime_elasticsearch_security_enabled: "{{ elastic_search_security_enabled | default(false) | bool }}"
+    fleet_server_runtime_bootstrap_enabled: >-
+      {{
+        true
+        if (elastic_search_security_enabled | default(false) | bool)
+        else (fleet_bootstrap_enabled | default(true) | bool)
+      }}
+    fleet_server_runtime_service_token_path: "{{ fleet_server_compose_dir }}/secrets/fleet-server-service-token"
+    fleet_server_runtime_service_token_name: "fleet-server-{{ inventory_hostname | regex_replace('[^A-Za-z0-9_-]', '-') }}"
+    fleet_server_runtime_token_issue_validate_certs: "{{ (fleet_server_runtime_elasticsearch_api_tls_mode | default('off')) == 'full' }}"
+    fleet_server_runtime_kibana_api_key_name: "ansible-fleet-server-{{ inventory_hostname | regex_replace('[^A-Za-z0-9_-]', '-') }}"
+    fleet_server_runtime_elasticsearch_scheme: >-
+      {{
+        (
+          (elastic_search_api_endpoint_url_explicit | default('', true) | string | trim | lower)
+          | regex_search('^https?')
+          | default(logging_backend_default_scheme, true)
+        )
+      }}
+    fleet_server_runtime_elasticsearch_host: >-
+      {{ logging_backend_resolved_host }}
+    fleet_server_runtime_elasticsearch_port: "{{ elastic_search_http_port }}"
+
+# 既に解決済みの runtime 変数を元に依存関係のある派生値を確定する。
+- name: Resolve fleet-server derived runtime facts
+  ansible.builtin.set_fact:
+    fleet_server_runtime_state_security_mode_file: "{{ fleet_server_runtime_state_dir }}/.security-mode"
+    fleet_server_runtime_service_token_auto_create: "{{ fleet_server_runtime_elasticsearch_security_enabled | bool }}"
+    fleet_server_runtime_kibana_api_key_create_if_missing: "{{ fleet_server_runtime_elasticsearch_security_enabled | bool }}"
+
+# fleet-server が使用する Kibana URL, fleet-server endpoint URL, Elasticsearch API endpoint URL を実行時に確定する。
+# URL 解決ロジックの対応関係は以下のとおりである。
+# - 明示指定 URL がある場合は明示値を採用する。
+# - 明示指定 URL が無い場合は logging backendの共通接続先として解決したホスト名と既定ポートで URL を構成する。
+# - Elasticsearch API endpoint は, 既存 runtime 値 -> 明示指定値 -> host/port 構成値の順でフォールバックする。
+# 正規表現'^https?'は, '^'が文字列先頭, 'http'が必須文字列, 's?'が省略可能なsを表し,
+# 解決したElasticsearch URLから方式を抽出してTLSモードを算出する。
+- name: Resolve fleet-server runtime endpoint facts
+  ansible.builtin.set_fact:
+    # Kibana API 接続先 URL を解決する。
+    # 判定式と分岐式の対応関係:
+    # - 判定: (fleet_server_kibana_url_explicit | default('', true) | string | trim | length) > 0
+    # - 明示値: (fleet_server_kibana_url_explicit | string | trim)
+    # - 既定値: (fleet_server_runtime_scheme ~ '://' ~ logging_backend_resolved_host ~ ':' ~ (kibana_server_port | string))
+    fleet_server_kibana_runtime_url: >-
+      {{
+        (fleet_server_kibana_url_explicit | string | trim)
+        if ((fleet_server_kibana_url_explicit | default('', true) | string | trim | length) > 0)
+        else (fleet_server_runtime_scheme ~ '://' ~ logging_backend_resolved_host ~ ':' ~ (kibana_server_port | string))
+      }}
+    # fleet-server endpoint URL を解決する。
+    # 判定式と分岐式の対応関係:
+    # - 判定: (fleet_server_endpoint_url_explicit | default('', true) | string | trim | length) > 0
+    # - 明示値: (fleet_server_endpoint_url_explicit | string | trim)
+    # - 既定値: ('http://' ~ logging_backend_resolved_host ~ ':' ~ (fleet_server_port | string))
+    fleet_server_runtime_endpoint_url: >-
+      {{
+        (fleet_server_endpoint_url_explicit | string | trim)
+        if ((fleet_server_endpoint_url_explicit | default('', true) | string | trim | length) > 0)
+        else (fleet_server_runtime_scheme ~ '://' ~ logging_backend_resolved_host ~ ':' ~ (fleet_server_port | string))
+      }}
+    # Elasticsearch API endpoint URL を解決する。
+    # 判定式と分岐式の対応関係:
+    # - 既存値の判定: (elastic_search_api_endpoint_url | default('', true) | string | trim | length) > 0
+    # - 明示値の判定: (elastic_search_api_endpoint_url_explicit | default('', true) | string | trim | length) > 0
+    # - 採用順序: 既存値 -> 明示値 -> (scheme + host + port)
+    fleet_server_runtime_elasticsearch_api_endpoint_url: >-
+      {{
+        (elastic_search_api_endpoint_url | default('', true) | string | trim)
+        if ((elastic_search_api_endpoint_url | default('', true) | string | trim | length) > 0)
+        else (
+          (elastic_search_api_endpoint_url_explicit | default('', true) | string | trim)
+          if ((elastic_search_api_endpoint_url_explicit | default('', true) | string | trim | length) > 0)
+          else (
+            fleet_server_runtime_elasticsearch_scheme ~
+            '://' ~
+            fleet_server_runtime_elasticsearch_host ~
+            ':' ~
+            (fleet_server_runtime_elasticsearch_port | string)
+          )
+        )
+      }}
+    fleet_server_runtime_elasticsearch_api_scheme: >-
+      {{
+        (
+          (elastic_search_api_endpoint_url | default('', true) | string | trim | lower)
+          | regex_search('^https?')
+          | default(fleet_server_runtime_elasticsearch_scheme, true)
+        )
+      }}
+    fleet_server_runtime_elasticsearch_api_tls_mode: >-
+      {{
+        (
+          'off'
+          if (
+            (
+              (elastic_search_api_endpoint_url | default('', true) | string | trim | lower)
+              | regex_search('^https?')
+              | default(fleet_server_runtime_elasticsearch_scheme, true)
+            ) == 'http'
+          )
+          else (
+            (elastic_search_tls_mode | default(logging_backend_default_tls_mode, true) | string | lower | trim)
+          )
+        )
+      }}
+
+# 検証系の runtime 変数を確定し, HTTPS 判定は endpoint の先頭が https:// であるかどうかで判断する。
+# HTTPS 判定式の対応関係は以下のとおりである。
+# - 正規表現判定: ((<runtime_url> | default('') | lower) is regex('^https://'))
+# - '^'は文字列先頭, 'https://'は方式と区切りを表し, 'https://fleet-server:8220'に一致する。
+# - 真偽値化: | bool
+# - ローカル検証 URL のプロトコル選択: | ternary('https', 'http')
+- name: Resolve fleet-server verify facts
+  ansible.builtin.set_fact:
+    fleet_server_kibana_url: "{{ fleet_server_kibana_runtime_url }}"
+    fleet_server_kibana_validate_certs: "{{ (fleet_server_runtime_tls_mode == 'full') | bool }}"
+    fleet_server_runtime_elasticsearch_api_validate_certs: "{{ (fleet_server_runtime_elasticsearch_api_tls_mode == 'full') | bool }}"
+    fleet_server_local_verify_endpoint_url: "{{ fleet_server_runtime_scheme }}://{{ fleet_server_wait_host }}:{{ fleet_server_port }}"
+    fleet_server_local_verify_validate_certs: false
+    fleet_server_external_verify_enabled: "{{ logging_verify_external_enabled | bool }}"
+    fleet_server_external_verify_delegate_to: "{{ logging_verify_external_delegate_to }}"
+    fleet_server_external_verify_validate_certs: "{{ (fleet_server_runtime_tls_mode == 'full') | bool }}"
+
+# サービストークン発行APIの証明書検証有無は, Elasticsearch API の runtime TLS モードへ一致させる。
+- name: Resolve fleet-server token issue TLS fact
+  ansible.builtin.set_fact:
+    fleet_server_runtime_token_issue_validate_certs: "{{ (fleet_server_runtime_elasticsearch_api_tls_mode == 'full') | bool }}"

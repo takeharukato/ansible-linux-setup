@@ -1,6 +1,6 @@
 # Logstash ロール
 
-本ロールは, 本 playbook で導入する Logstash を, 本 playbook で導入する Elasticsearch, Kibana, Filebeat, Metricbeat と組み合わせて運用するためのロールです。
+本ロールは, 本 playbook で導入する Logstash を, 本 playbook で導入する Elasticsearch, Kibana, Elastic Agent と組み合わせて運用するためのロールです。
 
 ## 目次
 
@@ -8,16 +8,22 @@
   - [目次](#目次)
   - [用語](#用語)
   - [概要](#概要)
-    - [前提条件](#前提条件)
+  - [前提条件](#前提条件)
     - [基本仕様](#基本仕様)
     - [本ロールで実施する主な処理](#本ロールで実施する主な処理)
   - [実行方法](#実行方法)
-    - [Makefile ターゲットによる実行](#makefile-ターゲットによる実行)
-    - [ansible-playbook による role 単位実行](#ansible-playbook-による-role-単位実行)
+    - [Makefile ターゲットを使用する場合](#makefile-ターゲットを使用する場合)
+    - [ansible-playbookコマンドを使用する場合](#ansible-playbookコマンドを使用する場合)
   - [主要変数](#主要変数)
-    - [基本設定](#基本設定)
-    - [コンテナイメージと接続設定](#コンテナイメージと接続設定)
-    - [起動検証関連設定](#起動検証関連設定)
+    - [各ロール固有の利用者入力値](#各ロール固有の利用者入力値)
+      - [必須入力値](#必須入力値)
+      - [任意入力値](#任意入力値)
+        - [基本設定](#基本設定)
+        - [接続設定](#接続設定)
+    - [Elastic Stack間共有設定値](#elastic-stack間共有設定値)
+        - [Elasticsearch 出力設定](#elasticsearch-出力設定)
+        - [Elasticsearch 監視設定](#elasticsearch-監視設定)
+        - [起動検証関連設定](#起動検証関連設定)
     - [変数設定例](#変数設定例)
       - [host\_vars の設定例](#host_vars-の設定例)
       - [vars/all-config.yml の設定例](#varsall-configyml-の設定例)
@@ -33,17 +39,17 @@
     - [検証の前提条件](#検証の前提条件)
     - [検証環境の設定](#検証環境の設定)
     - [検証コマンドと期待結果](#検証コマンドと期待結果)
-      - [1. Logstash beats 待受確認](#1-logstash-beats-待受確認)
+      - [1. Logstash Elastic Agent 待受確認](#1-logstash-elastic-agent-待受確認)
       - [2. Logstash HTTP 応答確認](#2-logstash-http-応答確認)
     - [異常時の確認項目](#異常時の確認項目)
       - [1. ポート競合の確認](#1-ポート競合の確認)
       - [2. ネットワーク作成状態の確認](#2-ネットワーク作成状態の確認)
       - [3. pipeline 定義生成状態の確認](#3-pipeline-定義生成状態の確認)
-      - [4. Docker Compose 定義生成状態の確認](#4-docker-compose-定義生成状態の確認)
+      - [4. Docker Compose 定義ファイル生成状態の確認](#4-docker-compose-定義ファイル生成状態の確認)
       - [5. コンテナログのエラー確認](#5-コンテナログのエラー確認)
   - [トラブルシューティング](#トラブルシューティング)
     - [1. Logstash が起動しない場合](#1-logstash-が起動しない場合)
-    - [2. beats 入力を受信できない場合](#2-beats-入力を受信できない場合)
+    - [2. Elastic Agent 入力を受信できない場合](#2-elastic-agent-入力を受信できない場合)
     - [3. HTTP 監視ポートが応答しない場合](#3-http-監視ポートが応答しない場合)
     - [4. Elasticsearch へ転送できない場合](#4-elasticsearch-へ転送できない場合)
   - [注意事項](#注意事項)
@@ -56,17 +62,20 @@
 | 正式名称 | 略称 | 意味 |
 | --- | --- | --- |
 | Logstash | - | 受信したデータを整形し, 送信先へ転送するソフトウェア。 |
-| Elasticsearch | - | 検索と集約を担当するサーバソフトウェア。 |
+| Elasticsearch | - | ログやメトリクス情報を集約, 検索するためのサーバソフトウェア。 |
+| Elasticsearchのセキュリティ機能 | - | Elasticsearchへの接続者を認証し, 利用者に付与した権限に基づいて実行可能な操作を制御する機能。 |
 | Kibana | - | Elasticsearchに保存されたデータを可視化し, 参照するソフトウェア。 |
-| Filebeat | - | ログファイルを収集し, 送信先へ転送するエージェント。 |
-| Metricbeat | - | メトリクスを収集して送信するエージェント。 |
+| Enrollment Token | - | Elastic AgentがFleet Serverへの登録を許可されていることを確認し, 登録先のElastic Agent ポリシーを特定するための登録用認証情報。 |
+| Enrollment Token共有ファイル | - | Fleet BootstrapがEnrollment Tokenを制御ホスト上へ保存し, Elastic Agent本体ロールがFleet Serverへの登録時に読み込む権限`0600`のYAMLファイル。 |
+| Fleet Serverサービスアカウントトークンファイル | - | Fleet ServerがElasticsearchへ接続するためのサービスアカウントトークンを対象ホスト上へ保存し, Fleet Serverコンテナが起動時に読み込む権限`0600`のファイル。 |
 | pipeline | - | 入力, 整形, 出力の処理順を定義する Logstash の設定単位。 |
-| beats | - | Filebeat や Metricbeat などの送信元エージェント群, 又はその通信方式。 |
+| Elastic Agent入力 | - | Elastic Agentからデータストリーム情報を保持したイベントを受信するLogstashの入力機能。 |
 | インデックス | - | Elasticsearch に保存するデータの格納先識別単位。 |
 | コンテナイメージ | - | コンテナ実行に必要な内容をまとめた保存形式。 |
 | コンテナ | - | アプリケーションを動かす隔離された実行単位。 |
 | Docker | - | コンテナイメージやコンテナの作成, 実行, 管理を行うコマンド。 |
 | Docker Compose | - | 複数のコンテナ定義をまとめて作成, 起動, 停止, 更新する仕組み。 |
+| Docker Compose 定義ファイル | - | Docker Compose が参照するコンテナ構成の定義ファイル。 |
 | compose project 名 | - | Docker Compose によって展開される個々のアプリケーションを識別する名前です。展開されたコンテナ, ネットワーク, ボリュームなどのリソースをグループ化し, 他のアプリケーション又は別途展開された同じアプリケーションと区別するために用います。 |
 | Ansible | - | 設定の同一化や導入作業を所定の手順に従って自動化する仕組み。 |
 | Playbook | - | 自動化処理の実行手順を記述したファイル。 |
@@ -83,6 +92,10 @@
 | データ | - | 処理や保存の対象となる情報。 |
 | ポート | - | 通信の出入口を識別する番号または接点。 |
 | Uniform Resource Locator | URL | World Wide Web上の資源の場所を示す文字列。 |
+| URL スキーム | - | URL の先頭で通信方式を示す部分。例: `http`, `https`。 |
+| ランタイムエンドポイント ( rumtime endpoint ) | - | 対象ホスト上で所定のサービスが動作していることを確認するための疎通確認に用いるエンドポイントです。ここでのエンドポイントは, <接続先ホスト名>と<接続先ポート番号>の組から構成されるURLになります。本ロールで規定した変数により明示的に指定されたエンドポイントがあればその値を採用し, 未指定の場合は, 対象ホスト名とポート番号からエンドポイントを組み立てます。 |
+| 対象ホスト上での疎通確認 | - | 対象ホスト上で自ホスト(localhost)を指定して待ち受け先ポートへの疎通確認を実施すること。確認対象のサービスが対象ホスト上で起動していることを確認します。 |
+| 外部ホストからの疎通確認 | - | 対象ホスト以外のホストから対象ホストを指定して待ち受け先ポートへの疎通確認を実施すること。確認対象のサービスがネットワーク接続を含めて適切に設定され, サービス受付可能な状態になっていることを確認します。 |
 | Hypertext Transfer Protocol | HTTP | World Wide Webで情報をやり取りする通信手順。 |
 | Internet Protocol | IP | ネットワーク上で宛先を識別し, データを届けるための通信手順。 |
 | World Wide Web | WWW | ネットワーク上で文書や情報を相互参照できる仕組み。 |
@@ -100,7 +113,7 @@
 | curlコマンド | curl | URL を指定して通信結果を取得するコマンド。 |
 ## 概要
 
-### 前提条件
+## 前提条件
 
 本 playbook を実行する前提条件は, 次のとおりです。
 
@@ -116,11 +129,12 @@
 本ロールで Logstash を導入する際の仕様は, 次のとおりです。
 
 - コンテナイメージは `docker.elastic.co/logstash/logstash:8.17.3` を使用すること。
-- beats 入力は TCPプロトコルのポート番号5044番 で待受すること。
+- Elastic Agentからの入力は TCPプロトコルのポート番号5044番で待受すること。
 - HTTP 監視ポートは TCPプロトコルのポート番号9600番 で待受すること。
 - pipeline ID は `main` とすること。
-- 出力先 Elasticsearch は `http://elasticsearch:9200` とすること。
-- 出力先インデックス名は `shared-logs-%{+YYYY.MM.dd}` 形式とすること。
+- 出力先 Elasticsearch は `logstash_elasticsearch_endpoint_url` で指定すること。
+- Elasticsearchのセキュリティ機能が有効な場合は, Logstash 出力へ認証情報を付与すること。
+- Elastic Agentが付与した種別, データ集合及び名前空間を使用してElasticsearchのデータストリームへ保存すること。
 - 設定, pipeline 定義, データ, ログは, 本 playbook で導入する専用ディレクトリへ分離すること。
 
 ### 本ロールで実施する主な処理
@@ -129,13 +143,13 @@
 
 1. `docker compose` が利用可能であることを確認します。
 2. 本 playbook で導入するディレクトリを作成します。
-3. Logstash の pipeline と Docker Compose 定義を生成します。
+3. Logstash の pipeline と Docker Compose 定義ファイルを生成します。
 4. backend 用ネットワークへ接続して Logstash コンテナを起動します。
 5. 起動後に HTTP 監視ポートの待機と HTTP 応答確認を行います。
 
 ## 実行方法
 
-### Makefile ターゲットによる実行
+### Makefile ターゲットを使用する場合
 
 制御ホストで次のコマンドを実行します。
 
@@ -143,9 +157,9 @@
 make run_logging_backend
 ```
 
-このターゲットは logging backend 用 Playbook の実行導線として用意されています。現状の Logstash 単独適用は, 次節の `ansible-playbook` による実行手順を使用します。
+このターゲットは Elasticsearch, Logstash, Kibana, Fleet Server, Fleet Bootstrapを順に適用し, 制御ホスト上のEnrollment Token共有ファイルへの保存まで完了します。Logstash単独適用は, 次節の`ansible-playbook`による実行手順を使用します。
 
-### ansible-playbook による role 単位実行
+### ansible-playbookコマンドを使用する場合
 
 制御ホストで次のコマンドを実行します。
 
@@ -157,35 +171,55 @@ ansible-playbook -i inventory/hosts logging-backend.yml --tags logstash
 
 ## 主要変数
 
-### 基本設定
+### 各ロール固有の利用者入力値
+
+#### 必須入力値
+
+本ロール固有の必須入力値はありません。Elasticsearchのセキュリティ機能が有効な場合の認証情報は, Elasticsearchロールの設定を継承します。
+
+#### 任意入力値
+
+##### 基本設定
 
 | 変数名 | 意味 | 既定値 | 設定例 |
 | --- | --- | --- | --- |
-| `logging_logstash_enabled` | Logstash ロールの有効化フラグ。 | `true` | `true` |
-| `logstash_compose_dir` | Docker Compose 定義と関連ファイルを配置するディレクトリ。 | `/srv/logstash` | `/srv/logstash` |
-| `logstash_compose_file` | Docker Compose 定義のファイルパス。 | `{{ logstash_compose_dir }}/docker-compose.yml` | `/srv/logstash/docker-compose.yml` |
-| `logstash_config_dir` | Logstash 関連の設定用ディレクトリ。 | `{{ logstash_compose_dir }}/config` | `/srv/logstash/config` |
-| `logstash_pipeline_dir` | Logstash の pipeline を配置するディレクトリ。 | `{{ logstash_config_dir }}/pipelines` | `/srv/logstash/config/pipelines` |
-| `logstash_data_dir` | Logstash データを配置するディレクトリ。 | `{{ logstash_compose_dir }}/data` | `/srv/logstash/data` |
-| `logstash_logs_dir` | Logstash ログを配置するディレクトリ。 | `{{ logstash_compose_dir }}/logs` | `/srv/logstash/logs` |
-| `logstash_network_name` | Docker ネットワーク名。 | `elastic-backend` | `elastic-backend` |
-| `logstash_container_name` | Logstash コンテナ名。 | `logstash` | `logstash` |
+| `logging_logstash_enabled` | Logstash ロールの有効化フラグ。 | `false` | `true` |
 
-### コンテナイメージと接続設定
+##### 接続設定
 
 | 変数名 | 意味 | 既定値 | 設定例 |
 | --- | --- | --- | --- |
-| `logstash_image` | Logstash のコンテナイメージ名。 | `docker.elastic.co/logstash/logstash:8.17.3` | `docker.elastic.co/logstash/logstash:8.17.3` |
-| `logstash_beats_port` | beats 入力待受ポート。 | `5044` | `5044` |
+| `logstash_beats_port` | Elastic Agentからの入力待受ポート。 | `5044` | `5044` |
 | `logstash_http_port` | Logstash HTTP 監視ポート。 | `9600` | `9600` |
+| `logstash_endpoint_url_explicit` | ランタイムエンドポイントの明示指定値。未指定時は `logging_backend_resolved_host` と `logstash_http_port` から組み立てる。 | 空文字列 | `https://logstash01.example.org:9600` |
+| `logstash_tls_mode` | ランタイムエンドポイントのURLスキームが`https`の場合に参照するTLS検証モード。指定可能な値は, [Elasticsearchロールの共有設定値](../elasticsearch/Readme.md#共有設定値に関する補足説明)を参照する。 | `logging_backend_default_tls_mode`の指定値。 | `none` |
 | `logstash_pipeline_id` | Logstash の pipeline ID。 | `main` | `main` |
 
-### 起動検証関連設定
+### Elastic Stack間共有設定値
+
+共有設定値の意味, 設定要否, 既定値及び設定例は, [Elasticsearchロールの共有設定値](../elasticsearch/Readme.md#varsall-configymlに設定するelastic-stack間共有設定値)を参照します。Logstashでは, 共通の版数, Dockerブリッジネットワーク, 接続先ホスト, URLスキーム, TLS検証モード及び外部ホストからの疎通確認設定が影響します。
+
+##### Elasticsearch 出力設定
+
+| 変数名 | 意味 | 既定値 | 設定例 |
+| --- | --- | --- | --- |
+| `logstash_elasticsearch_auth_username` | Elasticsearchのセキュリティ機能が有効な場合に使用する認証ユーザ名。 | `{{ elastic_search_security_username | default('elastic') }}` | `elastic` |
+| `logstash_elasticsearch_auth_password` | Elasticsearchのセキュリティ機能が有効な場合に使用する認証パスワード。 | `{{ elastic_search_bootstrap_password | default('') }}` | `DUMMY_ELASTIC_PASSWORD` |
+
+##### Elasticsearch 監視設定
+
+| 変数名 | 意味 | 既定値 | 設定例 |
+| --- | --- | --- | --- |
+| `logstash_monitoring_enabled` | Logstash 監視機能を有効化するフラグ。 | `true` | `true` |
+| `logstash_monitoring_elasticsearch_auth_username` | Logstash 監視機能が使用する Elasticsearch 認証ユーザ名。 | `{{ logstash_elasticsearch_auth_username }}` | `elastic` |
+| `logstash_monitoring_elasticsearch_auth_password` | Logstash 監視機能が使用する Elasticsearch 認証パスワード。 | `{{ logstash_elasticsearch_auth_password }}` | `DUMMY_ELASTIC_PASSWORD` |
+
+##### 起動検証関連設定
 
 | 変数名 | 意味 | 既定値 | 設定例 |
 | --- | --- | --- | --- |
 | `logstash_wait_host` | 起動確認で待機する接続先ホスト。 | `127.0.0.1` | `127.0.0.1` |
-| `logstash_wait_delegate_to` | 起動確認を実行する接続元ホスト。 | `localhost` | `localhost` |
+| `logstash_wait_delegate_to` | 起動確認を実行する接続元ホスト。 | `{{ inventory_hostname }}` | `{{ inventory_hostname }}` |
 | `logstash_wait_timeout` | 起動確認のタイムアウト時間。 | `120` | `120` |
 | `logstash_wait_delay` | 起動確認の開始遅延時間。 | `2` | `2` |
 | `logstash_wait_sleep` | 起動確認の待機間隔。 | `2` | `2` |
@@ -196,6 +230,7 @@ ansible-playbook -i inventory/hosts logging-backend.yml --tags logstash
 #### host_vars の設定例
 
 ホスト固有に変える値を `host_vars/logstash01.local.yml` に記載します。
+`logging_backend_host` は共通変数であるため, この例には含めず `vars/all-config.yml` に記載します。
 
 ```yaml
 1: logging_logstash_enabled: true
@@ -206,39 +241,34 @@ ansible-playbook -i inventory/hosts logging-backend.yml --tags logstash
 | 行番号 | 設定値 | 有効になる動作 | 設定背景(未設定時/誤設定時の問題と防止理由) |
 | --- | --- | --- | --- |
 | 1 | `logging_logstash_enabled: true` | Logstash ロールを有効化し, ディレクトリ作成, 設定生成, コンテナ起動, 起動確認を実行します。 | `false` の場合は Logstash ロールの処理が実行されず, 期待した導入結果を得られないためです。 |
-| 2 | `logstash_beats_port: 5044` | beats 入力待受ポートを `5044` に設定します。 | ポートが未設定又は誤設定の場合, Filebeat や Metricbeat からの送信先が不一致となり, 受信できないためです。 |
+| 2 | `logstash_beats_port: 5044` | Elastic Agentからの入力待受ポートを `5044` に設定します。 | ポートが未設定又は誤設定の場合, Elastic Agent からの送信先が不一致となり, 受信できないためです。 |
 | 3 | `logstash_wait_delegate_to: "{{ inventory_hostname }}"` | 起動確認タスクを対象ホスト自身から実行します。 | 到達不能な接続元を設定した場合, 起動済みでも待受確認に失敗し, ロール実行が異常終了するためです。 |
 
-この例では, beats 入力待受ポートを明示し, 起動確認の接続元を対象ホスト自身にします。
+この例では, Elastic Agent からの入力待受ポートを明示し, 起動確認の接続元を対象ホスト自身にします。
 
 #### vars/all-config.yml の設定例
 
 全ホスト共通の値を `vars/all-config.yml` に記載します。
+`logging_backend_*` は `host_vars` に重複定義せず, この節の例のように `vars/all-config.yml` のみに記載します。
 
 ```yaml
 1: logging_logstash_enabled: true
-2: logstash_compose_dir: "/srv/logstash"
-3: logstash_network_name: "elastic-backend"
-4: logstash_image: "docker.elastic.co/logstash/logstash:8.17.3"
-5: logstash_beats_port: 5044
-6: logstash_http_port: 9600
-7: logstash_pipeline_id: "main"
-8: logstash_wait_host: "127.0.0.1"
-9: logstash_wait_timeout: 120
-10: logstash_wait_delay: 2
-11: logstash_wait_sleep: 2
-12: logstash_wait_retries: 5
+2: logstash_beats_port: 5044
+3: logstash_http_port: 9600
+4: logstash_pipeline_id: "main"
+5: logstash_wait_host: "127.0.0.1"
+6: logstash_wait_timeout: 120
+7: logstash_wait_delay: 2
+8: logstash_wait_sleep: 2
+9: logstash_wait_retries: 5
 ```
 
 | 行番号 | 設定値 | 有効になる動作 | 設定背景(未設定時/誤設定時の問題と防止理由) |
 | --- | --- | --- | --- |
 | 1 | `logging_logstash_enabled: true` | Logstash ロールを有効化し, 共通設定にもとづく導入処理を実行します。 | `false` の場合は共通設定が存在しても導入処理が実行されず, 設定の反映漏れが発生するためです。 |
-| 2 | `logstash_compose_dir: "/srv/logstash"` | Docker Compose 定義, 設定, データ, ログの保存先基準ディレクトリを `/srv/logstash` に統一します。 | 未設定又は誤設定の場合, 生成先の分散や競合が発生し, 保守作業で誤操作が起きやすくなるためです。 |
-| 3 | `logstash_network_name: "elastic-backend"` | Logstash が参加する外部ネットワーク名を `elastic-backend` に設定します。 | 関連コンテナ群と異なるネットワーク名を設定した場合, 相互接続に失敗するためです。 |
-| 4 | `logstash_image: "docker.elastic.co/logstash/logstash:8.17.3"` | 起動する Logstash のコンテナイメージ版数を指定します。 | 未設定又は誤設定の場合, 想定外の版数差異により互換性問題が発生するためです。 |
-| 5-6 | `logstash_beats_port: 5044`, `logstash_http_port: 9600` | beats 入力待受と HTTP 監視用待受を設定し, 送信元接続と監視確認を可能にします。 | 未設定又は誤設定の場合, 送信元エージェントからの接続又は状態確認が失敗するためです。 |
-| 7 | `logstash_pipeline_id: "main"` | Logstash の pipeline ID を `main` に設定し, 既定の実行対象を設定します。 | pipeline ID が不一致の場合, 想定した設定ファイルが読み込まれず, 受信と転送が機能しないためです。 |
-| 8-12 | `logstash_wait_host: "127.0.0.1"`, `logstash_wait_timeout: 120`, `logstash_wait_delay: 2`, `logstash_wait_sleep: 2`, `logstash_wait_retries: 5` | 起動確認の接続先と再試行条件を定義し, 起動直後の待受未完了を吸収して到達性を検証します。 | これらが未設定又は不適切な場合, 起動直後の一時的な応答遅延を異常と誤判定し, ロール実行が失敗するためです。 |
+| 2-3 | `logstash_beats_port: 5044`, `logstash_http_port: 9600` | Elastic Agent からの入力待受と HTTP 監視用待受を設定し, 送信元接続と監視確認を可能にします。 | 未設定又は誤設定の場合, 送信元エージェントからの接続又は状態確認が失敗するためです。 |
+| 4 | `logstash_pipeline_id: "main"` | Logstash の pipeline ID を `main` に設定し, 既定の実行対象を設定します。 | pipeline ID が不一致の場合, 想定した設定ファイルが読み込まれず, 受信と転送が機能しないためです。 |
+| 5-9 | `logstash_wait_host: "127.0.0.1"`, `logstash_wait_timeout: 120`, `logstash_wait_delay: 2`, `logstash_wait_sleep: 2`, `logstash_wait_retries: 5` | 起動確認の接続先と再試行条件を定義し, 起動直後の待受未完了を吸収して到達性を検証します。 | これらが未設定又は不適切な場合, 起動直後の一時的な応答遅延を異常と誤判定し, ロール実行が失敗するためです。 |
 
 この例では, 本 playbook で導入する側の共通値を一箇所へ集約します。
 
@@ -246,8 +276,8 @@ ansible-playbook -i inventory/hosts logging-backend.yml --tags logstash
 
 | テンプレート | 生成先 (括弧内は規定) | 用途 | 主な内容 |
 | --- | --- | --- | --- |
-| `templates/logstash.conf.j2` | `{{ logstash_pipeline_dir }}/main.conf` (規定: `/srv/logstash/config/pipelines/main.conf`) | Logstash の pipeline を生成します。 | beats 入力, Elasticsearch 出力, 日次インデックス名。 |
-| `templates/docker-compose.yml.j2` | `{{ logstash_compose_file }}` (規定: `/srv/logstash/docker-compose.yml`) | Logstash の Docker Compose 定義を生成します。 | コンテナイメージ, コンテナ名, ボリューム, ポート公開, ネットワーク。 |
+| `templates/logstash.conf.j2` | `{{ logstash_pipeline_dir }}/main.conf` (規定: `/srv/logstash/config/pipelines/main.conf`) | Logstash の pipeline を生成します。 | Elastic Agent からの入力, Elasticsearchへの出力, Elasticsearchのセキュリティ機能が有効な場合の認証設定, データストリーム出力。 |
+| `templates/docker-compose.yml.j2` | `{{ logstash_compose_file }}` (規定: `/srv/logstash/docker-compose.yml`) | Logstash の Docker Compose 定義ファイルを生成します。 | コンテナイメージ, コンテナ名, ボリューム, ポート公開, ネットワーク。 |
 
 `logstash.conf.j2` は, Logstash コンテナ内で使用する pipeline 定義を展開します。`docker-compose.yml.j2` は, コンテナイメージ, コンテナ名, ボリューム, ポート公開, ネットワークの設定ファイルを展開します。
 
@@ -257,7 +287,7 @@ ansible-playbook -i inventory/hosts logging-backend.yml --tags logstash
 
 | ホスト側待受 | コンテナ側待受 | プロトコル | 用途 |
 | --- | --- | --- | --- |
-| `{{ logstash_beats_port }}` (既定: `5044`) | `{{ logstash_beats_port }}` (既定: `5044`) | TCP | Filebeat と Metricbeat からのイベント送信を受け付けます。 |
+| `{{ logstash_beats_port }}` (既定: `5044`) | `{{ logstash_beats_port }}` (既定: `5044`) | TCP | Elastic Agent からのイベント送信を受け付けます。 |
 | `{{ logstash_http_port }}` (既定: `9600`) | `{{ logstash_http_port }}` (既定: `9600`) | TCP | Logstash の HTTP 監視エンドポイントを対象ホスト側から利用可能にします。 |
 
 `templates/docker-compose.yml.j2` では, Logstash コンテナのポートを次の形式で公開します。
@@ -265,7 +295,7 @@ ansible-playbook -i inventory/hosts logging-backend.yml --tags logstash
 - `{{ logstash_beats_port }}:{{ logstash_beats_port }}` (既定: `5044:5044`)
 - `{{ logstash_http_port }}:{{ logstash_http_port }}` (既定: `9600:9600`)
 
-既定値は, beats 入力待受と HTTP 監視待受を同じポート番号でホスト側へ公開し, 送信元接続と状態確認の双方を可能にする設定であることを意味します。
+既定値は, Elastic Agent からの入力待受と HTTP 監視待受を同じポート番号でホスト側へ公開し, 送信元接続と状態確認の双方を可能にする設定であることを意味します。
 
 ### ファイルバインド
 
@@ -283,7 +313,7 @@ ansible-playbook -i inventory/hosts logging-backend.yml --tags logstash
 
 `templates/docker-compose.yml.j2` では, `elastic_backend` ネットワークを定義し, `external: true` で既存ネットワークを利用します。実体として参照するネットワーク名は `{{ logstash_network_name }}` (既定: `elastic-backend`) です。
 
-既定値は, `elastic-backend` という外部ネットワーク(ホスト側ネットワーク)へ Logstash コンテナを参加させるためのネットワークを作成し, 同一のホスト側ネットワークを通して, 関連コンテナと通信する設定です。なお, `elastic-backend` が既に存在する場合は, 既設の `elastic-backend` ネットワークを使用します。
+既定値は, docker-network-elastic-stackロールが作成する`elastic-backend`外部ネットワークへLogstashコンテナを参加させ, 同一のホスト側ネットワークを通して関連コンテナと通信する設定です。本ロールは`elastic-backend`の存在を確認し, 存在しない場合は処理を停止します。
 
 ### ファイルバインドに関する補足事項
 
@@ -293,9 +323,9 @@ ansible-playbook -i inventory/hosts logging-backend.yml --tags logstash
 
 ### 公開ポートに関する補足事項
 
-- 本ロールは, beats 入力ポートの公開により Filebeat と Metricbeat からイベントを受信可能にすることを保証します。
+- 本ロールは, Elastic Agent からの入力待ち受けポートの公開により Elastic Agent からイベントを受信可能にすることを保証します。
 - 本ロールは, 起動後に HTTP 監視ポート経由で接続確認を実施し, `http://127.0.0.1:9600/` が応答することで Logstash が利用可能な状態になることを確認, 保証します。
-- 規定値を使用する場合は beats 入力を `5044`, HTTP 監視待受を `9600` で公開します。外部公開範囲を調整したい場合は, ホスト側ファイアウォールや公開経路で制御することを検討してください。
+- 規定値を使用する場合は Elastic Agent からの入力待受ポートを `5044`, HTTP 監視待受ポートを `9600` で公開します。外部公開範囲を調整したい場合は, ホスト側ファイアウォールや公開経路で制御することを検討してください。
 
 ## 実行フロー
 
@@ -304,9 +334,9 @@ ansible-playbook -i inventory/hosts logging-backend.yml --tags logstash
 3. [tasks/package.yml](tasks/package.yml) で Docker Compose が利用可能であることを確認します。
 4. [tasks/directory.yml](tasks/directory.yml) で compose 用ディレクトリと設定, pipeline, データ, ログの配置先を作成します。
 5. [tasks/user_group.yml](tasks/user_group.yml) で実行ユーザとグループを作成し, ディレクトリ所有権を調整します。
-6. [tasks/config.yml](tasks/config.yml) で [templates/logstash.conf.j2](templates/logstash.conf.j2) と [templates/docker-compose.yml.j2](templates/docker-compose.yml.j2) を配置します。設定ファイルまたは Compose 定義の更新時は `logstash_restart_service` を通知し, [handlers/main.yml](handlers/main.yml) から読み込む [handlers/restart-service.yml](handlers/restart-service.yml) でコンテナを再作成します。
-7. [tasks/service.yml](tasks/service.yml) で backend 専用ネットワークを確認または作成し, `docker compose up -d --remove-orphans` により Logstash コンテナを起動します。
-8. [tasks/verify.yml](tasks/verify.yml) で `wait_for` による HTTP 監視ポート待機と, `uri` による `/` の応答確認を実施し, HTTP 応答が 200 であることを検証します。
+6. [tasks/config.yml](tasks/config.yml) で [templates/logstash.conf.j2](templates/logstash.conf.j2) と [templates/docker-compose.yml.j2](templates/docker-compose.yml.j2) を配置します。設定ファイルまたは Docker Compose 定義ファイルの更新時は `logstash_restart_service` を通知し, [handlers/main.yml](handlers/main.yml) から読み込む [handlers/restart-service.yml](handlers/restart-service.yml) でコンテナを再作成します。
+7. [tasks/service.yml](tasks/service.yml) でdocker-network-elastic-stackロールが作成したbackend専用ネットワークの存在を確認し, `docker compose up -d --remove-orphans`によりLogstashコンテナを起動します。
+8. [tasks/verify.yml](tasks/verify.yml) で対象ホスト上での疎通確認として `wait_for` による HTTP 監視ポート待機と `uri` による `/` の応答確認を実施し, HTTP 応答が 200 であることを検証します。`logging_verify_external_enabled: true` の場合は, 同じランタイムエンドポイントに対して外部ホストからの疎通確認も実施します。
 
 ## 検証ポイント
 
@@ -322,35 +352,35 @@ ansible-playbook -i inventory/hosts logging-backend.yml --tags logstash
 
 ### 検証環境の設定
 
-検証用の host_vars と vars/all-config.yml を次の値で整えます。
+本節では, 検証用の設定内容について説明します。
+
+**検証用の host_vars**:
 
 ```yaml
-1: logstash_compose_dir: "/srv/logstash"
-2: logstash_network_name: "elastic-backend"
-3: logstash_beats_port: 5044
-4: logstash_http_port: 9600
-5: logstash_pipeline_id: "main"
-6: logstash_wait_host: "127.0.0.1"
-7: logstash_wait_delegate_to: "{{ inventory_hostname }}"
+1: logstash_beats_port: 5044
+2: logstash_http_port: 9600
+3: logstash_pipeline_id: "main"
+4: logstash_wait_host: "127.0.0.1"
+5: logstash_wait_delegate_to: "{{ inventory_hostname }}"
 ```
 
 | 行番号 | 設定値 | 有効になる動作 | 設定背景(未設定時/誤設定時の問題と防止理由) |
 | --- | --- | --- | --- |
-| 1 | `logstash_compose_dir: "/srv/logstash"` | 検証時に生成される設定, データ, ログの保存先を `/srv/logstash` 基準へ統一します。 | 保存先が分散すると検証対象ファイルの追跡が困難になり, 検証漏れが発生するためです。 |
-| 2 | `logstash_network_name: "elastic-backend"` | 検証対象の Logstash を想定ネットワークへ参加させ, 関連コンテナとの通信経路を確立します。 | ネットワーク名不一致により接続検証が失敗し, 問題の原因切り分けが困難になるためです。 |
-| 3-4 | `logstash_beats_port: 5044`, `logstash_http_port: 9600` | beats 入力待受と HTTP 監視待受を設定し, 送信元接続確認と状態確認を実行可能にします。 | ポートが不一致の場合, 送信元エージェントからの接続又は監視確認が失敗するためです。 |
-| 5 | `logstash_pipeline_id: "main"` | 既定の pipeline ID を設定し, main.conf を実行対象として読み込ませます。 | pipeline ID が不適切な場合, 想定した入出力定義が反映されないためです。 |
-| 6-7 | `logstash_wait_host: "127.0.0.1"`, `logstash_wait_delegate_to: "{{ inventory_hostname }}"` | 対象ホスト自身から `127.0.0.1` 宛に起動確認を実行します。 | 接続元又は接続先が不適切な場合, Logstash が起動済みでも待受確認が失敗し, 誤検知を招くためです。 |
+| 1-2 | `logstash_beats_port: 5044`, `logstash_http_port: 9600` | Elastic Agent入力待受と HTTP 監視待受を設定し, 送信元接続確認と状態確認を実行可能にします。 | ポートが不一致の場合, 送信元エージェントからの接続又は監視確認が失敗するためです。 |
+| 3 | `logstash_pipeline_id: "main"` | 既定の pipeline ID を設定し, main.conf を実行対象として読み込ませます。 | pipeline ID が不適切な場合, 想定した入出力定義が反映されないためです。 |
+| 4-5 | `logstash_wait_host: "127.0.0.1"`, `logstash_wait_delegate_to: "{{ inventory_hostname }}"` | 対象ホスト自身から `127.0.0.1` 宛に起動確認を実行します。 | 接続元又は接続先が不適切な場合, Logstash が起動済みでも待受確認が失敗し, 誤検知を招くためです。 |
 
 この設定により, 本 playbook で導入する Logstash が対象ホスト上で待受し, 自己確認が可能になります。
 
+このロールでは, ランタイムエンドポイントを起点に, 対象ホスト上での疎通確認と外部ホストからの疎通確認を段階的に実施します。
+
 ### 検証コマンドと期待結果
 
-#### 1. Logstash beats 待受確認
+#### 1. Logstash Elastic Agent 待受確認
 
 **実施対象ホスト**: `logging_backend` グループに属する対象ホスト
 
-**コマンド**:
+**実行するコマンド**:
 
 ```bash
 ss -ltn | grep ':5044 '
@@ -372,16 +402,17 @@ LISTEN 0      4096            [::]:5044          [::]:*
 **確認ポイント**:
 
 - TCPプロトコルのポート番号5044番 が待受状態であること。
-- beats 入力待受ポートとして公開されていること。
+- Elastic Agent 入力待受ポートとして公開されていること。
 
 #### 2. Logstash HTTP 応答確認
 
 **実施対象ホスト**: `logging_backend` グループに属する対象ホスト
 
-**コマンド**:
+**実行するコマンド**:
 
+以下の`DUMMY_ELASTIC_PASSWORD`を`elastic_search_bootstrap_password`の設定値に変更して実行してください。
 ```bash
-curl -sS http://127.0.0.1:9600/
+curl -sS -u 'elastic:DUMMY_ELASTIC_PASSWORD' http://127.0.0.1:9600/
 ```
 
 **期待される出力**:
@@ -392,8 +423,8 @@ curl -sS http://127.0.0.1:9600/
 
 **実行結果の例**:
 ```bash
-$ curl -sS http://127.0.0.1:9600/
-{"host":"c0cfa45331f8","version":"8.17.3","http_address":"0.0.0.0:9600","id":"c5eb4ff1-e652-47a0-b3e0-f6449bf436e2","name":"c0cfa45331f8","ephemeral_id":"260fb682-44b1-4088-9e54-1377aa5b1498","snapshot":false,"status":"green","pipeline":{"workers":4,"batch_size":125,"batch_delay":50},"build_date":"2025-02-26T13:40:17+00:00","build_sha":"08b22ef499e2199e5976680090bae22ddd6174ba","build_snapshot":false}
+$ curl -sS -u 'elastic:elastic' http://127.0.0.1:9600/
+{"host":"68e1385c2532","version":"8.17.3","http_address":"0.0.0.0:9600","id":"175a830d-de66-4289-9f78-fd11b5c5828d","name":"68e1385c2532","ephemeral_id":"99a63a95-b0b5-434a-b686-1ecb17792b2e","snapshot":false,"status":"green","pipeline":{"workers":4,"batch_size":125,"batch_delay":50},"monitoring":{"hosts":["http://elasticsearch:9200"],"username":"elastic"},"build_date":"2025-02-26T13:40:17+00:00","build_sha":"08b22ef499e2199e5976680090bae22ddd6174ba","build_snapshot":false}
 ```
 
 **確認ポイント**:
@@ -407,10 +438,19 @@ $ curl -sS http://127.0.0.1:9600/
 
 **実施対象ホスト**: `logging_backend` グループに属する対象ホスト
 
-**コマンド**:
+**実行するコマンド**:
 
 ```bash
 ss -ltnp | grep -E ':5044 |:9600 '
+```
+
+**実行結果の例**:
+```bash
+$ ss -ltnp | grep -E ':5044 |:9600 '
+LISTEN 0      4096         0.0.0.0:9600       0.0.0.0:*
+LISTEN 0      4096         0.0.0.0:5044       0.0.0.0:*
+LISTEN 0      4096            [::]:9600          [::]:*
+LISTEN 0      4096            [::]:5044          [::]:*
 ```
 
 **確認ポイント**:
@@ -423,10 +463,16 @@ ss -ltnp | grep -E ':5044 |:9600 '
 
 **実施対象ホスト**: `logging_backend` グループに属する対象ホスト
 
-**コマンド**:
+**実行するコマンド**:
 
 ```bash
 docker network ls --format '{{.Name}}' | grep -x 'elastic-backend'
+```
+
+**実行結果の例**:
+```bash
+$ docker network ls --format '{{.Name}}' | grep -x 'elastic-backend'
+elastic-backend
 ```
 
 **確認ポイント**:
@@ -438,10 +484,16 @@ docker network ls --format '{{.Name}}' | grep -x 'elastic-backend'
 
 **実施対象ホスト**: `logging_backend` グループに属する対象ホスト
 
-**コマンド**:
+**実行するコマンド**:
 
 ```bash
-ls -l /srv/logstash/config/pipelines/main.conf
+ls -ln /srv/logstash/config/pipelines/main.conf
+```
+
+**実行結果の例**:
+```bash
+$ ls -ln /srv/logstash/config/pipelines/main.conf
+-rw-r--r--. 1 0 0 2088 Aug  9 12:38 /srv/logstash/config/pipelines/main.conf
 ```
 
 **確認ポイント**:
@@ -450,14 +502,20 @@ ls -l /srv/logstash/config/pipelines/main.conf
 - 規定値を使用する場合の確認先は `/srv/logstash/config/pipelines/main.conf` であること。
 - ファイルが 0 バイトではないこと。
 
-#### 4. Docker Compose 定義生成状態の確認
+#### 4. Docker Compose 定義ファイル生成状態の確認
 
 **実施対象ホスト**: `logging_backend` グループに属する対象ホスト
 
-**コマンド**:
+**実行するコマンド**:
 
 ```bash
-ls -l /srv/logstash/docker-compose.yml
+ls -ln /srv/logstash/docker-compose.yml
+```
+
+**実行結果の例**:
+```bash
+$ ls -ln /srv/logstash/docker-compose.yml
+-rw-r--r--. 1 0 0 3686 Aug  9 12:38 /srv/logstash/docker-compose.yml
 ```
 
 **確認ポイント**:
@@ -470,10 +528,16 @@ ls -l /srv/logstash/docker-compose.yml
 
 **実施対象ホスト**: `logging_backend` グループに属する対象ホスト
 
-**コマンド**:
+**実行するコマンド**:
 
 ```bash
-docker logs --tail 200 logstash
+docker logs --tail 200 logstash 2>&1 | grep -E '"log.level"[[:space:]]*:[[:space:]]*"(WARN|ERROR|FATAL)"'
+```
+
+**実行結果の例**:
+```bash
+$ docker logs --tail 200 logstash 2>&1 | grep -E '"log.level"[[:space:]]*:[[:space:]]*"(WARN|ERROR|FATAL)"'
+$
 ```
 
 **確認ポイント**:
@@ -487,13 +551,69 @@ docker logs --tail 200 logstash
 
 **実施対象ホスト**: `logging_backend` グループに属する対象ホスト
 
-**コマンド**:
+**実行するコマンド**:
 
 ```bash
 docker ps -a --filter name=logstash
-docker logs --tail 200 logstash
+docker logs --tail 200 logstash 2>&1 | grep -E '"log.level"[[:space:]]*:[[:space:]]*"(WARN|ERROR|FATAL)"'
 docker compose -f /srv/logstash/docker-compose.yml config
-ls -ld /srv/logstash /srv/logstash/config /srv/logstash/config/pipelines /srv/logstash/data /srv/logstash/logs
+ls -lnd /srv/logstash /srv/logstash/config /srv/logstash/config/pipelines /srv/logstash/data /srv/logstash/logs
+```
+
+**実行結果の例**:
+```bash
+$ docker ps -a --filter name=logstash
+CONTAINER ID   IMAGE                                        COMMAND                  CREATED       STATUS       PORTS                                                                                      NAMES
+68e1385c2532   docker.elastic.co/logstash/logstash:8.17.3   "/usr/local/bin/dock…"   2 hours ago   Up 2 hours   0.0.0.0:5044->5044/tcp, [::]:5044->5044/tcp, 0.0.0.0:9600->9600/tcp, [::]:9600->9600/tcp   logstash
+$ docker logs --tail 200 logstash  2>&1 | grep -E '"log.level"[[:space:]]*:[[:space:]]*"(WARN|ERROR|FATAL)"'
+$ docker compose -f /srv/logstash/docker-compose.yml config
+name: logstash
+services:
+  logstash:
+    container_name: logstash
+    environment:
+      LS_JAVA_OPTS: -Xms256m -Xmx256m
+      XPACK_MONITORING_ELASTICSEARCH_HOSTS: http://elasticsearch:9200
+      XPACK_MONITORING_ELASTICSEARCH_PASSWORD: elastic
+      XPACK_MONITORING_ELASTICSEARCH_USERNAME: elastic
+      XPACK_MONITORING_ENABLED: "true"
+    image: docker.elastic.co/logstash/logstash:8.17.3
+    networks:
+      elastic_backend: null
+    ports:
+      - mode: ingress
+        target: 5044
+        published: "5044"
+        protocol: tcp
+      - mode: ingress
+        target: 9600
+        published: "9600"
+        protocol: tcp
+    restart: unless-stopped
+    volumes:
+      - type: bind
+        source: /srv/logstash/config/pipelines/main.conf
+        target: /usr/share/logstash/pipeline/logstash.conf
+        read_only: true
+        bind: {}
+      - type: bind
+        source: /srv/logstash/data
+        target: /usr/share/logstash/data
+        bind: {}
+      - type: bind
+        source: /srv/logstash/logs
+        target: /usr/share/logstash/logs
+        bind: {}
+networks:
+  elastic_backend:
+    name: elastic-backend
+    external: true
+$ ls -lnd /srv/logstash /srv/logstash/config /srv/logstash/config/pipelines /srv/logstash/data /srv/logstash/logs
+drwxr-xr-x. 5    0    0 70 Aug  9 12:38 /srv/logstash
+drwxr-xr-x. 3    0    0 23 Aug  5 19:54 /srv/logstash/config
+drwxr-xr-x. 2    0    0 23 Aug  9 12:38 /srv/logstash/config/pipelines
+drwxr-xr-x. 4 1000 1000 69 Aug  5 19:55 /srv/logstash/data
+drwxr-xr-x. 2 1000 1000  6 Aug  5 19:54 /srv/logstash/logs
 ```
 
 **確認ポイント**:
@@ -503,33 +623,71 @@ ls -ld /srv/logstash /srv/logstash/config /srv/logstash/config/pipelines /srv/lo
 - Compose 定義の構文確認が成功すること。
 - 規定値を使用する場合, `/srv/logstash` 配下へ読み書き可能な権限があること。
 
-### 2. beats 入力を受信できない場合
+### 2. Elastic Agent 入力を受信できない場合
 
 **実施対象ホスト**: `logging_backend` グループに属する対象ホスト
 
-**コマンド**:
+**実行するコマンド**:
 
 ```bash
 ss -ltnp | grep ':5044 '
-docker logs --tail 200 logstash
+docker logs --tail 200 logstash 2>&1 | grep -E '"log.level"[[:space:]]*:[[:space:]]*"(WARN|ERROR|FATAL)"'
+```
+
+**実行結果の例**:
+```bash
+$ ss -ltnp | grep ':5044 '
+LISTEN 0      4096         0.0.0.0:5044       0.0.0.0:*
+LISTEN 0      4096            [::]:5044          [::]:*
+$ docker logs --tail 200 logstash 2>&1 | grep -E '"log.level"[[:space:]]*:[[:space:]]*"(WARN|ERROR|FATAL)"'
 ```
 
 **確認ポイント**:
 
 - TCPプロトコルのポート番号5044番 で待受していること。
-- ログに beats 入力初期化失敗が出ていないこと。
-- Filebeat と Metricbeat 側の送信先設定と一致していること。
+- ログに Elastic Agent 入力初期化失敗が出ていないこと。
+- Elastic Agent 側の送信先設定と一致していること。
 
 ### 3. HTTP 監視ポートが応答しない場合
 
 **実施対象ホスト**: `logging_backend` グループに属する対象ホスト
 
-**コマンド**:
+**実行するコマンド**:
+
+以下の`DUMMY_ELASTIC_PASSWORD`を`elastic_search_bootstrap_password`の設定値に変更して実行してください。
 
 ```bash
 docker ps --filter name=logstash
 ss -ltnp | grep ':9600 '
-curl -v --max-time 5 http://127.0.0.1:9600/
+curl -v -u 'elastic:DUMMY_ELASTIC_PASSWORD' --max-time 5 http://127.0.0.1:9600/
+```
+
+**実行結果の例**:
+```bash
+$ docker ps --filter name=logstash
+CONTAINER ID   IMAGE                                        COMMAND                  CREATED       STATUS       PORTS                                                                                      NAMES
+68e1385c2532   docker.elastic.co/logstash/logstash:8.17.3   "/usr/local/bin/dock…"   3 hours ago   Up 3 hours   0.0.0.0:5044->5044/tcp, [::]:5044->5044/tcp, 0.0.0.0:9600->9600/tcp, [::]:9600->9600/tcp   logstash
+$ ss -ltnp | grep ':9600 '
+LISTEN 0      4096         0.0.0.0:9600       0.0.0.0:*
+LISTEN 0      4096            [::]:9600          [::]:*
+$ curl -v -u 'elastic:elastic' --max-time 5 http://127.0.0.1:9600/
+*   Trying 127.0.0.1:9600...
+* Connected to 127.0.0.1 (127.0.0.1) port 9600 (#0)
+* Server auth using Basic with user 'elastic'
+> GET / HTTP/1.1
+> Host: 127.0.0.1:9600
+> Authorization: Basic ZWxhc3RpYzplbGFzdGlj
+> User-Agent: curl/7.76.1
+> Accept: */*
+>
+* Mark bundle as not supporting multiuse
+< HTTP/1.1 200 OK
+< content-type: application/json
+< x-content-type-options: nosniff
+< Content-Length: 478
+<
+* Connection #0 to host 127.0.0.1 left intact
+{"host":"68e1385c2532","version":"8.17.3","http_address":"0.0.0.0:9600","id":"175a830d-de66-4289-9f78-fd11b5c5828d","name":"68e1385c2532","ephemeral_id":"99a63a95-b0b5-434a-b686-1ecb17792b2e","snapshot":false,"status":"green","pipeline":{"workers":4,"batch_size":125,"batch_delay":50},"monitoring":{"hosts":["http://elasticsearch:9200"],"username":"elastic"},"build_date":"2025-02-26T13:40:17+00:00","build_sha":"08b22ef499e2199e5976680090bae22ddd6174ba","build_snapshot":false}
 ```
 
 **確認ポイント**:
@@ -542,11 +700,37 @@ curl -v --max-time 5 http://127.0.0.1:9600/
 
 **実施対象ホスト**: `logging_backend` グループに属する対象ホスト
 
-**コマンド**:
+**実行するコマンド**:
+
+以下の`DUMMY_ELASTIC_PASSWORD`を`elastic_search_bootstrap_password`の設定値に変更して実行してください。
 
 ```bash
-docker exec logstash curl -sS http://elasticsearch:9200/
-docker logs --tail 200 logstash
+docker exec logstash curl -sS -u 'elastic:DUMMY_ELASTIC_PASSWORD' http://elasticsearch:9200/
+docker logs --tail 200 logstash 2>&1 | grep -E '"log.level"[[:space:]]*:[[:space:]]*"(WARN|ERROR|FATAL)"'
+```
+
+**実行結果の例**:
+```bash
+$ docker exec logstash curl -sS -u 'elastic:elastic' http://elasticsearch:9200/
+{
+  "name" : "observer01.example.org",
+  "cluster_name" : "shared-logs",
+  "cluster_uuid" : "mWEU68ySRbqcHfnuBsJ2Uw",
+  "version" : {
+    "number" : "8.17.3",
+    "build_flavor" : "default",
+    "build_type" : "docker",
+    "build_hash" : "a091390de485bd4b127884f7e565c0cad59b10d2",
+    "build_date" : "2025-02-28T10:07:26.089129809Z",
+    "build_snapshot" : false,
+    "lucene_version" : "9.12.0",
+    "minimum_wire_compatibility_version" : "7.17.0",
+    "minimum_index_compatibility_version" : "7.0.0"
+  },
+  "tagline" : "You Know, for Search"
+}
+$ docker logs --tail 200 logstash 2>&1 | grep -E '"log.level"[[:space:]]*:[[:space:]]*"(WARN|ERROR|FATAL)"'
+$
 ```
 
 **確認ポイント**:
@@ -559,12 +743,12 @@ docker logs --tail 200 logstash
 
 - 既存のサービスで使用されているポートやディレクトリと衝突しないような設定を実施すること。
 - ネットワーク名と compose project 名を他の Docker Compose から展開されるコンテナと衝突しないようにすること。
-- `logstash_data_dir` と `logstash_logs_dir` の所有者は, Logstashコンテナイメージで決まっている実行ユーザIDと実行グループID(既定値は 1000:1000)に合わせること。これらの値は運用で自由に決める値ではないため, コンテナイメージの仕様が変わったときだけ変更する。実行ユーザIDを変える場合は `logstash_user_id` 変数を修正し, 実行グループIDを変える場合は `logstash_group_id` 変数を修正する。
+- `logstash_data_dir` と `logstash_logs_dir` の所有者は, Logstashコンテナイメージで決まっている実行ユーザIDと実行グループID(既定値は 1000:1000)に合わせること。これらの値は運用で自由に決める値ではなく, コンテナイメージの仕様が変わったときだけ `vars/logging-backend-common.yml` の `logging_backend_container_user_id` と `logging_backend_container_group_id` を変更する。
 - 本ロールでは, pipeline の送信先として `http://elasticsearch:9200` を使用する。pipeline の送信先を変更する場合は, 次を満たすように設定すること:
   1. (`vars/all-config.yml` などで), `logstash_network_name` 変数の設定値と Elasticsearch ロール側のネットワーク名(`elastic_search_network_name` 変数の設定値)を同じ値に設定すること(既定値は `elastic-backend`)。
   2. `inventory/hosts` の `logging_backend` グループに Elasticsearch ロールを適用する対象ホストを登録すること。
   3. (`vars/all-config.yml` などで), `elastic_search_container_name` 変数に pipeline の送信先のホスト名部分(規定値の場合, `elasticsearch` に相当する部分)を設定すること。なお, 本変数で指定するホスト名は, コンテナ間通信で使用する名前であり, 対象ホストのホスト名ではないことに留意すること。
-- 出力先インデックス名は日次で分割されるため, 保持期間や削除運用は Elasticsearch 側の運用方針と整合させること。
+- データストリームの保持期間や削除運用は Elasticsearch 側の運用方針と一致させること。
 
 ## 参考資料
 
@@ -572,6 +756,9 @@ docker logs --tail 200 logstash
 
 - [Logstash Reference](https://www.elastic.co/guide/en/logstash/8.17/index.html)
 - [Logstash configuration files](https://www.elastic.co/guide/en/logstash/8.17/config-setting-files.html)
+- [Secure the Elastic Stack](https://www.elastic.co/guide/en/elasticsearch/reference/8.17/secure-cluster.html)
+- [Enrollment Token](https://www.elastic.co/docs/reference/fleet/fleet-enrollment-tokens)
+- [Service accounts and tokens](https://www.elastic.co/guide/en/elasticsearch/reference/current/service-accounts.html)
 - [Docker Compose documentation](https://docs.docker.com/compose/)
 - [Ansible documentation](https://docs.ansible.com/ansible/latest/)
 

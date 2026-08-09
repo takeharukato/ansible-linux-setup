@@ -12,6 +12,18 @@
 - name: "Load Params"
   ansible.builtin.include_tasks: load-params.yml
 
+# endpoint と TLS 検証モードの実行時方針を先に確定する。
+- name: "Resolve Runtime Flags"
+  ansible.builtin.include_tasks: resolve-runtime-flags.yml
+  when:
+    - elastic_search_enabled | default(true) | bool
+
+# 実行時に確定する endpoint 検証用の内部変数を先に解決する。
+- name: "Resolve Runtime Vars"
+  ansible.builtin.include_tasks: resolve-runtime-vars.yml
+  when:
+    - elastic_search_enabled | default(true) | bool
+
 # Elasticsearch の導入前提を確認し, 実行基盤の不足を早期に検出する。
 - name: "Validate"
   ansible.builtin.include_tasks: validate.yml

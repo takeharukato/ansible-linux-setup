@@ -180,52 +180,6 @@ jd_deb_arch_map:
 jd_deb_arch: "{{ jd_deb_arch_map[ansible_facts.architecture] | default('amd64') }}"
 
 ##################################################################################
-# Filebeat コマンドパス
-##################################################################################
-# Ubuntu (Debian系) / RHEL系 ともにローカル構築パッケージで導入した Filebeat を使用
-filebeat_command_debian: "/usr/local/bin/filebeat"
-filebeat_command_rhel: "/usr/local/bin/filebeat"
-filebeat_command: "{{ (ansible_facts.os_family == 'Debian') | ternary(filebeat_command_debian, filebeat_command_rhel) }}"
-
-# Filebeat ローカルパッケージ設定
-filebeat_source_base_url: "https://github.com/elastic/beats/archive/refs/tags"
-filebeat_package_name_debian: "filebeat-local"
-filebeat_package_name_rhel: "filebeat-local"
-filebeat_package_name: "{{ (ansible_facts.os_family == 'Debian') | ternary(filebeat_package_name_debian, filebeat_package_name_rhel) }}"
-
-# Ansible facts のアーキテクチャ名から deb パッケージ名へ変換する
-filebeat_deb_arch_map:
-  x86_64: "amd64"
-  aarch64: "arm64"
-  armv7l: "armhf"
-  i386: "i386"
-
-filebeat_deb_arch: "{{ filebeat_deb_arch_map[ansible_facts.architecture] | default('amd64') }}"
-
-##################################################################################
-# Metricbeat コマンドパス
-##################################################################################
-# Ubuntu (Debian系) / RHEL系 ともにローカル構築パッケージで導入した Metricbeat を使用
-metricbeat_command_debian: "/usr/local/bin/metricbeat"
-metricbeat_command_rhel: "/usr/local/bin/metricbeat"
-metricbeat_command: "{{ (ansible_facts.os_family == 'Debian') | ternary(metricbeat_command_debian, metricbeat_command_rhel) }}"
-
-# Metricbeat ローカルパッケージ設定
-metricbeat_source_base_url: "https://github.com/elastic/beats/archive/refs/tags"
-metricbeat_package_name_debian: "metricbeat-local"
-metricbeat_package_name_rhel: "metricbeat-local"
-metricbeat_package_name: "{{ (ansible_facts.os_family == 'Debian') | ternary(metricbeat_package_name_debian, metricbeat_package_name_rhel) }}"
-
-# Ansible facts のアーキテクチャ名から deb パッケージ名へ変換する
-metricbeat_deb_arch_map:
-  x86_64: "amd64"
-  aarch64: "arm64"
-  armv7l: "armhf"
-  i386: "i386"
-
-metricbeat_deb_arch: "{{ metricbeat_deb_arch_map[ansible_facts.architecture] | default('amd64') }}"
-
-##################################################################################
 # Go 言語インストール設定
 ##################################################################################
 # Go公式ダウンロードベースURL

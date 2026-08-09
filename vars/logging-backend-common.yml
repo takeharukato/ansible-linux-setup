@@ -1,0 +1,279 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+# logging backend 共通変数
+#
+# vars/all-config.ymlで未設定だった場合に設定する
+# Elastic Stack関連ロール共通の変数を定義する。
+# 留意事項:
+#   各ロールのdefaults/main.ymlの値を上書きし,
+#   vars/all-config.ymlの値によって上書きされる。
+#
+---
+
+#
+# 即値で定義する値
+#
+
+#
+# Elastic Stack 関連ロールで共通利用する値。
+#
+# logging backend関連コンテナが共有するDockerネットワーク名。
+logging_backend_network_name: "elastic-backend"
+# logging backend関連コンテナが共有するDockerネットワークのIPv4 CIDR。
+logging_backend_network_ipv4_subnet: "172.18.0.0/16"
+# logging backend関連コンテナが共有するDockerネットワークのIPv6 CIDR。
+logging_backend_network_ipv6_subnet: "fd00:172:18::/64"
+# Elastic Stack関連コンポーネントが共通利用する版数。
+logging_backend_elastic_stack_version: "8.17.3"
+# logging backend関連コンテナを実行する利用者ID (単位: 番号)。
+logging_backend_container_user_id: 1000
+# logging backend関連コンテナを実行するグループID (単位: 番号)。
+logging_backend_container_group_id: 1000
+# 接続先URLを明示しない場合に使用する既定スキーム。
+logging_backend_default_scheme: "https"
+# HTTPS接続時に使用する既定TLS検証モード。
+# 利用可能値はoff, none, fullである。
+# off: TLS検証を無効化する。
+# none: TLS検証を有効化するが, サーバ証明書の検証は行わない。
+# full: TLS検証を有効化し, サーバ証明書の検証を行う。
+logging_backend_default_tls_mode: "none"
+# Fleet Bootstrapの複数URL入力でスキームの混在を禁止するフラグ。
+logging_backend_disallow_mixed_scheme: true
+# logging backend関連ロールが共通利用するHTTPSサーバ証明書のホスト側でのファイルパス。
+logging_backend_tls_certificate_host_path: ""
+# logging backend関連ロールが共通利用するHTTPSサーバ秘密鍵のホスト側ファイルパス。
+logging_backend_tls_key_host_path: ""
+# 外部ホストからの接続先検証を有効化するフラグ。
+logging_verify_external_enabled: false
+# 外部ホストからの接続先検証を実行する接続元ホスト名又はIPアドレス。
+logging_verify_external_delegate_to: "localhost"
+
+#
+# Elasticsearchで利用する値。
+#
+# Elasticsearchコンテナ名。
+elastic_search_container_name: "elasticsearch"
+# Elasticsearch Securityを有効化するフラグ。
+elastic_search_security_enabled: true
+# Elasticsearch Securityで使用する利用者名
+elastic_search_security_username: "elastic"
+# Elasticsearch Securityで使用する初期パスワード
+elastic_search_bootstrap_password: "elastic"
+# ElasticsearchのAPI接続ポート番号 (単位: 番号)。
+elastic_search_http_port: 9200
+# Elasticsearch APIの接続先URL明示指定値。
+elastic_search_api_endpoint_url_explicit: ""
+
+#
+# Fleet Serverで利用する値。
+#
+# Fleet Server用Elastic AgentポリシーID。
+fleet_server_policy_id: "fleet-server-policy"
+# Fleet ServerのAPI接続ポート番号 (単位: 番号)。
+fleet_server_port: 8220
+
+#
+# Kibanaで利用する値。
+#
+# KibanaのHTTP待受ポート番号 (単位: 番号)。
+kibana_server_port: 5601
+
+#
+# Logstashで利用する値。
+#
+# LogstashのElastic Agent入力待受ポート番号 (単位: 番号)。
+logstash_beats_port: 5044
+
+#
+# 他の変数定義から算出又は構成する値
+# Elastic Stack関連ロール共通
+#
+
+# logging backend 関連ロールで共通利用する値。
+# コンテナイメージ仕様で決まる利用者IDとグループIDをcomposeのuser指定形式へ変換する。
+logging_backend_container_user: "{{ logging_backend_container_user_id }}:{{ logging_backend_container_group_id }}"
+# 明示された接続先を優先し, 未指定時はlogging_backendグループの先頭ホストから解決する。
+logging_backend_resolved_host: >-
+  {{
+    (logging_backend_host | string | trim)
+    if (logging_backend_host is defined and (logging_backend_host | string | trim | length) > 0)
+    else (hostvars[groups['logging_backend'][0]].ansible_host | default(groups['logging_backend'][0]))
+  }}
+
+#
+# Elasticsearch
+#
+# Elasticsearchコンテナが参加するDockerネットワーク名。
+elastic_search_network_name: "{{ logging_backend_network_name }}"
+# ElasticsearchのDocker Compose定義ファイルパス。
+elastic_search_compose_file: "{{ elastic_search_compose_dir }}/docker-compose.yml"
+# Elasticsearch設定ファイルを配置するディレクトリパス。
+elastic_search_config_dir: "{{ elastic_search_compose_dir }}/config"
+# Elasticsearch設定ファイルパス。
+elastic_search_config_file: "{{ elastic_search_config_dir }}/elasticsearch.yml"
+# Elasticsearchデータを配置するディレクトリパス。
+elastic_search_data_dir: "{{ elastic_search_compose_dir }}/data"
+# Elasticsearchログを配置するディレクトリパス。
+elastic_search_logs_dir: "{{ elastic_search_compose_dir }}/logs"
+# 共通版数を使用して構成するElasticsearchコンテナイメージ名。
+elastic_search_image: "docker.elastic.co/elasticsearch/elasticsearch:{{ logging_backend_elastic_stack_version }}"
+# Elasticsearch API接続時に使用するTLS検証モード。
+elastic_search_tls_mode: "{{ logging_backend_default_tls_mode }}"
+# Elasticsearchの保守用スクリプトを配置するディレクトリパス。
+elastic_search_scripts_dir: "{{ elastic_search_compose_dir }}/scripts"
+# Elasticsearchバックアップデータを配置するディレクトリパス。
+elastic_search_backup_dir: "{{ elastic_search_compose_dir }}/backup"
+# Elasticsearchのsnapshot repositoryを配置するホスト側ディレクトリパス。
+elastic_search_snapshot_repo_path_host: "{{ elastic_search_backup_dir }}/snapshot-repo"
+# Elasticsearchバックアップ処理を実装するPythonスクリプトパス。
+elastic_search_backup_python_script_path: "{{ elastic_search_scripts_dir }}/backup-elasticsearch-data.py"
+# Elasticsearchリストア処理を実装するPythonスクリプトパス。
+elastic_search_restore_python_script_path: "{{ elastic_search_scripts_dir }}/restore-elasticsearch-data.py"
+# Elasticsearchバックアップ処理を起動するラッパースクリプトパス。
+elastic_search_backup_script_path: "{{ elastic_search_scripts_dir }}/backup-elasticsearch-data.sh"
+# Elasticsearchリストア処理を起動するラッパースクリプトパス。
+elastic_search_restore_script_path: "{{ elastic_search_scripts_dir }}/restore-elasticsearch-data.sh"
+# Elasticsearchの日次バックアップ処理を起動するラッパースクリプトパス。
+elastic_search_daily_backup_script_path: "{{ elastic_search_scripts_dir }}/daily-backup-elasticsearch.sh"
+
+#
+# Fleet Server
+#
+# Fleet Serverで利用し, Fleet Bootstrapへ引き渡す値。
+# 共通版数を使用して構成するFleet Serverコンテナイメージ名。
+fleet_server_image: "docker.elastic.co/elastic-agent/elastic-agent:{{ logging_backend_elastic_stack_version }}"
+# Fleet Server接続時に使用するTLS検証モード。
+fleet_server_tls_mode: "{{ logging_backend_default_tls_mode }}"
+# Fleet Server用サービスアカウントトークンの発行時に使用するElasticsearch利用者名。
+fleet_server_token_issue_username: "{{ elastic_search_security_username }}"
+# Fleet Server用サービスアカウントトークンの発行時に使用するElasticsearchパスワード。
+fleet_server_token_issue_password: "{{ elastic_search_bootstrap_password }}"
+# Fleet Bootstrap共有用Kibana APIキーの生成時に使用するElasticsearch利用者名。
+fleet_server_kibana_auth_username: "{{ elastic_search_security_username }}"
+# Fleet Bootstrap共有用Kibana APIキーの生成時に使用するElasticsearchパスワード。
+fleet_server_kibana_auth_password: "{{ elastic_search_bootstrap_password }}"
+
+#
+# Kibana
+#
+# Kibanaの実行基盤とElasticsearch接続で利用する値。
+# KibanaのDocker Compose定義ファイルパス。
+kibana_compose_file: "{{ kibana_compose_dir }}/docker-compose.yml"
+# Kibana設定ファイルを配置するディレクトリパス。
+kibana_config_dir: "{{ kibana_compose_dir }}/config"
+# Kibanaデータを配置するディレクトリパス。
+kibana_data_dir: "{{ kibana_compose_dir }}/data"
+# Kibanaログを配置するディレクトリパス。
+kibana_logs_dir: "{{ kibana_compose_dir }}/logs"
+# Kibanaの暗号化済み保存オブジェクト用キーを保存するファイルパス。
+kibana_encrypted_saved_objects_key_file: "{{ kibana_compose_dir }}/secrets/encrypted-saved-objects-encryption-key"
+# Kibanaコンテナが参加するDockerネットワーク名。
+kibana_network_name: "{{ logging_backend_network_name }}"
+# 共通版数を使用して構成するKibanaコンテナイメージ名。
+kibana_image: "docker.elastic.co/kibana/kibana:{{ logging_backend_elastic_stack_version }}"
+# Elasticsearchの明示URLからスキームを抽出し, 未指定時は共通スキームを使用してコンテナ内接続先を構成する。
+kibana_internal_elasticsearch_hosts: >-
+  {{
+    (
+      (elastic_search_api_endpoint_url_explicit | default('', true) | string | trim | lower)
+      | regex_search('^https?')
+      | default(logging_backend_default_scheme, true)
+    )
+  }}://{{ elastic_search_container_name }}:{{ elastic_search_http_port }}
+# KibanaからElasticsearchへ接続する際にSecurityを有効化するフラグ。
+kibana_elasticsearch_security_enabled: "{{ elastic_search_security_enabled | bool }}"
+# KibanaがElasticsearch接続時に使用するサービスアカウントトークンのファイルパス。
+kibana_service_token_file: "{{ kibana_config_dir }}/service_tokens/kibana-service-token"
+# Kibana用サービスアカウントトークン発行時に使用するElasticsearch利用者名。
+kibana_service_token_issue_username: "{{ elastic_search_security_username }}"
+# Kibana用サービスアカウントトークン発行時に使用するElasticsearchパスワード。
+kibana_service_token_issue_password: "{{ elastic_search_bootstrap_password }}"
+
+#
+# Logstash
+#
+# Logstashの実行基盤とElasticsearch接続で利用する値。
+# LogstashのDocker Compose定義ファイルパス。
+logstash_compose_file: "{{ logstash_compose_dir }}/docker-compose.yml"
+# Logstash設定ファイルを配置するディレクトリパス。
+logstash_config_dir: "{{ logstash_compose_dir }}/config"
+# Logstashのpipeline定義を配置するディレクトリパス。
+logstash_pipeline_dir: "{{ logstash_config_dir }}/pipelines"
+# Logstashデータを配置するディレクトリパス。
+logstash_data_dir: "{{ logstash_compose_dir }}/data"
+# Logstashログを配置するディレクトリパス。
+logstash_logs_dir: "{{ logstash_compose_dir }}/logs"
+# Logstashコンテナが参加するDockerネットワーク名。
+logstash_network_name: "{{ logging_backend_network_name }}"
+# 共通版数を使用して構成するLogstashコンテナイメージ名。
+logstash_image: "docker.elastic.co/logstash/logstash:{{ logging_backend_elastic_stack_version }}"
+# Elasticsearchの明示URLからスキームを抽出し, 未指定時は共通スキームを使用してLogstashの出力先を構成する。
+logstash_elasticsearch_endpoint_url: >-
+  {{
+    (
+      (elastic_search_api_endpoint_url_explicit | default('', true) | string | trim | lower)
+      | regex_search('^https?')
+      | default(logging_backend_default_scheme, true)
+    )
+  }}://{{ elastic_search_container_name }}:{{ elastic_search_http_port }}
+# LogstashからElasticsearchへ接続する際にSecurityを有効化するフラグ。
+logstash_elasticsearch_security_enabled: "{{ elastic_search_security_enabled | bool }}"
+# LogstashからElasticsearchへ接続する際に使用する利用者名。
+logstash_elasticsearch_auth_username: "{{ elastic_search_security_username }}"
+# LogstashからElasticsearchへ接続する際に使用するパスワード。
+logstash_elasticsearch_auth_password: "{{ elastic_search_bootstrap_password }}"
+# Logstash監視データの送信先となるElasticsearch接続先URL。
+logstash_monitoring_elasticsearch_endpoint_url: "{{ logstash_elasticsearch_endpoint_url }}"
+# Logstash監視データの送信時にElasticsearch Securityを有効化するフラグ。
+logstash_monitoring_elasticsearch_security_enabled: "{{ logstash_elasticsearch_security_enabled | bool }}"
+# Logstash監視データの送信時に使用するElasticsearch利用者名。
+logstash_monitoring_elasticsearch_auth_username: "{{ logstash_elasticsearch_auth_username }}"
+# Logstash監視データの送信時に使用するElasticsearchパスワード。
+logstash_monitoring_elasticsearch_auth_password: "{{ logstash_elasticsearch_auth_password }}"
+
+#
+# Fleet Bootstrap (Fleet Server初期化)
+#
+# Fleet BootstrapがEnrollment Tokenを保存する制御ホスト上の絶対ファイルパス。
+fleet_bootstrap_enrollment_token_file: "{{ playbook_dir }}/group_vars/logging_collector/enrollment-token.yml"
+# Fleet BootstrapがFleet Server用Elastic Agentポリシーを識別するID。
+fleet_bootstrap_fleet_server_policy_id: "{{ fleet_server_policy_id }}"
+# Fleet Bootstrapが作成又は再利用するElastic Agentポリシーのプロファイル一覧。
+fleet_bootstrap_agent_policy_profiles:
+  - id: host
+    policy_name: "{{ fleet_bootstrap_policy_name }}"
+    enrollment_token_name: "{{ fleet_bootstrap_enrollment_token_name }}"
+    include_k8s_system: false
+    include_k8s_workload: false
+  - id: k8s_system
+    policy_name: "{{ fleet_bootstrap_policy_name }}-k8s-system"
+    enrollment_token_name: "{{ fleet_bootstrap_enrollment_token_name }}-k8s-system"
+    include_k8s_system: true
+    include_k8s_workload: false
+  - id: k8s_workload
+    policy_name: "{{ fleet_bootstrap_policy_name }}-k8s-workload"
+    enrollment_token_name: "{{ fleet_bootstrap_enrollment_token_name }}-k8s-workload"
+    include_k8s_system: true
+    include_k8s_workload: true
+
+#
+# Elastack用ネットワーク
+# docker-network-elastic-stackは算出値を使用しない。
+#
+
+#
+# Elastic Agent
+#
+# いずれかの収集プロファイルが有効な場合にElastic Agentを導入するフラグ。
+logging_elastic_agent_enabled: >-
+  {{
+    (logging_elastic_agent_host_enabled | default(false) | bool) or
+    (logging_elastic_agent_k8s_system_enabled | default(false) | bool) or
+    (logging_elastic_agent_k8s_workload_enabled | default(false) | bool)
+  }}
+# Elastic Agentへ適用するElastic Stack共通版数。
+elastic_agent_version: "{{ logging_backend_elastic_stack_version }}"
+# Elastic Agent配布物の取得及び展開に使用する作業ディレクトリパス。
+elastic_agent_work_dir: "/var/tmp/elastic-agent-{{ elastic_agent_version }}"

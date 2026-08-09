@@ -15,7 +15,19 @@
 #
 # Elasticsearch snapshot restore wrapper script
 # Elasticsearchスナップショットリストア用ラッパースクリプト
-set -eu
+# [名前]
+# restore-elasticsearch-data.sh
+# [コマンドライン書式]
+# restore-elasticsearch-data.sh --snapshot-name NAME [--endpoint URL] [--repository NAME] [--timeout-seconds SEC] [--delete-existing] [--verbose]
+# [位置引数の説明]
+# 位置引数は使用しない。
+# [オプション引数の説明]
+# すべてのオプション引数は Python 実装へそのまま引き渡す。
+# [説明]
+# 本スクリプトは Elasticsearch の snapshot リストア実装を呼び出す薄いラッパーであり, 受け取った引数を変更せずに実装本体へ渡す。
+# [実行例]
+# {{ elastic_search_restore_script_path }} --snapshot-name elastic-snapshot-20260101-000000 --delete-existing
+set -euo pipefail
 
 # Python実装本体へ引数をそのまま引き渡す。
 exec {{ elastic_search_python_command }} {{ elastic_search_restore_python_script_path }} "$@"

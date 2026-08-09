@@ -24,8 +24,8 @@
   ansible.builtin.file:
     path: "{{ item }}"
     state: directory
-    owner: "{{ logstash_user_id }}"
-    group: "{{ logstash_group_id }}"
+    owner: "{{ logging_backend_container_user_id }}"
+    group: "{{ logging_backend_container_group_id }}"
     mode: '0755'
     recurse: true
   loop:

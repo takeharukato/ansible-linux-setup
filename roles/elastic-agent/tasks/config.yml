@@ -1,0 +1,28 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  設定関連タスク
+#
+---
+
+# 導入されたElastic Agentの版数が指定版数と一致することを確認する。
+- name: Query installed Elastic Agent version
+  become: true
+  ansible.builtin.command:
+    argv:
+      - /usr/bin/elastic-agent
+      - version
+  register: elastic_agent_version_result
+  changed_when: false
+
+# 意図しない版数の導入を後続のポリシー適用前に検出する。
+- name: Validate installed Elastic Agent version
+  ansible.builtin.assert:
+    that:
+      - elastic_agent_version in elastic_agent_version_result.stdout
+    fail_msg: >-
+      Installed Elastic Agent version does not match the configured version.
+      expected={{ elastic_agent_version }}
+  when:
+    - not (ansible_check_mode | bool)

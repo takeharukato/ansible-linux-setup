@@ -50,6 +50,7 @@ common_packages:
   - kubectl
   - acl
   - attr
+  - python3-pyyaml
   - iptables-services
 
 common_langpack_packages:
@@ -67,7 +68,6 @@ k8s_common_packages:
   - kubectl
   - kubeadm
   - kubelet
-  - python3-pyyaml
 
 # Kubernetes導入前提パッケージ
 # yqは, roles/yq で個別にローカルパッケージを構築して導入するため,

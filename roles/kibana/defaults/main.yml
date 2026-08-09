@@ -8,56 +8,57 @@
 ---
 
 # Kibana ロールを有効化する。
-logging_kibana_enabled: true
+logging_kibana_enabled: false
 
 #
 # Kibana コンテナの実行基盤設定
 #
 # docker compose ファイルを配置するディレクトリ
 kibana_compose_dir: "/srv/kibana"
-# docker compose ファイルのパス
-kibana_compose_file: "{{ kibana_compose_dir }}/docker-compose.yml"
-# Kibana コンテナの設定ディレクトリ
-kibana_config_dir: "{{ kibana_compose_dir }}/config"
-# Kibana コンテナのデータディレクトリ
-kibana_data_dir: "{{ kibana_compose_dir }}/data"
-# Kibana コンテナのログディレクトリ
-kibana_logs_dir: "{{ kibana_compose_dir }}/logs"
-# Kibana コンテナのネットワーク名
-kibana_network_name: "elastic-backend"
+# 暗号化済み保存オブジェクト用キー生成処理のタイムアウト秒数。
+kibana_encrypted_saved_objects_key_generation_timeout_seconds: 30
 # Kibana コンテナの名前
 kibana_container_name: "kibana"
 
 #
 # Kibana イメージと設定
 #
-# Kibana コンテナのイメージ名
-kibana_image: "docker.elastic.co/kibana/kibana:8.17.3"
 # Kibana の HTTP 接続バインドアドレス
 kibana_server_host: "0.0.0.0"
-# Kibana の HTTP 接続ポート番号
-kibana_server_port: 5601
-# Kibana から接続する Elasticsearch の接続先URL(内部変数)
-kibana_internal_elasticsearch_hosts: "http://{{ elastic_search_container_name | default('elasticsearch') }}:{{ elastic_search_http_port | default(9200) }}"
+# Kibana 用 service account token が未配置時に自動発行する場合は, trueを設定,
+# falseの場合は, Kibana 用 service account token を事前に発行して配置する必要がある。
+kibana_service_token_auto_create: true
+# Kibana 用 service account token 名
+kibana_service_token_name: "kibana-service-token"
+# Kibana 用 service account token の namespace
+kibana_service_token_namespace: "elastic"
+# Kibana 用 service account token の service 名
+kibana_service_token_service_name: "kibana"
+# Kibana 用 service account token 発行APIの接続タイムアウト値 (単位: 秒)
+kibana_service_token_issue_timeout_seconds: 30
+# Kibana 用 service account token 発行APIの再試行回数 (単位: 回)
+kibana_service_token_issue_retries: 3
+# Kibana 用 service account token 発行APIの再試行待機時間 (単位: 秒)
+kibana_service_token_issue_retry_delay_seconds: 5
+
+# Kibana API の接続先エンドポイント URL (明示指定用)
+kibana_endpoint_url_explicit: ""
+# Kibana endpoint 接続時の TLS 検証モード。
+# 利用可能値: off, none, full
+kibana_tls_mode: "{{ logging_backend_default_tls_mode | default('none') }}"
 
 #
 # 起動検証設定
 #
 # Kibana コンテナの起動検証時の接続先ホスト名/IPアドレス
 kibana_wait_host: "127.0.0.1"
-# Kibana コンテナの起動検証時のタイムアウト値(単位: 秒)
+# Kibana コンテナの起動検証時のタイムアウト値 (単位: 秒)
 kibana_wait_timeout: 120
-# Kibana コンテナの起動検証時の待機開始遅延時間(単位: 秒)
+# Kibana コンテナの起動検証時の待機開始遅延時間 (単位: 秒)
 kibana_wait_delay: 2
-# Kibana コンテナの起動検証時のポーリング周期(単位: 秒)
+# Kibana コンテナの起動検証時のポーリング周期 (単位: 秒)
 kibana_wait_sleep: 2
 # Kibana コンテナの起動検証時の接続元ホスト名/IPアドレス
 kibana_wait_delegate_to: "{{ inventory_hostname }}"
-# Kibana コンテナの起動検証時の再試行回数(単位: 回)
+# Kibana コンテナの起動検証時の再試行回数 (単位: 回)
 kibana_wait_retries: 5
-
-# コンテナ内のkibanaユーザのUID/GID(内部変数)
-# 公式のKibanaコンテナイメージでは, コンテナ内のkibanaユーザはUID/GID 1000で固定されている。
-# 公式のKibanaコンテナイメージの仕様が変更された場合は, この値を変更する必要がある。
-kibana_user_id: 1000
-kibana_group_id: 1000

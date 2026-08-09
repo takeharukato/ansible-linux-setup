@@ -15,12 +15,51 @@
       - (kibana_compose_file | default('', true) | string | trim | length) > 0
       - (kibana_image | default('', true) | string | trim | length) > 0
       - (kibana_network_name | default('', true) | string | trim | length) > 0
+      - (kibana_encrypted_saved_objects_key_file | default('', true) | string | trim | length) > 0
+      - (kibana_encrypted_saved_objects_key_generation_timeout_seconds | int) > 0
       - (kibana_server_port | int) > 0
       - (kibana_server_port | int) < 65536
+      - (kibana_runtime_scheme | default('', true) | string | trim) in ['http', 'https']
+      - (kibana_runtime_tls_mode | default('', true) | string | trim) in ['off', 'none', 'full']
+      - >-
+        ((kibana_runtime_scheme == 'http' and kibana_runtime_tls_mode == 'off') or
+        (kibana_runtime_scheme == 'https' and kibana_runtime_tls_mode in ['none', 'full']))
+      - (kibana_runtime_endpoint_url | default('', true) | string | trim | length) > 0
+      - (kibana_local_verify_endpoint_url | default('', true) | string | trim | length) > 0
+      - >-
+        (not (kibana_external_verify_enabled | default(false) | bool)) or
+        ((kibana_external_verify_delegate_to | default('', true) | string | trim | length) > 0)
       - (elastic_search_container_name | default('', true) | string | trim | length) > 0
-      - (elastic_search_http_port | default(9200) | int) > 0
-      - (elastic_search_http_port | default(9200) | int) < 65536
+      - (elastic_search_http_port | int) > 0
+      - (elastic_search_http_port | int) < 65536
+      - (kibana_service_token_issue_timeout_seconds | int) > 0
+      - (kibana_service_token_issue_retries | int) > 0
+      - (kibana_service_token_issue_retry_delay_seconds | int) >= 0
       - ansible_facts.os_family in ['Debian', 'RedHat']
     fail_msg: >-
       Invalid kibana settings. Ensure paths, image, port, and OS family are
       configured correctly.
+
+# Elasticsearch Security 有効時に Kibana 接続用資格情報が定義されていることを検証する。
+- name: Validate kibana Elasticsearch auth inputs when security is enabled
+  ansible.builtin.assert:
+    that:
+      - (kibana_service_token_file | default('', true) | string | trim | length) > 0
+    fail_msg: >-
+      Invalid kibana authentication settings. Set kibana_service_token_file
+      when security is enabled.
+  when:
+    - kibana_elasticsearch_security_enabled | default(false) | bool
+
+# Kibana 用 service account token を自動発行する場合は API 発行用資格情報を必須とする。
+- name: Validate kibana token issue API credentials when auto-create is enabled
+  ansible.builtin.assert:
+    that:
+      - (kibana_service_token_issue_username | default('', true) | string | trim | length) > 0
+      - (kibana_service_token_issue_password | default('', true) | string | trim | length) > 0
+    fail_msg: >-
+      Invalid kibana token issue settings. Set kibana_service_token_issue_username
+      and kibana_service_token_issue_password when token auto-create is enabled.
+  when:
+    - kibana_elasticsearch_security_enabled | default(false) | bool
+    - kibana_service_token_auto_create | default(false) | bool

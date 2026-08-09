@@ -50,6 +50,7 @@ common_packages:
   - acl
   - attr
   - iptables-persistent
+  - python3-yaml
 
 common_langpack_packages:
   - language-pack-ja-base
@@ -82,7 +83,6 @@ k8s_common_prerequisite_packages:
   - lsb-release
   - bash-completion
   - jq
-  - python3-yaml
 
 # ノイズ測定グラフ作成用にgnuplot, python3-pip, python3-matplotlibを導入している
 # 本来は, グラフ作成作業ノードだけに導入すればよいが, ここでは,

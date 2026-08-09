@@ -1,0 +1,67 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  ロール固有変数のデフォルト値
+#  group_vars/all/all.yml やhost_varsで上書き可能とするため,
+#  ロール名/defaults/main.yml に定義している
+---
+
+# fleet-server ロールを有効化する。
+logging_fleet_server_enabled: false
+
+#
+# Docker Compose 定義関連
+#
+# fleet-server コンテナ名。
+fleet_server_container_name: "fleet-server"
+# compose 配置ディレクトリ。
+fleet_server_compose_dir: "/opt/fleet-server"
+# fleet-server 用サービストークンファイル(コンテナ側)。
+fleet_server_service_token_container_path: "/run/secrets/fleet-server-service-token"
+
+# Kibana/Fleet API キー生成設定。
+# Kibana API 接続先 URL の明示指定値。
+fleet_server_kibana_url_explicit: ""
+# Kibana API キー生成時に使用する認証ユーザ名。
+fleet_server_kibana_auth_username: ""
+# Kibana API キー生成時に使用する認証パスワード。
+fleet_server_kibana_auth_password: ""
+# Kibana API 呼び出し時に送信する XSRF トークン値。
+fleet_server_kibana_xsrf_token: "1"
+# Kibana API 接続タイムアウト値 (単位: 秒)。
+fleet_server_kibana_timeout_seconds: 30
+# Kibana API 呼び出しの再試行回数 (単位: 回)。
+fleet_server_kibana_retries: 3
+# Kibana API 呼び出しの再試行待機時間 (単位: 秒)。
+fleet_server_kibana_retry_delay_seconds: 5
+# サービストークン発行APIの接続タイムアウト値 (単位: 秒)。
+fleet_server_token_issue_timeout_seconds: 30
+# サービストークン発行APIの再試行回数 (単位: 回)。
+fleet_server_token_issue_retries: 3
+# サービストークン発行APIの再試行待機時間 (単位: 秒)。
+fleet_server_token_issue_retry_delay_seconds: 5
+# 空文字列は Elasticsearch API へ expiration を送らず, 無期限キーとして作成する。
+fleet_server_kibana_api_key_expiration: ""
+# fleet-server の待受アドレス。
+fleet_server_host: "0.0.0.0"
+# fleet-server API の接続先エンドポイント URL (明示指定用)。
+fleet_server_endpoint_url_explicit: ""
+# 起動待機確認の接続条件。
+# 起動検証時の接続先ホスト名/IPアドレス。
+fleet_server_wait_host: "127.0.0.1"
+# 起動検証時のタイムアウト値 (単位: 秒)。
+fleet_server_wait_timeout: 120
+# 起動検証時の待機開始遅延時間 (単位: 秒)。
+fleet_server_wait_delay: 5
+# 起動検証時のポーリング周期 (単位: 秒)。
+fleet_server_wait_sleep: 2
+# 起動検証時の再試行回数 (単位: 回)。
+fleet_server_wait_retries: 60
+# 起動検証時の接続元ホスト名/IPアドレス。
+fleet_server_wait_delegate_to: "{{ inventory_hostname }}"
+
+# 機密値(トークン, パスワード, 鍵)はこの defaults/main.yml に置かない。
+# fleet_server_service_token: "SET_IN_HOST_VARS_OR_SITE_CONFIG"
+# fleet_server_token_issue_username: "SET_IN_HOST_VARS_OR_SITE_CONFIG"
+# fleet_server_token_issue_password: "SET_IN_HOST_VARS_OR_SITE_CONFIG"

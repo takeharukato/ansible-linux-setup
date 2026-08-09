@@ -1,0 +1,93 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  タスクメイン部
+#
+#  include_tasksで他のタスクを読み込む
+#
+---
+
+# 最初に変数設定を読み直し, role 単独実行時でも参照値を確定する。
+- name: "Load Params"
+  ansible.builtin.include_tasks: load-params.yml
+
+# endpoint と TLS 検証モードの実行時方針を先に確定する。
+- name: "Resolve Runtime Flags"
+  ansible.builtin.include_tasks: resolve-runtime-flags.yml
+  when:
+    - logging_fleet_server_enabled | default(true) | bool
+
+# Security 設定と endpoint 検証に必要な内部実行時変数を確定する。
+- name: "Resolve Runtime Vars"
+  ansible.builtin.include_tasks: resolve-runtime-vars.yml
+  when:
+    - logging_fleet_server_enabled | default(true) | bool
+
+# fleet-server 実行に必要な入力値を先に検証し, 失敗を早期に検出する。
+- name: "Validate"
+  ansible.builtin.include_tasks: validate.yml
+  when:
+    - logging_fleet_server_enabled | default(true) | bool
+
+# 実行基盤の前提コマンドを確認し, compose 起動不可の状態を事前に止める。
+- name: "Package"
+  ansible.builtin.include_tasks: package.yml
+  when:
+    - logging_fleet_server_enabled | default(true) | bool
+
+# compose と設定ファイルの配置先ディレクトリを準備する。
+- name: "Directory"
+  ansible.builtin.include_tasks: directory.yml
+  when:
+    - logging_fleet_server_enabled | default(true) | bool
+
+# 実行ユーザ/グループ関連処理
+- name: "User Group"
+  ansible.builtin.include_tasks: user_group.yml
+  when:
+    - logging_fleet_server_enabled | default(true) | bool
+
+# fleet-server 用サービストークンを確定する。
+- name: "Token"
+  ansible.builtin.include_tasks: token.yml
+  when:
+    - logging_fleet_server_enabled | default(true) | bool
+    - fleet_server_runtime_elasticsearch_security_enabled | bool
+
+# Kibana/Fleet 用 API キーを生成して, Bootstrap で共有できるようにする。
+- name: "API Key"
+  ansible.builtin.include_tasks: api-key.yml
+  when:
+    - logging_fleet_server_enabled | default(true) | bool
+    - fleet_server_runtime_elasticsearch_security_enabled | bool
+
+# Elasticsearch Security 無効時は API キー共有値を空にして, 認証依存設定の混入を防止する。
+- name: "Initialize API Key Facts For Security Disabled"
+  ansible.builtin.set_fact:
+    fleet_server_kibana_api_key_id: ""
+    fleet_server_kibana_api_key_value: ""
+    fleet_bootstrap_kibana_api_key: ""
+    fleet_server_runtime_kibana_api_key_value: ""
+    fleet_server_runtime_bootstrap_kibana_api_key: ""
+  when:
+    - logging_fleet_server_enabled | default(true) | bool
+    - not (fleet_server_runtime_elasticsearch_security_enabled | bool)
+
+# service 起動より先に compose 定義と設定ファイルを生成する。
+- name: "Config"
+  ansible.builtin.include_tasks: config.yml
+  when:
+    - logging_fleet_server_enabled | default(true) | bool
+
+# 生成済み設定を使ってコンテナを起動する。
+- name: "Service"
+  ansible.builtin.include_tasks: service.yml
+  when:
+    - logging_fleet_server_enabled | default(true) | bool
+
+# 起動後の待受を確認する。
+- name: "Verify"
+  ansible.builtin.include_tasks: verify.yml
+  when:
+    - logging_fleet_server_enabled | default(true) | bool

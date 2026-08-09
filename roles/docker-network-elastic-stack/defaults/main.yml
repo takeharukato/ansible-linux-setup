@@ -1,0 +1,25 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  ロール固有変数のデフォルト値
+#  group_vars/all/all.yml やhost_varsで上書き可能とするため,
+#  ロール名/defaults/main.yml に定義している
+---
+
+# 規則適用コマンドの完了を待つ最大秒数。
+docker_network_elastic_stack_command_timeout_seconds: 30
+# 一時的なDocker応答失敗に対する再試行回数。
+docker_network_elastic_stack_retries: 3
+# 一時的なDocker応答失敗に対する再試行間隔秒数。
+docker_network_elastic_stack_retry_delay_seconds: 2
+# ネットワーク検証スクリプトの配置先。
+docker_network_elastic_stack_validate_script: "/usr/local/libexec/docker-network-elastic-stack-validate.py"
+# IPv4/IPv6送信規則適用スクリプトの配置先。
+docker_network_elastic_stack_apply_script: "/usr/local/libexec/docker-network-elastic-stack-apply"
+# IPv4/IPv6送信規則を再適用するsystemd unit名。
+docker_network_elastic_stack_service_name: "docker-network-elastic-stack.service"
+# IPv4/IPv6 filter表で使用する専用チェーン名。
+docker_network_elastic_stack_filter_chain: "ELASTIC-STACK-FWD"
+# IPv4/IPv6 nat表で使用する専用チェーン名。
+docker_network_elastic_stack_nat_chain: "ELASTIC-STACK-NAT"

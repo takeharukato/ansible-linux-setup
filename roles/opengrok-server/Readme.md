@@ -58,7 +58,7 @@
 | プログラム | - | 計算機に処理をさせるための命令列。 |
 | コミュニティ | - | 共通目的のもとで継続的に活動する利用者集団。 |
 | プラグイン | - | 既存機能へ追加機能を組み込むための拡張部品。 |
-| サービスアカウント | - | 自動処理向けに用意する利用主体の識別情報。 |
+| サービスアカウント (Service Account) | - | 自動処理中でサービスを呼び出す側のプログラムを識別するための識別情報。 |
 | コンテナランタイム | - | コンテナを起動, 停止, 管理する実行基盤。 |
 | リクエスト | - | 処理実行や情報取得を要求する操作。 |
 | コントローラ | - | 対象状態を監視し, 期待状態へ調整する制御機能。 |
@@ -119,6 +119,7 @@
 | Uniform Resource Locator | URL | World Wide Web上の資源の場所を示す文字列。 |
 | OpenGrok | - | ソースコード検索およびクロスリファレンス生成ツール。 |
 | Docker Compose | - | 複数のコンテナ定義をまとめて作成, 起動, 停止, 更新する仕組み。 |
+| Docker Compose 定義ファイル | - | Docker Compose が参照するコンテナ構成の定義ファイル。 |
 | ソース同期 | - | Git リポジトリの clone/pull により, 解析対象のソースを更新する処理。 |
 | インデクス更新処理 | - | 取り込んだファイル一覧を作り直し, 検索結果を最新化する処理。 |
 | Application Programming Interface | API | アプリケーション同士が機能やデータをやり取りするための取り決め。 |
@@ -185,7 +186,7 @@ ansible-playbook --tags "opengrok-server" -i inventory/hosts site.yml
 | --- | --- | --- |
 | `opengrok_enabled` | `false` | OpenGrokの導入制御変数。導入する場合は, `true`に設定します。|
 | `opengrok_root_dir` | `/opt/opengrok` | OpenGrok 関連ファイルのベースディレクトリ。 |
-| `opengrok_docker_dir` | `{{ opengrok_root_dir }}/docker` | docker-compose.yml 配置先。 |
+| `opengrok_docker_dir` | `{{ opengrok_root_dir }}/docker` | Docker Compose 定義ファイル (`docker-compose.yml`) の配置先。 |
 | `opengrok_etc_dir` | `{{ opengrok_root_dir }}/etc` | source-urls.yml 配置先。 |
 | `opengrok_scripts_dir` | `{{ opengrok_root_dir }}/scripts` | 同期スクリプト配置先。 |
 | `opengrok_source_dir` | `{{ opengrok_root_dir }}/src` | OpenGrok が参照するソース配置先。 |
@@ -386,7 +387,7 @@ curl -H "Authorization: Bearer trigger" http://127.0.0.1:25000/reindex
 本ロールを適用すると, `/opt/opengrok` 配下に以下のファイルが作られる。
 
 - docker ディレクトリ
-  - docker-compose.yml OpenGrok サーバを起動するための docker compose ファイル。
+  - docker-compose.yml OpenGrok サーバを起動するための Docker Compose 定義ファイル。
 - etc ディレクトリ
   - source-urls.yml 同期対象リポジトリ定義ファイル。
   - gitconfig OpenGrok コンテナに mount する Git system config。

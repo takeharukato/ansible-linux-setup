@@ -6,22 +6,15 @@
 #
 ---
 
-# backend 専用ネットワークの存在を確認する。
-- name: Check kibana backend network
+# 専用ロールの実行漏れを早期検出し, CIDR未指定ネットワークの作成を防止する。
+- name: Verify kibana backend network exists
   ansible.builtin.command:
-    cmd: "docker network inspect {{ kibana_network_name }}"
-  register: kibana_network_inspect
-  failed_when: false
+    argv:
+      - docker
+      - network
+      - inspect
+      - "{{ kibana_network_name }}"
   changed_when: false
-
-# backend 専用ネットワークが存在しない場合は, backend専用ネットワークを作成し,
-# Elasticsearch と接続できるようにする。
-- name: Create kibana backend network
-  ansible.builtin.command:
-    cmd: "docker network create {{ kibana_network_name }}"
-  when:
-    - kibana_network_inspect.rc != 0
-  changed_when: true
 
 # 既存の同名コンテナが残っている場合に備え, 起動前に存在確認する。
 - name: Check existing kibana container

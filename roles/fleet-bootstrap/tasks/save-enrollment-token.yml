@@ -1,0 +1,83 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  Enrollment Token共有ファイル保存タスク
+#
+---
+
+# 既存のEnrollment Token共有ファイルを保護するため, 制御ホスト上の保存先を先に確認する。
+- name: Check Fleet enrollment token file on controller
+  ansible.builtin.stat:
+    path: "{{ fleet_bootstrap_enrollment_token_file }}"
+  register: fleet_bootstrap_enrollment_token_file_stat
+  delegate_to: localhost
+  become: false
+  run_once: true
+
+# 既存パスを上書きする前に, 再利用可能な通常ファイルであることを確認する。
+- name: Validate existing Fleet enrollment token file
+  ansible.builtin.assert:
+    that:
+      - >-
+        not (fleet_bootstrap_enrollment_token_file_stat.stat.exists | default(false) | bool)
+        or (fleet_bootstrap_enrollment_token_file_stat.stat.isreg | default(false) | bool)
+    fail_msg: >-
+      fleet_bootstrap_enrollment_token_file must be absent or a regular file.
+  delegate_to: localhost
+  become: false
+  run_once: true
+
+# Elastic Agent ポリシーとEnrollment Tokenの対応を最新状態に保つため, 制御ホストへ安全に保存する。
+- name: Save Fleet enrollment token file
+  delegate_to: localhost
+  become: false
+  run_once: true
+  block:
+    # 3種類のElastic Agent ポリシーに対応する空の秘密値を保存しないため, APIから全Enrollment Tokenを取得済みであることを確認する。
+    - name: Validate Fleet enrollment token file creation settings
+      ansible.builtin.assert:
+        that:
+          - fleet_bootstrap_enrollment_tokens | default({}, true) | length == 3
+          - >-
+            fleet_bootstrap_enrollment_tokens | default({}, true)
+            | dict2items
+            | selectattr('value', 'string')
+            | rejectattr('value', 'equalto', '')
+            | list
+            | length == 3
+        fail_msg: >-
+          Enrollment Token file creation requires three recoverable Fleet Enrollment Tokens.
+      no_log: true
+
+    # Enrollment TokenをAnsible実行ログへ出さず, Elastic Agent ポリシーごとの辞書を権限0600で保存する。
+    - name: Save Fleet enrollment token file
+      ansible.builtin.copy:
+        content: >-
+          elastic_agent_enrollment_tokens: {{ fleet_bootstrap_enrollment_tokens | to_json }}
+        dest: "{{ fleet_bootstrap_enrollment_token_file }}"
+        force: true
+        mode: "0600"
+      no_log: true
+
+# 保存後のファイル種別と権限を検証するため, 制御ホスト上の状態を再取得する。
+- name: Check saved Fleet enrollment token file on controller
+  ansible.builtin.stat:
+    path: "{{ fleet_bootstrap_enrollment_token_file }}"
+  register: fleet_bootstrap_saved_enrollment_token_file_stat
+  delegate_to: localhost
+  become: false
+  run_once: true
+
+# Enrollment Token共有ファイルの保存又は再利用が完了し, 所有者だけが読み書きできることを確認する。
+- name: Validate saved Fleet enrollment token file
+  ansible.builtin.assert:
+    that:
+      - fleet_bootstrap_saved_enrollment_token_file_stat.stat.exists | default(false) | bool
+      - fleet_bootstrap_saved_enrollment_token_file_stat.stat.isreg | default(false) | bool
+      - fleet_bootstrap_saved_enrollment_token_file_stat.stat.mode | default('') == '0600'
+    fail_msg: >-
+      Fleet enrollment token file must exist as a regular file with mode 0600.
+  delegate_to: localhost
+  become: false
+  run_once: true

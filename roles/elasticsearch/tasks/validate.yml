@@ -22,10 +22,65 @@
       - (elastic_search_vm_max_map_count | int) >= 262144
       - (elastic_search_http_port | int) > 0
       - (elastic_search_http_port | int) < 65536
+      - (elastic_search_runtime_scheme | default('', true) | string | trim) in ['http', 'https']
+      - (elastic_search_runtime_tls_mode | default('', true) | string | trim) in ['off', 'none', 'full']
+      - >-
+        ((elastic_search_runtime_scheme == 'http' and elastic_search_runtime_tls_mode == 'off') or
+        (elastic_search_runtime_scheme == 'https' and elastic_search_runtime_tls_mode in ['none', 'full']))
+      - (elastic_search_api_runtime_endpoint_url | default('', true) | string | trim | length) > 0
+      - (elastic_search_local_verify_endpoint_url | default('', true) | string | trim | length) > 0
+      - >-
+        (not (elastic_search_external_verify_enabled | default(false) | bool)) or
+        ((elastic_search_external_verify_delegate_to | default('', true) | string | trim | length) > 0)
       - ansible_facts.os_family in ['Debian', 'RedHat']
     fail_msg: >-
       Invalid elasticsearch settings. Ensure paths, image, port, and OS family
       are configured correctly.
+
+# runtime scheme が https の場合は, HTTP 層 TLS 用の証明書と秘密鍵を必須にする。
+- name: Validate elasticsearch HTTPS certificate path inputs
+  ansible.builtin.assert:
+    that:
+      - (elastic_search_http_ssl_runtime_certificate_host_path | default('', true) | string | trim | length) > 0
+      - (elastic_search_http_ssl_runtime_key_host_path | default('', true) | string | trim | length) > 0
+    fail_msg: >-
+      Elasticsearch runtime scheme is https, but HTTP TLS certificate/key paths
+      are not configured. Set logging_backend_tls_certificate_host_path and
+      logging_backend_tls_key_host_path, or set elastic_search_http_ssl_certificate_host_path
+      and elastic_search_http_ssl_key_host_path for component-specific overrides.
+  when:
+    - (elastic_search_runtime_scheme | default('', true) | string | trim) == 'https'
+
+# 指定した証明書ファイルが対象ホスト上で参照可能であることを検証する。
+- name: Check elasticsearch HTTPS certificate file exists
+  ansible.builtin.stat:
+    path: "{{ elastic_search_http_ssl_runtime_certificate_host_path }}"
+  register: elastic_search_http_ssl_certificate_stat
+  when:
+    - (elastic_search_runtime_scheme | default('', true) | string | trim) == 'https'
+
+# 指定した秘密鍵ファイルが対象ホスト上で参照可能であることを検証する。
+- name: Check elasticsearch HTTPS key file exists
+  ansible.builtin.stat:
+    path: "{{ elastic_search_http_ssl_runtime_key_host_path }}"
+  register: elastic_search_http_ssl_key_stat
+  when:
+    - (elastic_search_runtime_scheme | default('', true) | string | trim) == 'https'
+
+# 証明書と秘密鍵の実ファイル存在を確認し, 起動後の設定エラーを防止する。
+- name: Validate elasticsearch HTTPS certificate files
+  ansible.builtin.assert:
+    that:
+      - elastic_search_http_ssl_certificate_stat.stat.exists | default(false) | bool
+      - elastic_search_http_ssl_certificate_stat.stat.isreg | default(false) | bool
+      - elastic_search_http_ssl_key_stat.stat.exists | default(false) | bool
+      - elastic_search_http_ssl_key_stat.stat.isreg | default(false) | bool
+    fail_msg: >-
+      Elasticsearch HTTPS certificate files are missing or invalid.
+      certificate={{ elastic_search_http_ssl_runtime_certificate_host_path }}
+      key={{ elastic_search_http_ssl_runtime_key_host_path }}
+  when:
+    - (elastic_search_runtime_scheme | default('', true) | string | trim) == 'https'
 
 # バックアップ有効時の入力値を検証し, 実行時エラーを事前に防止する。
 - name: Validate elasticsearch backup settings
@@ -43,3 +98,16 @@
       settings, python command, and retention are configured correctly.
   when:
     - elastic_search_enable_backup_script | default(false) | bool
+
+# Security有効時は認証用資格情報を必須とする。
+- name: Validate elasticsearch security settings
+  ansible.builtin.assert:
+    that:
+      - (elastic_search_security_username | default('', true) | string | trim | length) > 0
+      - elastic_search_bootstrap_password is defined
+      - (elastic_search_bootstrap_password | string | trim | length) > 0
+    fail_msg: >-
+      Elasticsearch security is enabled but security credentials are missing.
+      Set elastic_search_security_username and elastic_search_bootstrap_password.
+  when:
+    - elastic_search_security_enabled | default(false) | bool

@@ -1,0 +1,67 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  検証関連タスク
+#
+---
+
+# fleet-server の基本変数が定義済みであることを検証する。
+- name: Validate required fleet-server variables
+  ansible.builtin.assert:
+    that:
+      - fleet_server_image | default('', true) | trim | length > 0
+      - fleet_server_container_name | default('', true) | trim | length > 0
+      - fleet_server_runtime_network_name | default('', true) | trim | length > 0
+      - fleet_server_compose_dir | default('', true) | trim | length > 0
+      - fleet_server_runtime_compose_file | default('', true) | trim | length > 0
+      - fleet_server_runtime_state_dir | default('', true) | trim | length > 0
+      - >-
+        (not (fleet_server_runtime_elasticsearch_security_enabled | default(false) | bool)) or
+        (fleet_server_runtime_service_token_path | default('', true) | trim | length > 0)
+      - >-
+        (not (fleet_server_runtime_elasticsearch_security_enabled | default(false) | bool)) or
+        (fleet_server_service_token_container_path | default('', true) | trim | length > 0)
+      - logging_backend_container_user | default('', true) | trim | length > 0
+      - fleet_server_policy_id | default('', true) | trim | length > 0
+      - (fleet_server_runtime_scheme | default('', true) | string | trim) in ['http', 'https']
+      - (fleet_server_runtime_tls_mode | default('', true) | string | trim) in ['off', 'none', 'full']
+      - >-
+        ((fleet_server_runtime_scheme == 'http' and fleet_server_runtime_tls_mode == 'off') or
+        (fleet_server_runtime_scheme == 'https' and fleet_server_runtime_tls_mode in ['none', 'full']))
+      - fleet_server_runtime_endpoint_url | default('', true) | trim | length > 0
+      - fleet_server_local_verify_endpoint_url | default('', true) | trim | length > 0
+      - >-
+        (not (fleet_server_external_verify_enabled | default(false) | bool)) or
+        (fleet_server_external_verify_delegate_to | default('', true) | trim | length > 0)
+      - fleet_server_port | int > 0
+      - fleet_server_port | int < 65536
+      - fleet_server_token_issue_timeout_seconds | int > 0
+      - fleet_server_token_issue_retries | int > 0
+      - fleet_server_token_issue_retry_delay_seconds | int >= 0
+    fail_msg: >-
+      Required fleet-server variables are missing or invalid.
+
+# 実行時にトークンファイル未配置かつ自動発行を有効化した場合は, 発行API接続用資格情報を早期に検証する。
+- name: Check fleet-server service token file in validation phase
+  ansible.builtin.stat:
+    path: "{{ fleet_server_runtime_service_token_path }}"
+  register: fleet_server_validate_service_token_file_stat
+  when: not (ansible_check_mode | bool)
+
+# トークン自動発行に必要な資格情報不足を service フェーズより前に検出する。
+- name: Validate token issue API credentials in validation phase
+  ansible.builtin.assert:
+    that:
+      - fleet_server_token_issue_username is defined
+      - fleet_server_token_issue_username | string | trim | length > 0
+      - fleet_server_token_issue_password is defined
+      - fleet_server_token_issue_password | string | trim | length > 0
+    fail_msg: >-
+      Token file is missing and runtime token auto-create is enabled, but token issue API credentials are not set.
+      Set fleet_server_token_issue_username and fleet_server_token_issue_password.
+  when:
+    - not (ansible_check_mode | bool)
+    - not (fleet_server_validate_service_token_file_stat.stat.exists | default(false))
+    - fleet_server_runtime_elasticsearch_security_enabled | default(false) | bool
+    - fleet_server_runtime_service_token_auto_create | bool

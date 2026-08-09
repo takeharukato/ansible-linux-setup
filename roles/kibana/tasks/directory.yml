@@ -23,10 +23,30 @@
   ansible.builtin.file:
     path: "{{ item }}"
     state: directory
-    owner: "{{ kibana_user_id }}"
-    group: "{{ kibana_group_id }}"
+    owner: "{{ logging_backend_container_user_id }}"
+    group: "{{ logging_backend_container_group_id }}"
     mode: '0755'
     recurse: true
   loop:
     - "{{ kibana_data_dir }}"
     - "{{ kibana_logs_dir }}"
+
+# Elasticsearch Security 有効時は service account token 保存先を事前作成する。
+- name: Ensure kibana service token directory exists
+  ansible.builtin.file:
+    path: "{{ kibana_service_token_file | dirname }}"
+    state: directory
+    owner: root
+    group: root
+    mode: '0700'
+  when:
+    - kibana_elasticsearch_security_enabled | default(false) | bool
+
+# Fleetの秘密情報を暗号化するキーを他の利用者から保護するため, 専用ディレクトリを作成する。
+- name: Ensure Kibana encrypted saved objects key directory exists
+  ansible.builtin.file:
+    path: "{{ kibana_encrypted_saved_objects_key_file | dirname }}"
+    state: directory
+    owner: root
+    group: root
+    mode: '0700'

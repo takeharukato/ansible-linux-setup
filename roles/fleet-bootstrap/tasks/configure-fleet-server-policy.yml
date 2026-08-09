@@ -1,0 +1,240 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  Fleet Server Agent Policy作成タスク
+#
+---
+
+# 専用Elasticsearch Outputを名称で冪等管理するため, 現在の一覧から対象を選択する。
+- name: Resolve Fleet Server Elasticsearch output
+  ansible.builtin.set_fact:
+    fleet_bootstrap_existing_fleet_server_output: >-
+      {{
+        fleet_bootstrap_output_list.json['items'] | default([])
+        | selectattr('name', 'equalto', fleet_bootstrap_fleet_server_output_name)
+        | list
+        | first
+        | default({})
+      }}
+
+# Fleet Server統合の追加時にElasticsearchを既定出力として使用できるように, 専用Outputを作成する。
+- name: Create Fleet Server Elasticsearch output if missing
+  ansible.builtin.uri:
+    url: "{{ fleet_bootstrap_kibana_url }}/api/fleet/outputs"
+    method: POST
+    body_format: json
+    headers:
+      Authorization: "ApiKey {{ fleet_bootstrap_runtime_api_key }}"
+      kbn-xsrf: "{{ fleet_bootstrap_kibana_xsrf_token }}"
+      Content-Type: application/json
+    body:
+      name: "{{ fleet_bootstrap_fleet_server_output_name }}"
+      type: elasticsearch
+      hosts: "{{ fleet_bootstrap_fleet_server_elasticsearch_hosts }}"
+      is_default: true
+      is_default_monitoring: true
+    status_code:
+      - 200
+      - 201
+    return_content: true
+    validate_certs: "{{ fleet_bootstrap_kibana_validate_certs | bool }}"
+    timeout: "{{ fleet_bootstrap_kibana_timeout_seconds | int }}"
+  register: fleet_bootstrap_fleet_server_output_create_result
+  retries: "{{ fleet_bootstrap_kibana_retries | int }}"
+  delay: "{{ fleet_bootstrap_kibana_retry_delay_seconds | int }}"
+  until: fleet_bootstrap_fleet_server_output_create_result.status | default(0) | int in [200, 201]
+  no_log: "{{ fleet_bootstrap_no_log | bool }}"
+  when:
+    - fleet_bootstrap_existing_fleet_server_output.id is not defined
+
+# 既存の専用Outputを一時的な既定出力に設定し, BasicライセンスでFleet Server統合を追加可能にする。
+- name: Set Fleet Server Elasticsearch output as temporary default
+  ansible.builtin.uri:
+    url: >-
+      {{ fleet_bootstrap_kibana_url }}/api/fleet/outputs/{{
+      fleet_bootstrap_existing_fleet_server_output.id }}
+    method: PUT
+    body_format: json
+    headers:
+      Authorization: "ApiKey {{ fleet_bootstrap_runtime_api_key }}"
+      kbn-xsrf: "{{ fleet_bootstrap_kibana_xsrf_token }}"
+      Content-Type: application/json
+    body:
+      name: "{{ fleet_bootstrap_fleet_server_output_name }}"
+      type: elasticsearch
+      hosts: "{{ fleet_bootstrap_fleet_server_elasticsearch_hosts }}"
+      is_default: true
+      is_default_monitoring: true
+    status_code:
+      - 200
+    return_content: true
+    validate_certs: "{{ fleet_bootstrap_kibana_validate_certs | bool }}"
+    timeout: "{{ fleet_bootstrap_kibana_timeout_seconds | int }}"
+  register: fleet_bootstrap_fleet_server_output_update_result
+  retries: "{{ fleet_bootstrap_kibana_retries | int }}"
+  delay: "{{ fleet_bootstrap_kibana_retry_delay_seconds | int }}"
+  until: fleet_bootstrap_fleet_server_output_update_result.status | default(0) | int == 200
+  no_log: "{{ fleet_bootstrap_no_log | bool }}"
+  when:
+    - fleet_bootstrap_existing_fleet_server_output.id is defined
+
+# 指定IDのAgent Policyを再利用し, Fleet Serverコンテナの起動時指定と一致させる。
+- name: Resolve existing Fleet Server agent policy
+  ansible.builtin.set_fact:
+    fleet_bootstrap_existing_fleet_server_policy: >-
+      {{
+        fleet_bootstrap_policy_list.json['items'] | default([])
+        | selectattr('id', 'equalto', fleet_bootstrap_fleet_server_policy_id)
+        | list
+        | first
+        | default({})
+      }}
+
+# Basicライセンスで個別出力を指定できないため, 指定IDの専用Policyを既定出力の継承状態で作成する。
+- name: Create Fleet Server agent policy if missing
+  ansible.builtin.uri:
+    url: "{{ fleet_bootstrap_kibana_url }}/api/fleet/agent_policies"
+    method: POST
+    body_format: json
+    headers:
+      Authorization: "ApiKey {{ fleet_bootstrap_runtime_api_key }}"
+      kbn-xsrf: "{{ fleet_bootstrap_kibana_xsrf_token }}"
+      Content-Type: application/json
+    body:
+      id: "{{ fleet_bootstrap_fleet_server_policy_id }}"
+      name: "{{ fleet_bootstrap_fleet_server_policy_id }}"
+      namespace: default
+      description: Managed by Ansible
+      monitoring_enabled:
+        - logs
+        - metrics
+    status_code:
+      - 200
+      - 201
+    return_content: true
+    validate_certs: "{{ fleet_bootstrap_kibana_validate_certs | bool }}"
+    timeout: "{{ fleet_bootstrap_kibana_timeout_seconds | int }}"
+  register: fleet_bootstrap_fleet_server_policy_create_result
+  retries: "{{ fleet_bootstrap_kibana_retries | int }}"
+  delay: "{{ fleet_bootstrap_kibana_retry_delay_seconds | int }}"
+  until: fleet_bootstrap_fleet_server_policy_create_result.status | default(0) | int in [200, 201]
+  no_log: "{{ fleet_bootstrap_no_log | bool }}"
+  when:
+    - fleet_bootstrap_existing_fleet_server_policy.id is not defined
+
+# 後続のFleet Server統合を作成結果又は既存Policyへ確実に関連付けるため, 指定IDを確定する。
+- name: Set Fleet Server agent policy id
+  ansible.builtin.set_fact:
+    fleet_bootstrap_current_fleet_server_policy_id: "{{ fleet_bootstrap_fleet_server_policy_id }}"
+
+# Fleet Serverプロセスへ実行設定を配信するため, 専用PolicyへFleet Server統合を関連付ける。
+- name: Configure Fleet Server package policy
+  ansible.builtin.include_tasks: configure-package-policy.yml
+  vars:
+    fleet_bootstrap_package_policy:
+      name: "{{ fleet_bootstrap_fleet_server_policy_id }}-integration"
+      body:
+        name: "{{ fleet_bootstrap_fleet_server_policy_id }}-integration"
+        description: Managed by Ansible
+        namespace: default
+        policy_id: "{{ fleet_bootstrap_current_fleet_server_policy_id }}"
+        package:
+          name: fleet_server
+          version: "{{ fleet_bootstrap_fleet_server_package_version }}"
+        inputs:
+          fleet_server-fleet-server:
+            enabled: true
+            streams: {}
+            vars:
+              custom: ""
+
+# Fleet Server統合の追加後に通常Agentの送信経路を戻し, Kibanaに専用PolicyのElasticsearch出力を保持させる。
+- name: Restore Logstash output as default
+  ansible.builtin.uri:
+    url: "{{ fleet_bootstrap_kibana_url }}/api/fleet/outputs/{{ fleet_bootstrap_output_id }}"
+    method: PUT
+    body_format: json
+    headers:
+      Authorization: "ApiKey {{ fleet_bootstrap_runtime_api_key }}"
+      kbn-xsrf: "{{ fleet_bootstrap_kibana_xsrf_token }}"
+      Content-Type: application/json
+    body:
+      name: "{{ fleet_bootstrap_output_name }}"
+      type: logstash
+      hosts: "{{ fleet_bootstrap_logstash_hosts }}"
+      is_default: true
+      is_default_monitoring: true
+    status_code:
+      - 200
+    return_content: true
+    validate_certs: "{{ fleet_bootstrap_kibana_validate_certs | bool }}"
+    timeout: "{{ fleet_bootstrap_kibana_timeout_seconds | int }}"
+  register: fleet_bootstrap_logstash_output_restore_result
+  retries: "{{ fleet_bootstrap_kibana_retries | int }}"
+  delay: "{{ fleet_bootstrap_kibana_retry_delay_seconds | int }}"
+  until: fleet_bootstrap_logstash_output_restore_result.status | default(0) | int == 200
+  no_log: "{{ fleet_bootstrap_no_log | bool }}"
+
+# 統合追加前の登録状態が残っている場合だけ回復処理を行うため, Fleet Server自身のAgent IDを取得する。
+- name: Get Fleet Server agent status after policy configuration
+  ansible.builtin.command:
+    argv:
+      - docker
+      - exec
+      - "{{ fleet_server_container_name }}"
+      - elastic-agent
+      - status
+      - --output
+      - json
+  register: fleet_bootstrap_fleet_server_agent_status_result
+  changed_when: false
+  failed_when: false
+
+# JSON出力からAgent IDを取り出し, 正常な登録状態を破壊しない回復判定に使用する。
+- name: Resolve Fleet Server agent id
+  ansible.builtin.set_fact:
+    fleet_bootstrap_fleet_server_agent_id: >-
+      {{
+        (
+          fleet_bootstrap_fleet_server_agent_status_result.stdout
+          | default('{}', true)
+          | from_json
+        ).info.id
+        | default('')
+      }}
+
+# 不完全な登録情報を安全に除去するため, Agent IDが空の場合だけコンテナを停止する。
+- name: Stop Fleet Server with incomplete enrollment state
+  ansible.builtin.command:
+    argv:
+      - docker
+      - stop
+      - "{{ fleet_server_container_name }}"
+  register: fleet_bootstrap_fleet_server_stop_result
+  changed_when: fleet_bootstrap_fleet_server_stop_result.rc == 0
+  when:
+    - fleet_bootstrap_fleet_server_agent_id | length == 0
+
+# Agent IDを持たない暗号化済み登録情報だけを除去し, サービストークンと他の状態を維持する。
+- name: Remove incomplete Fleet Server enrollment state
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: absent
+  loop:
+    - "{{ fleet_server_runtime_state_dir }}/fleet.enc"
+    - "{{ fleet_server_runtime_state_dir }}/fleet.enc.lock"
+  when:
+    - fleet_bootstrap_fleet_server_agent_id | length == 0
+
+# Fleet Server統合が存在する状態で自己登録を再実行し, 新しいAgent IDを生成する。
+- name: Start Fleet Server after enrollment state cleanup
+  ansible.builtin.command:
+    argv:
+      - docker
+      - start
+      - "{{ fleet_server_container_name }}"
+  register: fleet_bootstrap_fleet_server_start_result
+  changed_when: fleet_bootstrap_fleet_server_start_result.rc == 0
+  when:
+    - fleet_bootstrap_fleet_server_agent_id | length == 0

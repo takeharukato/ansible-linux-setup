@@ -1,0 +1,33 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  実行時変数解決
+#
+---
+
+# CPU種別と接続先を解決し, 後続処理で同一値を使用する。
+- name: Resolve Elastic Agent runtime variables
+  ansible.builtin.set_fact:
+    elastic_agent_runtime_architecture: "{{ elastic_agent_architecture_map[ansible_facts.architecture] | default('') }}"
+    elastic_agent_runtime_fleet_server_url: >-
+      {{
+        (elastic_agent_fleet_server_url_explicit | string | trim)
+        if ((elastic_agent_fleet_server_url_explicit | default('', true) | string | trim | length) > 0)
+        else (
+          elastic_agent_runtime_scheme ~ '://' ~ logging_backend_resolved_host ~ ':' ~
+          (fleet_server_port | string)
+        )
+      }}
+
+# 解決済みCPU種別から公式配布物の名前と取得先を確定する。
+- name: Resolve Elastic Agent artifact variables
+  ansible.builtin.set_fact:
+    elastic_agent_archive_name: >-
+      elastic-agent-{{ elastic_agent_version }}-linux-{{ elastic_agent_runtime_architecture }}.tar.gz
+    elastic_agent_archive_path: >-
+      {{ elastic_agent_work_dir }}/elastic-agent-{{ elastic_agent_version }}-linux-{{ elastic_agent_runtime_architecture }}.tar.gz
+    elastic_agent_source_dir: >-
+      {{ elastic_agent_work_dir }}/elastic-agent-{{ elastic_agent_version }}-linux-{{ elastic_agent_runtime_architecture }}
+    elastic_agent_download_url: >-
+      {{ elastic_agent_artifact_base_url }}/elastic-agent-{{ elastic_agent_version }}-linux-{{ elastic_agent_runtime_architecture }}.tar.gz

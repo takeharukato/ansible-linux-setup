@@ -6,6 +6,32 @@
 #
 ---
 
+# Kibana コンテナが稼働状態へ遷移したことを確認する。
+- name: Inspect Kibana container state
+  ansible.builtin.command:
+    argv:
+      - docker
+      - container
+      - inspect
+      - "{{ kibana_container_name }}"
+  register: kibana_container_state_cmd
+  changed_when: false
+  until:
+    - kibana_container_state_cmd is succeeded
+    - kibana_container_state_cmd.stdout | length > 0
+    - ((kibana_container_state_cmd.stdout | from_json | first).State.Running | default(false)) | bool
+  retries: "{{ kibana_wait_retries }}"
+  delay: "{{ kibana_wait_sleep }}"
+
+# コンテナが稼働状態であることを最終確認し, 異常終了ループを検出する。
+- name: Assert Kibana container is running
+  ansible.builtin.assert:
+    that:
+      - ((kibana_container_state_cmd.stdout | from_json | first).State.Running | default(false)) | bool
+    fail_msg: >-
+      Kibana container is not running.
+      container={{ kibana_container_name }}
+
 # service のポートが開くまで待ち, その後の HTTP 検査が失敗しないようにする。
 - name: Wait for Kibana port
   ansible.builtin.wait_for:
@@ -22,18 +48,52 @@
   delay: "{{ kibana_wait_sleep }}"
 
 # Kibana の HTTP 応答を確認し, backend として応答可能であることを検証する。
-- name: Verify Kibana response
+# SavedObjects migration とプラグイン初期化の完了待ちに時間を要するため,
+# status 確認の試行回数は timeout と sleep から導出する。
+- name: Verify Kibana response locally
   ansible.builtin.uri:
-    url: "http://127.0.0.1:{{ kibana_server_port }}/api/status"
+    url: "{{ kibana_local_verify_endpoint_url }}/api/status"
     method: GET
+    validate_certs: "{{ kibana_local_verify_validate_certs | bool }}"
     return_content: true
     status_code:
       - 200
       - 503
+    timeout: "{{ kibana_wait_timeout | int }}"
   register: kibana_status_result
   until:
-    - (kibana_status_result.json | default({})).get('status', {}).get('overall', {}).get('state', (kibana_status_result.json | default({})).get('status', {}).get('overall', {}).get('level', '')) in ['green', 'yellow', 'available']
-  # SavedObjects migration とプラグイン初期化の完了待ちに時間を要するため,
-  # status 確認の試行回数は timeout と sleep から導出する。
+    - >-
+      (
+        (kibana_status_result.json | default({})).get('status', {}).get('overall', {}).get(
+          'state',
+          (kibana_status_result.json | default({})).get('status', {}).get('overall', {}).get('level', '')
+        )
+      ) in ['green', 'yellow', 'available']
   retries: "{{ ((kibana_wait_timeout | int) // ([kibana_wait_sleep | int, 1] | max)) + 1 }}"
   delay: "{{ kibana_wait_sleep }}"
+
+# Kibana の HTTP 応答を確認し, 外部ホストからの疎通確認を任意で実施する。
+- name: Verify Kibana response externally
+  ansible.builtin.uri:
+    url: "{{ kibana_runtime_endpoint_url }}/api/status"
+    method: GET
+    validate_certs: "{{ kibana_external_verify_validate_certs | bool }}"
+    return_content: true
+    status_code:
+      - 200
+      - 503
+    timeout: "{{ kibana_wait_timeout | int }}"
+  register: kibana_external_status_result
+  delegate_to: "{{ kibana_external_verify_delegate_to }}"
+  until:
+    - >-
+      (
+        (kibana_external_status_result.json | default({})).get('status', {}).get('overall', {}).get(
+          'state',
+          (kibana_external_status_result.json | default({})).get('status', {}).get('overall', {}).get('level', '')
+        )
+      ) in ['green', 'yellow', 'available']
+  retries: "{{ ((kibana_wait_timeout | int) // ([kibana_wait_sleep | int, 1] | max)) + 1 }}"
+  delay: "{{ kibana_wait_sleep }}"
+  when:
+    - kibana_external_verify_enabled | bool

@@ -6,20 +6,15 @@
 #
 ---
 
-# backend 専用ネットワークを作成し, Elasticsearch と Kibana と接続できるようにする。
-- name: Check logstash backend network
+# 専用ロールの実行漏れを早期検出し, CIDR未指定ネットワークの作成を防止する。
+- name: Verify logstash backend network exists
   ansible.builtin.command:
-    cmd: "docker network inspect {{ logstash_network_name }}"
-  register: logstash_network_inspect
-  failed_when: false
+    argv:
+      - docker
+      - network
+      - inspect
+      - "{{ logstash_network_name }}"
   changed_when: false
-
-- name: Create logstash backend network
-  ansible.builtin.command:
-    cmd: "docker network create {{ logstash_network_name }}"
-  when:
-    - logstash_network_inspect.rc != 0
-  changed_when: true
 
 # 既存の同名コンテナが残っている場合に備え, 起動前に存在確認する。
 - name: Check existing logstash container
@@ -50,8 +45,15 @@
 
 # compose 定義に基づいて Logstash を起動し, 設定変更を反映する。
 - name: Start Logstash service container
-  ansible.builtin.shell: |
-    docker compose -f {{ logstash_compose_file }} up -d --remove-orphans
+  ansible.builtin.command:
+    argv:
+      - docker
+      - compose
+      - -f
+      - "{{ logstash_compose_file }}"
+      - up
+      - -d
+      - --remove-orphans
   args:
     chdir: "{{ logstash_compose_dir }}"
   become: true

@@ -1,0 +1,355 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  実行結果の検証タスク
+#
+---
+
+# チェックモードでは実行時検証を行わない。
+- name: Skip fleet-bootstrap runtime verification in check mode
+  ansible.builtin.debug:
+    msg: >-
+      Check mode: skipping runtime verification for fleet-bootstrap.
+  when: ansible_check_mode | bool
+
+# 生成または再利用した Fleet Output が実際に存在することを確認する。
+- name: List Fleet outputs for verification
+  ansible.builtin.uri:
+    url: "{{ fleet_bootstrap_kibana_url }}/api/fleet/outputs"
+    method: GET
+    headers:
+      Authorization: "ApiKey {{ fleet_bootstrap_runtime_api_key }}"
+      kbn-xsrf: "{{ fleet_bootstrap_kibana_xsrf_token }}"
+      Content-Type: application/json
+    return_content: true
+    validate_certs: "{{ fleet_bootstrap_kibana_validate_certs | bool }}"
+    timeout: "{{ fleet_bootstrap_kibana_timeout_seconds | int }}"
+  register: fleet_bootstrap_verify_output_list
+  retries: "{{ fleet_bootstrap_kibana_retries | int }}"
+  delay: "{{ fleet_bootstrap_kibana_retry_delay_seconds | int }}"
+  until: fleet_bootstrap_verify_output_list.status | default(0) | int == 200
+  no_log: "{{ fleet_bootstrap_no_log | bool }}"
+  when: not (ansible_check_mode | bool)
+
+# 指定名のFleet Outputを検証対象として1件へ絞り込む。
+- name: Resolve Fleet output for verification
+  ansible.builtin.set_fact:
+    fleet_bootstrap_verify_output: >-
+      {{
+        fleet_bootstrap_verify_output_list.json['items'] | default([])
+        | selectattr('name', 'equalto', fleet_bootstrap_output_name)
+        | list
+        | first
+        | default({})
+      }}
+  when: not (ansible_check_mode | bool)
+
+# Fleet Outputが通常Agent向けの既定Logstash送信先として設定されていることを検証する。
+- name: Assert Fleet output configuration
+  ansible.builtin.assert:
+    that:
+      - fleet_bootstrap_verify_output.id is defined
+      - fleet_bootstrap_verify_output.type | default('') == 'logstash'
+      - fleet_bootstrap_verify_output.hosts | default([], true) == fleet_bootstrap_logstash_hosts
+      - fleet_bootstrap_verify_output.is_default | default(false) | bool
+      - fleet_bootstrap_verify_output.is_default_monitoring | default(false) | bool
+      - >-
+        fleet_bootstrap_verify_output_list.json['items'] | default([])
+        | selectattr('type', 'equalto', 'elasticsearch')
+        | list
+        | length >= 1
+    fail_msg: >-
+      Fleet output does not match the required Logstash configuration,
+      or no Elasticsearch output remains available for Fleet Server.
+      output={{ fleet_bootstrap_output_name }}
+  when: not (ansible_check_mode | bool)
+
+# 生成または再利用した Fleet Agent Policy が実際に存在することを確認する。
+- name: List Fleet agent policies for verification
+  ansible.builtin.uri:
+    url: "{{ fleet_bootstrap_kibana_url }}/api/fleet/agent_policies"
+    method: GET
+    headers:
+      Authorization: "ApiKey {{ fleet_bootstrap_runtime_api_key }}"
+      kbn-xsrf: "{{ fleet_bootstrap_kibana_xsrf_token }}"
+      Content-Type: application/json
+    return_content: true
+    validate_certs: "{{ fleet_bootstrap_kibana_validate_certs | bool }}"
+    timeout: "{{ fleet_bootstrap_kibana_timeout_seconds | int }}"
+  register: fleet_bootstrap_verify_policy_list
+  retries: "{{ fleet_bootstrap_kibana_retries | int }}"
+  delay: "{{ fleet_bootstrap_kibana_retry_delay_seconds | int }}"
+  until: fleet_bootstrap_verify_policy_list.status | default(0) | int == 200
+  no_log: "{{ fleet_bootstrap_no_log | bool }}"
+  when: not (ansible_check_mode | bool)
+
+# 3種類のFleet Agent Policyが個別出力を持たず, 既定Logstash Outputを継承することを検証する。
+- name: Assert Fleet agent policies exist
+  ansible.builtin.assert:
+    that:
+      - >-
+        fleet_bootstrap_verify_policy_list.json['items'] | default([])
+        | selectattr('name', 'equalto', item.policy_name)
+        | list
+        | length == 1
+      - >-
+        fleet_bootstrap_verify_policy_list.json['items'] | default([])
+        | selectattr('name', 'equalto', item.policy_name)
+        | rejectattr('data_output_id', 'defined')
+        | rejectattr('monitoring_output_id', 'defined')
+        | list
+        | length == 1
+    fail_msg: >-
+      Fleet agent policy was not created or reused successfully.
+      policy={{ item.policy_name }}
+  loop: "{{ fleet_bootstrap_agent_policy_profiles }}"
+  loop_control:
+    label: "{{ item.policy_name }}"
+  when: not (ansible_check_mode | bool)
+
+# Fleet Server専用Policyがコンテナの起動時指定と同じIDで存在することを検証する。
+- name: Assert Fleet Server agent policy exists
+  ansible.builtin.assert:
+    that:
+      - >-
+        fleet_bootstrap_verify_policy_list.json['items'] | default([])
+        | selectattr('id', 'equalto', fleet_bootstrap_fleet_server_policy_id)
+        | list
+        | length == 1
+      - >-
+        fleet_bootstrap_verify_policy_list.json['items'] | default([])
+        | selectattr('id', 'equalto', fleet_bootstrap_fleet_server_policy_id)
+        | selectattr('data_output_id', 'defined')
+        | list
+        | length == 1
+    fail_msg: >-
+      Fleet Server agent policy is missing or does not retain Elasticsearch outputs.
+      policy={{ fleet_bootstrap_fleet_server_policy_id }}
+  when: not (ansible_check_mode | bool)
+
+# Fleet Server統合と自己登録が完了し, 通常Agentへ正常応答できることを状態APIで検証する。
+- name: Verify Fleet Server status after bootstrap
+  ansible.builtin.uri:
+    url: >-
+      {{ fleet_server_runtime_scheme | default('http') }}://{{
+      fleet_server_wait_host | default('127.0.0.1') }}:{{
+      fleet_server_port }}/api/status
+    method: GET
+    return_content: true
+    status_code:
+      - 200
+    validate_certs: >-
+      {{
+        (fleet_server_runtime_tls_mode | default('off') == 'full')
+        | bool
+      }}
+    timeout: "{{ fleet_server_wait_sleep | default(2) | int }}"
+  register: fleet_bootstrap_verify_fleet_server_status_result
+  retries: "{{ fleet_server_wait_retries | default(60) | int }}"
+  delay: "{{ fleet_server_wait_sleep | default(2) | int }}"
+  until:
+    - fleet_bootstrap_verify_fleet_server_status_result.status | default(0) | int == 200
+    - fleet_bootstrap_verify_fleet_server_status_result.json.status | default('') == 'HEALTHY'
+  when: not (ansible_check_mode | bool)
+
+# Agent Policyとの関連付けを検証するため, 現在のPackage Policy一覧を取得する。
+- name: List Fleet package policies for verification
+  ansible.builtin.uri:
+    url: "{{ fleet_bootstrap_kibana_url }}/api/fleet/package_policies?perPage=10000"
+    method: GET
+    headers:
+      Authorization: "ApiKey {{ fleet_bootstrap_runtime_api_key }}"
+      kbn-xsrf: "{{ fleet_bootstrap_kibana_xsrf_token }}"
+      Content-Type: application/json
+    return_content: true
+    validate_certs: "{{ fleet_bootstrap_kibana_validate_certs | bool }}"
+    timeout: "{{ fleet_bootstrap_kibana_timeout_seconds | int }}"
+  register: fleet_bootstrap_verify_package_policy_list
+  retries: "{{ fleet_bootstrap_kibana_retries | int }}"
+  delay: "{{ fleet_bootstrap_kibana_retry_delay_seconds | int }}"
+  until: fleet_bootstrap_verify_package_policy_list.status | default(0) | int == 200
+  no_log: "{{ fleet_bootstrap_no_log | bool }}"
+  when: not (ansible_check_mode | bool)
+
+# 各Agent Policyに必須のSystem統合とホストログ統合が関連付けられていることを検証する。
+- name: Assert required Fleet package policies exist
+  ansible.builtin.assert:
+    that:
+      - >-
+        fleet_bootstrap_verify_package_policy_list.json['items'] | default([])
+        | selectattr('name', 'equalto', item.policy_name ~ '-system')
+        | list
+        | length == 1
+      - >-
+        not (logging_elastic_agent_host_log_input_enabled | default(true) | bool)
+        or (
+          fleet_bootstrap_verify_package_policy_list.json['items'] | default([])
+          | selectattr('name', 'equalto', item.policy_name ~ '-host-logs')
+          | list
+          | length == 1
+        )
+    fail_msg: >-
+      Required Fleet package policies are missing.
+      policy={{ item.policy_name }}
+  loop: "{{ fleet_bootstrap_agent_policy_profiles }}"
+  loop_control:
+    label: "{{ item.policy_name }}"
+  when: not (ansible_check_mode | bool)
+
+# Fleet Server状態APIを利用可能にするため, 専用PolicyへFleet Server統合が関連付けられていることを検証する。
+- name: Assert Fleet Server package policy exists
+  ansible.builtin.assert:
+    that:
+      - >-
+        fleet_bootstrap_verify_package_policy_list.json['items'] | default([])
+        | selectattr('name', 'equalto', fleet_bootstrap_fleet_server_policy_id ~ '-integration')
+        | selectattr('policy_id', 'equalto', fleet_bootstrap_fleet_server_policy_id)
+        | list
+        | length == 1
+    fail_msg: >-
+      Fleet Server package policy is missing.
+      policy={{ fleet_bootstrap_fleet_server_policy_id }}
+  when: not (ansible_check_mode | bool)
+
+# Kubernetes用Elastic Agent ポリシーに必要なログ用Package Policyが関連付けられていることを検証する。
+- name: Assert Kubernetes Fleet package policies exist
+  ansible.builtin.assert:
+    that:
+      - >-
+        not (item.include_k8s_system | bool)
+        or not (logging_elastic_agent_k8s_system_kube_system_logs_input_enabled | default(true) | bool)
+        or (
+          fleet_bootstrap_verify_package_policy_list.json['items'] | default([])
+          | selectattr('name', 'equalto', item.policy_name ~ '-k8s-system-logs')
+          | list
+          | length == 1
+        )
+      - >-
+        not (item.include_k8s_workload | bool)
+        or not (logging_elastic_agent_k8s_workload_log_input_enabled | default(true) | bool)
+        or (
+          fleet_bootstrap_verify_package_policy_list.json['items'] | default([])
+          | selectattr('name', 'equalto', item.policy_name ~ '-k8s-workload-logs')
+          | list
+          | length == 1
+        )
+    fail_msg: >-
+      Kubernetes Fleet package policies are missing.
+      policy={{ item.policy_name }}
+  loop: "{{ fleet_bootstrap_agent_policy_profiles }}"
+  loop_control:
+    label: "{{ item.policy_name }}"
+  when: not (ansible_check_mode | bool)
+
+# 生成または再利用した Enrollment Token が実際に存在することを確認する。
+- name: List Fleet enrollment tokens for verification
+  ansible.builtin.uri:
+    url: >-
+      {{ fleet_bootstrap_kibana_url }}/api/fleet/enrollment_api_keys?perPage={{
+      fleet_bootstrap_enrollment_token_list_page_size | int }}
+    method: GET
+    headers:
+      Authorization: "ApiKey {{ fleet_bootstrap_runtime_api_key }}"
+      kbn-xsrf: "{{ fleet_bootstrap_kibana_xsrf_token }}"
+      Content-Type: application/json
+    return_content: true
+    validate_certs: "{{ fleet_bootstrap_kibana_validate_certs | bool }}"
+    timeout: "{{ fleet_bootstrap_kibana_timeout_seconds | int }}"
+  register: fleet_bootstrap_verify_token_list
+  retries: "{{ fleet_bootstrap_kibana_retries | int }}"
+  delay: "{{ fleet_bootstrap_kibana_retry_delay_seconds | int }}"
+  until: fleet_bootstrap_verify_token_list.status | default(0) | int == 200
+  no_log: "{{ fleet_bootstrap_no_log | bool }}"
+  when: not (ansible_check_mode | bool)
+
+# 3種類のEnrollment Tokenが対応するAgent Policyへ関連付けられていることを検証する。
+- name: Assert Fleet enrollment tokens exist
+  ansible.builtin.assert:
+    that:
+      - >-
+        (
+          fleet_bootstrap_verify_token_list.json['items'] | default([])
+          | selectattr('name', 'defined')
+          | selectattr(
+              'name',
+              'match',
+              '^' ~ (item.enrollment_token_name | regex_escape)
+              ~ ' \([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}\)$'
+            )
+          | list
+          | length
+        ) == 1
+    fail_msg: >-
+      Fleet enrollment token was not created or reused successfully.
+      token={{ item.enrollment_token_name }}
+  loop: "{{ fleet_bootstrap_agent_policy_profiles }}"
+  loop_control:
+    label: "{{ item.enrollment_token_name }}"
+  when: not (ansible_check_mode | bool)
+
+# Fleet Output 用 Elasticsearch hosts の各 URL がローカル実行文脈で応答可能であることを確認する。
+- name: Verify Fleet bootstrap Elasticsearch hosts locally
+  ansible.builtin.uri:
+    url: "{{ item }}/_cluster/health?wait_for_status=yellow&timeout=60s"
+    method: GET
+    force_basic_auth: "{{ elastic_search_security_enabled | default(false) | bool }}"
+    url_username: "{{ elastic_search_security_username if (elastic_search_security_enabled | default(false) | bool) else omit }}"
+    url_password: "{{ elastic_search_bootstrap_password if (elastic_search_security_enabled | default(false) | bool) else omit }}"
+    validate_certs: >-
+      {{
+        (
+          ((item | default('', true) | string | lower).startswith('https://')) and
+          ((elastic_search_tls_mode | default(logging_backend_default_tls_mode, true) | string | lower | trim) == 'full')
+        ) | bool
+      }}
+    return_content: true
+    status_code:
+      - 200
+    timeout: "{{ fleet_bootstrap_kibana_timeout_seconds | int }}"
+  register: fleet_bootstrap_local_verify_elasticsearch_health_result
+  loop: "{{ fleet_bootstrap_elasticsearch_local_verify_hosts | default([], true) }}"
+  loop_control:
+    label: "{{ item }}"
+  until:
+    - fleet_bootstrap_local_verify_elasticsearch_health_result is succeeded
+    - fleet_bootstrap_local_verify_elasticsearch_health_result.json.status is defined
+    - fleet_bootstrap_local_verify_elasticsearch_health_result.json.status in ['yellow', 'green']
+  retries: "{{ ((fleet_bootstrap_kibana_timeout_seconds | int) // ([fleet_bootstrap_kibana_retry_delay_seconds | int, 1] | max)) + 1 }}"
+  delay: "{{ fleet_bootstrap_kibana_retry_delay_seconds | int }}"
+  when:
+    - not (ansible_check_mode | bool)
+
+# Fleet Output 用 Elasticsearch hosts の各 URL が外部実行文脈でも応答可能であることを確認する。
+- name: Verify Fleet bootstrap Elasticsearch hosts externally
+  ansible.builtin.uri:
+    url: "{{ item }}/_cluster/health?wait_for_status=yellow&timeout=60s"
+    method: GET
+    force_basic_auth: "{{ elastic_search_security_enabled | default(false) | bool }}"
+    url_username: "{{ elastic_search_security_username if (elastic_search_security_enabled | default(false) | bool) else omit }}"
+    url_password: "{{ elastic_search_bootstrap_password if (elastic_search_security_enabled | default(false) | bool) else omit }}"
+    validate_certs: >-
+      {{
+        (
+          ((item | default('', true) | string | lower).startswith('https://')) and
+          ((elastic_search_tls_mode | default(logging_backend_default_tls_mode, true) | string | lower | trim) == 'full')
+        ) | bool
+      }}
+    return_content: true
+    status_code:
+      - 200
+    timeout: "{{ fleet_bootstrap_kibana_timeout_seconds | int }}"
+  register: fleet_bootstrap_external_verify_elasticsearch_health_result
+  delegate_to: "{{ fleet_bootstrap_external_verify_delegate_to }}"
+  loop: "{{ fleet_bootstrap_elasticsearch_external_verify_hosts | default([], true) }}"
+  loop_control:
+    label: "{{ item }}"
+  until:
+    - fleet_bootstrap_external_verify_elasticsearch_health_result is succeeded
+    - fleet_bootstrap_external_verify_elasticsearch_health_result.json.status is defined
+    - fleet_bootstrap_external_verify_elasticsearch_health_result.json.status in ['yellow', 'green']
+  retries: "{{ ((fleet_bootstrap_kibana_timeout_seconds | int) // ([fleet_bootstrap_kibana_retry_delay_seconds | int, 1] | max)) + 1 }}"
+  delay: "{{ fleet_bootstrap_kibana_retry_delay_seconds | int }}"
+  when:
+    - not (ansible_check_mode | bool)
+    - fleet_bootstrap_external_verify_enabled | bool

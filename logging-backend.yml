@@ -2,14 +2,30 @@
 #  Ansible playbook
 #  Copyright 2020 Takeharu KATO All Rights Reserved.
 #
+# Elasticsearch/Logstash/Kibana/Fleet Server導入ロール群定義
+#
+# 留意事項:
+#   既存のホスト構築ロール群を適用してネットワークなどの基本設定やDocker-CEが導入済み
+#   であることを前提に, Elasticsearch/Logstash/Kibana/Fleet Serverを導入するための
+#   追加ロール群のみを定義しているため, 既存のホスト構築ロール群を適用後に適用すること。
+---
+
+# Elasticsearch/Logstash/Kibana/Fleet Server導入ホストの設定
 - name: Configure elastic stack backend hosts
   hosts: logging_backend
   remote_user: '{{ ansible_user }}'
   become: true
   roles:
+    # Elastic Stack各サービスが共有するDockerネットワークと送信規則を先に設定する。
+    - role: docker-network-elastic-stack
+      tags: docker-network-elastic-stack
     - role: elasticsearch
       tags: elasticsearch
     - role: logstash
       tags: logstash
     - role: kibana
       tags: kibana
+    - role: fleet-server
+      tags: fleet-server
+    - role: fleet-bootstrap
+      tags: fleet-bootstrap

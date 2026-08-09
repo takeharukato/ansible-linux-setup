@@ -23,8 +23,8 @@
   ansible.builtin.file:
     path: "{{ item }}"
     state: directory
-    owner: "{{ elasticsearch_user_id }}"
-    group: "{{ elasticsearch_group_id }}"
+    owner: "{{ logging_backend_container_user_id }}"
+    group: "{{ logging_backend_container_group_id }}"
     mode: '0755'
     recurse: true
   loop:
@@ -51,8 +51,8 @@
   ansible.builtin.file:
     path: "{{ elastic_search_snapshot_repo_path_host }}"
     state: directory
-    owner: "{{ elasticsearch_user_id }}"
-    group: "{{ elasticsearch_group_id }}"
+    owner: "{{ logging_backend_container_user_id }}"
+    group: "{{ logging_backend_container_group_id }}"
     mode: '0755'
     recurse: true
   when:

@@ -1,0 +1,35 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  実行時変数解決
+#
+---
+
+# 明示 URL 指定がある場合はそれを優先し, 未指定時は logging backendの共通接続先として解決したホスト名と Kibana ポートからランタイムエンドポイントを組み立てる。
+# 判定式と分岐式の対応関係は以下のとおりである。
+# - 明示指定の有無判定: (kibana_endpoint_url_explicit | default('', true) | string | trim | length) > 0
+# - 明示指定時の採用値: (kibana_endpoint_url_explicit | string | trim)
+# - 未指定時の採用値: ('http://' ~ logging_backend_resolved_host ~ ':' ~ (kibana_server_port | string))
+- name: Resolve Kibana runtime endpoint fact
+  ansible.builtin.set_fact:
+    kibana_runtime_endpoint_url: >-
+      {{
+        (kibana_endpoint_url_explicit | string | trim)
+        if ((kibana_endpoint_url_explicit | default('', true) | string | trim | length) > 0)
+        else (kibana_runtime_scheme ~ '://' ~ logging_backend_resolved_host ~ ':' ~ (kibana_server_port | string))
+      }}
+
+# 検証系の runtime 変数を確定し, HTTPS 判定はランタイムエンドポイントの先頭が https:// であることを条件として判断する。
+# HTTPS 判定式の対応関係は以下のとおりである。
+# - 正規表現判定: ((kibana_runtime_endpoint_url | default('') | lower) is regex('^https://'))
+# - '^'は文字列先頭, 'https://'は方式と区切りを表し, 'https://kibana:5601'に一致する。
+# - 真偽値化: (...) | bool
+# - ローカル検証 URL のプロトコル選択: (...) | ternary('https', 'http')
+- name: Resolve Kibana verify facts
+  ansible.builtin.set_fact:
+    kibana_local_verify_endpoint_url: "{{ kibana_runtime_scheme }}://{{ kibana_wait_host }}:{{ kibana_server_port }}"
+    kibana_local_verify_validate_certs: false
+    kibana_external_verify_enabled: "{{ logging_verify_external_enabled | bool }}"
+    kibana_external_verify_delegate_to: "{{ logging_verify_external_delegate_to }}"
+    kibana_external_verify_validate_certs: "{{ (kibana_runtime_tls_mode == 'full') | bool }}"

@@ -1,0 +1,16 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  ファイル・ディレクトリ作成関連タスク
+#
+---
+
+# 実行ファイルを一般利用者が変更できない場所へ配置するため, 専用ディレクトリを作成する。
+- name: Create Elastic Stack Docker network script directory
+  ansible.builtin.file:
+    path: "{{ docker_network_elastic_stack_apply_script | dirname }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"

@@ -1,0 +1,91 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  サービス関連処理
+#
+---
+
+# CIDR検証をDockerネットワーク作成より前に実行できるように検証スクリプトを配置する。
+- name: Render Elastic Stack Docker network validation script
+  ansible.builtin.template:
+    src: validate-network.py.j2
+    dest: "{{ docker_network_elastic_stack_validate_script }}"
+    owner: root
+    group: root
+    mode: "0755"
+
+# ネットワーク名, IPv4/IPv6 CIDR及び通信制御値の誤設定をホスト変更前に検出する。
+- name: Validate Elastic Stack Docker network inputs
+  ansible.builtin.assert:
+    that:
+      - (logging_backend_network_name | default('', true) | string | trim | length) > 0
+      - (logging_backend_network_ipv4_subnet | default('', true) | string | trim | length) > 0
+      - (logging_backend_network_ipv6_subnet | default('', true) | string | trim | length) > 0
+      - (docker_network_elastic_stack_command_timeout_seconds | int) > 0
+      - (docker_network_elastic_stack_retries | int) > 0
+      - (docker_network_elastic_stack_retry_delay_seconds | int) >= 0
+      - (docker_network_elastic_stack_filter_chain | default('', true) | string | trim | length) > 0
+      - (docker_network_elastic_stack_nat_chain | default('', true) | string | trim | length) > 0
+    fail_msg: >-
+      Elastic Stack Docker network settings are missing or invalid.
+
+# 既存ネットワークとのIPv4/IPv6 CIDR重複又は同名ネットワークのCIDR不一致時は, コンテナ通信を破壊しないように停止する。
+- name: Validate existing Docker network CIDRs
+  ansible.builtin.command:
+    argv:
+      - "{{ docker_network_elastic_stack_validate_script }}"
+      - --network-name
+      - "{{ logging_backend_network_name }}"
+      - --ipv4-subnet
+      - "{{ logging_backend_network_ipv4_subnet }}"
+      - --ipv6-subnet
+      - "{{ logging_backend_network_ipv6_subnet }}"
+      - --timeout
+      - "{{ docker_network_elastic_stack_command_timeout_seconds | string }}"
+  register: docker_network_elastic_stack_validation_result
+  changed_when: false
+  failed_when:
+    - docker_network_elastic_stack_validation_result.rc not in [0, 10]
+  retries: "{{ docker_network_elastic_stack_retries | int }}"
+  delay: "{{ docker_network_elastic_stack_retry_delay_seconds | int }}"
+  until: docker_network_elastic_stack_validation_result.rc in [0, 10]
+
+# 検証済みIPv4/IPv6 CIDRを指定してネットワークを作成し, Dockerの自動CIDR割当を使用しないようにする。
+- name: Create Elastic Stack Docker network
+  ansible.builtin.command:
+    argv:
+      - docker
+      - network
+      - create
+      - --driver
+      - bridge
+      - --ipv6
+      - --subnet
+      - "{{ logging_backend_network_ipv4_subnet }}"
+      - --subnet
+      - "{{ logging_backend_network_ipv6_subnet }}"
+      - "{{ logging_backend_network_name }}"
+  register: docker_network_elastic_stack_create_result
+  changed_when: docker_network_elastic_stack_create_result.rc == 0
+  when:
+    - docker_network_elastic_stack_validation_result.rc == 10
+
+# 作成直後のネットワークを再検証し, 指定IPv4/IPv6 CIDRとDocker管理状態の不一致を検出する。
+- name: Verify created Elastic Stack Docker network
+  ansible.builtin.command:
+    argv:
+      - "{{ docker_network_elastic_stack_validate_script }}"
+      - --network-name
+      - "{{ logging_backend_network_name }}"
+      - --ipv4-subnet
+      - "{{ logging_backend_network_ipv4_subnet }}"
+      - --ipv6-subnet
+      - "{{ logging_backend_network_ipv6_subnet }}"
+      - --timeout
+      - "{{ docker_network_elastic_stack_command_timeout_seconds | string }}"
+  register: docker_network_elastic_stack_verify_result
+  changed_when: false
+  retries: "{{ docker_network_elastic_stack_retries | int }}"
+  delay: "{{ docker_network_elastic_stack_retry_delay_seconds | int }}"
+  until: docker_network_elastic_stack_verify_result.rc == 0

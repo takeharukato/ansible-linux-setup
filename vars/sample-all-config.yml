@@ -911,51 +911,58 @@ common_selinux_state: "permissive"
 # テナント内用CoreDNSイメージの登録先ローカルレジストリ
 # k8s_vc_tenant_dns_image_registry: "registry1.local:5000/vc-tenant-dns"
 
-# ======================================================================================================================================================
-# Elastic Stack の設定 (条件的必須: Elasticsearch/Logstash/Kibana利用時)
+# ====================================================================================
+# Elastic Stack の設定 (条件的必須: Elasticsearch/Logstash/Kibana/Fleet Server利用時)
 # ログを集約するホスト側の設定
-# 各ホストごとに指示を変えたい場合は, host_vars側で設定し, vars/all-config.ymlには設定しないこと
-# ======================================================================================================================================================
-# Elasticsearchを導入する場合は, trueに設定する
-# logging_elastic_search_enabled: true
-# ElasticsearchのHTTP待ち受けポート番号
-# elastic_search_http_port: 9200
-# Logstashを導入する場合は, trueに設定する
-# logging_logstash_enabled: true
-# LogstashのBeats待ち受けポート番号
-# logstash_beats_port: 5044
-# LogstashのHTTP待ち受けポート番号
-# logstash_http_port: 9600
-# Kibanaを導入する場合は, trueに設定する
-# logging_kibana_enabled: true
-# KibanaのHTTP待ち受けポート番号
-# kibana_server_port: 5601
+# host_vars側には設定しないこと
+# ====================================================================================
+# Elasticsearch, Kibana, Logstash, Fleet Server及びElastic Agentで共通利用する版数。
+# logging_backend_elastic_stack_version: "8.17.3"
+# Elasticsearch Securityで使用する利用者名
+# elastic_search_security_username: "elastic"
+# Elasticsearch Securityで使用する初期パスワード
+# elastic_search_bootstrap_password: "elastic"
+# Elastic Stack関連コンテナが共有するDockerブリッジネットワーク名。
+# logging_backend_network_name: "elastic-backend"
+# Elastic Stack関連ロールが参照する共通の接続先ホスト名又はIPアドレス。
+# logging_backend_host: "observer01.example.org"
+# 個別の接続先URLを明示しない場合に使用する既定スキーム。
+# logging_backend_default_scheme: "http"
+# HTTPS接続時に使用する既定TLS検証モード。利用可能値はnone又はfullである。
+# logging_backend_default_tls_mode: "none"
+# Elastic Stack関連ロールが共通利用するHTTPSサーバ証明書のホスト側ファイルパス。
+# logging_backend_tls_certificate_host_path: ""
+# Elastic Stack関連ロールが共通利用するHTTPSサーバ秘密鍵のホスト側ファイルパス。
+# logging_backend_tls_key_host_path: ""
 
-# ======================================================================================================================================================
-# Elastic Stack の設定 (条件的必須: Filebeat/Metricbeat利用時)
-# ログやメトリクスを収集し, Logstashに送信するホスト側の設定
-# 各ホストごとに指示を変えたい場合は, host_vars側で設定し, vars/all-config.ymlには設定しないこと
-# ======================================================================================================================================================
-# Filebeatを導入する場合は, trueに設定する
-# logging_filebeat_enabled: true
-# FilebeatのHTTP待ち受けポート番号
-# filebeat_http_port: 5066
-# 収集側が送信するLogstashの接続先ホスト
-# inventoryの先頭順依存を避けるため, 明示設定を推奨する
-# IPアドレス又はFQDNを指定すること
-# *.local などの multicast DNS 名は, 環境により名前解決が不安定になるため指定しないこと
-# logging_backend_host: "mgmt-server.local"
-# Filebeatの送信先Logstashホスト
-# filebeat_backend_host: "{{ logging_backend_host }}"
-# Filebeatの送信先Logstashポート番号
-# filebeat_backend_port: 5044
-# Metricbeatを導入する場合は, trueに設定する
-# logging_metricbeat_enabled: true
-# MetricbeatのHTTP待ち受けポート番号
-# metricbeat_http_port: 5067
-# Metricbeatの送信先Logstashホスト
-# IPアドレス又はFQDNを指定すること
-# *.local などの multicast DNS 名は, 環境により名前解決が不安定になるため指定しないこと
-# metricbeat_backend_host: "{{ logging_backend_host }}"
-# Metricbeatの送信先Logstashポート番号
-# metricbeat_backend_port: 5044
+# =======================================================================
+# Elastic Stack関連ロールの必須入力値
+# host_vars側には設定しないこと
+# =======================================================================
+# Elasticsearchを導入する場合にtrueを指定する有効化フラグ。
+# logging_elastic_search_enabled: true
+# Logstashを導入する場合にtrueを指定する有効化フラグ。
+# logging_logstash_enabled: true
+# Kibanaを導入する場合にtrueを指定する有効化フラグ。
+# logging_kibana_enabled: true
+# Fleet Serverを導入する場合にtrueを指定する有効化フラグ。
+# logging_fleet_server_enabled: true
+# Fleet Server導入時の初期化処理を実行する有効化フラグ。
+# fleet_bootstrap_enabled: true
+# Elastic Agentの収集データをLogstashへ送信するFleet Outputの名称。
+# fleet_bootstrap_output_name: "main-logstash-output"
+# ホスト監視用Elastic Agentポリシーの名称。
+# fleet_bootstrap_policy_name: "linux-host-policy"
+# ホスト監視用Enrollment Tokenの名称。
+# fleet_bootstrap_enrollment_token_name: "linux-host-token"
+
+# =======================================================================
+# Elastic Agent関連ロールの必須入力値
+# 原則として, **host_vars側で**各ホストの仕様に基づいて設定すること
+# =======================================================================
+# ホスト監視用Elastic Agent を導入する場合にtrueを指定する有効化フラグ。
+# logging_elastic_agent_host_enabled: true
+# Kubernetesシステム監視用Elastic Agent を導入する場合にtrueを指定する有効化フラグ。
+# logging_elastic_agent_k8s_system_enabled: true
+# Kubernetesワークロード監視用Elastic Agent を導入する場合にtrueを指定する有効化フラグ。
+# logging_elastic_agent_k8s_workload_enabled: true

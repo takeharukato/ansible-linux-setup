@@ -6,6 +6,32 @@
 #
 ---
 
+# Logstash コンテナが稼働状態へ遷移したことを確認する。
+- name: Inspect Logstash container state
+  ansible.builtin.command:
+    argv:
+      - docker
+      - container
+      - inspect
+      - "{{ logstash_container_name }}"
+  register: logstash_container_state_cmd
+  changed_when: false
+  until:
+    - logstash_container_state_cmd is succeeded
+    - logstash_container_state_cmd.stdout | length > 0
+    - ((logstash_container_state_cmd.stdout | from_json | first).State.Running | default(false)) | bool
+  retries: "{{ logstash_wait_retries }}"
+  delay: "{{ logstash_wait_sleep }}"
+
+# コンテナが稼働状態であることを最終確認し, 異常終了ループを検出する。
+- name: Assert Logstash container is running
+  ansible.builtin.assert:
+    that:
+      - ((logstash_container_state_cmd.stdout | from_json | first).State.Running | default(false)) | bool
+    fail_msg: >-
+      Logstash container is not running.
+      container={{ logstash_container_name }}
+
 # service のポートが開くまで待ち, その後の HTTP 検査が失敗しないようにする。
 - name: Wait for Logstash HTTP port
   ansible.builtin.wait_for:
@@ -22,21 +48,46 @@
   delay: "{{ logstash_wait_sleep }}"
 
 # Logstash の HTTP 応答を確認し, backend として応答可能であることを検証する。
-- name: Verify Logstash response
+# JVM 初期化や pipeline 読み込みに時間を要する場合があるため,
+# 応答確認の試行回数は timeout と sleep から導出する。
+- name: Verify Logstash response locally
   ansible.builtin.uri:
-    url: "http://127.0.0.1:{{ logstash_http_port }}/"
+    url: "{{ logstash_local_verify_endpoint_url }}/"
     method: GET
+    validate_certs: "{{ logstash_local_verify_validate_certs | bool }}"
     return_content: true
     status_code:
       - 200
+    timeout: "{{ logstash_wait_timeout | int }}"
   register: logstash_status_result
   until:
     - logstash_status_result is succeeded
     - logstash_status_result.status is defined
     - logstash_status_result.status == 200
-  # JVM 初期化や pipeline 読み込みに時間を要する場合があるため,
-  # 応答確認の試行回数は timeout と sleep から導出する。
   retries: "{{ ((logstash_wait_timeout | int) // ([logstash_wait_sleep | int, 1] | max)) + 1 }}"
   delay: "{{ logstash_wait_sleep }}"
   failed_when:
     - logstash_status_result.status != 200
+
+# Logstash の HTTP 応答を確認し, 外部ホストからの疎通確認を任意で実施する。
+- name: Verify Logstash response externally
+  ansible.builtin.uri:
+    url: "{{ logstash_runtime_endpoint_url }}/"
+    method: GET
+    validate_certs: "{{ logstash_external_verify_validate_certs | bool }}"
+    return_content: true
+    status_code:
+      - 200
+    timeout: "{{ logstash_wait_timeout | int }}"
+  register: logstash_external_status_result
+  delegate_to: "{{ logstash_external_verify_delegate_to }}"
+  until:
+    - logstash_external_status_result is succeeded
+    - logstash_external_status_result.status is defined
+    - logstash_external_status_result.status == 200
+  retries: "{{ ((logstash_wait_timeout | int) // ([logstash_wait_sleep | int, 1] | max)) + 1 }}"
+  delay: "{{ logstash_wait_sleep }}"
+  failed_when:
+    - logstash_external_status_result.status != 200
+  when:
+    - logstash_external_verify_enabled | bool

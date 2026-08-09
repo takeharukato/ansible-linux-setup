@@ -72,7 +72,7 @@ LDAP関連の標準用語については本セクションで定義します。�
 | プログラム | - | 計算機に処理をさせるための命令列。 |
 | コミュニティ | - | 共通目的のもとで継続的に活動する利用者集団。 |
 | プラグイン | - | 既存機能へ追加機能を組み込むための拡張部品。 |
-| サービスアカウント | - | 自動処理向けに用意する利用主体の識別情報。 |
+| サービスアカウント (Service Account) | - | 自動処理中でサービスを呼び出す側のプログラムを識別するための識別情報。 |
 | コンテナランタイム | - | コンテナを起動, 停止, 管理する実行基盤。 |
 | リクエスト | - | 処理実行や情報取得を要求する操作。 |
 | コントローラ | - | 対象状態を監視し, 期待状態へ調整する制御機能。 |
@@ -139,6 +139,7 @@ LDAP関連の標準用語については本セクションで定義します。�
 | User Interface | UI | 利用者がソフトウェアを操作するための見た目と操作方法。 |
 | Identifier | ID | 対象を一意に識別するための値。 |
 | Docker Compose | - | 複数のコンテナ定義をまとめて作成, 起動, 停止, 更新する仕組み。 |
+| Docker Compose 定義ファイル | - | Docker Compose が参照するコンテナ構成の定義ファイル。 |
 | コンテナ | - | アプリケーションを動かす隔離された実行単位。 |
 | イメージ | - | Dockerコンテナを起動するためのテンプレートファイル。osixia/openldap, osixia/phpldapadminはコンテナイメージ |
 | ボリューム | - | Dockerコンテナ内のディレクトリやファイルシステムをホスト側と共有するためのマウント機構。ローカルディレクトリまたはDocker管理下のボリュームをマウント可能 |
@@ -194,7 +195,7 @@ LDAP関連の標準用語については本セクションで定義します。�
 ```
 /data/openldap/
   ├─ docker/
-  │  └─ docker-compose.yml         # 2コンテナ定義ファイル(テンプレートから生成)
+  │  └─ docker-compose.yml         # Docker Compose 定義ファイル(テンプレートから生成)
   ├─ scripts/
   │  ├─ backup-ldap-data.sh        # バックアップスクリプト(テンプレートから生成)
   │  └─ restore-ldap-data.sh       # リストアスクリプト(テンプレートから生成)
@@ -266,7 +267,7 @@ ansible-playbook -i inventory/hosts site.yml --tags "ldap-server" --tags "servic
 
 | 変数名 | 既定値 | 説明 |
 | --- | --- | --- |
-| `openldap_docker_dir` | `/data/openldap/docker` | Docker Compose定義ファイル(docker-compose.yml)の配置先ディレクトリ |
+| `openldap_docker_dir` | `/data/openldap/docker` | Docker Compose 定義ファイル (`docker-compose.yml`) の配置先ディレクトリ |
 | `openldap_scripts_dir` | `/data/openldap/scripts` | バックアップ, リストアスクリプトの配置先ディレクトリ |
 | `openldap_database_dir` | `/data/openldap/slapd/database` | LDAPデータベースの永続化ディレクトリ。Dockerボリュームとしてマウント |
 | `openldap_config_dir` | `/data/openldap/slapd/config` | LDAP設定ファイルの永続化ディレクトリ。Dockerボリュームとしてマウント |
@@ -443,7 +444,7 @@ docker compose unpause
 
 | テンプレートファイル名 | 出力先パス | 説明 |
 | --- | --- | --- |
-| `docker-compose.yml.j2` | `/data/openldap/docker/docker-compose.yml` (既定: `/data/openldap/docker/docker-compose.yml`) | 2つのコンテナ(osixia/openldap, osixia/phpldapadmin)定義。services セクションで各コンテナの環境変数(LDAP_ORGANISATION, LDAP_DOMAIN, LDAP_ADMIN_PASSWORD等), ports セクションでポートマッピング(389:389, 10443:443), volumes セクションでホストディレクトリマウント(/data/openldap/slapd/*)を記載 |
+| `docker-compose.yml.j2` | `/data/openldap/docker/docker-compose.yml` (既定: `/data/openldap/docker/docker-compose.yml`) | OpenLDAP と phpLDAPadmin の Docker Compose 定義ファイル。services セクションで各コンテナの環境変数(LDAP_ORGANISATION, LDAP_DOMAIN, LDAP_ADMIN_PASSWORD等), ports セクションでポートマッピング(389:389, 10443:443), volumes セクションでホストディレクトリマウント(/data/openldap/slapd/*)を記載 |
 | `90-ldap-forwarding.conf.j2` | `/etc/sysctl.d/90-ldap-forwarding.conf` (既定: `/etc/sysctl.d/90-ldap-forwarding.conf`) | IPv4フォワーディング(net.ipv4.ip_forward=1), IPv6フォワーディング(net.ipv6.conf.all.forwarding=1), RA受信(net.ipv6.conf.{{ mgmt_nic }}.accept_ra=2)を記載するsysctl設定ファイル。Dockerネットワーク通信の正常動作に必須 |
 | `backup-ldap-data.sh.j2` | `/data/openldap/scripts/backup-ldap-data.sh` (既定: `/data/openldap/scripts/backup-ldap-data.sh`) | LDAP設定(/etc/ldap/slapd.d)とデータベース(/var/lib/ldap), phpLDAPadminデータ(/var/www/phpldapadmin)をtar形式でバックアップするシェルスクリプト。busybox コンテナを用いてボリュームをアーカイブ化し, config-backup.tar, data-backup.tar, phpadmin-backup.tar を生成 |
 | `restore-ldap-data.sh.j2` | `/data/openldap/scripts/restore-ldap-data.sh` (既定: `/data/openldap/scripts/restore-ldap-data.sh`) | バックアップアーカイブから LDAP設定, データベース, phpLDAPadminデータをリストアするシェルスクリプト。busybox コンテナを用いてアーカイブを展開, コンテナボリューム内に復元 |
@@ -457,7 +458,7 @@ docker compose unpause
 3. **User Group** — OpenLDAPコンテナ実行ユーザ(openldap, uid 911, gid 911)をホスト上に事前作成. ボリュームマウント時のディレクトリ所有権を設定するため必須
 4. **Directory** — `/data/openldap/docker`, `/data/openldap/scripts`, `/data/openldap/slapd/{database,config}`の各ディレクトリを作成し, 所有権とパーミッション(755)を設定
 5. **Sysctl** — IPv4/IPv6フォワーディングとRA受信を有効化する設定ファイル(`/etc/sysctl.d/90-ldap-forwarding.conf`)を配置し, sysctl -pのリロード処理を実行. Dockerネットワーク通信の正常動作に必須
-6. **Service** — `docker-compose.yml`をテンプレートから生成してディレクトリに配置, `docker compose up -d`でOpenLDAPコンテナとphpLDAPadminコンテナを起動. 起動待機(デフォルト600秒)処理を実行
+6. **Service** — Docker Compose 定義ファイル (`docker-compose.yml`) をテンプレートから生成してディレクトリに配置し, `docker compose up -d`でOpenLDAPコンテナとphpLDAPadminコンテナを起動. 起動待機(デフォルト600秒)処理を実行
 7. **Config** — バックアップスクリプト(`backup-ldap-data.sh`, `restore-ldap-data.sh`)をテンプレートから生成して配置, 実行権限(755)を設定. sysctl設定リロード用ハンドラ(`ldap_server_reload_sysctl`)をトリガー
 
 ### ハンドラ
@@ -726,7 +727,7 @@ ss -ltnp | grep -E ':(389|10443) '
 
 **確認ポイント**:
 
-- docker-compose.yml の定義が想定どおりであること。
+- Docker Compose 定義ファイル (`docker-compose.yml`) の定義が想定どおりであること。
 - コンテナログに起動失敗原因が出ていないこと。
 - ポート競合がないこと。
 

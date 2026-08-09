@@ -1,0 +1,38 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  パッケージ関連処理
+---
+
+# Dockerネットワークを操作する前にDockerコマンドが利用可能であることを確認する。
+- name: Verify Docker command is available
+  ansible.builtin.command:
+    argv:
+      - docker
+      - version
+  changed_when: false
+
+# IPv4送信規則を適用する前にiptablesコマンドが利用可能であることを確認する。
+- name: Verify iptables command is available
+  ansible.builtin.command:
+    argv:
+      - iptables
+      - --version
+  changed_when: false
+
+# IPv6送信規則を適用する前にip6tablesコマンドが利用可能であることを確認する。
+- name: Verify ip6tables command is available
+  ansible.builtin.command:
+    argv:
+      - ip6tables
+      - --version
+  changed_when: false
+
+# CIDR重複を標準ライブラリで検証するためにPython 3が利用可能であることを確認する。
+- name: Verify Python 3 command is available
+  ansible.builtin.command:
+    argv:
+      - python3
+      - --version
+  changed_when: false

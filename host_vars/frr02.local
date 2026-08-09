@@ -135,3 +135,13 @@ frr_networks_v6:
   - "{{gpm_mgmt_ipv6_prefix}}/64"   # Cluster2  管理ネットワーク
   - "{{k8s_net2_ipv6_prefix}}/64"   # Cluster2 K8s ノードセグメント
   - "{{external_net_ipv6_prefix}}/64"  # 疑似外部ネットワーク
+
+# =======================================================================
+# Elastic Agent関連ロールの必須入力値
+# =======================================================================
+# ホスト監視用Elastic Agent を導入する場合にtrueを指定する有効化フラグ。
+logging_elastic_agent_host_enabled: true
+# Kubernetesシステム監視用Elastic Agent を導入する場合にtrueを指定する有効化フラグ。
+logging_elastic_agent_k8s_system_enabled: false
+# Kubernetesワークロード監視用Elastic Agent を導入する場合にtrueを指定する有効化フラグ。
+logging_elastic_agent_k8s_workload_enabled: false

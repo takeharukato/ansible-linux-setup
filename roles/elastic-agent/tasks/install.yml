@@ -1,0 +1,81 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  Elastic Agent導入タスク
+#
+---
+
+# 既存サービスを検出し, 登録済みAgentへinstallを再実行しないようにする。
+- name: Gather service facts before Elastic Agent installation
+  become: true
+  ansible.builtin.service_facts:
+  changed_when: false
+
+# サービス登録の有無を単一の実行時フラグへ変換する。
+- name: Resolve Elastic Agent installation state
+  ansible.builtin.set_fact:
+    elastic_agent_runtime_installed: >-
+      {{
+        ('elastic-agent.service' in (ansible_facts.services | default({}))) or
+        ('elastic-agent' in (ansible_facts.services | default({})))
+      }}
+
+# 未導入時だけ公式配布物を検証付きで取得する。
+- name: Download Elastic Agent archive when not installed
+  become: true
+  ansible.builtin.get_url:
+    url: "{{ elastic_agent_download_url }}"
+    dest: "{{ elastic_agent_archive_path }}"
+    owner: root
+    group: root
+    mode: "0600"
+    checksum: "sha512:{{ elastic_agent_download_url }}.sha512"
+    timeout: "{{ elastic_agent_download_timeout_seconds | int }}"
+  register: elastic_agent_download_result
+  retries: "{{ elastic_agent_download_retries | int }}"
+  delay: "{{ elastic_agent_download_retry_delay_seconds | int }}"
+  until: elastic_agent_download_result is succeeded
+  when: not (elastic_agent_runtime_installed | bool)
+
+# 未導入時だけ検証済み配布物を展開する。
+- name: Extract Elastic Agent archive when not installed
+  become: true
+  ansible.builtin.unarchive:
+    src: "{{ elastic_agent_archive_path }}"
+    dest: "{{ elastic_agent_work_dir }}"
+    remote_src: true
+    creates: "{{ elastic_agent_source_dir }}/elastic-agent"
+  when: not (elastic_agent_runtime_installed | bool)
+
+# Enrollment Tokenをコマンド出力とAnsibleログから秘匿し, 未導入時だけサービス導入とFleet登録を実行する。
+- name: Install and enroll Elastic Agent when not installed
+  become: true
+  ansible.builtin.command:
+    argv: >-
+      {{
+        [
+          '/usr/bin/timeout',
+          (elastic_agent_install_timeout_seconds | string),
+          elastic_agent_source_dir ~ '/elastic-agent',
+          'install',
+          '--non-interactive',
+          '--url=' ~ elastic_agent_runtime_fleet_server_url,
+          '--enrollment-token=' ~ elastic_agent_enrollment_token,
+          '--daemon-timeout=' ~ (elastic_agent_install_timeout_seconds | string) ~ 's'
+        ] +
+        (['--insecure'] if (elastic_agent_insecure | bool) else []) +
+        (
+          ['--certificate-authorities=' ~ elastic_agent_certificate_authorities]
+          if (elastic_agent_certificate_authorities | default('', true) | string | trim | length > 0)
+          else []
+        )
+      }}
+    chdir: "{{ elastic_agent_source_dir }}"
+  register: elastic_agent_install_result
+  retries: "{{ elastic_agent_install_retries | int }}"
+  delay: "{{ elastic_agent_install_retry_delay_seconds | int }}"
+  until: elastic_agent_install_result.rc | default(1) == 0
+  changed_when: elastic_agent_install_result.rc | default(1) == 0
+  no_log: true
+  when: not (elastic_agent_runtime_installed | bool)

@@ -1,0 +1,16 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  ユーザ・グループ作成関連タスク
+#
+---
+
+# Linuxのiptablesとsystemdを前提とする処理を非対応OSで実行しないようにする。
+- name: Validate Elastic Stack Docker network operating system
+  ansible.builtin.assert:
+    that:
+      - ansible_facts.system == 'Linux'
+      - ansible_facts.service_mgr == 'systemd'
+    fail_msg: >-
+      docker-network-elastic-stack requires Linux with systemd.

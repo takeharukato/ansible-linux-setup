@@ -1,0 +1,110 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  サービス関連処理
+#
+---
+
+# 専用ロールの実行漏れを早期検出し, CIDR未指定ネットワークの作成を防止する。
+- name: Verify fleet-server backend network exists
+  ansible.builtin.command:
+    argv:
+      - docker
+      - network
+      - inspect
+      - "{{ fleet_server_runtime_network_name }}"
+  changed_when: false
+
+# fleet-server の永続 state ディレクトリを作成する。
+- name: Ensure fleet-server state directory exists
+  ansible.builtin.file:
+    path: "{{ fleet_server_runtime_state_dir }}"
+    state: directory
+    owner: "{{ logging_backend_container_user_id }}"
+    group: "{{ logging_backend_container_group_id }}"
+    mode: "0755"
+
+# 前回実行時の Security モード記録ファイルの有無を確認する。
+- name: Check previous fleet-server security mode marker
+  ansible.builtin.stat:
+    path: "{{ fleet_server_runtime_state_security_mode_file }}"
+  register: fleet_server_security_mode_marker_stat
+
+# 前回記録の Security モードを読み出す。
+- name: Read previous fleet-server security mode marker
+  ansible.builtin.slurp:
+    path: "{{ fleet_server_runtime_state_security_mode_file }}"
+  register: fleet_server_security_mode_marker_content
+  when:
+    - fleet_server_security_mode_marker_stat.stat.exists
+
+# Security モード切替時は永続 state を初期化して不整合による起動失敗を防止する。
+- name: Reset fleet-server state when security mode changed
+  ansible.builtin.file:
+    path: "{{ fleet_server_runtime_state_dir }}"
+    state: absent
+  when:
+    - fleet_server_security_mode_marker_stat.stat.exists
+    - >-
+      (fleet_server_security_mode_marker_content.content | b64decode | trim) !=
+      (fleet_server_runtime_elasticsearch_security_enabled | ternary('enabled', 'disabled'))
+
+# state 初期化後も含めて永続 state ディレクトリを再作成する。
+- name: Recreate fleet-server state directory
+  ansible.builtin.file:
+    path: "{{ fleet_server_runtime_state_dir }}"
+    state: directory
+    owner: "{{ logging_backend_container_user_id }}"
+    group: "{{ logging_backend_container_group_id }}"
+    mode: "0755"
+
+# 既存の同名コンテナ有無を確認する。
+- name: Check existing fleet-server container
+  ansible.builtin.command:
+    argv:
+      - docker
+      - container
+      - inspect
+      - "{{ fleet_server_container_name }}"
+  register: fleet_server_container_inspect
+  failed_when: false
+  changed_when: false
+
+# 既存コンテナが残っている場合は起動前に削除する。
+- name: Remove existing fleet-server container before compose up
+  ansible.builtin.command:
+    argv:
+      - docker
+      - rm
+      - -f
+      - "{{ fleet_server_container_name }}"
+  when:
+    - fleet_server_container_inspect.rc == 0
+  register: fleet_server_remove_existing_result
+  changed_when: fleet_server_remove_existing_result.rc == 0
+
+# compose 定義に基づいて fleet-server コンテナを起動する。
+- name: Start fleet-server service container
+  ansible.builtin.command:
+    argv:
+      - docker
+      - compose
+      - -f
+      - "{{ fleet_server_runtime_compose_file }}"
+      - up
+      - -d
+      - --remove-orphans
+  args:
+    chdir: "{{ fleet_server_compose_dir }}"
+  register: fleet_server_start_result
+  changed_when: fleet_server_start_result.rc == 0
+
+# 現在の Security モードを記録し, 次回の切替判定に利用する。
+- name: Persist current fleet-server security mode marker
+  ansible.builtin.copy:
+    dest: "{{ fleet_server_runtime_state_security_mode_file }}"
+    content: "{{ fleet_server_runtime_elasticsearch_security_enabled | ternary('enabled', 'disabled') }}\n"
+    owner: root
+    group: root
+    mode: "0644"

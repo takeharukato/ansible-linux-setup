@@ -7,9 +7,9 @@ top=.
 	run_post_user_create run_devel_packages cloc mk_arc mk_role_arc ansible-lint \
 	run_docker_ce run_ntp_server run_ntp_client run_nfs_server \
 	run_logging_backend \
-	run_elasticsearch run_logstash run_kibana \
+	run_elasticsearch run_logstash run_kibana run_fleet_server run_fleet_bootstrap \
 	run_logging_collector \
-	run_filebeat run_metricbeat \
+	run_elastic_agent run_elastic_agent_all \
 	run_ldap_server run_redmine_server run_yq run_jd \
 	run_k8s_common run_k8s_ctrl_plane run_k8s_multus run_k8s_whereabouts \
 	run_k8s_worker run_k8s_devel run_netgauge run_netshoot_no_portscan \
@@ -163,25 +163,31 @@ run_docker_ce:
 	ansible-playbook --tags "docker-ce" ${OPT_COMMON} 2>&1 |tee build-docker-ce.log
 
 run_logging_backend:
-	ansible-playbook --tags "elasticsearch,logstash,kibana" ${OPT_COMMON} 2>&1 |tee build-logging-backend.log
+	ansible-playbook --tags "docker-network-elastic-stack,elasticsearch,logstash,kibana,fleet-server,fleet-bootstrap" ${OPT_COMMON} 2>&1 |tee build-logging-backend.log
 
 run_elasticsearch:
-	ansible-playbook --tags "elasticsearch" ${OPT_COMMON} 2>&1 |tee build-elasticsearch.log
+	ansible-playbook --tags "docker-network-elastic-stack,elasticsearch" ${OPT_COMMON} 2>&1 |tee build-elasticsearch.log
 
 run_logstash:
-	ansible-playbook --tags "logstash" ${OPT_COMMON} 2>&1 |tee build-logstash.log
+	ansible-playbook --tags "docker-network-elastic-stack,logstash" ${OPT_COMMON} 2>&1 |tee build-logstash.log
 
 run_kibana:
-	ansible-playbook --tags "kibana" ${OPT_COMMON} 2>&1 |tee build-kibana.log
+	ansible-playbook --tags "docker-network-elastic-stack,kibana" ${OPT_COMMON} 2>&1 |tee build-kibana.log
+
+run_fleet_server:
+	ansible-playbook --tags "docker-network-elastic-stack,fleet-server" ${OPT_COMMON} 2>&1 |tee build-fleet-server.log
+
+run_fleet_bootstrap:
+	ansible-playbook --tags "docker-network-elastic-stack,fleet-server,fleet-bootstrap" ${OPT_COMMON} 2>&1 |tee build-fleet-bootstrap.log
 
 run_logging_collector:
-	ansible-playbook --tags "filebeat,metricbeat" ${OPT_COMMON} 2>&1 |tee build-logging-collector.log
+	ansible-playbook --tags "elastic-agent" ${OPT_COMMON} 2>&1 |tee build-logging-collector.log
 
-run_filebeat:
-	ansible-playbook --tags "filebeat" ${OPT_COMMON} 2>&1 |tee build-filebeat.log
+run_elastic_agent:
+	ansible-playbook --tags "elastic-agent" ${OPT_COMMON} 2>&1 |tee build-elastic-agent.log
 
-run_metricbeat:
-	ansible-playbook --tags "metricbeat" ${OPT_COMMON} 2>&1 |tee build-metricbeat.log
+run_elastic_agent_all:
+	ansible-playbook --tags "elastic-agent" ${OPT_COMMON} 2>&1 |tee build-elastic-agent-all.log
 
 run_ntp_server:
 	ansible-playbook --tags "ntp-server" ${OPT_COMMON} 2>&1 |tee build-ntp-server.log

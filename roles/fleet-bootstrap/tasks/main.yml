@@ -1,0 +1,71 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  タスクメイン部
+#
+#  include_tasksで他のタスクを読み込む
+#
+---
+
+# 最初に変数設定を読み直す ( role単独で実行可能とするため )
+- name: "Load Params"
+  ansible.builtin.include_tasks: load-params.yml
+
+# Elasticsearch Security 設定を含めて Fleet Bootstrap 実行可否を決定する。
+- name: "Resolve Runtime Flags"
+  ansible.builtin.include_tasks: resolve-runtime-flags.yml
+
+# endpoint 検証に必要な内部実行時変数を確定する。
+- name: "Resolve Runtime Vars"
+  ansible.builtin.include_tasks: resolve-runtime-vars.yml
+  when:
+    - fleet_bootstrap_runtime_enabled | default(false) | bool
+
+# fleet-bootstrap 実行に必要な入力値を先に検証し, 失敗を早期に検出する。
+- name: "Validate"
+  ansible.builtin.include_tasks: validate.yml
+  when:
+    - fleet_bootstrap_runtime_enabled | default(false) | bool
+
+# fleet-bootstrap 実行に必要な前提コマンドを確認する。
+- name: "Package"
+  ansible.builtin.include_tasks: package.yml
+  when:
+    - fleet_bootstrap_runtime_enabled | default(false) | bool
+
+# fleet-bootstrap 用の作業ディレクトリを準備する。
+- name: "Directory"
+  ansible.builtin.include_tasks: directory.yml
+  when:
+    - fleet_bootstrap_runtime_enabled | default(false) | bool
+
+# 実行ユーザ/グループ関連の前提を整える。
+- name: "User Group"
+  ansible.builtin.include_tasks: user_group.yml
+  when:
+    - fleet_bootstrap_runtime_enabled | default(false) | bool
+
+# 本ロールで利用する service 関連の前提処理を実行する。
+- name: "Service"
+  ansible.builtin.include_tasks: service.yml
+  when:
+    - fleet_bootstrap_runtime_enabled | default(false) | bool
+
+# Fleet API 呼び出し本体を実行する。
+- name: "Config"
+  ansible.builtin.include_tasks: config.yml
+  when:
+    - fleet_bootstrap_runtime_enabled | default(false) | bool
+
+# Elastic Agent ポリシーごとのEnrollment Tokenを制御ホストのEnrollment Token共有ファイルへ保存する。
+- name: "Save Enrollment Token"
+  ansible.builtin.include_tasks: save-enrollment-token.yml
+  when:
+    - fleet_bootstrap_runtime_enabled | default(false) | bool
+
+# 作成/再利用した Fleet リソースの検証を実行する。
+- name: "Verify"
+  ansible.builtin.include_tasks: verify.yml
+  when:
+    - fleet_bootstrap_runtime_enabled | default(false) | bool

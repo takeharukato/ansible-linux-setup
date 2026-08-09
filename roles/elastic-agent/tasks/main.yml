@@ -1,0 +1,73 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  タスクメイン部
+#
+#  include_tasksで他のタスクを読み込む
+#
+---
+
+# 最初に変数設定を読み直す ( role単独で実行可能とするため )
+- name: "Load Params"
+  ansible.builtin.include_tasks: load-params.yml
+
+# Fleet Bootstrapが保存したEnrollment Tokenを入力検証前に読み込む。
+- name: "Load Enrollment Token"
+  ansible.builtin.include_tasks: load-enrollment-token.yml
+  when:
+    - logging_elastic_agent_enabled | default(false) | bool
+
+# Fleet Server接続方式とTLS検証動作を実行時に確定する。
+- name: "Resolve Runtime Flags"
+  ansible.builtin.include_tasks: resolve-runtime-flags.yml
+  when:
+    - logging_elastic_agent_enabled | default(false) | bool
+
+# 接続先URLや配布物パスなどの実行時変数を確定する。
+- name: "Resolve Runtime Vars"
+  ansible.builtin.include_tasks: resolve-runtime-vars.yml
+  when:
+    - logging_elastic_agent_enabled | default(false) | bool
+
+# 秘密値を使用する前に必須入力と数値範囲を検証する。
+- name: "Validate"
+  ansible.builtin.include_tasks: validate.yml
+  when:
+    - logging_elastic_agent_enabled | default(false) | bool
+
+# Elastic Agentの導入前に必要なパッケージを導入する。
+- name: "Package"
+  ansible.builtin.include_tasks: package.yml
+  when:
+    - logging_elastic_agent_enabled | default(false) | bool
+
+# 配布物の取得と展開に使用するディレクトリを作成する。
+- name: "Directory"
+  ansible.builtin.include_tasks: directory.yml
+  when:
+    - logging_elastic_agent_enabled | default(false) | bool
+
+# 公式配布物はrootサービスとして導入するため, 追加ユーザが不要であることを確認する。
+- name: "User Group"
+  ansible.builtin.include_tasks: user_group.yml
+  when:
+    - logging_elastic_agent_enabled | default(false) | bool
+
+# サービス未登録時だけElastic Agent本体を導入してFleetへ登録する。
+- name: "Install"
+  ansible.builtin.include_tasks: install.yml
+  when:
+    - logging_elastic_agent_enabled | default(false) | bool
+
+# 導入済みElastic Agentサービスを起動して自動起動を有効化する。
+- name: "Service"
+  ansible.builtin.include_tasks: service.yml
+  when:
+    - logging_elastic_agent_enabled | default(false) | bool
+
+# 導入後の版数と稼働状態を確認する。
+- name: "Config"
+  ansible.builtin.include_tasks: config.yml
+  when:
+    - logging_elastic_agent_enabled | default(false) | bool

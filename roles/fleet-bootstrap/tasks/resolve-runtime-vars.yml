@@ -1,0 +1,98 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  実行時変数解決
+#
+---
+
+# Fleet Bootstrap の接続先を実行時に解決する。
+# 判定と採用値の対応関係は以下のとおりである。
+# - Kibana URL: 明示値があればそれを採用し, 無ければ 127.0.0.1:5601 を採用する。
+# - Logstash hosts: 明示リストがあればそれを採用し, 無ければ logging backendの共通接続先として解決したホスト名と5044番ポートから生成する。
+# - Elasticsearch hosts: 明示リストがあればそれを採用し, 無ければ 127.0.0.1:9200 の単一要素を採用する。
+# - Fleet Server host URLs: 明示リストがあればそれを採用し, 無ければ fleet_server_runtime_endpoint_url
+#   を優先し, 未設定時は logging backendの共通接続先として解決したホスト名と 8220 番ポートから生成する。
+- name: Resolve Fleet Bootstrap runtime endpoint facts
+  ansible.builtin.set_fact:
+    fleet_bootstrap_kibana_runtime_url: >-
+      {{
+        (fleet_bootstrap_kibana_url_explicit | string | trim)
+        if ((fleet_bootstrap_kibana_url_explicit | default('', true) | string | trim | length) > 0)
+        else (fleet_bootstrap_kibana_runtime_scheme ~ '://127.0.0.1:' ~ (kibana_server_port | string))
+      }}
+    fleet_bootstrap_logstash_runtime_hosts: >-
+      {{
+        (fleet_bootstrap_logstash_hosts_explicit | default([], true))
+        if ((fleet_bootstrap_logstash_hosts_explicit | default([], true) | length) > 0)
+        else [
+          logging_backend_resolved_host ~ ':' ~ (logstash_beats_port | string)
+        ]
+      }}
+    fleet_bootstrap_elasticsearch_runtime_hosts: >-
+      {{
+        (fleet_bootstrap_elasticsearch_endpoints_explicit | default([], true))
+        if ((fleet_bootstrap_elasticsearch_endpoints_explicit | default([], true) | length) > 0)
+        else [
+          (
+            (
+              (elastic_search_api_endpoint_url | default('', true) | string | trim)
+              if ((elastic_search_api_endpoint_url | default('', true) | string | trim | length) > 0)
+              else (
+                (elastic_search_runtime_scheme | default(logging_backend_default_scheme, true)) ~
+                '://127.0.0.1:' ~
+                (elastic_search_http_port | string)
+              )
+            )
+          )
+        ]
+      }}
+    fleet_bootstrap_fleet_server_elasticsearch_runtime_hosts: >-
+      {{
+        (fleet_bootstrap_fleet_server_elasticsearch_hosts_explicit | default([], true))
+        if ((fleet_bootstrap_fleet_server_elasticsearch_hosts_explicit | default([], true) | length) > 0)
+        else [
+          (
+            (fleet_server_runtime_elasticsearch_scheme | default(logging_backend_default_scheme, true)) ~
+            '://' ~
+            (fleet_server_runtime_elasticsearch_host | default(logging_backend_resolved_host, true)) ~
+            ':' ~
+            (fleet_server_runtime_elasticsearch_port | string)
+          )
+        ]
+      }}
+    fleet_bootstrap_fleet_server_runtime_host_urls: >-
+      {{
+        (fleet_bootstrap_fleet_server_host_urls_explicit | default([], true))
+        if ((fleet_bootstrap_fleet_server_host_urls_explicit | default([], true) | length) > 0)
+        else [
+          (
+            (fleet_server_runtime_endpoint_url | default('', true) | string | trim)
+            if ((fleet_server_runtime_endpoint_url | default('', true) | string | trim | length) > 0)
+            else (
+              (fleet_server_runtime_scheme | default(logging_backend_default_scheme, true)) ~
+              '://' ~
+              logging_backend_resolved_host ~
+              ':' ~
+              (fleet_server_port | string)
+            )
+          )
+        ]
+      }}
+    fleet_bootstrap_external_verify_enabled: "{{ logging_verify_external_enabled | default(false) | bool }}"
+    fleet_bootstrap_external_verify_delegate_to: "{{ logging_verify_external_delegate_to | default('localhost', true) | string | trim }}"
+
+# 検証で使用する runtime 変数を確定する。
+# HTTPS 判定の対応関係は以下のとおりである。
+# - 判定式: ((fleet_bootstrap_kibana_runtime_url | default('') | lower) is regex('^https://'))
+# - 正規表現'^https://'は, '^'が文字列先頭, 'https://'が方式と区切りを表し,
+#   'https://kibana:5601'に一致する。判定結果を証明書検証フラグへ変換する。
+- name: Resolve Fleet Bootstrap verify facts
+  ansible.builtin.set_fact:
+    fleet_bootstrap_kibana_url: "{{ fleet_bootstrap_kibana_runtime_url }}"
+    fleet_bootstrap_kibana_validate_certs: "{{ (fleet_bootstrap_kibana_runtime_tls_mode == 'full') | bool }}"
+    fleet_bootstrap_logstash_hosts: "{{ fleet_bootstrap_logstash_runtime_hosts }}"
+    fleet_bootstrap_elasticsearch_hosts: "{{ fleet_bootstrap_elasticsearch_runtime_hosts }}"
+    fleet_bootstrap_fleet_server_elasticsearch_hosts: "{{ fleet_bootstrap_fleet_server_elasticsearch_runtime_hosts }}"
+    fleet_bootstrap_elasticsearch_local_verify_hosts: "{{ fleet_bootstrap_elasticsearch_runtime_hosts }}"
+    fleet_bootstrap_elasticsearch_external_verify_hosts: "{{ fleet_bootstrap_elasticsearch_runtime_hosts }}"

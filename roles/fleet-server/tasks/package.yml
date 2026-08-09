@@ -1,0 +1,33 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  パッケージ関連処理
+#
+---
+
+# チェックモードでは実行基盤確認のみをスキップする。
+- name: Skip fleet-server runtime prerequisite checks in check mode
+  ansible.builtin.debug:
+    msg: >-
+      Check mode: skipping docker runtime prerequisite checks for fleet-server.
+  when: ansible_check_mode | bool
+
+# docker コマンドが利用可能であることを確認する。
+- name: Check docker command availability
+  ansible.builtin.command:
+    argv:
+      - docker
+      - --version
+  changed_when: false
+  when: not (ansible_check_mode | bool)
+
+# docker compose サブコマンドが利用可能であることを確認する。
+- name: Check docker compose command availability
+  ansible.builtin.command:
+    argv:
+      - docker
+      - compose
+      - version
+  changed_when: false
+  when: not (ansible_check_mode | bool)

@@ -9,5 +9,24 @@
 # docker compose が実行可能であることを確認し, backend 起動前提を固定する。
 - name: Verify docker compose is available
   ansible.builtin.command:
-    cmd: docker compose version
+    argv:
+      - docker
+      - compose
+      - version
+  changed_when: false
+
+# 暗号化済み保存オブジェクト用キーを安全な乱数から生成できることを確認する。
+- name: Verify openssl is available
+  ansible.builtin.command:
+    argv:
+      - openssl
+      - version
+  changed_when: false
+
+# キー生成処理が停止した場合でもロール実行を終了できるように, タイムアウト機能を事前確認する。
+- name: Verify timeout is available
+  ansible.builtin.command:
+    argv:
+      - /usr/bin/timeout
+      - --version
   changed_when: false

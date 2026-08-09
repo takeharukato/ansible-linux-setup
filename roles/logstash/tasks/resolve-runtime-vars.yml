@@ -1,0 +1,51 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  実行時変数解決
+#
+---
+
+# 明示 URL 指定がある場合はそれを優先し, 未指定時は logging backendの共通接続先として解決したホスト名と Logstash HTTP ポートからランタイムエンドポイントを組み立てる。
+# 判定式と分岐式の対応関係は以下のとおりである。
+# - 明示指定の有無判定: (logstash_endpoint_url_explicit | default('', true) | string | trim | length) > 0
+# - 明示指定時の採用値: (logstash_endpoint_url_explicit | string | trim)
+# - 未指定時の採用値: ('http://' ~ logging_backend_resolved_host ~ ':' ~ (logstash_http_port | string))
+- name: Resolve Logstash runtime endpoint fact
+  ansible.builtin.set_fact:
+    logstash_runtime_endpoint_url: >-
+      {{
+        (logstash_endpoint_url_explicit | string | trim)
+        if ((logstash_endpoint_url_explicit | default('', true) | string | trim | length) > 0)
+        else (logstash_runtime_scheme ~ '://' ~ logging_backend_resolved_host ~ ':' ~ (logstash_http_port | string))
+      }}
+
+# 検証系の runtime 変数を確定し, HTTPS 判定はランタイムエンドポイントの先頭が https:// であることを条件として判断する。
+# HTTPS 判定式の対応関係は以下のとおりである。
+# - 正規表現判定: ((logstash_runtime_endpoint_url | default('') | lower) is regex('^https://'))
+# - '^'は文字列先頭, 'https://'は方式と区切りを表し, 'https://logstash:9600'に一致する。
+# - 真偽値化: (...) | bool
+# - ローカル検証 URL のプロトコル選択: (...) | ternary('https', 'http')
+- name: Resolve Logstash verify facts
+  ansible.builtin.set_fact:
+    logstash_local_verify_endpoint_url: "{{ logstash_runtime_scheme }}://{{ logstash_wait_host }}:{{ logstash_http_port }}"
+    logstash_local_verify_validate_certs: false
+    logstash_external_verify_enabled: "{{ logging_verify_external_enabled | bool }}"
+    logstash_external_verify_delegate_to: "{{ logging_verify_external_delegate_to }}"
+    logstash_external_verify_validate_certs: "{{ (logstash_runtime_tls_mode == 'full') | bool }}"
+    logstash_elasticsearch_runtime_scheme: >-
+      {{
+        (logstash_elasticsearch_endpoint_url | default('', true) | string | trim | lower)
+        | regex_search('^https?')
+        | default(logging_backend_default_scheme, true)
+      }}
+    logstash_elasticsearch_runtime_tls_mode: >-
+      {{
+        'off'
+        if (
+          (logstash_elasticsearch_endpoint_url | default('', true) | string | trim | lower)
+          | regex_search('^https?')
+          | default(logging_backend_default_scheme, true)
+        ) == 'http'
+        else (elastic_search_tls_mode | default(logging_backend_default_tls_mode, true) | string | lower | trim)
+      }}

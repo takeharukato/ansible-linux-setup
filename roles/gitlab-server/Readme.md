@@ -67,7 +67,7 @@
 | プログラム | - | 計算機に処理をさせるための命令列。 |
 | コミュニティ | - | 共通目的のもとで継続的に活動する利用者集団。 |
 | プラグイン | - | 既存機能へ追加機能を組み込むための拡張部品。 |
-| サービスアカウント | - | 自動処理向けに用意する利用主体の識別情報。 |
+| サービスアカウント (Service Account) | - | 自動処理中でサービスを呼び出す側のプログラムを識別するための識別情報。 |
 | コンテナランタイム | - | コンテナを起動, 停止, 管理する実行基盤。 |
 | リクエスト | - | 処理実行や情報取得を要求する操作。 |
 | コントローラ | - | 対象状態を監視し, 期待状態へ調整する制御機能。 |
@@ -128,6 +128,7 @@
 | Uniform Resource Locator | URL | World Wide Web上の資源の場所を示す文字列。 |
 | GitLab | - | Git リポジトリ管理とCI/CD機能を統合した開発プラットフォーム |
 | Docker | - | コンテナイメージやコンテナの作成, 実行, 管理を行うコマンド。 |
+| Docker Compose 定義ファイル | - | Docker Compose が参照するコンテナ構成の定義ファイル。 |
 | Secure Shell | SSH | 遠隔の計算機へ安全に接続して操作する方式。 |
 | Hypertext Transfer Protocol Secure | HTTPS | 通信内容を暗号化してWorld Wide Web通信を行う方式。 |
 | PostgreSQL | - | オープンソースのリレーショナルデータベース管理システム, GitLabのデータ保存に使用 |
@@ -167,7 +168,7 @@
 
 - 公式 Docker イメージ用のホームディレクトリ ( `/srv/gitlab` ) 配下に設定, ログ, データ, バックアップ用ディレクトリを作成
 - IPv4/IPv6 フォワーディングを有効化し, 管理インターフェースで RA (Router Advertisement, ルータ広告) を受け入れる sysctl 設定を配置
-- `docker-compose.yml` をテンプレートから生成し, GitLab 本体と GitLab Runner のコンテナを `docker compose up -d` で起動
+- Docker Compose 定義ファイル (`docker-compose.yml`) をテンプレートから生成し, GitLab 本体と GitLab Runner のコンテナを `docker compose up -d` で起動
 - `gitlab-backup.py` / `gitlab-restore.py` を `/srv/gitlab/scripts/` に展開してバックアップ運用を支援 ( `GITLAB_ASSUME_YES=1` を利用した非対話リストアに対応 )
 - 運用前に `gitlab-ctl stop puma/sidekiq` を行い PostgreSQL (ポストグレスキューエル, リレーショナルデータベース管理システム) を停止させずにリストアできるよう制御
 - クリーンインストール指定時には既存の設定, データ, コンテナイメージを削除して初期状態から再構築
@@ -219,7 +220,7 @@ ansible-playbook -i inventory/hosts site.yml --tags "gitlab-server"
 | `gitlab_backup_dir` | `/srv/gitlab/data/backups` | GitLab 標準バックアップの出力先。|
 | `gitlab_daily_backup_dir` | `/srv/gitlab/daily-backup` | デイリーバックアップ用のバックアップバンドルファイル保存先ディレクトリ。|
 | `gitlab_scripts_dir` | `/srv/gitlab/scripts` | バックアップ関連スクリプト配置先。|
-| `gitlab_docker_compose_file` | `/srv/gitlab/docker-compose.yml` | Gitlabのdocker compose 定義ファイル。|
+| `gitlab_docker_compose_file` | `/srv/gitlab/docker-compose.yml` | GitLab の Docker Compose 定義ファイル。|
 | `gitlab_clean_install` | `false` | `true` の場合は既存設定, データ, ホームディレクトリを削除してクリーンインストールします。|
 | `gitlab_remove_container_images` | `false` | `true` の場合は, 既存の GitLab / Runner イメージを削除してからインストールを開始します。|
 | `gitlab_daily_backup_script_file` | `daily-backup-gitlab.sh` | Cronに登録するデイリーバックアップスクリプトファイル名 |
@@ -239,7 +240,7 @@ ansible-playbook -i inventory/hosts site.yml --tags "gitlab-server"
 |gitlab|gitlab本体|
 |gitlab-runner|gitlabのCI/CDで使用するgitlab-runner|
 
-Docker composeファイルは, `/srv/gitlab/docker-compose.yml` (規定値: `/srv/gitlab/docker-compose.yml`)に生成されます。
+Docker Compose 定義ファイルは, `/srv/gitlab/docker-compose.yml` (規定値: `/srv/gitlab/docker-compose.yml`)に生成されます。
 
 ### Gitlabの公開URL, SSHポート, コンテナレジストリ
 
@@ -629,7 +630,7 @@ GitLabのバックアップを作成およびアーカイブする
 | `gitlab-backup.py.j2` | `/srv/gitlab/scripts/gitlab-backup.py` (既定: `/srv/gitlab/scripts/gitlab-backup.py`) | GitLab データを世代管理付きで取得するバックアップ処理スクリプトです。 |
 | `gitlab-restore.py.j2` | `/srv/gitlab/scripts/gitlab-restore.py` (既定: `/srv/gitlab/scripts/gitlab-restore.py`) | GitLab のバックアップデータを復元するリストア処理スクリプトです。 |
 | `daily-backup-gitlab.sh.j2` | `/srv/gitlab/scripts/daily-backup-gitlab.sh` (既定: `/srv/gitlab/scripts/daily-backup-gitlab.sh`) | GitLab バックアップを定期実行するためのラッパスクリプトです。 |
-| `docker-compose.yml.j2` | `/srv/gitlab/docker-compose.yml` (既定: `/srv/gitlab/docker-compose.yml`) | GitLab 関連コンテナ(本体, DB, 補助サービス)の構成を定義する compose 設定です。 |
+| `docker-compose.yml.j2` | `/srv/gitlab/docker-compose.yml` (既定: `/srv/gitlab/docker-compose.yml`) | GitLab 関連コンテナ(本体, DB, 補助サービス)の構成を定義する Docker Compose 定義ファイルです。 |
 | `90-gitlab-forwarding.conf.j2` | `/etc/sysctl.d/90-gitlab-forwarding.conf` (既定: `/etc/sysctl.d/90-gitlab-forwarding.conf`) | GitLab コンテナ運用で必要な転送系カーネルパラメタを定義する sysctl 設定です。 |
 
 ## 実行フロー
@@ -637,10 +638,10 @@ GitLabのバックアップを作成およびアーカイブする
 1. [tasks/load-params.yml](tasks/load-params.yml) で OS ごとのパッケージ定義や共通パラメータを取り込みます。
 2. `gitlab_clean_install` や `gitlab_remove_container_images` が有効な場合, [tasks/config-clean-install.yml](tasks/config-clean-install.yml) が既存ディレクトリと Docker イメージを削除します。
 3. [tasks/directory-gitlab.yml](tasks/directory-gitlab.yml) が GitLab 用ユーザ / グループを確認し, ホーム, 設定, データ, バックアップ各ディレクトリを所有権付きで作成します。
-4. 同タスク内で `docker-compose.yml` を配置します。`gitlab_enable_backup_script` が有効な場合, バックアップ・リストアスクリプト (`gitlab-backup.py`, `gitlab-restore.py`) を配置します。加えて`gitlab_backup_nfs_server`, `gitlab_backup_mount_point`, `gitlab_backup_output_dir`が非空で, かつ`gitlab_backup_rotation`が正の整数の場合のみ, デイリーバックアップスクリプト(`daily-backup-gitlab.sh`)を配置します。
+4. 同タスク内で Docker Compose 定義ファイル (`docker-compose.yml`) を配置します。`gitlab_enable_backup_script` が有効な場合, バックアップ・リストアスクリプト (`gitlab-backup.py`, `gitlab-restore.py`) を配置します。加えて`gitlab_backup_nfs_server`, `gitlab_backup_mount_point`, `gitlab_backup_output_dir`が非空で, かつ`gitlab_backup_rotation`が正の整数の場合のみ, デイリーバックアップスクリプト(`daily-backup-gitlab.sh`)を配置します。
 5. [tasks/sysctl.yml](tasks/sysctl.yml) が `templates/90-gitlab-forwarding.conf.j2` を `/etc/sysctl.d/90-gitlab-forwarding.conf` に配置し, IPv4/IPv6 フォワーディング (`net.ipv4.ip_forward`, `net.ipv6.conf.all.forwarding`, `net.ipv6.conf.default.forwarding`), 管理 IF (Interface, インターフェース) の RA (Router Advertisement, ルータ広告) 受信 (`net.ipv6.conf.<mgmt_nic>.accept_ra`) を有効化します。配置時は `gitlab_reload_sysctl` ハンドラを通知し, `sysctl --system` で設定を反映します。
 6. [tasks/service.yml](tasks/service.yml) が `docker compose up -d` で GitLab / Runner コンテナを起動し, HTTPS (Hypertext Transfer Protocol Secure) / SSH (Secure Shell) / Registry ポートが開くまで待機します。その後, アクセス URL や初期パスワードファイルパスを表示します。
-7. ロール再実行時には既存の compose ファイルや永続化ディレクトリを再利用し, 冪等に整備を行います。停止したい場合は [tasks/stop-service.yml](tasks/stop-service.yml) を参照してください。
+7. ロール再実行時には既存の Docker Compose 定義ファイルや永続化ディレクトリを再利用し, 冪等に整備を行います。停止したい場合は [tasks/stop-service.yml](tasks/stop-service.yml) を参照してください。
 
 ## 検証ポイント
 

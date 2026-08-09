@@ -1,0 +1,17 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  ファイル・ディレクトリ作成関連タスク
+#
+---
+
+# Fleet API処理後のEnrollment Token共有ファイル保存が配置先不足で失敗しないように, 制御ホスト上へ保存先を作成する。
+- name: Create Fleet enrollment token directory on controller
+  ansible.builtin.file:
+    path: "{{ fleet_bootstrap_enrollment_token_file | dirname }}"
+    state: directory
+    mode: "0700"
+  delegate_to: localhost
+  become: false
+  run_once: true

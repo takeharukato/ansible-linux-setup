@@ -1,0 +1,14 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  サービス起動ハンドラ
+#
+
+# unit又は適用スクリプト変更時にsystemd定義を再読込して規則を更新する。
+- name: Restart Elastic Stack Docker network service
+  ansible.builtin.systemd:
+    name: "{{ docker_network_elastic_stack_service_name }}"
+    daemon_reload: true
+    enabled: true
+    state: restarted

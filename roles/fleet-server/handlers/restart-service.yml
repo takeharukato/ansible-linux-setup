@@ -1,0 +1,24 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  再起動ハンドラ
+#
+---
+
+# compose 定義を再適用して fleet-server を再起動する。
+- name: Fleet server restart service
+  listen: fleet_server_restart_service
+  ansible.builtin.command:
+    argv:
+      - docker
+      - compose
+      - -f
+      - "{{ fleet_server_runtime_compose_file }}"
+      - up
+      - -d
+      - --remove-orphans
+  args:
+    chdir: "{{ fleet_server_compose_dir }}"
+  register: fleet_server_restart_result
+  changed_when: fleet_server_restart_result.rc == 0

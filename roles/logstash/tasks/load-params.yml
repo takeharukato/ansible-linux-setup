@@ -20,6 +20,10 @@
 - name: Include cross-distro.yml
   ansible.builtin.include_vars: "{{ playbook_dir }}/vars/cross-distro.yml"
 
+# logging backend共通設定読み込み
+- name: Include logging backend common vars
+  ansible.builtin.include_vars: "{{ playbook_dir }}/vars/logging-backend-common.yml"
+
 # 共通設定読み込み
 - name: Include config vars
   ansible.builtin.include_vars: "{{ playbook_dir }}/vars/all-config.yml"

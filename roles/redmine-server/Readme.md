@@ -75,7 +75,7 @@
 | プログラム | - | 計算機に処理をさせるための命令列。 |
 | コミュニティ | - | 共通目的のもとで継続的に活動する利用者集団。 |
 | プラグイン | - | 既存機能へ追加機能を組み込むための拡張部品。 |
-| サービスアカウント | - | 自動処理向けに用意する利用主体の識別情報。 |
+| サービスアカウント (Service Account) | - | 自動処理中でサービスを呼び出す側のプログラムを識別するための識別情報。 |
 | コンテナランタイム | - | コンテナを起動, 停止, 管理する実行基盤。 |
 | リクエスト | - | 処理実行や情報取得を要求する操作。 |
 | コントローラ | - | 対象状態を監視し, 期待状態へ調整する制御機能。 |
@@ -136,6 +136,7 @@
 | Uniform Resource Locator | URL | World Wide Web上の資源の場所を示す文字列。 |
 | Docker | - | コンテナイメージやコンテナの作成, 実行, 管理を行うコマンド。 |
 | Docker Compose | - | 複数のコンテナ定義をまとめて作成, 起動, 停止, 更新する仕組み。 |
+| Docker Compose 定義ファイル | - | Docker Compose が参照するコンテナ構成の定義ファイル。 |
 | サービス | - | 機能を利用者や他システムへ提供する仕組み。 |
 | ポート | - | 通信の出入口を識別する番号または接点。 |
 | Port publishing | ポート公開 | ホスト側のポート番号を, コンテナ側のポート番号に結び付ける設定。 |
@@ -241,7 +242,7 @@ ansible-playbook -i inventory/hosts site.yml --tags "redmine-server"
 | 変数名 | 既定値 | 説明 |
 | --- | --- | --- |
 | `redmine_dir_prefix` | `/data/redmine` | Redmine サーバ用ディレクトリのベースパス。 |
-| `redmine_docker_dir` | `{{redmine_dir_prefix}}/docker` | docker-compose.yml の配置先ディレクトリ。 |
+| `redmine_docker_dir` | `{{redmine_dir_prefix}}/docker` | Docker Compose 定義ファイル (`docker-compose.yml`) の配置先ディレクトリ。 |
 | `redmine_scripts_dir` | `{{redmine_dir_prefix}}/scripts` | バックアップ/リストア用スクリプトの配置先。 |
 | `redmine_backup_dir` | `{{redmine_dir_prefix}}/backup` | バックアップファイル保存先ディレクトリ。 |
 | `redmine_files_volume` | `redmine_vol_files` | 添付ファイル用 Docker ボリューム名。 |
@@ -405,7 +406,7 @@ $ docker exec -it "$DBID" sh -lc 'mount | grep "/var/lib/postgresql/data"'
   - redmine.dump.gz Redmineデータベースのバックアップ ( PostgreSQLの論理バックアップ )ファイルのgzip形式圧縮ファイル
   - redmine_files.tgz Redmineに登録されたファイル(添付ファイルなど)をバックアップしたtar.gz形式の圧縮ファイル
 - docker ディレクトリ
-  - docker-compose.yml Redmineサーバを立てるためのdocker composeファイル
+  - docker-compose.yml Redmineサーバを立てるための Docker Compose 定義ファイル
 - scripts ディレクトリ
   - backup-redmine-data.sh Redmineのデータベース, Redmineに登録されたファイル(添付ファイルなど)をバックアップするためのスクリプト
   - restore-redmine-data.sh バックアップファイルの内容をRedmineに反映するためのスクリプト

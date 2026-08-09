@@ -6,6 +6,8 @@
 # rhel-server.local
 # ubuntu-server.local
 # devserver.local
+# observer01.local
+# observer02.local
 [router]
 # router.local
 [devel]
@@ -40,7 +42,8 @@
 # k8sctrlplane01.local
 # k8sctrlplane02.local
 [logging_backend]
-# elastic-backend01.local
+# observer01.local ansible_host=observer01.example.org
+# observer02.local ansible_host=observer02.example.org
 [logging_collector]
 # extgw.local
 # frr01.local

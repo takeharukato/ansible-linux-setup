@@ -6,7 +6,18 @@
 #
 ---
 
-# Logstash 実行に必要なパス, コンテナイメージ名, ポート, 対象 OS を検証する。
+# Logstash 実行に必要な以下の情報を先行検証する
+# - Docker Compose ファイルのディレクトリパス
+# - コンテナイメージ名
+# - コンテナ間ネットワーク名
+# - Elasticsearch 接続先エンドポイント URL
+# - ポート番号
+# - 認証情報
+# - logstash_elasticsearch_security_enabled (Elasticsearch Security 有効フラグ)が true の場合に
+#   認証情報(ユーザ名/パスワード)が設定されていることを検証する。
+# - logstash_monitoring_enabled (Logstash 監視機能有効フラグ)が true の場合, かつ,
+#   logstash_monitoring_elasticsearch_security_enabled (Logstash 監視機能の Elasticsearch Security 有効フラグ)が true の場合に
+#   Logstash 監視機能の認証情報(ユーザ名/パスワード)が設定されていることを検証する
 # 文字列入力の検証は, 未定義時に空文字へ置換(default('', true)) -> 文字列化(string) -> 前後空白除去(trim) -> 文字数判定(length) の順で実施する。
 - name: Validate logstash runtime inputs
   ansible.builtin.assert:
@@ -15,10 +26,41 @@
       - (logstash_compose_file | default('', true) | string | trim | length) > 0
       - (logstash_image | default('', true) | string | trim | length) > 0
       - (logstash_network_name | default('', true) | string | trim | length) > 0
+      - (logstash_elasticsearch_endpoint_url | default('', true) | string | trim | length) > 0
+      - (logstash_elasticsearch_runtime_scheme | default('', true) | string | trim) in ['http', 'https']
+      - (logstash_elasticsearch_runtime_tls_mode | default('', true) | string | trim) in ['off', 'none', 'full']
+      - >-
+        ((logstash_elasticsearch_runtime_scheme == 'http' and logstash_elasticsearch_runtime_tls_mode == 'off') or
+        (logstash_elasticsearch_runtime_scheme == 'https' and logstash_elasticsearch_runtime_tls_mode in ['none', 'full']))
+      - (logstash_runtime_scheme | default('', true) | string | trim) in ['http', 'https']
+      - (logstash_runtime_tls_mode | default('', true) | string | trim) in ['off', 'none', 'full']
+      - >-
+        ((logstash_runtime_scheme == 'http' and logstash_runtime_tls_mode == 'off') or
+        (logstash_runtime_scheme == 'https' and logstash_runtime_tls_mode in ['none', 'full']))
+      - (logstash_runtime_endpoint_url | default('', true) | string | trim | length) > 0
+      - (logstash_local_verify_endpoint_url | default('', true) | string | trim | length) > 0
+      - >-
+        (not (logstash_external_verify_enabled | default(false) | bool)) or
+        ((logstash_external_verify_delegate_to | default('', true) | string | trim | length) > 0)
       - (logstash_beats_port | int) > 0
       - (logstash_beats_port | int) < 65536
       - (logstash_http_port | int) > 0
       - (logstash_http_port | int) < 65536
+      - >-
+        (not (logstash_elasticsearch_security_enabled | bool)) or
+        ((logstash_elasticsearch_auth_username | default('', true) | string | trim | length) > 0)
+      - >-
+        (not (logstash_elasticsearch_security_enabled | bool)) or
+        ((logstash_elasticsearch_auth_password | default('', true) | string | trim | length) > 0)
+      - (logstash_monitoring_elasticsearch_endpoint_url | default('', true) | string | trim | length) > 0
+      - >-
+        (not (logstash_monitoring_enabled | bool)) or
+        (not (logstash_monitoring_elasticsearch_security_enabled | bool)) or
+        ((logstash_monitoring_elasticsearch_auth_username | default('', true) | string | trim | length) > 0)
+      - >-
+        (not (logstash_monitoring_enabled | bool)) or
+        (not (logstash_monitoring_elasticsearch_security_enabled | bool)) or
+        ((logstash_monitoring_elasticsearch_auth_password | default('', true) | string | trim | length) > 0)
       - ansible_facts.os_family in ['Debian', 'RedHat']
     fail_msg: >-
       Invalid logstash settings. Ensure paths, image, ports, and OS family are

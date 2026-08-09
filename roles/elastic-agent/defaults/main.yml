@@ -1,0 +1,40 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  ロール固有変数のデフォルト値
+#  group_vars/all/all.yml やhost_varsで上書き可能とするため,
+#  ロール名/defaults/main.yml に定義している
+
+---
+
+# Elastic Agent 公式配布物の取得元URL。
+elastic_agent_artifact_base_url: "https://artifacts.elastic.co/downloads/beats/elastic-agent"
+# 対応するCPU種別をElastic Agent配布物の名称へ変換する。
+elastic_agent_architecture_map:
+  x86_64: "x86_64"
+  aarch64: "arm64"
+# Fleet Serverの接続先URL明示指定値。空文字列の場合は共通設定から組み立てる。
+elastic_agent_fleet_server_url_explicit: ""
+# Fleet Bootstrapが保存したEnrollment Token共有ファイル又はホスト変数から取得するEnrollment Token。
+elastic_agent_enrollment_token: ""
+# HTTPS接続時に使用する認証局証明書パス。空文字列の場合は指定しない。
+elastic_agent_certificate_authorities: ""
+# Fleet Server接続のTLS検証モード。
+elastic_agent_tls_mode: "{{ fleet_server_tls_mode | default(logging_backend_default_tls_mode, true) }}"
+# 配布物取得時の接続タイムアウト秒数。
+elastic_agent_download_timeout_seconds: 120
+# 配布物取得の再試行回数。
+elastic_agent_download_retries: 3
+# 配布物取得の再試行間隔秒数。
+elastic_agent_download_retry_delay_seconds: 5
+# 導入処理のタイムアウト秒数。
+elastic_agent_install_timeout_seconds: 300
+# 導入処理の再試行回数。
+elastic_agent_install_retries: 3
+# 導入処理の再試行間隔秒数。
+elastic_agent_install_retry_delay_seconds: 10
+# Elastic Agentが起動状態になるまでの確認回数。
+elastic_agent_service_retries: 12
+# Elastic Agentの起動状態を確認する間隔秒数。
+elastic_agent_service_retry_delay_seconds: 5

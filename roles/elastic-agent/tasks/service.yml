@@ -1,0 +1,36 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  サービス関連処理
+#
+---
+
+# 導入後のElastic Agentを起動し, 対象ホスト起動時にも自動起動するよう設定する。
+- name: Enable and start Elastic Agent service
+  become: true
+  ansible.builtin.service:
+    name: elastic-agent
+    enabled: true
+    state: started
+
+# サービス管理情報を再取得して導入結果を検証できるようにする。
+- name: Gather Elastic Agent service facts after installation
+  become: true
+  ansible.builtin.service_facts:
+  register: elastic_agent_service_facts_result
+  retries: "{{ elastic_agent_service_retries | int }}"
+  delay: "{{ elastic_agent_service_retry_delay_seconds | int }}"
+  until:
+    - elastic_agent_service_facts_result.ansible_facts.services is defined
+    - >-
+      (
+        (elastic_agent_service_facts_result.ansible_facts.services | default({})).get(
+          'elastic-agent.service', {}
+        ).get('state', '') == 'running'
+      ) or (
+        (elastic_agent_service_facts_result.ansible_facts.services | default({})).get(
+          'elastic-agent', {}
+        ).get('state', '') == 'running'
+      )
+  changed_when: false

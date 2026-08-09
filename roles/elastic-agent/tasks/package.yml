@@ -1,0 +1,15 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  パッケージ関連処理
+---
+
+# 公式配布物の展開とタイムアウト付き導入に必要なコマンドを導入する。
+- name: Install Elastic Agent installation prerequisites
+  become: true
+  ansible.builtin.package:
+    name:
+      - tar
+      - coreutils
+    state: present

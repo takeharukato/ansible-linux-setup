@@ -161,3 +161,13 @@ k8s_worker_frr:
       service_cidrs_v4: ["10.254.0.0/16"]
       pod_cidrs_v6: ["fdb6:6e92:3cfb:0200::/56"]
       service_cidrs_v6: ["fdb6:6e92:3cfb:feed::/112"]
+
+# =======================================================================
+# Elastic Agent関連ロールの必須入力値
+# =======================================================================
+# ホスト監視用Elastic Agent を導入する場合にtrueを指定する有効化フラグ。
+logging_elastic_agent_host_enabled: true
+# Kubernetesシステム監視用Elastic Agent を導入する場合にtrueを指定する有効化フラグ。
+logging_elastic_agent_k8s_system_enabled: true
+# Kubernetesワークロード監視用Elastic Agent を導入する場合にtrueを指定する有効化フラグ。
+logging_elastic_agent_k8s_workload_enabled: true

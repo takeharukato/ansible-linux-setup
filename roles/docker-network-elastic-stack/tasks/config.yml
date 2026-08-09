@@ -1,0 +1,95 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  設定関連タスク
+#
+---
+
+# Docker再起動後も同じ規則を復元できるように, 冪等な規則適用スクリプトを配置する。
+- name: Render Elastic Stack Docker network rule script
+  ansible.builtin.template:
+    src: apply-rules.sh.j2
+    dest: "{{ docker_network_elastic_stack_apply_script }}"
+    owner: root
+    group: root
+    mode: "0755"
+  notify: Restart Elastic Stack Docker network service
+
+# Dockerサービス起動後に規則を再適用するsystemd unitを配置する。
+- name: Render Elastic Stack Docker network systemd unit
+  ansible.builtin.template:
+    src: docker-network-elastic-stack.service.j2
+    dest: "/etc/systemd/system/{{ docker_network_elastic_stack_service_name }}"
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Restart Elastic Stack Docker network service
+
+# 新しいunitを同一ロール実行中に認識させてからサービスを開始する。
+- name: Reload systemd units for Elastic Stack Docker network
+  ansible.builtin.systemd:
+    daemon_reload: true
+
+# 規則を直ちに適用し, 対象ホスト再起動時にもDocker起動後に復元する。
+- name: Enable and start Elastic Stack Docker network service
+  ansible.builtin.systemd:
+    name: "{{ docker_network_elastic_stack_service_name }}"
+    enabled: true
+    state: started
+
+# 更新した適用スクリプトを検証前に実行し, 古い規則を検証対象にしないようにする。
+- name: Apply pending Elastic Stack Docker network handlers
+  ansible.builtin.meta: flush_handlers
+
+# 規則適用結果を機密情報を含まないiptables出力から確認する。
+- name: Verify Elastic Stack Docker network filter chain
+  ansible.builtin.command:
+    argv:
+      - iptables
+      - -w
+      - "{{ docker_network_elastic_stack_command_timeout_seconds | string }}"
+      - -t
+      - filter
+      - -S
+      - "{{ docker_network_elastic_stack_filter_chain }}"
+  changed_when: false
+
+# 送信元アドレス変換規則が専用natチェーンへ設定済みであることを確認する。
+- name: Verify Elastic Stack Docker network NAT chain
+  ansible.builtin.command:
+    argv:
+      - iptables
+      - -w
+      - "{{ docker_network_elastic_stack_command_timeout_seconds | string }}"
+      - -t
+      - nat
+      - -S
+      - "{{ docker_network_elastic_stack_nat_chain }}"
+  changed_when: false
+
+# IPv6転送規則がIPv4規則と同じ専用チェーンへ設定済みであることを確認する。
+- name: Verify Elastic Stack Docker network IPv6 filter chain
+  ansible.builtin.command:
+    argv:
+      - ip6tables
+      - -w
+      - "{{ docker_network_elastic_stack_command_timeout_seconds | string }}"
+      - -t
+      - filter
+      - -S
+      - "{{ docker_network_elastic_stack_filter_chain }}"
+  changed_when: false
+
+# IPv6送信元アドレス変換規則が専用natチェーンへ設定済みであることを確認する。
+- name: Verify Elastic Stack Docker network IPv6 NAT chain
+  ansible.builtin.command:
+    argv:
+      - ip6tables
+      - -w
+      - "{{ docker_network_elastic_stack_command_timeout_seconds | string }}"
+      - -t
+      - nat
+      - -S
+      - "{{ docker_network_elastic_stack_nat_chain }}"
+  changed_when: false

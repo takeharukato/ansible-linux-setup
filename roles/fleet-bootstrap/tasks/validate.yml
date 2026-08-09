@@ -1,0 +1,189 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  検証関連タスク
+#
+---
+
+# Fleet Bootstrap 用 API キーを実行時に確定する。
+# 判定と採用値の対応関係は以下のとおりである。
+# - fleet_server_runtime_bootstrap_kibana_api_key を最優先する。
+# - 未設定時は fleet_bootstrap_kibana_api_key, さらに未設定時は fleet_server_kibana_api_key を採用する。
+- name: Determine Fleet bootstrap runtime API key
+  ansible.builtin.set_fact:
+    fleet_bootstrap_runtime_api_key: >-
+      {{
+        (fleet_server_runtime_bootstrap_kibana_api_key | default('', true) | trim)
+        if (fleet_server_runtime_bootstrap_kibana_api_key | default('', true) | trim | length > 0)
+        else (
+          (fleet_bootstrap_kibana_api_key | default('', true) | trim)
+          if (fleet_bootstrap_kibana_api_key | default('', true) | trim | length > 0)
+          else (fleet_server_kibana_api_key | default('', true) | trim)
+        )
+      }}
+
+# 認証障害の切り分けのため, 機密値を出さずに API キー候補の長さだけを確認する。
+- name: Debug Fleet bootstrap API key source lengths
+  ansible.builtin.debug:
+    msg:
+      fleet_server_runtime_bootstrap_kibana_api_key_length: "{{ fleet_server_runtime_bootstrap_kibana_api_key | default('', true) | trim | length }}"
+      fleet_bootstrap_kibana_api_key_length: "{{ fleet_bootstrap_kibana_api_key | default('', true) | trim | length }}"
+      fleet_server_kibana_api_key_length: "{{ fleet_server_kibana_api_key | default('', true) | trim | length }}"
+      fleet_bootstrap_runtime_api_key_length: "{{ fleet_bootstrap_runtime_api_key | default('', true) | trim | length }}"
+  when:
+    - fleet_bootstrap_debug_auth_diagnostics | bool
+
+# fleet-bootstrap 実行に必要な必須変数が設定済みであることを検証する。
+# 正規表現'^/'は, '^'が文字列先頭, '/'がルート区切りを表し,
+# '/etc/fleet/enrollment-token.yml'のような絶対パスに一致する。
+# Enrollment Token共有ファイルが絶対パスであることをAPI呼出し前に確認する。
+- name: Validate required fleet-bootstrap variables
+  ansible.builtin.assert:
+    that:
+      - fleet_bootstrap_runtime_api_key | default('', true) | trim | length > 0
+      - fleet_bootstrap_kibana_runtime_url | default('', true) | trim | length > 0
+      - (fleet_bootstrap_kibana_runtime_scheme | default('', true) | string | trim) in ['http', 'https']
+      - (fleet_bootstrap_kibana_runtime_tls_mode | default('', true) | string | trim) in ['off', 'none', 'full']
+      - >-
+        ((fleet_bootstrap_kibana_runtime_scheme == 'http' and fleet_bootstrap_kibana_runtime_tls_mode == 'off') or
+        (fleet_bootstrap_kibana_runtime_scheme == 'https' and fleet_bootstrap_kibana_runtime_tls_mode in ['none', 'full']))
+      - fleet_bootstrap_kibana_url | default('', true) | trim | length > 0
+      - fleet_bootstrap_output_name | default('', true) | trim | length > 0
+      - fleet_bootstrap_policy_name | default('', true) | trim | length > 0
+      - fleet_bootstrap_enrollment_token_name | default('', true) | trim | length > 0
+      - fleet_bootstrap_system_package_version | default('', true) | trim | length > 0
+      - fleet_bootstrap_filestream_package_version | default('', true) | trim | length > 0
+      - fleet_bootstrap_fleet_server_package_version | default('', true) | trim | length > 0
+      - fleet_bootstrap_fleet_server_policy_id | default('', true) | trim | length > 0
+      - fleet_bootstrap_fleet_server_output_name | default('', true) | trim | length > 0
+      - fleet_bootstrap_fleet_server_elasticsearch_hosts | default([], true) | length > 0
+      - fleet_bootstrap_agent_policy_profiles | default([], true) | length == 3
+      - fleet_bootstrap_enrollment_token_file is defined
+      - fleet_bootstrap_enrollment_token_file | default('', true) | string | trim | length > 0
+      - fleet_bootstrap_enrollment_token_file | default('', true) | string is regex('^/')
+      - fleet_bootstrap_logstash_runtime_hosts | default([], true) | length > 0
+      - fleet_bootstrap_logstash_hosts | default([], true) | length > 0
+      - fleet_bootstrap_elasticsearch_runtime_hosts | default([], true) | length > 0
+      - fleet_bootstrap_elasticsearch_hosts | default([], true) | length > 0
+      - fleet_bootstrap_elasticsearch_local_verify_hosts | default([], true) | length > 0
+      - fleet_bootstrap_elasticsearch_external_verify_hosts | default([], true) | length > 0
+    fail_msg: >-
+      Required fleet-bootstrap variables are missing or invalid. Set an absolute
+      fleet_bootstrap_enrollment_token_file path in vars/all-config.yml.
+
+# Elastic Agent ポリシー識別子の重複や必須属性の欠落をAPI呼び出し前に検出する。
+- name: Validate Fleet agent policy profiles
+  ansible.builtin.assert:
+    that:
+      - item.id | default('', true) | string | trim | length > 0
+      - item.policy_name | default('', true) | string | trim | length > 0
+      - item.enrollment_token_name | default('', true) | string | trim | length > 0
+      - item.include_k8s_system is boolean
+      - item.include_k8s_workload is boolean
+      - not (item.include_k8s_workload | bool) or (item.include_k8s_system | bool)
+    fail_msg: >-
+      Invalid Fleet agent policy profile. Workload collection requires
+      Kubernetes system collection.
+  loop: "{{ fleet_bootstrap_agent_policy_profiles | default([], true) }}"
+  loop_control:
+    label: "{{ item.id | default('undefined') }}"
+
+# Enrollment Token辞書のキーになるElastic Agent ポリシー識別子が一意であることを確認する。
+- name: Validate Fleet agent policy profile identifiers are unique
+  ansible.builtin.assert:
+    that:
+      - >-
+        fleet_bootstrap_agent_policy_profiles
+        | map(attribute='id')
+        | unique
+        | list
+        | length == fleet_bootstrap_agent_policy_profiles | length
+    fail_msg: Fleet agent policy profile identifiers must be unique.
+
+# Fleet APIへ不正なOutputを登録する前に, Logstashの各接続先がhost:port形式であることを検証する。
+# 正規表現'^[^:/]+:[0-9]+$'は, '^'と'$'が文字列全体, '[^:/]+'がコロンとスラッシュ以外のホスト,
+# ':'が区切り, '[0-9]+'が1桁以上のポート番号を表し, 'logstash:5044'に一致する。
+- name: Validate Fleet bootstrap Logstash hosts
+  ansible.builtin.assert:
+    that:
+      - (item | default('', true) | string | trim | length) > 0
+      - (item | default('', true) | string) is regex('^[^:/]+:[0-9]+$')
+    fail_msg: >-
+      Invalid Fleet bootstrap Logstash host. Use the <host>:<port> format.
+      host={{ item }}
+  loop: "{{ fleet_bootstrap_logstash_hosts | default([], true) }}"
+  loop_control:
+    label: "{{ item }}"
+
+# Elasticsearch host の各 URL が health check に使える形式であることを検証する。
+# 正規表現'^https?://'は, '^'が文字列先頭, 'http'が必須文字列, 's?'が省略可能なs,
+# '://'が方式区切りを表し, 'https://elasticsearch:9200'に一致する。
+- name: Validate Fleet bootstrap Elasticsearch host URLs
+  ansible.builtin.assert:
+    that:
+      - (item | default('', true) | string | trim | length) > 0
+      - ((item | default('', true) | string | lower) is regex('^https?://'))
+    fail_msg: >-
+      Invalid Fleet bootstrap Elasticsearch host URL.
+      url={{ item }}
+  loop: "{{ fleet_bootstrap_elasticsearch_hosts | default([], true) }}"
+  loop_control:
+    label: "{{ item }}"
+
+# Fleet Server専用Outputへ不正なURLを登録する前に, Elasticsearch接続先の形式を検証する。
+# 正規表現'^https?://'は, '^'が文字列先頭, 'http'が必須文字列, 's?'が省略可能なs,
+# '://'が方式区切りを表し, 'https://elasticsearch:9200'に一致する。
+- name: Validate Fleet Server Elasticsearch output URLs
+  ansible.builtin.assert:
+    that:
+      - (item | default('', true) | string | trim | length) > 0
+      - ((item | default('', true) | string | lower) is regex('^https?://'))
+    fail_msg: >-
+      Invalid Fleet Server Elasticsearch output URL.
+      url={{ item }}
+  loop: "{{ fleet_bootstrap_fleet_server_elasticsearch_hosts | default([], true) }}"
+  loop_control:
+    label: "{{ item }}"
+
+# Mixed scheme が禁止される場合は, Elasticsearch hosts の scheme を単一化する。
+# 正規表現'^(https?)://.*$'は, 文字列全体から'http'又は'https'を第1捕捉群へ取り出し,
+# 'https://elasticsearch:9200'を置換値'\1'によって'https'へ変換する。
+# 抽出した方式を一意化し, 複数方式が混在していないことを確認する。
+- name: Validate Fleet bootstrap Elasticsearch host URL scheme consistency
+  ansible.builtin.assert:
+    that:
+      - >-
+        (
+          fleet_bootstrap_elasticsearch_hosts
+          | map('lower')
+          | map('regex_replace', '^(https?)://.*$', '\\1')
+          | unique
+          | list
+          | length
+        ) <= 1
+    fail_msg: >-
+      Mixed scheme in fleet_bootstrap_elasticsearch_hosts is not allowed.
+  when:
+    - logging_backend_disallow_mixed_scheme | default(true) | bool
+
+# Security 有効時は Elasticsearch health check に必要な認証情報が設定済みであることを検証する。
+- name: Validate Elasticsearch health check credentials
+  ansible.builtin.assert:
+    that:
+      - (elastic_search_security_username | default('', true) | string | trim | length) > 0
+      - (elastic_search_bootstrap_password | default('', true) | string | trim | length) > 0
+    fail_msg: >-
+      Elasticsearch security credentials are missing for Fleet Bootstrap health checks.
+  when:
+    - elastic_search_security_enabled | default(false) | bool
+
+# 外部検証を有効化する場合は delegate_to の接続先が設定済みであることを検証する。
+- name: Validate Fleet bootstrap external verify delegate target
+  ansible.builtin.assert:
+    that:
+      - fleet_bootstrap_external_verify_delegate_to | default('', true) | string | trim | length > 0
+    fail_msg: >-
+      Fleet bootstrap external verify delegate target is missing.
+  when:
+    - fleet_bootstrap_external_verify_enabled | bool

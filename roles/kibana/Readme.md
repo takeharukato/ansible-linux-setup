@@ -1,6 +1,6 @@
 # Kibana ロール
 
-本ロールは, 本 playbook で導入する Kibana を, 本 playbook で導入する Elasticsearch, Logstash, Filebeat, Metricbeat と組み合わせて運用するためのロールです。
+本ロールは, 本 playbook で導入する Kibana を, 本 playbook で導入する Elasticsearch, Logstash, Elastic Agent と組み合わせて運用するためのロールです。
 
 ## 目次
 
@@ -8,16 +8,21 @@
   - [目次](#目次)
   - [用語](#用語)
   - [概要](#概要)
-    - [前提条件](#前提条件)
+  - [前提条件](#前提条件)
     - [基本仕様](#基本仕様)
     - [本ロールで実施する主な処理](#本ロールで実施する主な処理)
   - [実行方法](#実行方法)
-    - [Makefile ターゲットによる実行](#makefile-ターゲットによる実行)
-    - [ansible-playbook による role 単位実行](#ansible-playbook-による-role-単位実行)
+    - [Makefile ターゲットを使用する場合](#makefile-ターゲットを使用する場合)
+    - [ansible-playbookコマンドを使用する場合](#ansible-playbookコマンドを使用する場合)
   - [主要変数](#主要変数)
-    - [基本設定](#基本設定)
-    - [コンテナイメージと接続設定](#コンテナイメージと接続設定)
-    - [起動検証関連設定](#起動検証関連設定)
+    - [各ロール固有の利用者入力値](#各ロール固有の利用者入力値)
+      - [必須入力値](#必須入力値)
+      - [任意入力値](#任意入力値)
+        - [基本設定](#基本設定)
+        - [接続設定](#接続設定)
+        - [service account token 関連設定](#service-account-token-関連設定)
+    - [Elastic Stack間共有設定値](#elastic-stack間共有設定値)
+        - [起動検証関連設定](#起動検証関連設定)
     - [変数設定例](#変数設定例)
       - [host\_vars の設定例](#host_vars-の設定例)
       - [vars/all-config.yml の設定例](#varsall-configyml-の設定例)
@@ -39,7 +44,7 @@
       - [1. ポート競合の確認](#1-ポート競合の確認)
       - [2. ネットワーク作成状態の確認](#2-ネットワーク作成状態の確認)
       - [3. 設定ファイル生成状態の確認](#3-設定ファイル生成状態の確認)
-      - [4. Docker Compose 定義生成状態の確認](#4-docker-compose-定義生成状態の確認)
+      - [4. Docker Compose 定義ファイル生成状態の確認](#4-docker-compose-定義ファイル生成状態の確認)
       - [5. コンテナログのエラー確認](#5-コンテナログのエラー確認)
   - [トラブルシューティング](#トラブルシューティング)
     - [1. Kibana が起動しない場合](#1-kibana-が起動しない場合)
@@ -56,14 +61,17 @@
 | 正式名称 | 略称 | 意味 |
 | --- | --- | --- |
 | Kibana | - | Elasticsearchに保存されたデータを可視化し, 参照するソフトウェア。 |
-| Elasticsearch | - | 検索と集約を担当するサーバソフトウェア。 |
+| Elasticsearch | - | ログやメトリクス情報を集約, 検索するためのサーバソフトウェア。 |
+| Elasticsearchのセキュリティ機能 | - | Elasticsearchへの接続者を認証し, 利用者に付与した権限に基づいて実行可能な操作を制御する機能。 |
 | Logstash | - | 受信したデータを整形し, 送信先へ転送するソフトウェア。 |
-| Filebeat | - | ログファイルを収集し, 送信先へ転送するエージェント。 |
-| Metricbeat | - | メトリクスを収集して送信するエージェント。 |
+| Enrollment Token | - | Elastic AgentがFleet Serverへの登録を許可されていることを確認し, 登録先のElastic Agent ポリシーを特定するための登録用認証情報。 |
+| Enrollment Token共有ファイル | - | Fleet BootstrapがEnrollment Tokenを制御ホスト上へ保存し, Elastic Agent本体ロールがFleet Serverへの登録時に読み込む権限`0600`のYAMLファイル。 |
+| Fleet Serverサービスアカウントトークンファイル | - | Fleet ServerがElasticsearchへ接続するためのサービスアカウントトークンを対象ホスト上へ保存し, Fleet Serverコンテナが起動時に読み込む権限`0600`のファイル。 |
 | コンテナイメージ | - | コンテナ実行に必要な内容をまとめた保存形式。 |
 | コンテナ | - | アプリケーションを動かす隔離された実行単位。 |
 | Docker | - | コンテナイメージやコンテナの作成, 実行, 管理を行うコマンド。 |
 | Docker Compose | - | 複数のコンテナ定義をまとめて作成, 起動, 停止, 更新する仕組み。 |
+| Docker Compose 定義ファイル | - | Docker Compose が参照するコンテナ構成の定義ファイル。 |
 | compose project 名 | - | Docker Compose によって展開される個々のアプリケーションを識別する名前です。展開されたコンテナ, ネットワーク, ボリュームなどのリソースをグループ化し, 他のアプリケーション又は別途展開された同じアプリケーションと区別するために用います。 |
 | Ansible | - | 設定の同一化や導入作業を所定の手順に従って自動化する仕組み。 |
 | Playbook | - | 自動化処理の実行手順を記述したファイル。 |
@@ -80,6 +88,10 @@
 | データ | - | 処理や保存の対象となる情報。 |
 | ポート | - | 通信の出入口を識別する番号または接点。 |
 | Uniform Resource Locator | URL | World Wide Web上の資源の場所を示す文字列。 |
+| URL スキーム | - | URL の先頭で通信方式を示す部分。例: `http`, `https`。 |
+| ランタイムエンドポイント ( rumtime endpoint ) | - | 対象ホスト上で所定のサービスが動作していることを確認するための疎通確認に用いるエンドポイントです。ここでのエンドポイントは, <接続先ホスト名>と<接続先ポート番号>の組から構成されるURLになります。本ロールで規定した変数により明示的に指定されたエンドポイントがあればその値を採用し, 未指定の場合は, 対象ホスト名とポート番号からエンドポイントを組み立てます。 |
+| 対象ホスト上での疎通確認 | - | 対象ホスト上で自ホスト(localhost)を指定して待ち受け先ポートへの疎通確認を実施すること。確認対象のサービスが対象ホスト上で起動していることを確認します。 |
+| 外部ホストからの疎通確認 | - | 対象ホスト以外のホストから対象ホストを指定して待ち受け先ポートへの疎通確認を実施すること。確認対象のサービスがネットワーク接続を含めて適切に設定され, サービス受付可能な状態になっていることを確認します。 |
 | Hypertext Transfer Protocol | HTTP | World Wide Webで情報をやり取りする通信手順。 |
 | Internet Protocol | IP | ネットワーク上で宛先を識別し, データを届けるための通信手順。 |
 | World Wide Web | WWW | ネットワーク上で文書や情報を相互参照できる仕組み。 |
@@ -97,9 +109,10 @@
 | makeコマンド | make | Makefile に定義された処理を実行するコマンド。 |
 | curlコマンド | curl | URL を指定して通信結果を取得するコマンド。 |
 | jqコマンド | jq | JSON 形式のデータから必要な項目だけを抽出して表示するコマンド。 |
+
 ## 概要
 
-### 前提条件
+## 前提条件
 
 本 playbook を実行する前提条件は, 次のとおりです。
 
@@ -125,13 +138,13 @@
 
 1. `docker compose` が利用可能であることを確認します。
 2. 本 playbook で導入するディレクトリを作成します。
-3. Kibana の設定ファイルと Docker Compose 定義を生成します。
+3. Kibana の設定ファイルと Docker Compose 定義ファイルを生成します。
 4. backend 用ネットワークへ接続して Kibana コンテナを起動します。
 5. 起動後にポート待機と HTTP 応答確認を行います。
 
 ## 実行方法
 
-### Makefile ターゲットによる実行
+### Makefile ターゲットを使用する場合
 
 制御ホストで次のコマンドを実行します。
 
@@ -139,9 +152,9 @@
 make run_logging_backend
 ```
 
-このターゲットは logging backend 用 Playbook の実行導線として用意されています。現状の Kibana 単独適用は, 次節の `ansible-playbook` による実行手順を使用します。
+このターゲットは Elasticsearch, Logstash, Kibana, Fleet Server, Fleet Bootstrapを順に適用し, 制御ホスト上のEnrollment Token共有ファイルへの保存まで完了します。Kibana単独適用は, 次節の`ansible-playbook`による実行手順を使用します。
 
-### ansible-playbook による role 単位実行
+### ansible-playbookコマンドを使用する場合
 
 制御ホストで次のコマンドを実行します。
 
@@ -153,33 +166,54 @@ ansible-playbook -i inventory/hosts logging-backend.yml --tags kibana
 
 ## 主要変数
 
-### 基本設定
+### 各ロール固有の利用者入力値
+
+#### 必須入力値
+
+本ロール固有の必須入力値はありません。Elasticsearchのセキュリティ機能が有効な場合のservice account tokenは, 既存ファイル又は自動発行処理から取得します。
+
+#### 任意入力値
+
+##### 基本設定
 
 | 変数名 | 意味 | 既定値 | 設定例 |
 | --- | --- | --- | --- |
-| `logging_kibana_enabled` | Kibana ロールの有効化フラグ。 | `true` | `true` |
-| `kibana_compose_dir` | Docker Compose 定義と関連ファイルを配置するディレクトリ。 | `/srv/kibana` | `/srv/kibana` |
-| `kibana_compose_file` | Docker Compose 定義のファイルパス。 | `{{ kibana_compose_dir }}/docker-compose.yml` | `/srv/kibana/docker-compose.yml` |
-| `kibana_config_dir` | Kibana 関連の設定用ディレクトリ。 | `{{ kibana_compose_dir }}/config` | `/srv/kibana/config` |
-| `kibana_data_dir` | Kibana データを配置するディレクトリ。 | `{{ kibana_compose_dir }}/data` | `/srv/kibana/data` |
-| `kibana_logs_dir` | Kibana ログを配置するディレクトリ。 | `{{ kibana_compose_dir }}/logs` | `/srv/kibana/logs` |
-| `kibana_network_name` | Docker ネットワーク名。 | `elastic-backend` | `elastic-backend` |
-| `kibana_container_name` | Kibana コンテナ名。 | `kibana` | `kibana` |
+| `logging_kibana_enabled` | Kibana ロールの有効化フラグ。 | `false` | `true` |
+| `kibana_encrypted_saved_objects_key_generation_timeout_seconds` | 暗号化キー生成処理のタイムアウト秒数。 | `30` | `30` |
 
-### コンテナイメージと接続設定
+##### 接続設定
 
 | 変数名 | 意味 | 既定値 | 設定例 |
 | --- | --- | --- | --- |
-| `kibana_image` | Kibana のコンテナイメージ名。 | `docker.elastic.co/kibana/kibana:8.17.3` | `docker.elastic.co/kibana/kibana:8.17.3` |
 | `kibana_server_host` | Kibana の HTTP 待受アドレス。 | `0.0.0.0` | `0.0.0.0` |
 | `kibana_server_port` | Kibana の HTTP 待受ポート。 | `5601` | `5601` |
+| `kibana_endpoint_url_explicit` | ランタイムエンドポイントの明示指定値。未指定時は `logging_backend_resolved_host` と `kibana_server_port` から組み立てる。 | 空文字列 | `https://kibana01.example.org:5601` |
+| `kibana_tls_mode` | ランタイムエンドポイントのURLスキームが`https`の場合に参照するTLS検証モード。指定可能な値は, [Elasticsearchロールの共有設定値](../elasticsearch/Readme.md#共有設定値に関する補足説明)を参照する。 | `logging_backend_default_tls_mode`の指定値。 | `none` |
 
-### 起動検証関連設定
+##### service account token 関連設定
+
+| 変数名 | 意味 | 既定値 | 設定例 |
+| --- | --- | --- | --- |
+| `kibana_service_token_auto_create` | Kibana 用 service account token が未配置時に自動発行するフラグ。 | `true` | `false` |
+| `kibana_service_token_name` | Kibana 用 service account token 名。 | `kibana-service-token` | `kibana-service-token` |
+| `kibana_service_token_namespace` | Kibana 用 service account token の namespace。 | `elastic` | `elastic` |
+| `kibana_service_token_service_name` | Kibana 用 service account token の service 名。 | `kibana` | `kibana` |
+| `kibana_service_token_issue_username` | Kibana 用 service account token 発行時に利用する Elasticsearch ユーザ名。 | `{{ elastic_search_security_username | default('elastic') }}` | `elastic` |
+| `kibana_service_token_issue_password` | Kibana 用 service account token 発行時に利用する Elasticsearch パスワード。 | `{{ elastic_search_bootstrap_password | default('') }}` | `DUMMY_ELASTIC_PASSWORD` |
+| `kibana_service_token_issue_timeout_seconds` | Kibana 用 service account token 発行APIの接続タイムアウト秒数。 | `30` | `30` |
+| `kibana_service_token_issue_retries` | Kibana 用 service account token 発行APIの再試行回数。 | `3` | `3` |
+| `kibana_service_token_issue_retry_delay_seconds` | Kibana 用 service account token 発行APIの再試行待機秒数。 | `5` | `5` |
+
+### Elastic Stack間共有設定値
+
+共有設定値の意味, 設定要否, 既定値及び設定例は, [Elasticsearchロールの共有設定値](../elasticsearch/Readme.md#varsall-configymlに設定するelastic-stack間共有設定値)を参照します。Kibanaでは, 共通の版数, Dockerブリッジネットワーク, 接続先ホスト, URLスキーム, TLS検証モード, 証明書及び外部ホストからの疎通確認設定が影響します。
+
+##### 起動検証関連設定
 
 | 変数名 | 意味 | 既定値 | 設定例 |
 | --- | --- | --- | --- |
 | `kibana_wait_host` | 起動確認で待機する接続先ホスト。 | `127.0.0.1` | `127.0.0.1` |
-| `kibana_wait_delegate_to` | 起動確認を実行する接続元ホスト。 | `localhost` | `localhost` |
+| `kibana_wait_delegate_to` | 起動確認を実行する接続元ホスト。 | `{{ inventory_hostname }}` | `{{ inventory_hostname }}` |
 | `kibana_wait_timeout` | 起動確認のタイムアウト時間。 | `120` | `120` |
 | `kibana_wait_delay` | 起動確認の開始遅延時間。 | `2` | `2` |
 | `kibana_wait_sleep` | 起動確認の待機間隔。 | `2` | `2` |
@@ -190,6 +224,7 @@ ansible-playbook -i inventory/hosts logging-backend.yml --tags kibana
 #### host_vars の設定例
 
 ホスト固有に変える値を `host_vars/kibana01.local.yml` に記載します。
+`logging_backend_host` は共通変数であるため, この例には含めず `vars/all-config.yml` に記載します。
 
 ```yaml
 1: logging_kibana_enabled: true
@@ -208,29 +243,24 @@ ansible-playbook -i inventory/hosts logging-backend.yml --tags kibana
 #### vars/all-config.yml の設定例
 
 全ホスト共通の値を `vars/all-config.yml` に記載します。
+`logging_backend_*` は `host_vars` に重複定義せず, この節の例のように `vars/all-config.yml` のみに記載します。
 
 ```yaml
 1: logging_kibana_enabled: true
-2: kibana_compose_dir: "/srv/kibana"
-3: kibana_network_name: "elastic-backend"
-4: kibana_image: "docker.elastic.co/kibana/kibana:8.17.3"
-5: kibana_server_host: "0.0.0.0"
-6: kibana_server_port: 5601
-7: kibana_wait_host: "127.0.0.1"
-8: kibana_wait_timeout: 120
-9: kibana_wait_delay: 2
-10: kibana_wait_sleep: 2
-11: kibana_wait_retries: 5
+2: kibana_server_host: "0.0.0.0"
+3: kibana_server_port: 5601
+4: kibana_wait_host: "127.0.0.1"
+5: kibana_wait_timeout: 120
+6: kibana_wait_delay: 2
+7: kibana_wait_sleep: 2
+8: kibana_wait_retries: 5
 ```
 
 | 行番号 | 設定値 | 有効になる動作 | 設定背景(未設定時/誤設定時の問題と防止理由) |
 | --- | --- | --- | --- |
 | 1 | `logging_kibana_enabled: true` | Kibana ロールを有効化し, 共通設定にもとづく導入処理を実行します。 | `false` の場合は共通設定が存在しても導入処理が実行されず, 設定の反映漏れが発生するためです。 |
-| 2 | `kibana_compose_dir: "/srv/kibana"` | Docker Compose 定義, 設定, データ, ログの保存先基準ディレクトリを `/srv/kibana` に統一します。 | 未設定又は誤設定の場合, 生成先の分散や競合が発生し, 保守作業で誤操作が起きやすくなるためです。 |
-| 3 | `kibana_network_name: "elastic-backend"` | Kibana が参加する外部ネットワーク名を `elastic-backend` に設定します。 | 関連コンテナ群と異なるネットワーク名を設定した場合, 相互接続に失敗するためです。 |
-| 4 | `kibana_image: "docker.elastic.co/kibana/kibana:8.17.3"` | 起動する Kibana のコンテナイメージ版数を指定します。 | 未設定又は誤設定の場合, 想定外の版数差異により互換性問題が発生するためです。 |
-| 5-6 | `kibana_server_host: "0.0.0.0"`, `kibana_server_port: 5601` | Kibana の HTTP 待受を `0.0.0.0:5601` に設定し, 対象ホストから利用可能にします。 | 未設定又は誤設定の場合, 待受先アドレスやポートが期待値と一致せず, 接続確認が失敗するためです。 |
-| 7-11 | `kibana_wait_host: "127.0.0.1"`, `kibana_wait_timeout: 120`, `kibana_wait_delay: 2`, `kibana_wait_sleep: 2`, `kibana_wait_retries: 5` | 起動確認の接続先と再試行条件を定義し, 起動直後の待受未完了を吸収して到達性を検証します。 | これらが未設定又は不適切な場合, 起動直後の一時的な応答遅延を異常と誤判定し, ロール実行が失敗するためです。 |
+| 2-3 | `kibana_server_host: "0.0.0.0"`, `kibana_server_port: 5601` | Kibana の HTTP 待受を `0.0.0.0:5601` に設定し, 対象ホストから利用可能にします。 | 未設定又は誤設定の場合, 待受先アドレスやポートが期待値と一致せず, 接続確認が失敗するためです。 |
+| 4-8 | `kibana_wait_host: "127.0.0.1"`, `kibana_wait_timeout: 120`, `kibana_wait_delay: 2`, `kibana_wait_sleep: 2`, `kibana_wait_retries: 5` | 起動確認の接続先と再試行条件を定義し, 起動直後の待受未完了を吸収して到達性を検証します。 | これらが未設定又は不適切な場合, 起動直後の一時的な応答遅延を異常と誤判定し, ロール実行が失敗するためです。 |
 
 この例では, 本 playbook で導入する側の共通値を一箇所へ集約します。
 
@@ -238,8 +268,8 @@ ansible-playbook -i inventory/hosts logging-backend.yml --tags kibana
 
 | テンプレート | 生成先 (括弧内は規定) | 用途 | 主な内容 |
 | --- | --- | --- | --- |
-| `templates/kibana.yml.j2` | `{{ kibana_compose_dir }}/kibana.yml` (規定: `/srv/kibana/kibana.yml`) | Kibana の設定ファイルを生成します。 | 待受アドレス, 待受ポート, Elasticsearch 接続先。 |
-| `templates/docker-compose.yml.j2` | `{{ kibana_compose_file }}` (規定: `/srv/kibana/docker-compose.yml`) | Kibana の Docker Compose 定義を生成します。 | コンテナイメージ, コンテナ名, ボリューム, ポート公開, ネットワーク。 |
+| `templates/kibana.yml.j2` | `{{ kibana_compose_dir }}/kibana.yml` (規定: `/srv/kibana/kibana.yml`) | Kibana の設定ファイルを生成します。 | 待受アドレス, 待受ポート, Elasticsearch 接続先, 暗号化済み保存オブジェクト用キー。 |
+| `templates/docker-compose.yml.j2` | `{{ kibana_compose_file }}` (規定: `/srv/kibana/docker-compose.yml`) | Kibana の Docker Compose 定義ファイルを生成します。 | コンテナイメージ, コンテナ名, ボリューム, ポート公開, ネットワーク。 |
 
 `kibana.yml.j2` は, Kibana コンテナ内の設定用ファイルを展開します。`docker-compose.yml.j2` は, コンテナイメージ, コンテナ名, ボリューム, ポート公開, ネットワークの設定ファイルを展開します。
 
@@ -273,7 +303,7 @@ ansible-playbook -i inventory/hosts logging-backend.yml --tags kibana
 
 `templates/docker-compose.yml.j2` では, `elastic_backend` ネットワークを定義し, `external: true` で既存ネットワークを利用します。実体として参照するネットワーク名は `{{ kibana_network_name }}` (既定: `elastic-backend`) です。
 
-既定値は, `elastic-backend` という外部ネットワーク(ホスト側ネットワーク)へ Kibana コンテナを参加させるためのネットワークを作成し, 同一のホスト側ネットワークを通して, 関連コンテナと通信する設定です。なお, `elastic-backend` が既に存在する場合は, 既設の `elastic-backend` ネットワークを使用します。
+既定値は, docker-network-elastic-stackロールが作成する`elastic-backend`外部ネットワークへKibanaコンテナを参加させ, 同一のホスト側ネットワークを通して関連コンテナと通信する設定です。本ロールは`elastic-backend`の存在を確認し, 存在しない場合は処理を停止します。
 
 ### ファイルバインドに関する補足事項
 
@@ -291,12 +321,12 @@ ansible-playbook -i inventory/hosts logging-backend.yml --tags kibana
 
 1. [tasks/load-params.yml](tasks/load-params.yml) で OS 別パラメータと共通変数を読み込みます。
 2. [tasks/validate.yml](tasks/validate.yml) で導入前提, パス, コンテナイメージ名, ポート, Elasticsearch 接続先を導出する変数, OS 条件を確認します。
-3. [tasks/package.yml](tasks/package.yml) で Docker Compose が利用可能であることを確認します。
-4. [tasks/directory.yml](tasks/directory.yml) で compose 用ディレクトリと設定, データ, ログの配置先を作成します。
+3. [tasks/package.yml](tasks/package.yml) で Docker Compose と暗号化キー生成処理が利用可能であることを確認します。
+4. [tasks/directory.yml](tasks/directory.yml) で compose 用ディレクトリと設定, データ, ログ, 暗号化キーの配置先を作成します。
 5. [tasks/user_group.yml](tasks/user_group.yml) で実行ユーザとグループを作成し, ディレクトリ所有権を調整します。
-6. [tasks/config.yml](tasks/config.yml) で [templates/kibana.yml.j2](templates/kibana.yml.j2) と [templates/docker-compose.yml.j2](templates/docker-compose.yml.j2) を配置します。設定ファイルまたは Compose 定義の更新時は `kibana_restart_service` を通知し, [handlers/main.yml](handlers/main.yml) から読み込む [handlers/restart-service.yml](handlers/restart-service.yml) でコンテナを再作成します。
-7. [tasks/service.yml](tasks/service.yml) で backend 専用ネットワークを確認または作成し, `docker compose up -d --remove-orphans` により Kibana コンテナを起動します。
-8. [tasks/verify.yml](tasks/verify.yml) で `wait_for` によるポート待機と, `uri` による `/api/status` の応答確認を実施し, `status.overall.state` または `status.overall.level` が `yellow`, `green`, `available` のいずれかであることを検証します。
+6. [tasks/config.yml](tasks/config.yml) で暗号化キーが未作成の場合に64桁の16進キーを生成し, 権限`0600`で保存します。続いて [templates/kibana.yml.j2](templates/kibana.yml.j2) と [templates/docker-compose.yml.j2](templates/docker-compose.yml.j2) を配置します。設定ファイルまたは Docker Compose 定義ファイルの更新時は `kibana_restart_service` を通知し, [handlers/main.yml](handlers/main.yml) から読み込む [handlers/restart-service.yml](handlers/restart-service.yml) でコンテナを再作成します。
+7. [tasks/service.yml](tasks/service.yml) でdocker-network-elastic-stackロールが作成したbackend専用ネットワークの存在を確認し, `docker compose up -d --remove-orphans`によりKibanaコンテナを起動します。
+8. [tasks/verify.yml](tasks/verify.yml) で対象ホスト上での疎通確認として `wait_for` によるポート待機と `uri` による `/api/status` の応答確認を実施し, `status.overall.state` または `status.overall.level` が `yellow`, `green`, `available` のいずれかであることを検証します。`logging_verify_external_enabled: true` の場合は, 同じランタイムエンドポイントに対して外部ホストからの疎通確認も実施します。
 
 ## 検証ポイント
 
@@ -311,25 +341,25 @@ ansible-playbook -i inventory/hosts logging-backend.yml --tags kibana
 
 ### 検証環境の設定
 
-検証用の host_vars と vars/all-config.yml を次の値で整えます。
+本節では, 検証用の設定内容について説明します。
+
+**検証用の host_vars**:
 
 ```yaml
-1: kibana_compose_dir: "/srv/kibana"
-2: kibana_network_name: "elastic-backend"
-3: kibana_server_host: "0.0.0.0"
-4: kibana_server_port: 5601
-5: kibana_wait_host: "127.0.0.1"
-6: kibana_wait_delegate_to: "{{ inventory_hostname }}"
+1: kibana_server_host: "0.0.0.0"
+2: kibana_server_port: 5601
+3: kibana_wait_host: "127.0.0.1"
+4: kibana_wait_delegate_to: "{{ inventory_hostname }}"
 ```
 
 | 行番号 | 設定値 | 有効になる動作 | 設定背景(未設定時/誤設定時の問題と防止理由) |
 | --- | --- | --- | --- |
-| 1 | `kibana_compose_dir: "/srv/kibana"` | 検証時に生成される設定, データ, ログの保存先を `/srv/kibana` 基準へ統一します。 | 保存先が分散すると検証対象ファイルの追跡が困難になり, 検証漏れが発生するためです。 |
-| 2 | `kibana_network_name: "elastic-backend"` | 検証対象の Kibana を想定ネットワークへ参加させ, 関連コンテナとの通信経路を確立します。 | ネットワーク名不一致により接続検証が失敗し, 問題の原因切り分けが困難になるためです。 |
-| 3-4 | `kibana_server_host: "0.0.0.0"`, `kibana_server_port: 5601` | `0.0.0.0:5601` で待受し, HTTP 接続確認を実行可能にします。 | 待受先アドレス又はポートが不一致の場合, 検証コマンドが接続不能となり, 導入結果を判定できないためです。 |
-| 5-6 | `kibana_wait_host: "127.0.0.1"`, `kibana_wait_delegate_to: "{{ inventory_hostname }}"` | 対象ホスト自身から `127.0.0.1` 宛に起動確認を実行します。 | 接続元又は接続先が不適切な場合, Kibana が起動済みでも待受確認が失敗し, 誤検知を招くためです。 |
+| 1-2 | `kibana_server_host: "0.0.0.0"`, `kibana_server_port: 5601` | `0.0.0.0:5601` で待受し, HTTP 接続確認を実行可能にします。 | 待受先アドレス又はポートが不一致の場合, 検証コマンドが接続不能となり, 導入結果を判定できないためです。 |
+| 3-4 | `kibana_wait_host: "127.0.0.1"`, `kibana_wait_delegate_to: "{{ inventory_hostname }}"` | 対象ホスト自身から `127.0.0.1` 宛に起動確認を実行します。 | 接続元又は接続先が不適切な場合, Kibana が起動済みでも待受確認に失敗し, 誤検知を招くためです。 |
 
 この設定により, 本 playbook で導入する Kibana が対象ホスト上で待受し, 自己確認が可能になります。
+
+このロールでは, ランタイムエンドポイントを起点に, 対象ホスト上での疎通確認と外部ホストからの疎通確認を段階的に実施します。
 
 ### 検証コマンドと期待結果
 
@@ -337,7 +367,7 @@ ansible-playbook -i inventory/hosts logging-backend.yml --tags kibana
 
 **実施対象ホスト**: `logging_backend` グループに属する対象ホスト
 
-**コマンド**:
+**実行するコマンド**:
 
 ```bash
 curl -sS -i http://127.0.0.1:5601/
@@ -380,7 +410,7 @@ Keep-Alive: timeout=120
 
 **実施対象ホスト**: `logging_backend` グループに属する対象ホスト
 
-**コマンド**:
+**実行するコマンド**:
 
 ```bash
 curl -sS http://127.0.0.1:5601/api/status | jq '.status.overall'
@@ -417,7 +447,7 @@ $ curl -sS http://127.0.0.1:5601/api/status | jq '.status.overall'
 
 **実施対象ホスト**: `logging_backend` グループに属する対象ホスト
 
-**コマンド**:
+**実行するコマンド**:
 
 ```bash
 ss -ltnp | grep ':5601 '
@@ -433,7 +463,7 @@ ss -ltnp | grep ':5601 '
 
 **実施対象ホスト**: `logging_backend` グループに属する対象ホスト
 
-**コマンド**:
+**実行するコマンド**:
 
 ```bash
 docker network ls --format '{{.Name}}' | grep -x 'elastic-backend'
@@ -448,7 +478,7 @@ docker network ls --format '{{.Name}}' | grep -x 'elastic-backend'
 
 **実施対象ホスト**: `logging_backend` グループに属する対象ホスト
 
-**コマンド**:
+**実行するコマンド**:
 
 ```bash
 ls -l /srv/kibana/kibana.yml
@@ -460,11 +490,11 @@ ls -l /srv/kibana/kibana.yml
 - 規定値を使用する場合の確認先は `/srv/kibana/kibana.yml` であること。
 - ファイルが 0 バイトではないこと。
 
-#### 4. Docker Compose 定義生成状態の確認
+#### 4. Docker Compose 定義ファイル生成状態の確認
 
 **実施対象ホスト**: `logging_backend` グループに属する対象ホスト
 
-**コマンド**:
+**実行するコマンド**:
 
 ```bash
 ls -l /srv/kibana/docker-compose.yml
@@ -480,7 +510,7 @@ ls -l /srv/kibana/docker-compose.yml
 
 **実施対象ホスト**: `logging_backend` グループに属する対象ホスト
 
-**コマンド**:
+**実行するコマンド**:
 
 ```bash
 docker logs --tail 200 kibana
@@ -497,13 +527,68 @@ docker logs --tail 200 kibana
 
 **実施対象ホスト**: `logging_backend` グループに属する対象ホスト
 
-**コマンド**:
+**実行するコマンド**:
 
 ```bash
 docker ps -a --filter name=kibana
-docker logs --tail 200 kibana
+docker logs --tail 200 kibana 2>&1 | grep -E '"log.level"[[:space:]]*:[[:space:]]*"(WARN|ERROR|FATAL)"'
 docker compose -f /srv/kibana/docker-compose.yml config
-ls -ld /srv/kibana /srv/kibana/data /srv/kibana/logs
+sudo stat -c '%a %U %G' /srv/kibana/secrets/encrypted-saved-objects-encryption-key
+ls -lnd /srv/kibana /srv/kibana/data /srv/kibana/logs
+```
+
+**実行結果の例**:
+
+```bash
+$ docker ps -a --filter name=kibana
+CONTAINER ID   IMAGE                                    COMMAND                  CREATED       STATUS       PORTS                    NAMES
+e896a5150359   docker.elastic.co/kibana/kibana:8.17.3   "/bin/tini -- /usr/l…"   2 hours ago   Up 2 hours   0.0.0.0:5601->5601/tcp   kibana
+$ docker logs --tail 200 kibana 2>&1 | grep -E '"log.level"[[:space:]]*:[[:space:]]*"(WARN|ERROR|FATAL)"'
+$ docker compose -f /srv/kibana/docker-compose.yml config
+name: kibana
+services:
+  kibana:
+    container_name: kibana
+    environment:
+      ELASTICSEARCH_HOSTS: http://elasticsearch:9200
+      ELASTICSEARCH_SERVICEACCOUNTTOKEN: AAEAAWVsYXN0aWMva2liYW5hL2tpYmFuYS1zZXJ2aWNlLXRva2VuOm80b2RFU0tXUWtlTGVmdjA3Znpzenc
+      SERVER_HOST: 0.0.0.0
+      SERVER_PORT: "5601"
+    image: docker.elastic.co/kibana/kibana:8.17.3
+    networks:
+      elastic_backend: null
+    ports:
+      - mode: ingress
+        host_ip: 0.0.0.0
+        target: 5601
+        published: "5601"
+        protocol: tcp
+    restart: unless-stopped
+    volumes:
+      - type: bind
+        source: /srv/kibana/kibana.yml
+        target: /usr/share/kibana/config/kibana.yml
+        read_only: true
+        bind: {}
+      - type: bind
+        source: /srv/kibana/data
+        target: /usr/share/kibana/data
+        bind: {}
+      - type: bind
+        source: /srv/kibana/logs
+        target: /usr/share/kibana/logs
+        bind: {}
+networks:
+  elastic_backend:
+    name: elastic-backend
+    external: true
+$ sudo stat -c '%a %U %G' /srv/kibana/secrets/encrypted-saved-object
+s-encryption-key
+600 root root
+$ ls -lnd /srv/kibana /srv/kibana/data /srv/kibana/logs
+drwxr-xr-x.  6    0    0  103 Aug  9 12:39 /srv/kibana
+drwxr-xr-x. 71 1000 1000 4096 Aug  9 12:42 /srv/kibana/data
+drwxr-xr-x.  2 1000 1000    6 Aug  5 19:55 /srv/kibana/logs
 ```
 
 **確認ポイント**:
@@ -512,22 +597,63 @@ ls -ld /srv/kibana /srv/kibana/data /srv/kibana/logs
 - ログに設定読込失敗, イメージ取得失敗, 起動失敗が出ていないこと。
 - Compose 定義の構文確認が成功すること。
 - 規定値を使用する場合, `/srv/kibana` 配下へ読み書き可能な権限があること。
+- `stat`コマンドの出力が`600 root root`であり, 暗号化キーが他の利用者から読み取れないこと。
 
 ### 2. `curl` で応答しない場合
 
 **実施対象ホスト**: `logging_backend` グループに属する対象ホスト
 
-**コマンド**:
+**実行するコマンド**:
+
+以下の`DUMMY_ELASTIC_PASSWORD`を`elastic_search_bootstrap_password`の設定値に変更して実行してください。
 
 ```bash
 docker ps --filter name=kibana
 ss -ltnp | grep ':5601 '
-curl -v --max-time 5 http://127.0.0.1:5601/
+curl -v -u 'elastic:DUMMY_ELASTIC_PASSWORD' --max-time 5 http://127.0.0.1:5601/
+```
+
+**実行結果の例**:
+
+```bash
+$ docker ps --filter name=kibana
+CONTAINER ID   IMAGE                                    COMMAND                  CREATED       STATUS       PORTS                    NAMES
+e896a5150359   docker.elastic.co/kibana/kibana:8.17.3   "/bin/tini -- /usr/l…"   2 hours ago   Up 2 hours   0.0.0.0:5601->5601/tcp   kibana
+$ ss -ltnp | grep ':5601 '
+LISTEN 0      4096         0.0.0.0:5601       0.0.0.0:*
+$ curl -v -u 'elastic:elastic' --max-time 5 http://127.0.0.1:5601/
+*   Trying 127.0.0.1:5601...
+* Connected to 127.0.0.1 (127.0.0.1) port 5601 (#0)
+* Server auth using Basic with user 'elastic'
+> GET / HTTP/1.1
+> Host: 127.0.0.1:5601
+> Authorization: Basic ZWxhc3RpYzplbGFzdGlj
+> User-Agent: curl/7.76.1
+> Accept: */*
+>
+* Mark bundle as not supporting multiuse
+< HTTP/1.1 302 Found
+< location: /spaces/enter
+< x-content-type-options: nosniff
+< referrer-policy: strict-origin-when-cross-origin
+< permissions-policy: camera=(), display-capture=(), fullscreen=(self), geolocation=(), microphone=(), web-share=()
+< cross-origin-opener-policy: same-origin
+< content-security-policy: script-src 'report-sample' 'self'; worker-src 'report-sample' 'self' blob:; style-src 'report-sample' 'self' 'unsafe-inline'
+< content-security-policy-report-only: form-action 'report-sample' 'self'
+< kbn-name: e896a5150359
+< kbn-license-sig: 1d4ed730859ad08b72ff054fb9da59fa18ef829ba57bc487616c073daf9f808e
+< cache-control: private, no-cache, no-store, must-revalidate
+< content-length: 0
+< Date: Sun, 09 Aug 2026 05:48:20 GMT
+< Connection: keep-alive
+< Keep-Alive: timeout=120
+<
+* Connection #0 to host 127.0.0.1 left intact
 ```
 
 **確認ポイント**:
 
-- Kibana コンテナが起動中であること。
+- Kibana コンテナが起動中である(`STATUS`の列が`Up`である)こと。
 - TCPプロトコルのポート番号5601番 で待受していること。
 - `curl` が接続エラーではなく HTTP 応答を返すこと。
 
@@ -535,11 +661,26 @@ curl -v --max-time 5 http://127.0.0.1:5601/
 
 **実施対象ホスト**: `logging_backend` グループに属する対象ホスト
 
-**コマンド**:
+**実行するコマンド**:
+
+以下の`DUMMY_ELASTIC_PASSWORD`を`elastic_search_bootstrap_password`の設定値に変更して実行してください。
 
 ```bash
-curl -sS http://127.0.0.1:5601/api/status | jq '.status.overall'
-docker logs --tail 200 kibana
+curl -sS -u 'elastic:DUMMY_ELASTIC_PASSWORD' http://127.0.0.1:5601/api/status | jq '.status.overall'
+docker logs --tail 200 kibana 2>&1 | grep -E '"log.level"[[:space:]]*:[[:space:]]*"(WARN|ERROR|FATAL)"'
+```
+
+**実行結果の例**:
+
+```bash
+$ curl -sS -u 'elastic:elastic' http://127.0.0.1:5601/api/status | j
+q '.status.overall'
+{
+  "level": "available",
+  "summary": "All services and plugins are available"
+}
+$ docker logs --tail 200 kibana 2>&1 | grep -E '"log.level"[[:space:]]*:[[:space:]]*"(WARN|ERROR|FATAL)"'
+$
 ```
 
 **確認ポイント**:
@@ -551,11 +692,39 @@ docker logs --tail 200 kibana
 
 **実施対象ホスト**: `logging_backend` グループに属する対象ホスト
 
-**コマンド**:
+**実行するコマンド**:
+
+以下の`DUMMY_ELASTIC_PASSWORD`を`elastic_search_bootstrap_password`の設定値に変更して実行してください。
 
 ```bash
-docker exec kibana curl -sS http://elasticsearch:9200/
-docker logs --tail 200 kibana
+docker exec kibana curl -sS -u 'elastic:DUMMY_ELASTIC_PASSWORD' http://elasticsearch:9200/
+docker logs --tail 200 kibana 2>&1 | grep -E '"log.level"[[:space:]]*:[[:space:]]*"(WARN|ERROR|FATAL)"'
+```
+
+**実行結果の例**:
+
+```bash
+$ docker exec kibana curl -sS -u 'elastic:elastic' http://elasticsea
+rch:9200/
+{
+  "name" : "observer01.example.org",
+  "cluster_name" : "shared-logs",
+  "cluster_uuid" : "mWEU68ySRbqcHfnuBsJ2Uw",
+  "version" : {
+    "number" : "8.17.3",
+    "build_flavor" : "default",
+    "build_type" : "docker",
+    "build_hash" : "a091390de485bd4b127884f7e565c0cad59b10d2",
+    "build_date" : "2025-02-28T10:07:26.089129809Z",
+    "build_snapshot" : false,
+    "lucene_version" : "9.12.0",
+    "minimum_wire_compatibility_version" : "7.17.0",
+    "minimum_index_compatibility_version" : "7.0.0"
+  },
+  "tagline" : "You Know, for Search"
+}
+$ docker logs --tail 200 kibana 2>&1 | grep -E '"log.level"[[:space:]]*:[[:space:]]*"(WARN|ERROR|FATAL)"'
+$
 ```
 
 **確認ポイント**:
@@ -568,9 +737,10 @@ docker logs --tail 200 kibana
 
 - 既存のサービスで使用されているポートやディレクトリと衝突しないような設定を実施すること。
 - ネットワーク名と compose project 名を他の Docker Compose から展開されるコンテナと衝突しないようにすること。
-- `kibana_data_dir` と `kibana_logs_dir` の所有者は, Kibanaコンテナイメージ仕様で固定される実行ユーザIDと実行グループID(既定では 1000:1000)に合わせること。これらの値はコンテナイメージ仕様により決定されるため, コンテナイメージの仕様変更に伴って変更が必要となる。実行ユーザIDは, `kibana_user_id` 変数, 実行グループIDは, `kibana_group_id` 変数を修正することで変更する。
+- `kibana_data_dir` と `kibana_logs_dir` の所有者は, Kibanaコンテナイメージ仕様で指定される実行ユーザIDと実行グループID(既定では 1000:1000)に合わせること。これらの値は playbook の設計値ではなくコンテナイメージ仕様により決定されるため, コンテナイメージの仕様変更時だけ `vars/logging-backend-common.yml` の `logging_backend_container_user_id` と `logging_backend_container_group_id` を変更する。
 - Kibana の Elasticsearch 接続先は内部変数として導出する設計であるため, 接続先を変更する場合は `elastic_search_container_name` 又は `elastic_search_http_port` を変更すること。
 - 設定ファイル生成先は `/srv/kibana/config` ではなく `/srv/kibana/kibana.yml` であるため, 運用確認時の参照先を取り違えないこと。
+- `kibana_encrypted_saved_objects_key_file`の内容を変更又は削除すると, 変更前のキーで暗号化したFleetの秘密情報を復号できなくなるため, 対象ホストの再構築時はキーファイルを安全に引き継ぐこと。
 
 ## 参考資料
 
@@ -578,6 +748,9 @@ docker logs --tail 200 kibana
 
 - [Kibana Guide](https://www.elastic.co/guide/en/kibana/8.17/index.html)
 - [Kibana settings](https://www.elastic.co/guide/en/kibana/8.17/settings.html)
+- [Secure the Elastic Stack](https://www.elastic.co/guide/en/elasticsearch/reference/8.17/secure-cluster.html)
+- [Enrollment Token](https://www.elastic.co/docs/reference/fleet/fleet-enrollment-tokens)
+- [Service accounts and tokens](https://www.elastic.co/guide/en/elasticsearch/reference/current/service-accounts.html)
 - [jq Manual](https://jqlang.github.io/jq/manual/)
 - [Docker Compose documentation](https://docs.docker.com/compose/)
 - [Ansible documentation](https://docs.ansible.com/ansible/latest/)

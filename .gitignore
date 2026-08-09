@@ -99,3 +99,6 @@ hosts.txt
 # SBOM
 #
 sbom-artifact/
+
+# Fleet Bootstrapが制御ホスト上へ生成するEnrollment Tokenファイル
+group_vars/logging_collector/enrollment-token.yml

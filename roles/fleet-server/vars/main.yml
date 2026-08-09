@@ -1,0 +1,8 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  ロール内部でのみ利用する固定値を定義する
+---
+
+# 外部から上書き可能にする値は defaults/main.yml を使用する。

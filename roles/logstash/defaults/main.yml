@@ -8,58 +8,44 @@
 ---
 
 # Logstash ロールを有効化する。
-logging_logstash_enabled: true
+logging_logstash_enabled: false
 
 #
 # Logstash コンテナの実行基盤設定
 #
 # docker compose ファイルを配置するディレクトリ
 logstash_compose_dir: "/srv/logstash"
-# docker compose ファイルのパス
-logstash_compose_file: "{{ logstash_compose_dir }}/docker-compose.yml"
-# Logstash コンテナの設定ディレクトリ
-logstash_config_dir: "{{ logstash_compose_dir }}/config"
-# Logstash コンテナのパイプライン設定ディレクトリ
-logstash_pipeline_dir: "{{ logstash_config_dir }}/pipelines"
-# Logstash コンテナのデータディレクトリ
-logstash_data_dir: "{{ logstash_compose_dir }}/data"
-# Logstash コンテナのログディレクトリ
-logstash_logs_dir: "{{ logstash_compose_dir }}/logs"
-# Logstash コンテナのネットワーク名
-logstash_network_name: "elastic-backend"
 # Logstash コンテナの名前
 logstash_container_name: "logstash"
 
 #
 # Logstash イメージと設定
 #
-# Logstash コンテナのイメージ名
-logstash_image: "docker.elastic.co/logstash/logstash:8.17.3"
-# beats 入力ポート番号
-logstash_beats_port: 5044
-# Logstash API の接続ポート番号
+# Logstash API の接続ポート番号 (単位: 番)
 logstash_http_port: 9600
 # Logstash のパイプラインID
 logstash_pipeline_id: "main"
+# Logstash 監視機能の有効化フラグ
+logstash_monitoring_enabled: true
+
+# Logstash API の接続先エンドポイント URL (明示指定用)
+logstash_endpoint_url_explicit: ""
+# Logstash endpoint 接続時の TLS 検証モード。
+# 利用可能値: off, none, full
+logstash_tls_mode: "{{ logging_backend_default_tls_mode | default('none') }}"
 
 #
 # 起動検証設定
 #
 # Logstash コンテナの起動検証時の接続先ホスト名/IPアドレス
 logstash_wait_host: "127.0.0.1"
-# Logstash コンテナの起動検証時のタイムアウト値(単位: 秒)
+# Logstash コンテナの起動検証時のタイムアウト値 (単位: 秒)
 logstash_wait_timeout: 120
-# Logstash コンテナの起動検証時の待機開始遅延時間(単位: 秒)
+# Logstash コンテナの起動検証時の待機開始遅延時間 (単位: 秒)
 logstash_wait_delay: 2
-# Logstash コンテナの起動検証時のポーリング周期(単位: 秒)
+# Logstash コンテナの起動検証時のポーリング周期 (単位: 秒)
 logstash_wait_sleep: 2
 # Logstash コンテナの起動検証時の接続元ホスト名/IPアドレス
 logstash_wait_delegate_to: "{{ inventory_hostname }}"
-# Logstash コンテナの起動検証時の再試行回数(単位: 回)
+# Logstash コンテナの起動検証時の再試行回数 (単位: 回)
 logstash_wait_retries: 5
-
-# コンテナ内のlogstashユーザのUID/GID(内部変数)
-# 公式のLogstashコンテナイメージでは, コンテナ内のlogstashユーザはUID/GID 1000で固定されている。
-# 公式のLogstashコンテナイメージの仕様が変更された場合は, この値を変更する必要がある。
-logstash_user_id: 1000
-logstash_group_id: 1000

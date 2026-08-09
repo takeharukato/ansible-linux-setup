@@ -15,7 +15,19 @@
 #
 # Daily Elasticsearch snapshot backup helper script
 # Elasticsearchの日次スナップショットバックアップ補助スクリプト
-set -eu
+# [名前]
+# daily-backup-elasticsearch.sh
+# [コマンドライン書式]
+# daily-backup-elasticsearch.sh
+# [位置引数の説明]
+# 位置引数は使用しない。
+# [オプション引数の説明]
+# オプション引数は使用しない。
+# [説明]
+# 本スクリプトは定期実行を想定した補助スクリプトであり, 事前定義されたバックアップ引数を付与してバックアップ本体を呼び出す。
+# [実行例]
+# {{ elastic_search_daily_backup_script_path }}
+set -euo pipefail
 
 # crontabからこのスクリプトを呼び出す運用を想定する。
 {{ elastic_search_backup_script_path }} {{ elastic_search_daily_backup_extra_args }}

@@ -1,0 +1,14 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  ユーザ・グループ作成関連タスク
+#
+---
+
+# Elastic Agentはホスト情報を収集するためrootサービスとして導入し, 専用ユーザを追加しない。
+- name: Confirm privileged Elastic Agent installation mode
+  ansible.builtin.assert:
+    that:
+      - ansible_facts.system == 'Linux'
+    fail_msg: "The elastic-agent role supports Linux hosts only."

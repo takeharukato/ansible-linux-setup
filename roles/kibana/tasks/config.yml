@@ -6,12 +6,71 @@
 #
 ---
 
-# Kibana の設定ファイルを生成し, Elasticsearch 接続先を固定する。
+# 再実行時に同じ暗号化キーを利用するため, 既存のキーファイルを確認する。
+- name: Check Kibana encrypted saved objects key file
+  ansible.builtin.stat:
+    path: "{{ kibana_encrypted_saved_objects_key_file }}"
+  register: kibana_encrypted_saved_objects_key_file_stat
+
+# キーファイルが未作成の場合だけ, タイムアウト付きで64桁の16進キーを生成する。
+- name: Generate Kibana encrypted saved objects key
+  ansible.builtin.command:
+    argv:
+      - /usr/bin/timeout
+      - "{{ kibana_encrypted_saved_objects_key_generation_timeout_seconds | string }}"
+      - openssl
+      - rand
+      - -hex
+      - '32'
+  register: kibana_encrypted_saved_objects_key_generation_result
+  changed_when: kibana_encrypted_saved_objects_key_generation_result.rc == 0
+  no_log: true
+  when:
+    - not (kibana_encrypted_saved_objects_key_file_stat.stat.exists | default(false) | bool)
+
+# 生成したキーをrootだけが読み書きできる永続ファイルへ保存する。
+- name: Save Kibana encrypted saved objects key
+  ansible.builtin.copy:
+    content: "{{ kibana_encrypted_saved_objects_key_generation_result.stdout | trim }}\n"
+    dest: "{{ kibana_encrypted_saved_objects_key_file }}"
+    owner: root
+    group: root
+    mode: '0600'
+  no_log: true
+  when:
+    - not (kibana_encrypted_saved_objects_key_file_stat.stat.exists | default(false) | bool)
+
+# Kibana設定へ同じキーを反映するため, 永続ファイルを読み込む。
+- name: Read Kibana encrypted saved objects key
+  ansible.builtin.slurp:
+    src: "{{ kibana_encrypted_saved_objects_key_file }}"
+  register: kibana_encrypted_saved_objects_key_file_content
+  no_log: true
+
+# 後続のテンプレートへ秘密値を渡すため, 読み込んだキーを内部変数へ設定する。
+- name: Resolve Kibana encrypted saved objects key
+  ansible.builtin.set_fact:
+    kibana_encrypted_saved_objects_encryption_key: >-
+      {{ kibana_encrypted_saved_objects_key_file_content.content | b64decode | trim }}
+  no_log: true
+
+# Kibanaが要求する32文字未満のキーを起動前に検出する。
+- name: Validate Kibana encrypted saved objects key
+  ansible.builtin.assert:
+    that:
+      - (kibana_encrypted_saved_objects_encryption_key | default('', true) | string | length) >= 32
+    fail_msg: >-
+      Kibana encrypted saved objects encryption key must contain at least 32 characters.
+  no_log: true
+
+# Kibana の設定ファイルを生成し, Elasticsearch 接続先を指定する。
 - name: Render Kibana config
   ansible.builtin.template:
     src: kibana.yml.j2
     dest: "{{ kibana_compose_dir }}/kibana.yml"
-    mode: '0644'
+    owner: "{{ logging_backend_container_user_id }}"
+    group: "{{ logging_backend_container_group_id }}"
+    mode: '0400'
   notify:
     - kibana_restart_service
 

@@ -1,0 +1,48 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  実行時フラグ解決タスク
+#
+---
+
+# Fleet Server endpoint の実行時スキームと TLS 検証モードを確定する。
+# 正規表現'^https?'は, '^'が文字列先頭, 'http'が必須文字列, 's?'が省略可能なsを表し,
+# 'http://fleet-server:8220'では'http', 'https://fleet-server:8220'では'https'に一致する。
+# 明示URLから方式を抽出し, 未抽出時は既定方式を採用した後, TLSモードとHTTPSフラグを算出する。
+- name: Resolve Fleet Server runtime flags
+  ansible.builtin.set_fact:
+    fleet_server_runtime_scheme: >-
+      {{
+        (
+          (fleet_server_endpoint_url_explicit | default('', true) | string | trim | lower)
+          | regex_search('^https?')
+          | default(logging_backend_default_scheme, true)
+        )
+      }}
+    fleet_server_runtime_tls_mode: >-
+      {{
+        (
+          'off'
+          if (
+            (
+              (fleet_server_endpoint_url_explicit | default('', true) | string | trim | lower)
+              | regex_search('^https?')
+              | default(logging_backend_default_scheme, true)
+            ) == 'http'
+          )
+          else (
+            (fleet_server_tls_mode | default(logging_backend_default_tls_mode, true) | string | lower | trim)
+          )
+        )
+      }}
+    fleet_server_runtime_is_https: >-
+      {{
+        (
+          (
+            (fleet_server_endpoint_url_explicit | default('', true) | string | trim | lower)
+            | regex_search('^https?')
+            | default(logging_backend_default_scheme, true)
+          ) == 'https'
+        ) | bool
+      }}

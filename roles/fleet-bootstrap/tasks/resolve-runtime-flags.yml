@@ -1,0 +1,51 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  実行時フラグ解決タスク
+#
+---
+
+# Fleet Bootstrap 実行可否を Security 設定と利用者設定から解決する。
+# 正規表現'^https?'は, '^'が文字列先頭, 'http'が必須文字列, 's?'が省略可能なsを表し,
+# 'http://kibana:5601'では'http', 'https://kibana:5601'では'https'に一致する。
+# 明示URLから方式を抽出し, 未抽出時は既定方式を採用した後, TLSモードを算出する。
+- name: Resolve Fleet Bootstrap runtime enabled flag
+  ansible.builtin.set_fact:
+    fleet_bootstrap_runtime_enabled: >-
+      {{
+        true
+        if (elastic_search_security_enabled | default(false) | bool)
+        else (fleet_bootstrap_enabled | default(true) | bool)
+      }}
+    fleet_bootstrap_kibana_runtime_scheme: >-
+      {{
+        (
+          (fleet_bootstrap_kibana_url_explicit | default('', true) | string | trim | lower)
+          | regex_search('^https?')
+          | default(logging_backend_default_scheme, true)
+        )
+      }}
+    fleet_bootstrap_kibana_runtime_tls_mode: >-
+      {{
+        (
+          'off'
+          if (
+            (
+              (fleet_bootstrap_kibana_url_explicit | default('', true) | string | trim | lower)
+              | regex_search('^https?')
+              | default(logging_backend_default_scheme, true)
+            ) == 'http'
+          )
+          else (
+            (fleet_bootstrap_kibana_tls_mode | default(logging_backend_default_tls_mode, true) | string | lower | trim)
+          )
+        )
+      }}
+
+# Security 有効時は Fleet Bootstrap を強制有効化したことを通知する。
+- name: Notify Fleet Bootstrap forced enablement by security mode
+  ansible.builtin.debug:
+    msg: "Fleet Bootstrap is enabled because Elasticsearch Security is enabled."
+  when:
+    - elastic_search_security_enabled | default(false) | bool

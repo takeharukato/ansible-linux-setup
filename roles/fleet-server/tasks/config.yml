@@ -1,0 +1,16 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  設定関連タスク
+#
+---
+
+# compose 定義を生成し, 生成済みの Kibana API キーを引き渡す。
+- name: Render fleet-server compose file
+  ansible.builtin.template:
+    src: docker-compose.yml.j2
+    dest: "{{ fleet_server_runtime_compose_file }}"
+    mode: "0644"
+  notify:
+    - fleet_server_restart_service
