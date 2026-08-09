@@ -14,14 +14,10 @@
   import_playbook: router.yml
 - name: Configure management server hosts
   import_playbook: server.yml
-- name: Configure elastic stack backend hosts
-  import_playbook: logging-backend.yml
-- name: Configure logging collector hosts
-  import_playbook: logging-collector.yml
 - name: Configure hosts for development
   import_playbook: devel.yml
-- name: Configure Rancher hosts
-  import_playbook: rancher.yml
+- name: Configure development hosts on private networks
+  import_playbook: internal-devel.yml
 - name: Configure FRR nodes
   import_playbook: frr.yml
 - name: Configure container registry hosts
@@ -32,5 +28,9 @@
   import_playbook: k8s-worker.yml
 - name: Configure k8s control planes after installation.
   import_playbook: k8s-management.yml
-- name: Configure development hosts on privite networks
-  import_playbook: internal-devel.yml
+- name: Configure elastic stack backend hosts
+  import_playbook: logging-backend.yml
+- name: Configure logging collector hosts
+  import_playbook: logging-collector.yml
+- name: Configure Rancher hosts
+  import_playbook: rancher.yml
