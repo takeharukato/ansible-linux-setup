@@ -40,6 +40,22 @@ netshoot_kubeconfig_path: "/etc/kubernetes/admin.conf"
 netshoot_cleanup_remote_tar: true
 
 #
+# ローカルレジストリ接続待機設定
+#
+# ローカルレジストリエンドポイント待機処理のタイムアウト時間(単位: 秒)
+netshoot_registry_wait_timeout: 120
+# ローカルレジストリエンドポイント待機処理の開始遅延時間(単位: 秒)
+netshoot_registry_wait_delay: 2
+# ローカルレジストリエンドポイント待機処理のポーリング周期(単位: 秒)
+netshoot_registry_wait_sleep: 2
+# ローカルレジストリエンドポイント待機処理時の接続タイムアウト時間(単位: 秒)
+netshoot_registry_wait_connect_timeout: 3
+# ローカルレジストリエンドポイント待機処理を実行する接続元ホスト名/IPアドレス
+netshoot_registry_wait_delegate_to: "localhost"
+# ローカルレジストリエンドポイント待機処理の再試行回数(単位: 回)
+netshoot_registry_wait_retries: 5
+
+#
 # Kubernetes関連設定
 #
 

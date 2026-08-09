@@ -63,10 +63,16 @@
     host: "{{ netshoot_registry_host }}"
     port: "{{ netshoot_registry_port }}"
     state: started
-    timeout: 120
-    connect_timeout: 3
-  delegate_to: localhost
+    timeout: "{{ netshoot_registry_wait_timeout }}"
+    delay: "{{ netshoot_registry_wait_delay }}"
+    sleep: "{{ netshoot_registry_wait_sleep }}"
+    connect_timeout: "{{ netshoot_registry_wait_connect_timeout }}"
+  delegate_to: "{{ netshoot_registry_wait_delegate_to }}"
   run_once: true
+  register: netshoot_registry_wait_result
+  until: netshoot_registry_wait_result is succeeded
+  retries: "{{ netshoot_registry_wait_retries }}"
+  delay: "{{ netshoot_registry_wait_sleep }}"
 
 # ローカルレジストリにイメージをプッシュする
 - name: "Push netshoot image to local registry"
