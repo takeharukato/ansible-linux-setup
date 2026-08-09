@@ -39,5 +39,19 @@
 [k8s_management]
 # k8sctrlplane01.local
 # k8sctrlplane02.local
+[logging_backend]
+# elastic-backend01.local
+[logging_collector]
+# extgw.local
+# frr01.local
+# frr02.local
+# registry1.local
+# registry2.local
+# k8sctrlplane01.local
+# k8sctrlplane02.local
+# k8sworker0101.local
+# k8sworker0102.local
+# k8sworker0201.local
+# k8sworker0202.local
 [rancher]
 # rancher01.local

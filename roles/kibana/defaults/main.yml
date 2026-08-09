@@ -1,0 +1,63 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  ロール固有変数のデフォルト値
+#  group_vars/all/all.yml やhost_varsで上書き可能とするため,
+#  ロール名/defaults/main.yml に定義している
+---
+
+# Kibana ロールを有効化する。
+logging_kibana_enabled: true
+
+#
+# Kibana コンテナの実行基盤設定
+#
+# docker compose ファイルを配置するディレクトリ
+kibana_compose_dir: "/srv/kibana"
+# docker compose ファイルのパス
+kibana_compose_file: "{{ kibana_compose_dir }}/docker-compose.yml"
+# Kibana コンテナの設定ディレクトリ
+kibana_config_dir: "{{ kibana_compose_dir }}/config"
+# Kibana コンテナのデータディレクトリ
+kibana_data_dir: "{{ kibana_compose_dir }}/data"
+# Kibana コンテナのログディレクトリ
+kibana_logs_dir: "{{ kibana_compose_dir }}/logs"
+# Kibana コンテナのネットワーク名
+kibana_network_name: "elastic-backend"
+# Kibana コンテナの名前
+kibana_container_name: "kibana"
+
+#
+# Kibana イメージと設定
+#
+# Kibana コンテナのイメージ名
+kibana_image: "docker.elastic.co/kibana/kibana:8.17.3"
+# Kibana の HTTP 接続バインドアドレス
+kibana_server_host: "0.0.0.0"
+# Kibana の HTTP 接続ポート番号
+kibana_server_port: 5601
+# Kibana から接続する Elasticsearch の接続先URL(内部変数)
+kibana_internal_elasticsearch_hosts: "http://{{ elastic_search_container_name | default('elasticsearch') }}:{{ elastic_search_http_port | default(9200) }}"
+
+#
+# 起動検証設定
+#
+# Kibana コンテナの起動検証時の接続先ホスト名/IPアドレス
+kibana_wait_host: "127.0.0.1"
+# Kibana コンテナの起動検証時のタイムアウト値(単位: 秒)
+kibana_wait_timeout: 120
+# Kibana コンテナの起動検証時の待機開始遅延時間(単位: 秒)
+kibana_wait_delay: 2
+# Kibana コンテナの起動検証時のポーリング周期(単位: 秒)
+kibana_wait_sleep: 2
+# Kibana コンテナの起動検証時の接続元ホスト名/IPアドレス
+kibana_wait_delegate_to: "{{ inventory_hostname }}"
+# Kibana コンテナの起動検証時の再試行回数(単位: 回)
+kibana_wait_retries: 5
+
+# コンテナ内のkibanaユーザのUID/GID(内部変数)
+# 公式のKibanaコンテナイメージでは, コンテナ内のkibanaユーザはUID/GID 1000で固定されている。
+# 公式のKibanaコンテナイメージの仕様が変更された場合は, この値を変更する必要がある。
+kibana_user_id: 1000
+kibana_group_id: 1000

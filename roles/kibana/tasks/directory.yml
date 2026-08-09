@@ -1,0 +1,32 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  ディレクトリ作成関連タスク
+#
+---
+
+# compose 配置先と Kibana の設定ファイル格納先を準備する。
+- name: Ensure kibana directories exist
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: root
+    group: root
+    mode: '0755'
+  loop:
+    - "{{ kibana_compose_dir }}"
+    - "{{ kibana_config_dir }}"
+
+# Kibana コンテナ実行ユーザが書き込む領域は uid/gid 1000 で作成する。
+- name: Ensure kibana runtime directories are writable
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: "{{ kibana_user_id }}"
+    group: "{{ kibana_group_id }}"
+    mode: '0755'
+    recurse: true
+  loop:
+    - "{{ kibana_data_dir }}"
+    - "{{ kibana_logs_dir }}"

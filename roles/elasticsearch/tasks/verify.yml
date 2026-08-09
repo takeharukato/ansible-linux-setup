@@ -1,0 +1,42 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  検証タスク
+#
+---
+
+# service のポートが開くまで待ち, その後の HTTP 検査が失敗しないようにする。
+- name: Wait for Elasticsearch port
+  ansible.builtin.wait_for:
+    host: "{{ elastic_search_wait_host }}"
+    port: "{{ elastic_search_http_port }}"
+    state: started
+    timeout: "{{ elastic_search_wait_timeout }}"
+    delay: "{{ elastic_search_wait_delay }}"
+    sleep: "{{ elastic_search_wait_sleep }}"
+  delegate_to: "{{ elastic_search_wait_delegate_to }}"
+  register: elastic_search_wait_result
+  until: elastic_search_wait_result is succeeded
+  retries: "{{ elastic_search_wait_retries }}"
+  delay: "{{ elastic_search_wait_sleep }}"
+
+# cluster health を確認し, backend として応答可能であることを検証する。
+- name: Verify Elasticsearch cluster health
+  ansible.builtin.uri:
+    url: "http://127.0.0.1:{{ elastic_search_http_port }}/_cluster/health?wait_for_status=yellow&timeout=60s"
+    method: GET
+    return_content: true
+    status_code:
+      - 200
+  register: elastic_search_health_result
+  until:
+    - elastic_search_health_result is succeeded
+    - elastic_search_health_result.json.status is defined
+    - elastic_search_health_result.json.status in ['yellow', 'green']
+  # クラスタ復旧や shard 再配置に時間を要する場合があるため,
+  # 応答確認の試行回数は timeout と sleep から導出する。
+  retries: "{{ ((elastic_search_wait_timeout | int) // ([elastic_search_wait_sleep | int, 1] | max)) + 1 }}"
+  delay: "{{ elastic_search_wait_sleep }}"
+  failed_when:
+    - elastic_search_health_result.json.status not in ['yellow', 'green']

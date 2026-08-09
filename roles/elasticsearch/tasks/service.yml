@@ -1,0 +1,59 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  サービス関連処理
+#
+---
+
+# backend 専用ネットワークを作成し, 将来の Kibana や Logstash と接続できるようにする。
+- name: Check elasticsearch backend network
+  ansible.builtin.command:
+    cmd: "docker network inspect {{ elastic_search_network_name }}"
+  register: elastic_search_network_inspect
+  failed_when: false
+  changed_when: false
+
+- name: Create elasticsearch backend network
+  ansible.builtin.command:
+    cmd: "docker network create {{ elastic_search_network_name }}"
+  when:
+    - elastic_search_network_inspect.rc != 0
+  changed_when: true
+
+# 既存の同名コンテナが残っている場合に備え, 起動前に存在確認する。
+- name: Check existing elasticsearch container
+  ansible.builtin.command:
+    argv:
+      - docker
+      - container
+      - inspect
+      - "{{ elastic_search_container_name }}"
+  become: true
+  register: elastic_search_container_inspect
+  failed_when: false
+  changed_when: false
+
+# 既存の同名コンテナを削除して, compose 起動時の名前衝突と古い状態の残留を防止する。
+- name: Remove existing elasticsearch container before compose up
+  ansible.builtin.command:
+    argv:
+      - docker
+      - rm
+      - -f
+      - "{{ elastic_search_container_name }}"
+  become: true
+  when:
+    - elastic_search_container_inspect.rc == 0
+  register: elastic_search_remove_existing_result
+  changed_when: elastic_search_remove_existing_result.rc == 0
+
+# compose 定義に基づいて Elasticsearch を起動し, 設定変更を反映する。
+- name: Start Elasticsearch service container
+  ansible.builtin.shell: |
+    docker compose -f {{ elastic_search_compose_file }} up -d --remove-orphans
+  args:
+    chdir: "{{ elastic_search_compose_dir }}"
+  become: true
+  register: elastic_search_start_result
+  changed_when: elastic_search_start_result.rc == 0

@@ -1,0 +1,70 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  設定関連タスク
+#
+---
+
+# Elasticsearch の設定ファイルを生成し, 単一ノード起動に必要な値を固定する。
+- name: Render Elasticsearch config
+  ansible.builtin.template:
+    src: elasticsearch.yml.j2
+    dest: "{{ elastic_search_config_file }}"
+    mode: '0644'
+  notify:
+    - elasticsearch_restart_service
+
+# compose 定義を生成し, backend コンテナの起動構成を固定する。
+- name: Render backend compose file
+  ansible.builtin.template:
+    src: docker-compose.yml.j2
+    dest: "{{ elastic_search_compose_file }}"
+    mode: '0644'
+  notify:
+    - elasticsearch_restart_service
+
+# バックアップ/リストア実装本体(Python)を配置する。
+- name: Render Elasticsearch backup Python script
+  ansible.builtin.template:
+    src: backup-elasticsearch-data.py.j2
+    dest: "{{ elastic_search_backup_python_script_path }}"
+    mode: '0755'
+  when:
+    - elastic_search_enable_backup_script | default(false) | bool
+
+# リストア実装本体(Python)を配置する。
+- name: Render Elasticsearch restore Python script
+  ansible.builtin.template:
+    src: restore-elasticsearch-data.py.j2
+    dest: "{{ elastic_search_restore_python_script_path }}"
+    mode: '0755'
+  when:
+    - elastic_search_enable_backup_script | default(false) | bool
+
+# Python 実装を呼び出すラッパースクリプトを配置する。
+- name: Render Elasticsearch backup wrapper script
+  ansible.builtin.template:
+    src: backup-elasticsearch-data.sh.j2
+    dest: "{{ elastic_search_backup_script_path }}"
+    mode: '0755'
+  when:
+    - elastic_search_enable_backup_script | default(false) | bool
+
+# Python 実装を呼び出すラッパースクリプトを配置する。
+- name: Render Elasticsearch restore wrapper script
+  ansible.builtin.template:
+    src: restore-elasticsearch-data.sh.j2
+    dest: "{{ elastic_search_restore_script_path }}"
+    mode: '0755'
+  when:
+    - elastic_search_enable_backup_script | default(false) | bool
+
+# cron から呼び出す日次バックアップ用ラッパースクリプトを配置する。
+- name: Render Elasticsearch daily backup wrapper script
+  ansible.builtin.template:
+    src: daily-backup-elasticsearch.sh.j2
+    dest: "{{ elastic_search_daily_backup_script_path }}"
+    mode: '0755'
+  when:
+    - elastic_search_enable_backup_script | default(false) | bool

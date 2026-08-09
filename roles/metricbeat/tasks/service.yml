@@ -1,0 +1,16 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  サービス関連処理
+#
+---
+
+# Metricbeat をsystemdで起動し, 起動時有効化を設定する。
+- name: Ensure Metricbeat service is started and enabled
+  ansible.builtin.systemd:
+    name: metricbeat
+    state: started
+    enabled: true
+    daemon_reload: true
+  become: true

@@ -1,0 +1,108 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  ロール固有変数のデフォルト値
+#  group_vars/all/all.yml やhost_varsで上書き可能とするため,
+#  ロール名/defaults/main.yml に定義している
+---
+
+# Elasticsearch ロールを有効化する。
+elastic_search_enabled: true
+
+#
+# Elasticsearch コンテナの実行基盤設定
+#
+# docker compose ファイルを配置するディレクトリ
+elastic_search_compose_dir: "/srv/elastic-search"
+# docker compose ファイルのパス
+elastic_search_compose_file: "{{ elastic_search_compose_dir }}/docker-compose.yml"
+# Elasticsearch コンテナの設定ディレクトリ
+elastic_search_config_dir: "{{ elastic_search_compose_dir }}/config"
+# Elasticsearch コンテナの設定ファイルパス
+elastic_search_config_file: "{{ elastic_search_config_dir }}/elasticsearch.yml"
+# Elasticsearch コンテナのデータディレクトリ
+elastic_search_data_dir: "{{ elastic_search_compose_dir }}/data"
+# Elasticsearch コンテナのログディレクトリ
+elastic_search_logs_dir: "{{ elastic_search_compose_dir }}/logs"
+# Elasticsearch コンテナのネットワーク名
+elastic_search_network_name: "elastic-backend"
+# Elasticsearch コンテナの名前
+elastic_search_container_name: "elasticsearch"
+
+#
+# Elasticsearch イメージと設定
+#
+# Elasticsearch コンテナのイメージ名
+elastic_search_image: "docker.elastic.co/elasticsearch/elasticsearch:8.17.3"
+# Elasticsearch クラスタ名
+elastic_search_cluster_name: "shared-logs"
+# Elasticsearch ノード名
+elastic_search_node_name: "{{ inventory_hostname }}"
+# Elasticsearch の discovery.type 設定値
+# Docker Compose で単一ノード構成で起動するため, "single-node" を指定
+elastic_search_discovery_type: "single-node"
+
+# Elasticsearch の起動前提となるカーネルパラメータ設定
+elastic_search_vm_max_map_count: 262144
+# Elasticsearch の起動前提となるカーネルパラメータ設定を反映する sysctl ドロップインファイルのパス
+elastic_search_sysctl_dropin_file: "/etc/sysctl.d/90-elasticsearch.conf"
+# Elasticsearch の HTTP 接続バインドアドレス
+elastic_search_http_host: "0.0.0.0"
+# Elasticsearch の HTTP 接続ポート番号
+elastic_search_http_port: 9200
+# Elasticsearch の java オプション設定値
+elastic_search_java_opts: "-Xms512m -Xmx512m"
+
+#
+# 起動検証設定
+#
+# Elasticsearch コンテナの起動検証時の接続先ホスト名/IPアドレス
+elastic_search_wait_host: "127.0.0.1"
+# Elasticsearch コンテナの起動検証時の接続元ホスト名/IPアドレス (対象ホスト)
+elastic_search_wait_delegate_to: "{{ inventory_hostname }}"
+# Elasticsearch コンテナの起動検証時のタイムアウト値(単位: 秒)
+elastic_search_wait_timeout: 120
+# Elasticsearch コンテナの起動検証時の待機間隔(単位: 秒)
+elastic_search_wait_delay: 5
+# Elasticsearch コンテナの起動検証時のポーリング周期(単位: 秒)
+elastic_search_wait_sleep: 2
+# Elasticsearch コンテナの起動検証時の再試行回数(単位: 回)
+elastic_search_wait_retries: 60
+
+#
+# バックアップ/リストア関連設定
+#
+# バックアップ関連スクリプト生成有効化フラグ
+elastic_search_enable_backup_script: false
+# バックアップ関連スクリプトの配置先ディレクトリ
+elastic_search_scripts_dir: "{{ elastic_search_compose_dir }}/scripts"
+# バックアップファイル格納先ディレクトリ
+elastic_search_backup_dir: "{{ elastic_search_compose_dir }}/backup"
+# Snapshot Repository 名
+elastic_search_snapshot_repository: "elastic-backup-repo"
+# Snapshot Repository のホスト側パス
+elastic_search_snapshot_repo_path_host: "{{ elastic_search_backup_dir }}/snapshot-repo"
+# Snapshot Repository のコンテナ側パス
+elastic_search_snapshot_repo_path_container: "/usr/share/elasticsearch/snapshot-repo"
+# バックアップ名接頭辞
+elastic_search_backup_name_prefix: "elastic-snapshot"
+# 保持世代数
+elastic_search_backup_retention: 7
+# Python 実行コマンド
+elastic_search_python_command: "/usr/bin/python3"
+# Python 実装スクリプトの配置先
+elastic_search_backup_python_script_path: "{{ elastic_search_scripts_dir }}/backup-elasticsearch-data.py"
+elastic_search_restore_python_script_path: "{{ elastic_search_scripts_dir }}/restore-elasticsearch-data.py"
+# ラッパーシェルスクリプトの配置先
+elastic_search_backup_script_path: "{{ elastic_search_scripts_dir }}/backup-elasticsearch-data.sh"
+elastic_search_restore_script_path: "{{ elastic_search_scripts_dir }}/restore-elasticsearch-data.sh"
+elastic_search_daily_backup_script_path: "{{ elastic_search_scripts_dir }}/daily-backup-elasticsearch.sh"
+# 日次バックアップへ追加する引数
+elastic_search_daily_backup_extra_args: ""
+
+# コンテナ内のelasticsearchユーザのUID/GID(内部変数)
+# 公式のElasticsearchコンテナイメージでは, コンテナ内のelasticsearchユーザはUID/GID 1000で固定されている。
+# 公式のElasticsearchコンテナイメージの仕様が変更された場合は, この値を変更する必要がある。
+elasticsearch_user_id: 1000
+elasticsearch_group_id: 1000

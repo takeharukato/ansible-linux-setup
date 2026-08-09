@@ -1,0 +1,13 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+- name: Configure logging collector hosts
+  hosts: logging_collector
+  remote_user: '{{ ansible_user }}'
+  become: true
+  roles:
+    - role: filebeat
+      tags: filebeat
+    - role: metricbeat
+      tags: metricbeat

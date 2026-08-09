@@ -1,0 +1,11 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  サービス起動ハンドラ
+#
+---
+
+# 設定変更時のLogstash再起動ハンドラを読み込む。
+- name: Import restart handler
+  ansible.builtin.import_tasks: restart-service.yml

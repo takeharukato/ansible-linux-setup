@@ -1,0 +1,25 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  設定関連タスク
+#
+---
+
+# Kibana の設定ファイルを生成し, Elasticsearch 接続先を固定する。
+- name: Render Kibana config
+  ansible.builtin.template:
+    src: kibana.yml.j2
+    dest: "{{ kibana_compose_dir }}/kibana.yml"
+    mode: '0644'
+  notify:
+    - kibana_restart_service
+
+# compose 定義を生成し, Kibana コンテナの起動構成を固定する。
+- name: Render Kibana compose file
+  ansible.builtin.template:
+    src: docker-compose.yml.j2
+    dest: "{{ kibana_compose_file }}"
+    mode: '0644'
+  notify:
+    - kibana_restart_service

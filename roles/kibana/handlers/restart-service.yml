@@ -1,0 +1,25 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  Kibana再起動ハンドラ
+#
+---
+
+# 設定変更時に compose を再適用し, Kibana コンテナを再作成する。
+- name: Restart Kibana service
+  ansible.builtin.command:
+    argv:
+      - docker
+      - compose
+      - -f
+      - "{{ kibana_compose_file }}"
+      - up
+      - -d
+      - --force-recreate
+      - --remove-orphans
+  args:
+    chdir: "{{ kibana_compose_dir }}"
+  become: true
+  changed_when: true
+  listen: kibana_restart_service

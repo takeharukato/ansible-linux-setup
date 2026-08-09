@@ -6,6 +6,10 @@ top=.
 .PHONY: clean distclean run run_common run_user_settings run_create_users \
 	run_post_user_create run_devel_packages cloc mk_arc mk_role_arc ansible-lint \
 	run_docker_ce run_ntp_server run_ntp_client run_nfs_server \
+	run_logging_backend \
+	run_elasticsearch run_logstash run_kibana \
+	run_logging_collector \
+	run_filebeat run_metricbeat \
 	run_ldap_server run_redmine_server run_yq run_jd \
 	run_k8s_common run_k8s_ctrl_plane run_k8s_multus run_k8s_whereabouts \
 	run_k8s_worker run_k8s_devel run_netgauge run_netshoot_no_portscan \
@@ -15,7 +19,7 @@ top=.
 	run_dns_server run_selinux update-ctrlplane-kubeconfig update-worker-kubeconfig \
 	run_terraform run_kea_dhcp run_radvd run_router_config run_router_clear_rules \
 	run_aide run_frr_basic run_gitlab_server run_opengrok_server run_skopeo \
-	run_sbom
+	run_sbom audit_readme_term_coverage
 
 # ansibleのログ表示レベル
 VERBOSE=-vvv
@@ -158,6 +162,27 @@ run_devel_packages:
 run_docker_ce:
 	ansible-playbook --tags "docker-ce" ${OPT_COMMON} 2>&1 |tee build-docker-ce.log
 
+run_logging_backend:
+	ansible-playbook --tags "elasticsearch,logstash,kibana" ${OPT_COMMON} 2>&1 |tee build-logging-backend.log
+
+run_elasticsearch:
+	ansible-playbook --tags "elasticsearch" ${OPT_COMMON} 2>&1 |tee build-elasticsearch.log
+
+run_logstash:
+	ansible-playbook --tags "logstash" ${OPT_COMMON} 2>&1 |tee build-logstash.log
+
+run_kibana:
+	ansible-playbook --tags "kibana" ${OPT_COMMON} 2>&1 |tee build-kibana.log
+
+run_logging_collector:
+	ansible-playbook --tags "filebeat,metricbeat" ${OPT_COMMON} 2>&1 |tee build-logging-collector.log
+
+run_filebeat:
+	ansible-playbook --tags "filebeat" ${OPT_COMMON} 2>&1 |tee build-filebeat.log
+
+run_metricbeat:
+	ansible-playbook --tags "metricbeat" ${OPT_COMMON} 2>&1 |tee build-metricbeat.log
+
 run_ntp_server:
 	ansible-playbook --tags "ntp-server" ${OPT_COMMON} 2>&1 |tee build-ntp-server.log
 
@@ -272,6 +297,9 @@ ansible-lint:
 	  echo "Running ansible-lint $${CONFIG_OPTION} ${ANSIBLE_LINT_TARGETS}"; \
 	  ansible-lint $${CONFIG_OPTION} ${ANSIBLE_LINT_TARGETS}; \
 	fi
+
+audit_readme_term_coverage:
+	tools/audit-readme-term-coverage.sh --allow-issues
 
 cloc:
 	cloc "${CLOC_LANG_OPT}" "${CLOC_EXCLUDES}" "${CLOC_EXCLUDE_EXTS}" .

@@ -1,0 +1,25 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  設定関連タスク
+#
+---
+
+# Logstash の pipeline 設定を生成し, beats 受信と Elasticsearch 送信の流れを固定する。
+- name: Render Logstash pipeline config
+  ansible.builtin.template:
+    src: logstash.conf.j2
+    dest: "{{ logstash_pipeline_dir }}/main.conf"
+    mode: '0644'
+  notify:
+    - logstash_restart_service
+
+# compose 定義を生成し, Logstash コンテナの起動構成を固定する。
+- name: Render Logstash compose file
+  ansible.builtin.template:
+    src: docker-compose.yml.j2
+    dest: "{{ logstash_compose_file }}"
+    mode: '0644'
+  notify:
+    - logstash_restart_service

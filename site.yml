@@ -14,6 +14,10 @@
   import_playbook: router.yml
 - name: Configure management server hosts
   import_playbook: server.yml
+- name: Configure elastic stack backend hosts
+  import_playbook: logging-backend.yml
+- name: Configure logging collector hosts
+  import_playbook: logging-collector.yml
 - name: Configure hosts for development
   import_playbook: devel.yml
 - name: Configure Rancher hosts

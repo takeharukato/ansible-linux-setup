@@ -1,0 +1,15 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  サービス起動ハンドラ
+#
+---
+
+# sysctl ドロップイン更新時の再読み込みハンドラを読み込む。
+- name: Import reload sysctl handler
+  ansible.builtin.import_tasks: reload-sysctl.yml
+
+# 設定変更時のElasticsearch再起動ハンドラを読み込む。
+- name: Import restart handler
+  ansible.builtin.import_tasks: restart-service.yml

@@ -1,0 +1,39 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  検証タスク
+#
+---
+
+# service のポートが開くまで待ち, その後の HTTP 検査が失敗しないようにする。
+- name: Wait for Kibana port
+  ansible.builtin.wait_for:
+    host: "{{ kibana_wait_host }}"
+    port: "{{ kibana_server_port }}"
+    state: started
+    timeout: "{{ kibana_wait_timeout }}"
+    delay: "{{ kibana_wait_delay }}"
+    sleep: "{{ kibana_wait_sleep }}"
+  delegate_to: "{{ kibana_wait_delegate_to }}"
+  register: kibana_wait_result
+  until: kibana_wait_result is succeeded
+  retries: "{{ kibana_wait_retries }}"
+  delay: "{{ kibana_wait_sleep }}"
+
+# Kibana の HTTP 応答を確認し, backend として応答可能であることを検証する。
+- name: Verify Kibana response
+  ansible.builtin.uri:
+    url: "http://127.0.0.1:{{ kibana_server_port }}/api/status"
+    method: GET
+    return_content: true
+    status_code:
+      - 200
+      - 503
+  register: kibana_status_result
+  until:
+    - (kibana_status_result.json | default({})).get('status', {}).get('overall', {}).get('state', (kibana_status_result.json | default({})).get('status', {}).get('overall', {}).get('level', '')) in ['green', 'yellow', 'available']
+  # SavedObjects migration とプラグイン初期化の完了待ちに時間を要するため,
+  # status 確認の試行回数は timeout と sleep から導出する。
+  retries: "{{ ((kibana_wait_timeout | int) // ([kibana_wait_sleep | int, 1] | max)) + 1 }}"
+  delay: "{{ kibana_wait_sleep }}"

@@ -1,0 +1,17 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  Filebeat再起動ハンドラ
+#
+---
+
+# 設定変更時に systemd サービスを再起動し, Filebeat 設定を反映する。
+- name: Restart Filebeat service
+  ansible.builtin.systemd:
+    name: filebeat
+    state: restarted
+    daemon_reload: true
+  become: true
+  changed_when: true
+  listen: filebeat_restart_service

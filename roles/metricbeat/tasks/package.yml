@@ -1,0 +1,181 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  パッケージ関連処理
+#
+---
+
+# Metricbeat 版数の先頭プレフィックスを除去し, パッケージ版数として使用する。
+- name: Normalize metricbeat version string for package metadata
+  ansible.builtin.set_fact:
+    metricbeat_version_normalized: "{{ metricbeat_version | regex_replace('^v', '') }}"
+
+# 既存の Metricbeat パッケージを削除する (Debian系)
+- name: Remove existing metricbeat package on Debian family before local package install
+  ansible.builtin.apt:
+    name: "{{ metricbeat_package_name_debian }}"
+    state: absent
+    autoremove: true
+  become: true
+  when:
+    - ansible_facts.os_family == 'Debian'
+    - metricbeat_remove_existing_package | default(true) | bool
+
+# 既存の Metricbeat パッケージを削除する (RedHat系)
+- name: Remove existing metricbeat package on RedHat family before local package install
+  ansible.builtin.dnf:
+    name: "{{ metricbeat_package_name_rhel }}"
+    state: absent
+    autoremove: true
+  become: true
+  when:
+    - ansible_facts.os_family == 'RedHat'
+    - metricbeat_remove_existing_package | default(true) | bool
+
+# チェックモードではローカルパッケージの構築/導入をスキップする
+- name: Skip local metricbeat package build and install in check mode
+  ansible.builtin.debug:
+    msg: >-
+      Check mode: skipping local Metricbeat package build/install steps.
+      Metricbeat version is {{ metricbeat_version }}.
+  when: ansible_check_mode | bool
+
+# Metricbeat 構築用の作業ディレクトリパスを実行ユーザごとに初期化する
+- name: Set effective workspace for metricbeat build
+  ansible.builtin.set_fact:
+    metricbeat_build_workspace_effective: >-
+      /tmp/metricbeat-build-{{ lookup('env', 'USER') | default('ansible', true) }}
+  run_once: true
+
+# 制御ホスト上に作業ディレクトリを作成し, 書き込み不可の場合は代替へ切り替える
+- name: Ensure metricbeat build workspace exists on controller for pkgbld-common
+  run_once: true
+  when: not (ansible_check_mode | bool)
+  block:
+
+    # 制御ホスト上に作業ディレクトリを作成する。
+    - name: Create configured metricbeat build workspace on controller
+      ansible.builtin.file:
+        path: "{{ metricbeat_build_workspace_effective }}"
+        state: directory
+        mode: "0755"
+      delegate_to: localhost
+      become: false
+
+    # 制御ホスト上の作業ディレクトリが書き込み可能であることを確認する。
+    - name: Verify configured metricbeat build workspace is writable on controller
+      ansible.builtin.command:
+        argv:
+          - /bin/sh
+          - -c
+          - >-
+            probe="{{ metricbeat_build_workspace_effective }}/.ansible-write-probe-$$";
+            touch "$probe" && rm -f "$probe"
+      delegate_to: localhost
+      become: false
+      changed_when: false
+  rescue:
+
+    # 制御ホスト上の作業ディレクトリが書き込み不可の場合は, ユーザごとの代替パスへ切り替える。
+    - name: Switch metricbeat build workspace to per-user fallback path
+      ansible.builtin.set_fact:
+        metricbeat_build_workspace_effective: >-
+          /tmp/metricbeat-build-fallback-{{ lookup('env', 'USER') | default('ansible', true) }}
+
+    # 制御ホスト上の代替パスを作成する。
+    - name: Create fallback metricbeat build workspace on controller
+      ansible.builtin.file:
+        path: "{{ metricbeat_build_workspace_effective }}"
+        state: directory
+        mode: "0755"
+      delegate_to: localhost
+      become: false
+
+    # 制御ホスト上の代替パスが書き込み可能であることを確認する。
+    - name: Verify fallback metricbeat build workspace is writable on controller
+      ansible.builtin.command:
+        argv:
+          - /bin/sh
+          - -c
+          - >-
+            probe="{{ metricbeat_build_workspace_effective }}/.ansible-write-probe-$$";
+            touch "$probe" && rm -f "$probe"
+      delegate_to: localhost
+      become: false
+      changed_when: false
+
+# 構築ホストへコピーする構築スクリプトを制御ホストで生成する。
+- name: Render metricbeat deb build script on controller for pkgbld-common
+  ansible.builtin.template:
+    src: build-metricbeat-deb.sh.j2
+    dest: "{{ metricbeat_build_workspace_effective }}/build-metricbeat-deb.sh"
+    mode: "0755"
+  delegate_to: localhost
+  become: false
+  run_once: true
+  when: not (ansible_check_mode | bool)
+
+# 構築ホストへコピーする構築スクリプトを制御ホストで生成する。
+- name: Render metricbeat rpm build script on controller for pkgbld-common
+  ansible.builtin.template:
+    src: build-metricbeat-rpm.sh.j2
+    dest: "{{ metricbeat_build_workspace_effective }}/build-metricbeat-rpm.sh"
+    mode: "0755"
+  delegate_to: localhost
+  become: false
+  run_once: true
+  when: not (ansible_check_mode | bool)
+
+# Metricbeatパッケージを構築ホストで作成して導入する
+- name: Build and install metricbeat local packages via pkgbld-common # noqa var-naming[no-role-prefix]
+  ansible.builtin.include_role:
+    name: pkgbld-common
+  vars:
+    package_build_host: "{{ metricbeat_build_host }}"
+    package_build_workspace: "{{ metricbeat_build_workspace_effective }}"
+    package_build_output_dir: "{{ metricbeat_build_workspace_effective }}/output"
+    pkgbld_container_runtime: "{{ metricbeat_build_container_runtime }}"
+    pkgbld_container_network_mode: "{{ metricbeat_build_container_network_mode }}"
+    pkgbld_builder_image_debian: "{{ metricbeat_build_container_image_debian }}"
+    pkgbld_builder_image_rhel: "{{ metricbeat_build_container_image_rhel }}"
+    pkgbld_container_workdir: "{{ metricbeat_build_container_workdir }}"
+    pkgbld_container_output_dir: "{{ metricbeat_build_container_workdir }}/output"
+    pkgbld_build_script_src_debian: "{{ metricbeat_build_workspace_effective }}/build-metricbeat-deb.sh"
+    pkgbld_build_script_name_debian: "build-metricbeat-deb.sh"
+    pkgbld_build_script_src_rhel: "{{ metricbeat_build_workspace_effective }}/build-metricbeat-rpm.sh"
+    pkgbld_build_script_name_rhel: "build-metricbeat-rpm.sh"
+    pkgbld_build_script_src: "{{ metricbeat_build_workspace_effective }}/build-metricbeat-deb.sh"
+    pkgbld_build_script_name: "build-metricbeat-deb.sh"
+    pkgbld_package_type: "deb"
+    pkgbld_package_name: "{{ metricbeat_package_name_debian }}"
+    pkgbld_package_file_patterns_debian:
+      - "{{ metricbeat_package_name_debian }}_{{ metricbeat_version_normalized }}-1_*.deb"
+    pkgbld_package_file_patterns_rhel:
+      - "{{ metricbeat_package_name_rhel }}-{{ metricbeat_version_normalized }}-1.*.rpm"
+    package_targets: "{{ ansible_play_hosts_all }}"
+    pkgbld_install_deb_lock_wait_seconds: "{{ metricbeat_install_deb_lock_wait_seconds }}"
+    pkgbld_build_timeout_seconds: "{{ metricbeat_pkg_build_timeout_seconds }}"
+    pkgbld_build_loop_delay_seconds: "{{ metricbeat_pkg_build_loop_delay_seconds }}"
+    pkgbld_container_env_args:
+      - "-e"
+      - "METRICBEAT_VERSION_TAG={{ metricbeat_version }}"
+      - "-e"
+      - "METRICBEAT_VERSION_NORMALIZED={{ metricbeat_version_normalized }}"
+      - "-e"
+      - "METRICBEAT_SOURCE_BASE_URL={{ metricbeat_source_base_url }}"
+      - "-e"
+      - "METRICBEAT_DEB_PACKAGE_NAME={{ metricbeat_package_name_debian }}"
+      - "-e"
+      - "METRICBEAT_RPM_PACKAGE_NAME={{ metricbeat_package_name_rhel }}"
+      - "-e"
+      - "METRICBEAT_DEB_ARCH={{ metricbeat_deb_arch }}"
+      - "-e"
+      - "METRICBEAT_RPM_ARCH={{ ansible_facts.architecture }}"
+    pkgbld_verify_version_enabled: true
+    pkgbld_verify_version_command:
+      - "{{ metricbeat_command }}"
+      - version
+    pkgbld_verify_version_regex: "([0-9]+\\.[0-9]+\\.[0-9]+)"
+    pkgbld_verify_version_expected: "{{ metricbeat_version_normalized | trim }}"
+  when: not (ansible_check_mode | bool)

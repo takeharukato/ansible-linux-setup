@@ -1,0 +1,355 @@
+#!/usr/bin/env python3
+# -*- mode: python; coding: utf-8; line-endings: unix -*-
+# SPDX-License-Identifier: BSD-2-Clause
+#
+# Copyright (c) 2025 TAKEHARU KATO
+# This file is distributed under the two-clause BSD license.
+# For the full text of the license, see the LICENSE file in the project root directory.
+# このファイルは2条項BSDライセンスの下で配布されています。
+# ライセンス全文はプロジェクト直下の LICENSE を参照してください。
+#
+# OpenAI's ChatGPT partially generated this code.
+# Author has modified some parts.
+# OpenAIのChatGPTがこのコードの一部を生成しました。
+# 著者が修正している部分があります。
+"""Elasticsearchのスナップショットリストアを実行する。"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import logging
+import urllib.error
+import urllib.parse
+import urllib.request
+from dataclasses import dataclass
+from typing import Any
+
+LOGGER: logging.Logger = logging.getLogger("elasticsearch-restore")
+
+
+@dataclass(frozen=True)
+class RestoreConfig:
+    """リストア実行時の設定を保持するデータクラスである。
+
+    Attributes:
+        endpoint (str): Elasticsearch の接続先 URL。
+        repository (str): Snapshot Repository 名。
+        snapshot_name (str): 復元対象 snapshot 名。
+        timeout_seconds (int): HTTP API 呼び出しタイムアウト秒数。
+        delete_existing (bool): 復元前に既存 index を削除するかのフラグ。
+
+    Examples:
+        >>> cfg = RestoreConfig(
+        ...     endpoint="http://127.0.0.1:9200",
+        ...     repository="elastic-backup-repo",
+        ...     snapshot_name="elastic-snapshot-20260101-000000",
+        ...     timeout_seconds=120,
+        ...     delete_existing=False,
+        ... )
+        >>> cfg.delete_existing
+        False
+    """
+
+    endpoint: str
+    repository: str
+    snapshot_name: str
+    timeout_seconds: int
+    delete_existing: bool
+
+
+def parse_args() -> argparse.Namespace:
+    """コマンドライン引数を解析する。
+
+    Returns:
+        argparse.Namespace: 解析済み引数。
+
+    Examples:
+        >>> import sys
+        >>> _old = sys.argv[:]
+        >>> sys.argv = ["restore-elasticsearch-data.py", "--snapshot-name", "snap-1"]
+        >>> ns = parse_args()
+        >>> ns.snapshot_name
+        'snap-1'
+        >>> sys.argv = _old
+    """
+
+    #
+    # 復元対象 snapshot 名を必須引数として受け取る。
+    #
+    parser: argparse.ArgumentParser = argparse.ArgumentParser(
+        description="Restore Elasticsearch snapshot"
+    )
+
+    # Elasticsearch endpointを指定するオプション引数を追加する。デフォルトは http://
+    parser.add_argument(
+        "--endpoint",
+        default="http://127.0.0.1:{{ elastic_search_http_port }}",
+        help="Elasticsearch endpoint URL",
+    )
+
+    # snapshot repository名を指定するオプション引数を追加する。デフォルトは {{ elastic_search_snapshot_repository }}。
+    parser.add_argument(
+        "--repository",
+        default="{{ elastic_search_snapshot_repository }}",
+        help="Snapshot repository name",
+    )
+
+    # snapshot名を指定する必須引数を追加する。
+    parser.add_argument(
+        "--snapshot-name",
+        required=True,
+        help="Snapshot name to restore",
+    )
+
+    # タイムアウト秒数を指定するオプション引数を追加する。デフォルトは120秒。
+    parser.add_argument(
+        "--timeout-seconds",
+        type=int,
+        default=120,
+        help="HTTP timeout in seconds",
+    )
+
+    # 既存 index の削除を指示するオプション引数を追加する。
+    # デフォルトは削除しない。
+    parser.add_argument(
+        "--delete-existing",
+        action="store_true",
+        help="Delete existing indices before restore",
+    )
+
+    # 詳細ログ出力を有効化するオプション引数を追加する。
+    parser.add_argument(
+        "--verbose",
+        action="store_true",
+        help="Enable verbose logging",
+    )
+
+    # 解析済み引数を返す。
+    return parser.parse_args()
+
+
+def setup_logging(verbose: bool) -> None:
+    """ログ出力を初期化する。
+
+    Args:
+        verbose (bool): 詳細ログを有効化するかを示すフラグ。
+
+    Returns:
+        None: 戻り値はない。
+
+    Examples:
+        >>> setup_logging(False)
+    """
+
+    #
+    # verbose 指定に応じてログレベルを切り替える。
+    #
+
+    # ログレベルを設定する。verbose が True の場合は DEBUG, それ以外は INFO。
+    level: int = logging.DEBUG if verbose else logging.INFO
+    # logging.basicConfig() を呼び出すことで, ルートロガーの設定を行う。
+    logging.basicConfig(level=level, format="%(asctime)s %(levelname)s %(message)s")
+
+
+def request_json(
+    method: str,
+    url: str,
+    timeout_seconds: int,
+    payload: dict[str, Any] | None = None,
+) -> Any:
+    """Elasticsearch HTTP API を呼び出し, JSON を返す。
+
+    Args:
+        method (str): HTTP メソッド。
+        url (str): 呼び出し先 URL。
+        timeout_seconds (int): タイムアウト秒数。
+        payload (dict[str, Any] | None): JSON 送信本文。
+
+    Returns:
+        Any: API 応答の JSON デコード結果。
+
+    Raises:
+        RuntimeError: HTTP エラー, URL エラー, 応答本文の文字コード不正,
+            または JSON 形式の不正が発生した場合。
+
+    Examples:
+        >>> isinstance(request_json("GET", "http://127.0.0.1:9200", 1), dict)  # doctest: +SKIP
+        True
+    """
+
+    #
+    # payload がある場合のみ JSON ボディを構築し, リクエストを作成する。
+    #
+    data_bytes: bytes | None = None
+    headers: dict[str, str] = {"Accept": "application/json"}
+
+    if payload is not None: # payload が None でない場合は JSON ボディを構築する。
+        data_bytes = json.dumps(payload).encode("utf-8")
+        headers["Content-Type"] = "application/json"
+
+    # HTTP リクエストを作成する。urllib.request.Request を使用する。
+    req: urllib.request.Request = urllib.request.Request(
+        url=url,
+        method=method,
+        data=data_bytes,
+        headers=headers,
+    )
+
+    #
+    # HTTP 呼び出しを実施し, 失敗時は原因を含む例外へ変換する。
+    #
+    try:
+        with urllib.request.urlopen(req, timeout=timeout_seconds) as response:
+            # 応答本文を読み込み, UTF-8 文字列に変換する。
+            body: str = response.read().decode("utf-8")
+    except urllib.error.HTTPError as exc:
+        # HTTPError が発生した場合は, 応答本文を読み込み, RuntimeError へ変換する。
+        err_body: str = exc.read().decode("utf-8", errors="replace")
+        raise RuntimeError(f"HTTP error {exc.code} on {url}: {err_body}") from exc
+    except urllib.error.URLError as exc:
+        # URLError が発生した場合は, RuntimeError へ変換する。
+        raise RuntimeError(f"URL error on {url}: {exc}") from exc
+    except UnicodeDecodeError as exc:
+        # 応答本文の文字コードが不正な場合は, RuntimeError へ変換する。
+        raise RuntimeError(f"Failed to decode response from {url}: {exc}") from exc
+
+    if not body: # 応答本文が空の場合は空の dict を返す。
+        return {}
+    try:
+        return json.loads(body) # 応答本文を JSON デコードして返す。
+    except json.JSONDecodeError as exc:
+        # JSONDecodeError が発生した場合は, RuntimeError へ変換する。
+        raise RuntimeError(f"Invalid JSON response from {url}: {body}") from exc
+
+
+def delete_existing_indices(config: RestoreConfig) -> None:
+    """既存 index を削除する。
+
+    Args:
+        config (RestoreConfig): index 削除に必要な設定値。
+
+    Returns:
+        None: 戻り値はない。
+
+    Examples:
+        >>> cfg = RestoreConfig("http://127.0.0.1:9200", "repo", "snap", 120, True)
+        >>> delete_existing_indices(cfg)  # doctest: +SKIP
+    """
+
+    #
+    # expand_wildcards=all を使い, hidden index を含めて削除する。
+    # URL形式は "{endpoint}/*?expand_wildcards=all" となる。
+    url: str = f"{config.endpoint}/*?expand_wildcards=all"
+    # HTTP DELETE リクエストを送信し, 既存 index を削除する。
+    try:
+        response_json: Any = request_json("DELETE", url, config.timeout_seconds)
+    except RuntimeError as exc:
+        # 既存 index 削除が失敗した場合は, RuntimeError をスローする。
+        raise RuntimeError(f"Failed to delete existing indices: {exc}") from exc
+
+
+def restore_snapshot(config: RestoreConfig) -> None:
+    """Snapshot をリストアする。
+
+    Args:
+        config (RestoreConfig): 復元処理に必要な設定値。
+
+    Returns:
+        None: 戻り値はない。
+
+    Raises:
+        RuntimeError: API 応答に snapshot 情報が含まれない場合。
+
+    Examples:
+        >>> cfg = RestoreConfig("http://127.0.0.1:9200", "repo", "snap", 120, False)
+        >>> restore_snapshot(cfg)  # doctest: +SKIP
+    """
+
+    #
+    # Elasticsearch snapshot restore API を呼び出す。
+    #
+
+    # repositoryをURLにエンコードする。safe="" とすることで, スラッシュなどの特殊文字もエンコードされる。
+    encoded_repo: str = urllib.parse.quote(config.repository, safe="")
+    # snapshot_nameをURLにエンコードする。safe="" とすることで, スラッシュなどの特殊文字もエンコードされる。
+    encoded_snapshot: str = urllib.parse.quote(config.snapshot_name, safe="")
+    # URLを構築する。wait_for_completion=true をクエリパラメータとして追加する。
+    # - wait_for_completion=true を指定することで, Elasticsearch は
+    #   復元処理が完了するまで HTTP リクエストをブロックする。
+    # URL形式は "{endpoint}/_snapshot/{repository}/{snapshot_name}/_restore?wait_for_completion=true" となる。
+    url: str = (
+        f"{config.endpoint}/_snapshot/{encoded_repo}/{encoded_snapshot}/_restore"
+        "?wait_for_completion=true"
+    )
+
+    # payload を構築する。include_global_state=false を指定することで,
+    # グローバルステートを復元対象から除外する。
+    payload: dict[str, Any] = {
+        "include_global_state": False,
+    }
+    # HTTP POST リクエストを送信し, snapshot をリストアする。
+    try:
+        response_json: Any = request_json("POST", url, config.timeout_seconds, payload)
+    except RuntimeError as exc:
+        # snapshot リストアが失敗した場合は, RuntimeError をスローする。
+        raise RuntimeError(f"Failed to restore snapshot {config.snapshot_name}: {exc}") from exc
+
+    if "snapshot" not in response_json: # 応答 JSON に snapshot 情報が含まれない場合は, RuntimeError をスローする。
+        raise RuntimeError("Restore response does not include snapshot information")
+
+
+def main() -> int:
+    """リストア実行のエントリポイントである。
+
+    Returns:
+        int: 正常終了時は 0 を返す。
+
+    Examples:
+        >>> isinstance(main(), int)  # doctest: +SKIP
+        True
+    """
+
+    #
+    # 引数を解釈し, 必要に応じて既存 index 削除後に snapshot 復元を実行する。
+    #
+    args: argparse.Namespace = parse_args()
+
+    # ログ出力を初期化する。
+    setup_logging(args.verbose)
+
+    # 引数からRestoreConfig を構築する。
+    config: RestoreConfig = RestoreConfig(
+        endpoint=str(args.endpoint).rstrip("/"),
+        repository=str(args.repository),
+        snapshot_name=str(args.snapshot_name),
+        timeout_seconds=int(args.timeout_seconds),
+        delete_existing=bool(args.delete_existing),
+    )
+
+    # 既存 index を削除する指示がある場合は,
+    # delete_existing_indices() を呼び出して,
+    # 既存 index を削除する。
+    if config.delete_existing:
+        LOGGER.warning("Delete existing indices before restore")
+        delete_existing_indices(config)
+
+    #
+    # snapshot をリストアする。
+    #
+    LOGGER.info("Restore snapshot: %s", config.snapshot_name)
+    restore_snapshot(config)
+    LOGGER.info("Restore completed successfully")
+
+    return 0
+
+
+if __name__ == "__main__":
+    try:
+        # main() を呼び出し, 正常終了時は 0 を返す。
+        raise SystemExit(main())
+    except Exception as exc:  # noqa: BLE001
+        # 例外が発生した場合は, エラーログを出力し,
+        # 終了コード1 を返して終了する。
+        LOGGER.error("Restore failed: %s", exc)
+        raise SystemExit(1)

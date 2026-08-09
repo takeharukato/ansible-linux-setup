@@ -1,0 +1,15 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+- name: Configure elastic stack backend hosts
+  hosts: logging_backend
+  remote_user: '{{ ansible_user }}'
+  become: true
+  roles:
+    - role: elasticsearch
+      tags: elasticsearch
+    - role: logstash
+      tags: logstash
+    - role: kibana
+      tags: kibana

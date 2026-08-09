@@ -1,0 +1,42 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  検証タスク
+#
+---
+
+# service のポートが開くまで待ち, その後の HTTP 検査が失敗しないようにする。
+- name: Wait for Logstash HTTP port
+  ansible.builtin.wait_for:
+    host: "{{ logstash_wait_host }}"
+    port: "{{ logstash_http_port }}"
+    state: started
+    timeout: "{{ logstash_wait_timeout }}"
+    delay: "{{ logstash_wait_delay }}"
+    sleep: "{{ logstash_wait_sleep }}"
+  delegate_to: "{{ logstash_wait_delegate_to }}"
+  register: logstash_wait_result
+  until: logstash_wait_result is succeeded
+  retries: "{{ logstash_wait_retries }}"
+  delay: "{{ logstash_wait_sleep }}"
+
+# Logstash の HTTP 応答を確認し, backend として応答可能であることを検証する。
+- name: Verify Logstash response
+  ansible.builtin.uri:
+    url: "http://127.0.0.1:{{ logstash_http_port }}/"
+    method: GET
+    return_content: true
+    status_code:
+      - 200
+  register: logstash_status_result
+  until:
+    - logstash_status_result is succeeded
+    - logstash_status_result.status is defined
+    - logstash_status_result.status == 200
+  # JVM 初期化や pipeline 読み込みに時間を要する場合があるため,
+  # 応答確認の試行回数は timeout と sleep から導出する。
+  retries: "{{ ((logstash_wait_timeout | int) // ([logstash_wait_sleep | int, 1] | max)) + 1 }}"
+  delay: "{{ logstash_wait_sleep }}"
+  failed_when:
+    - logstash_status_result.status != 200

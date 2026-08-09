@@ -1,0 +1,20 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  ファイル・ディレクトリ作成関連タスク
+#
+---
+
+# Metricbeat の設定, データ, ログの格納先ディレクトリを作成する。
+- name: Ensure metricbeat directories exist
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: root
+    group: root
+    mode: '0755'
+  loop:
+    - "{{ metricbeat_config_dir }}"
+    - "{{ metricbeat_data_dir }}"
+    - "{{ metricbeat_logs_dir }}"

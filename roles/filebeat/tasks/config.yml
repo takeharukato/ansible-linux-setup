@@ -1,0 +1,25 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  設定関連タスク
+#
+---
+
+# Filebeat の systemd unit を生成し, 導入時の起動定義を提供する。
+- name: Render Filebeat systemd unit
+  ansible.builtin.template:
+    src: filebeat.service.j2
+    dest: "{{ filebeat_systemd_unit_file }}"
+    mode: '0644'
+  notify:
+    - filebeat_restart_service
+
+# Filebeat の設定ファイルを生成し, 収集先と出力先を固定する。
+- name: Render Filebeat config
+  ansible.builtin.template:
+    src: filebeat.yml.j2
+    dest: "{{ filebeat_config_file }}"
+    mode: '0644'
+  notify:
+    - filebeat_restart_service

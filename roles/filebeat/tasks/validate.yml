@@ -1,0 +1,32 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  入力検証タスク
+#
+---
+
+# Filebeat 実行に必要な版数, ディレクトリ, ポート, 対象ホスト群を検証する。
+# 文字列入力の検証は, 未定義時に空文字へ置換(default('', true)) -> 文字列化(string) -> 前後空白除去(trim) -> 文字数判定(length) の順で実施する。
+# 送信先ホスト検証は, logging_backend_host が未定義又は空文字列でない場合を許容し,
+# それ以外の場合に限り groups.get('logging_backend', []) の登録有無(length > 0)を判定する。
+- name: Validate filebeat runtime inputs
+  ansible.builtin.assert:
+    that:
+      - (filebeat_version | default('', true) | string | trim | length) > 0
+      - (filebeat_config_dir | default('', true) | string | trim | length) > 0
+      - (filebeat_config_file | default('', true) | string | trim | length) > 0
+      - (filebeat_systemd_unit_file | default('', true) | string | trim | length) > 0
+      - (filebeat_build_host | default('', true) | string | trim | length) > 0
+      - (filebeat_http_port | int) > 0
+      - (filebeat_http_port | int) < 65536
+      - (filebeat_backend_port | int) > 0
+      - (filebeat_backend_port | int) < 65536
+      - >-
+        ((logging_backend_host | default('', true) | string | trim | length) > 0)
+        or
+        ((groups.get('logging_backend', []) | length) > 0)
+      - ansible_facts.os_family in ['Debian', 'RedHat']
+    fail_msg: >-
+      Invalid filebeat settings. Ensure version, paths, ports, backend host/group,
+      and OS family are configured correctly.

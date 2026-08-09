@@ -1,0 +1,33 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  ファイル・ディレクトリ作成関連タスク
+#
+---
+
+# compose 配置先と Logstash の設定ファイル格納先を準備する。
+- name: Ensure logstash directories exist
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: root
+    group: root
+    mode: '0755'
+  loop:
+    - "{{ logstash_compose_dir }}"
+    - "{{ logstash_config_dir }}"
+    - "{{ logstash_pipeline_dir }}"
+
+# Logstash コンテナ実行ユーザが書き込む領域は uid/gid 1000 で作成する。
+- name: Ensure logstash runtime directories are writable
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: "{{ logstash_user_id }}"
+    group: "{{ logstash_group_id }}"
+    mode: '0755'
+    recurse: true
+  loop:
+    - "{{ logstash_data_dir }}"
+    - "{{ logstash_logs_dir }}"

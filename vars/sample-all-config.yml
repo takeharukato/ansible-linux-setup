@@ -910,3 +910,52 @@ common_selinux_state: "permissive"
 
 # テナント内用CoreDNSイメージの登録先ローカルレジストリ
 # k8s_vc_tenant_dns_image_registry: "registry1.local:5000/vc-tenant-dns"
+
+# ======================================================================================================================================================
+# Elastic Stack の設定 (条件的必須: Elasticsearch/Logstash/Kibana利用時)
+# ログを集約するホスト側の設定
+# 各ホストごとに指示を変えたい場合は, host_vars側で設定し, vars/all-config.ymlには設定しないこと
+# ======================================================================================================================================================
+# Elasticsearchを導入する場合は, trueに設定する
+# logging_elastic_search_enabled: true
+# ElasticsearchのHTTP待ち受けポート番号
+# elastic_search_http_port: 9200
+# Logstashを導入する場合は, trueに設定する
+# logging_logstash_enabled: true
+# LogstashのBeats待ち受けポート番号
+# logstash_beats_port: 5044
+# LogstashのHTTP待ち受けポート番号
+# logstash_http_port: 9600
+# Kibanaを導入する場合は, trueに設定する
+# logging_kibana_enabled: true
+# KibanaのHTTP待ち受けポート番号
+# kibana_server_port: 5601
+
+# ======================================================================================================================================================
+# Elastic Stack の設定 (条件的必須: Filebeat/Metricbeat利用時)
+# ログやメトリクスを収集し, Logstashに送信するホスト側の設定
+# 各ホストごとに指示を変えたい場合は, host_vars側で設定し, vars/all-config.ymlには設定しないこと
+# ======================================================================================================================================================
+# Filebeatを導入する場合は, trueに設定する
+# logging_filebeat_enabled: true
+# FilebeatのHTTP待ち受けポート番号
+# filebeat_http_port: 5066
+# 収集側が送信するLogstashの接続先ホスト
+# inventoryの先頭順依存を避けるため, 明示設定を推奨する
+# IPアドレス又はFQDNを指定すること
+# *.local などの multicast DNS 名は, 環境により名前解決が不安定になるため指定しないこと
+# logging_backend_host: "mgmt-server.local"
+# Filebeatの送信先Logstashホスト
+# filebeat_backend_host: "{{ logging_backend_host }}"
+# Filebeatの送信先Logstashポート番号
+# filebeat_backend_port: 5044
+# Metricbeatを導入する場合は, trueに設定する
+# logging_metricbeat_enabled: true
+# MetricbeatのHTTP待ち受けポート番号
+# metricbeat_http_port: 5067
+# Metricbeatの送信先Logstashホスト
+# IPアドレス又はFQDNを指定すること
+# *.local などの multicast DNS 名は, 環境により名前解決が不安定になるため指定しないこと
+# metricbeat_backend_host: "{{ logging_backend_host }}"
+# Metricbeatの送信先Logstashポート番号
+# metricbeat_backend_port: 5044

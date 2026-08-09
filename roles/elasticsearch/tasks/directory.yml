@@ -1,0 +1,59 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  ディレクトリ作成関連タスク
+#
+---
+
+# compose 配置先と Elasticsearch の設定, データ, ログの格納先を準備する。
+- name: Ensure elasticsearch directories exist
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: root
+    group: root
+    mode: '0755'
+  loop:
+    - "{{ elastic_search_compose_dir }}"
+    - "{{ elastic_search_config_dir }}"
+
+# Elasticsearch コンテナ実行ユーザが書き込む領域は uid/gid 1000 で作成する。
+- name: Ensure elasticsearch runtime directories are writable
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: "{{ elasticsearch_user_id }}"
+    group: "{{ elasticsearch_group_id }}"
+    mode: '0755'
+    recurse: true
+  loop:
+    - "{{ elastic_search_data_dir }}"
+    - "{{ elastic_search_logs_dir }}"
+    - "{{ elastic_search_snapshot_repo_path_host }}"
+
+# バックアップ有効時にスクリプト配置先とバックアップ格納先を作成する。
+- name: Ensure elasticsearch backup script directories exist
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: root
+    group: root
+    mode: '0755'
+  loop:
+    - "{{ elastic_search_scripts_dir }}"
+    - "{{ elastic_search_backup_dir }}"
+  when:
+    - elastic_search_enable_backup_script | default(false) | bool
+
+# Snapshot Repository の配置先は Elasticsearch コンテナ実行ユーザが書き込み可能にする。
+- name: Ensure elasticsearch snapshot repository directory exists
+  ansible.builtin.file:
+    path: "{{ elastic_search_snapshot_repo_path_host }}"
+    state: directory
+    owner: "{{ elasticsearch_user_id }}"
+    group: "{{ elasticsearch_group_id }}"
+    mode: '0755'
+    recurse: true
+  when:
+    - elastic_search_enable_backup_script | default(false) | bool

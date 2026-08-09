@@ -1,0 +1,20 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  ファイル・ディレクトリ作成関連タスク
+#
+---
+
+# Filebeat の設定, データ, ログの格納先を準備する。
+- name: Ensure filebeat directories exist
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: root
+    group: root
+    mode: '0755'
+  loop:
+    - "{{ filebeat_config_dir }}"
+    - "{{ filebeat_data_dir }}"
+    - "{{ filebeat_logs_dir }}"

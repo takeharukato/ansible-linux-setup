@@ -1,0 +1,23 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  パッケージ関連処理
+#
+---
+
+# docker compose が実行可能であることを確認し, backend 起動前提を固定する。
+- name: Verify docker compose is available
+  ansible.builtin.command:
+    cmd: docker compose version
+  changed_when: false
+
+# vm.max_map_count を満たすための sysctl ドロップインを配置する。
+- name: Deploy vm.max_map_count sysctl drop-in
+  ansible.builtin.template:
+    src: "90-elasticsearch.conf.j2"
+    dest: "{{ elastic_search_sysctl_dropin_file }}"
+    owner: root
+    group: root
+    mode: "0644"
+  notify: "reload_sysctl"
