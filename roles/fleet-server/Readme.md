@@ -129,7 +129,7 @@ ansible-playbook -i inventory/hosts logging-backend.yml --tags "fleet-server,fle
 | 変数名 | 意味 | 既定値 | 設定例 |
 | --- | --- | --- | --- |
 | `logging_fleet_server_enabled` | ロール実行可否を指定するフラグ変数 | `true` | `true` |
-| `fleet_server_endpoint_url_explicit` | Fleet Server のランタイムエンドポイント明示指定値。未指定時は `logging_backend_resolved_host` と `fleet_server_port` から組み立てる。 | 空文字列 | `https://fleet.example.com:8220` |
+| `fleet_server_endpoint_url_explicit` | Fleet Server のランタイムエンドポイント明示指定値。未指定時は `logging_backend_resolved_host` と `fleet_server_port` から組み立てる。 | 空文字列 | `https://fleet.example.org:8220` |
 | `fleet_server_tls_mode` | ランタイムエンドポイントのURLスキームが`https`の場合に参照するTLS検証モード。指定可能な値は, [Elasticsearchロールの共有設定値](../elasticsearch/Readme.md#共有設定値に関する補足説明)を参照する。 | `logging_backend_default_tls_mode`の指定値。 | `none` |
 | `fleet_server_token_issue_timeout_seconds` | サービスアカウントトークン発行APIの接続タイムアウト秒数 | `30` | `30` |
 | `fleet_server_token_issue_retries` | サービスアカウントトークン発行APIの再試行回数 | `3` | `3` |
@@ -172,7 +172,7 @@ Elasticsearchの認証情報と異なる値を使用する場合に限り, `vars
 
 ```yaml
 1: logging_fleet_server_enabled: true
-2: fleet_server_endpoint_url_explicit: "https://fleet.example.com:8220"
+2: fleet_server_endpoint_url_explicit: "https://fleet.example.org:8220"
 3: fleet_server_tls_mode: "full"
 4: fleet_server_kibana_api_key_expiration: "24h"
 ```
@@ -180,7 +180,7 @@ Elasticsearchの認証情報と異なる値を使用する場合に限り, `vars
 | 行番号 | 設定値 | 有効になる動作 | 設定背景(未設定時/誤設定時の問題と防止理由) |
 | --- | --- | --- | --- |
 | 1 | `logging_fleet_server_enabled: true` | Fleet Server ロールを有効化し, 共通設定にもとづく導入処理を実行します。 | `false` の場合は Fleet Server ロールの処理が実行されず, 期待した導入結果を得られないためです。 |
-| 2-3 | `fleet_server_endpoint_url_explicit: "https://fleet.example.com:8220"`, `fleet_server_tls_mode: "full"` | Fleet Serverの公開接続先を指定し, HTTPS証明書を検証します。 | 接続先又はTLS検証モードが誤っている場合は, Elastic Agentの登録及び疎通確認が失敗するためです。 |
+| 2-3 | `fleet_server_endpoint_url_explicit: "https://fleet.example.org:8220"`, `fleet_server_tls_mode: "full"` | Fleet Serverの公開接続先を指定し, HTTPS証明書を検証します。 | 接続先又はTLS検証モードが誤っている場合は, Elastic Agentの登録及び疎通確認が失敗するためです。 |
 | 4 | `fleet_server_kibana_api_key_expiration: "24h"` | Fleet Bootstrap 連携用 Kibana API キーの有効期限を `24h` に設定します。 | 未設定時は既定の有効期限運用に依存し, 誤設定時は API キーの再利用計画と整合しないためです。 |
 
 この例では, 本 playbook で導入する側の共通値を一箇所へ集約します。
@@ -225,13 +225,13 @@ Elasticsearchの認証情報と異なる値を使用する場合に限り, `vars
 検証用の host_vars, または, vars/all-config.yml を以下のように設定します。
 
 ```yaml
-1: fleet_server_endpoint_url_explicit: "https://fleet.example.com:8220"
+1: fleet_server_endpoint_url_explicit: "https://fleet.example.org:8220"
 2: fleet_server_tls_mode: "full"
 ```
 
 | 行番号 | 設定値 | 有効になる動作 | 設定背景(未設定時/誤設定時の問題) |
 | --- | --- | --- | --- |
-| 1-2 | `fleet_server_endpoint_url_explicit: "https://fleet.example.com:8220"`, `fleet_server_tls_mode: "full"` | Fleet Serverの公開接続先を指定し, HTTPS証明書を検証します。 | 接続先又はTLS検証モードが誤っている場合は, Elastic Agentの登録及び疎通確認が失敗します。 |
+| 1-2 | `fleet_server_endpoint_url_explicit: "https://fleet.example.org:8220"`, `fleet_server_tls_mode: "full"` | Fleet Serverの公開接続先を指定し, HTTPS証明書を検証します。 | 接続先又はTLS検証モードが誤っている場合は, Elastic Agentの登録及び疎通確認が失敗します。 |
 
 この設定により, 本 playbook で導入する Fleet Server が対象ホスト上で待受し, 自己確認が可能になります。
 

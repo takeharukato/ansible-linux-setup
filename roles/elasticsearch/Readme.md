@@ -21,6 +21,12 @@ http://導入先ホスト:5601
     - [inventory group と Elasticsearch 関連コンポーネントの関係](#inventory-group-と-elasticsearch-関連コンポーネントの関係)
     - [Elasticsearch 関連コンポーネントの導入方式](#elasticsearch-関連コンポーネントの導入方式)
     - [Elasticsearch 関連ロールの構成](#elasticsearch-関連ロールの構成)
+    - [展開されるコンテナの仕様](#展開されるコンテナの仕様)
+      - [公開ポート](#公開ポート)
+        - [公開ポートに関する補足事項](#公開ポートに関する補足事項)
+      - [ファイルバインド](#ファイルバインド)
+        - [ファイルバインドに関する補足事項](#ファイルバインドに関する補足事項)
+      - [ネットワーク定義](#ネットワーク定義)
     - [本ロールで実施する主な処理](#本ロールで実施する主な処理)
   - [実行方法](#実行方法)
     - [Makefile ターゲットを使用する場合](#makefile-ターゲットを使用する場合)
@@ -34,10 +40,10 @@ http://導入先ホスト:5601
         - [Elasticsearchのセキュリティ機能関連設定](#elasticsearchのセキュリティ機能関連設定)
         - [HTTPS 証明書関連設定](#https-証明書関連設定)
     - [`vars/all-config.yml`に設定するElastic Stack間共有設定値](#varsall-configymlに設定するelastic-stack間共有設定値)
-    - [共有設定値に関する補足説明](#共有設定値に関する補足説明)
+      - [共有設定値に関する補足説明](#共有設定値に関する補足説明)
       - [`logging_backend_host` の設定値に関する留意事項](#logging_backend_host-の設定値に関する留意事項)
-        - [コンテナ起動確認関連設定](#コンテナ起動確認関連設定)
-        - [バックアップ/リストア関連設定](#バックアップリストア関連設定)
+    - [コンテナ起動確認関連設定](#コンテナ起動確認関連設定)
+    - [バックアップ/リストア関連設定](#バックアップリストア関連設定)
     - [変数設定例](#変数設定例)
       - [host\_vars の設定例](#host_vars-の設定例)
       - [vars/all-config.yml の設定例](#varsall-configyml-の設定例)
@@ -50,12 +56,6 @@ http://導入先ホスト:5601
     - [リストア実行手順](#リストア実行手順)
     - [定期バックアップ実行手順](#定期バックアップ実行手順)
   - [テンプレートと生成ファイル](#テンプレートと生成ファイル)
-  - [展開されるコンテナの仕様](#展開されるコンテナの仕様)
-    - [ポート公開](#ポート公開)
-    - [ファイルバインド](#ファイルバインド)
-    - [ネットワーク定義](#ネットワーク定義)
-    - [ファイルバインドに関する補足事項](#ファイルバインドに関する補足事項)
-    - [公開ポートに関する補足事項](#公開ポートに関する補足事項)
   - [実行フロー](#実行フロー)
   - [検証ポイント](#検証ポイント)
     - [検証の前提条件](#検証の前提条件)
@@ -325,6 +325,50 @@ Elasticsearchの導入に関連するロールは以下の通りです:
 | Fleet Bootstrap | roles/fleet-bootstrap | Fleet Serverの初期化設定を行うロールです。Fleet Output, Elastic Agent ポリシー, Package Policy, Enrollment Token の生成又は再利用, Enrollment Token共有ファイルへの保存と, 接続先疎通確認を担います。 |
 | Elastic Agent | roles/elastic-agent | Fleet BootstrapがEnrollment Token共有ファイルへ保存したEnrollment Tokenを読み込み, Elastic Agent本体の導入とFleet Serverへの登録を行うロールです。 |
 
+### 展開されるコンテナの仕様
+
+#### 公開ポート
+
+| ホスト側待受 | コンテナ側待受 | プロトコル | 用途 |
+| --- | --- | --- | --- |
+| `{{ elastic_search_http_host }}:{{ elastic_search_http_port }}` (既定: `0.0.0.0:9200`) | `{{ elastic_search_http_port }}` (既定: `9200`) | TCP | Elasticsearch の HTTP エンドポイントを対象ホスト側から利用可能にします。 |
+
+`templates/docker-compose.yml.j2` では, Elasticsearch コンテナの HTTP ポートを次の形式で公開します:
+
+- `{{ elastic_search_http_host }}:{{ elastic_search_http_port }}:{{ elastic_search_http_port }}` (既定: `0.0.0.0:9200:9200`)
+
+既定値は, 対象ホスト上のすべてのネットワークインターフェースで TCPプロトコルのポート番号9200番 を待受し, 同じポート番号で Elasticsearch コンテナへ転送する設定であることを意味します。
+
+##### 公開ポートに関する補足事項
+
+- 本ロールは, 公開ポート設定にもとづいて Elasticsearch の HTTP エンドポイントに対して対象ホスト側からアクセス可能になることを待ち合わせることで, 正常にポート公開がなされていることを確認, 保証します。
+- 本ロールは, 起動後に公開ポート経由で接続確認を実施し, Elasticsearch のクラスタ状態が 検索や保存の基本機能は利用できるが一部の予備コピーが未配置である状態 ( Elasticsearchの用語でいう `yellow` 状態 ), または, 予備コピーを含む全データ配置が完了している状態 ( Elasticsearchの用語でいう `green` 状態 ) になるまで待機することで, Elasticsearchが利用可能な状態になることを保証します。
+- 規定値を使用する場合は `0.0.0.0:9200` で待受します。外部からの接続元を限定したい場合は, `elastic_search_http_host` に `127.0.0.1` などの値を設定することで, 待受先アドレスを制限することも可能です。
+
+#### ファイルバインド
+
+`templates/docker-compose.yml.j2` では, ホスト側のファイルやディレクトリを以下のようにコンテナ内から使用可能とするように設定します:
+
+| ホスト側 | コンテナ側 | モード | 用途 |
+| --- | --- | --- | --- |
+| `{{ elastic_search_config_file }}` (既定: `/srv/elastic-search/config/elasticsearch.yml`) | `/usr/share/elasticsearch/config/elasticsearch.yml` | `ro` | ホスト側のElasticsearch の設定ファイルをコンテナ内から参照可能します。コンテナ内から当該のファイルを破壊不可能なように読み取り専用でコンテナ側に公開します。 |
+| `{{ elastic_search_data_dir }}` (既定: `/srv/elastic-search/data`) | `/usr/share/elasticsearch/data` | `rw` | インデックスを永続化し, コンテナの再作成時でも当該のインデックスデータを継続的に利用可能にします。 |
+| `{{ elastic_search_logs_dir }}` (既定: `/srv/elastic-search/logs`) | `/usr/share/elasticsearch/logs` | `rw` | Elasticsearch のログを永続化し, コンテナの動作が停止した場合でもホスト上からログ情報を参照可能にします。 |
+| `{{ elastic_search_snapshot_repo_path_host }}` (既定: `/srv/elastic-search/backup/snapshot-repo`) | `{{ elastic_search_snapshot_repo_path_container }}` (既定: `/usr/share/elasticsearch/snapshot-repo`) | `rw` | Snapshot Repository の保存先をホスト側へ永続化し, バックアップ/リストア処理で参照可能にします。 |
+
+既定値は, 設定ファイルをホスト上の `/srv/elastic-search/config/elasticsearch.yml` から読み込み, インデックスをホスト上の `/srv/elastic-search/data`, ログをホスト上の `/srv/elastic-search/logs` に保存する設定です。
+
+##### ファイルバインドに関する補足事項
+
+- 本ロールは, 設定ファイル, データ, ログの保存先をホスト側へ分離し, コンテナ再作成後もデータを保持することを保証します。
+- 本ロールは, 設定ファイルを読み取り専用でコンテナへ渡し, コンテナ内の処理によって設定ファイルが書き換わらないことを保証します。
+- 本ロールは, 規定値を使用する場合に `/srv/elastic-search` 配下へ設定, データ, ログを集約し, 配置先の一貫性を維持することを保証します。
+
+#### ネットワーク定義
+
+`templates/docker-compose.yml.j2` では, `elastic_backend` ネットワークを定義し, `external: true` で既存ネットワークを利用します。実体として参照するネットワーク名は `{{ elastic_search_network_name }}` (既定: `elastic-backend`) です。
+
+既定値は, docker-network-elastic-stackロールが作成する`elastic-backend`外部ネットワークへElasticsearchコンテナを参加させ, 同一のホスト側ネットワークを通して関連コンテナと通信する設定です。本ロールは`elastic-backend`の存在を確認し, 存在しない場合は処理を停止します。
 
 ### 本ロールで実施する主な処理
 
@@ -427,7 +471,7 @@ ansible-playbook -i inventory/hosts logging-backend.yml
 | `logging_verify_external_enabled` | 外部ホストからの疎通確認を共通で有効化するフラグ。 | `false` | `true` |
 | `logging_verify_external_delegate_to` | 外部ホストからの疎通確認を実行する接続元ホスト名。 | `localhost` | `bastion01` |
 
-### 共有設定値に関する補足説明
+#### 共有設定値に関する補足説明
 
 `logging_backend_default_scheme` は, `elastic_search_api_endpoint_url_explicit` のような個別のランタイムエンドポイント明示指定がない場合に使用する既定の URL スキームです。
 
@@ -471,7 +515,7 @@ Elasticsearch, Logstash, Kibana, Fleet Server を導入するホストでは, `i
 
 `logging_backend_host` には, IPアドレス又はFQDNを指定します。`*.local` などの multicast DNS 名は, 環境により名前解決が不安定になるため指定しないことを推奨します。
 
-##### コンテナ起動確認関連設定
+### コンテナ起動確認関連設定
 
 | 変数名 | 意味 | 既定値 | 設定例 |
 | --- | --- | --- | --- |
@@ -482,7 +526,7 @@ Elasticsearch, Logstash, Kibana, Fleet Server を導入するホストでは, `i
 | `elastic_search_wait_sleep` | 起動確認の待機間隔。 | `2` | `2` |
 | `elastic_search_wait_retries` | 起動確認の再試行回数。 | `60` | `60` |
 
-##### バックアップ/リストア関連設定
+### バックアップ/リストア関連設定
 
 | 変数名 | 意味 | 既定値 | 設定例 |
 | --- | --- | --- | --- |
@@ -683,51 +727,6 @@ $ crontab -l
 | `templates/daily-backup-elasticsearch.sh.j2` | `{{ elastic_search_daily_backup_script_path }}` (規定: `/srv/elastic-search/scripts/daily-backup-elasticsearch.sh`) | 日次バックアップ実行用ラッパースクリプトを生成します。 | cron からバックアップ実行ラッパーを呼び出す。 |
 
 `elasticsearch.yml.j2` は, Elasticsearch コンテナ内の設定用ファイルを展開します。`docker-compose.yml.j2` は, コンテナイメージ, コンテナ名, ボリューム, ポート公開, ネットワークの設定ファイルを展開します。`backup-elasticsearch-data.py.j2` と `restore-elasticsearch-data.py.j2` は Snapshot API を呼び出す実装本体であり, `.sh.j2` は運用者が扱う呼び出しインターフェースです。
-
-## 展開されるコンテナの仕様
-
-### ポート公開
-
-| ホスト側待受 | コンテナ側待受 | プロトコル | 用途 |
-| --- | --- | --- | --- |
-| `{{ elastic_search_http_host }}:{{ elastic_search_http_port }}` (既定: `0.0.0.0:9200`) | `{{ elastic_search_http_port }}` (既定: `9200`) | TCP | Elasticsearch の HTTP エンドポイントを対象ホスト側から利用可能にします。 |
-
-`templates/docker-compose.yml.j2` では, Elasticsearch コンテナの HTTP ポートを次の形式で公開します:
-
-- `{{ elastic_search_http_host }}:{{ elastic_search_http_port }}:{{ elastic_search_http_port }}` (既定: `0.0.0.0:9200:9200`)
-
-既定値は, 対象ホスト上のすべてのネットワークインターフェースで TCPプロトコルのポート番号9200番 を待受し, 同じポート番号で Elasticsearch コンテナへ転送する設定であることを意味します。
-
-### ファイルバインド
-
-`templates/docker-compose.yml.j2` では, ホスト側のファイルやディレクトリを以下のようにコンテナ内から使用可能とするように設定します:
-
-| ホスト側 | コンテナ側 | モード | 用途 |
-| --- | --- | --- | --- |
-| `{{ elastic_search_config_file }}` (既定: `/srv/elastic-search/config/elasticsearch.yml`) | `/usr/share/elasticsearch/config/elasticsearch.yml` | `ro` | ホスト側のElasticsearch の設定ファイルをコンテナ内から参照可能します。コンテナ内から当該のファイルを破壊不可能なように読み取り専用でコンテナ側に公開します。 |
-| `{{ elastic_search_data_dir }}` (既定: `/srv/elastic-search/data`) | `/usr/share/elasticsearch/data` | `rw` | インデックスを永続化し, コンテナの再作成時でも当該のインデックスデータを継続的に利用可能にします。 |
-| `{{ elastic_search_logs_dir }}` (既定: `/srv/elastic-search/logs`) | `/usr/share/elasticsearch/logs` | `rw` | Elasticsearch のログを永続化し, コンテナの動作が停止した場合でもホスト上からログ情報を参照可能にします。 |
-| `{{ elastic_search_snapshot_repo_path_host }}` (既定: `/srv/elastic-search/backup/snapshot-repo`) | `{{ elastic_search_snapshot_repo_path_container }}` (既定: `/usr/share/elasticsearch/snapshot-repo`) | `rw` | Snapshot Repository の保存先をホスト側へ永続化し, バックアップ/リストア処理で参照可能にします。 |
-
-既定値は, 設定ファイルをホスト上の `/srv/elastic-search/config/elasticsearch.yml` から読み込み, インデックスをホスト上の `/srv/elastic-search/data`, ログをホスト上の `/srv/elastic-search/logs` に保存する設定です。
-
-### ネットワーク定義
-
-`templates/docker-compose.yml.j2` では, `elastic_backend` ネットワークを定義し, `external: true` で既存ネットワークを利用します。実体として参照するネットワーク名は `{{ elastic_search_network_name }}` (既定: `elastic-backend`) です。
-
-既定値は, docker-network-elastic-stackロールが作成する`elastic-backend`外部ネットワークへElasticsearchコンテナを参加させ, 同一のホスト側ネットワークを通して関連コンテナと通信する設定です。本ロールは`elastic-backend`の存在を確認し, 存在しない場合は処理を停止します。
-
-### ファイルバインドに関する補足事項
-
-- 本ロールは, 設定ファイル, データ, ログの保存先をホスト側へ分離し, コンテナ再作成後もデータを保持することを保証します。
-- 本ロールは, 設定ファイルを読み取り専用でコンテナへ渡し, コンテナ内の処理によって設定ファイルが書き換わらないことを保証します。
-- 本ロールは, 規定値を使用する場合に `/srv/elastic-search` 配下へ設定, データ, ログを集約し, 配置先の一貫性を維持することを保証します。
-
-### 公開ポートに関する補足事項
-
-- 本ロールは, 公開ポート設定にもとづいて Elasticsearch の HTTP エンドポイントに対して対象ホスト側からアクセス可能になることを待ち合わせることで, 正常にポート公開がなされていることを確認, 保証します。
-- 本ロールは, 起動後に公開ポート経由で接続確認を実施し, Elasticsearch のクラスタ状態が 検索や保存の基本機能は利用できるが一部の予備コピーが未配置である状態 ( Elasticsearchの用語でいう `yellow` 状態 ), または, 予備コピーを含む全データ配置が完了している状態 ( Elasticsearchの用語でいう `green` 状態 ) になるまで待機することで, Elasticsearchが利用可能な状態になることを保証します。
-- 規定値を使用する場合は `0.0.0.0:9200` で待受します。外部からの接続元を限定したい場合は, `elastic_search_http_host` に `127.0.0.1` などの値を設定することで, 待受先アドレスを制限することも可能です。
 
 ## 実行フロー
 

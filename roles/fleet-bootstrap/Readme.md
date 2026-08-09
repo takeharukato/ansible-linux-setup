@@ -235,7 +235,7 @@ ansible-playbook -i inventory/hosts logging-backend.yml --tags "fleet-server,fle
 | 変数名 | 意味 | 既定値 | 設定例 |
 | --- | --- | --- | --- |
 | `fleet_bootstrap_enabled` | Fleet Server導入時の初期化処理実施指示フラグ。Fleet Server導入時の初期化処理を実施する場合は, `true`に設定する。 | `true` | `true` |
-| `fleet_bootstrap_kibana_url_explicit` | Kibana の Fleet API 接続先明示指定値。未設定時は対象ホスト上の `http://127.0.0.1:5601` を使用する。 | 空文字列 | `https://kibana.example.com:5601` |
+| `fleet_bootstrap_kibana_url_explicit` | Kibana の Fleet API 接続先明示指定値。未設定時は対象ホスト上の `http://127.0.0.1:5601` を使用する。 | 空文字列 | `https://kibana.example.org:5601` |
 | `fleet_bootstrap_kibana_tls_mode` | Kibana APIのエンドポイントURLスキームが`https`の場合に参照するTLS検証モード。指定可能な値は, [Elasticsearchロールの共有設定値](../elasticsearch/Readme.md#共有設定値に関する補足説明)を参照する。 | `logging_backend_default_tls_mode`の指定値。 | `none` |
 | `fleet_bootstrap_kibana_api_key` | Kibanaに設定するFleet用APIキー。`vars/all-config.yml`または, `host_vars`に設定を記載する。 | 空文字列 | `"your-api-key"` |
 | `fleet_bootstrap_kibana_timeout_seconds` | Kibana の Fleet API 接続タイムアウト秒数。package registry 待ちを考慮して長めに設定する。 | `180` | `240` |
@@ -245,12 +245,12 @@ ansible-playbook -i inventory/hosts logging-backend.yml --tags "fleet-server,fle
 | `fleet_bootstrap_filestream_package_version` | Custom Logs統合パッケージの版数。 | `1.2.0` | `1.2.0` |
 | `fleet_bootstrap_fleet_server_package_version` | Fleet Server統合パッケージの版数。 | `1.6.1` | `1.6.1` |
 | `fleet_bootstrap_fleet_server_output_name` | Fleet Server用Elastic Agent ポリシーが使用するElasticsearch Outputの名称。 | `fleet-server-elasticsearch-output` | `fleet-server-elasticsearch-output` |
-| `fleet_bootstrap_fleet_server_elasticsearch_hosts_explicit` | Fleet Server専用Elasticsearch Outputの送信先一覧明示指定値。未設定時はFleet Serverロールが解決したElasticsearch接続先を使用する。 | 空リスト | [`https://elasticsearch.example.com:9200`] |
+| `fleet_bootstrap_fleet_server_elasticsearch_hosts_explicit` | Fleet Server専用Elasticsearch Outputの送信先一覧明示指定値。未設定時はFleet Serverロールが解決したElasticsearch接続先を使用する。 | 空リスト | [`https://elasticsearch.example.org:9200`] |
 | `fleet_bootstrap_enrollment_token_list_page_size` | 既存Enrollment Tokenの検索と検証で一覧APIから取得する最大件数。`1`から`10000`までを指定する。 | `10000` | `10000` |
-| `fleet_bootstrap_logstash_hosts_explicit` | Fleet Outputに設定するLogstash接続先一覧明示指定値。未設定時は共通接続先ホストのポート番号5044番を使用する。 | 空リスト | [`logstash.example.com:5044`] |
+| `fleet_bootstrap_logstash_hosts_explicit` | Fleet Outputに設定するLogstash接続先一覧明示指定値。未設定時は共通接続先ホストのポート番号5044番を使用する。 | 空リスト | [`logstash.example.org:5044`] |
 | `fleet_bootstrap_elasticsearch_endpoints_explicit` | Logstashの下流にあるElasticsearchの疎通確認先一覧明示指定値。未設定時は対象ホスト上の `http://127.0.0.1:9200` を使用する。 | 空リスト | [`https://elasticsearch:9200`] |
 | `fleet_bootstrap_fleet_server_host_name` | Fleet Server host 設定へ登録する名称。 | `default-fleet-server-host` | `default-fleet-server-host` |
-| `fleet_bootstrap_fleet_server_host_urls_explicit` | Fleet Server host 設定へ登録する接続先一覧明示指定値。未設定時は Fleet Server のランタイムエンドポイント URL を使用する。 | 空リスト | [`https://fleet.example.com:8220`] |
+| `fleet_bootstrap_fleet_server_host_urls_explicit` | Fleet Server host 設定へ登録する接続先一覧明示指定値。未設定時は Fleet Server のランタイムエンドポイント URL を使用する。 | 空リスト | [`https://fleet.example.org:8220`] |
 | `fleet_bootstrap_enrollment_token_file` | Enrollment Token共有ファイルの制御ホスト上の絶対パス。 | `{{ playbook_dir }}/group_vars/logging_collector/enrollment-token.yml` | `{{ playbook_dir }}/group_vars/logging_collector/enrollment-token.yml` |
 | `fleet_bootstrap_debug_auth_diagnostics` | 認証切り分け用の補助 debug 出力有無。通常運用では `false` のままとする。 | `false` | `true` |
 | `fleet_bootstrap_no_log` | Fleet API 呼び出し結果の秘匿有無。通常運用では `true` のままとし, API 応答本文まで確認する調査時だけ `false` に切り替える。 | `true` | `false` |
@@ -263,7 +263,7 @@ ansible-playbook -i inventory/hosts logging-backend.yml --tags "fleet-server,fle
 
 ```yaml
 1: fleet_bootstrap_enabled: true
-2: fleet_bootstrap_kibana_url_explicit: "https://kibana.example.com:5601"
+2: fleet_bootstrap_kibana_url_explicit: "https://kibana.example.org:5601"
 3: fleet_bootstrap_kibana_api_key: "your-api-key"
 4: fleet_bootstrap_output_name: "main-logstash-output"
 5: fleet_bootstrap_policy_name: "linux-host-policy"
@@ -275,7 +275,7 @@ ansible-playbook -i inventory/hosts logging-backend.yml --tags "fleet-server,fle
 | 行番号 | 設定値 | 有効になる動作 | 設定背景(未設定時/誤設定時の問題と防止理由) |
 | --- | --- | --- | --- |
 | 1 | fleet_bootstrap_enabled: true | 本ロールを実行する。 | 既定値のままでは実行対象となるため, 明示的に有効化するための設定です。 |
-| 2 | fleet_bootstrap_kibana_url_explicit: "https://kibana.example.com:5601" | Kibana の Fleet API 接続先を指定する。 | 未設定時は対象ホスト上の `127.0.0.1:5601` を使用するため, 別ホスト上の Kibana を使用する構成では明示設定が必要です。 |
+| 2 | fleet_bootstrap_kibana_url_explicit: "https://kibana.example.org:5601" | Kibana の Fleet API 接続先を指定する。 | 未設定時は対象ホスト上の `127.0.0.1:5601` を使用するため, 別ホスト上の Kibana を使用する構成では明示設定が必要です。 |
 | 3 | fleet_bootstrap_kibana_api_key: "your-api-key" | Fleet API 認証に使用する API キーを指定する。 | 秘密情報を defaults へ置かず, host_vars や vars/all-config.yml へ直接記載するための設定です。 |
 | 4-6 | fleet_bootstrap_output_name, fleet_bootstrap_policy_name, fleet_bootstrap_enrollment_token_name | 生成または再利用する対象名を指定する。 | 既定名と異なる場合でも本ロールで扱えるようにするための設定です。 |
 | 7-8 | fleet_bootstrap_elasticsearch_endpoints_explicit | Logstashの下流にあるElasticsearchの疎通確認先一覧を指定する。 | 未設定時は対象ホスト上の `127.0.0.1:9200` を使用するため, 別ホスト上の Elasticsearch を使用する構成では明示設定が必要です。 |
@@ -324,7 +324,7 @@ ansible-playbook -i inventory/hosts logging-backend.yml --tags "fleet-server,fle
 
 ```yaml
 1: fleet_bootstrap_enabled: true
-2: fleet_bootstrap_kibana_url_explicit: "https://kibana.example.com:5601"
+2: fleet_bootstrap_kibana_url_explicit: "https://kibana.example.org:5601"
 3: fleet_bootstrap_kibana_api_key: "your-api-key"
 4: fleet_bootstrap_kibana_timeout_seconds: 180
 5: fleet_bootstrap_output_name: "main-logstash-output"
@@ -337,7 +337,7 @@ ansible-playbook -i inventory/hosts logging-backend.yml --tags "fleet-server,fle
 | 行番号 | 設定値 | 有効になる動作 | 設定背景 |
 | --- | --- | --- | --- |
 | 1 | fleet_bootstrap_enabled: true | 本ロールを実行する。 | 既定値のままでは実行対象となるため, 明示的に有効化するための設定です。 |
-| 2 | fleet_bootstrap_kibana_url_explicit: "https://kibana.example.com:5601" | Kibana の Fleet API 接続先を指定する。 | 未設定時は対象ホスト上の `127.0.0.1:5601` を使用するため, 別ホスト上の Kibana を使用する構成では明示設定が必要です。 |
+| 2 | fleet_bootstrap_kibana_url_explicit: "https://kibana.example.org:5601" | Kibana の Fleet API 接続先を指定する。 | 未設定時は対象ホスト上の `127.0.0.1:5601` を使用するため, 別ホスト上の Kibana を使用する構成では明示設定が必要です。 |
 | 3 | fleet_bootstrap_kibana_api_key: "your-api-key" | Fleet API 認証に使用する API キーを指定する。 | Kibana で作成した Fleet 用の API キーを, 秘密情報として host_vars や vars/all-config.yml へ直接記載するための設定です。 |
 | 4 | fleet_bootstrap_kibana_timeout_seconds: 180 | Fleet POST API 呼び出しの待機時間を延長する。 | package registry 応答待ちで `api/fleet/setup` や `api/fleet/agent_policies` が 30 秒を超える場合があるため, 余裕を持たせるための設定です。 |
 | 5-7 | fleet_bootstrap_output_name, fleet_bootstrap_policy_name, fleet_bootstrap_enrollment_token_name | 生成または再利用する対象名を指定する。 | 既定名と異なる場合でも本ロールで扱えるようにするための設定です。 |

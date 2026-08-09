@@ -12,9 +12,9 @@
 #
 # 書式: import-image-on-cri.sh <component> <expected_tag> <image_tar_path> <unqualified_image_registry>
 #   <component>                  取り込み対象コンポーネント名 (例: kube-apiserver, kube-controller-manager)
-#   <expected_tag>               取り込み後に期待するタグ (例: registry.example.com/ns/img:tag, img:tag)
+#   <expected_tag>               取り込み後に期待するタグ (例: registry.example.org/ns/img:tag, img:tag)
 #   <image_tar_path>             取り込み元tarファイルのパス (例: /var/cache/k8s-virtual-cluster/img.tar)
-#   <unqualified_image_registry> 未修飾名のタグを使う場合の既定レジストリ (例: registry.example.com)
+#   <unqualified_image_registry> 未修飾名のタグを使う場合の既定レジストリ (例: registry.example.org)
 #
 set -euo pipefail
 
@@ -27,13 +27,13 @@ readonly IMAGE_TAR_PATH="${3:?image tar path is required}"
 readonly UNQUALIFIED_IMAGE_REGISTRY="${4:?unqualified image registry is required}"
 
 # 期待タグの先頭要素を取り出す。
-# 例: registry.example.com/ns/img:tag の場合, registry.example.com を取り出す。
+# 例: registry.example.org/ns/img:tag の場合, registry.example.org を取り出す。
 first_component="${EXPECTED_TAG%%/*}"
 # expected_tag_primary は, ctr importで期待するタグ(正規タグ)。
-# 例: registry.example.com/ns/img:tag の場合, registry.example.com/ns/img:tag となる。
+# 例: registry.example.org/ns/img:tag の場合, registry.example.org/ns/img:tag となる。
 expected_tag_primary="${EXPECTED_TAG}"
 # expected_tag_alias は, 未修飾名の場合にCRI既定レジストリ解決差異を吸収する別名(エイリアスタグ)。
-# 例: img:tag の場合, registry.example.com/img:tag となる。
+# 例: img:tag の場合, registry.example.org/img:tag となる。
 expected_tag_alias=""
 
 # 期待タグの先頭要素 (first_component)が未修飾名のイメージ名であることを判定する。
@@ -73,8 +73,8 @@ fi
 #   1. ctr -n k8s.io images ls -q で k8s.io 名前空間のイメージ識別子を列挙し,
 #      grep -F で 正規タグ(expected_tag_primary) 内の最初の : 以降を取り除いた部分
 #      (expected_tag_primary%%:*) に一致するものを抽出
-#      例: expected_tag_primary が registry.example.com/ns/img:tag の場合,
-#           expected_tag_primary%%:* は registry.example.com/ns/img となる。
+#      例: expected_tag_primary が registry.example.org/ns/img:tag の場合,
+#           expected_tag_primary%%:* は registry.example.org/ns/img となる。
 #   2. while で1件ずつ読み込んで, 古いイメージを削除する
 #      2-a. 空行を読み飛ばす ([[ -n "${digest}" ]] || continue)
 #      2-b. 各イメージを ctr -n k8s.io images rm で削除

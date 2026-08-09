@@ -405,7 +405,7 @@ https://ホスト名:10443/
 ログイン時は, CN (Common Name, 共通名) に`admin`を指定し, ドメイン名を元に DC (Domain Component, ドメイン構成要素) を指定します。
 
 '.' で区切られたドメイン名の各要素をdc=要素名,dc=要素名として並べてDC (Domain Component, ドメイン構成要素) を指定します。
-ドメイン名がexample.comの場合, 以下を`login`名に入力します。
+ドメイン名がexample.orgの場合, 以下を`login`名に入力します。
 ```
 cn=admin,dc=example,dc=com
 ```

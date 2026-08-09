@@ -602,7 +602,7 @@ Pod に接続してネットワークツールが使用可能であることを�
 コマンド例を以下に示します:
 ```bash
 kubectl exec -it netshoot -- ping -c 3 8.8.8.8
-kubectl exec -it netshoot -- curl -I https://example.com
+kubectl exec -it netshoot -- curl -I https://example.org
 ```
 
 実行結果の例:
@@ -617,7 +617,7 @@ PING 8.8.8.8 (8.8.8.8) 56(84) bytes of data.
 --- 8.8.8.8 ping statistics ---
 3 packets transmitted, 3 received, 0% packet loss, time 2003ms
 rtt min/avg/max/mdev = 4.553/5.334/6.353/0.753 ms
-$ kubectl exec -it netshoot -- curl -I https://example.com
+$ kubectl exec -it netshoot -- curl -I https://example.org
 HTTP/2 200
 date: Sun, 12 Jul 2026 17:11:40 GMT
 content-type: text/html
