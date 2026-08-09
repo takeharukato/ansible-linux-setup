@@ -11,7 +11,9 @@
 # 同じディレクトリに設定すること
 k8s_kubeadm_config_store: "{{ ansible_home_dir }}/kubeadm"
 
+#
 # kube-api待機設定
+#
 # Kubernetes APIサーバの待ち合わせ先(接続先)ホスト名/IPアドレス
 k8s_api_wait_host: "{{ k8s_ctrlplane_endpoint }}"
 # Kubernetes APIサーバの待ち合わせ先ポート番号

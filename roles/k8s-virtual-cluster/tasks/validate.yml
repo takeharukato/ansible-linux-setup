@@ -29,10 +29,15 @@
   ansible.builtin.wait_for:
     host: "{{ k8s_api_wait_host }}"
     port: "{{ k8s_api_wait_port }}"
+    state: started
     timeout: "{{ k8s_api_wait_timeout }}"
     delay: "{{ k8s_api_wait_delay }}"
     sleep: "{{ k8s_api_wait_sleep }}"
   delegate_to: "{{ k8s_api_wait_delegate_to }}"
+  register: k8s_virtualcluster_api_wait_result
+  until: k8s_virtualcluster_api_wait_result is succeeded
+  retries: "{{ k8s_api_wait_retries | default(5) }}"
+  delay: "{{ k8s_api_wait_sleep }}"
 
 # Virtual Cluster の設定ディレクトリを作成
 - name: "Create Virtual Cluster config directory"

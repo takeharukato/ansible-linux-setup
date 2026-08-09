@@ -8,7 +8,9 @@
 # 再起動後の応答待ちのタイムアウト時間 (秒)
 reboot_timeout_sec: 600
 
+#
 # kube-api待機設定
+#
 # Kubernetes APIサーバの待ち合わせ先(接続先)ホスト名/IPアドレス
 k8s_api_wait_host: "{{ k8s_ctrlplane_endpoint }}"
 # Kubernetes APIサーバの待ち合わせ先ポート番号
@@ -22,9 +24,15 @@ k8s_api_wait_sleep: 1
 # Kubernetes APIサーバ待ち合わせる際の接続元ホスト名/IPアドレス
 k8s_api_wait_delegate_to: "localhost"
 
+#
 # containerdソケット待機設定
+#
 # containerdソケット待ち合わせ時間(単位: 秒)
 k8s_containerd_wait_timeout: 60
+# containerdソケット待ち合わせ時の再試行回数(単位: 回)
+k8s_containerd_wait_retries: 5
+# containerdソケット待ち合わせ時の待機間隔(単位: 秒)
+k8s_containerd_wait_sleep: 2
 # containerdソケット待ち合わせる際の接続元ホスト名/IPアドレス
 k8s_containerd_wait_delegate_to: "localhost"
 

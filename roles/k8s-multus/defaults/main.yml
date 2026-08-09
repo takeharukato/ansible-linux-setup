@@ -15,7 +15,9 @@ k8s_operator_shell: "/bin/bash"
 # Kubernetesオペレータユーザの所属グループ
 k8s_operator_groups_list: "{{ adm_groups }}"
 
+#
 # kube-api待機設定
+#
 # Kubernetes APIサーバの待ち合わせ先(接続先)ホスト名/IPアドレス
 k8s_api_wait_host: "{{ k8s_ctrlplane_endpoint }}"
 # Kubernetes APIサーバの待ち合わせ先ポート番号

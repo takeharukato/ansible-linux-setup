@@ -15,6 +15,10 @@
     delay: "{{ k8s_api_wait_delay }}"
     sleep: "{{ k8s_api_wait_sleep }}"
   delegate_to: "{{ k8s_api_wait_delegate_to }}"
+  register: k8s_ctrlplane_cilium_api_wait_result
+  until: k8s_ctrlplane_cilium_api_wait_result is succeeded
+  retries: "{{ k8s_api_wait_retries | default(5) }}"
+  delay: "{{ k8s_api_wait_sleep }}"
 # kube-proxyの削除時に以下のRole Based Access Control (RBAC) エラーが
 # 発生する場合があるため, kubernetes-admin へ cluster-admin 権限を付与する。
 #
@@ -222,6 +226,3 @@
 - name: Reboot host gracefully
   ansible.builtin.include_role:
     name: reboot-common
-  vars:
-    reboot_common_timeout: "{{ reboot_timeout_sec }}"
-    reboot_common_pre_reboot_delay: 2
