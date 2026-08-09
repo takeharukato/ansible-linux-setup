@@ -133,6 +133,7 @@
 | Host Variables | host_vars | ホスト単位の設定値を格納する変数定義。 |
 | Ansible Inventory | inventory | 実行対象ホストの一覧と接続情報を管理する定義。 |
 | Ansible Task | task | 自動化処理の最小単位となる実行項目。 |
+| Python | - | スクリプティングやアプリケーション開発を手早く実施するために用いられる高水準プログラミング言語の一種。 |
 | ansible-playbookコマンド | - | Ansible Playbook を実行して自動構成処理を適用するコマンド。 |
 | `crontab` | - | 定期実行設定を登録, 表示, 削除するコマンド。 |
 | `curl` | - | URL を指定してデータ送受信を行うコマンド。 |
@@ -659,3 +660,4 @@ $ crontab -l
 
 - [OpenGrok Docker image](https://hub.docker.com/r/opengrok/docker)
 - [OpenGrok project](https://github.com/oracle/opengrok)
+- [The java Command](https://docs.oracle.com/en/java/javase/24/docs/specs/man/java.html) Java オプションの説明

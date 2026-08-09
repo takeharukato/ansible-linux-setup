@@ -113,6 +113,7 @@
 | 制御ホスト | - | Playbook を実行し, 他ホストへの処理指示を行う管理用ホスト。 |
 | 構築ホスト | - | パッケージや実行資材を生成するビルド処理を担当するホスト。 |
 | Go Programming Language | Go | Google が開発したプログラミング言語。 |
+| Python | - | スクリプティングやアプリケーション開発を手早く実施するために用いられる高水準プログラミング言語の一種。 |
 | End Of Life | EOL | サポート終了。公式APIから旧系列版数が返らない場合がある。 |
 | Debian package | deb | Debian/Ubuntu 系で使用するパッケージ形式。 |
 | RPM Package Manager | RPM | RPM形式パッケージの導入, 更新, 削除, 情報参照を行う仕組み。 |

@@ -205,6 +205,7 @@
 | Yet Another Markup Language | YAML | 設定ファイル形式です。 |
 | Network Attachment Definition | NAD | 追加ネットワーク接続設定を定義する Kubernetes の リソース。 |
 | Layer 2 | L2 | 同一ネットワーク内で装置間転送を扱う通信層。 |
+| Python | - | スクリプティングやアプリケーション開発を手早く実施するために用いられる高水準プログラミング言語の一種。 |
 | ansible-playbookコマンド | - | Ansible Playbook を実行して自動構成処理を適用するコマンド。 |
 | `cat` | - | ファイル内容を標準出力へ表示するコマンド。 |
 | `curl` | - | URL を指定してデータ送受信を行うコマンド。 |

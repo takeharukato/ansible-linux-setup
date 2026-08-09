@@ -142,7 +142,7 @@
 | jitter | ジッタ | 実行時間の揺らぎです。 |
 | frequency scaling | 周波数スケーリング | CPUクロックを動的に変える機能です。 |
 | GNU Make | gmake | ビルド手順を実行するツールです。 |
-| Python 3 | Python | スクリプト実行言語です。 |
+| Python | - | スクリプティングやアプリケーション開発を手早く実施するために用いられる高水準プログラミング言語の一種。 |
 | gnuplot | gnuplot | グラフ描画ツールです。 |
 | Internet Protocol | IP | ネットワーク上で宛先を識別し, データを届けるための通信手順。 |
 | matplotlib | matplotlib | Python向けのグラフ描画ライブラリです。 |

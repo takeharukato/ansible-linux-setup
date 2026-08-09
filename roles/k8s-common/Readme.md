@@ -207,6 +207,7 @@
 | Name | NAME | 対象を識別するための名称。 |
 | Path | PATH | ファイルや実行ファイルの参照先を示す文字列。 |
 | README | README | 構成, 使い方, 注意点をまとめた説明文書。 |
+| Python | - | スクリプティングやアプリケーション開発を手早く実施するために用いられる高水準プログラミング言語の一種。 |
 | Subsequent Address Family Identifier | SAFI | AFI の下位分類を示す識別子。 |
 | ansible-playbookコマンド | - | Ansible Playbook を実行して自動構成処理を適用するコマンド。 |
 | `cat` | - | ファイル内容を標準出力へ表示するコマンド。 |
