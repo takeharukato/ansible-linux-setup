@@ -3,13 +3,22 @@
 #  Copyright 2020 Takeharu KATO All Rights Reserved.
 #
 
-- name: Create bridge relevant module config
+# 過去に誤って配置されたdockerブリッジ設定を削除する
+- name: Remove legacy misplaced docker bridge config
+  ansible.builtin.file:
+    path: /etc/modules-load.d/95-docker-bridge.conf
+    state: absent
+  notify: "apply_sysctl"
+
+# Dockerブリッジ設定を作成する
+- name: Create bridge relevant sysctl config
   ansible.builtin.template:
     src: docker-bridge.conf.j2
-    dest: /etc/modules-load.d/95-docker-bridge.conf
+    dest: /etc/sysctl.d/95-docker-bridge.conf
     mode: '0644'
   notify: "apply_sysctl"
 
+# Dockerブリッジ設定を適用する
 - name: Apply bridge relevant sysctl config
   ansible.builtin.command: sysctl --system
   register: _result

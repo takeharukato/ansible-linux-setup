@@ -299,7 +299,7 @@ docker_ce_insecure_registries: "{{ container_registry_endpoints }}"
 
 | テンプレート/ファイル | 出力先パス | 条件 | 説明 |
 | --- | --- | --- | --- |
-| `docker-bridge.conf.j2` | `/etc/modules-load.d/95-docker-bridge.conf` | 常に実行 | Docker ブリッジ関連の sysctl 設定。 |
+| `docker-bridge.conf.j2` | `/etc/sysctl.d/95-docker-bridge.conf` | 常に実行 | Docker ブリッジ関連の sysctl 設定。 |
 | `backup-containers.j2` | `/usr/local/bin/backup-containers` | `build_docker_ce_backup_container_image: true` かつ `docker_ce_enable_backup_script: true` かつ `docker_ce_backup_nfs_server` と `docker_ce_backup_nfs_dir` が非空 | コンテナバックアップスクリプト。 |
 | `restore-container.j2` | `/usr/local/bin/restore-container` | `build_docker_ce_backup_container_image: true` かつ `docker_ce_enable_backup_script: true` | コンテナ復旧スクリプト。 |
 | `Dockerfile.j2` | `/usr/local/share/docker-backup/Dockerfile` | `build_docker_ce_backup_container_image: true` かつ `docker_ce_enable_backup_script: true` | `opensuse/leap:15.6` をベースに boombatower/docker-backup 互換のイメージを作成。 |
@@ -328,7 +328,7 @@ docker_ce_insecure_registries: "{{ container_registry_endpoints }}"
 - `/etc/docker/daemon.json` は iptables 管理の無効化と IPv6 有効化を含む設定で生成されます。
 - `docker_ce_insecure_registries` が空または未定義の場合, `/etc/docker/daemon.json` に `insecure-registries` は出力されません。
 - `docker_ce_backup_output_dir` は `docker_ce_backup_mount_point` と `docker_ce_backup_dir_on_nfs` の結合値になります。既定では `/mnt/containers/docker-ce/daily-backup` です。
-- sysctl は `/etc/modules-load.d/95-docker-bridge.conf` を通じて反映されます。設定内容には `net.bridge.bridge-nf-call-iptables`, `net.bridge.bridge-nf-call-ip6tables`, `net.ipv4.ip_forward`, `net.ipv6.conf.all.forwarding`, `net.ipv6.conf.default.forwarding`, `net.ipv6.bindv6only`, `net.ipv6.conf.<mgmt_nic>.accept_ra`, `net.ipv4.conf.*.rp_filter` が含まれます。
+- sysctl は `/etc/sysctl.d/95-docker-bridge.conf` を通じて反映されます。設定内容には `net.bridge.bridge-nf-call-iptables`, `net.bridge.bridge-nf-call-ip6tables`, `net.ipv4.ip_forward`, `net.ipv6.conf.all.forwarding`, `net.ipv6.conf.default.forwarding`, `net.ipv6.bindv6only`, `net.ipv6.conf.<mgmt_nic>.accept_ra`, `net.ipv4.conf.*.rp_filter` が含まれます。
 
 ### OS 差異
 
@@ -579,7 +579,7 @@ $ curl http://registry1.local:5000/v2/
 
 **確認内容**:
 
-- `/etc/modules-load.d/95-docker-bridge.conf` の内容
+- `/etc/sysctl.d/95-docker-bridge.conf` の内容
 - `sysctl --system` の実行結果
 
 **対処**:
