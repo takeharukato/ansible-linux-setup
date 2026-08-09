@@ -52,6 +52,10 @@
     delay: "{{ gitlab_wait_delay }}"
     sleep: "{{ gitlab_wait_sleep }}"
   delegate_to: "{{ gitlab_wait_delegate_to }}"
+  register: gitlab_https_wait_result
+  until: gitlab_https_wait_result is succeeded
+  retries: "{{ gitlab_wait_retries }}"
+  delay: "{{ gitlab_wait_sleep }}"
 
 - name: Wait for GitLab SSH port on remote host
   ansible.builtin.wait_for:
@@ -62,6 +66,10 @@
     delay: "{{ gitlab_wait_delay }}"
     sleep: "{{ gitlab_wait_sleep }}"
   delegate_to: "{{ gitlab_wait_delegate_to }}"
+  register: gitlab_ssh_wait_result
+  until: gitlab_ssh_wait_result is succeeded
+  retries: "{{ gitlab_wait_retries }}"
+  delay: "{{ gitlab_wait_sleep }}"
 
 - name: Wait for GitLab Registry port on remote host
   ansible.builtin.wait_for:
@@ -72,6 +80,10 @@
     delay: "{{ gitlab_wait_delay }}"
     sleep: "{{ gitlab_wait_sleep }}"
   delegate_to: "{{ gitlab_wait_delegate_to }}"
+  register: gitlab_registry_wait_result
+  until: gitlab_registry_wait_result is succeeded
+  retries: "{{ gitlab_wait_retries }}"
+  delay: "{{ gitlab_wait_sleep }}"
 
 - name: Display GitLab configuration
   ansible.builtin.debug:

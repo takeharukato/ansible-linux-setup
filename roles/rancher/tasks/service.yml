@@ -27,6 +27,10 @@
     delay: "{{ rancher_wait_delay }}"
     sleep: "{{ rancher_wait_sleep }}"
   delegate_to: "{{ rancher_wait_delegate_to }}"
+  register: rancher_stop_wait_result
+  until: rancher_stop_wait_result is succeeded
+  retries: "{{ rancher_wait_retries }}"
+  delay: "{{ rancher_wait_sleep }}"
 - name: Remove containers
   ansible.builtin.shell: |
     set -o pipefail
@@ -69,3 +73,7 @@
     delay: "{{ rancher_wait_delay }}"
     sleep: "{{ rancher_wait_sleep }}"
   delegate_to: "{{ rancher_wait_delegate_to }}"
+  register: rancher_start_wait_result
+  until: rancher_start_wait_result is succeeded
+  retries: "{{ rancher_wait_retries }}"
+  delay: "{{ rancher_wait_sleep }}"

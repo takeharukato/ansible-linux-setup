@@ -22,6 +22,10 @@
     delay: "{{ openldap_wait_delay }}"
     sleep: "{{ openldap_wait_sleep }}"
   delegate_to: "{{ openldap_wait_delegate_to }}"
+  register: openldap_stop_wait_result
+  until: openldap_stop_wait_result is succeeded
+  retries: "{{ openldap_wait_retries }}"
+  delay: "{{ openldap_wait_sleep }}"
 
 - name: Start openldap container
   ansible.builtin.shell: |
@@ -41,3 +45,7 @@
     delay: "{{ openldap_wait_delay }}"
     sleep: "{{ openldap_wait_sleep }}"
   delegate_to: "{{ openldap_wait_delegate_to }}"
+  register: openldap_start_wait_result
+  until: openldap_start_wait_result is succeeded
+  retries: "{{ openldap_wait_retries }}"
+  delay: "{{ openldap_wait_sleep }}"

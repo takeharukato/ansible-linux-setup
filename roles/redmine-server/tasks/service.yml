@@ -22,6 +22,10 @@
     delay: "{{ redmine_wait_delay }}"
     sleep: "{{ redmine_wait_sleep }}"
   delegate_to: "{{ redmine_wait_delegate_to }}"
+  register: redmine_stop_wait_result
+  until: redmine_stop_wait_result is succeeded
+  retries: "{{ redmine_wait_retries }}"
+  delay: "{{ redmine_wait_sleep }}"
 
 - name: Start redmine container
   ansible.builtin.shell: |
@@ -41,6 +45,10 @@
     delay: "{{ redmine_wait_delay }}"
     sleep: "{{ redmine_wait_sleep }}"
   delegate_to: "{{ redmine_wait_delegate_to }}"
+  register: redmine_start_wait_result
+  until: redmine_start_wait_result is succeeded
+  retries: "{{ redmine_wait_retries }}"
+  delay: "{{ redmine_wait_sleep }}"
 - name: Ensure Redmine admin password
   ansible.builtin.shell: |
     set -o pipefail

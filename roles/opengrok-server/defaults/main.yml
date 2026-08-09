@@ -71,13 +71,17 @@ opengrok_sync_user_list: []
 #
 # playbook内で使用する変数
 #
+#
 # OpenGrok サービス待機設定
+#
 # サービス待機処理のタイムアウト時間(秒)
 opengrok_wait_timeout: 300
 # サービス待機処理の開始までの遅延時間(秒)
 opengrok_wait_delay: 5
 # サービス待機処理のポーリング周期(秒)
 opengrok_wait_sleep: 2
+# サービス待機処理の再試行回数(単位: 回)
+opengrok_wait_retries: 5
 # サービス待機処理を実行するホスト名 (対象ホスト外)
 opengrok_wait_delegate_to_waitnode: "localhost"
 

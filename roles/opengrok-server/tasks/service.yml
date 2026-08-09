@@ -24,11 +24,17 @@
 # 前回インスタンスのポート解放完了を待って競合を避ける。
 - name: Wait for OpenGrok container stop
   ansible.builtin.wait_for:
+    host: "{{ opengrok_wait_host_stopped | default('127.0.0.1') }}"
     port: "{{ opengrok_service_port }}"
     state: stopped
     timeout: "{{ opengrok_wait_timeout }}"
     delay: "{{ opengrok_wait_delay }}"
     sleep: "{{ opengrok_wait_sleep }}"
+  delegate_to: "{{ opengrok_wait_delegate_to_waitnode }}"
+  register: opengrok_stop_wait_result
+  until: opengrok_stop_wait_result is succeeded
+  retries: "{{ opengrok_wait_retries }}"
+  delay: "{{ opengrok_wait_sleep }}"
 
 # 新しい Docker compose 定義で起動する。
 - name: Start OpenGrok container
@@ -41,11 +47,17 @@
 # 対象ホスト内で Web ポート待ちを行い, コンテナ起動完了を確認する。
 - name: Wait for OpenGrok container start on target host
   ansible.builtin.wait_for:
+    host: "{{ opengrok_wait_host_started | default(inventory_hostname) }}"
     port: "{{ opengrok_service_port }}"
     state: started
     timeout: "{{ opengrok_wait_timeout }}"
     delay: "{{ opengrok_wait_delay }}"
     sleep: "{{ opengrok_wait_sleep }}"
+  delegate_to: "{{ opengrok_wait_delegate_to_waitnode }}"
+  register: opengrok_start_wait_result
+  until: opengrok_start_wait_result is succeeded
+  retries: "{{ opengrok_wait_retries }}"
+  delay: "{{ opengrok_wait_sleep }}"
 
 # curlコマンドが存在することを保証する
 - name: Ensure curl command is available

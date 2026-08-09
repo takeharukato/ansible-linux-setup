@@ -41,6 +41,10 @@
     delay: "{{ gitlab_wait_delay }}"
     sleep: "{{ gitlab_wait_sleep }}"
   delegate_to: "{{ gitlab_wait_delegate_to }}"
+  register: gitlab_https_stop_wait_result
+  until: gitlab_https_stop_wait_result is succeeded
+  retries: "{{ gitlab_wait_retries }}"
+  delay: "{{ gitlab_wait_sleep }}"
   when:
     - gitlab_home_dir_stat.stat.exists
     - gitlab_docker_compose_file_stat.stat.exists
@@ -54,6 +58,10 @@
     delay: "{{ gitlab_wait_delay }}"
     sleep: "{{ gitlab_wait_sleep }}"
   delegate_to: "{{ gitlab_wait_delegate_to }}"
+  register: gitlab_ssh_stop_wait_result
+  until: gitlab_ssh_stop_wait_result is succeeded
+  retries: "{{ gitlab_wait_retries }}"
+  delay: "{{ gitlab_wait_sleep }}"
   when:
     - gitlab_home_dir_stat.stat.exists
     - gitlab_docker_compose_file_stat.stat.exists
@@ -67,6 +75,10 @@
     delay: "{{ gitlab_wait_delay }}"
     sleep: "{{ gitlab_wait_sleep }}"
   delegate_to: "{{ gitlab_wait_delegate_to }}"
+  register: gitlab_registry_stop_wait_result
+  until: gitlab_registry_stop_wait_result is succeeded
+  retries: "{{ gitlab_wait_retries }}"
+  delay: "{{ gitlab_wait_sleep }}"
   when:
     - gitlab_home_dir_stat.stat.exists
     - gitlab_docker_compose_file_stat.stat.exists
