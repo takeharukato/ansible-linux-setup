@@ -638,7 +638,7 @@ ntp_client_chrony_conf_path_rhel: "{{ ntp_client_chrony_conf_dir_rhel }}/chrony.
 # サービス名
 ntp_client_chrony_service_debian: "chrony"
 ntp_client_chrony_service_rhel: "chronyd"
-ntp_client_systemd_timesyncd_conf_path: "/etc/systemd/timesyncd.conf.d/99-timesyncd.conf"
+ntp_client_systemd_timesyncd_conf_path: "/etc/systemd/timesyncd.conf.d/95-timesyncd.conf"
 ntp_client_systemd_timesyncd_service: "systemd-timesyncd"
 ntp_server_service_debian: "chrony"
 ntp_server_service_rhel: "chronyd"

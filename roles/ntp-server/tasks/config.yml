@@ -6,10 +6,10 @@
 #
 
 # NTPサーバを指定
-- name: "Setup ntp server configuration in {{ ntp_server_chrony_conf_drop_in_dir }}/99-ntp-servers.conf"
+- name: "Setup ntp server configuration in {{ ntp_server_chrony_conf_drop_in_dir }}/95-ntp-servers.conf"
   ansible.builtin.template:
-    src: 99-ntp-servers.conf.j2
-    dest: "{{ ntp_server_chrony_conf_drop_in_dir }}/99-ntp-servers.conf"
+    src: 95-ntp-servers.conf.j2
+    dest: "{{ ntp_server_chrony_conf_drop_in_dir }}/95-ntp-servers.conf"
     owner: root
     group: root
     mode: '0644'

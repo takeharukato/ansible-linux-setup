@@ -32,7 +32,7 @@
     path: /etc/cloud/cloud.cfg
   register: cloud_cfg
 
-# /etc/cloud/cloud.cfg.d/99-disable-network-config.cfg を作成して
+# /etc/cloud/cloud.cfg.d/95-disable-network-config.cfg を作成して
 # cloud-init のネットワーク設定を無効化
 - name: Disable cloud-init network configuration
   when: cloud_cfg.stat.exists
@@ -49,7 +49,7 @@
     # cloud-init のネットワーク設定無効化
     - name: Disable cloud-init network configuration
       ansible.builtin.copy:
-        dest: /etc/cloud/cloud.cfg.d/99-disable-network-config.cfg
+        dest: /etc/cloud/cloud.cfg.d/95-disable-network-config.cfg
         content: |
           network:
             config: disabled
@@ -60,7 +60,7 @@
 # cloud-init のネットワークインターフェース名変更設定を無効化
 - name: Disable cloud-init network renaming configuration
   ansible.builtin.copy:
-    dest: /etc/cloud/cloud.cfg.d/99-disable-network-rename.cfg
+    dest: /etc/cloud/cloud.cfg.d/95-disable-network-rename.cfg
     content: |
       network:
         renderers: networkd

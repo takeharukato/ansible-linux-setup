@@ -35,10 +35,10 @@
 
 # Set secure_path via drop-in (RHEL/Debian 共通)
 # /usr/local/sbin,/usr/local/binを追加し, helm 等のコマンドが sudo 実行時に見つかるようにする
-- name: "Set secure_path via drop-in file /etc/sudoers.d/99-secure-path"
+- name: "Set secure_path via drop-in file /etc/sudoers.d/95-secure-path"
   become: true
   ansible.builtin.copy:
-    dest: /etc/sudoers.d/99-secure-path
+    dest: /etc/sudoers.d/95-secure-path
     owner: root
     group: root
     mode: "0440"

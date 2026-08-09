@@ -28,10 +28,10 @@
     backup: false
 
 # IPv4/IPv6フォワーディングを有効化
-- name: Setup containerd /etc/sysctl.d/99-k8s-cri.conf
+- name: Setup containerd /etc/sysctl.d/95-k8s-cri.conf
   ansible.builtin.template:
-    src: 99-k8s-cri.conf.j2
-    dest: /etc/sysctl.d/99-k8s-cri.conf
+    src: 95-k8s-cri.conf.j2
+    dest: /etc/sysctl.d/95-k8s-cri.conf
     owner: root
     group: root
     mode: '0644'

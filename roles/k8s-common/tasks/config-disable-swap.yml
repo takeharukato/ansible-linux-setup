@@ -50,7 +50,7 @@
 # 念のため, スワップしないチューニング：vm.swappiness=0
 - name: Set vm.swappiness=0 persistently
   ansible.builtin.lineinfile:
-    path: /etc/sysctl.d/99-disable-swap.conf
+    path: /etc/sysctl.d/95-disable-swap.conf
     create: true
     line: 'vm.swappiness = 0'
     mode: '0644'

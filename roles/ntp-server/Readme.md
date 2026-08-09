@@ -72,12 +72,12 @@
 | Playbook | - | 自動化処理の実行手順を記述したファイル。 |
 | Canonical | - | Ubuntu を提供する組織名。 |
 | Key-Value | - | キーと値の組で情報を表す方式。 |
-| Internet Protocol | IP | インターネットプロトコルの略称。 |
+| Internet Protocol | IP | ネットワーク上で宛先を識別し, データを届けるための通信手順。 |
 | Structured Query Language | SQL | データベースを操作するための記述言語。 |
-| Hypertext Transfer Protocol | HTTP | WWW で情報をやり取りする通信手順。 |
-| Hypertext Transfer Protocol Secure | HTTPS | 通信内容を暗号化して WWW 通信を行う方式。 |
-| RPM Package Manager | RPM | RHEL 系で使用するパッケージ形式。 |
-| Virtual Machine | VM | 物理機器上で動作する仮想的な計算機。 |
+| Hypertext Transfer Protocol | HTTP | World Wide Webで情報をやり取りする通信手順。 |
+| Hypertext Transfer Protocol Secure | HTTPS | 通信内容を暗号化してWorld Wide Web通信を行う方式。 |
+| RPM Package Manager | RPM | RPM形式パッケージの導入, 更新, 削除, 情報参照を行う仕組み。 |
+| Virtual Machine | VM | 物理計算機上で動作する仮想的な計算機。 |
 | localhost | - | 同一機器自身を指す名前。 |
 | root | - | Unix 系システムの最上位権限を持つ管理者識別子。 |
 | ソフトウェア | - | 情報処理システムで使用するプログラム, 手順, 規則及び関連文書の全体又は一部分。 |
@@ -105,14 +105,14 @@
 | Service | - | サービスの英語表記。 |
 | Node | - | ノードの英語表記。 |
 | Makefile | - | 実行手順を定義したファイル。 |
-| Application Programming Interface | API | アプリケーション同士がやり取りする方法を定めた仕様。 |
-| Uniform Resource Locator | URL | WWW 上の資源の場所を示す文字列。 |
+| Application Programming Interface | API | アプリケーション同士が機能やデータをやり取りするための取り決め。 |
+| Uniform Resource Locator | URL | World Wide Web上の資源の場所を示す文字列。 |
 | Network Time Protocol | NTP | 時刻同期の仕組み。 |
 | Classless Inter-Domain Routing | CIDR | IP アドレスとネットワークプレフィックス長を組み合わせた表記法。 |
 | Local Area Network | LAN | 限定された範囲内で構成するネットワーク。 |
 | Graphical User Interface | GUI | 画面操作中心の利用形態です。 |
 | Operating System | OS | 計算機の基本機能を管理し, アプリケーションを動作させる基盤ソフトウェア。 |
-| Red Hat Enterprise Linux | RHEL | Red Hat 社が提供する商用 Linux ディストリビューション。 |
+| Red Hat Enterprise Linux | RHEL | Red Hatが提供する企業向けLinuxディストリビューション。 |
 | Ansible | Ansible | 設定の同一化や導入作業を所定の手順に従って自動化する仕組み。 |
 | Yet Another Markup Language | YAML | 設定ファイル形式です。 |
 | Ansible Playbook | playbook | 自動化処理の実行手順を順序付きで記述したファイル。 |
@@ -136,13 +136,12 @@
 | International Atomic Time | TAI | 国際原子時に基づく時刻系。 |
 | ansible-playbookコマンド | - | Ansible Playbook を実行して自動構成処理を適用するコマンド。 |
 | `grep` | - | テキストから条件に一致する行を抽出するコマンド。 |
-| `make` | - | Makefile に定義された処理を実行するコマンド。 |
+| makeコマンド | make | Makefile に定義された処理を実行するコマンド。 |
 | サービス | - | 機能を利用者や他システムへ提供する仕組み。 |
 | ノード | - | ネットワークに接続された機器または処理単位。 |
 | ログイン | - | 利用者認証を行って利用を開始する操作。 |
 | 対象ホスト | - | Playbook による設定変更や導入処理の適用先となるホスト。 |
 | sudoコマンド | sudo | 一時的に管理者権限でコマンドを実行するためのコマンド。 |
-
 ## 概要
 このロールは, chrony を用いた NTP サーバを構成するロールです。外部上位サーバとの同期, LAN 内クライアントへの時刻配信, ならびにアクセス制御を実施します。`ansible_facts.os_family` により Debian 系と RHEL 系の差異を吸収します。
 
@@ -155,7 +154,7 @@
 - `ntp_server_chrony_conf_drop_in_dir` を作成します。
 
 3. NTP サーバ設定の反映。
-- `99-ntp-servers.conf.j2` から `99-ntp-servers.conf` を生成します。
+- `95-ntp-servers.conf.j2` から `95-ntp-servers.conf` を生成します。
 - `external_ntp_servers_list` から `pool ... iburst` を生成します。
 - `ntp_allow` を `allow` ディレクティブへ反映します。
 
@@ -175,8 +174,8 @@
 主要な設定対象は以下です。
 
 ```plaintext
-/etc/chrony/conf.d/99-ntp-servers.conf (Debian系)
-/etc/chrony.d/99-ntp-servers.conf (RHEL系)
+/etc/chrony/conf.d/95-ntp-servers.conf (Debian系)
+/etc/chrony.d/95-ntp-servers.conf (RHEL系)
 ```
 
 ## 前提条件
@@ -237,7 +236,7 @@ ansible-playbook -i inventory/hosts site.yml --tags "ntp-server" -l <対象ホ�
 
 | テンプレートファイル名 | 出力先パス (規定) | 説明 |
 | --- | --- | --- |
-| `99-ntp-servers.conf.j2` | Debian系: `/etc/chrony/conf.d/99-ntp-servers.conf`, RHEL系: `/etc/chrony.d/99-ntp-servers.conf` | chrony の参照 NTP サーバ, 同期ポリシー, サービス動作を定義する設定です。 |
+| `95-ntp-servers.conf.j2` | Debian系: `/etc/chrony/conf.d/95-ntp-servers.conf`, RHEL系: `/etc/chrony.d/95-ntp-servers.conf` | chrony の参照 NTP サーバ, 同期ポリシー, サービス動作を定義する設定です。 |
 
 ## 実行フロー
 
@@ -256,7 +255,7 @@ ansible-playbook -i inventory/hosts site.yml --tags "ntp-server" -l <対象ホ�
 - `ntp_server_chrony_conf_drop_in_dir` を作成します。
 
 4. **Config**。
-- `99-ntp-servers.conf` を配置します。
+- `95-ntp-servers.conf` を配置します。
 - 変更があれば `restart_chrony` を通知します。
 
 
@@ -333,10 +332,10 @@ enabled
 **コマンド**:
 ```bash
 # Debian系
-sudo grep -E '^(pool|allow) ' /etc/chrony/conf.d/99-ntp-servers.conf
+sudo grep -E '^(pool|allow) ' /etc/chrony/conf.d/95-ntp-servers.conf
 
 # RHEL系
-sudo grep -E '^(pool|allow) ' /etc/chrony.d/99-ntp-servers.conf
+sudo grep -E '^(pool|allow) ' /etc/chrony.d/95-ntp-servers.conf
 ```
 
 **期待される出力例**:
@@ -483,7 +482,7 @@ sudo journalctl -u chronyd -n 30 --no-pager || true
 | 想定トラブル | 主な原因 | 対処方法 |
 | --- | --- | --- |
 | chrony サービスが `active` にならない | パッケージ導入失敗, 設定ファイル文法エラー, サービス名の取り違え | 実行者は `systemctl status chrony` または `systemctl status chronyd` と `journalctl -u chrony -n 50 --no-pager` / `journalctl -u chronyd -n 50 --no-pager` を確認し, エラー内容を修正後にロールを再実行します。 |
-| `/etc/chrony/conf.d/99-ntp-servers.conf` または `/etc/chrony.d/99-ntp-servers.conf` が生成されない | Config タスク失敗, 事前タスクの権限不備, OS 判定と期待パスの不一致 | 実行者は build-*.log で `Setup ntp server configuration` タスク結果を確認し, Debian系では `/etc/chrony/conf.d`, RHEL系では `/etc/chrony.d` に出力されることを確認します。必要に応じて対象ホスト権限を見直して再実行します。 |
+| `/etc/chrony/conf.d/95-ntp-servers.conf` または `/etc/chrony.d/95-ntp-servers.conf` が生成されない | Config タスク失敗, 事前タスクの権限不備, OS 判定と期待パスの不一致 | 実行者は build-*.log で `Setup ntp server configuration` タスク結果を確認し, Debian系では `/etc/chrony/conf.d`, RHEL系では `/etc/chrony.d` に出力されることを確認します。必要に応じて対象ホスト権限を見直して再実行します。 |
 | `chronyc sources -v` が `^?` のみで同期しない | 上位NTPサーバへの到達不可, DNS解決失敗, ファイアウォール制限 | 実行者は `external_ntp_servers_list` のホスト名/IPを見直し, 名前解決と UDP/123 の到達性を確認します。到達性改善後にサービスを再起動して再確認します。 |
 | `allow` が意図と異なる値になる | `network_ipv4_network_address` または `network_ipv4_prefix_len` が未設定/不正で `ntp_allow` がフォールバックした | 実行者は `network_ipv4_network_address` と `network_ipv4_prefix_len` の値を見直します。未設定時は `allow 127.0.0.1/32` になる実装であるため, LAN公開が必要な場合は正しい CIDR 値を設定して再実行します。 |
 | `pool` 行が出力されない | `external_ntp_servers_list` が空, または空要素のみ | 実行者は `external_ntp_servers_list` に有効な上位NTPサーバを設定します。重複や空要素はテンプレートで除去されるため, 実際に必要な値が残るように定義して再実行します。 |

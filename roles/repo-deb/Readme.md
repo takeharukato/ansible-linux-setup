@@ -59,12 +59,12 @@
 | Playbook | - | 自動化処理の実行手順を記述したファイル。 |
 | Canonical | - | Ubuntu を提供する組織名。 |
 | Key-Value | - | キーと値の組で情報を表す方式。 |
-| Internet Protocol | IP | インターネットプロトコルの略称。 |
+| Internet Protocol | IP | ネットワーク上で宛先を識別し, データを届けるための通信手順。 |
 | Structured Query Language | SQL | データベースを操作するための記述言語。 |
-| Hypertext Transfer Protocol | HTTP | WWW で情報をやり取りする通信手順。 |
-| Hypertext Transfer Protocol Secure | HTTPS | 通信内容を暗号化して WWW 通信を行う方式。 |
-| RPM Package Manager | RPM | RHEL 系で使用するパッケージ形式。 |
-| Virtual Machine | VM | 物理機器上で動作する仮想的な計算機。 |
+| Hypertext Transfer Protocol | HTTP | World Wide Webで情報をやり取りする通信手順。 |
+| Hypertext Transfer Protocol Secure | HTTPS | 通信内容を暗号化してWorld Wide Web通信を行う方式。 |
+| RPM Package Manager | RPM | RPM形式パッケージの導入, 更新, 削除, 情報参照を行う仕組み。 |
+| Virtual Machine | VM | 物理計算機上で動作する仮想的な計算機。 |
 | localhost | - | 同一機器自身を指す名前。 |
 | root | - | Unix 系システムの最上位権限を持つ管理者識別子。 |
 | ソフトウェア | - | 情報処理システムで使用するプログラム, 手順, 規則及び関連文書の全体又は一部分。 |
@@ -89,8 +89,8 @@
 | Service | - | サービスの英語表記。 |
 | Node | - | ノードの英語表記。 |
 | Makefile | - | 実行手順を定義したファイル。 |
-| Application Programming Interface | API | アプリケーション同士がやり取りする方法を定めた仕様。 |
-| Uniform Resource Locator | URL | WWW 上の資源の場所を示す文字列。 |
+| Application Programming Interface | API | アプリケーション同士が機能やデータをやり取りするための取り決め。 |
+| Uniform Resource Locator | URL | World Wide Web上の資源の場所を示す文字列。 |
 | Advanced Package Tool | APT | Debian 系のパッケージ管理ツール。 |
 | Debian Package | DEB | Debian/Ubuntu 系で使用するパッケージ形式。 |
 | Deb822 | DEB822 | Debian系のパッケージ管理情報を構造化された形式で記述するための記述形式。 |
@@ -102,7 +102,7 @@
 | Docker | - | コンテナイメージやコンテナの作成, 実行, 管理を行うコマンド。 |
 | Kubernetes | K8s | コンテナを管理する基盤ソフトウェア。 |
 | Operating System | OS | 計算機の基本機能を管理し, アプリケーションを動作させる基盤ソフトウェア。 |
-| Uniform Resource Locator | URL | URL の正式名称。 |
+| Uniform Resource Locator | URL | World Wide Web上の資源の場所を示す文字列。 |
 | Host Variables | host_vars | ホスト単位の設定値を格納する変数定義。 |
 | Ansible Inventory | inventory | 実行対象ホストの一覧と接続情報を管理する定義。 |
 | Ansible Task | task | 自動化処理の最小単位となる実行項目。 |
@@ -113,7 +113,6 @@
 | ノード | - | ネットワークに接続された機器または処理単位。 |
 | 制御ホスト | - | Playbook を実行し, 他ホストへの処理指示を行う管理用ホスト。 |
 | 対象ホスト | - | Playbook による設定変更や導入処理の適用先となるホスト。 |
-
 ## 概要
 Debian/Ubuntuのパッケージリポジトリを設定するためのロールです。本ロールは, 以下の方針で作成しています:
 - UbuntuとDebianの双方の環境に適用可能とするようリポジトリの宣言形式を導入先のOSディストリビューションに基づいて切り替え。
@@ -225,7 +224,7 @@ ansible-playbook -i inventory/hosts site.yml --syntax-check
 | Debian でリポジトリ設定が期待と異なる | Ansible 2.15 未満経路で `debian_suite_on_ansible_lt_2_15` が対象OSと不一致 | 実行者は `ansible --version` を確認し, 2.15未満で実行する場合は `debian_suite_on_ansible_lt_2_15` を対象のDebian版数に合わせます。既定値は `bookworm` です。 |
 | Ubuntu で `.sources` と `.list` の混在により重複警告が出る | 旧形式設定の残存, 別ロールや手動設定との競合 | 実行者は `/etc/apt/sources.list.d/` 配下で `docker.list`, `kubernetes.list`, `google-chrome.list` や重複する `ubuntu-*.sources` の残存を確認し, 不要ファイルを整理して再実行します。 |
 | `Apt_validate_repo_deb` が失敗する | `common_packages` の未定義, 追加したリポジトリに対象パッケージが存在しない | 実行者は `vars/packages-ubuntu.yml` と `vars/packages-rhel.yml` の `common_packages` を確認し, 対象パッケージに対して `apt-cache policy <package>` が成功することを確認します。必要に応じてミラー設定またはパッケージ一覧を修正します。 |
-| ピン優先度が意図どおりにならない | `pin_main` / `pin_external` の値不整合, 優先度設定ファイルの上書き | 実行者は `/etc/apt/preferences.d/99-external.pref` の内容を確認し, `pin_external: 90` が適用されていることを確認します。主要リポジトリを優先したい場合は `pin_main: 1001` と併せて設定を見直します。 |
+| ピン優先度が意図どおりにならない | `pin_main` / `pin_external` の値不整合, 優先度設定ファイルの上書き | 実行者は `/etc/apt/preferences.d/95-external.pref` の内容を確認し, `pin_external: 90` が適用されていることを確認します。主要リポジトリを優先したい場合は `pin_main: 1001` と併せて設定を見直します。 |
 
 ## 注意事項
 

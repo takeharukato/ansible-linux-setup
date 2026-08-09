@@ -72,12 +72,12 @@
 | Playbook | - | 自動化処理の実行手順を記述したファイル。 |
 | Canonical | - | Ubuntu を提供する組織名。 |
 | Key-Value | - | キーと値の組で情報を表す方式。 |
-| Internet Protocol | IP | インターネットプロトコルの略称。 |
+| Internet Protocol | IP | ネットワーク上で宛先を識別し, データを届けるための通信手順。 |
 | Structured Query Language | SQL | データベースを操作するための記述言語。 |
-| Hypertext Transfer Protocol | HTTP | WWW で情報をやり取りする通信手順。 |
-| Hypertext Transfer Protocol Secure | HTTPS | 通信内容を暗号化して WWW 通信を行う方式。 |
-| RPM Package Manager | RPM | RHEL 系で使用するパッケージ形式。 |
-| Virtual Machine | VM | 物理機器上で動作する仮想的な計算機。 |
+| Hypertext Transfer Protocol | HTTP | World Wide Webで情報をやり取りする通信手順。 |
+| Hypertext Transfer Protocol Secure | HTTPS | 通信内容を暗号化してWorld Wide Web通信を行う方式。 |
+| RPM Package Manager | RPM | RPM形式パッケージの導入, 更新, 削除, 情報参照を行う仕組み。 |
+| Virtual Machine | VM | 物理計算機上で動作する仮想的な計算機。 |
 | localhost | - | 同一機器自身を指す名前。 |
 | root | - | Unix 系システムの最上位権限を持つ管理者識別子。 |
 | ソフトウェア | - | 情報処理システムで使用するプログラム, 手順, 規則及び関連文書の全体又は一部分。 |
@@ -105,11 +105,11 @@
 | Service | - | サービスの英語表記。 |
 | Node | - | ノードの英語表記。 |
 | Makefile | - | 実行手順を定義したファイル。 |
-| Application Programming Interface | API | アプリケーション同士がやり取りする方法を定めた仕様。 |
-| Uniform Resource Locator | URL | WWW 上の資源の場所を示す文字列。 |
+| Application Programming Interface | API | アプリケーション同士が機能やデータをやり取りするための取り決め。 |
+| Uniform Resource Locator | URL | World Wide Web上の資源の場所を示す文字列。 |
 | Network Time Protocol | NTP | 時刻同期の仕組み。 |
 | Operating System | OS | 計算機の基本機能を管理し, アプリケーションを動作させる基盤ソフトウェア。 |
-| Red Hat Enterprise Linux | RHEL | Red Hat 社が提供する商用 Linux ディストリビューション。 |
+| Red Hat Enterprise Linux | RHEL | Red Hatが提供する企業向けLinuxディストリビューション。 |
 | Ansible | Ansible | 設定の同一化や導入作業を所定の手順に従って自動化する仕組み。 |
 | Yet Another Markup Language | YAML | 設定ファイル形式です。 |
 | Ansible Playbook | playbook | 自動化処理の実行手順を順序付きで記述したファイル。 |
@@ -132,13 +132,12 @@
 | Ansible Task | task | 自動化処理の最小単位となる実行項目。 |
 | ansible-playbookコマンド | - | Ansible Playbook を実行して自動構成処理を適用するコマンド。 |
 | `grep` | - | テキストから条件に一致する行を抽出するコマンド。 |
-| `make` | - | Makefile に定義された処理を実行するコマンド。 |
+| makeコマンド | make | Makefile に定義された処理を実行するコマンド。 |
 | サービス | - | 機能を利用者や他システムへ提供する仕組み。 |
 | ノード | - | ネットワークに接続された機器または処理単位。 |
 | ログイン | - | 利用者認証を行って利用を開始する操作。 |
 | 対象ホスト | - | Playbook による設定変更や導入処理の適用先となるホスト。 |
 | sudoコマンド | sudo | 一時的に管理者権限でコマンドを実行するためのコマンド。 |
-
 ## 概要
 このロールは, Debian系およびRHEL系ホストでNTPクライアント設定を適用するロールです。`ntp_client_choice`により`chrony`と`systemd-timesyncd`を切り替え, OS差異は`vars/cross-distro.yml`で吸収します。`ntp_servers_list`はテンプレート処理で空要素と重複を除去して反映します。
 
@@ -151,7 +150,7 @@
 - RHEL系では`chrony`を導入します。
 
 2. NTPクライアント設定の反映。
-- `systemd-timesyncd`選択時は`99-timesyncd.conf.j2`を配置します。
+- `systemd-timesyncd`選択時は`95-timesyncd.conf.j2`を配置します。
 - `chrony`選択時は`99-chrony.conf.j2`をdrop-in設定として配置します。
 
 3. サービス有効状態の反映。
@@ -162,7 +161,7 @@
 主要な設定対象は以下です。
 
 ```plaintext
-/etc/systemd/timesyncd.conf.d/99-timesyncd.conf
+/etc/systemd/timesyncd.conf.d/95-timesyncd.conf
 /etc/chrony/chrony.conf (Debian系)
 /etc/chrony.conf (RHEL系)
 /etc/chrony/conf.d/99-custom.conf (Debian系)
@@ -228,7 +227,7 @@ ansible-playbook -i inventory/hosts site.yml --tags "ntp-client" -l <対象ホ�
 
 | 変数名 | 既定値 | 説明 |
 | --- | --- | --- |
-| `ntp_client_systemd_timesyncd_conf_path` | `/etc/systemd/timesyncd.conf.d/99-timesyncd.conf` | systemd-timesyncd設定の出力先です。 |
+| `ntp_client_systemd_timesyncd_conf_path` | `/etc/systemd/timesyncd.conf.d/95-timesyncd.conf` | systemd-timesyncd設定の出力先です。 |
 | `ntp_client_chrony_conf_path_debian` | `/etc/chrony/chrony.conf` | Debian系のchrony本体設定ファイルです。 |
 | `ntp_client_chrony_conf_path_rhel` | `/etc/chrony.conf` | RHEL系のchrony本体設定ファイルです。 |
 | `ntp_client_chrony_conf_path` | Debian系: `/etc/chrony/chrony.conf`, RHEL系: `/etc/chrony.conf` | 実際に参照するchrony本体設定ファイルです。 |
@@ -242,7 +241,7 @@ ansible-playbook -i inventory/hosts site.yml --tags "ntp-client" -l <対象ホ�
 
 | テンプレートファイル名 | 出力先パス (規定値) | 説明 |
 | --- | --- | --- |
-| `templates/99-timesyncd.conf.j2` | `/etc/systemd/timesyncd.conf.d/99-timesyncd.conf` | systemd-timesyncd用のNTPサーバ設定を出力します。 |
+| `templates/95-timesyncd.conf.j2` | `/etc/systemd/timesyncd.conf.d/95-timesyncd.conf` | systemd-timesyncd用のNTPサーバ設定を出力します。 |
 | `templates/99-chrony.conf.j2` | Debian系: `/etc/chrony/conf.d/99-custom.conf`, RHEL系: `/etc/chrony.d/99-custom.conf` | chrony用のNTPサーバ設定をdrop-inとして出力します。 |
 
 ## 実行フロー
@@ -259,7 +258,7 @@ ansible-playbook -i inventory/hosts site.yml --tags "ntp-client" -l <対象ホ�
 
 3. **Config**。
 - `service_facts`でサービス一覧を取得します。
-- `systemd-timesyncd`選択時は`99-timesyncd.conf`を配置し, `systemd-timesyncd`を有効化, `chrony`を無効化します (Debian系かつ対象サービスが存在する場合)。
+- `systemd-timesyncd`選択時は`95-timesyncd.conf`を配置し, `systemd-timesyncd`を有効化, `chrony`を無効化します (Debian系かつ対象サービスが存在する場合)。
 - `chrony`選択時はdrop-inディレクトリ作成, `chrony.conf`へ`confdir`追記, `99-custom.conf`配置, `chrony`有効化, `systemd-timesyncd`無効化を実施します。
 
 4. **Directory**。
@@ -333,7 +332,7 @@ enabled
 **コマンド**:
 ```bash
 # systemd-timesyncd選択時
-sudo grep -E '^NTP=' /etc/systemd/timesyncd.conf.d/99-timesyncd.conf
+sudo grep -E '^NTP=' /etc/systemd/timesyncd.conf.d/95-timesyncd.conf
 
 # chrony選択時(Debian系)
 sudo grep -E '^confdir[[:space:]]+/etc/chrony/conf.d' /etc/chrony/chrony.conf

@@ -84,12 +84,12 @@
 | Playbook | - | 自動化処理の実行手順を記述したファイル。 |
 | Canonical | - | Ubuntu を提供する組織名。 |
 | Key-Value | - | キーと値の組で情報を表す方式。 |
-| Internet Protocol | IP | インターネットプロトコルの略称。 |
+| Internet Protocol | IP | ネットワーク上で宛先を識別し, データを届けるための通信手順。 |
 | Structured Query Language | SQL | データベースを操作するための記述言語。 |
-| Hypertext Transfer Protocol | HTTP | WWW で情報をやり取りする通信手順。 |
-| Hypertext Transfer Protocol Secure | HTTPS | 通信内容を暗号化して WWW 通信を行う方式。 |
-| RPM Package Manager | RPM | RHEL 系で使用するパッケージ形式。 |
-| Virtual Machine | VM | 物理機器上で動作する仮想的な計算機。 |
+| Hypertext Transfer Protocol | HTTP | World Wide Webで情報をやり取りする通信手順。 |
+| Hypertext Transfer Protocol Secure | HTTPS | 通信内容を暗号化してWorld Wide Web通信を行う方式。 |
+| RPM Package Manager | RPM | RPM形式パッケージの導入, 更新, 削除, 情報参照を行う仕組み。 |
+| Virtual Machine | VM | 物理計算機上で動作する仮想的な計算機。 |
 | localhost | - | 同一機器自身を指す名前。 |
 | root | - | Unix 系システムの最上位権限を持つ管理者識別子。 |
 | ソフトウェア | - | 情報処理システムで使用するプログラム, 手順, 規則及び関連文書の全体又は一部分。 |
@@ -116,22 +116,22 @@
 | Service | - | サービスの英語表記。 |
 | Node | - | ノードの英語表記。 |
 | Makefile | - | 実行手順を定義したファイル。 |
-| Application Programming Interface | API | アプリケーション同士がやり取りする方法を定めた仕様。 |
-| Uniform Resource Locator | URL | WWW 上の資源の場所を示す文字列。 |
+| Application Programming Interface | API | アプリケーション同士が機能やデータをやり取りするための取り決め。 |
+| Uniform Resource Locator | URL | World Wide Web上の資源の場所を示す文字列。 |
 | Docker Community Edition | Docker CE | Docker のコミュニティ版。Docker Engine と関連ツールで構成される。 |
 | Docker Engine | - | コンテナの実行基盤。 `dockerd` とその API を含む。 |
 | containerd | - | Dockerから分離された軽量なコンテナランタイム。 |
 | Network File System | NFS | ネットワーク越しにファイル共有を行う仕組み。 |
-| Hypertext Transfer Protocol Secure | HTTPS | 通信内容を暗号化して Web 通信を行う方式。 |
+| Hypertext Transfer Protocol Secure | HTTPS | 通信内容を暗号化してWorld Wide Web通信を行う方式。 |
 | Router Advertisement | RA | IPv6 で経路情報を通知する仕組み。 |
 | Reverse Path Filtering | rp_filter | 逆引きパスフィルタリングの設定。 |
 | sysctl | - | カーネル動作パラメタを参照, 変更するコマンド。 |
 | netcat | nc | ネットワーク到達性を確認するコマンド。RHEL 系では `ncat` を使用。 |
-| Hypertext Transfer Protocol | HTTP | HTTP の正式名称。 |
+| Hypertext Transfer Protocol | HTTP | World Wide Webで情報をやり取りする通信手順。 |
 | JavaScript Object Notation | JSON | 人間が読みやすいテキスト形式のデータ交換フォーマット。キーと値のペアで構成され, 設定ファイルやAPI レスポンスに広く使用される。 |
 | Network Interface Card | NIC | 計算機をネットワークへ接続するための装置または機能。 |
 | Operating System | OS | 計算機の基本機能を管理し, アプリケーションを動作させる基盤ソフトウェア。 |
-| Red Hat Enterprise Linux | RHEL | Red Hat 社が提供する商用 Linux ディストリビューション。 |
+| Red Hat Enterprise Linux | RHEL | Red Hatが提供する企業向けLinuxディストリビューション。 |
 | Red Hat Enterprise Linux 9 | RHEL9 | Red Hat Enterprise Linux の第9系統版。 |
 | Secure Shell | SSH | 遠隔の計算機へ安全に接続して操作する方式。 |
 | Ansible Playbook | playbook | 自動化処理の実行手順を順序付きで記述したファイル。 |
@@ -145,7 +145,7 @@
 | `getent` | - | システムの名前解決データベースを参照するコマンド。 |
 | `journalctl` | - | systemd ジャーナルのログを参照するコマンド。 |
 | `ls` | - | ファイルやディレクトリの一覧を表示するコマンド。 |
-| `make` | - | Makefile に定義された処理を実行するコマンド。 |
+| makeコマンド | make | Makefile に定義された処理を実行するコマンド。 |
 | `systemctl` | - | systemd 管理下のサービスを起動, 停止, 状態確認するコマンド。 |
 | アドレス | - | 宛先や所在を識別するための情報。 |
 | サービス | - | 機能を利用者や他システムへ提供する仕組み。 |
@@ -160,7 +160,6 @@
 | ローカルレジストリコンテナ | - | ローカルレジストリ機能を提供するコンテナ。 |
 | 対象ホスト | - | Playbook による設定変更や導入処理の適用先となるホスト。 |
 | sudoコマンド | sudo | 一時的に管理者権限でコマンドを実行するためのコマンド。 |
-
 ## 概要
 Docker Community Edition (Docker CE) を導入し, サービス初期化, sysctl の調整, 利用ユーザのグループ設定, およびコンテナボリュームのバックアップ環境を一括で整備するロールです。Debian 系と RHEL 系の差異は `ansible_facts.os_family` を基準に変数を切り替えることで吸収しています。
 
@@ -300,7 +299,7 @@ docker_ce_insecure_registries: "{{ container_registry_endpoints }}"
 
 | テンプレート/ファイル | 出力先パス | 条件 | 説明 |
 | --- | --- | --- | --- |
-| `docker-bridge.conf.j2` | `/etc/modules-load.d/99-docker-bridge.conf` | 常に実行 | Docker ブリッジ関連の sysctl 設定。 |
+| `docker-bridge.conf.j2` | `/etc/modules-load.d/95-docker-bridge.conf` | 常に実行 | Docker ブリッジ関連の sysctl 設定。 |
 | `backup-containers.j2` | `/usr/local/bin/backup-containers` | `build_docker_ce_backup_container_image: true` かつ `docker_ce_enable_backup_script: true` かつ `docker_ce_backup_nfs_server` と `docker_ce_backup_nfs_dir` が非空 | コンテナバックアップスクリプト。 |
 | `restore-container.j2` | `/usr/local/bin/restore-container` | `build_docker_ce_backup_container_image: true` かつ `docker_ce_enable_backup_script: true` | コンテナ復旧スクリプト。 |
 | `Dockerfile.j2` | `/usr/local/share/docker-backup/Dockerfile` | `build_docker_ce_backup_container_image: true` かつ `docker_ce_enable_backup_script: true` | `opensuse/leap:15.6` をベースに boombatower/docker-backup 互換のイメージを作成。 |
@@ -329,7 +328,7 @@ docker_ce_insecure_registries: "{{ container_registry_endpoints }}"
 - `/etc/docker/daemon.json` は iptables 管理の無効化と IPv6 有効化を含む設定で生成されます。
 - `docker_ce_insecure_registries` が空または未定義の場合, `/etc/docker/daemon.json` に `insecure-registries` は出力されません。
 - `docker_ce_backup_output_dir` は `docker_ce_backup_mount_point` と `docker_ce_backup_dir_on_nfs` の結合値になります。既定では `/mnt/containers/docker-ce/daily-backup` です。
-- sysctl は `/etc/modules-load.d/99-docker-bridge.conf` を通じて反映されます。設定内容には `net.bridge.bridge-nf-call-iptables`, `net.bridge.bridge-nf-call-ip6tables`, `net.ipv4.ip_forward`, `net.ipv6.conf.all.forwarding`, `net.ipv6.conf.default.forwarding`, `net.ipv6.bindv6only`, `net.ipv6.conf.<mgmt_nic>.accept_ra`, `net.ipv4.conf.*.rp_filter` が含まれます。
+- sysctl は `/etc/modules-load.d/95-docker-bridge.conf` を通じて反映されます。設定内容には `net.bridge.bridge-nf-call-iptables`, `net.bridge.bridge-nf-call-ip6tables`, `net.ipv4.ip_forward`, `net.ipv6.conf.all.forwarding`, `net.ipv6.conf.default.forwarding`, `net.ipv6.bindv6only`, `net.ipv6.conf.<mgmt_nic>.accept_ra`, `net.ipv4.conf.*.rp_filter` が含まれます。
 
 ### OS 差異
 
@@ -580,7 +579,7 @@ $ curl http://registry1.local:5000/v2/
 
 **確認内容**:
 
-- `/etc/modules-load.d/99-docker-bridge.conf` の内容
+- `/etc/modules-load.d/95-docker-bridge.conf` の内容
 - `sysctl --system` の実行結果
 
 **対処**:

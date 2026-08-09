@@ -6,7 +6,7 @@
 
 #
 # NTPサーバの設定
-# /etc/chrony/conf.d/99-ntp-servers.conf
+# /etc/chrony/conf.d/95-ntp-servers.conf
 #
 {% for srv in (external_ntp_servers_list | default([], true) | select | map('trim') | reject('equalto','') | unique) %}
 # {{ srv }}

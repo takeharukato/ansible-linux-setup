@@ -130,12 +130,12 @@
 | Playbook | - | 自動化処理の実行手順を記述したファイル。 |
 | Canonical | - | Ubuntu を提供する組織名。 |
 | Key-Value | - | キーと値の組で情報を表す方式。 |
-| Internet Protocol | IP | インターネットプロトコルの略称。 |
+| Internet Protocol | IP | ネットワーク上で宛先を識別し, データを届けるための通信手順。 |
 | Structured Query Language | SQL | データベースを操作するための記述言語。 |
-| Hypertext Transfer Protocol | HTTP | WWW で情報をやり取りする通信手順。 |
-| Hypertext Transfer Protocol Secure | HTTPS | 通信内容を暗号化して WWW 通信を行う方式。 |
-| RPM Package Manager | RPM | RHEL 系で使用するパッケージ形式。 |
-| Virtual Machine | VM | 物理機器上で動作する仮想的な計算機。 |
+| Hypertext Transfer Protocol | HTTP | World Wide Webで情報をやり取りする通信手順。 |
+| Hypertext Transfer Protocol Secure | HTTPS | 通信内容を暗号化してWorld Wide Web通信を行う方式。 |
+| RPM Package Manager | RPM | RPM形式パッケージの導入, 更新, 削除, 情報参照を行う仕組み。 |
+| Virtual Machine | VM | 物理計算機上で動作する仮想的な計算機。 |
 | localhost | - | 同一機器自身を指す名前。 |
 | root | - | Unix 系システムの最上位権限を持つ管理者識別子。 |
 | ソフトウェア | - | 情報処理システムで使用するプログラム, 手順, 規則及び関連文書の全体又は一部分。 |
@@ -161,8 +161,8 @@
 | Service | - | サービスの英語表記。 |
 | Node | - | ノードの英語表記。 |
 | Makefile | - | 実行手順を定義したファイル。 |
-| Application Programming Interface | API | アプリケーション同士がやり取りする方法を定めた仕様。 |
-| Uniform Resource Locator | URL | WWW 上の資源の場所を示す文字列。 |
+| Application Programming Interface | API | アプリケーション同士が機能やデータをやり取りするための取り決め。 |
+| Uniform Resource Locator | URL | World Wide Web上の資源の場所を示す文字列。 |
 | Operating System | OS | 計算機の基本機能を管理し, アプリケーションを動作させる基盤ソフトウェア。 |
 | Secure Shell | SSH | 遠隔の計算機へ安全に接続して操作する方式。 |
 | Advanced Package Tool | APT | Debian 系のパッケージ管理ツール。 |
@@ -201,7 +201,7 @@
 | NetworkManager dispatcher | - | NetworkManager の状態変化に応じて外部スクリプトを実行する仕組み。 |
 | Guest Utilities | - | 仮想環境ゲスト OS と仮想化基盤との連携機能を提供する補助ソフトウェア。 |
 | XCP-NG Guest Utilities | - | XCP-NG 仮想環境内のゲスト OS とハイパーバイザ連携を行う補助ソフトウェア群。 |
-| Red Hat Enterprise Linux | RHEL | Red Hat 社が提供する商用 Linux ディストリビューション。 |
+| Red Hat Enterprise Linux | RHEL | Red Hatが提供する企業向けLinuxディストリビューション。 |
 | Red Hat Enterprise Linux 9 | RHEL9 | Red Hat Enterprise Linux の第9系統版。 |
 | Ansible Playbook | playbook | 自動化処理の実行手順を順序付きで記述したファイル。 |
 | Berkeley Internet Name Domain | BIND | DNS サーバ機能を提供するソフトウェア。 |
@@ -235,7 +235,6 @@
 | リモートホスト | - | ネットワーク越しに接続して操作する別ホスト。 |
 | 制御ホスト | - | Playbook を実行し, 他ホストへの処理指示を行う管理用ホスト。 |
 | 対象ホスト | - | Playbook による設定変更や導入処理の適用先となるホスト。 |
-
 ## 概要
 本playbookで構築されるインフラノード(共通的に使用される機能を提供するための管理ノード, ソフトウェア開発環境を提供する開発ノード, 仮想化環境内部ネットワークと外部ネットワークとを接続するルータノードなど), Kubernetes クラスタを構成するノード (コントロールプレーン, ワーカー) および データセンター(DC)代表 Free Range Routing (FRR, ルーティングソフト) ルータノードを構築するために必要な, 基礎的なシステム設定を行います。
 
@@ -350,7 +349,7 @@ ansible-playbook -i inventory/hosts site.yml --tags "common"
 | --- | --- | --- |
 | `templates/10-netif.link.j2` | `{{ netif_nm_link_dir }}/10-{{ item.netif }}.link` (既定: `/etc/systemd/network/10-<ネットワークインターフェース名>.link`) | systemd .link ファイル。NIC 名と MAC アドレスの紐付けを設定します。 |
 | `templates/rhel9-multi-netif.nmconnection.j2` | `/etc/NetworkManager/system-connections/{{ item.netif }}.nmconnection` (既定: `/etc/NetworkManager/system-connections/{{ item.netif }}.nmconnection`) | NetworkManager keyfile (RHEL 系)。IP アドレス, ゲートウェイ, DNS サーバを設定します。 |
-| `templates/99-netcfg-multi.yaml.j2` | `/etc/netplan/99-netcfg.yaml` (既定: `/etc/netplan/99-netcfg.yaml`) | netplan 設定ファイル (Debian 系)。IP アドレス, ゲートウェイ, DNS サーバを設定します。 |
+| `templates/95-netcfg-multi.yaml.j2` | `/etc/netplan/95-netcfg.yaml` (既定: `/etc/netplan/95-netcfg.yaml`) | netplan 設定ファイル (Debian 系)。IP アドレス, ゲートウェイ, DNS サーバを設定します。 |
 | `templates/nopasswd-group.sudoers.j2` | `/etc/sudoers.d/{{ sudo_dropin_prefix }}-group-{{ item }}` (既定: `/etc/sudoers.d/99-nopasswd-group-<グループ名>`) | グループ単位のパスワード無し sudo 設定。 |
 | `templates/nopasswd-user.sudoers.j2` | `/etc/sudoers.d/{{ sudo_dropin_prefix }}-user-{{ item }}` (既定: `/etc/sudoers.d/99-nopasswd-user-<ユーザ名>`) | ユーザ単位のパスワード無し sudo 設定。 |
 | `templates/mount-nas.sh.j2` | `/usr/local/sbin/mount-nas.sh` (既定: `/usr/local/sbin/mount-nas.sh`) | NAS マウント用スクリプト。 |
@@ -504,7 +503,7 @@ netif_list:
 7. **マルチネットワークインターフェース設定**:
    - `netif_list` 変数から複数ネットワークインターフェースの設定を行います。
    - RHEL 系: NetworkManager keyfiles (`/etc/NetworkManager/system-connections/*.nmconnection`) を配置します。
-   - Debian 系: netplan 設定 (`/etc/netplan/99-netcfg.yaml`) を配置します。
+   - Debian 系: netplan 設定 (`/etc/netplan/95-netcfg.yaml`) を配置します。
    - systemd .link ファイル (`/etc/systemd/network/10-*.link`) で MAC アドレス固定化を行います。
    - 不要な旧接続を削除し, 設定適用後に再起動します。
 8. **Sudoers 設定**: `sudo_nopasswd_groups_extra` で指定されたグループ (`adm`, `sudo`, `wheel` 等) に対してパスワード無し sudo を設定します (`/etc/sudoers.d/` drop-in files)。
@@ -549,7 +548,7 @@ netif_list:
 - SELinux コンテキストの復元が必要な場合があります (`restorecon`)。
 
 **Debian 系の特徴**:
-- netplan 設定ファイルを配置し (`99-netcfg-multi.yaml.j2`), `netplan apply` で反映します。
+- netplan 設定ファイルを配置し (`95-netcfg-multi.yaml.j2`), `netplan apply` で反映します。
 - netplan が NetworkManager をバックエンドとして使用します (`renderer: NetworkManager`)。
 - Cloud-Init の自動ネットワーク設定ファイル (例: `/etc/netplan/50-cloud-init.yaml`) に `.old` 拡張子を付けてリネームし無効化します。
 
@@ -773,13 +772,13 @@ ls -l /etc/netplan/
 **期待される出力例**:
 
 ```
--rw-r--r-- 1 root root 512 Feb 23 10:00 99-netcfg.yaml
+-rw-r--r-- 1 root root 512 Feb 23 10:00 95-netcfg.yaml
 ```
 
 netplan 設定の内容を確認します:
 
 ```bash
-cat /etc/netplan/99-netcfg.yaml
+cat /etc/netplan/95-netcfg.yaml
 ```
 
 **期待される出力例**:
@@ -1366,7 +1365,7 @@ sudo netplan --debug generate
 2. YAML の構文を確認します:
 
 ```bash
-sudo yamllint /etc/netplan/99-netcfg.yaml
+sudo yamllint /etc/netplan/95-netcfg.yaml
 ```
 
 3. Dry-run で動作確認します:
@@ -1718,8 +1717,8 @@ sudo restorecon -Rv /etc/NetworkManager/system-connections/
 
 RHEL 系では, Cloud-Init が作成する udev ルールが NetworkManager の動作を妨げる場合があります。本ロールは以下の対処を行います:
 
-- `/etc/cloud/cloud.cfg.d/99-disable-network-config.cfg` を作成し, Cloud-Init のネットワーク設定を無効化します。
-- `/etc/cloud/cloud.cfg.d/99-disable-network-rename.cfg` を作成し, Cloud-Init のネットワークインターフェース名変更を無効化します。
+- `/etc/cloud/cloud.cfg.d/95-disable-network-config.cfg` を作成し, Cloud-Init のネットワーク設定を無効化します。
+- `/etc/cloud/cloud.cfg.d/95-disable-network-rename.cfg` を作成し, Cloud-Init のネットワークインターフェース名変更を無効化します。
 - `/etc/udev/rules.d/75-persistent-net-generator.rules`, `/lib/udev/rules.d/75-persistent-net-generator.rules`, `/usr/lib/udev/rules.d/75-persistent-net-generator.rules` が存在する場合, `.orig` を付けてバックアップしたうえで, `/etc/udev/rules.d/75-persistent-net-generator.rules` に空ファイルを配置して udev の生成ルールをマスクします。
 - `/etc/udev/rules.d/70-persistent-net.rules`, `/lib/udev/rules.d/70-persistent-net.rules`, `/usr/lib/udev/rules.d/70-persistent-net.rules` が存在する場合, `.orig` を付けてバックアップしたうえで, `/etc/udev/rules.d/70-persistent-net.rules` に空ファイルを配置して永続化ルールをマスクします。
 - `udevadm control --reload-rules && udevadm trigger` を実行して更新した udev ルールを反映します。

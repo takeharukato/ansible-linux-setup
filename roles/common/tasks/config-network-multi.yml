@@ -220,8 +220,8 @@
         # netplan設定ファイルを配置
         - name: Deploy netplan file
           ansible.builtin.template:
-            src: 99-netcfg-multi.yaml.j2
-            dest: "/etc/netplan/99-netcfg.yaml"
+            src: 95-netcfg-multi.yaml.j2
+            dest: "/etc/netplan/95-netcfg.yaml"
             owner: root
             group: root
             mode: "0600"

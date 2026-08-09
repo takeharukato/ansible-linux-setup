@@ -167,7 +167,7 @@
 # Pinning ( 外部を下げる )
 - name: Pin external origins lower than base
   ansible.builtin.copy:
-    dest: "/etc/apt/preferences.d/99-external.pref"
+    dest: "/etc/apt/preferences.d/95-external.pref"
     mode: "0644"
     content: |
       Package: *

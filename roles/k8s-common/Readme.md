@@ -99,12 +99,12 @@
 | Playbook | - | 自動化処理の実行手順を記述したファイル。 |
 | Canonical | - | Ubuntu を提供する組織名。 |
 | Key-Value | - | キーと値の組で情報を表す方式。 |
-| Internet Protocol | IP | インターネットプロトコルの略称。 |
+| Internet Protocol | IP | ネットワーク上で宛先を識別し, データを届けるための通信手順。 |
 | Structured Query Language | SQL | データベースを操作するための記述言語。 |
-| Hypertext Transfer Protocol | HTTP | WWW で情報をやり取りする通信手順。 |
-| Hypertext Transfer Protocol Secure | HTTPS | 通信内容を暗号化して WWW 通信を行う方式。 |
-| RPM Package Manager | RPM | RHEL 系で使用するパッケージ形式。 |
-| Virtual Machine | VM | 物理機器上で動作する仮想的な計算機。 |
+| Hypertext Transfer Protocol | HTTP | World Wide Webで情報をやり取りする通信手順。 |
+| Hypertext Transfer Protocol Secure | HTTPS | 通信内容を暗号化してWorld Wide Web通信を行う方式。 |
+| RPM Package Manager | RPM | RPM形式パッケージの導入, 更新, 削除, 情報参照を行う仕組み。 |
+| Virtual Machine | VM | 物理計算機上で動作する仮想的な計算機。 |
 | localhost | - | 同一機器自身を指す名前。 |
 | root | - | Unix 系システムの最上位権限を持つ管理者識別子。 |
 | ソフトウェア | - | 情報処理システムで使用するプログラム, 手順, 規則及び関連文書の全体又は一部分。 |
@@ -133,9 +133,9 @@
 | Service | - | サービスの英語表記。 |
 | Node | - | ノードの英語表記。 |
 | Makefile | - | 実行手順を定義したファイル。 |
-| Application Programming Interface | API | アプリケーション同士がやり取りする方法を定めた仕様。 |
-| Uniform Resource Locator | URL | WWW 上の資源の場所を示す文字列。 |
-| Application Programming Interface | API | API の正式名称。 |
+| Application Programming Interface | API | アプリケーション同士が機能やデータをやり取りするための取り決め。 |
+| Uniform Resource Locator | URL | World Wide Web上の資源の場所を示す文字列。 |
+| Application Programming Interface | API | アプリケーション同士が機能やデータをやり取りするための取り決め。 |
 | Custom Resource Definition | CRD | Kubernetes APIを拡張してユーザ独自のリソース種別を定義する仕組み。 |
 | Role-Based Access Control | RBAC | ユーザやサービスアカウントが実行可能な操作を役割(Role)で制限する仕組み。 |
 | Service Account | - | Kubernetes内部でPodが他のリソースにアクセスする際に用いる仮想的なアカウント。 |
@@ -143,7 +143,7 @@
 | ClusterRoleBinding | - | ClusterRoleをユーザやサービスアカウントに紐付ける仕組み。 |
 | Role | - | 特定の名前空間内で有効な権限の集合。 |
 | RoleBinding | - | Roleをユーザやサービスアカウントに紐付ける仕組み。 |
-| 名前空間 ( namespace )  | - | Kubernetes内部でリソースを論理的に分離する単位。 |
+| 名前空間 ( namespace ) | - | Kubernetes内部でリソースを論理的に分離する単位。 |
 | ポッド ( Pod ) | - | Kubernetes上で動作するコンテナの最小単位。 |
 | デーモンセット ( DaemonSet ) | - | Kubernetesクラスタ内の全ノード(または指定した一部のノード)で必ずPodを1つずつ起動させるリソース。 |
 | デプロイメント ( Deployment ) | - | 指定した数のPodを維持し, ローリングアップデート等を管理するリソース。 |
@@ -190,13 +190,13 @@
 | Autonomous System Number | ASN | インターネット上で各組織や管理ドメインを識別するために割り当てられる一意の番号。BGP でルーティング情報を交換する際の識別子として使用される。 |
 | Classless Inter-Domain Routing | CIDR | IP アドレスとネットワークプレフィックス長を組み合わせた表記法。 |
 | Container Runtime Interface for OCI | CRI-O | Kubernetes 向けのコンテナ実行環境。 |
-| Hypertext Transfer Protocol | HTTP | HTTP の正式名称。 |
-| Hypertext Transfer Protocol Secure | HTTPS | 通信内容を暗号化して Web 通信を行う方式。 |
+| Hypertext Transfer Protocol | HTTP | World Wide Webで情報をやり取りする通信手順。 |
+| Hypertext Transfer Protocol Secure | HTTPS | 通信内容を暗号化してWorld Wide Web通信を行う方式。 |
 | Internet Protocol | IP | ネットワーク上で宛先を識別し, データを届けるための通信手順。 |
 | Kubernetes | K8s | コンテナを管理する基盤ソフトウェア。 |
 | Network Interface Card | NIC | 計算機をネットワークへ接続するための装置または機能。 |
 | Operating System | OS | 計算機の基本機能を管理し, アプリケーションを動作させる基盤ソフトウェア。 |
-| Red Hat Enterprise Linux | RHEL | Red Hat 社が提供する商用 Linux ディストリビューション。 |
+| Red Hat Enterprise Linux | RHEL | Red Hatが提供する企業向けLinuxディストリビューション。 |
 | Transmission Control Protocol | TCP | 通信相手との接続を確立してからデータを送受信する通信方式。 |
 | Uncomplicated Firewall | UFW | 簡易な操作で設定できるパケット制御機能。 |
 | Host Variables | host_vars | ホスト単位の設定値を格納する変数定義。 |
@@ -215,7 +215,7 @@
 | `journalctl` | - | systemd ジャーナルのログを参照するコマンド。 |
 | `kubeconfig` | - | Kubernetes 接続設定ファイルを指す名称。kubectl などが参照する。 |
 | `ls` | - | ファイルやディレクトリの一覧を表示するコマンド。 |
-| `make` | - | Makefile に定義された処理を実行するコマンド。 |
+| makeコマンド | make | Makefile に定義された処理を実行するコマンド。 |
 | `ping` | - | 対象への到達性と往復遅延を確認するコマンド。 |
 | `sleep` | - | 指定秒数だけ処理を待機するコマンド。 |
 | `source` | - | シェル設定ファイルやスクリプトを現在シェルへ読み込むコマンド。 |
@@ -492,7 +492,7 @@ k8s_containerd_registry_plain_http: true
 | `rpfilter-bypass.service.j2` | `/etc/systemd/system/rpfilter-bypass.service` (既定: `/etc/systemd/system/rpfilter-bypass.service`) | 起動時に rpfilter 回避処理を確実に適用するための systemd サービス定義です。 |
 | `default-kubelet-config.j2` | `{{ etc_default_dir }}/kubelet` (既定: `{{ etc_default_dir }}/kubelet`) | kubelet の起動引数と実行時既定値を統一する環境設定ファイルです。 |
 | `modules-k8s.conf.j2` | `/etc/modules-load.d/k8s.conf` (既定: `/etc/modules-load.d/k8s.conf`) | Kubernetes ノードで必要なカーネルモジュールを起動時に読み込む設定です。 |
-| `99-k8s-cri.conf.j2` | `/etc/sysctl.d/99-k8s-cri.conf` (既定: `/etc/sysctl.d/99-k8s-cri.conf`) | CRI/Kubernetes 通信で必要なネットワーク系カーネルパラメタを定義する sysctl 設定です。 |
+| `95-k8s-cri.conf.j2` | `/etc/sysctl.d/95-k8s-cri.conf` (既定: `/etc/sysctl.d/95-k8s-cri.conf`) | CRI/Kubernetes 通信で必要なネットワーク系カーネルパラメタを定義する sysctl 設定です。 |
 
 ## 実行フロー
 
@@ -558,7 +558,7 @@ k8s_containerd_registry_plain_http: true
 - **ファイアウォール**: UFW (`firewall_backend: ufw`)
 - **bash 補完パス**: `/usr/share/bash-completion/completions/`
 - **zsh 補完パス**: `/usr/share/zsh/vendor-completions/`
-- **sysctl ファイル**: `/etc/sysctl.d/99-k8s-cri.conf`
+- **sysctl ファイル**: `/etc/sysctl.d/95-k8s-cri.conf`
 
 #### Red Hat 系 (CentOS/RHEL)
 
@@ -566,7 +566,7 @@ k8s_containerd_registry_plain_http: true
 - **ファイアウォール**: firewalld (`firewall_backend: firewalld`)
 - **bash 補完パス**: `/usr/share/bash-completion/completions/`
 - **zsh 補完パス**: `/usr/share/zsh/site-functions/`
-- **sysctl ファイル**: `/etc/sysctl.d/99-k8s-cri.conf`
+- **sysctl ファイル**: `/etc/sysctl.d/95-k8s-cri.conf`
 - **rpfilter バイパス**: firewalld 使用時に `systemd-rpfilter-bypass-ensure.service` を展開
 
 ## 検証ポイント

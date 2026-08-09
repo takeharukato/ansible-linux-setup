@@ -13,7 +13,7 @@
 #
 - name: "Setup ntp servers in {{ ntp_client_systemd_timesyncd_conf_path }}"
   ansible.builtin.template:
-    src: 99-timesyncd.conf.j2
+    src: 95-timesyncd.conf.j2
     dest: "{{ ntp_client_systemd_timesyncd_conf_path }}"
     owner: root
     group: root
