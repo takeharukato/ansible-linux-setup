@@ -4,6 +4,7 @@ log/
 .*
 !.gitignore
 !.mailmap
+!.gitkeep
 
 *.class
 *~
