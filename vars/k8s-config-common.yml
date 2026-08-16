@@ -1,0 +1,95 @@
+# -*- coding: utf-8 mode: yaml -*-
+#
+# Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+# Kubernetes 共通設定変数定義
+#
+---
+
+#
+# Kubernetesオペレータユーザ設定
+#
+# 注意事項:
+# vars/all-config.ymlの前にインクルードする
+#
+k8s_operator_user: "kube"
+
+# Kubernetesオペレータユーザのホームディレクトリ
+# なお, vars/all-config.ymlで, k8s_operator_userの値を上書きした場合であっても,
+# ansibleの仕様から, k8s_operator_homeの値は, 適切にvars/all-config.ymlの値を
+# 参照して設定される:
+# 1. include_vars は実行時に変数を読み込む
+#    公式 include_vars モジュールに「タスク実行時(runtime)に動的に読み込む」と明記されています。
+#    https://docs.ansible.com/ansible/latest/collections/ansible/builtin/include_vars_module.html
+
+# 2. include_vars で定義した変数は host scope で, 同一カテゴリ内は後勝ち
+#    公式 precedence ドキュメントに「一般に last defined wins」「include_vars は host scope 変数」とあります。
+#    https://docs.ansible.com/ansible/latest/reference_appendices/general_precedence.html
+#    https://docs.ansible.com/ansible/latest/playbook_guide/playbooks_variables.html
+#
+# 3. 通常変数は 遅延評価により値が決定される
+#    公式 set_fact の注記で「set_fact は 静的設定(static)となる。
+#    通常の 遅延評価(lazy)変数と違い代入時に評価される」と明記されています。
+#    この記述は逆に, 通常の変数は代入時に確定せず, 利用時に評価されることを示します。
+#    https://docs.ansible.com/ansible/latest/collections/ansible/builtin/set_fact_module.html
+#
+# 留意事項: 典型的な場合には問題にならないが以下の点に留意すること
+# - all-config 読み込み前に k8s_operator_home を参照するタスクがあれば, その時点の値で評価されます。
+# - all-config 側で k8s_operator_home 自体を明示的に定義した場合は, そちらが優先されます。
+#
+k8s_operator_home: "/home/{{ k8s_operator_user }}"
+# Kubernetesオペレータユーザのデフォルトシェル
+k8s_operator_shell: "/bin/bash"
+# Kubernetesオペレータユーザの所属グループ
+k8s_operator_groups_list: "{{ adm_groups }}"
+
+# kubeadm設定ファイル格納ディレクトリ
+k8s_kubeadm_config_store: "{{ ansible_home_dir }}/kubeadm"
+
+# Kubernetes API操作で使用する管理者kubeconfigファイルのパス
+k8s_admin_kubeconfig_path: "/etc/kubernetes/admin.conf"
+
+# Helm操作を許可する共通OSユーザ一覧。
+# 既定ではansible_userとk8s_operator_userを候補として保持する。
+k8s_common_helm_execution_users:
+  - "{{ k8s_operator_user | default('', true) | string | trim }}"
+  - "{{ ansible_user | default('', true) | string | trim }}"
+
+# Helm実行時に代表OSユーザを明示指定する場合の共通変数。
+# 空文字列の場合は候補一覧から代表ユーザを選択する。
+k8s_helm_operator_user: ""
+
+# Helm操作で使用する共通OSユーザ一覧。
+# 空文字列除外と重複除去を実施した一覧を実行時変数として提供する。
+k8s_runtime_helm_execution_users: >-
+  {{
+    (
+      (k8s_common_helm_execution_users | default([], true))
+      +
+      [k8s_helm_operator_user | default('', true) | string | trim]
+      +
+      [k8s_operator_user | default('', true) | string | trim]
+    )
+    | map('string')
+    | map('trim')
+    | reject('equalto', '')
+    | unique
+    | list
+  }}
+
+# Helm操作で使用する共通代表OSユーザ。
+# 明示指定値を優先し, 未指定時はk8s_operator_userを優先する。
+k8s_runtime_helm_operator_user: >-
+  {{
+    (k8s_helm_operator_user | default('', true) | string | trim)
+    if ((k8s_helm_operator_user | default('', true) | string | trim | length) > 0)
+    else (
+      (k8s_operator_user | default('', true) | string | trim)
+      if (
+        (k8s_operator_user | default('', true) | string | trim)
+        in
+        (k8s_runtime_helm_execution_users | default([], true))
+      )
+      else (k8s_runtime_helm_execution_users | first | default(k8s_operator_user, true))
+    )
+  }}
