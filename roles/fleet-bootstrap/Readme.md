@@ -298,6 +298,8 @@
 
 ##### Kubernetes統合のクラスタ状態情報
 
+[主要変数](#主要変数)に記載している`fleet_bootstrap_k8s_state_`で始まる変数, `fleet_bootstrap_k8s_event_enabled`変数の設定値に応じて, 以下の情報を採取するように設定します:
+
 - `kubernetes.state_deployment`
 - `kubernetes.state_statefulset`
 - `kubernetes.state_pod`
@@ -312,17 +314,19 @@
 - `kubernetes.state_persistentvolumeclaim`
 - `kubernetes.state_resourcequota`
 - `kubernetes.state_service`
+- `kubernetes.state_cronjob`
 
 各項目の意味は, 本書の「[公式ドキュメント](#公式ドキュメント)」節に記載している「統合パッケージ (Elastic integrations)」を参照してください。
 
 ##### 現行で採取対象外の情報
+
+本ロールでは, Kubernetes統合から以下のクラスタ状態情報を採取しないように設定します:
 
 - `kubernetes.container`
 - `kubernetes.pod`
 - `kubernetes.node`
 - `kubernetes.volume`
 - `kubernetes.system`
-- `kubernetes.state_cronjob`
 - `kubernetes.container_logs`
 - `kubernetes.audit_logs`
 - System統合で取得するホスト情報
@@ -338,9 +342,8 @@ Kubernetes統合の入力は, Package Policy で未指定の場合に Fleet が�
 
 重複回避以外の理由で無効化している項目は次のとおりです:
 
-- kube-apiserver-kubernetes/metrics, kube-proxy-kubernetes/metrics, kube-scheduler-kubernetes/metrics, kube-controller-manager-kubernetes/metrics: 制御平面の各コンポーネントへの接続設定を本ロールで管理していないためです。
+- kube-apiserver-kubernetes/metrics, kube-proxy-kubernetes/metrics, kube-scheduler-kubernetes/metrics, kube-controller-manager-kubernetes/metrics: コントロールプレーンノードの各コンポーネントへの接続設定を本ロールで管理していないためです。
 - audit-logs-filestream, audit-logs-aws-cloudwatch, audit-logs-azure-eventhub, audit-logs-gcp-pubsub: `kubernetes.audit_logs` の取得元を本ロールで管理していないためです。
-- kubernetes.state_cronjob: 定期実行管理情報を現行の監視対象としていないためです。
 
 各設定項目の意味は, 本書の「[公式ドキュメント](#公式ドキュメント)」節に記載している「統合パッケージ (Elastic integrations)」を参照してください。
 
@@ -418,6 +421,21 @@ ansible-playbook -i inventory/hosts logging-backend.yml --tags "fleet-server,fle
 | `fleet_bootstrap_fleet_server_host_name` | Fleet Server host 設定へ登録する名称。 | `default-fleet-server-host` | `default-fleet-server-host` |
 | `fleet_bootstrap_fleet_server_host_urls_explicit` | Fleet Server host 設定へ登録する接続先一覧明示指定値。未設定時は Fleet Server のランタイムエンドポイント URL を使用する。 | 空リスト | [`https://fleet.example.org:8220`] |
 | `fleet_bootstrap_enrollment_token_file` | Enrollment Token共有ファイルの制御ホスト上の絶対パス。 | `{{ playbook_dir }}/group_vars/logging_collector/enrollment-token.yml` | `{{ playbook_dir }}/group_vars/logging_collector/enrollment-token.yml` |
+| `fleet_bootstrap_k8s_state_deployment_enabled` | Kubernetes統合Packageからdeployment情報を収集する場合は, trueを指定する。 | `true` | `true` |
+| `fleet_bootstrap_k8s_state_statefulset_enabled` | Kubernetes統合Packageからstatefulset情報を収集する場合は, trueを指定する。 | `true` | `true` |
+| `fleet_bootstrap_k8s_state_pod_enabled` | Kubernetes統合Packageからpod情報を収集する場合は, trueを指定する。 | `true` | `true` |
+| `fleet_bootstrap_k8s_state_node_enabled` | Kubernetes統合Packageからnode情報を収集する場合は, trueを指定する。 | `true` | `true` |
+| `fleet_bootstrap_k8s_state_namespace_enabled` | Kubernetes統合Packageからnamespace情報を収集する場合は, trueを指定する。 | `true` | `true` |
+| `fleet_bootstrap_k8s_event_enabled` | eventを収集する場合は, trueを指定する。 | `true` | `true` |
+| `fleet_bootstrap_k8s_state_daemonset_enabled` | Kubernetes統合Packageからdaemonset情報を収集する場合は, trueを指定する。 | `true` | `true` |
+| `fleet_bootstrap_k8s_state_replicaset_enabled` | Kubernetes統合Packageからreplicaset情報を収集する場合は, trueを指定する。 | `true` | `true` |
+| `fleet_bootstrap_k8s_state_job_enabled` | Kubernetes統合Packageからjob情報を収集する場合は, trueを指定する。 | `true` | `true` |
+| `fleet_bootstrap_k8s_state_storageclass_enabled` | Kubernetes統合Packageからstorageclass情報を収集する場合は, trueを指定する。 | `true` | `true` |
+| `fleet_bootstrap_k8s_state_persistentvolume_enabled` | Kubernetes統合Packageからpersistentvolume情報を収集する場合は, trueを指定する。 | `true` | `true` |
+| `fleet_bootstrap_k8s_state_persistentvolumeclaim_enabled` | Kubernetes統合Packageからpersistentvolumeclaim情報を収集する場合は, trueを指定する。 | `true` | `true` |
+| `fleet_bootstrap_k8s_state_resourcequota_enabled` | Kubernetes統合Packageからresourcequota情報を収集する場合は, trueを指定する。 | `true` | `true` |
+| `fleet_bootstrap_k8s_state_service_enabled` | Kubernetes統合Packageからservice情報を収集する場合は, trueを指定する。 | `true` | `true` |
+| `fleet_bootstrap_k8s_state_cronjob` | Kubernetes統合Packageからcronjob情報を収集する場合は, trueを指定する。 | `false` | `true` |
 | `fleet_bootstrap_debug_auth_diagnostics` | 認証切り分け用の補助 debug 出力有無。通常運用では `false` のままとする。 | `false` | `true` |
 
 #### 設定先別の利用者入力値

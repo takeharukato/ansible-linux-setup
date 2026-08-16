@@ -33,64 +33,64 @@
             enabled: true
             streams:
               kubernetes.state_deployment:
-                enabled: true
+                enabled: "{{ fleet_bootstrap_k8s_state_deployment_enabled | default(false) | bool }}"
                 vars:
                   period: "{{ logging_elastic_agent_k8s_cluster_metrics_period | default('10s') }}"
               kubernetes.state_statefulset:
-                enabled: true
+                enabled: "{{ fleet_bootstrap_k8s_state_statefulset_enabled | default(false) | bool }}"
                 vars:
                   period: "{{ logging_elastic_agent_k8s_cluster_metrics_period | default('10s') }}"
               kubernetes.state_pod:
-                enabled: true
+                enabled: "{{ fleet_bootstrap_k8s_state_pod_enabled | default(false) | bool }}"
                 vars:
                   period: "{{ logging_elastic_agent_k8s_cluster_metrics_period | default('10s') }}"
               kubernetes.state_node:
-                enabled: true
+                enabled: "{{ fleet_bootstrap_k8s_state_node_enabled | default(false) | bool }}"
                 vars:
                   period: "{{ logging_elastic_agent_k8s_cluster_metrics_period | default('10s') }}"
               kubernetes.state_namespace:
-                enabled: true
+                enabled: "{{ fleet_bootstrap_k8s_state_namespace_enabled | default(false) | bool }}"
                 vars:
                   period: "{{ logging_elastic_agent_k8s_cluster_metrics_period | default('10s') }}"
               kubernetes.state_daemonset:
-                enabled: true
+                enabled: "{{ fleet_bootstrap_k8s_state_daemonset_enabled | default(false) | bool }}"
                 vars:
                   period: "{{ logging_elastic_agent_k8s_cluster_metrics_period | default('10s') }}"
               kubernetes.state_replicaset:
-                enabled: true
+                enabled: "{{ fleet_bootstrap_k8s_state_replicaset_enabled | default(false) | bool }}"
                 vars:
                   period: "{{ logging_elastic_agent_k8s_cluster_metrics_period | default('10s') }}"
               kubernetes.state_job:
-                enabled: true
+                enabled: "{{ fleet_bootstrap_k8s_state_job_enabled | default(false) | bool }}"
                 vars:
                   period: "{{ logging_elastic_agent_k8s_cluster_metrics_period | default('10s') }}"
               kubernetes.state_storageclass:
-                enabled: true
+                enabled: "{{ fleet_bootstrap_k8s_state_storageclass_enabled | default(false) | bool }}"
                 vars:
                   period: "{{ logging_elastic_agent_k8s_cluster_metrics_period | default('10s') }}"
               kubernetes.state_persistentvolume:
-                enabled: true
+                enabled: "{{ fleet_bootstrap_k8s_state_persistentvolume_enabled | default(false) | bool }}"
                 vars:
                   period: "{{ logging_elastic_agent_k8s_cluster_metrics_period | default('10s') }}"
               kubernetes.state_persistentvolumeclaim:
-                enabled: true
+                enabled: "{{ fleet_bootstrap_k8s_state_persistentvolumeclaim_enabled | default(false) | bool }}"
                 vars:
                   period: "{{ logging_elastic_agent_k8s_cluster_metrics_period | default('10s') }}"
               kubernetes.state_resourcequota:
-                enabled: true
+                enabled: "{{ fleet_bootstrap_k8s_state_resourcequota_enabled | default(false) | bool }}"
                 vars:
                   period: "{{ logging_elastic_agent_k8s_cluster_metrics_period | default('10s') }}"
               kubernetes.state_service:
-                enabled: true
+                enabled: "{{ fleet_bootstrap_k8s_state_service_enabled | default(false) | bool }}"
                 vars:
                   period: "{{ logging_elastic_agent_k8s_cluster_metrics_period | default('10s') }}"
               kubernetes.state_cronjob:
-                enabled: false
+                enabled: "{{ fleet_bootstrap_k8s_state_cronjob | default(false) | bool }}"
           events-kubernetes/metrics:
             enabled: true
             streams:
               kubernetes.event:
-                enabled: true
+                enabled: "{{ fleet_bootstrap_k8s_event_enabled | default(false) | bool }}"
           # 未指定の入力はFleetが有効として扱うため, 収集対象外のpolicy_templateを明示的に無効化する。
           # kubelet系はノード側Elastic Agentの収集対象と重複し, container-logsはCustom Logs統合と重複するためです。
           kubelet-kubernetes/metrics:

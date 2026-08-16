@@ -117,6 +117,40 @@ logging_elastic_agent_k8s_system_kube_system_log_paths:
   - "/var/log/containers/*_kube-system_*.log"
 
 #
+# Kubernetes統合Package Policy の収集対象
+#
+# Kubernetes統合Packageからdeployment情報を収集する場合は, trueを指定する。
+fleet_bootstrap_k8s_state_deployment_enabled: true
+# Kubernetes統合Packageからstatefulset情報を収集する場合は, trueを指定する。
+fleet_bootstrap_k8s_state_statefulset_enabled: true
+# Kubernetes統合Packageからpod情報を収集する場合は, trueを指定する。
+fleet_bootstrap_k8s_state_pod_enabled: true
+# Kubernetes統合Packageからnode情報を収集する場合は, trueを指定する。
+fleet_bootstrap_k8s_state_node_enabled: true
+# Kubernetes統合Packageからnamespace情報を収集する場合は, trueを指定する。
+fleet_bootstrap_k8s_state_namespace_enabled: true
+# eventを収集する場合は, trueを指定する。
+fleet_bootstrap_k8s_event_enabled: true
+# Kubernetes統合Packageからdaemonset情報を収集する場合は, trueを指定する。
+fleet_bootstrap_k8s_state_daemonset_enabled: true
+# Kubernetes統合Packageからreplicaset情報を収集する場合は, trueを指定する。
+fleet_bootstrap_k8s_state_replicaset_enabled: true
+# Kubernetes統合Packageからjob情報を収集する場合は, trueを指定する。
+fleet_bootstrap_k8s_state_job_enabled: true
+# Kubernetes統合Packageからstorageclass情報を収集する場合は, trueを指定する。
+fleet_bootstrap_k8s_state_storageclass_enabled: true
+# Kubernetes統合Packageからpersistentvolume情報を収集する場合は, trueを指定する。
+fleet_bootstrap_k8s_state_persistentvolume_enabled: true
+# Kubernetes統合Packageからpersistentvolumeclaim情報を収集する場合は, trueを指定する。
+fleet_bootstrap_k8s_state_persistentvolumeclaim_enabled: true
+# Kubernetes統合Packageからresourcequota情報を収集する場合は, trueを指定する。
+fleet_bootstrap_k8s_state_resourcequota_enabled: true
+# Kubernetes統合Packageからservice情報を収集する場合は, trueを指定する。
+fleet_bootstrap_k8s_state_service_enabled: true
+# Kubernetes統合Packageからcronjob情報を収集する場合は, trueを指定する。
+fleet_bootstrap_k8s_state_cronjob: false
+
+#
 # デバッグ動作制御変数
 #
 # 認証切り分け用の補助 debug 出力有無。通常運用では false のままとする
