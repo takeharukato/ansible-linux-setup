@@ -41,6 +41,36 @@ apiServer:
     # IPv4/IPv6いずれのAPIでも,確実に LISTEN させる
     - name: bind-address
       value: "{{ bind_address }}"
+{% if k8s_audit_enabled | default(false, true) | bool %}
+    # Kubernetes API監査ポリシーファイルを指定する
+    - name: audit-policy-file
+      value: "{{ k8s_audit_policy_path }}"
+    # Kubernetes API監査ログの出力先を指定する
+    - name: audit-log-path
+      value: "{{ k8s_audit_log_path }}"
+    # Kubernetes API監査ログを保持する最大日数を指定する
+    - name: audit-log-maxage
+      value: "{{ k8s_audit_log_max_age | string }}"
+    # Kubernetes API監査ログとして保持する最大ファイル数を指定する
+    - name: audit-log-maxbackup
+      value: "{{ k8s_audit_log_max_backup | string }}"
+    # Kubernetes API監査ログ1ファイルの最大サイズをMiB単位で指定する
+    - name: audit-log-maxsize
+      value: "{{ k8s_audit_log_max_size | string }}"
+  extraVolumes:
+    # Kubernetes API監査ポリシーファイルをkube-apiserverへ読み取り専用で公開する
+    - name: audit-policy
+      hostPath: "{{ k8s_audit_policy_path }}"
+      mountPath: "{{ k8s_audit_policy_path }}"
+      readOnly: true
+      pathType: File
+    # Kubernetes API監査ログ格納ディレクトリをkube-apiserverへ読み書き可能な状態で公開する
+    - name: audit-log
+      hostPath: "{{ k8s_audit_log_dir }}"
+      mountPath: "{{ k8s_audit_log_dir }}"
+      readOnly: false
+      pathType: DirectoryOrCreate
+{% endif %}
 controllerManager:
   extraArgs:
     # IPv4/IPv6いずれのAPIでも,確実に LISTEN させる

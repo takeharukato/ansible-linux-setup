@@ -101,3 +101,30 @@ k8s_cilium_helm_chart_version: "{{ k8s_cilium_version }}"
 k8s_cilium_image_version: "v{{ k8s_cilium_version }}"
 # Cilium Helm リポジトリ URL
 k8s_cilium_helm_repo_url: "https://helm.cilium.io/"
+
+# =============================================================
+# Kubernetes API監査設定 (Kubernetes利用時のオプション)
+# Kubernetes API ServerのAudit機能に関する設定
+# Kubernetes API ServerのAudit機能:
+#   https://kubernetes.io/docs/tasks/debug/debug-cluster/audit/
+# =============================================================
+# Kubernetes API監査機能を有効にする場合は true を指定する
+k8s_audit_enabled: false
+#
+# Kubernetes API監査ポリシーファイルのパス
+k8s_audit_policy_path: "/etc/kubernetes/audit-policy.yaml"
+#
+# Kubernetes API監査ログ格納ディレクトリ
+k8s_audit_log_dir: "/var/log/kubernetes/audit"
+#
+# Kubernetes API監査ログファイルのパス
+k8s_audit_log_path: "/var/log/kubernetes/audit/audit.log"
+#
+# Kubernetes API監査ログを保持する最大日数 (単位: 日)
+k8s_audit_log_max_age: 30
+#
+# Kubernetes API監査ログとして保持する最大ファイル数 (単位: 個)
+k8s_audit_log_max_backup: 20
+#
+# Kubernetes API監査ログ1ファイルの最大サイズ (単位: MiB)
+k8s_audit_log_max_size: 200

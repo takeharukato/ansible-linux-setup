@@ -10,31 +10,61 @@
 # 最初に変数設定を読み直す ( role単独で実行可能とするため )
 - name: "Load Params"
   ansible.builtin.include_tasks: load-params.yml
+
+# パッケージ導入処理
 - name: "Package"
   ansible.builtin.include_tasks: package.yml
+
+# ファイル・ディレクトリ作成処理
 - name: "Directory"
   ansible.builtin.include_tasks: directory.yml
+
+# ユーザ・グループ作成処理
 - name: "User Group"
   ansible.builtin.include_tasks: user_group.yml
+
+# サービス設定処理
 - name: "Service"
   ansible.builtin.include_tasks: service.yml
+
+# Kubernetesコントロールプレーンのファイアウォール設定
 - name: "Config K8Sctrlplane Firewall"
   ansible.builtin.include_tasks: config-k8sctrlplane-firewall.yml
   when: enable_firewall | default(false,true)
+
+# Helm設定
 - name: "Config Helm"
   ansible.builtin.include_tasks: config-helm.yml
+
+# Helmのシェル補完設定
 - name: "Config K8S Helm Shell Completion"
   ansible.builtin.include_tasks: config-k8s-helm-shell-completion.yml
+
+# Ciliumのシェル補完設定
 - name: "Config K8S Cilium Shell Completion"
   ansible.builtin.include_tasks: config-k8s-cilium-shell-completion.yml
+
+# Kubernetes Audit設定
+# Kubernetes API監査機能の設定ファイルとログ格納先を準備する
+- name: "Config Kubernetes Audit"
+  ansible.builtin.include_tasks: config-k8s-audit.yml
+  when: k8s_audit_enabled | default(false, true) | bool
+
+# 共通設定
 - name: "Config"
   ansible.builtin.include_tasks: config.yml
+
+# Cilium設定
 - name: "Config Cilium"
   ansible.builtin.include_tasks: config-cilium.yml
+
+# Cilium BGP Control Plane設定
 - name: "Config Cilium Bgp Cplane"
   ansible.builtin.include_tasks: config-cilium-bgp-cplane.yml
   when:
     - k8s_bgp is defined
     - k8s_bgp.enabled | default(false)
+
+# Kubernetes Cluster Mesh 関連ツール設定
 - name: "Config Cluster Mesh Tools"
   ansible.builtin.include_tasks: config-cluster-mesh-tools.yml

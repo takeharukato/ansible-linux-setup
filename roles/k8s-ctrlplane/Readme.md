@@ -18,6 +18,7 @@
       - [主要タグのみ実行](#主要タグのみ実行)
   - [主要変数](#主要変数)
     - [API待機・kubeadm関連](#api待機kubeadm関連)
+    - [Kubernetes API監査関連](#kubernetes-api監査関連)
     - [Cilium/Helm関連](#ciliumhelm関連)
     - [Cilium BGP/Cluster Mesh関連](#cilium-bgpcluster-mesh関連)
     - [共有CA関連](#共有ca関連)
@@ -159,6 +160,7 @@
 | kube-proxy | - | 各Node上でServiceのネットワークルールを管理するコンポーネント。 |
 | etcd | - | KubernetesのKubernetesクラスタ状態を保存する分散Key-Valueストア。 |
 | Container Network Interface | CNI | コンテナ間のネットワーク接続を標準化するプラグイン仕様。 |
+| Kubernetes API監査機能 ( Kubernetes API Audit )| - | Kubernetesクラスター内の一連の行動を記録するセキュリティに関連した時系列の記録を提供する機能。 |
 | Cilium | - | eBPFを活用した高性能なCNIプラグイン。ネットワークポリシーやサービスメッシュ機能を提供します。 |
 | Extended Berkeley Packet Filter | eBPF | Linux カーネル内で安全にプログラムを実行する仕組み。高性能なパケット処理や観測機能の実装に利用される。 |
 | Serviceエンドポイント ( Service Endpoint ) | - | Serviceのバックエンドとして通信を受けるPod, または, 当該の通信を受けるPodに加え, 当該の通信を受けるPodへ通信を届けるためのネットワーク上の転送先情報全体を指す。 |
@@ -200,7 +202,9 @@
 | makeコマンド | make | Makefile に定義された処理を実行するコマンド。 |
 | 対象ホスト | - | Playbook による設定変更や導入処理の適用先となるホスト。 |
 | sudoコマンド | sudo | 一時的に管理者権限でコマンドを実行するためのコマンド。 |
+
 ## 概要
+
 Kubernetes コントロールプレーンノードを構築するロールです。`k8s-common` で整えた共通前提の上に, kubeadm 設定の生成と実行, Cilium の導入, Cluster Mesh 用 kubeconfig 生成ツールの配布, Helm/Cilium CLI 環境整備を行います。IPv4/IPv6 デュアルスタックを前提にしており, 再実行にも対応するよう設計されています。
 
 ## 主な処理
@@ -266,6 +270,53 @@ ansible-playbook -i inventory/hosts k8s-ctrl-plane.yml -t k8s-ctrlplane
 | `k8s_kubeadm_ignore_preflight_errors_arg` | `--ignore-preflight-errors=all` | `kubeadm init` 実行時の preflight 制御。 |
 | `k8s_pod_ipv4_network_cidr` / `k8s_pod_ipv6_network_cidr` | 必須 | Pod ネットワーク CIDR。 |
 | `k8s_pod_ipv4_service_subnet` / `k8s_pod_ipv6_service_subnet` | 必須 | Service CIDR。 |
+
+### Kubernetes API監査関連
+
+Kubernetes API監査機能関連の設定変数を以下に示す:
+
+| 変数名 | 既定値 | 説明 |
+| --- | --- | --- |
+| `k8s_audit_enabled` | `false` | Kubernetes API監査機能を有効化する。 |
+| `k8s_audit_policy_path` | `/etc/kubernetes/audit-policy.yaml` | 監査ポリシーファイルのパス。 |
+| `k8s_audit_log_dir` | `/var/log/kubernetes/audit` | 監査ログ格納ディレクトリ。 |
+| `k8s_audit_log_path` | `/var/log/kubernetes/audit/audit.log` | 監査ログファイルのパス。 |
+| `k8s_audit_log_max_age` | `30` | 古い監査ログを保持する最大日数 (単位:日)。 |
+| `k8s_audit_log_max_backup` | `20` | 保持する監査ログファイルの最大数 (単位:個)。 |
+| `k8s_audit_log_max_size` | `200` | ローテーション前の1ファイルの最大サイズ (単位:MiB)。 |
+
+これらの変数は, `vars/all-config.yml`に設定し, K8sコントロールプレーンノードの設定時に同じ設置値で導入させるようにすることを推奨する。
+
+`vars/all-config.yml`での設定例:
+
+```yaml
+# =============================================================
+# Kubernetes API監査設定 (Kubernetes利用時のオプション)
+# Kubernetes API ServerのAudit機能に関する設定
+# Kubernetes API ServerのAudit機能:
+#   https://kubernetes.io/docs/tasks/debug/debug-cluster/audit/
+# =============================================================
+# Kubernetes API監査機能を有効にする場合は true を指定する
+k8s_audit_enabled: true
+#
+# Kubernetes API監査ポリシーファイルのパス
+k8s_audit_policy_path: "/etc/kubernetes/audit-policy.yaml"
+#
+# Kubernetes API監査ログ格納ディレクトリ
+k8s_audit_log_dir: "/var/log/kubernetes/audit"
+#
+# Kubernetes API監査ログファイルのパス
+k8s_audit_log_path: "/var/log/kubernetes/audit/audit.log"
+#
+# Kubernetes API監査ログを保持する最大日数 (単位:日)
+k8s_audit_log_max_age: 30
+#
+# Kubernetes API監査ログとして保持する最大ファイル数 (単位:個)
+k8s_audit_log_max_backup: 20
+#
+# Kubernetes API監査ログ1ファイルの最大サイズ (単位: MiB)
+k8s_audit_log_max_size: 200
+```
 
 ### Cilium/Helm関連
 
@@ -417,26 +468,27 @@ k8s_bgp:
 
 ### ステップ6: kubeadm 初期化
 
-9. `config.yml` が API ファミリ (IPv4/IPv6) を判定し, Pod/Service CIDR を API ファミリ順に並べ替えて `ctrlplane-kubeadm.config.yml` を生成します。
-10. 同タスクが `kubeadm reset -f` 後に `kubelet` 停止, `/etc/kubernetes/manifests` 削除, `/var/lib/kubelet/cpu_manager_state` 削除を実行します。
-11. `k8s_shared_ca_*` 変数が定義されている場合は共有CAを復元し, `k8s_shared_ca_replace_kube_ca: true` のとき `/etc/kubernetes/pki/ca.crt` と `/etc/kubernetes/pki/ca.key` を置換します。
-12. `kubeadm init --config ...` を実行し, containerd/kubelet を有効化します。その後 `admin.conf` を root, ansible, `k8s_operator_user` に配布して再起動します。
+9. `k8s_audit_enabled: true` の場合, `config-k8s-audit.yml` が Kubernetes API監査ポリシーファイルと監査ログ格納ディレクトリを作成します。
+10. `config.yml` が API ファミリ (IPv4/IPv6) を判定し, Pod/Service CIDR を API ファミリ順に並べ替えて `ctrlplane-kubeadm.config.yml` を生成します。
+11. 同タスクが `kubeadm reset -f` 後に `kubelet` 停止, `/etc/kubernetes/manifests` 削除, `/var/lib/kubelet/cpu_manager_state` 削除を実行します。
+12. `k8s_shared_ca_*` 変数が定義されている場合は共有CAを復元し, `k8s_shared_ca_replace_kube_ca: true` のとき `/etc/kubernetes/pki/ca.crt` と `/etc/kubernetes/pki/ca.key` を置換します。
+13. `kubeadm init --config ...` を実行し, containerd/kubelet を有効化します。その後 `admin.conf` を root, ansible, `k8s_operator_user` に配布して再起動します。
 
 ### ステップ7: Cilium 導入
 
-13. `config-cilium.yml` が API サーバ起動を待機し, `kubernetes-admin` へ cluster-admin 権限を付与します。
-14. 同タスクが kube-proxy のデーモンセット/コンフィグマップと関連 iptables ルールを削除し, `cilium-install.yml` を生成して `helm install cilium` を実行します。
-15. `k8s_cilium_shared_ca_enabled: true` の場合は `k8s-cilium-shared-ca` ロールを実行して Cluster Mesh 用 Secret を整備します。
+14. `config-cilium.yml` が API サーバ起動を待機し, `kubernetes-admin` へ cluster-admin 権限を付与します。
+15. 同タスクが kube-proxy のデーモンセット/コンフィグマップと関連 iptables ルールを削除し, `cilium-install.yml` を生成して `helm install cilium` を実行します。
+16. `k8s_cilium_shared_ca_enabled: true` の場合は `k8s-cilium-shared-ca` ロールを実行して Cluster Mesh 用 Secret を整備します。
 
 ### ステップ8: Cilium BGP Control Plane (任意)
 
-16. `config-cilium-bgp-cplane.yml` は `k8s_bgp.enabled: true` のホストだけで実行されます。
-17. 同タスクは `k8s-common/templates/cilium-bgp-resources.yml.j2` を参照してマニフェストを生成し, Cilium BGP関連CRD (Advertisement/PeerConfig/ClusterConfig) の出現を待ってから `kubectl apply` します。
+17. `config-cilium-bgp-cplane.yml` は `k8s_bgp.enabled: true` のホストだけで実行されます。
+18. 同タスクは `k8s-common/templates/cilium-bgp-resources.yml.j2` を参照してマニフェストを生成し, Cilium BGP関連CRD (Advertisement/PeerConfig/ClusterConfig) の出現を待ってから `kubectl apply` します。
 
 ### ステップ9: Cluster Mesh ツール配布
 
-18. `config-cluster-mesh-tools.yml` が `create-embedded-kubeconfig.py` と手順書を配布します。
-19. `k8s_cilium_cm_cluster_name` と `k8s_cilium_cm_cluster_id` が有効な場合, 共有CAファイルの存在を確認し, 埋め込み kubeconfig を生成して所有者を `k8s_operator_user` に調整します。
+19. `config-cluster-mesh-tools.yml` が `create-embedded-kubeconfig.py` と手順書を配布します。
+20. `k8s_cilium_cm_cluster_name` と `k8s_cilium_cm_cluster_id` が有効な場合, 共有CAファイルの存在を確認し, 埋め込み kubeconfig を生成して所有者を `k8s_operator_user` に調整します。
 
 ### デフォルト動作
 
@@ -721,3 +773,4 @@ kubectl get crd ciliumbgpclusterconfigs.cilium.io
 
 - [Kubernetes](https://kubernetes.io/docs/home/)
 - [kubeadm](https://kubernetes.io/docs/reference/setup-tools/kubeadm/)
+- [Kubernetes API監査機能](https://kubernetes.io/docs/tasks/debug/debug-cluster/audit/)

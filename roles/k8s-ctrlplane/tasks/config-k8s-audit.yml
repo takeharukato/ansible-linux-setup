@@ -1,0 +1,55 @@
+#  -*- coding:utf-8-unix mode:yaml -*-
+#
+#  Ansible playbook
+#
+#  Copyright 2026 Takeharu KATO All Rights Reserved.
+#
+#  Kubernetes API監査機能(Kubernetes API Server Audit 機能設定)
+#  参考: https://kubernetes.io/docs/tasks/debug/debug-cluster/audit/
+#
+
+# Kubernetes API監査機能に必要な設定値が定義されていることを確認する
+- name: Validate Kubernetes audit configuration
+  ansible.builtin.assert:
+    that:
+      - k8s_audit_policy_path is defined
+      - k8s_audit_policy_path | default('', true) | length > 0
+      - k8s_audit_log_dir is defined
+      - k8s_audit_log_dir | default('', true) | length > 0
+      - k8s_audit_log_path is defined
+      - k8s_audit_log_path | default('', true) | length > 0
+      - k8s_audit_log_max_age is defined
+      - k8s_audit_log_max_backup is defined
+      - k8s_audit_log_max_size is defined
+    fail_msg: "Kubernetes audit configuration is incomplete."
+
+# Kubernetes API監査ポリシーファイルの格納ディレクトリを作成する
+- name: Create Kubernetes audit policy directory
+  ansible.builtin.file:
+    path: "{{ k8s_audit_policy_path | dirname }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+  become: true
+
+# Kubernetes API監査ログの格納ディレクトリを作成する
+- name: Create Kubernetes audit log directory
+  ansible.builtin.file:
+    path: "{{ k8s_audit_log_dir }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+  become: true
+#
+# Kubernetes API監査ポリシーファイルを生成する
+- name: Generate Kubernetes audit policy
+  ansible.builtin.template:
+    src: audit-policy.yaml.j2
+    dest: "{{ k8s_audit_policy_path }}"
+    owner: root
+    group: root
+    mode: "0644"
+    backup: false
+  become: true
