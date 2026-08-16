@@ -1,0 +1,126 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  users_list 向けホームディレクトリ解決タスク
+#
+---
+
+# users_list に定義されたユーザごとのホームディレクトリ対応を初期化する。
+- name: Initialize home directory map for users_list
+  ansible.builtin.set_fact:
+    create_users_home_map: {}
+    create_users_home_source_map: {}
+    create_users_home_needs_user_module_fallback_map: {}
+  changed_when: false
+
+# 後続タスクで実ホームを参照できるように, users_list に定義されたユーザの passwd 情報を取得する。
+- name: Resolve passwd entries for users_list
+  ansible.builtin.getent:
+    database: passwd
+    key: "{{ item.name }}"
+    fail_key: false
+  loop: "{{ users_list | default([], true) }}"
+  loop_control:
+    label: "{{ item.name | default('unknown', true) }}"
+  when:
+    - item.name is defined
+    - (item.name | default('', true) | length) > 0
+  register: create_users_home_getent_results
+  changed_when: false
+
+# users_list に home 指定がある場合, getent で実ホームを取得できた場合,
+# user モジュール戻り値へのフォールバックが必要な場合を, 後続判定で再利用できるように map 化する。
+- name: Build home source map for users_list
+  ansible.builtin.set_fact:
+    create_users_home_source_map: >-
+      {{
+        create_users_home_source_map | default({}, true) |
+        combine({
+          item.item.name: (
+            'explicit'
+            if ((item.item.home | default('', true) | string | trim | length) > 0)
+            else (
+              'getent'
+              if (
+                item.ansible_facts.getent_passwd[item.item.name] is defined
+                and (item.ansible_facts.getent_passwd[item.item.name] | length) > 4
+              )
+              else 'user_module'
+            )
+          )
+        })
+      }}
+  loop: "{{ create_users_home_getent_results.results | default([], true) }}"
+  loop_control:
+    label: "{{ item.item.name | default('unknown', true) }}"
+  when:
+    - not item.skipped | default(false)
+    - item.item is defined
+    - item.item.name is defined
+    - item.ansible_facts is defined
+    - item.ansible_facts.getent_passwd is defined
+  changed_when: false
+
+# user モジュール戻り値へのフォールバック要否を明示し, フォールバック不要なロールとの責務差を明確にする。
+- name: Build user module fallback map for users_list
+  ansible.builtin.set_fact:
+    create_users_home_needs_user_module_fallback_map: >-
+      {{
+        create_users_home_needs_user_module_fallback_map | default({}, true) |
+        combine({
+          item.item.name: (
+            (create_users_home_source_map[item.item.name] | default('', true)) == 'user_module'
+          )
+        })
+      }}
+  loop: "{{ create_users_home_getent_results.results | default([], true) }}"
+  loop_control:
+    label: "{{ item.item.name | default('unknown', true) }}"
+  when:
+    - not item.skipped | default(false)
+    - item.item is defined
+    - item.item.name is defined
+  changed_when: false
+
+# users_list に home 指定がある場合はその値を優先し, 未指定時は getent で得た実ホームを使用する。
+# user 作成直後で getent で passwd 情報を取得できない場合のみ, user モジュールの戻り値に含まれる home を使用する。
+- name: Build home directory map for users_list
+  ansible.builtin.set_fact:
+    create_users_home_map: >-
+      {{
+        create_users_home_map | default({}, true) |
+        combine({
+          item.item.name: (
+            (item.item.home | default('', true) | string | trim)
+            if ((create_users_home_source_map[item.item.name] | default('', true)) == 'explicit')
+            else (
+              item.ansible_facts.getent_passwd[item.item.name][4]
+              if ((create_users_home_source_map[item.item.name] | default('', true)) == 'getent')
+              else (
+                create_users_user_create_results.results
+                | default([], true)
+                | selectattr('item.name', 'defined')
+                | selectattr('item.name', 'equalto', item.item.name)
+                | map(attribute='home')
+                | select('defined')
+                | map('string')
+                | map('trim')
+                | reject('equalto', '')
+                | first
+              )
+            )
+          )
+        })
+      }}
+  loop: "{{ create_users_home_getent_results.results | default([], true) }}"
+  loop_control:
+    label: "{{ item.item.name | default('unknown', true) }}"
+  when:
+    - not item.skipped | default(false)
+    - item.item is defined
+    - item.item.name is defined
+    - item.ansible_facts is defined
+    - item.ansible_facts.getent_passwd is defined
+    - (create_users_home_source_map[item.item.name] | default('', true) | length) > 0
+  changed_when: false

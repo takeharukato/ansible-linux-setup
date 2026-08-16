@@ -6,7 +6,11 @@
   vars:
     outer_user_name: "{{ outer_item.name | default('', true) }}"
     outer_user_group: "{{ outer_item.group | default(outer_item.name | default('', true), true) }}"
-    outer_user_home: "{{ outer_item.home | default('/home/' ~ (outer_item.name | default('', true)), true) }}"
+    outer_user_home: >-
+      {{
+        post_user_create_home_map[outer_user_name]
+        | default(outer_item.home | default('', true) | string | trim, true)
+      }}
     outer_user_shell: "{{ outer_item.shell | default('/bin/bash', true) }}"
   ansible.builtin.stat:
     path: "{{ outer_user_home }}/bin/install-emacs-packages.sh"
@@ -19,7 +23,11 @@
   vars:
     outer_user_name: "{{ outer_item.name | default('', true) }}"
     outer_user_group: "{{ outer_item.group | default(outer_item.name | default('', true), true) }}"
-    outer_user_home: "{{ outer_item.home | default('/home/' ~ (outer_item.name | default('', true)), true) }}"
+    outer_user_home: >-
+      {{
+        post_user_create_home_map[outer_user_name]
+        | default(outer_item.home | default('', true) | string | trim, true)
+      }}
   ansible.builtin.file:
     path: "{{ outer_user_home }}/bin"
     state: directory
@@ -37,7 +45,11 @@
   vars:
     outer_user_name: "{{ outer_item.name | default('', true) }}"
     outer_user_group: "{{ outer_item.group | default(outer_item.name | default('', true), true) }}"
-    outer_user_home: "{{ outer_item.home | default('/home/' ~ (outer_item.name | default('', true)), true) }}"
+    outer_user_home: >-
+      {{
+        post_user_create_home_map[outer_user_name]
+        | default(outer_item.home | default('', true) | string | trim, true)
+      }}
   ansible.builtin.copy:
     src: /etc/skel/bin/install-emacs-packages.sh
     dest: "{{ outer_user_home }}/bin/install-emacs-packages.sh"
@@ -57,7 +69,11 @@
   vars:
     outer_user_name: "{{ outer_item.name | default('', true) }}"
     outer_user_group: "{{ outer_item.group | default(outer_item.name | default('', true), true) }}"
-    outer_user_home: "{{ outer_item.home | default('/home/' ~ (outer_item.name | default('', true)), true) }}"
+    outer_user_home: >-
+      {{
+        post_user_create_home_map[outer_user_name]
+        | default(outer_item.home | default('', true) | string | trim, true)
+      }}
     outer_user_shell: "{{ outer_item.shell | default('/bin/bash', true) }}"
   ansible.builtin.shell: |
     set -o pipefail

@@ -68,8 +68,12 @@ FILE_COUNT=$(echo "${EMACS_FILES}" | wc -l)
   vars:
     outer_user_name: "{{ outer_item.name | default('', true) }}"
     outer_user_group: "{{ outer_item.group | default(outer_item.name | default('', true), true) }}"
-    outer_user_home: "{{ outer_item.home | default('/home/' ~ (outer_item.name | default('', true)), true) }}"
-  file:
+    outer_user_home: >-
+      {{
+        post_user_create_home_map[outer_user_name]
+        | default(outer_item.home | default('', true) | string | trim, true)
+      }}
+  ansible.builtin.file:
     path: "{{ outer_user_home }}/.emacs.d/user_settings"
     state: directory
     owner: "{{ outer_user_name }}"
@@ -89,13 +93,17 @@ HEADER
 - name: Deploy ${filename} from template to user home
   vars:
     outer_user_name: "{{ outer_item.name | default('', true) }}"
-    outer_user_home: "{{ outer_item.home | default('/home/' ~ (outer_item.name | default('', true)), true) }}"
-  template:
+    outer_user_home: >-
+      {{
+        post_user_create_home_map[outer_user_name]
+        | default(outer_item.home | default('', true) | string | trim, true)
+      }}
+  ansible.builtin.template:
     src: _emacs_d__${filename}.j2
     dest: "{{ outer_user_home }}/.emacs.d/user_settings/${filename}"
     owner: "{{ outer_user_name }}"
     group: "{{ outer_user_name }}"
-    mode: 0644
+    mode: "0644"
   when:
     - ( outer_user_name | length ) > 0
 EOF

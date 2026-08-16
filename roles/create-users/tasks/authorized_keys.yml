@@ -9,6 +9,7 @@
 - name: Check if users_authorized_keys is defined and not empty
   ansible.builtin.set_fact:
     has_authorized_keys_config: "{{ (users_authorized_keys | default({}, true) | length) > 0 }}"
+    create_users_authorized_keys_home_map: "{{ create_users_home_map | default({}, true) }}"
   changed_when: false
 
 # フェーズ1: ユーザ存在確認
@@ -44,7 +45,7 @@
 #          "name": "alice",
 #          "uid": 1001,
 #          "gid": 1001,
-#          "home": "/home/alice",
+#          "home": "/export/users/alice",
 #          "shell": "/bin/bash"
 #        }
 #      }
@@ -110,7 +111,7 @@
 #   - name: ユーザ名 (item.item.key)
 #   - group: ユーザと同名のグループ
 #   - shell: /bin/bash
-#   - home: /home/ユーザ名
+#   - home: システム既定のホームディレクトリ
 #   - create_home: true
 #   - update_password: on_create
 #   - state: present
@@ -124,7 +125,6 @@
     name: "{{ item.item.key }}"
     group: "{{ item.item.key }}"
     shell: "/bin/bash"
-    home: "/home/{{ item.item.key }}"
     create_home: true
     update_password: on_create
     state: present
@@ -139,6 +139,50 @@
     - item.ansible_facts.getent_passwd is defined
     - item.ansible_facts.getent_passwd[item.item.key] is not defined
   become: true
+  register: authorized_keys_user_create_results
+
+# getent で実ホームを取得できたユーザを, users_authorized_keys 向けホーム対応へ反映する。
+- name: Merge existing users home map for users_authorized_keys
+  ansible.builtin.set_fact:
+    create_users_authorized_keys_home_map: >-
+      {{
+        create_users_authorized_keys_home_map | default({}, true) |
+        combine({item.item.key: item.ansible_facts.getent_passwd[item.item.key][4]})
+      }}
+  loop: "{{ authorized_keys_user_check.results | default([], true) }}"
+  loop_control:
+    label: "{{ item.item.key | default('unknown', true) }}"
+  when:
+    - has_authorized_keys_config | default(false, true)
+    - not item.skipped | default(false)
+    - item.ansible_facts is defined
+    - item.ansible_facts.getent_passwd is defined
+    - item.ansible_facts.getent_passwd[item.item.key] is defined
+    - (item.ansible_facts.getent_passwd[item.item.key] | length) > 4
+  changed_when: false
+
+# 本タスク内で新規作成したユーザは, user モジュール戻り値の home を優先して反映する。
+- name: Merge created users home map for users_authorized_keys
+  ansible.builtin.set_fact:
+    create_users_authorized_keys_home_map: >-
+      {{
+        create_users_authorized_keys_home_map | default({}, true) |
+        combine({
+          item.item.item.key: (item.home | default('', true) | string | trim)
+        })
+      }}
+  loop: "{{ authorized_keys_user_create_results.results | default([], true) }}"
+  loop_control:
+    label: "{{ item.item.item.key | default('unknown', true) }}"
+  when:
+    - has_authorized_keys_config | default(false, true)
+    - not item.skipped | default(false)
+    - item.home is defined
+    - (item.home | default('', true) | string | trim | length) > 0
+    - item.item is defined
+    - item.item.item is defined
+    - item.item.item.key is defined
+  changed_when: false
 
 # フェーズ3a: .ssh ディレクトリ作成
 # .ssh ディレクトリが存在しない場合は作成する
@@ -148,7 +192,7 @@
 #    trueの場合に処理を実行するようにする
 - name: Ensure .ssh directory exists for users_authorized_keys users
   ansible.builtin.file:
-    path: "/home/{{ item.item.key }}/.ssh"
+    path: "{{ create_users_authorized_keys_home_map[item.item.key] }}/.ssh"
     state: directory
     owner: "{{ item.item.key }}"
     group: "{{ item.item.key }}"
@@ -163,13 +207,14 @@
     - item.ansible_facts.getent_passwd is defined
     - (item.ansible_facts.getent_passwd[item.item.key] is defined) or
       (auto_user_add_for_users_authorized_keys | default(false, true))
+    - create_users_authorized_keys_home_map[item.item.key] is defined
   become: true
 
 # フェーズ3b: authorized_keys ファイルの存在確認と作成
 # .ssh/authorized_keys ファイルが存在しない場合は作成する
 - name: Ensure authorized_keys exists for users_authorized_keys users
   ansible.builtin.file:
-    path: "/home/{{ item.item.key }}/.ssh/authorized_keys"
+    path: "{{ create_users_authorized_keys_home_map[item.item.key] }}/.ssh/authorized_keys"
     state: touch
     owner: "{{ item.item.key }}"
     group: "{{ item.item.key }}"
@@ -186,6 +231,7 @@
     - item.ansible_facts.getent_passwd is defined
     - (item.ansible_facts.getent_passwd[item.item.key] is defined) or
       (auto_user_add_for_users_authorized_keys | default(false, true))
+    - create_users_authorized_keys_home_map[item.item.key] is defined
   become: true
 
 # 処理対象ユーザの辞書を構築 (公開鍵を持ち, かつユーザが存在する)
@@ -234,13 +280,14 @@
     user: "{{ item.0.key }}"
     key: "{{ item.1 }}"
     state: present
-    path: "/home/{{ item.0.key }}/.ssh/authorized_keys"
+    path: "{{ create_users_authorized_keys_home_map[item.0.key] }}/.ssh/authorized_keys"
   loop: "{{ authorized_keys_target_dict | default({}, true) | dict2items | subelements('value') }}"
   loop_control:
     label: "{{ item.0.key }}"
   when:
     - has_authorized_keys_config | default(false, true)
     - authorized_keys_target_dict | default({}, true) | length > 0
+    - create_users_authorized_keys_home_map[item.0.key] is defined
   become: true
 
 # フェーズ5: 正規化処理(ソート・重複排除と権限整備)前処理
@@ -249,13 +296,14 @@
 #   2. 取得した内容は item.content に格納される
 - name: Read authorized_keys file
   ansible.builtin.slurp:
-    src: "/home/{{ item }}/.ssh/authorized_keys"
+    src: "{{ create_users_authorized_keys_home_map[item] }}/.ssh/authorized_keys"
   loop: "{{ authorized_keys_target_dict | default({}, true) | dict2items | map(attribute='key') | list }}"
   loop_control:
     label: "{{ item }}"
   when:
     - has_authorized_keys_config | default(false, true)
     - authorized_keys_target_dict | default({}, true) | length > 0
+    - create_users_authorized_keys_home_map[item] is defined
   register: authorized_keys_content
   become: true
 
@@ -268,7 +316,7 @@
 - name: Normalize authorized_keys (sort and remove duplicates)
   ansible.builtin.copy:
     content: "{{ (item.content | b64decode).split('\n') | select() | unique | sort | join('\n') }}\n"
-    dest: "/home/{{ item.item }}/.ssh/authorized_keys"
+    dest: "{{ create_users_authorized_keys_home_map[item.item] }}/.ssh/authorized_keys"
     owner: "{{ item.item }}"
     group: "{{ item.item }}"
     mode: "0600"
@@ -279,4 +327,5 @@
     - has_authorized_keys_config | default(false, true)
     - authorized_keys_target_dict | default({}, true) | length > 0
     - not item.skipped | default(false)
+    - create_users_authorized_keys_home_map[item.item] is defined
   become: true

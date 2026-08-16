@@ -16,7 +16,11 @@
 #
 - name: Deploy .gitconfig for each user
   vars:
-    user_home: "{{ item.home | default('/home/' ~ item.name, true) }}"
+    user_home: >-
+      {{
+        post_user_create_home_map[item.name]
+        | default(item.home | default('', true) | string | trim, true)
+      }}
   ansible.builtin.template:
     src: _gitconfig.j2
     dest: "{{ user_home }}/.gitconfig"

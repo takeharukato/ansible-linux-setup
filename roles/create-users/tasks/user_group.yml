@@ -21,7 +21,7 @@
   vars:
     user_group: "{{ item.group | default(item.name, true) }}"
     user_comment: "{{ item.comment | default(item.name, true) }}"
-    user_home: "{{ item.home | default('/home/' ~ item.name, true) }}"
+    user_home_explicit: "{{ item.home | default('', true) | string | trim }}"
     user_shell: "{{ item.shell | default('/bin/bash', true) }}"
     user_password: "{{ item.password | default(item.name | password_hash('sha512'), true) }}"
     user_update_password: "{{ item.update_password | default('on_create', true) }}"
@@ -32,7 +32,7 @@
     groups:
       - "{{ user_group }}"
     comment: "{{ user_comment }}"
-    home: "{{ user_home }}"
+    home: "{{ user_home_explicit if (user_home_explicit | length) > 0 else omit }}"
     shell: "{{ user_shell }}"
     update_password: "{{ user_update_password }}"
   loop: "{{ users_list | default([], true) }}"
@@ -40,13 +40,29 @@
     - ( users_list | default([], true) | length ) > 0
     - item.name is defined
     - ( item.name | default('', true) | length ) > 0
+  register: create_users_user_create_results
   become: true
 
 # .ssh ディレクトリ作成
 - name: Ensure .ssh directory exists for user
   vars:
     user_group: "{{ item.group | default(item.name, true) }}"
-    user_home: "{{ item.home | default('/home/' ~ item.name, true) }}"
+    user_home: >-
+      {{
+        (
+          create_users_user_create_results.results
+          | default([], true)
+          | selectattr('item.name', 'defined')
+          | selectattr('item.name', 'equalto', item.name)
+          | map(attribute='home')
+          | select('defined')
+          | map('string')
+          | map('trim')
+          | reject('equalto', '')
+          | first
+        )
+        | default(item.home | default('', true) | string | trim, true)
+      }}
   ansible.builtin.file:
     path: "{{ user_home }}/.ssh"
     state: directory
@@ -64,7 +80,22 @@
 - name: Ensure authorized_keys exists for user
   vars:
     user_group: "{{ item.group | default(item.name, true) }}"
-    user_home: "{{ item.home | default('/home/' ~ item.name, true) }}"
+    user_home: >-
+      {{
+        (
+          create_users_user_create_results.results
+          | default([], true)
+          | selectattr('item.name', 'defined')
+          | selectattr('item.name', 'equalto', item.name)
+          | map(attribute='home')
+          | select('defined')
+          | map('string')
+          | map('trim')
+          | reject('equalto', '')
+          | first
+        )
+        | default(item.home | default('', true) | string | trim, true)
+      }}
   ansible.builtin.file:
     path: "{{ user_home }}/.ssh/authorized_keys"
     state: touch
@@ -104,6 +135,23 @@
 
 # URL取得に失敗したユーザのみ, curlで鍵を取得して追補する
 - name: Import authorized key from GitHub (curl fallback when authorized_key URL fetch fails)
+  vars:
+    key_user_home: >-
+      {{
+        (
+          create_users_user_create_results.results
+          | default([], true)
+          | selectattr('item.name', 'defined')
+          | selectattr('item.name', 'equalto', key_result.item.name)
+          | map(attribute='home')
+          | select('defined')
+          | map('string')
+          | map('trim')
+          | reject('equalto', '')
+          | first
+        )
+        | default(key_result.item.home | default('', true) | string | trim, true)
+      }}
   ansible.builtin.shell: |
     set -e
     tmpfile=$(mktemp)
@@ -112,8 +160,8 @@
     curl -fsSL "https://github.com/{{ key_result.item.github }}.keys" -o "$tmpfile"
     if [ -s "$tmpfile" ]; then
       while IFS= read -r key; do
-        if ! grep -Fxq "$key" "/home/{{ key_result.item.name }}/.ssh/authorized_keys" 2>/dev/null; then
-          echo "$key" >> "/home/{{ key_result.item.name }}/.ssh/authorized_keys"
+        if ! grep -Fxq "$key" "{{ key_user_home }}/.ssh/authorized_keys" 2>/dev/null; then
+          echo "$key" >> "{{ key_user_home }}/.ssh/authorized_keys"
           changed=1
         fi
       done < "$tmpfile"
@@ -140,6 +188,23 @@
 # 互換性問題があるため代替実装を使用
 # (HTTPSConnection.__init__()のcert_fileパラメータの変更により失敗)
 - name: Import authorized key from GitHub (curl workaround for Python 3.12+ with Ansible < 2.15)
+  vars:
+    key_user_home: >-
+      {{
+        (
+          create_users_user_create_results.results
+          | default([], true)
+          | selectattr('item.name', 'defined')
+          | selectattr('item.name', 'equalto', item.name)
+          | map(attribute='home')
+          | select('defined')
+          | map('string')
+          | map('trim')
+          | reject('equalto', '')
+          | first
+        )
+        | default(item.home | default('', true) | string | trim, true)
+      }}
   ansible.builtin.shell: |
     set -e
     tmpfile=$(mktemp)
@@ -149,8 +214,8 @@
     if [ -s "$tmpfile" ]; then
       # 既存のキーと重複しないように追加
       while IFS= read -r key; do
-        if ! grep -Fxq "$key" "/home/{{ item.name }}/.ssh/authorized_keys" 2>/dev/null; then
-          echo "$key" >> "/home/{{ item.name }}/.ssh/authorized_keys"
+        if ! grep -Fxq "$key" "{{ key_user_home }}/.ssh/authorized_keys" 2>/dev/null; then
+          echo "$key" >> "{{ key_user_home }}/.ssh/authorized_keys"
           changed=1
         fi
       done < "$tmpfile"

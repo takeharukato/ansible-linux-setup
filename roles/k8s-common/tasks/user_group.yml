@@ -19,12 +19,17 @@
     shell: "{{ k8s_operator_shell }}"
     groups: "{{ k8s_operator_groups_list }}"
     append: true
+  register: k8s_common_operator_user_result
 
 # ホームディレクトリを作成
-- name: "Make /home/{{ k8s_operator_user }} dir"
+- name: "Make {{ k8s_operator_user }} home dir"
+  vars:
+    k8s_operator_home: "{{ k8s_common_operator_user_result.home | default('', true) | string | trim }}"
   ansible.builtin.file:
-    path: "/home/{{ k8s_operator_user }}"
+    path: "{{ k8s_operator_home }}"
     state: directory
     owner: "{{ k8s_operator_user }}"
     group: "{{ k8s_operator_user }}"
     mode: "0755"
+  when:
+    - (k8s_operator_home | length) > 0

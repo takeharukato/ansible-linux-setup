@@ -59,6 +59,28 @@
       }}
   changed_when: false
 
+# 実ユーザのホームディレクトリを取得し, /home固定前提による配布先誤判定を防止する。
+- name: Resolve home directories for kubeconfig distribution users
+  ansible.builtin.getent:
+    database: passwd
+    key: "{{ item }}"
+  loop: "{{ k8s_kubeconfig_distribution_users | default([], true) }}"
+  register: k8s_kubeconfig_distribution_users_getent
+  changed_when: false
+
+# getent結果からホームディレクトリ辞書を作成し, 後続タスクで配布先パスを一貫利用する。
+- name: Build home directory map for kubeconfig distribution users
+  ansible.builtin.set_fact:
+    k8s_kubeconfig_distribution_user_home_map: >-
+      {{
+        k8s_kubeconfig_distribution_user_home_map | default({}, true) |
+        combine({ item.item: item.ansible_facts.getent_passwd[item.item][4] })
+      }}
+  loop: "{{ k8s_kubeconfig_distribution_users_getent.results | default([], true) }}"
+  loop_control:
+    label: "{{ item.item }}"
+  changed_when: false
+
 # オペレータディレクトリ内の CA 埋め込み kubeconfig を整備
 - name: Copy embedded kubeconfig to operator CA path
   ansible.builtin.copy:
@@ -74,7 +96,7 @@
 # Helm実行候補ユーザごとのホームに配布先を準備し, ca-embedded-admin.conf を配置可能にする。
 - name: Ensure kubeconfig directory exists for distribution users
   ansible.builtin.file:
-    path: "/home/{{ item }}/.kube"
+    path: "{{ k8s_kubeconfig_distribution_user_home_map[item] }}/.kube"
     state: directory
     owner: "{{ item }}"
     group: "{{ item }}"
@@ -87,7 +109,7 @@
 - name: Copy embedded kubeconfig to distribution users
   ansible.builtin.copy:
     src: "{{ k8s_kubeconfig_ca_embedded_operator_path }}"
-    dest: "/home/{{ item }}/.kube/{{ k8s_kubeconfig_ca_embedded_filename }}"
+    dest: "{{ k8s_kubeconfig_distribution_user_home_map[item] }}/.kube/{{ k8s_kubeconfig_ca_embedded_filename }}"
     owner: "{{ item }}"
     group: "{{ item }}"
     mode: "0600"
@@ -237,7 +259,7 @@
 - name: Copy merged kubeconfig to distribution users
   ansible.builtin.copy:
     src: "{{ k8s_kubeconfig_merged_system_path }}"
-    dest: "/home/{{ item }}/.kube/{{ k8s_kubeconfig_merged_filename }}"
+    dest: "{{ k8s_kubeconfig_distribution_user_home_map[item] }}/.kube/{{ k8s_kubeconfig_merged_filename }}"
     owner: "{{ item }}"
     group: "{{ item }}"
     mode: "0600"

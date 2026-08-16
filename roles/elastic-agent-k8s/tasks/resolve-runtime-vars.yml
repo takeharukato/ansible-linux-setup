@@ -96,49 +96,62 @@
           | default(elastic_agent_k8s_runtime_helm_execution_users | first, true)
         )
       }}
+
+# Helm代表実行ユーザのホームディレクトリを取得し, /home固定前提でのkubeconfig解決誤りを防止する。
+- name: Resolve home directory for elastic-agent-k8s Helm operator user
+  ansible.builtin.getent:
+    database: passwd
+    key: "{{ elastic_agent_k8s_runtime_helm_operator_user }}"
+  register: elastic_agent_k8s_helm_operator_user_getent
+  changed_when: false
+
+# 実行時kubeconfig参照先を, 明示値優先かつ実ユーザホーム基準で決定する。
+- name: Resolve elastic-agent-k8s runtime kubeconfig path
+  ansible.builtin.set_fact:
     elastic_agent_k8s_runtime_kubeconfig_path: >-
       {{
         (elastic_agent_k8s_kubeconfig_path | default('', true) | string | trim)
         if ((elastic_agent_k8s_kubeconfig_path | default('', true) | string | trim | length) > 0)
         else (
-          '/home/' ~
-          (
-            (
-              (elastic_agent_k8s_helm_operator_user | default('', true) | string | trim)
-              if ((elastic_agent_k8s_helm_operator_user | default('', true) | string | trim | length) > 0)
-              else (
-                k8s_runtime_helm_operator_user
-                | default(elastic_agent_k8s_runtime_helm_execution_users | first, true)
-                | default(k8s_operator_user, true)
-              )
-            )
-          ) ~
-          '/.kube/ca-embedded-admin.conf'
+          elastic_agent_k8s_helm_operator_user_getent.ansible_facts.getent_passwd[elastic_agent_k8s_runtime_helm_operator_user][4]
+          ~ '/.kube/ca-embedded-admin.conf'
         )
       }}
+
+# valuesファイルが接続ユーザのホーム配下を指す場合は, 実行ユーザのホーム配下へ置換して参照を一致させる。
+- name: Resolve elastic-agent-k8s runtime values file path
+  ansible.builtin.set_fact:
     elastic_agent_k8s_runtime_values_file_path: >-
       {{
         (
           elastic_agent_k8s_runtime_values_file_path
           | regex_replace(
-              '^/home/' ~ (ansible_user | default('', true) | string | trim) ~ '/',
-              '/home/' ~ (
-                (elastic_agent_k8s_helm_operator_user | default('', true) | string | trim)
-                if ((elastic_agent_k8s_helm_operator_user | default('', true) | string | trim | length) > 0)
-                else (
-                  k8s_runtime_helm_operator_user
-                  | default(elastic_agent_k8s_runtime_helm_execution_users | first, true)
-                  | default(k8s_operator_user, true)
-                )
-              ) ~ '/'
+              '^' ~
+              (
+                ansible_facts.getent_passwd[ansible_user | default('', true) | string | trim][4]
+                | regex_escape
+              )
+              ~ '/',
+              elastic_agent_k8s_helm_operator_user_getent.ansible_facts.getent_passwd[elastic_agent_k8s_runtime_helm_operator_user][4] ~ '/'
             )
         )
         if (
           (ansible_user | default('', true) | string | trim | length) > 0
           and
+          (ansible_facts.getent_passwd is defined)
+          and
+          (ansible_facts.getent_passwd[ansible_user | default('', true) | string | trim] is defined)
+          and
           (
             elastic_agent_k8s_runtime_values_file_path
-            is match('^/home/' ~ (ansible_user | default('', true) | string | trim) ~ '/.*')
+            is match(
+              '^' ~
+              (
+                ansible_facts.getent_passwd[ansible_user | default('', true) | string | trim][4]
+                | regex_escape
+              )
+              ~ '/.*'
+            )
           )
         )
         else elastic_agent_k8s_runtime_values_file_path

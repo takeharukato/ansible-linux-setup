@@ -1,0 +1,52 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  post-user-create 向けホームディレクトリ解決タスク
+#
+---
+
+# users_list に定義されたユーザごとのホームディレクトリ対応を初期化する。
+- name: Initialize home directory map for post-user-create
+  ansible.builtin.set_fact:
+    post_user_create_home_map: {}
+  changed_when: false
+
+# 既存ユーザ後処理で実ホームを参照できるように, users_list に定義されたユーザの passwd 情報を取得する。
+- name: Resolve passwd entries for post-user-create users
+  ansible.builtin.getent:
+    database: passwd
+    key: "{{ item.name }}"
+  loop: "{{ users_list | default([], true) }}"
+  loop_control:
+    label: "{{ item.name | default('unknown', true) }}"
+  when:
+    - item.name is defined
+    - (item.name | default('', true) | length) > 0
+  register: post_user_create_home_getent_results
+  changed_when: false
+
+# users_list に home 指定がある場合はその値を優先し, 未指定時は getent で得た実ホームを使用する。
+- name: Build home directory map for post-user-create users
+  ansible.builtin.set_fact:
+    post_user_create_home_map: >-
+      {{
+        post_user_create_home_map | default({}, true) |
+        combine({
+          item.item.name: (
+            (item.item.home | default('', true) | string | trim)
+            if ((item.item.home | default('', true) | string | trim | length) > 0)
+            else item.ansible_facts.getent_passwd[item.item.name][4]
+          )
+        })
+      }}
+  loop: "{{ post_user_create_home_getent_results.results | default([], true) }}"
+  loop_control:
+    label: "{{ item.item.name | default('unknown', true) }}"
+  when:
+    - not item.skipped | default(false)
+    - item.item is defined
+    - item.item.name is defined
+    - item.ansible_facts is defined
+    - item.ansible_facts.getent_passwd is defined
+  changed_when: false

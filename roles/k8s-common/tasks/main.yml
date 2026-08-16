@@ -37,6 +37,9 @@
   ansible.builtin.include_tasks: config.yml
 - name: "User Group"
   ansible.builtin.include_tasks: user_group.yml
+# k8s オペレータユーザ作成後の実ホームを後続処理で共有する。
+- name: "Resolve Operator Home"
+  ansible.builtin.include_tasks: resolve-operator-home.yml
 - name: "Config K8S Operator Authorized Keys"
   ansible.builtin.include_tasks: config-k8s-operator-authorized_keys.yml
 - name: "Service"

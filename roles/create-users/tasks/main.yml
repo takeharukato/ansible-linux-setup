@@ -17,5 +17,8 @@
   ansible.builtin.include_tasks: config.yml
 - name: "User Group"
   ansible.builtin.include_tasks: user_group.yml
+# users_list に定義されたユーザの実ホームを後続処理で共有する。
+- name: "Resolve Users Home Map"
+  ansible.builtin.include_tasks: resolve-users-home-map.yml
 - name: "Authorized Keys"
   ansible.builtin.include_tasks: authorized_keys.yml

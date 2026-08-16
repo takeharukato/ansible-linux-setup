@@ -130,7 +130,7 @@
 | グループ | group | ファイルやディレクトリに割り当てられたグループ属性, 複数ユーザの権限グループ化に使用 |
 | 実行権限 | executable permission | ファイルが実行可能可否を設定するパーミッション, シェルスクリプトやバイナリを実行するために必要 |
 | passwd データベース | - | OS のユーザ情報を保管するシステムデータベース, ユーザ名, UID, GID, GECOS などを格納 |
-| getent | - | システムの名前解決データベースを参照するコマンド。 |
+| `getent` | - | システムの名前解決データベースを参照するコマンド。 |
 | General Electric Comprehensive Operating System | GECOS | Unixパスワードファイルのユーザ情報フィールド, フルネームやオフィス情報を格納 |
 | Git | - | 分散バージョン管理システム, ソースコード変更の履歴管理と協業を支援 |
 | .gitconfig | - | Git の設定ファイル, ユーザの個人設定 (user.name, user.email など) を格納 |
@@ -335,8 +335,9 @@ bash roles/post-user-create/tasks/generate-emacs-settings.sh roles/post-user-cre
 4. **ユーザ・グループ管理** (user_group.yml): 現在は空実装です。将来的にユーザ・グループ操作が必要な場合に使用します。
 5. **サービス管理** (service.yml): 現在は空実装です。将来的にサービス管理が必要な場合に使用します。
 6. **設定ファイル配置** (config.yml): `/etc/skel/bin/install-emacs-packages.sh` をテンプレートから生成します。
-7. **Emacsパッケージ管理** (emacs-package.yml, 条件付き): `create_emacs_package_install_script` が `true` で `create_user_emacs_package_list` に1要素以上定義されている場合に実行されます。
-8. **Git設定ファイル作成** (gitconfig.yml, 条件付き): `post_user_create_gitconfig_enabled` が `true` の場合に実行されます。
+7. **実ホームディレクトリ解決** (resolve-users-home-map.yml): `users_list` の `home` 指定を優先し, 未指定時は `getent` で取得した実ホームディレクトリを `post_user_create_home_map` へ記録します。
+8. **Emacsパッケージ管理** (emacs-package.yml, 条件付き): `create_emacs_package_install_script` が `true` で `create_user_emacs_package_list` に1要素以上定義されている場合に実行されます。
+9. **Git設定ファイル作成** (gitconfig.yml, 条件付き): `post_user_create_gitconfig_enabled` が `true` の場合に実行されます。
 
 ## 検証ポイント
 
@@ -348,7 +349,7 @@ bash roles/post-user-create/tasks/generate-emacs-settings.sh roles/post-user-cre
 
 **コマンド:**
 ```bash
-ls -la /home/username/.gitconfig
+ls -la ~username/.gitconfig
 ```
 
 **期待される出力例:**
@@ -369,7 +370,7 @@ ls -la /home/username/.gitconfig
 
 **コマンド:**
 ```bash
-cat /home/username/.gitconfig
+cat ~username/.gitconfig
 ```
 
 **期待される出力例 (post_user_create_gitconfig_use_login_name: true の場合):**
@@ -401,7 +402,7 @@ cat /home/username/.gitconfig
 
 **コマンド:**
 ```bash
-ls -la /home/username/bin/install-emacs-packages.sh
+ls -la ~username/bin/install-emacs-packages.sh
 ```
 
 **期待される出力例:**
@@ -425,7 +426,7 @@ ls -la /home/username/bin/install-emacs-packages.sh
 
 **コマンド:**
 ```bash
-head -15 /home/username/bin/install-emacs-packages.sh
+head -15 ~username/bin/install-emacs-packages.sh
 ```
 
 **期待される出力例:**
@@ -458,7 +459,7 @@ script=`mktemp`.sh
 
 **コマンド:**
 ```bash
-ls -la /home/username/.emacs.d/user_settings/
+ls -la ~username/.emacs.d/user_settings/
 ```
 
 **期待される出力例 (一部抜粋):**
@@ -491,7 +492,7 @@ drwxr-xr-x 4 username username 4096  3月  7 10:30 ..
 **コマンド:**
 ```bash
 # パッケージディレクトリを直接確認
-ls -1 /home/username/.emacs.d/elpa/
+ls -1 ~username/.emacs.d/elpa/
 ```
 
 **期待される出力例 (例: dockerfile-mode, markdown-mode, yaml-mode を指定した場合):**
@@ -519,7 +520,7 @@ yaml-mode-20231211.732
 ```bash
 ansible-playbook -i inventory/hosts site.yml --tags "post-user-create" -vv
 grep -n 'post_user_create_gitconfig_enabled\|post_user_create_gitconfig_use_login_name' vars/all-config.yml host_vars/*.yml
-ls -la /home/username/.gitconfig
+ls -la ~username/.gitconfig
 ```
 
 **確認ポイント**:
@@ -552,13 +553,13 @@ ls -la /etc/skel/bin/install-emacs-packages.sh
 **実行するコマンド**:
 
 ```bash
-ls -la /home/username/.emacs.d/user_settings/
+ls -la ~username/.emacs.d/user_settings/
 grep -n 'emacs_optional_settings_files' roles/post-user-create/defaults/main.yml
 ```
 
 **確認ポイント**:
 
-- `/home/username/.emacs.d/user_settings/` にオプション設定ファイルが配置されていること。
+- `~username/.emacs.d/user_settings/` にオプション設定ファイルが配置されていること。
 - `emacs_optional_settings_files` に定義したファイル名と配置結果が一致していること。
 - 所有者とグループが対象ユーザに設定されていること。
 
@@ -570,8 +571,8 @@ grep -n 'emacs_optional_settings_files' roles/post-user-create/defaults/main.yml
 
 ```bash
 grep -n 'create_user_emacs_package_list\|create_emacs_package_install_script' vars/all-config.yml host_vars/*.yml
-ls -la /home/username/bin/install-emacs-packages.sh
-ls -1 /home/username/.emacs.d/elpa/
+ls -la ~username/bin/install-emacs-packages.sh
+ls -1 ~username/.emacs.d/elpa/
 ```
 
 **確認ポイント**:
@@ -587,6 +588,7 @@ ls -1 /home/username/.emacs.d/elpa/
 - `post_user_create_gitconfig_enabled` を `true` に設定した場合は, 各ユーザのホームディレクトリに `.gitconfig` を作成するため, 既存 `.gitconfig` の上書き要否を事前に確認すること。
 - `post_user_create_gitconfig_use_login_name` を `false` に設定した場合は, passwd データベースから取得した GECOS フィールドを `user.name` に使用するため, 対象ユーザの GECOS 情報が運用上の表示名として適切であること。
 - GECOS フィールド参照位置は `vars/cross-distro.yml` の `getent_passwd_field_gecos` で定義されるため, ディストリビューション差異がある環境では `getent_passwd_field_gecos_debian` と `getent_passwd_field_gecos_rhel` の設定値を確認すること。
+- `users_list` で `home` を未指定にした場合は, 既存ユーザのホームディレクトリをシステム情報から解決して使用するため, 事前に対象ユーザのホームディレクトリ設定が適切に設定されていることを確認すること。
 - `create_user_emacs_package_list` が空又は未定義の場合は Emacs パッケージ導入処理をスキップするため, 自動導入が必要な場合はパッケージ名を定義すること。
 - `install-emacs-packages.sh` の生成は本ロールで実施しますが, スクリプト実行は利用者操作であるため, 導入完了判定時は実行有無を分けて確認すること。
 

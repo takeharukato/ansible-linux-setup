@@ -181,6 +181,10 @@
     - "kubelet_restarted_and_enabled"
     - "reboot_node_handler"
 
+# 単一ユーザ向け kubeconfig 配置で実ホームを参照できるように, k8s オペレータホームを解決する。
+- name: Include k8s operator home resolution tasks on control plane
+  ansible.builtin.include_tasks:
+    file: resolve-operator-home.yml
 
 - name: Create kubeconfig directory structure
   block:
@@ -202,7 +206,7 @@
 
     - name: "Make .kube dir for {{ k8s_operator_user }}"
       ansible.builtin.file:
-        path: "/home/{{ k8s_operator_user }}/.kube"
+        path: "{{ k8s_operator_home_resolved }}/.kube"
         state: directory
         owner: "{{ k8s_operator_user }}"
         group: "{{ k8s_operator_user }}"
@@ -230,16 +234,16 @@
         mode: "0644"
         state: file
 
-    - name: Copy admin config to /home/{{ k8s_operator_user }}/.kube directory
+    - name: Copy admin config to {{ k8s_operator_user }} .kube directory
       ansible.builtin.shell: |
-        cp {{ k8s_embed_kubeconfig_admin_conf }} "/home/{{ k8s_operator_user }}/.kube/config"
+        cp {{ k8s_embed_kubeconfig_admin_conf }} "{{ k8s_operator_home_resolved }}/.kube/config"
       become: true
       register: _result
       changed_when: _result.rc == 0
 
-    - name: Change owner of "/home/{{ k8s_operator_user }}/.kube/config"
+    - name: Change owner of {{ k8s_operator_user }} .kube config
       ansible.builtin.file:
-        path: "/home/{{ k8s_operator_user }}/.kube/config"
+        path: "{{ k8s_operator_home_resolved }}/.kube/config"
         mode: "0644"
         owner: "{{ k8s_operator_user }}"
         group: "{{ k8s_operator_user }}"

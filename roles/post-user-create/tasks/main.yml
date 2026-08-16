@@ -22,6 +22,9 @@
   ansible.builtin.include_tasks: service.yml
 - name: "Config"
   ansible.builtin.include_tasks: config.yml
+# users_list に定義されたユーザの実ホームを後続の配布タスクで共有する。
+- name: "Resolve Users Home Map"
+  ansible.builtin.include_tasks: resolve-users-home-map.yml
 # Emacs パッケージ導入タスク
 # 本ロールでは, .emacs.d/user_settings/ 配下へのemacs初期化ファイルの例を
 # user-settings ロールで提供し, 本ロールではパッケージ導入を行う

@@ -87,19 +87,26 @@
       }}
   changed_when: false
 
+# 複数ユーザ配布で実ホームを参照できるように, 配布対象ユーザのホーム対応を解決する。
+- name: Include distribution user home resolution tasks for worker
+  ansible.builtin.include_tasks:
+    file: resolve-distribution-user-home-map.yml
+
+# 複数ユーザ配布先の実ホームを使用し, /home 固定前提による配置先不整合を防止する。
 - name: Ensure kubeconfig directory exists for distribution users on worker
   ansible.builtin.file:
-    path: "/home/{{ item }}/.kube"
+    path: "{{ k8s_kubeconfig_distribution_user_home_map[item] }}/.kube"
     state: directory
     owner: "{{ item }}"
     group: "{{ item }}"
     mode: "0700"
   loop: "{{ k8s_kubeconfig_distribution_users | default([], true) }}"
 
+# 複数ユーザ配布先の実ホームを使用し, 統合 kubeconfig の参照先を実環境と一致させる。
 - name: Deploy merged kubeconfig to distribution users on worker
   ansible.builtin.copy:
     src: "{{ k8s_kubeconfig_local_cache_file }}"
-    dest: "/home/{{ item }}/.kube/{{ k8s_kubeconfig_merged_filename }}"
+    dest: "{{ k8s_kubeconfig_distribution_user_home_map[item] }}/.kube/{{ k8s_kubeconfig_merged_filename }}"
     owner: "{{ item }}"
     group: "{{ item }}"
     mode: "0600"
