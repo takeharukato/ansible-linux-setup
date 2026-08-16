@@ -21,7 +21,7 @@
   until: elastic_agent_k8s_helm_version_result.rc == 0
   retries: "{{ elastic_agent_k8s_runtime_helm_retries | int }}"
   delay: "{{ elastic_agent_k8s_runtime_helm_request_interval_seconds | int }}"
-  loop: "{{ elastic_agent_k8s_runtime_helm_execution_users | default([], true) }}"
+  loop: "{{ k8s_runtime_helm_execution_users | default([], true) }}"
   loop_control:
     label: "{{ item }}"
 
@@ -31,7 +31,7 @@
     argv:
       - sudo
       - -u
-      - "{{ elastic_agent_k8s_runtime_helm_operator_user }}"
+      - "{{ k8s_runtime_helm_operator_user }}"
       - kubectl
       - version
       - --client=true

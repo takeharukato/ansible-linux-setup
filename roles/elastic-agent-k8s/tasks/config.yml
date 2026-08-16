@@ -6,16 +6,6 @@
 #
 ---
 
-# Elastic Agent for Kubernetes 用の Helm values ファイルを生成する。
-- name: Setup elastic-agent-k8s Helm values file
-  ansible.builtin.template:
-    src: values.yaml.j2
-    dest: "{{ elastic_agent_k8s_runtime_values_file_path }}"
-    owner: "{{ elastic_agent_k8s_runtime_helm_operator_user }}"
-    group: "{{ elastic_agent_k8s_runtime_helm_operator_user }}"
-    mode: "0644"
-    backup: false
-  become: true
 
 # Helmテンプレート描画を先に実行し, Chartとvaluesの整合性を導入前に確認する。
 - name: Render elastic-agent-k8s Helm template
@@ -23,7 +13,7 @@
     argv:
       - sudo
       - -u
-      - "{{ elastic_agent_k8s_runtime_helm_operator_user }}"
+      - "{{ k8s_runtime_helm_operator_user }}"
       - helm
       - template
       - "{{ elastic_agent_k8s_runtime_release_name }}"
@@ -63,7 +53,7 @@
     argv:
       - sudo
       - -u
-      - "{{ elastic_agent_k8s_runtime_helm_operator_user }}"
+      - "{{ k8s_runtime_helm_operator_user }}"
       - helm
       - status
       - "{{ elastic_agent_k8s_runtime_release_name }}"
@@ -84,7 +74,7 @@
     argv:
       - sudo
       - -u
-      - "{{ elastic_agent_k8s_runtime_helm_operator_user }}"
+      - "{{ k8s_runtime_helm_operator_user }}"
       - helm
       - status
       - "{{ elastic_agent_k8s_runtime_release_name }}"
@@ -160,7 +150,7 @@
     argv:
       - sudo
       - -u
-      - "{{ elastic_agent_k8s_runtime_helm_operator_user }}"
+      - "{{ k8s_runtime_helm_operator_user }}"
       - kubectl
       - --kubeconfig
       - "{{ elastic_agent_k8s_runtime_kubeconfig_path }}"
@@ -183,7 +173,7 @@
     argv:
       - sudo
       - -u
-      - "{{ elastic_agent_k8s_runtime_helm_operator_user }}"
+      - "{{ k8s_runtime_helm_operator_user }}"
       - helm
       - uninstall
       - "{{ elastic_agent_k8s_runtime_release_name }}"
@@ -206,7 +196,7 @@
     argv:
       - sudo
       - -u
-      - "{{ elastic_agent_k8s_runtime_helm_operator_user }}"
+      - "{{ k8s_runtime_helm_operator_user }}"
       - helm
       - status
       - "{{ elastic_agent_k8s_runtime_release_name }}"
@@ -242,7 +232,7 @@
     argv:
       - sudo
       - -u
-      - "{{ elastic_agent_k8s_runtime_helm_operator_user }}"
+      - "{{ k8s_runtime_helm_operator_user }}"
       - helm
       - upgrade
       - --install
@@ -276,7 +266,7 @@
     argv:
       - sudo
       - -u
-      - "{{ elastic_agent_k8s_runtime_helm_operator_user }}"
+      - "{{ k8s_runtime_helm_operator_user }}"
       - helm
       - status
       - "{{ elastic_agent_k8s_runtime_release_name }}"
@@ -299,7 +289,7 @@
     argv:
       - sudo
       - -u
-      - "{{ elastic_agent_k8s_runtime_helm_operator_user }}"
+      - "{{ k8s_runtime_helm_operator_user }}"
       - helm
       - status
       - "{{ elastic_agent_k8s_runtime_release_name }}"
@@ -373,7 +363,7 @@
     argv:
       - sudo
       - -u
-      - "{{ elastic_agent_k8s_runtime_helm_operator_user }}"
+      - "{{ k8s_runtime_helm_operator_user }}"
       - kubectl
       - --kubeconfig
       - "{{ elastic_agent_k8s_runtime_kubeconfig_path }}"
@@ -397,7 +387,7 @@
     argv:
       - sudo
       - -u
-      - "{{ elastic_agent_k8s_runtime_helm_operator_user }}"
+      - "{{ k8s_runtime_helm_operator_user }}"
       - helm
       - uninstall
       - "{{ elastic_agent_k8s_runtime_release_name }}"
@@ -438,7 +428,7 @@
     argv:
       - sudo
       - -u
-      - "{{ elastic_agent_k8s_runtime_helm_operator_user }}"
+      - "{{ k8s_runtime_helm_operator_user }}"
       - helm
       - upgrade
       - --install

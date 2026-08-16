@@ -1,4 +1,4 @@
-#  -*- coding:utf-8 mode:yaml -*-
+#  -*- coding:utf-8 mode:yaml;  -*-
 #  Ansible playbook
 #  Copyright 2020 Takeharu KATO All Rights Reserved.
 #
@@ -6,36 +6,24 @@
 #
 ---
 
-# Elastic Agent for Kubernetes 用の Helmリポジトリを導入する。
-- name: Setup Helm Repository for elastic-agent-k8s
-  ansible.builtin.command:
-    argv:
-      - sudo
-      - -u
-      - "{{ elastic_agent_k8s_runtime_helm_operator_user }}"
-      - helm
-      - repo
-      - add
-      - "{{ elastic_agent_k8s_runtime_helm_repo_name }}"
-      - "{{ elastic_agent_k8s_runtime_helm_repo_url }}"
-      - --force-update
-  register: elastic_agent_k8s_helm_repo_add_result
-  changed_when: false
-  become: true
+# Helmリポジトリを登録する
+- name: Add Helm repository for elastic-agent-k8s
+  ansible.builtin.include_tasks: helm-add-repository.yml
+  loop: "{{ k8s_runtime_helm_execution_users }}"
+  loop_control:
+    loop_var: user
+    label: "{{ user | default('', true) | string | trim }}"
 
-# Helmリポジトリ導入後にリポジトリ更新処理を実行し, Chartの最新情報を取得する。
-- name: Update Helm Repository for elastic-agent-k8s
-  ansible.builtin.command:
-    argv:
-      - sudo
-      - -u
-      - "{{ elastic_agent_k8s_runtime_helm_operator_user }}"
-      - helm
-      - repo
-      - update
-  register: elastic_agent_k8s_helm_repo_update_result
+# 後続のHelm templateとupgradeが代表実行ユーザ自身のvaluesファイルを使用するため, 実ホーム配下の配置先を再設定する。
+# passwd 配列のユーザ名を除く5番目の要素はホームディレクトリであり, その配下へ kubeadm/elastic-agent-k8s/values.yaml を連結する (elastic_agent_k8s_helm_operator_user_getent.ansible_facts.getent_passwd[k8s_runtime_helm_operator_user][4] ~ '/kubeadm/elastic-agent-k8s/values.yaml')。
+- name: Resolve elastic-agent-k8s runtime values file path for Helm operator user
+  ansible.builtin.set_fact:
+    elastic_agent_k8s_runtime_values_file_path: >-
+      {{
+        elastic_agent_k8s_helm_operator_user_getent.ansible_facts.getent_passwd[k8s_runtime_helm_operator_user][4]
+        ~ '/kubeadm/elastic-agent-k8s/values.yaml'
+      }}
   changed_when: false
-  become: true
 
 # Helm実行ユーザの参照先へ対象リポジトリが登録済みであることを確認し, 後続のtemplate失敗を事前に防止する。
 - name: Verify Helm Repository for elastic-agent-k8s is visible to Helm operator user
@@ -43,7 +31,7 @@
     argv:
       - sudo
       - -u
-      - "{{ elastic_agent_k8s_runtime_helm_operator_user }}"
+      - "{{ k8s_runtime_helm_operator_user }}"
       - helm
       - repo
       - list
@@ -67,4 +55,4 @@
         ) > 0
     fail_msg: >-
       Helm repository '{{ elastic_agent_k8s_runtime_helm_repo_name }}' is not visible to
-      user '{{ elastic_agent_k8s_runtime_helm_operator_user }}'.
+      user '{{ k8s_runtime_helm_operator_user }}'.

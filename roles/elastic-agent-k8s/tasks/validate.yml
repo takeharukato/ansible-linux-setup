@@ -41,9 +41,9 @@
       - elastic_agent_k8s_runtime_helm_retries | int > 0
       - elastic_agent_k8s_runtime_helm_retry_interval_seconds | int >= 0
       - elastic_agent_k8s_runtime_helm_request_interval_seconds | int >= 0
-      - (elastic_agent_k8s_runtime_helm_execution_users | default([], true) | length) > 0
-      - elastic_agent_k8s_runtime_helm_operator_user | default('', true) | string | trim | length > 0
-      - elastic_agent_k8s_runtime_helm_operator_user in (elastic_agent_k8s_runtime_helm_execution_users | default([], true))
+      - (k8s_runtime_helm_execution_users | default([], true) | length) > 0
+      - k8s_runtime_helm_operator_user | default('', true) | string | trim | length > 0
+      - k8s_runtime_helm_operator_user in (k8s_runtime_helm_execution_users | default([], true))
     fail_msg: >-
       Invalid elastic-agent-k8s settings. Set valid chart version format,
       namespace, kubeconfig absolute path, Fleet Server URL, Enrollment Token,

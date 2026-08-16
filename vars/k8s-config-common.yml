@@ -31,10 +31,12 @@ k8s_kubeadm_config_store: "{{ ansible_home_dir }}/kubeadm"
 k8s_admin_kubeconfig_path: "/etc/kubernetes/admin.conf"
 
 # Helm操作を許可する共通OSユーザ一覧。
-# 既定ではansible_userとk8s_operator_userを候補として保持する。
+# 既定ではansible_userを候補として保持する。
+# kubeユーザを追加する場合は, 以下を追加する
+#   - "{{ k8s_operator_user | default('', true) | string | trim }}"
 k8s_common_helm_execution_users:
-  - "{{ k8s_operator_user | default('', true) | string | trim }}"
   - "{{ ansible_user | default('', true) | string | trim }}"
+
 
 # Helm実行時に代表OSユーザを明示指定する場合の共通変数。
 # 空文字列の場合は候補一覧から代表ユーザを選択する。
@@ -59,18 +61,30 @@ k8s_runtime_helm_execution_users: >-
   }}
 
 # Helm操作で使用する共通代表OSユーザ。
-# 明示指定値を優先し, 未指定時はk8s_operator_userを優先する。
+# 明示指定値を優先し, 未指定時はansible_userを優先する。
 k8s_runtime_helm_operator_user: >-
   {{
     (k8s_helm_operator_user | default('', true) | string | trim)
     if ((k8s_helm_operator_user | default('', true) | string | trim | length) > 0)
     else (
-      (k8s_operator_user | default('', true) | string | trim)
+      (ansible_user | default('', true) | string | trim)
       if (
-        (k8s_operator_user | default('', true) | string | trim)
+        (ansible_user | default('', true) | string | trim)
         in
         (k8s_runtime_helm_execution_users | default([], true))
       )
-      else (k8s_runtime_helm_execution_users | first | default(k8s_operator_user, true))
+      else (k8s_runtime_helm_execution_users | first | default(ansible_user, true))
     )
   }}
+
+#
+# k8s関連ロール共通のネットワークCIDR設定
+#
+# 物理サーバ/管理用VMネットワークのIPv4ネットワークアドレスとプレフィクス長から算出したCIDR値。
+# vars/all-config.ymlのnetwork_ipv4_network_address, network_ipv4_prefix_lenを基に計算する。
+# k8s関連ロールのみが使用するため, 各ロールのresolve-runtime-vars.ymlがランタイム変数
+# (k8s_network_ipv4_cidr_runtime)へ複製し, タスクとテンプレートは複製後の変数のみを参照する。
+k8s_network_ipv4_cidr_base: "{{ network_ipv4_network_address }}/{{ network_ipv4_prefix_len }}"
+# 物理サーバ/管理用VMネットワークのIPv6ネットワークアドレスとプレフィクス長から算出したCIDR値。
+# vars/all-config.ymlのnetwork_ipv6_network_address, network_ipv6_prefix_lenを基に計算する。
+k8s_network_ipv6_cidr_base: "{{ network_ipv6_network_address }}/{{ network_ipv6_prefix_len }}"

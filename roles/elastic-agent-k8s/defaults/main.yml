@@ -20,17 +20,12 @@ elastic_agent_k8s_helm_retry_interval_seconds: 5
 # Kubernetes API 及び Helm 状態確認のリクエスト発行間隔 (単位: 秒)。
 elastic_agent_k8s_helm_request_interval_seconds: 5
 
-# Helm実行を許可するOSユーザ一覧。
-elastic_agent_k8s_helm_execution_users: []
-# Helm実行時にsudo -uで指定する代表OSユーザ。未指定時はhelm_execution_usersの先頭を使用する。
-elastic_agent_k8s_helm_operator_user: ""
-
 # Fleet Server 接続先URLの明示指定値。空文字列の場合は共通設定から組み立てる。
 elastic_agent_k8s_fleet_server_url_explicit: ""
 # Enrollment Token 明示指定値。空文字列の場合は共有ファイル又はホスト変数から取得する。
 elastic_agent_k8s_enrollment_token: ""
 # Fleet Server へのTLS接続時に証明書検証を省略する場合は true を指定する。
-elastic_agent_k8s_insecure: false
+elastic_agent_k8s_insecure: true
 
 # clusterWide 構成の Elastic Agent Pod に適用する resources 辞書。
 # DiskPressure 環境でも待機失敗を抑制するため,
@@ -38,22 +33,10 @@ elastic_agent_k8s_insecure: false
 elastic_agent_k8s_clusterwide_resources:
   limits:
     ephemeral-storage: 2Gi
-    memory: 800Mi
+    memory: 1Gi
   requests:
     cpu: 100m
     ephemeral-storage: 512Mi
-    memory: 400Mi
-
-# perNode 構成の Elastic Agent Pod に適用する resources 辞書。
-# DiskPressure 環境でもスケジューラとkubeletの判定を安定させるため,
-# ephemeral-storage の request/limit を明示する。
-elastic_agent_k8s_pernode_resources:
-  limits:
-    ephemeral-storage: 3Gi
-    memory: 1000Mi
-  requests:
-    cpu: 100m
-    ephemeral-storage: 1Gi
     memory: 400Mi
 
 # kube-state-metrics Pod に適用する resources 辞書。

@@ -1,0 +1,93 @@
+#  -*- coding:utf-8-unix mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  Helmリポジトリ登録関連タスク
+#
+---
+
+# Elastic Agent for Kubernetes 用の Helmリポジトリを導入する。
+- name: Setup Helm Repository for elastic-agent-k8s
+  ansible.builtin.command:
+    argv:
+      - sudo
+      - -u
+      - "{{ user }}"
+      - helm
+      - repo
+      - add
+      - "{{ elastic_agent_k8s_runtime_helm_repo_name }}"
+      - "{{ elastic_agent_k8s_runtime_helm_repo_url }}"
+      - --force-update
+  register: elastic_agent_k8s_helm_repo_add_result
+  changed_when: false
+  become: true
+  when:
+    - (elastic_agent_k8s_runtime_helm_repo_name | string | trim | length) > 0
+    - (elastic_agent_k8s_runtime_helm_repo_url | string | trim | length) > 0
+    - ( user | default('', true) | string | trim | length ) > 0
+
+# Helmリポジトリ導入後にリポジトリ更新処理を実行し, Chartの最新情報を取得する。
+- name: Update Helm Repository for elastic-agent-k8s
+  ansible.builtin.command:
+    argv:
+      - sudo
+      - -u
+      - "{{ user }}"
+      - helm
+      - repo
+      - update
+  register: elastic_agent_k8s_helm_repo_update_result
+  changed_when: false
+  become: true
+  when:
+    - ( user | default('', true) | string | trim | length ) > 0
+
+# valuesファイルのユーザホームを安全に判定する
+- name: "Resolve home directory for {{ user }}"
+  ansible.builtin.getent:
+    database: passwd
+    key: "{{ user | default('', true) | string | trim }}"
+  register: elastic_agent_k8s_current_user_getent
+  changed_when: false
+  when:
+    - (user | default('', true) | string | trim | length) > 0
+
+# userの実ホーム配下にvaluesファイルを配置し, ユーザごとのHelm設定から同じパスを参照できるようにする。
+# passwd 配列のユーザ名を除く5番目の要素はホームディレクトリであり, その配下へ kubeadm/elastic-agent-k8s/values.yaml を連結する (elastic_agent_k8s_current_user_getent.ansible_facts.getent_passwd[user | default('', true) | string | trim][4] ~ '/kubeadm/elastic-agent-k8s/values.yaml')。
+- name: Resolve elastic-agent-k8s runtime values file path for {{ user }}
+  ansible.builtin.set_fact:
+    elastic_agent_k8s_runtime_values_file_path: >-
+      {{
+        elastic_agent_k8s_current_user_getent.ansible_facts.getent_passwd[user | default('', true) | string | trim][4]
+        ~ '/kubeadm/elastic-agent-k8s/values.yaml'
+      }}
+  when:
+    - (user | default('', true) | string | trim | length) > 0
+    - (elastic_agent_k8s_current_user_getent is defined)
+    - (elastic_agent_k8s_current_user_getent.ansible_facts is defined)
+    - (elastic_agent_k8s_current_user_getent.ansible_facts.getent_passwd is defined)
+    - (elastic_agent_k8s_current_user_getent.ansible_facts.getent_passwd[user | default('', true) | string | trim] is defined)
+
+# valuesファイルの親ディレクトリを対象ユーザへ所有させ, Helm実行時の読み書き権限を確保する。
+- name: Create elastic-agent-k8s Helm values directory
+  ansible.builtin.file:
+    path: "{{ elastic_agent_k8s_runtime_values_file_path | dirname }}"
+    state: directory
+    owner: "{{ user }}"
+    group: "{{ user }}"
+    mode: "0755"
+  become: true
+
+# Elastic Agent for Kubernetes 用の Helm values ファイルを生成する。
+- name: Setup elastic-agent-k8s Helm values file
+  ansible.builtin.template:
+    src: values.yaml.j2
+    dest: "{{ elastic_agent_k8s_runtime_values_file_path }}"
+    owner: "{{ user }}"
+    group: "{{ user }}"
+    mode: "0644"
+    backup: false
+  become: true
+  when:
+    - ( user | default('', true) | string | trim | length ) > 0

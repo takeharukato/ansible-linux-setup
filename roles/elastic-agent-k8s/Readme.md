@@ -17,7 +17,6 @@
       - [任意入力値](#任意入力値)
       - [辞書形式変数の既定値と設定例](#辞書形式変数の既定値と設定例)
         - [elastic\_agent\_k8s\_clusterwide\_resources](#elastic_agent_k8s_clusterwide_resources)
-        - [elastic\_agent\_k8s\_pernode\_resources](#elastic_agent_k8s_pernode_resources)
         - [elastic\_agent\_k8s\_kube\_state\_metrics\_resources](#elastic_agent_k8s_kube_state_metrics_resources)
     - [設定例](#設定例)
   - [テンプレートと生成ファイル](#テンプレートと生成ファイル)
@@ -274,7 +273,6 @@ ansible-playbook -i inventory/hosts logging-collector.yml
 | `elastic_agent_k8s_fleet_server_url_explicit` | Fleet Server 接続先 URL 明示指定値。 | 空文字列 | `https://fleet.example.org:8220` |
 | `elastic_agent_k8s_insecure` | Fleet Server 接続時の証明書検証省略フラグ。 | `false` | `false` |
 | `elastic_agent_k8s_clusterwide_resources` | clusterWide 構成の Elastic Agent Pod に適用する resources 辞書。 | [elastic_agent_k8s_clusterwide_resources](#elastic_agent_k8s_clusterwide_resources) を参照してください。 | [elastic_agent_k8s_clusterwide_resources](#elastic_agent_k8s_clusterwide_resources) を参照してください。 |
-| `elastic_agent_k8s_pernode_resources` | perNode 構成の Elastic Agent Pod に適用する resources 辞書。 | [elastic_agent_k8s_pernode_resources](#elastic_agent_k8s_pernode_resources) を参照してください。 | [elastic_agent_k8s_pernode_resources](#elastic_agent_k8s_pernode_resources) を参照してください。 |
 | `elastic_agent_k8s_kube_state_metrics_resources` | kube-state-metrics Pod に適用する resources 辞書。 | [elastic_agent_k8s_kube_state_metrics_resources](#elastic_agent_k8s_kube_state_metrics_resources) を参照してください。 | [elastic_agent_k8s_kube_state_metrics_resources](#elastic_agent_k8s_kube_state_metrics_resources) を参照してください。 |
 
 #### 辞書形式変数の既定値と設定例
@@ -287,16 +285,6 @@ ansible-playbook -i inventory/hosts logging-collector.yml
 | `limits.memory` | Pod が使用できるメモリの上限値を指定します。 | `800Mi` | `1200Mi` |
 | `requests.cpu` | Pod が要求する CPU の下限値を指定します。 | `100m` | `200m` |
 | `requests.ephemeral-storage` | Pod が要求する一時領域の下限値を指定します。 | `512Mi` | `1Gi` |
-| `requests.memory` | Pod が要求するメモリの下限値を指定します。 | `400Mi` | `600Mi` |
-
-##### elastic_agent_k8s_pernode_resources
-
-| 辞書のキー | 設定する内容 | 既定値 | 設定例 |
-| --- | --- | --- | --- |
-| `limits.ephemeral-storage` | Pod が使用できる一時領域の上限値を指定します。 | `3Gi` | `4Gi` |
-| `limits.memory` | Pod が使用できるメモリの上限値を指定します。 | `1000Mi` | `1200Mi` |
-| `requests.cpu` | Pod が要求する CPU の下限値を指定します。 | `100m` | `200m` |
-| `requests.ephemeral-storage` | Pod が要求する一時領域の下限値を指定します。 | `1Gi` | `2Gi` |
 | `requests.memory` | Pod が要求するメモリの下限値を指定します。 | `400Mi` | `600Mi` |
 
 ##### elastic_agent_k8s_kube_state_metrics_resources
@@ -317,8 +305,8 @@ ansible-playbook -i inventory/hosts logging-collector.yml
 3: elastic_agent_k8s_helm_retries: 3
 4: elastic_agent_k8s_helm_retry_interval_seconds: 5
 5: elastic_agent_k8s_helm_request_interval_seconds: 5
-6: elastic_agent_k8s_fleet_server_url_explicit: "https://fleet.example.org:8220"
-7: elastic_agent_k8s_insecure: false
+6: elastic_agent_k8s_fleet_server_url_explicit: "http://fleet.example.org:8220"
+7: elastic_agent_k8s_insecure: true
 8: elastic_agent_k8s_clusterwide_resources:
 9:   limits:
 10:     ephemeral-storage: "2Gi"
@@ -327,20 +315,12 @@ ansible-playbook -i inventory/hosts logging-collector.yml
 13:     cpu: "200m"
 14:     ephemeral-storage: "512Mi"
 15:     memory: "600Mi"
-16: elastic_agent_k8s_pernode_resources:
+16: elastic_agent_k8s_kube_state_metrics_resources:
 17:   limits:
-18:     ephemeral-storage: "3Gi"
-19:     memory: "1200Mi"
-20:   requests:
-21:     cpu: "200m"
-22:     ephemeral-storage: "1Gi"
-23:     memory: "600Mi"
-24: elastic_agent_k8s_kube_state_metrics_resources:
-25:   limits:
-26:     memory: "512Mi"
-27:   requests:
-28:     cpu: "100m"
-29:     memory: "256Mi"
+18:     memory: "512Mi"
+19:   requests:
+20:     cpu: "100m"
+21:     memory: "256Mi"
 ```
 
 | 行番号 | 設定値 | 有効になる動作 | 設定背景(未設定時/誤設定時の問題と防止理由) |
@@ -349,8 +329,7 @@ ansible-playbook -i inventory/hosts logging-collector.yml
 | 2-5 | タイムアウト値, 再試行回数, 再試行周期, リクエスト発行間隔 | 一時的な接続失敗時に, 指定した周期と間隔で所定回数の再試行を実施します。 | 値が不適切な場合は早期失敗又は過剰待機が発生するためです。 |
 | 6-7 | Fleet Server接続先URL, 証明書検証省略フラグ | Fleet Server 登録先と接続方式を指定します。 | URL不整合又は検証設定不整合で登録処理が失敗するためです。 |
 | 8-15 | `elastic_agent_k8s_clusterwide_resources` | clusterWide 構成の Elastic Agent Pod が使用する CPU, メモリ, 一時領域の要求値及び上限値を指定します。 | 値が未指定又は不適切な場合は, Pod の資源割当が不足し, 稼働が不安定になるためです。 |
-| 16-23 | `elastic_agent_k8s_pernode_resources` | perNode 構成の Elastic Agent Pod が使用する CPU, メモリ, 一時領域の要求値及び上限値を指定します。 | 値が未指定又は不適切な場合は, ノード条件により Pod が退避され, 導入待機が完了しないためです。 |
-| 24-29 | `elastic_agent_k8s_kube_state_metrics_resources` | kube-state-metrics Pod が使用する CPU とメモリの要求値及び上限値を指定します。 | 値が未指定又は不適切な場合は, クラスタ状態情報収集処理が遅延又は停止するためです。 |
+| 16-21 | `elastic_agent_k8s_kube_state_metrics_resources` | kube-state-metrics Pod が使用する CPU とメモリの要求値及び上限値を指定します。 | 値が未指定又は不適切な場合は, クラスタ状態情報収集処理が遅延又は停止するためです。 |
 
 ## テンプレートと生成ファイル
 
@@ -396,7 +375,7 @@ values.yamlファイルは, Helm 実行ユーザに合わせて実行時に決�
 ```yaml
 1: elastic_agent_k8s_enabled: true
 2: elastic_agent_k8s_fleet_server_url_explicit: "https://fleet.example.org:8220"
-3: elastic_agent_k8s_insecure: false
+3: elastic_agent_k8s_insecure: true
 ```
 
 | 行番号 | 設定値 | 有効になる動作 | 設定背景(未設定時/誤設定時の問題と防止理由) |
@@ -439,7 +418,7 @@ deployed
 
 **実行するコマンド**:
 
-`elastic_agent_k8s_helm_operator_user`変数 で指定されたユーザを使用します。未指定時は Kubernetes 共通設定で解決された Helm 実行ユーザを使用し, 共通設定が未指定の場合は `k8s_operator_user`変数で指定されたユーザ(既定:`kube`)を使用します。`${HOME}` は実行ユーザのホームディレクトリを指します。
+Kubernetes 共通設定で解決された Helm 実行ユーザを使用し, 共通設定が未指定の場合は `k8s_operator_user`変数で指定されたユーザ(既定:`kube`)を使用します。`${HOME}` は実行ユーザのホームディレクトリを指します。
 
 ```bash
 kubectl --kubeconfig "${HOME}/.kube/ca-embedded-admin.conf" -n kube-system get deployment -l app.kubernetes.io/instance=elastic-agent-k8s
@@ -527,7 +506,7 @@ $
 
 **実行するコマンド**:
 
-`elastic_agent_k8s_helm_operator_user`変数 で指定されたユーザを使用します。未指定時は Kubernetes 共通設定で解決された Helm 実行ユーザを使用し, 共通設定が未指定の場合は `k8s_operator_user`変数で指定されたユーザ(既定:`kube`)を使用します。`${HOME}` は実行ユーザのホームディレクトリを指します。
+Kubernetes 共通設定で解決された Helm 実行ユーザを使用し, 共通設定が未指定の場合は `k8s_operator_user`変数で指定されたユーザ(既定:`kube`)を使用します。`${HOME}` は実行ユーザのホームディレクトリを指します。
 
 ```bash
 kubectl --kubeconfig "${HOME}/.kube/ca-embedded-admin.conf" -n kube-system get deployment -l app.kubernetes.io/instance=elastic-agent-k8s -o wide
