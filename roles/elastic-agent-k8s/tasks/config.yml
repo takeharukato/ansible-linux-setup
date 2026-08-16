@@ -236,8 +236,8 @@
       Helm release is still in pending state after cleanup.
       Resolve in-progress install/upgrade/rollback before retrying upgrade.
 
-# 検証済みテンプレートと同一入力で導入し, 待機付きで適用完了を確認する。
-- name: Install or upgrade elastic-agent-k8s via Helm
+# 検証済みテンプレートと同一入力で導入し, まず初回適用結果を取得する。
+- name: Install or upgrade elastic-agent-k8s via Helm (first attempt)
   ansible.builtin.command:
     argv:
       - sudo
@@ -260,11 +260,232 @@
       - "{{ elastic_agent_k8s_runtime_helm_timeout_seconds | int }}s"
       - -f
       - "{{ elastic_agent_k8s_runtime_values_file_path }}"
-  register: elastic_agent_k8s_helm_upgrade_result
+  register: elastic_agent_k8s_helm_upgrade_first_result
+  failed_when: false
   become: true
   changed_when: >-
     (
-      'STATUS: deployed' in (elastic_agent_k8s_helm_upgrade_result.stdout | default('', true))
+      'STATUS: deployed' in (elastic_agent_k8s_helm_upgrade_first_result.stdout | default('', true))
     ) or (
-      'STATUS: upgraded' in (elastic_agent_k8s_helm_upgrade_result.stdout | default('', true))
+      'STATUS: upgraded' in (elastic_agent_k8s_helm_upgrade_first_result.stdout | default('', true))
     )
+
+# 初回失敗時は現在のrelease状態を再取得し, 再試行前の解消処理要否を判断する。
+- name: Get elastic-agent-k8s Helm release status after failed first attempt
+  ansible.builtin.command:
+    argv:
+      - sudo
+      - -u
+      - "{{ elastic_agent_k8s_runtime_helm_operator_user }}"
+      - helm
+      - status
+      - "{{ elastic_agent_k8s_runtime_release_name }}"
+      - --namespace
+      - "{{ elastic_agent_k8s_runtime_namespace }}"
+      - --kubeconfig
+      - "{{ elastic_agent_k8s_runtime_kubeconfig_path }}"
+      - -o
+      - json
+  register: elastic_agent_k8s_failed_upgrade_status_result
+  changed_when: false
+  failed_when: false
+  become: true
+  when:
+    - elastic_agent_k8s_helm_upgrade_first_result.rc != 0
+
+# 初回失敗後に uninstalling 状態であれば, 状態遷移完了まで待機して競合を回避する。
+- name: Wait for uninstalling release state before retry
+  ansible.builtin.command:
+    argv:
+      - sudo
+      - -u
+      - "{{ elastic_agent_k8s_runtime_helm_operator_user }}"
+      - helm
+      - status
+      - "{{ elastic_agent_k8s_runtime_release_name }}"
+      - --namespace
+      - "{{ elastic_agent_k8s_runtime_namespace }}"
+      - --kubeconfig
+      - "{{ elastic_agent_k8s_runtime_kubeconfig_path }}"
+      - -o
+      - json
+  register: elastic_agent_k8s_status_wait_uninstalling_for_retry_result
+  changed_when: false
+  failed_when: false
+  become: true
+  until: >-
+    elastic_agent_k8s_status_wait_uninstalling_for_retry_result.rc != 0
+    or
+    (
+      (elastic_agent_k8s_status_wait_uninstalling_for_retry_result.stdout | from_json).info.status
+      != 'uninstalling'
+    )
+  retries: "{{ elastic_agent_k8s_runtime_helm_retries | int }}"
+  delay: "{{ elastic_agent_k8s_runtime_helm_request_interval_seconds | int }}"
+  when:
+    - elastic_agent_k8s_helm_upgrade_first_result.rc != 0
+    - elastic_agent_k8s_failed_upgrade_status_result.rc == 0
+    - (elastic_agent_k8s_failed_upgrade_status_result.stdout | from_json).info.status == 'uninstalling'
+
+# 初回失敗後の実効状態を1つに集約し, pendingまたはuninstalledの解消処理へ接続する。
+- name: Select effective failed-upgrade Helm release status
+  ansible.builtin.set_fact:
+    elastic_agent_k8s_failed_upgrade_status_effective_result: >-
+      {{
+        elastic_agent_k8s_status_wait_uninstalling_for_retry_result
+        if (
+          elastic_agent_k8s_failed_upgrade_status_result.rc == 0
+          and
+          (elastic_agent_k8s_failed_upgrade_status_result.stdout | from_json).info.status == 'uninstalling'
+        )
+        else elastic_agent_k8s_failed_upgrade_status_result
+      }}
+  when:
+    - elastic_agent_k8s_helm_upgrade_first_result.rc != 0
+
+# 初回失敗後に pending / uninstalled 状態を検出した場合だけ, 再試行前の解消処理を有効化する。
+- name: Decide cleanup flags after failed first attempt
+  ansible.builtin.set_fact:
+    elastic_agent_k8s_should_delete_pending_secret_after_failed_upgrade: >-
+      {{
+        elastic_agent_k8s_failed_upgrade_status_effective_result.rc == 0
+        and
+        (
+          (elastic_agent_k8s_failed_upgrade_status_effective_result.stdout | from_json).info.status
+          in ['pending-install', 'pending-upgrade', 'pending-rollback']
+        )
+      }}
+    elastic_agent_k8s_should_uninstall_existing_release_after_failed_upgrade: >-
+      {{
+        elastic_agent_k8s_failed_upgrade_status_effective_result.rc == 0
+        and
+        (
+          (elastic_agent_k8s_failed_upgrade_status_effective_result.stdout | from_json).info.status
+          == 'uninstalled'
+        )
+      }}
+  when:
+    - elastic_agent_k8s_helm_upgrade_first_result.rc != 0
+
+# 初回失敗後に pending 状態が残る場合は, 対象revisionのrelease secretを削除して再試行可能状態へ戻す。
+- name: Delete pending Helm release secret before retry
+  ansible.builtin.command:
+    argv:
+      - sudo
+      - -u
+      - "{{ elastic_agent_k8s_runtime_helm_operator_user }}"
+      - kubectl
+      - --kubeconfig
+      - "{{ elastic_agent_k8s_runtime_kubeconfig_path }}"
+      - --namespace
+      - "{{ elastic_agent_k8s_runtime_namespace }}"
+      - delete
+      - secret
+      - >-
+        sh.helm.release.v1.{{ elastic_agent_k8s_runtime_release_name }}.v{{ (elastic_agent_k8s_failed_upgrade_status_effective_result.stdout | from_json).version }}
+  register: elastic_agent_k8s_pending_secret_delete_after_failed_upgrade_result
+  changed_when: elastic_agent_k8s_pending_secret_delete_after_failed_upgrade_result.rc == 0
+  failed_when: elastic_agent_k8s_pending_secret_delete_after_failed_upgrade_result.rc != 0
+  become: true
+  when:
+    - elastic_agent_k8s_helm_upgrade_first_result.rc != 0
+    - elastic_agent_k8s_should_delete_pending_secret_after_failed_upgrade | bool
+
+# 初回失敗後に uninstalled 状態の場合は, release情報を削除して再導入前提を揃える。
+- name: Uninstall existing elastic-agent-k8s Helm release before retry
+  ansible.builtin.command:
+    argv:
+      - sudo
+      - -u
+      - "{{ elastic_agent_k8s_runtime_helm_operator_user }}"
+      - helm
+      - uninstall
+      - "{{ elastic_agent_k8s_runtime_release_name }}"
+      - --namespace
+      - "{{ elastic_agent_k8s_runtime_namespace }}"
+      - --kubeconfig
+      - "{{ elastic_agent_k8s_runtime_kubeconfig_path }}"
+      - --ignore-not-found
+  register: elastic_agent_k8s_helm_uninstall_after_failed_upgrade_result
+  changed_when: >-
+    'uninstall' in (elastic_agent_k8s_helm_uninstall_after_failed_upgrade_result.stdout | default('', true) | lower)
+  failed_when: elastic_agent_k8s_helm_uninstall_after_failed_upgrade_result.rc != 0
+  become: true
+  when:
+    - elastic_agent_k8s_helm_upgrade_first_result.rc != 0
+    - elastic_agent_k8s_should_uninstall_existing_release_after_failed_upgrade | bool
+
+# 再試行前に pending 状態が残っていないことを検証し, 進行中操作と競合する再実行を防止する。
+- name: Assert elastic-agent-k8s Helm release is not pending before retry
+  ansible.builtin.assert:
+    that:
+      - >-
+        elastic_agent_k8s_failed_upgrade_status_effective_result.rc != 0
+        or
+        (
+          (elastic_agent_k8s_failed_upgrade_status_effective_result.stdout | from_json).info.status
+          not in ['pending-install', 'pending-upgrade', 'pending-rollback']
+        )
+    fail_msg: >-
+      Helm release is still in pending state after failed-upgrade cleanup.
+      Resolve in-progress install/upgrade/rollback before retrying upgrade.
+  when:
+    - elastic_agent_k8s_helm_upgrade_first_result.rc != 0
+
+# 初回失敗時のみ, 状態解消後に同一入力でupgrade処理を再試行する。
+- name: Install or upgrade elastic-agent-k8s via Helm (retry after cleanup)
+  ansible.builtin.command:
+    argv:
+      - sudo
+      - -u
+      - "{{ elastic_agent_k8s_runtime_helm_operator_user }}"
+      - helm
+      - upgrade
+      - --install
+      - "{{ elastic_agent_k8s_runtime_release_name }}"
+      - "{{ elastic_agent_k8s_runtime_chart_ref }}"
+      - --namespace
+      - "{{ elastic_agent_k8s_runtime_namespace }}"
+      - --create-namespace
+      - --version
+      - "{{ elastic_agent_k8s_runtime_chart_version }}"
+      - --kubeconfig
+      - "{{ elastic_agent_k8s_runtime_kubeconfig_path }}"
+      - --wait
+      - --timeout
+      - "{{ elastic_agent_k8s_runtime_helm_timeout_seconds | int }}s"
+      - -f
+      - "{{ elastic_agent_k8s_runtime_values_file_path }}"
+  register: elastic_agent_k8s_helm_upgrade_retry_result
+  failed_when: false
+  become: true
+  until: elastic_agent_k8s_helm_upgrade_retry_result.rc == 0
+  retries: "{{ elastic_agent_k8s_runtime_helm_retries | int }}"
+  delay: "{{ elastic_agent_k8s_runtime_helm_retry_interval_seconds | int }}"
+  changed_when: >-
+    (
+      'STATUS: deployed' in (elastic_agent_k8s_helm_upgrade_retry_result.stdout | default('', true))
+    ) or (
+      'STATUS: upgraded' in (elastic_agent_k8s_helm_upgrade_retry_result.stdout | default('', true))
+    )
+  when:
+    - elastic_agent_k8s_helm_upgrade_first_result.rc != 0
+
+# 初回成功時は初回結果を採用し, 初回失敗時は再試行結果を採用して最終結果を統一する。
+- name: Select effective Helm upgrade result
+  ansible.builtin.set_fact:
+    elastic_agent_k8s_helm_upgrade_result: >-
+      {{
+        elastic_agent_k8s_helm_upgrade_retry_result
+        if (elastic_agent_k8s_helm_upgrade_first_result.rc != 0)
+        else elastic_agent_k8s_helm_upgrade_first_result
+      }}
+
+# 最終的にupgradeが成功していることを検証し, 失敗時はstderrを付けて停止する。
+- name: Assert elastic-agent-k8s Helm upgrade succeeded
+  ansible.builtin.assert:
+    that:
+      - elastic_agent_k8s_helm_upgrade_result.rc == 0
+    fail_msg: >-
+      Helm upgrade failed for elastic-agent-k8s.
+      stderr={{ elastic_agent_k8s_helm_upgrade_result.stderr | default('', true) }}

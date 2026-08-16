@@ -33,14 +33,15 @@ elastic_agent_k8s_enrollment_token: ""
 elastic_agent_k8s_insecure: false
 
 # clusterWide 構成の Elastic Agent Pod に適用する resources 辞書。
-# 既定値は elastic/elastic-agent Chart 8.19 系の clusterWide 既定値へ合わせる。
+# DiskPressure 環境でも待機失敗を抑制するため,
+# ephemeral-storage の request/limit を引き上げて明示する。
 elastic_agent_k8s_clusterwide_resources:
   limits:
-    ephemeral-storage: 1Gi
+    ephemeral-storage: 2Gi
     memory: 800Mi
   requests:
     cpu: 100m
-    ephemeral-storage: 256Mi
+    ephemeral-storage: 512Mi
     memory: 400Mi
 
 # perNode 構成の Elastic Agent Pod に適用する resources 辞書。
@@ -48,11 +49,11 @@ elastic_agent_k8s_clusterwide_resources:
 # ephemeral-storage の request/limit を明示する。
 elastic_agent_k8s_pernode_resources:
   limits:
-    ephemeral-storage: 2Gi
+    ephemeral-storage: 3Gi
     memory: 1000Mi
   requests:
     cpu: 100m
-    ephemeral-storage: 512Mi
+    ephemeral-storage: 1Gi
     memory: 400Mi
 
 # kube-state-metrics Pod に適用する resources 辞書。

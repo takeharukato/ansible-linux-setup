@@ -118,7 +118,20 @@
         )
       }}
 
+# valuesファイルの接続ユーザ側ホームを安全に判定するため, 接続ユーザの実ホームを取得する。
+- name: Resolve home directory for ansible connection user
+  ansible.builtin.getent:
+    database: passwd
+    key: "{{ ansible_user | default('', true) | string | trim }}"
+  register: elastic_agent_k8s_ansible_user_getent
+  changed_when: false
+  when:
+    - (ansible_user | default('', true) | string | trim | length) > 0
+
 # valuesファイルが接続ユーザのホーム配下を指す場合は, 実行ユーザのホーム配下へ置換して参照を一致させる。
+# 正規表現`^<接続ユーザ実ホーム>/`は, 先頭一致で接続ユーザ実ホーム配下のみを対象にする。
+# 例: /home/ansible/kubeadm/elastic-agent-k8s/values.yaml の先頭 /home/ansible/ を置換し,
+# /home/kube/kubeadm/elastic-agent-k8s/values.yaml へ変換する。
 - name: Resolve elastic-agent-k8s runtime values file path
   ansible.builtin.set_fact:
     elastic_agent_k8s_runtime_values_file_path: >-
@@ -128,7 +141,7 @@
           | regex_replace(
               '^' ~
               (
-                ansible_facts.getent_passwd[ansible_user | default('', true) | string | trim][4]
+                elastic_agent_k8s_ansible_user_getent.ansible_facts.getent_passwd[ansible_user | default('', true) | string | trim][4]
                 | regex_escape
               )
               ~ '/',
@@ -138,16 +151,20 @@
         if (
           (ansible_user | default('', true) | string | trim | length) > 0
           and
-          (ansible_facts.getent_passwd is defined)
+          (elastic_agent_k8s_ansible_user_getent is defined)
           and
-          (ansible_facts.getent_passwd[ansible_user | default('', true) | string | trim] is defined)
+          (elastic_agent_k8s_ansible_user_getent.ansible_facts is defined)
+          and
+          (elastic_agent_k8s_ansible_user_getent.ansible_facts.getent_passwd is defined)
+          and
+          (elastic_agent_k8s_ansible_user_getent.ansible_facts.getent_passwd[ansible_user | default('', true) | string | trim] is defined)
           and
           (
             elastic_agent_k8s_runtime_values_file_path
             is match(
               '^' ~
               (
-                ansible_facts.getent_passwd[ansible_user | default('', true) | string | trim][4]
+                elastic_agent_k8s_ansible_user_getent.ansible_facts.getent_passwd[ansible_user | default('', true) | string | trim][4]
                 | regex_escape
               )
               ~ '/.*'

@@ -283,20 +283,20 @@ ansible-playbook -i inventory/hosts logging-collector.yml
 
 | 辞書のキー | 設定する内容 | 既定値 | 設定例 |
 | --- | --- | --- | --- |
-| `limits.ephemeral-storage` | Pod が使用できる一時領域の上限値を指定します。 | `1Gi` | `2Gi` |
+| `limits.ephemeral-storage` | Pod が使用できる一時領域の上限値を指定します。 | `2Gi` | `3Gi` |
 | `limits.memory` | Pod が使用できるメモリの上限値を指定します。 | `800Mi` | `1200Mi` |
 | `requests.cpu` | Pod が要求する CPU の下限値を指定します。 | `100m` | `200m` |
-| `requests.ephemeral-storage` | Pod が要求する一時領域の下限値を指定します。 | `256Mi` | `512Mi` |
+| `requests.ephemeral-storage` | Pod が要求する一時領域の下限値を指定します。 | `512Mi` | `1Gi` |
 | `requests.memory` | Pod が要求するメモリの下限値を指定します。 | `400Mi` | `600Mi` |
 
 ##### elastic_agent_k8s_pernode_resources
 
 | 辞書のキー | 設定する内容 | 既定値 | 設定例 |
 | --- | --- | --- | --- |
-| `limits.ephemeral-storage` | Pod が使用できる一時領域の上限値を指定します。 | `2Gi` | `3Gi` |
+| `limits.ephemeral-storage` | Pod が使用できる一時領域の上限値を指定します。 | `3Gi` | `4Gi` |
 | `limits.memory` | Pod が使用できるメモリの上限値を指定します。 | `1000Mi` | `1200Mi` |
 | `requests.cpu` | Pod が要求する CPU の下限値を指定します。 | `100m` | `200m` |
-| `requests.ephemeral-storage` | Pod が要求する一時領域の下限値を指定します。 | `512Mi` | `1Gi` |
+| `requests.ephemeral-storage` | Pod が要求する一時領域の下限値を指定します。 | `1Gi` | `2Gi` |
 | `requests.memory` | Pod が要求するメモリの下限値を指定します。 | `400Mi` | `600Mi` |
 
 ##### elastic_agent_k8s_kube_state_metrics_resources
@@ -359,6 +359,7 @@ ansible-playbook -i inventory/hosts logging-collector.yml
 | `templates/values.yaml.j2` | `/home/kube/kubeadm/elastic-agent-k8s/values.yaml` など | Helm values ファイルを生成し, `preset: clusterWide`, `agent.presets.clusterWide.resources`, `agent.presets.perNode.resources`, `kube-state-metrics.enabled` 及び任意指定の `kube-state-metrics.resources` を適用する。 |
 
 values.yamlファイルは, Helm 実行ユーザに合わせて実行時に決定されます。
+接続ユーザのホーム配下を指すパスが指定された場合は, 接続ユーザと Helm 実行ユーザの実ホームディレクトリを参照して, Helm 実行ユーザ側のホーム配下へ自動変換します。
 
 ## 実行フロー
 
@@ -369,7 +370,7 @@ values.yamlファイルは, Helm 実行ユーザに合わせて実行時に決�
 5. [tasks/package.yml](tasks/package.yml) で helmコマンドとkubectlコマンドの利用可否を確認します。
 6. [tasks/config.yml](tasks/config.yml) で values ファイルをテンプレートから生成します。
 7. [tasks/config.yml](tasks/config.yml) で `helm template` を実行し, `hostPath` 定義の非生成を検証します。
-8. [tasks/config.yml](tasks/config.yml) で `helm upgrade --install` を実行し, 待機付きで導入を適用します。
+8. [tasks/config.yml](tasks/config.yml) で `helm upgrade --install` を実行し, 待機付き導入が失敗した場合は release 状態を再確認して `pending-*` 又は `uninstalling` を解消した後に再試行します。
 9. [tasks/verify.yml](tasks/verify.yml) で `helm status` により release 状態を確認します。
 10. [tasks/verify.yml](tasks/verify.yml) で名前空間上の関連リソース存在を確認します。
 11. [tasks/verify.yml](tasks/verify.yml) で対象のKubernetesクラスタに属するノード全体に対する Deployment の rollout 状態を確認します。
