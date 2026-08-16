@@ -22,9 +22,6 @@
 # - elastic_agent_k8s_runtime_helm_retries: Helm実行の再試行回数(整数)。
 # - elastic_agent_k8s_runtime_helm_retry_interval_seconds: Helm実行の再試行周期(整数)。
 # - elastic_agent_k8s_runtime_helm_request_interval_seconds: 状態確認時のリクエスト発行間隔(整数)。
-# - k8s_common_helm_execution_users: Kubernetes共通のHelm実行ユーザ一覧。
-# - k8s_runtime_helm_execution_users: Kubernetes共通の正規化済みHelm実行ユーザ一覧。
-# - k8s_runtime_helm_operator_user: Kubernetes共通のHelm代表実行ユーザ。
 # - elastic_agent_k8s_runtime_fleet_server_url: Fleet Server接続先URL。明示指定値があればそれを使用し, 空の場合は共通設定値から "<scheme>://<host>:<port>" 形式で組み立てる。
 # - elastic_agent_k8s_runtime_enrollment_token: Enrollment Token。
 # - elastic_agent_k8s_runtime_insecure: Fleet Server接続時の証明書検証省略フラグ(真偽値)。

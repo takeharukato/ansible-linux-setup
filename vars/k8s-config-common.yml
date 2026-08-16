@@ -30,17 +30,12 @@ k8s_kubeadm_config_store: "{{ ansible_home_dir }}/kubeadm"
 # Kubernetes API操作で使用する管理者kubeconfigファイルのパス
 k8s_admin_kubeconfig_path: "/etc/kubernetes/admin.conf"
 
-# Helm操作を許可する共通OSユーザ一覧。
+# Helm操作を実施するユーザ一覧。
 # 既定ではansible_userを候補として保持する。
 # kubeユーザを追加する場合は, 以下を追加する
 #   - "{{ k8s_operator_user | default('', true) | string | trim }}"
 k8s_common_helm_execution_users:
   - "{{ ansible_user | default('', true) | string | trim }}"
-
-
-# Helm実行時に代表OSユーザを明示指定する場合の共通変数。
-# 空文字列の場合は候補一覧から代表ユーザを選択する。
-k8s_helm_operator_user: ""
 
 # Helm操作で使用する共通OSユーザ一覧。
 # 空文字列除外と重複除去を実施した一覧を実行時変数として提供する。
@@ -48,10 +43,6 @@ k8s_runtime_helm_execution_users: >-
   {{
     (
       (k8s_common_helm_execution_users | default([], true))
-      +
-      [k8s_helm_operator_user | default('', true) | string | trim]
-      +
-      [k8s_operator_user | default('', true) | string | trim]
     )
     | map('string')
     | map('trim')
@@ -64,9 +55,6 @@ k8s_runtime_helm_execution_users: >-
 # 明示指定値を優先し, 未指定時はansible_userを優先する。
 k8s_runtime_helm_operator_user: >-
   {{
-    (k8s_helm_operator_user | default('', true) | string | trim)
-    if ((k8s_helm_operator_user | default('', true) | string | trim | length) > 0)
-    else (
       (ansible_user | default('', true) | string | trim)
       if (
         (ansible_user | default('', true) | string | trim)
@@ -74,7 +62,6 @@ k8s_runtime_helm_operator_user: >-
         (k8s_runtime_helm_execution_users | default([], true))
       )
       else (k8s_runtime_helm_execution_users | first | default(ansible_user, true))
-    )
   }}
 
 #
