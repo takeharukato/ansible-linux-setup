@@ -16,7 +16,7 @@
   register: pkgbld_connection_preflight_result
   until: pkgbld_connection_preflight_result is succeeded
   retries: "{{ pkgbld_connection_preflight_retries | default(8,true) }}"
-  delay: "{{ pkgbld_connection_preflight_retry_delay_seconds | default(10,true) }}"
+  delay: "{{ pkgbld_connection_preflight_retry_interval_seconds | default(10,true) }}"
   when: pkgbld_connection_preflight_enabled | bool
 
 # 制御ホストに回収した成果物を対象ホストへ配布する
@@ -28,5 +28,5 @@
   register: pkgbld_copy_result
   until: (not (pkgbld_copy_retry_enabled | bool)) or (pkgbld_copy_result is succeeded)
   retries: "{{ (pkgbld_copy_retry_enabled | bool) | ternary(pkgbld_copy_retries, 1) }}"
-  delay: "{{ pkgbld_copy_retry_delay_seconds }}"
+  delay: "{{ pkgbld_copy_retry_interval_seconds }}"
   loop: "{{ pkgbld_source_files | default([]) }}"

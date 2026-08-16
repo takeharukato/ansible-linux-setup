@@ -20,7 +20,7 @@
     reboot_common_wait_for_connection_delay_seconds: "{{ reboot_common_wait_for_connection_delay_seconds | default(5, true) }}"
     reboot_common_wait_for_connection_sleep_seconds: "{{ reboot_common_wait_for_connection_sleep_seconds | default(5, true) }}"
     reboot_common_wait_for_connection_retries: "{{ reboot_common_wait_for_connection_retries | default(3, true) }}"
-    reboot_common_wait_for_connection_retry_delay_seconds: "{{ reboot_common_wait_for_connection_retry_delay_seconds | default(10, true) }}"
+    reboot_common_wait_for_connection_retry_interval_seconds: "{{ reboot_common_wait_for_connection_retry_interval_seconds | default(10, true) }}"
     reboot_common_disable_controlmaster_during_reboot: "{{ reboot_common_disable_controlmaster_during_reboot | default(false, true) }}"
     reboot_common_reboot_phase_ssh_common_args: "{{ reboot_common_reboot_phase_ssh_common_args | default('-o ControlMaster=no -o ControlPersist=no', true) }}"
 
@@ -73,7 +73,7 @@
       register: reboot_common_wait_for_connection_result
       until: reboot_common_wait_for_connection_result is succeeded
       retries: "{{ reboot_common_wait_for_connection_retries }}"
-      delay: "{{ reboot_common_wait_for_connection_retry_delay_seconds }}"
+      delay: "{{ reboot_common_wait_for_connection_retry_interval_seconds }}"
       when: reboot_common_wait_for_connection_enabled | bool
   always:
     # 再起動フェーズ終了後は, 元の SSH 共通引数へ戻す。

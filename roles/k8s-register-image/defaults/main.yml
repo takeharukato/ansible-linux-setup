@@ -55,14 +55,14 @@ k8s_register_image_connection_preflight_sleep_seconds: 5
 # 接続プリフライトの最大試行回数
 k8s_register_image_connection_preflight_retries: 8
 # 接続プリフライトの試行間隔秒数
-k8s_register_image_connection_preflight_retry_delay_seconds: 10
+k8s_register_image_connection_preflight_retry_interval_seconds: 10
 
 # 画像tar転送(copy)時の再試行有効化フラグ
 k8s_register_image_transfer_retry_enabled: true
 # 画像tar転送(copy)時の最大試行回数
 k8s_register_image_transfer_retries: 3
 # 画像tar転送(copy)時の試行間隔秒数
-k8s_register_image_transfer_retry_delay_seconds: 5
+k8s_register_image_transfer_retry_interval_seconds: 5
 
 # worker検出前に Ready 条件を待機するかどうか
 k8s_register_image_wait_for_worker_ready_enabled: true
@@ -76,4 +76,4 @@ k8s_register_image_worker_discovery_retry_enabled: true
 # worker検出コマンド実行時の最大試行回数
 k8s_register_image_worker_discovery_retries: 3
 # worker検出コマンド実行時の試行間隔秒数
-k8s_register_image_worker_discovery_retry_delay_seconds: 5
+k8s_register_image_worker_discovery_retry_interval_seconds: 5

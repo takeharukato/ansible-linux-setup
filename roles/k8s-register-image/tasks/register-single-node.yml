@@ -17,7 +17,7 @@
   register: k8s_image_connection_preflight_result
   until: k8s_image_connection_preflight_result is succeeded
   retries: "{{ k8s_register_image_connection_preflight_retries | default(8,true) }}"
-  delay: "{{ k8s_register_image_connection_preflight_retry_delay_seconds | default(10,true) }}"
+  delay: "{{ k8s_register_image_connection_preflight_retry_interval_seconds | default(10,true) }}"
   when: k8s_register_image_connection_preflight_enabled | bool
 
 # 対象ノード上の一時 tar 配置先ディレクトリを作成する。
@@ -39,7 +39,7 @@
   register: k8s_register_image_transfer_result
   until: (not (k8s_register_image_transfer_retry_enabled | bool)) or (k8s_register_image_transfer_result is succeeded)
   retries: "{{ (k8s_register_image_transfer_retry_enabled | bool) | ternary(k8s_register_image_transfer_retries, 1) }}"
-  delay: "{{ k8s_register_image_transfer_retry_delay_seconds }}"
+  delay: "{{ k8s_register_image_transfer_retry_interval_seconds }}"
   loop: "{{ k8s_register_image_components | dict2items }}"
   delegate_to: "{{ target_host }}"
   become: true

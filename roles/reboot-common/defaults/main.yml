@@ -39,7 +39,7 @@ reboot_common_wait_for_connection_sleep_seconds: 10
 reboot_common_wait_for_connection_retries: 10
 
 # wait_for_connection 再試行の間隔秒数
-reboot_common_wait_for_connection_retry_delay_seconds: 30
+reboot_common_wait_for_connection_retry_interval_seconds: 30
 
 # 通常時の SSH 多重化設定は維持し, 再起動フェーズのみ ControlMaster を無効化するかどうか
 reboot_common_disable_controlmaster_during_reboot: true

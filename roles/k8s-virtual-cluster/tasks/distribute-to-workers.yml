@@ -27,7 +27,7 @@
     k8s_register_image_wait_for_worker_ready_fail_on_timeout: "{{ virtualcluster_wait_for_worker_ready_fail_on_timeout }}"
     k8s_register_image_worker_discovery_retry_enabled: "{{ virtualcluster_worker_discovery_retry_enabled }}"
     k8s_register_image_worker_discovery_retries: "{{ virtualcluster_worker_discovery_retries }}"
-    k8s_register_image_worker_discovery_retry_delay_seconds: "{{ virtualcluster_worker_discovery_retry_delay_seconds }}"
+    k8s_register_image_worker_discovery_retry_interval_seconds: "{{ virtualcluster_worker_discovery_retry_interval_seconds }}"
 
 # 本タスクはクラスタごとに独立して配布するため,
 # 自ホストが配布実行主体として選定されていることを保証する
@@ -81,7 +81,7 @@
   register: virtualcluster_fetch_result
   until: (not (virtualcluster_fetch_retry_enabled | bool)) or (virtualcluster_fetch_result is succeeded)
   retries: "{{ (virtualcluster_fetch_retry_enabled | bool) | ternary(virtualcluster_fetch_retries, 1) }}"
-  delay: "{{ virtualcluster_fetch_retry_delay_seconds }}"
+  delay: "{{ virtualcluster_fetch_retry_interval_seconds }}"
   loop: "{{ virtualcluster_build_components }}"
   become: false
   when: k8s_register_image_is_cluster_leader | default(true) | bool

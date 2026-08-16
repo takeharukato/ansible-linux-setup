@@ -164,7 +164,7 @@
 	 4. `reboot_common_wait_for_connection_delay_seconds` : 接続待機開始前の遅延秒数
 	 5. `reboot_common_wait_for_connection_sleep_seconds` : 接続待機のポーリング間隔秒数
 	 6. `reboot_common_wait_for_connection_retries` : 接続待機全体の再試行回数
-	 7. `reboot_common_wait_for_connection_retry_delay_seconds` : 接続待機再試行の間隔秒数
+	 7. `reboot_common_wait_for_connection_retry_interval_seconds` : 接続待機再試行の間隔秒数
 4. 必要時のみ, 再起動フェーズ限定の SSH 多重化制御として以下の変数を設定する:
 	 1. `reboot_common_disable_controlmaster_during_reboot` : 再起動フェーズ中のみ ControlMaster を無効化することを指定する真偽値
 	 2. `reboot_common_reboot_phase_ssh_common_args` : 再起動フェーズ中に一時追加する SSH 共通引数文字列
@@ -195,7 +195,7 @@
 12:    reboot_common_wait_for_connection_delay_seconds: 5
 13:    reboot_common_wait_for_connection_sleep_seconds: 5
 14:    reboot_common_wait_for_connection_retries: 3
-15:    reboot_common_wait_for_connection_retry_delay_seconds: 10
+15:    reboot_common_wait_for_connection_retry_interval_seconds: 10
 16:    reboot_common_disable_controlmaster_during_reboot: false
 ```
 
@@ -257,7 +257,7 @@ Ansible の仕様上, handler では `include_role` を直接利用できない�
 | `reboot_common_wait_for_connection_delay_seconds` | 接続待機開始前の遅延秒数。再起動直後の初期待機に使う。 | `5` |
 | `reboot_common_wait_for_connection_sleep_seconds` | 接続待機のポーリング間隔秒数。 | `5` |
 | `reboot_common_wait_for_connection_retries` | 接続待機全体の再試行回数。一時的な接続揺らぎがある環境では増やす。 | `3` |
-| `reboot_common_wait_for_connection_retry_delay_seconds` | 接続待機再試行の間隔秒数。 | `10` |
+| `reboot_common_wait_for_connection_retry_interval_seconds` | 接続待機再試行の間隔秒数。 | `10` |
 | `reboot_common_disable_controlmaster_during_reboot` | 再起動フェーズのみ ControlMaster を無効化することを指定する真偽値。通常は `false`、再起動直後の接続不安定時のみ `true`。 | `false` |
 | `reboot_common_reboot_phase_ssh_common_args` | 再起動フェーズ中に一時追加する SSH 共通引数文字列。`reboot_common_disable_controlmaster_during_reboot: true` 時のみ有効。 | `"-o ControlMaster=no -o ControlPersist=no"` |
 
