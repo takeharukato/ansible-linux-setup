@@ -287,9 +287,6 @@ ansible-playbook -i inventory/hosts site.yml --tags "k8s-worker"
 | 変数名 | 既定値 | 説明 |
 | --- | --- | --- |
 | `k8s_operator_user` | `kube` | Kubernetes 操作用ユーザ名。 |
-| `k8s_operator_home` | `/home/kube` | Kubernetes 操作用ユーザのホームディレクトリ。 |
-| `k8s_operator_shell` | `/bin/bash` | Kubernetes 操作用ユーザのシェル。 |
-| `k8s_operator_groups_list` | Debian/Ubuntu: `['adm', 'sudo']`, RHEL: `['wheel']` | Kubernetes 操作用ユーザが所属するグループ一覧。 |
 
 ### セットアップツール配置先
 

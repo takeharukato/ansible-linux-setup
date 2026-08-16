@@ -310,7 +310,6 @@ ansible-playbook -i inventory/hosts k8s-ctrl-plane.yml -t k8s-ctrlplane
 | `firewall_backend` | Debian/Ubuntu: `['ufw']`, RHEL: `['firewalld']` | `ufw` または `firewalld`。 |
 | `k8s_control_plane_ports` | 6443,10250,10257,10259,2379-2380 | 開放ポート一覧。 |
 | `k8s_operator_user` | `kube` | オペレータユーザ。 |
-| `k8s_operator_home` | `/home/kube` | オペレータホーム。 |
 | `k8s_node_setup_tools_prefix` | `/opt/k8snodes` | ツール類ベースパス。 |
 | `k8s_node_setup_tools_dir` | `/opt/k8snodes/sbin` | ツール配置ディレクトリ。 |
 | `k8s_node_setup_tools_docs_dir` | `/opt/k8snodes/docs` | ドキュメント配置ディレクトリ。 |

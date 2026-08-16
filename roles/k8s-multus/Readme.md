@@ -428,7 +428,6 @@ ansible-playbook -i inventory/hosts site.yml --tags "k8s-multus"
 | 変数名 | 既定値 | 説明 |
 | --- | --- | --- |
 | `k8s_operator_user` | `"kube"` | Multus 操作を実行するユーザ名。 |
-| `k8s_operator_groups_list` | `"{{ adm_groups }}"` | `k8s_operator_user` に付与するグループ一覧。 |
 
 ### Pod アドレス収集ツール設定
 

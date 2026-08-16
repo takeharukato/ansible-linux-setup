@@ -271,10 +271,7 @@ ansible-playbook -i inventory/hosts k8s-base.yml --limit <hostname>
 
 | 変数名 | 既定値 | 説明 |
 | --- | --- | --- |
-| `k8s_operator_user` | `kube` | オペレータ用ユーザ名。`user_group.yml` がユーザ本体とホームディレクトリを作成します。|
-| `k8s_operator_home` | `/home/kube` | オペレータホームディレクトリ。kubeconfig や ssh 鍵を配置します。|
-| `k8s_operator_groups_list` | `{{ adm_groups }}` | 追加で所属させるグループ。sudo 実行権限などを付与します。|
-| `k8s_operator_shell` | `/bin/bash` | オペレータユーザのデフォルトシェル。|
+| `k8s_operator_user` | `kube` | オペレータ用ユーザ名。|
 
 ### 公開鍵設定
 
@@ -395,7 +392,6 @@ k8s_common_ports:
   - 10250
   - 30000:32767
 k8s_operator_user: kube
-k8s_operator_home: /home/kube
 k8s_operator_groups_list:
   - sudo
   - docker
@@ -438,8 +434,7 @@ k8s_common_ports:
   - 6443/tcp
   - 10250/tcp
   - 30000-32767/tcp
-k8s_operator_user: kuberneteadm
-k8s_operator_home: /home/kuberneteadm
+k8s_operator_user: kube
 k8s_python_packages_enabled: true
 k8s_python_devel_packages_enabled: true
 k8s_kubelet_extra_args_common: "--cgroup-driver=systemd --container-runtime-cgroup-driver=systemd"

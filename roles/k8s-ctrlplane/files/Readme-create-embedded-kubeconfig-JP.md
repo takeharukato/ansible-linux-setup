@@ -86,7 +86,7 @@ create-embedded-kubeconfig.py [-h]
 | オプション | Ansible 変数 | 既定値 | 備考 |
 | --- | --- | --- | --- |
 | `--admin-conf` | `k8s_embed_kubeconfig_admin_conf` | `/etc/kubernetes/admin.conf` | - |
-| `--output-dir` | `k8s_embed_kubeconfig_output_dir` | `/home/kube/.kube` | `k8s_operator_user: kube`, `k8s_operator_home: /home/kube` の既定値に基づく |
+| `--output-dir` | `k8s_embed_kubeconfig_output_dir` | `/home/kube/.kube` | `k8s_operator_user: kube` の既定値に基づく |
 | `--file-postfix` | `k8s_embed_kubeconfig_file_postfix` | `-embedded.kubeconfig` | - |
 | `--file-prefix` | (なし) | 位置引数 `cluster_name` | 省略時は `cluster_name`変数の値を使用 |
 | `--context` | `k8s_embed_kubeconfig_context_name` | 空文字列 | `k8s_cilium_cm_cluster_name` 未設定時は指定しない |

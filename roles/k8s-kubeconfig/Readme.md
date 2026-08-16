@@ -216,7 +216,7 @@ ansible-playbook -i inventory/hosts site.yml --tags "k8s-kubeconfig"
 
 | 変数名 | 既定値 | 説明 |
 | --- | --- | --- |
-| `k8s_operator_user` | `kube` | `kubeconfig` を配置するオペレータユーザ。このユーザのホームディレクトリ(`k8s_operator_home` 変数で参照)に `~/.kube` 以下が作成されます。 |
+| `k8s_operator_user` | `kube` | `kubeconfig` を配置するオペレータユーザ。このユーザのホームディレクトリに `~/.kube` 以下が作成されます。 |
 | `k8s_kubeconfig_system_dir` | `/etc/kubernetes` | システム側で `kubeconfig` を配置するベースディレクトリ。管理者権限で操作します。 |
 | `k8s_embed_kubeconfig_shared_ca_path` | `""` | `create-embedded-kubeconfig.py` に渡す共通 CA 証明書のパス。未設定時は各クラスタの `/etc/kubernetes/admin.conf` に含まれる CA をそのまま埋め込みます。 |
 
