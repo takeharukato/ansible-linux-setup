@@ -369,10 +369,10 @@ common_selinux_state: "permissive"
 #
 # 例:
 # container_registry_endpoints:
-#   - endpoint: "registry1.local:5000"
+#   - endpoint: "registry01.local:5000"
 #     scheme: "http"
 #     skip_verify: true
-#   - endpoint: "registry2.local:5000"
+#   - endpoint: "registry02.local:5000"
 #     scheme: "http"
 #     skip_verify: true
 #   - endpoint: "mgmt-server.example.org:5050"
@@ -389,11 +389,11 @@ common_selinux_state: "permissive"
 # 生成する場合は true を指定する
 # skopeo_enable_backup_script: true
 #
-# バックアップ対象レジストリURL一覧 (スキームなし, 例: ["registry1.example.local:5000", "registry2.example.local:5000"])
+# バックアップ対象レジストリURL一覧 (スキームなし, 例: ["registry01.example.local:5000", "registry02.example.local:5000"])
 # 記載例:
 # skopeo_registry_url_list:
-#   - "registry1.local:5000"
-#   - "registry2.local:5000"
+#   - "registry01.local:5000"
+#   - "registry02.local:5000"
 #
 # skopeo_registry_url_list: []
 #
@@ -402,7 +402,7 @@ common_selinux_state: "permissive"
 # 空文字列に設定すると, 引数省略時に restore スクリプトの
 # 引数に明示する旨エラーメッセージが表示される
 # 記載例:
-# skopeo_restore_default_destination_registry: "registry1.local:5000"
+# skopeo_restore_default_destination_registry: "registry01.local:5000"
 #
 # skopeo_restore_default_destination_registry: ""
 #
@@ -922,7 +922,7 @@ common_selinux_state: "permissive"
 # k8s_vc_tenant_dns_enabled: true
 
 # テナント内用CoreDNSイメージの登録先ローカルレジストリ
-# k8s_vc_tenant_dns_image_registry: "registry1.local:5000/vc-tenant-dns"
+# k8s_vc_tenant_dns_image_registry: "registry01.local:5000/vc-tenant-dns"
 
 # ====================================================================================
 # Elastic Stack の設定 (条件的必須: Elasticsearch/Logstash/Kibana/Fleet Server利用時)
@@ -968,6 +968,25 @@ common_selinux_state: "permissive"
 # fleet_bootstrap_policy_name: "linux-host-policy"
 # ホスト監視用Enrollment Tokenの名称。
 # fleet_bootstrap_enrollment_token_name: "linux-host-token"
+
+# =======================================================================
+# Elastic Stack採取対象ログの設定
+# host_vars側には設定しないこと
+# =======================================================================
+
+# ホストのログ
+# logging_elastic_agent_host_log_paths:
+#  - /var/log/syslog
+#  - /var/log/auth.log
+#  - /var/log/cloud-init.log
+
+# Kubernetes kube-system ログ
+# logging_elastic_agent_k8s_system_kube_system_log_paths:
+#  - "/var/log/containers/*_kube-system_*.log"
+
+# Kubernetes ワークロードログ
+# logging_elastic_agent_k8s_workload_log_paths:
+#  - "/var/log/containers/*.log"
 
 # =======================================================================
 # Elastic Agent関連ロールの必須入力値

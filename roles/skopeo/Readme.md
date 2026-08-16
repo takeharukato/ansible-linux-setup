@@ -192,7 +192,7 @@ ansible-playbook -i inventory/hosts site.yml --tags "skopeo"
 ansible-playbook -i inventory/hosts site.yml --tags "skopeo" \
   -e "skopeo_enabled=true" \
   -e "skopeo_enable_backup_script=true" \
-  -e 'skopeo_registry_endpoints=[{"endpoint":"registry1.example.local:5000","scheme":"http","skip_verify":true},{"endpoint":"registry2.example.local:5000","scheme":"http","skip_verify":true}]'
+  -e 'skopeo_registry_endpoints=[{"endpoint":"registry01.example.local:5000","scheme":"http","skip_verify":true},{"endpoint":"registry02.example.local:5000","scheme":"http","skip_verify":true}]'
 ```
 
 ## 主要変数
@@ -204,7 +204,7 @@ ansible-playbook -i inventory/hosts site.yml --tags "skopeo" \
 | `skopeo_bash_completion_path` | `/etc/bash_completion.d/skopeo` | bash 補完配置先。 |
 | `skopeo_zsh_completion_path` | Debian/Ubuntu: `/usr/share/zsh/vendor-completions/_skopeo`, RHEL 系: `/usr/share/zsh/site-functions/_skopeo` | zsh 補完配置先。 |
 | `skopeo_enable_backup_script` | `false` | バックアップ/リストアスクリプト生成有効化フラグ。 |
-| `skopeo_registry_endpoints` | `[{'endpoint': 'registry1.local:5000', 'scheme': 'http', 'skip_verify': true}]` | バックアップ対象レジストリエンドポイント一覧。各要素は `endpoint`, `scheme`, `skip_verify` の辞書。実行時は設定ファイル (`registry_endpoints`) を参照。 |
+| `skopeo_registry_endpoints` | `[{'endpoint': 'registry01.local:5000', 'scheme': 'http', 'skip_verify': true}]` | バックアップ対象レジストリエンドポイント一覧。各要素は `endpoint`, `scheme`, `skip_verify` の辞書。実行時は設定ファイル (`registry_endpoints`) を参照。 |
 | `skopeo_backup_image_list` | `[]` | バックアップ対象リポジトリ一覧。空なら catalog API で自動列挙。 |
 | `skopeo_scripts_dir` | `/opt/skopeo/scripts` | スクリプト配置先。 |
 | `skopeo_config_dir` | `/opt/skopeo/etc` | 設定ファイル配置先。 |
@@ -245,7 +245,7 @@ ansible-playbook -i inventory/hosts site.yml --tags "skopeo" \
 実行例:
 ```bash
 $ /usr/local/bin/backup-skopeo-images
-Backup completed for registry1.local:5000: /opt/skopeo/backup/skopeo-images-registry1.local_5000-20260721-022426.tar.gz
+Backup completed for registry01.local:5000: /opt/skopeo/backup/skopeo-images-registry01.local_5000-20260721-022426.tar.gz
 Backup completed for reachable registries
 ```
 
@@ -287,8 +287,8 @@ backup-skopeo-images [オプション]
 実行例:
 
 ```bash
-$ /usr/local/bin/restore-skopeo-images registry1.local:5000 /opt/skopeo/backup/skopeo-images-registry1.local_5000-20260721-022426.tar.gz
-Restore completed to registry1.local:5000 from: /opt/skopeo/backup/skopeo-images-registry1.local_5000-20260721-022426.tar.gz
+$ /usr/local/bin/restore-skopeo-images registry01.local:5000 /opt/skopeo/backup/skopeo-images-registry01.local_5000-20260721-022426.tar.gz
+Restore completed to registry01.local:5000 from: /opt/skopeo/backup/skopeo-images-registry01.local_5000-20260721-022426.tar.gz
 ```
 
 **引数を省略して設定ファイル既定値で復元する場合**:
@@ -300,7 +300,7 @@ Restore completed to registry1.local:5000 from: /opt/skopeo/backup/skopeo-images
 
 ```bash
 $ /usr/local/bin/restore-skopeo-images
-Restore completed to registry1.local:5000 from: /opt/skopeo/backup/skopeo-images-registry1.local_5000-20260721-022426.tar.gz
+Restore completed to registry01.local:5000 from: /opt/skopeo/backup/skopeo-images-registry01.local_5000-20260721-022426.tar.gz
 ```
 
 いずれの場合も, `Restore completed to <レジストリのエンドポイント> from: <リストアに使用したバックアップアーカイブファイルへのパス>`という形式のメッセージが出力されていることを確認してください。
@@ -313,9 +313,9 @@ Restore completed to registry1.local:5000 from: /opt/skopeo/backup/skopeo-images
 restore-skopeo-images [オプション] [<復元先コンテナレジストリのエンドポイント>] [<復元元バックアップアーカイブへのパス>]
 ```
 
-第1位置引数`<復元先コンテナレジストリのエンドポイント>`には, 復元先コンテナレジストリのエンドポイントを`<コンテナレジストリのホスト名, または, IPアドレス>:<コンテナレジストリのポート番号>`形式で指定します(`registry1.local:5000`)。未指定時は設定ファイルの `restore.default_destination_registry` を使用します。
+第1位置引数`<復元先コンテナレジストリのエンドポイント>`には, 復元先コンテナレジストリのエンドポイントを`<コンテナレジストリのホスト名, または, IPアドレス>:<コンテナレジストリのポート番号>`形式で指定します(`registry01.local:5000`)。未指定時は設定ファイルの `restore.default_destination_registry` を使用します。
 
-第2位置引数`<復元元バックアップアーカイブへのパス>`には, 復元元バックアップアーカイブへのパスを指定します(例:`/opt/skopeo/backup/skopeo-images-registry1.local_5000-20260721-022426.tar.gz`)。
+第2位置引数`<復元元バックアップアーカイブへのパス>`には, 復元元バックアップアーカイブへのパスを指定します(例:`/opt/skopeo/backup/skopeo-images-registry01.local_5000-20260721-022426.tar.gz`)。
 未指定時は設定ファイルの `backup_dir` 配下から最新の バックアップアーカイブを検索して使用します。
 
 リストアコマンド(`restore-skopeo-images`)のオプションは, 以下の通りです:
@@ -330,7 +330,7 @@ restore-skopeo-images [オプション] [<復元先コンテナレジストリ�
 
 |キー|値|意味|記載例|
 |---|---|---|---|
-|registry_endpoints|バックアップ/リストア対象となるコンテナレジストリ設定のリストです。各要素は `endpoint`, `scheme`, `skip_verify` を持つ辞書です。|同左|[{"endpoint":"registry1.local:5000","scheme":"http","skip_verify":true}]|
+|registry_endpoints|バックアップ/リストア対象となるコンテナレジストリ設定のリストです。各要素は `endpoint`, `scheme`, `skip_verify` を持つ辞書です。|同左|[{"endpoint":"registry01.local:5000","scheme":"http","skip_verify":true}]|
 |backup_dir|バックアップアーカイブ格納先ディレクトリ。バックアップ保存先, 及びリストア時の最新アーカイブ探索先として共通利用します。|同左|/opt/skopeo/backup|
 |backup|バックアップ関連設定を辞書形式で指定します。|[バックアップ関連設定辞書形式](#バックアップ関連設定辞書形式)参照|[バックアップ関連設定辞書形式](#バックアップ関連設定辞書形式)参照|
 |restore|リストア関連設定を辞書形式で指定します。|[リストア関連設定辞書形式](#リストア関連設定辞書形式)参照|[リストア関連設定辞書形式](#リストア関連設定辞書形式)|
@@ -352,7 +352,7 @@ restore-skopeo-images [オプション] [<復元先コンテナレジストリ�
 
 |キー|値|記載例|
 |---|---|---|
-|default_destination_registry|オプション省略時に使用するリストア対象となるコンテナレジストリのエンドポイントを指定します。|registry1.example.local:5000|
+|default_destination_registry|オプション省略時に使用するリストア対象となるコンテナレジストリのエンドポイントを指定します。|registry01.example.local:5000|
 
 #### レジストリバックアップ・リストア設定ファイル(`/opt/skopeo/etc/registry-backup-restore.yml`)記載例
 
@@ -360,10 +360,10 @@ restore-skopeo-images [オプション] [<復元先コンテナレジストリ�
 
 ```yaml
 registry_endpoints:
-  - endpoint: "registry1.example.local:5000"
+  - endpoint: "registry01.example.local:5000"
     scheme: "http"
     skip_verify: true
-  - endpoint: "registry2.example.local:5000"
+  - endpoint: "registry02.example.local:5000"
     scheme: "http"
     skip_verify: true
 backup_dir: "/opt/skopeo/backup"
@@ -375,7 +375,7 @@ backup:
   image_list: []
 
 restore:
-  default_destination_registry: "registry1.example.local:5000"
+  default_destination_registry: "registry01.example.local:5000"
 ```
 
 ### コンテナレジストリにリストアされたコンテナイメージの確認手順
@@ -391,7 +391,7 @@ curl -fsSL http://<コンテナレジストリのエンドポイント>/v2/_cata
 
 実行例:
 ```bash
-$ curl -fsSL http://registry1.local:5000/v2/_catalog
+$ curl -fsSL http://registry01.local:5000/v2/_catalog
 {"repositories":["netshoot","vc-tenant-dns"]}
 ```
 
@@ -404,7 +404,7 @@ curl -fsSL http://<コンテナレジストリのエンドポイント>/v2/<イ�
 
 実行例:
 ```bash
-$ curl -fsSL http://registry1.local:5000/v2/netshoot/tags/list
+$ curl -fsSL http://registry01.local:5000/v2/netshoot/tags/list
 {"name":"netshoot","tags":["v0.16"]}
 ```
 

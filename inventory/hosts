@@ -28,8 +28,8 @@
 # frr01.local
 # frr02.local
 [registry]
-# registry1.local
-# registry2.local
+# registry01.local
+# registry02.local
 [k8s_ctrl_plane]
 # k8sctrlplane01.local
 # k8sctrlplane02.local
@@ -48,8 +48,8 @@
 # extgw.local
 # frr01.local
 # frr02.local
-# registry1.local
-# registry2.local
+# registry01.local
+# registry02.local
 # k8sctrlplane01.local
 # k8sctrlplane02.local
 # k8sworker0101.local

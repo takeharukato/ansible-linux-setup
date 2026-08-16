@@ -390,7 +390,7 @@ vm_groups = {
     }
   }
   registry ={
-    registry1 = {
+    registry01 = {
       template_type = "ubuntu"
       firmware = "uefi"
       resource_profile = "registry"
@@ -399,7 +399,7 @@ vm_groups = {
         { network_key = "gpn_mgmt", mac_address = "00:50:56:00:de:7b" }
       ]
     }
-    registry2 = {
+    registry02 = {
       template_type = "rhel"
       firmware = "bios"
       resource_profile = "registry"

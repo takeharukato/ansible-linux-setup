@@ -1,13 +1,13 @@
 # VM/Cluster operation rules
 
 .PHONY: apply-vms destroy-vms apply-vm destroy-vm apply-cluster destroy-cluster
-.PHONY: router devserver rhel-server ubuntu-server mgmt-server registry1 registry2
+.PHONY: router devserver rhel-server ubuntu-server mgmt-server registry01 registry02
 .PHONY: devlinux1 devlinux2 devlinux3 devlinux4 devlinux5
 .PHONY: vmlinux1 vmlinux2 vmlinux3 vmlinux4 vmlinux5
 .PHONY: k8sctrlplane01 k8sworker0101 k8sworker0102 frr01
 .PHONY: k8sctrlplane02 k8sworker0201 k8sworker0202 frr02
 .PHONY: extgw cluster01 cluster02 gateways frr
-.PHONY: destroy-router destroy-devserver destroy-rhel-server destroy-ubuntu-server destroy-mgmt-server destroy-registry1 destroy-registry2
+.PHONY: destroy-router destroy-devserver destroy-rhel-server destroy-ubuntu-server destroy-mgmt-server destroy-registry01 destroy-registry02
 .PHONY: destroy-devlinux1 destroy-devlinux2 destroy-devlinux3 destroy-devlinux4 destroy-devlinux5
 .PHONY: destroy-vmlinux1 destroy-vmlinux2 destroy-vmlinux3 destroy-vmlinux4 destroy-vmlinux5
 .PHONY: destroy-k8sctrlplane01 destroy-k8sworker0101 destroy-k8sworker0102 destroy-frr01
@@ -89,8 +89,8 @@ k8s: networks
 
 registry: networks
 	${TERRAFORM} apply ${TERRAFORM_FLAGS} \
-		-target='module.vms["registry/registry1"]' \
-		-target='module.vms["registry/registry2"]' \
+		-target='module.vms["registry/registry01"]' \
+		-target='module.vms["registry/registry02"]' \
 		2>&1 | tee $@.log
 
 observer: networks
@@ -147,8 +147,8 @@ destroy-k8s: prepare
 
 destroy-registry: prepare
 	${TERRAFORM} destroy ${TERRAFORM_FLAGS} \
-		-target='module.vms["registry/registry1"]' \
-		-target='module.vms["registry/registry2"]' \
+		-target='module.vms["registry/registry01"]' \
+		-target='module.vms["registry/registry02"]' \
 		2>&1 | tee $@.log
 	$(RUN_PRUNE_AFTER_DESTROY)
 
@@ -181,11 +181,11 @@ observer01: networks
 observer02: networks
 	${TERRAFORM} apply ${TERRAFORM_FLAGS} -target='module.vms["infrastructure/observer02"]' 2>&1 | tee $@.log
 
-registry1: prepare
-	${TERRAFORM} apply ${TERRAFORM_FLAGS} -target='module.vms["registry/registry1"]' 2>&1 | tee $@.log
+registry01: prepare
+	${TERRAFORM} apply ${TERRAFORM_FLAGS} -target='module.vms["registry/registry01"]' 2>&1 | tee $@.log
 
-registry2: prepare
-	${TERRAFORM} apply ${TERRAFORM_FLAGS} -target='module.vms["registry/registry2"]' 2>&1 | tee $@.log
+registry02: prepare
+	${TERRAFORM} apply ${TERRAFORM_FLAGS} -target='module.vms["registry/registry02"]' 2>&1 | tee $@.log
 
 devlinux1: networks
 	${TERRAFORM} apply ${TERRAFORM_FLAGS} -target='module.vms["devlinux/devlinux1"]' 2>&1 | tee $@.log
@@ -277,12 +277,12 @@ destroy-observer02: prepare
 	${TERRAFORM} destroy ${TERRAFORM_FLAGS} -target='module.vms["infrastructure/observer02"]' 2>&1 | tee $@.log
 	$(RUN_PRUNE_AFTER_DESTROY)
 
-destroy-registry1: prepare
-	${TERRAFORM} destroy ${TERRAFORM_FLAGS} -target='module.vms["registry/registry1"]' 2>&1 | tee $@.log
+destroy-registry01: prepare
+	${TERRAFORM} destroy ${TERRAFORM_FLAGS} -target='module.vms["registry/registry01"]' 2>&1 | tee $@.log
 	$(RUN_PRUNE_AFTER_DESTROY)
 
-destroy-registry2: prepare
-	${TERRAFORM} destroy ${TERRAFORM_FLAGS} -target='module.vms["registry/registry2"]' 2>&1 | tee $@.log
+destroy-registry02: prepare
+	${TERRAFORM} destroy ${TERRAFORM_FLAGS} -target='module.vms["registry/registry02"]' 2>&1 | tee $@.log
 	$(RUN_PRUNE_AFTER_DESTROY)
 
 destroy-devlinux1: prepare

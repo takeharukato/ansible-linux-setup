@@ -450,10 +450,10 @@ docker_ce_registry_port: 5000
 
 ```yaml
 container_registry_endpoints:
-  - endpoint: "registry1.local:5000"
+  - endpoint: "registry01.local:5000"
     scheme: "http"
     skip_verify: true
-  - endpoint: "registry2.local:5000"
+  - endpoint: "registry02.local:5000"
     scheme: "http"
     skip_verify: true
 ```
@@ -462,7 +462,7 @@ container_registry_endpoints:
 
 ```json
 {
-  "insecure-registries": ["registry1.local:5000", "registry2.local:5000"]
+  "insecure-registries": ["registry01.local:5000", "registry02.local:5000"]
 }
 ```
 

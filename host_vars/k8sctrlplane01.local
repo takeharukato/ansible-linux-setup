@@ -172,7 +172,7 @@ vcinstances_virtualclusters:
 # テナント内用CoreDNSコンテナイメージ, マニュフェストファイルが生成される
 k8s_vc_tenant_dns_enabled: true
 # テナント内用CoreDNSイメージの登録先ローカルレジストリ
-k8s_vc_tenant_dns_image_registry: "registry1.local:5000/vc-tenant-dns"
+k8s_vc_tenant_dns_image_registry: "registry01.local:5000/vc-tenant-dns"
 
 # =======================================================================
 # Elastic Agent関連ロールの必須入力値

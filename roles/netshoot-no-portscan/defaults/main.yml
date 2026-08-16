@@ -31,7 +31,7 @@ netshoot_output_dir_on_control_host: "{{ netshoot_work_dir }}/artifacts"
 # apk/apt の名前解決に失敗する場合は host を指定する
 netshoot_docker_build_network: "host"
 # 未修飾名イメージ記述時に補完するレジストリ名
-netshoot_unqualified_image_registry: "registry1.local"
+netshoot_unqualified_image_registry: "registry01.local"
 # k8sノード上のイメージ配置先一時ディレクトリ
 netshoot_remote_cache_dir: "/tmp/netshoot-register"
 # ワーカーノード自動検出時に参照する kubeconfig のパス

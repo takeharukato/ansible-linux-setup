@@ -286,7 +286,6 @@ ansible-playbook -i inventory/hosts k8s-base.yml --limit <hostname>
 | --- | --- | --- |
 | `k8s_node_setup_tools_prefix` | `/opt/k8snodes` | kubeconfig ツール類を格納するベースパス。|
 | `k8s_node_setup_tools_dir` | `{{ k8s_node_setup_tools_prefix }}/sbin` | `create-uniq-kubeconfig.py` などのスクリプト配置先。|
-| `k8s_embed_kubeconfig_script_path` | `{{ k8s_node_setup_tools_dir }}/create-embedded-kubeconfig.py` | 証明書埋め込み kubeconfig 生成スクリプトのパス。|
 | `k8s_create_unique_kubeconfig_script_path` | `{{ k8s_node_setup_tools_dir }}/create-uniq-kubeconfig.py` | 複数クラスタの kubeconfig を結合するスクリプトのパス。|
 | `k8s_kubeadm_config_store` | `{{ ansible_home_dir }}/kubeadm` | `kubeadm init/join` 用設定ファイルを配置するディレクトリ。|
 
@@ -704,7 +703,7 @@ net.ipv4.ip_forward = 1
 grep -n 'config_path = "/etc/containerd/certs.d"' /etc/containerd/config.toml
 ls -la /etc/containerd/certs.d
 cat /etc/containerd/certs.d/registry.local:5000/hosts.toml
-curl http://registry1.local:5000/v2/
+curl http://registry01.local:5000/v2/
 {}
 ```
 
@@ -734,7 +733,7 @@ server = "http://registry.local:5000"
 [host."http://registry.local:5000"]
   capabilities = ["pull", "resolve", "push"]
   skip_verify = true
-$ curl http://registry1.local:5000/v2/
+$ curl http://registry01.local:5000/v2/
 {}
 ```
 

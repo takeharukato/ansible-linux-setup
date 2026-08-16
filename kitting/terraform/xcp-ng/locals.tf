@@ -11,6 +11,10 @@
 # プロファイル毎のリソース量のデフォルト値
 ############################################
 locals {
+
+  ############################################
+  # プロファイル毎のVMリソース量のデフォルト値
+  ############################################
   vm_resource_defaults = {
 
     # Infrastructure
@@ -45,14 +49,14 @@ locals {
     k8s_ctrlplane = {
       vcpus     = 4
       memory_mb = 4096
-      disk_gb   = 25
+      disk_gb   = 64
     }
 
     # K8sのワーカーノード
     k8s_worker = {
       vcpus     = 4
       memory_mb = 4096
-      disk_gb   = 25
+      disk_gb   = 64
     }
 
     # FRR ノード

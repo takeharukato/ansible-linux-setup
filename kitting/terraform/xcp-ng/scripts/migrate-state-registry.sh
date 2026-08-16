@@ -44,8 +44,8 @@ echo "" | tee -a "$LOG_FILE"
 
 # registry VMグループの一覧 (旧リソース名 -> 新key)
 declare -A VMS_MAP=(
-  [registry1]=registry1
-  [registry2]=registry2
+  [registry01]=registry01
+  [registry02]=registry02
 )
 
 for old in "${!VMS_MAP[@]}"; do

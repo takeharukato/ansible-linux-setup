@@ -294,7 +294,7 @@ kubectl get pod netshoot
 | `netshoot_output_dir` | `"{{ netshoot_work_dir }}/output"` | ビルドホスト上のイメージ出力先ディレクトリ。 |
 | `netshoot_output_dir_on_control_host` | `"{{ netshoot_work_dir }}/artifacts"` | 制御ホスト上のイメージ保管先ディレクトリ。 |
 | `netshoot_docker_build_network` | `"host"` | `docker build` 時のネットワークモード。`host` を指定するとビルドコンテナがホストの DNS 設定を引き継ぎ, `apk` の名前解決失敗を防ぐ。 |
-| `netshoot_unqualified_image_registry` | `"registry1.local"` | 未修飾名イメージ参照時に補完するレジストリ名。 |
+| `netshoot_unqualified_image_registry` | `"registry01.local"` | 未修飾名イメージ参照時に補完するレジストリ名。 |
 | `netshoot_remote_cache_dir` | `"/tmp/netshoot-register"` | 各 K8s ノード上のイメージ転送先一時ディレクトリ。 |
 | `netshoot_kubeconfig_path` | `"/etc/kubernetes/admin.conf"` | ワーカノード自動検出に使用する kubeconfig のパス。 |
 | `netshoot_registry_wait_timeout` | `120` | ローカルレジストリエンドポイント待機のタイムアウト時間(単位: 秒)。 |
@@ -303,7 +303,7 @@ kubectl get pod netshoot
 | `netshoot_registry_wait_connect_timeout` | `3` | ローカルレジストリエンドポイント待機時の接続タイムアウト時間(単位: 秒)。 |
 | `netshoot_registry_wait_delegate_to` | `"localhost"` | ローカルレジストリエンドポイント待機を実行する接続元ホスト名またはIPアドレス。 |
 | `netshoot_registry_wait_retries` | `5` | ローカルレジストリエンドポイント待機の再試行回数。 |
-| `netshoot_image_registry` | `""` | ローカルレジストリ登録モードで使用するレジストリの URL。未設定の場合は containerd 直接登録モードを使用します。設定例: `"registry1.local:5000/netshoot"` `vars/all-config.yml`, または, K8sコントロールプレインのhost_varsファイルで設定することを想定しています。|
+| `netshoot_image_registry` | `""` | ローカルレジストリ登録モードで使用するレジストリの URL。未設定の場合は containerd 直接登録モードを使用します。設定例: `"registry01.local:5000/netshoot"` `vars/all-config.yml`, または, K8sコントロールプレインのhost_varsファイルで設定することを想定しています。|
 | `netshoot_k8s_manifest_dir` | `"/opt/maintenance/netshoot/manifests"` | K8sコントロールノード上のマニフェストファイルの格納先ディレクトリ。 |
 | `netshoot_manifest_file_path` | `"{{ netshoot_k8s_manifest_dir }}/netshoot-no-portscan.yml"` | 生成されるマニフェストファイルのパス。 |
 | `netshoot_k8s_namespace` | `"default"` | Pod を展開する Kubernetes の名前空間 ( namespace )。 |
@@ -397,10 +397,10 @@ flowchart TD
 `netshoot_image_registry`の設定例は以下の通り:
 
 ```yaml
-netshoot_image_registry: "registry1.local:5000/netshoot"
+netshoot_image_registry: "registry01.local:5000/netshoot"
 ```
 
-上記設定の場合, 本ロールで作成されたコンテナイメージは, `registry1.local:5000/netshoot:v0.16` としてレジストリに登録されます。なお, `v0.16`部分は, `netshoot_no_portscan_version`変数の値に応じて設定されます。
+上記設定の場合, 本ロールで作成されたコンテナイメージは, `registry01.local:5000/netshoot:v0.16` としてレジストリに登録されます。なお, `v0.16`部分は, `netshoot_no_portscan_version`変数の値に応じて設定されます。
 
 生成されるマニフェストの `imagePullPolicy` は `IfNotPresent` となり, ローカルレジストリからのイメージ取得を行います。
 
@@ -433,11 +433,11 @@ drwxr-xr-x 5 root root      4096  7月 12 14:33 ..
 
 **ローカルレジストリへの登録確認 (ローカルレジストリ登録モードの場合)**
 
-ローカルレジストリのエンドポイントが`http://registry1.local:5000`の場合の例を以下に示します:
+ローカルレジストリのエンドポイントが`http://registry01.local:5000`の場合の例を以下に示します:
 
 レジストリ上のリポジトリ一覧を確認するコマンド例は以下の通り:
 ```bash
-curl http://registry1.local:5000/v2/_catalog
+curl http://registry01.local:5000/v2/_catalog
 ```
 
 期待される出力("repositories"のリストに"netshoot"が含まれること):
@@ -447,7 +447,7 @@ curl http://registry1.local:5000/v2/_catalog
 
 レジストリ上のnetshoot のタグ一覧を確認するコマンド例は以下の通り:
 ```bash
-curl http://registry1.local:5000/v2/netshoot/tags/list
+curl http://registry01.local:5000/v2/netshoot/tags/list
 ```
 
 期待される出力:
@@ -457,9 +457,9 @@ curl http://registry1.local:5000/v2/netshoot/tags/list
 
 実行結果の例:
 ```bash
-$ curl http://registry1.local:5000/v2/_catalog
+$ curl http://registry01.local:5000/v2/_catalog
 {"repositories":["netshoot"]}
-$ curl http://registry1.local:5000/v2/netshoot/tags/list
+$ curl http://registry01.local:5000/v2/netshoot/tags/list
 {"name":"netshoot","tags":["v0.16"]}
 ```
 
@@ -484,19 +484,19 @@ ssh ansible@k8sworker0101 "sudo crictl images | grep netshoot"
 期待される出力の例:
 ```bash
 docker.io/nicolaka/netshoot                v0.16               c52d5254f8d9f       212MB
-registry1.local/nicolaka/netshoot          v0.16               c52d5254f8d9f       212MB
+registry01.local/nicolaka/netshoot          v0.16               c52d5254f8d9f       212MB
 ```
 以下の点を確認します:
-- nicolaka/netshootを含むエントリが出力されること(上記の場合, `docker.io/nicolaka/netshoot`, `registry1.local/nicolaka/netshoot`の2件のエントリ)
+- nicolaka/netshootを含むエントリが出力されること(上記の場合, `docker.io/nicolaka/netshoot`, `registry01.local/nicolaka/netshoot`の2件のエントリ)
 - コンテナイメージの版数が`netshoot_no_portscan_version`変数で指定した版数と一致すること(上記の場合, `v0.16`)
 - `netshoot_unqualified_image_registry`変数で指定したエンドポイントと一致するエントリが含まれること(上記の場合, `docker.io/nicolaka/netshoot`で始まるエントリ)
-- レジストリのエンドポイントが`netshoot_image_registry`変数で指定したエンドポイントと一致するエントリが含まれること(上記の場合, `registry1.local/nicolaka/netshoot`で始まるエントリ)
+- レジストリのエンドポイントが`netshoot_image_registry`変数で指定したエンドポイントと一致するエントリが含まれること(上記の場合, `registry01.local/nicolaka/netshoot`で始まるエントリ)
 
 実行結果の例:
 ```bash
 $ sudo crictl images | grep netshoot
 docker.io/nicolaka/netshoot                v0.16               c52d5254f8d9f       212MB
-registry1.local/nicolaka/netshoot          v0.16               c52d5254f8d9f       212MB
+registry01.local/nicolaka/netshoot          v0.16               c52d5254f8d9f       212MB
 ```
 
 **マニフェストの適用と Pod の起動確認**
@@ -553,8 +553,8 @@ IPs:
 Containers:
   netshoot:
     Container ID:  containerd://20def482111801c80f65d7a0fc701328de62b688b4202e22b33a5c939c270955
-    Image:         registry1.local:5000/netshoot:v0.16
-    Image ID:      registry1.local:5000/netshoot@sha256:8a7b3c33919b02ed46e5448b2bab1b870a0ef59e8435b3b2cb2855e8c96e4cc9
+    Image:         registry01.local:5000/netshoot:v0.16
+    Image ID:      registry01.local:5000/netshoot@sha256:8a7b3c33919b02ed46e5448b2bab1b870a0ef59e8435b3b2cb2855e8c96e4cc9
     Port:          <none>
     Host Port:     <none>
     Command:

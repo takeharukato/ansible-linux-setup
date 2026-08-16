@@ -46,33 +46,45 @@
 
 ## プロジェクト構造
 
-```text
-xcp-ng-base-servers/
-├── main.tf                    # プロバイダー設定
-├── versions.tf                # Terraform/Provider バージョン制約
-├── variables.tf               # 入力変数定義
-├── data.tf                    # データソース定義
-├── locals.tf                  # VMのプロファイル定義 (ローカル変数)
-├── outputs.tf                 # 出力値定義
-├── networks.tf                # ネットワークリソース
-├── vms-infrastructure.tf      # インフラVM定義
-├── vms-vmlinux.tf             # Vmlinux開発VM定義
-├── vms-devlinux.tf            # Devlinux開発VM定義
-├── vms-k8s.tf                 # Kubernetes クラスタを構成するVMの定義
-├── terraform.tfvars           # 変数値 ( gitignore対象 )
-├── terraform.tfvars.example   # 変数値テンプレート
-├── Makefile                   # ビルド自動化
-├── modules/
-│   ├── vm/                    # VMモジュール
-│   └── network/               # ネットワークモジュール
-├── templates/
-│   └── base.yaml.tpl          # Cloud-initテンプレート
-└── scripts/
-    ├── migrate-all.sh                      # 統合State移行スクリプト
-    ├── migrate-state-infrastructure.sh     # Infrastructure VM移行
-    ├── migrate-state-vmlinux.sh            # Vmlinux VM移行
-    ├── migrate-state-devlinux.sh           # Devlinux VM移行
-    └── migrate-state-k8s.sh                # K8s VM移行
+```plaintext
+.
+|-- Makefile                    # VM構築用Makeターゲット設定
+|-- Readme.md                   # 本文書
+|-- cloud-cfg
+|   `-- 99-xenorchestra.cfg     # cloud-initファイル読込み優先度設定
+|-- data.tf                     # XCP-ng/Xen Orchestra リソースのデータソース定義
+|-- locals.tf                   # VMプロファイル単位でのリソース定義値
+|-- main.tf                     # Xen Orchestra接続情報
+|-- mk
+|   `-- vms.mk                  # VM 作成/削除 Makeターゲット設定
+|-- modules
+|   |-- network
+|   |   |-- main.tf             # ネットワークリソース作成/管理
+|   |   |-- outputs.tf          # ネットワークリソース出力定義
+|   |   |-- variables.tf        # Network モジュールの変数定義
+|   |   `-- versions.tf         # Terrafrom XenOrchestra プラグイン版数定義
+|   `-- vm
+|       |-- main.tf             # VMリソース作成/管理
+|       |-- outputs.tf          # VMリソース出力定義
+|       |-- variables.tf        # VMリソースの変数定義
+|       `-- versions.tf         # Terrafrom XenOrchestra プラグイン版数定義
+|-- networks.tf                 # ネットワーク作成処理
+|-- outputs.tf                  # VM/ネットワーク情報の出力定義
+|-- scripts
+|   |-- migrate-all.sh          # 全VMの状態ファイル移行処理
+|   |-- migrate-state-devlinux.sh  # devlinux VMの状態ファイル移行処理
+|   |-- migrate-state-infrastructure.sh # インフラVMの状態ファイル移行処理
+|   |-- migrate-state-k8s.sh       # Kubernetes関連VMの状態ファイル移行処理
+|   |-- migrate-state-registry.sh  # コンテナレジストリ関連VMの状態ファイル移行処理
+|   |-- migrate-state-vmlinux.sh   # vmlinux VMの状態ファイル移行処理
+|   |-- prune-unused-networks.sh   # ネットワーク削除スクリプト (使用禁止)
+|   `-- uniq-mac-addresses.sh      # MACアドレス定義抽出スクリプト
+|-- templates
+|   `-- base.yaml.tpl              # cloud-initファイルのテンプレート
+|-- terraform.tfvars.example       # VM定義ファイルのサンプル
+|-- variables.tf                   # パラメタ変数定義のデフォルト値
+|-- versions.tf                    # Terrafrom XenOrchestra プラグイン版数定義
+`-- vms-all.tf                     # VM 構築処理
 ```
 
 ## 本Terraformファイルから作成されるVMの構成
@@ -86,8 +98,10 @@ xcp-ng-base-servers/
 |Infrastructure VM|rhel-server|`rhel-server`|RHELベースの管理サーバー検証用VM|
 |Infrastructure VM|ubuntu-server|`ubuntu-server`|Ubuntuベースの管理サーバー検証用VM|
 |Infrastructure VM|devserver|`devserver`|管理サーバー動作確認用予備VM ( 通常作成不要 ) |
-|registry VM|registry1|`registry1`|コンテナレジストリ用VM ( Ubuntu ) |
-|registry VM|registry2|`registry2`|コンテナレジストリ用VM ( RHEL ) |
+|Infrastructure VM|observer01|`observer01`| 監視サーバ用VM ( Ubuntu ) |
+|Infrastructure VM|observer02|`observer02`| 監視サーバ用VM ( RHEL ) |
+|registry VM|registry01|`registry01`|コンテナレジストリ用VM ( Ubuntu ) |
+|registry VM|registry02|`registry02`|コンテナレジストリ用VM ( RHEL ) |
 |pool-wide network接続開発用VM|vmlinux1|`vmlinux1`|外部ネットワーク接続開発VM ( Ubuntu ) |
 |pool-wide network接続開発用VM|vmlinux2|`vmlinux2`|外部ネットワーク接続開発VM ( Ubuntu ) |
 |pool-wide network接続開発用VM|vmlinux3|`vmlinux3`|外部ネットワーク接続開発VM ( Ubuntu ) |
@@ -110,7 +124,7 @@ xcp-ng-base-servers/
 
 **留意事項**: VMのキー名は, terraform.tfvars の `vm_groups.<グループ名>` 内でVM定義のキーとして使用します。
 
-### Infrastructure VM ( 5台 )
+### Infrastructure VM ( 7台 )
 
 仮想環境内部のVM間で共通的に使用されるサービスを提供するVM群を`Infrastructure VM`と呼ぶ。
 
@@ -118,6 +132,8 @@ xcp-ng-base-servers/
 - mgmt-server 管理サーバー。仮想環境内部向けのDNSサーバ, LDAPサーバ, コンテナレジストリ(Gitlab)などを動作させることを想定している。
 - rhel-server RHELベースの管理サーバー(管理サーバ構築テスト用)
 - ubuntu-server Ubuntuベースの管理サーバー(管理サーバ構築テスト用)
+- observer01 UbuntuベースのVMのログ収集/監視処理導入サーバ
+- observer02 RHELベースのVMのログ収集/監視処理導入サーバ
 
 上記の他に, `devserver`というVMが定義されている。`devserver`は, 管理サーバーの動作確認用の予備として定義しているが通常作成する必要はない。
 
@@ -125,8 +141,8 @@ xcp-ng-base-servers/
 
 コンテナレジストリサービスを提供するVM群を`registry VM`と呼ぶ。
 
-- registry1 pool-wide networkと内部プライベートネットワーク向けのUbuntu版コンテナレジストリサービス
-- registry2 pool-wide networkと内部プライベートネットワーク向けのRHEL版コンテナレジストリサービス
+- registry01 pool-wide networkと内部プライベートネットワーク向けのUbuntu版コンテナレジストリサービス
+- registry02 pool-wide networkと内部プライベートネットワーク向けのRHEL版コンテナレジストリサービス
 
 
 ### pool-wide network接続開発用VM(vmlinux) ( 5台 )
@@ -240,7 +256,7 @@ network_names = {
 }
 ```
 
-留意事項:
+**留意事項**:
 - 予約キー `mgmt` は既存の pool-wide network 参照用です。`network_names` には定義しません。
 - ネットワーク削除時は, 先に各VM定義の `network_key` 参照を削除してから, `network_names` からキーを削除します。
 - キー名を変更した場合は Terraform のアドレス変更を伴うため, 必要に応じて `terraform state mv` を使用します。
@@ -291,6 +307,82 @@ network_options = {
     source_pif_device = "eth1"
   }
 }
+```
+
+## VMプロファイルの変更
+
+プロファイル毎のリソース量のデフォルト値は, `locals.tf`で定義している。
+各プロファイル内の以下の変数を定義することでVMプロファイル単位での, 仮
+想CPU数, メモリ容量, ディスク容量を変更できる:
+
+- `vcpus` 仮想CPU数(単位:個)
+- `memory_mb` メモリ容量(単位:MiB)
+- `disk_gb` ディスク容量 (単位:GiB)
+
+記載例を以下に示す:
+
+```hcl
+  ############################################
+  # プロファイル毎のVMリソース量のデフォルト値
+  ############################################
+  vm_resource_defaults = {
+
+    # Infrastructure
+    infrastructure = {
+      vcpus     = 4
+      memory_mb = 4096
+      disk_gb   = 128
+    }
+
+    # コンテナレジストリ
+    registry = {
+      vcpus     = 4
+      memory_mb = 4096
+      disk_gb   = 256
+    }
+
+    # 外部ネットワーク(pool-wide network)接続開発用VM
+    vmlinux = {
+      vcpus     = 4
+      memory_mb = 4096
+      disk_gb   = 128
+    }
+
+    # 内部プライベートネットワーク接続開発用VM
+    devlinux = {
+      vcpus     = 4
+      memory_mb = 4096
+      disk_gb   = 128
+    }
+
+    # k8sのコントロールプレイン
+    k8s_ctrlplane = {
+      vcpus     = 4
+      memory_mb = 4096
+      disk_gb   = 64
+    }
+
+    # K8sのワーカーノード
+    k8s_worker = {
+      vcpus     = 4
+      memory_mb = 4096
+      disk_gb   = 64
+    }
+
+    # FRR ノード
+    frr = {
+      vcpus     = 2
+      memory_mb = 2048
+      disk_gb   = 25
+    }
+
+    # 疑似外部ネットワーク接続ゲートウエイサーバ
+    extgw = {
+      vcpus     = 2
+      memory_mb = 2048
+      disk_gb   = 25
+    }
+  }
 ```
 
 ## セットアップ手順
@@ -470,10 +562,12 @@ make devserver
 make rhel-server
 make ubuntu-server
 make mgmt-server
+make observer01
+make observer02
 
 # registry
-make registry1
-make registry2
+make registry01
+make registry02
 
 # Devlinux
 make devlinux1      # 個別
@@ -515,6 +609,8 @@ make destroy
 #### unused networkの自動整理
 
 `make destroy-*` 実行後は, state上で未参照になった managed network を自動で整理する。
+本機能は, 現在動作しないため, 既定でDESTROY_PRUNE=falseで動作するようになっている。
+**本機能を使用しないこと**。
 
 ```bash
 # 自動整理を無効化してdestroyする場合
@@ -523,8 +619,6 @@ make destroy-router DESTROY_PRUNE=false
 # 手動で確認のみ実行
 make prune-unused-networks-dry-run
 
-# 手動で適用
-make prune-unused-networks
 ```
 
 ### State移行ターゲット
@@ -560,6 +654,7 @@ terraform state list  # module.vms["infrastructure/router"] が消えている�
 
 1. パスワード管理: `xoa_password`は環境変数で管理し, terraform.tfvarsには記載しない
 2. State管理: terraform.tfstateはgitignore対象としている。本ファイルのバックアップ等を別途実施することを想定している。
+3. unused networkの自動整理は使用しないこと
 
 ## トラブルシューティング
 

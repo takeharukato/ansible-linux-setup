@@ -25,7 +25,7 @@
 # ローカルレジストリ用にイメージにタグを付ける
 # 留意事項:
 #   netshoot_no_portscan_image: ロード後のイメージ名 (例: nicolaka/netshoot:v0.16)
-#   netshoot_image_registry: 登録先レジストリURL (例: registry1.local:5000/netshoot)
+#   netshoot_image_registry: 登録先レジストリURL (例: registry01.local:5000/netshoot)
 #   バージョンタグを付与して登録する
 - name: "Tag netshoot image for local registry"
   ansible.builtin.command:

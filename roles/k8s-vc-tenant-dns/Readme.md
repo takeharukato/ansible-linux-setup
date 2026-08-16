@@ -418,27 +418,27 @@ kubectl --kubeconfig ~/.kube/tenant-alpha.conf -n kube-system get service kube-d
 2. `k8s_vc_tenant_dns_image` で指定されたローカルのタグ名を, `k8s_vc_tenant_dns_image_registry` と `k8s_vc_tenant_dns_version` 変数の値を元に構成した登録先タグ名へ付け替えます (`docker tag <k8s_vc_tenant_dns_image変数の値> <k8s_vc_tenant_dns_image_registry変数の値:k8s_vc_tenant_dns_version変数の値>`)。
 3. `k8s_vc_tenant_dns_image_registry`で指定されたレジストリへコンテナイメージを登録する (`docker push <k8s_vc_tenant_dns_image_registry変数の値:k8s_vc_tenant_dns_version変数の値>`)。
 
-上記が完了すると, 例えば, `registry1.local:5000/vc-tenant-dns:v1.11.3` のようなタグでローカルレジストリへコンテナイメージが登録されます。
+上記が完了すると, 例えば, `registry01.local:5000/vc-tenant-dns:v1.11.3` のようなタグでローカルレジストリへコンテナイメージが登録されます。
 
 ## 検証ポイント
 
-本節では, `registry1.local:5000/vc-tenant-dns`を登録先ローカルレジストリとして使用することを前提に検証手順を説明します。
+本節では, `registry01.local:5000/vc-tenant-dns`を登録先ローカルレジストリとして使用することを前提に検証手順を説明します。
 
 ### レジストリ登録済みイメージの確認
 
 制御ホストからローカルレジストリ中に登録されているイメージタグを確認します。
 
 ```bash
-docker images registry1.local:5000/vc-tenant-dns
+docker images registry01.local:5000/vc-tenant-dns
 ```
 
 実行結果の例:
 
 ```bash
-$ docker images registry1.local:5000/vc-tenant-dns
+$ docker images registry01.local:5000/vc-tenant-dns
                                                                      i Info →   U  In Use
 IMAGE                                     ID             DISK USAGE   CONTENT SIZE   EXTRA
-registry1.local:5000/vc-tenant-dns:v1.11.3
+registry01.local:5000/vc-tenant-dns:v1.11.3
                                           f5f031056034       91.8MB         21.6MB
 ```
 
@@ -449,21 +449,21 @@ registry1.local:5000/vc-tenant-dns:v1.11.3
 ローカルレジストリ上でタグとリポジトリ一覧を確認します。
 
 ```bash
-curl -k -s http://registry1.local:5000/v2/vc-tenant-dns/tags/list
-curl -k -s http://registry1.local:5000/v2/_catalog
+curl -k -s http://registry01.local:5000/v2/vc-tenant-dns/tags/list
+curl -k -s http://registry01.local:5000/v2/_catalog
 ```
 
 実行結果の例:
 
 ```bash
-$ curl -k -s http://registry1.local:5000/v2/vc-tenant-dns/tags/list
+$ curl -k -s http://registry01.local:5000/v2/vc-tenant-dns/tags/list
 {"name":"vc-tenant-dns","tags":["v1.11.3"]}
 ```
 
 `"name"`に`vc-tenant-dns`が設定され, tagsに`k8s_vc_tenant_dns_version`変数で指定した版数が含まれていることを確認してください。
 
 ```bash
-$ curl -k -s http://registry1.local:5000/v2/_catalog
+$ curl -k -s http://registry01.local:5000/v2/_catalog
 {"repositories":["vc-tenant-dns"]}
 ```
 `"repositories"`に`vc-tenant-dns`が含まれることを確認してください。
@@ -577,7 +577,7 @@ spec:
   restartPolicy: Never
   containers:
     - name: vc-tenant-dns
-      image: registry1.local:5000/vc-tenant-dns:v1.11.3
+      image: registry01.local:5000/vc-tenant-dns:v1.11.3
       imagePullPolicy: IfNotPresent
       command:
         - /bin/sh
@@ -722,9 +722,9 @@ docker images | grep -E 'golang|alpine'
 **実行するコマンド**:
 
 ```bash
-curl -k -s http://registry1.local:5000/v2/_catalog
-docker images registry1.local:5000/vc-tenant-dns:v1.11.3
-docker push registry1.local:5000/vc-tenant-dns:v1.11.3
+curl -k -s http://registry01.local:5000/v2/_catalog
+docker images registry01.local:5000/vc-tenant-dns:v1.11.3
+docker push registry01.local:5000/vc-tenant-dns:v1.11.3
 ```
 
 **確認ポイント**:
@@ -742,7 +742,7 @@ docker push registry1.local:5000/vc-tenant-dns:v1.11.3
 ```bash
 kubectl describe pod vc-tenant-dns-smoke -n default
 ls -l /etc/containerd/certs.d/<registry>/hosts.toml
-crictl pull registry1.local:5000/vc-tenant-dns:v1.11.3
+crictl pull registry01.local:5000/vc-tenant-dns:v1.11.3
 ```
 
 **確認ポイント**:
@@ -961,7 +961,7 @@ kubectl --kubeconfig ~/.kube/${TENANT_NAME}.conf -n kube-system logs deploy/core
   172	        kubernetes.io/os: linux
   173	      containers:
   174	        - name: coredns
-  175	          image: registry1.local:5000/vc-tenant-dns:v1.11.3
+  175	          image: registry01.local:5000/vc-tenant-dns:v1.11.3
   176	          imagePullPolicy: IfNotPresent
   177	          args:
   178	            - "-conf"
@@ -1256,7 +1256,7 @@ Deployment が, テナント側の CoreDNS 実体を構成する本体部分で�
   172	        kubernetes.io/os: linux
   173	      containers:
   174	        - name: coredns
-  175	          image: registry1.local:5000/vc-tenant-dns:v1.11.3
+  175	          image: registry01.local:5000/vc-tenant-dns:v1.11.3
   176	          imagePullPolicy: IfNotPresent
   177	          args:
   178	            - "-conf"
