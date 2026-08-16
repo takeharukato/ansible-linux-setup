@@ -82,7 +82,7 @@
   until: fleet_bootstrap_verify_policy_list.status | default(0) | int == 200
   when: not (ansible_check_mode | bool)
 
-# 4種類のFleet Agent Policyが個別出力を持たず, 既定Logstash Outputを継承することを検証する。
+# 5種類のFleet Agent Policyが個別出力を持たず, 既定Logstash Outputを継承することを検証する。
 - name: Assert Fleet agent policies exist
   ansible.builtin.assert:
     that:
@@ -100,6 +100,63 @@
         | length == 1
     fail_msg: >-
       Fleet agent policy was not created or reused successfully.
+      policy={{ item.policy_name }}
+  loop: "{{ fleet_bootstrap_agent_policy_profiles }}"
+  loop_control:
+    label: "{{ item.policy_name }}"
+  when: not (ansible_check_mode | bool)
+
+# Agent Policyに設定されたElastic Agent自身の監視対象が,
+# プロファイルごとの期待値と一致することを検証する。
+# 既存プロファイルではlogsとmetricsを有効化し,
+# k8s_auditでは利用者設定から監視対象を構成する。
+- name: Assert Fleet agent policy monitoring settings
+  ansible.builtin.assert:
+    that:
+      - >-
+        (
+          (
+            fleet_bootstrap_verify_policy_list.json['items']
+            | default([])
+            | selectattr('name', 'equalto', item.policy_name)
+            | list
+            | first
+            | default({})
+          ).monitoring_enabled
+          | default([], true)
+          | sort
+          | list
+        )
+        ==
+        (
+          (
+            (
+              ['logs']
+              if (
+                logging_backend_elastic_agent_k8s_audit_monitoring_enabled | bool
+                and
+                logging_backend_elastic_agent_k8s_audit_monitoring_logs_enabled | bool
+              )
+              else []
+            )
+            +
+            (
+              ['metrics']
+              if (
+                logging_backend_elastic_agent_k8s_audit_monitoring_enabled | bool
+                and
+                logging_backend_elastic_agent_k8s_audit_monitoring_metrics_enabled | bool
+              )
+              else []
+            )
+          )
+          if (item.id == 'k8s_audit')
+          else ['logs', 'metrics']
+        )
+        | sort
+        | list
+    fail_msg: >-
+      Fleet agent policy monitoring settings do not match the required configuration.
       policy={{ item.policy_name }}
   loop: "{{ fleet_bootstrap_agent_policy_profiles }}"
   loop_control:
@@ -182,7 +239,8 @@
           | length == 1
         )
       - >-
-        not (logging_elastic_agent_host_log_input_enabled | default(true) | bool)
+        item.include_k8s_audit | bool
+        or not (logging_elastic_agent_host_log_input_enabled | default(true) | bool)
         or (
           fleet_bootstrap_verify_package_policy_list.json['items'] | default([])
           | selectattr('name', 'equalto', item.policy_name ~ '-host-logs')
@@ -243,6 +301,15 @@
           | list
           | length == 1
         )
+      - >-
+        not (item.include_k8s_audit | bool)
+        or not (logging_backend_elastic_agent_k8s_audit_package_policy_enabled | bool)
+        or (
+          fleet_bootstrap_verify_package_policy_list.json['items'] | default([])
+          | selectattr('name', 'equalto', item.policy_name ~ '-kubernetes')
+          | list
+          | length == 1
+        )
     fail_msg: >-
       Kubernetes Fleet package policies are missing.
       policy={{ item.policy_name }}
@@ -271,7 +338,7 @@
   until: fleet_bootstrap_verify_token_list.status | default(0) | int == 200
   when: not (ansible_check_mode | bool)
 
-# 4種類のEnrollment Tokenが対応するAgent Policyへ関連付けられていることを検証する。
+# 5種類のEnrollment Tokenが対応するAgent Policyへ関連付けられていることを検証する。
 - name: Assert Fleet enrollment tokens exist
   ansible.builtin.assert:
     that:

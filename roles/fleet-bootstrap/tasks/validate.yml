@@ -1,4 +1,4 @@
-#  -*- coding:utf-8 mode:yaml -*-
+#  -*- coding:utf-8-unix mode:yaml -*-
 #  Ansible playbook
 #  Copyright 2020 Takeharu KATO All Rights Reserved.
 #
@@ -62,13 +62,12 @@
       - fleet_bootstrap_fleet_server_policy_id | default('', true) | trim | length > 0
       - fleet_bootstrap_fleet_server_output_name | default('', true) | trim | length > 0
       - fleet_bootstrap_fleet_server_elasticsearch_hosts | default([], true) | length > 0
-      - fleet_bootstrap_agent_policy_profiles | default([], true) | length == 4
+      - fleet_bootstrap_agent_policy_profiles | default([], true) | length == 5
       - fleet_bootstrap_kibana_api_request_timeout_seconds | int > 0
       - fleet_bootstrap_kibana_api_retries | int > 0
       - >-
         (
           fleet_bootstrap_kibana_api_retry_interval_seconds
-
           | int
         ) >= 0
       - (fleet_bootstrap_elasticsearch_health_request_timeout_seconds | int) > 0
@@ -101,13 +100,60 @@
       - item.include_k8s_system is boolean
       - item.include_k8s_workload is boolean
       - item.include_k8s_cluster is boolean
+      - item.include_k8s_audit is boolean
       - not (item.include_k8s_workload | bool) or (item.include_k8s_system | bool)
     fail_msg: >-
-      Invalid Fleet agent policy profile. Workload collection requires
-      Kubernetes system collection.
+      Invalid Fleet agent policy profile. Required profile attributes must be
+      valid, and workload collection requires Kubernetes system collection.
   loop: "{{ fleet_bootstrap_agent_policy_profiles | default([], true) }}"
   loop_control:
     label: "{{ item.id | default('undefined') }}"
+
+# Kubernetes API監査ログ収集用Package Policyの有効化設定と,
+# データストリーム名前空間が有効な値であることを確認する。
+# data_stream.namespaceは100文字以下であり, '-'を含まない値とする。
+- name: Validate Fleet Kubernetes audit package policy settings
+  ansible.builtin.assert:
+    that:
+      - logging_backend_elastic_agent_k8s_audit_package_policy_enabled is boolean
+      - >-
+        logging_backend_elastic_agent_k8s_audit_data_stream_namespace
+        | default('', true)
+        | string
+        | trim
+        | length > 0
+      - >-
+        (
+          logging_backend_elastic_agent_k8s_audit_data_stream_namespace
+          | default('', true)
+          | string
+          | trim
+          | length
+        ) <= 100
+      - >-
+        '-' not in (
+          logging_backend_elastic_agent_k8s_audit_data_stream_namespace
+          | default('', true)
+          | string
+          | trim
+        )
+    fail_msg: >-
+      Invalid Fleet Kubernetes audit package policy settings.
+      Set a boolean package policy enable flag and a valid non-empty
+      data stream namespace with a maximum length of 100 characters
+      that does not contain '-'.
+
+# Kubernetes API監査ログ収集用Elastic Agent自身の監視設定が,
+# 真偽値として指定されていることを確認する。
+- name: Validate Fleet Kubernetes audit monitoring settings
+  ansible.builtin.assert:
+    that:
+      - logging_backend_elastic_agent_k8s_audit_monitoring_enabled is boolean
+      - logging_backend_elastic_agent_k8s_audit_monitoring_logs_enabled is boolean
+      - logging_backend_elastic_agent_k8s_audit_monitoring_metrics_enabled is boolean
+    fail_msg: >-
+      Invalid Fleet Kubernetes audit monitoring settings.
+      Monitoring settings must be boolean values.
 
 # Enrollment Token辞書のキーになるElastic Agent ポリシー識別子が一意であることを確認する。
 - name: Validate Fleet agent policy profile identifiers are unique

@@ -1,4 +1,4 @@
-#  -*- coding:utf-8 mode:yaml -*-
+#  -*- coding:utf-8-unix mode:yaml -*-
 #  Ansible playbook
 #  Copyright 2020 Takeharu KATO All Rights Reserved.
 #
@@ -251,6 +251,7 @@ fleet_bootstrap_agent_policy_profiles:
     include_k8s_system: false
     include_k8s_workload: false
     include_k8s_cluster: false
+    include_k8s_audit: false
   - id: k8s_system
     policy_name: "{{ fleet_bootstrap_policy_name }}-k8s-system"
     enrollment_token_name: "{{ fleet_bootstrap_enrollment_token_name }}-k8s-system"
@@ -258,6 +259,7 @@ fleet_bootstrap_agent_policy_profiles:
     include_k8s_system: true
     include_k8s_workload: false
     include_k8s_cluster: false
+    include_k8s_audit: false
   - id: k8s_workload
     policy_name: "{{ fleet_bootstrap_policy_name }}-k8s-workload"
     enrollment_token_name: "{{ fleet_bootstrap_enrollment_token_name }}-k8s-workload"
@@ -265,6 +267,7 @@ fleet_bootstrap_agent_policy_profiles:
     include_k8s_system: true
     include_k8s_workload: true
     include_k8s_cluster: false
+    include_k8s_audit: false
   - id: k8s_cluster
     policy_name: "{{ fleet_bootstrap_policy_name }}-k8s-cluster"
     enrollment_token_name: "{{ fleet_bootstrap_enrollment_token_name }}-k8s-cluster"
@@ -272,6 +275,15 @@ fleet_bootstrap_agent_policy_profiles:
     include_k8s_system: false
     include_k8s_workload: false
     include_k8s_cluster: true
+    include_k8s_audit: false
+  - id: k8s_audit
+    policy_name: "{{ fleet_bootstrap_policy_name }}-k8s-audit"
+    enrollment_token_name: "{{ fleet_bootstrap_enrollment_token_name }}-k8s-audit"
+    include_system: false
+    include_k8s_system: false
+    include_k8s_workload: false
+    include_k8s_cluster: false
+    include_k8s_audit: true
 
 #
 # Elastack用ネットワーク
@@ -292,6 +304,10 @@ logging_elastic_agent_enabled: >-
 logging_backend_elastic_agent_k8s_cluster_package_policy_enabled: true
 # k8s_cluster構成種別向けKubernetes統合メトリクス周期。
 logging_elastic_agent_k8s_cluster_metrics_period: "10s"
+# k8s_audit構成種別向けKubernetes統合Package Policy作成の有効化フラグ。
+logging_backend_elastic_agent_k8s_audit_package_policy_enabled: true
+# k8s_audit構成種別向けKubernetes監査ログのデータストリーム名前空間。
+logging_backend_elastic_agent_k8s_audit_data_stream_namespace: "k8s_system"
 # Elastic Agentへ適用するElastic Stack共通版数。
 elastic_agent_version: "{{ logging_backend_elastic_stack_version }}"
 # Elastic Agent配布物の取得及び展開に使用する作業ディレクトリパス。

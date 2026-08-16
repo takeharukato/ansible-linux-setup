@@ -9,7 +9,7 @@ top=.
 	run_logging_backend \
 	run_elasticsearch run_logstash run_kibana run_fleet_server run_fleet_bootstrap \
 	run_logging_collector \
-	run_elastic_agent run_elastic_agent_k8s run_elastic_agent_all \
+	run_elastic_agent run_elastic_agent_k8s run_elastic_agent_k8s_audit run_elastic_agent_all \
 	run_ldap_server run_redmine_server run_yq run_jd \
 	run_k8s_common run_k8s_ctrl_plane run_k8s_multus run_k8s_whereabouts \
 	run_k8s_worker run_k8s_devel run_netgauge run_netshoot_no_portscan \
@@ -181,7 +181,7 @@ run_fleet_bootstrap:
 	ansible-playbook --tags "docker-network-elastic-stack,fleet-server,fleet-bootstrap" ${OPT_COMMON} 2>&1 |tee build-fleet-bootstrap.log
 
 run_logging_collector:
-	ansible-playbook --tags "elastic-agent,elastic-agent-k8s" ${OPT_COMMON} 2>&1 |tee build-logging-collector.log
+	ansible-playbook --tags "elastic-agent,elastic-agent-k8s,elastic-agent-k8s-audit" ${OPT_COMMON} 2>&1 |tee build-logging-collector.log
 
 run_elastic_agent:
 	ansible-playbook --tags "elastic-agent" ${OPT_COMMON} 2>&1 |tee build-elastic-agent.log
@@ -189,8 +189,11 @@ run_elastic_agent:
 run_elastic_agent_k8s:
 	ansible-playbook --tags "elastic-agent-k8s" ${OPT_COMMON} 2>&1 |tee build-elastic-agent-k8s.log
 
+run_elastic_agent_k8s_audit:
+	ansible-playbook --tags "elastic-agent-k8s-audit" ${OPT_COMMON} 2>&1 |tee build-elastic-agent-k8s-audit.log
+
 run_elastic_agent_all:
-	ansible-playbook --tags "elastic-agent,elastic-agent-k8s" ${OPT_COMMON} 2>&1 |tee build-elastic-agent-all.log
+	ansible-playbook --tags "elastic-agent,elastic-agent-k8s,elastic-agent-k8s-audit" ${OPT_COMMON} 2>&1 |tee build-elastic-agent-all.log
 
 run_ntp_server:
 	ansible-playbook --tags "ntp-server" ${OPT_COMMON} 2>&1 |tee build-ntp-server.log

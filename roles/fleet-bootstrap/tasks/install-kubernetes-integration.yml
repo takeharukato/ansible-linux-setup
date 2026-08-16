@@ -6,7 +6,8 @@
 #
 ---
 
-# k8s_cluster構成種別を利用する場合にのみKubernetes統合を導入し, 不要な導入を回避する。
+# k8s_cluster又はk8s_audit構成種別を利用する場合に
+# Kubernetes統合を導入し, 不要な導入を回避する。
 - name: Install Fleet kubernetes integration package
   ansible.builtin.uri:
     url: >-
@@ -28,12 +29,26 @@
   register: fleet_bootstrap_kubernetes_package_install_result
   retries: "{{ fleet_bootstrap_kibana_api_retries | int }}"
   delay: "{{ fleet_bootstrap_kibana_api_retry_interval_seconds | int }}"
-  until: fleet_bootstrap_kubernetes_package_install_result.status | default(0) | int == 200
+  until: >-
+    fleet_bootstrap_kubernetes_package_install_result.status
+    | default(0)
+    | int == 200
   when:
     - >-
       (
-        fleet_bootstrap_agent_policy_profiles | default([], true)
-        | selectattr('include_k8s_cluster', 'equalto', true)
-        | list
-        | length
-      ) > 0
+        (
+          fleet_bootstrap_agent_policy_profiles | default([], true)
+          | selectattr('include_k8s_cluster', 'equalto', true)
+          | list
+          | length
+        ) > 0
+      )
+      or
+      (
+        (
+          fleet_bootstrap_agent_policy_profiles | default([], true)
+          | selectattr('include_k8s_audit', 'equalto', true)
+          | list
+          | length
+        ) > 0
+      )

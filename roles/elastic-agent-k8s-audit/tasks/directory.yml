@@ -1,0 +1,17 @@
+#  -*- coding:utf-8-unix mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  ファイル・ディレクトリ作成関連タスク
+#
+---
+
+# Kubernetes API監査ログ収集用Elastic AgentのHelm valuesファイルを
+# 配置する設定ディレクトリを作成する。
+- name: Create elastic-agent-k8s-audit configuration directory
+  ansible.builtin.file:
+    path: "{{ elastic_agent_k8s_audit_runtime_config_dir }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"

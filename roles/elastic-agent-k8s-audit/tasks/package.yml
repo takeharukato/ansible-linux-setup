@@ -1,0 +1,50 @@
+#  -*- coding:utf-8-unix mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  パッケージ関連処理
+#
+#  helmの存在確認, kubectlの存在確認を行う
+#
+---
+
+# Helm実行ユーザ一覧でhelmコマンドが利用可能であることを確認し,
+# 実行ユーザ差異による失敗を防止する。
+- name: Validate helm command availability for execution users
+  ansible.builtin.command:
+    argv:
+      - sudo
+      - -u
+      - "{{ item }}"
+      - helm
+      - version
+      - --short
+  register: elastic_agent_k8s_audit_helm_version_result
+  changed_when: false
+  become: true
+  until: elastic_agent_k8s_audit_helm_version_result.rc == 0
+  retries: "{{ elastic_agent_k8s_audit_runtime_helm_retries | int }}"
+  delay: "{{ elastic_agent_k8s_audit_runtime_helm_request_interval_seconds | int }}"
+  loop: "{{ k8s_runtime_helm_execution_users | default([], true) }}"
+  loop_control:
+    label: "{{ item }}"
+
+# Kubernetes API操作の前提を満たすため,
+# 代表実行ユーザでkubectlコマンドが利用可能であることを確認する。
+- name: Validate kubectl command availability
+  ansible.builtin.command:
+    argv:
+      - sudo
+      - -u
+      - "{{ k8s_runtime_helm_operator_user }}"
+      - kubectl
+      - version
+      - --client=true
+      - --request-timeout={{ elastic_agent_k8s_audit_runtime_helm_timeout_seconds | int }}s
+      - --output=yaml
+  register: elastic_agent_k8s_audit_kubectl_version_result
+  changed_when: false
+  become: true
+  until: elastic_agent_k8s_audit_kubectl_version_result.rc == 0
+  retries: "{{ elastic_agent_k8s_audit_runtime_helm_retries | int }}"
+  delay: "{{ elastic_agent_k8s_audit_runtime_helm_request_interval_seconds | int }}"

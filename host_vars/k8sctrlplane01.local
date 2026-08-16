@@ -185,3 +185,6 @@ logging_elastic_agent_k8s_system_enabled: true
 logging_elastic_agent_k8s_workload_enabled: false
 # Kubernetesメトリクス情報監視用Elastic Agent を導入する場合にtrueを指定する
 elastic_agent_k8s_enabled: true
+# Kubernetes監査ログ収集用Elastic Agentの導入を有効化する。
+# Kubernetes コントロールプレーンノードのhost_vars側で以下の変数を設定すること
+elastic_agent_k8s_audit_enabled: true

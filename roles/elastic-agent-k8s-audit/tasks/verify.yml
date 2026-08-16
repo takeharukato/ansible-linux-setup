@@ -1,0 +1,335 @@
+#  -*- coding:utf-8-unix mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  導入結果確認タスク
+#
+---
+
+# Kubernetes API監査ログ収集用Elastic AgentのHelm release状態を取得する。
+- name: Get elastic-agent-k8s-audit Helm release status
+  ansible.builtin.command:
+    argv:
+      - sudo
+      - -u
+      - "{{ k8s_runtime_helm_operator_user }}"
+      - helm
+      - status
+      - "{{ elastic_agent_k8s_audit_runtime_release_name }}"
+      - --namespace
+      - "{{ elastic_agent_k8s_audit_runtime_namespace }}"
+      - --kubeconfig
+      - "{{ elastic_agent_k8s_audit_runtime_kubeconfig_path }}"
+      - -o
+      - json
+  register: elastic_agent_k8s_audit_verify_helm_status_result
+  changed_when: false
+  become: true
+  until: elastic_agent_k8s_audit_verify_helm_status_result.rc == 0
+  retries: "{{ elastic_agent_k8s_audit_runtime_helm_retries | int }}"
+  delay: "{{ elastic_agent_k8s_audit_runtime_helm_request_interval_seconds | int }}"
+
+# Helm releaseがdeployed状態であることを確認する。
+- name: Validate elastic-agent-k8s-audit Helm release status
+  ansible.builtin.assert:
+    that:
+      - elastic_agent_k8s_audit_verify_helm_status_result.rc == 0
+      - >-
+        (
+          elastic_agent_k8s_audit_verify_helm_status_result.stdout
+          | from_json
+        ).info.status == 'deployed'
+    fail_msg: >-
+      elastic-agent-k8s-audit Helm release is not deployed.
+
+# Helm releaseに属するDaemonSet一覧を取得する。
+- name: Get elastic-agent-k8s-audit DaemonSets
+  ansible.builtin.command:
+    argv:
+      - sudo
+      - -u
+      - "{{ k8s_runtime_helm_operator_user }}"
+      - kubectl
+      - --kubeconfig
+      - "{{ elastic_agent_k8s_audit_runtime_kubeconfig_path }}"
+      - --namespace
+      - "{{ elastic_agent_k8s_audit_runtime_namespace }}"
+      - get
+      - daemonset
+      - --selector
+      - "app.kubernetes.io/instance={{ elastic_agent_k8s_audit_runtime_release_name }}"
+      - -o
+      - json
+  register: elastic_agent_k8s_audit_daemonset_result
+  changed_when: false
+  become: true
+  until: elastic_agent_k8s_audit_daemonset_result.rc == 0
+  retries: "{{ elastic_agent_k8s_audit_runtime_helm_retries | int }}"
+  delay: "{{ elastic_agent_k8s_audit_runtime_helm_retry_interval_seconds | int }}"
+
+# Helm releaseに属するDaemonSetが少なくとも1個存在することを確認する。
+- name: Validate elastic-agent-k8s-audit DaemonSet count
+  ansible.builtin.assert:
+    that:
+      - >-
+        (
+          (
+            elastic_agent_k8s_audit_daemonset_result.stdout
+            | from_json
+          )['items']
+          | default([])
+          | length
+        ) > 0
+    fail_msg: >-
+      Expected at least one elastic-agent-k8s-audit DaemonSet.
+
+# Kubernetes API監査ログ収集用DaemonSetの格納先を初期化する。
+- name: Initialize elastic-agent-k8s-audit DaemonSet list
+  ansible.builtin.set_fact:
+    elastic_agent_k8s_audit_verify_daemonsets: []
+
+# Kubernetes API監査ログのHostPathとvolumeMountを持つ
+# DaemonSetを監査ログ収集用DaemonSetとして抽出する。
+- name: Resolve elastic-agent-k8s-audit DaemonSets
+  ansible.builtin.set_fact:
+    elastic_agent_k8s_audit_verify_daemonsets: >-
+      {{
+        elastic_agent_k8s_audit_verify_daemonsets
+        + [item]
+      }}
+  when:
+    - >-
+      (
+        item['spec']['template']['spec']['volumes']
+        | default([])
+        | selectattr('name', 'equalto', 'kubernetes-audit-log')
+        | selectattr('hostPath.path', 'defined')
+        | selectattr(
+            'hostPath.path',
+            'equalto',
+            elastic_agent_k8s_audit_host_log_dir
+          )
+        | list
+        | length
+      ) > 0
+    - >-
+      (
+        item['spec']['template']['spec']['containers']
+        | default([])
+        | map(attribute='volumeMounts', default=[])
+        | flatten
+        | selectattr('name', 'equalto', 'kubernetes-audit-log')
+        | selectattr(
+            'mountPath',
+            'equalto',
+            elastic_agent_k8s_audit_container_log_dir
+          )
+        | list
+        | length
+      ) > 0
+  loop: >-
+    {{
+      (
+        elastic_agent_k8s_audit_daemonset_result.stdout
+        | from_json
+      )['items']
+    }}
+  loop_control:
+    label: "{{ item.metadata.name }}"
+
+# Kubernetes API監査ログ収集用DaemonSetが
+# 少なくとも1個存在することを確認する。
+- name: Validate elastic-agent-k8s-audit DaemonSet existence
+  ansible.builtin.assert:
+    that:
+      - elastic_agent_k8s_audit_verify_daemonsets | length > 0
+    fail_msg: >-
+      No DaemonSet with the Kubernetes audit log volume was found
+      in the elastic-agent-k8s-audit Helm release.
+
+# 各DaemonSetのdesired数とready数が一致し,
+# 少なくとも1個以上のPodが配置対象になっていることを確認する。
+- name: Validate elastic-agent-k8s-audit DaemonSet readiness
+  ansible.builtin.assert:
+    that:
+      - >-
+        item['status']['desiredNumberScheduled']
+        | default(0)
+        | int
+        > 0
+      - >-
+        (
+          item['status']['numberReady']
+          | default(0)
+          | int
+        )
+        ==
+        (
+          item['status']['desiredNumberScheduled']
+          | default(0)
+          | int
+        )
+    fail_msg: >-
+      elastic-agent-k8s-audit DaemonSet {{ item.metadata.name }}
+      is not fully ready.
+  loop: "{{ elastic_agent_k8s_audit_verify_daemonsets }}"
+  loop_control:
+    label: "{{ item.metadata.name }}"
+
+# Kubernetes API監査ログ収集用DaemonSetのUID一覧を生成する。
+- name: Resolve elastic-agent-k8s-audit DaemonSet UIDs
+  ansible.builtin.set_fact:
+    elastic_agent_k8s_audit_verify_daemonset_uids: >-
+      {{
+        elastic_agent_k8s_audit_verify_daemonsets
+        | map(attribute='metadata.uid')
+        | list
+      }}
+
+# Kubernetes API監査ログ収集用Elastic Agent Podを
+# ownerReferencesから特定するためにNamespace内のPod一覧を取得する。
+- name: Get Pods in elastic-agent-k8s-audit namespace
+  ansible.builtin.command:
+    argv:
+      - sudo
+      - -u
+      - "{{ k8s_runtime_helm_operator_user }}"
+      - kubectl
+      - --kubeconfig
+      - "{{ elastic_agent_k8s_audit_runtime_kubeconfig_path }}"
+      - --namespace
+      - "{{ elastic_agent_k8s_audit_runtime_namespace }}"
+      - get
+      - pods
+      - -o
+      - json
+  register: elastic_agent_k8s_audit_verify_namespace_pods_result
+  changed_when: false
+  become: true
+  until: elastic_agent_k8s_audit_verify_namespace_pods_result.rc == 0
+  retries: "{{ elastic_agent_k8s_audit_runtime_helm_retries | int }}"
+  delay: "{{ elastic_agent_k8s_audit_runtime_helm_request_interval_seconds | int }}"
+
+# Kubernetes API監査ログ収集用Elastic Agent Podの格納先を初期化する。
+- name: Initialize elastic-agent-k8s-audit Pod list
+  ansible.builtin.set_fact:
+    elastic_agent_k8s_audit_verify_pods: []
+
+# ownerReferencesが監査ログ収集用DaemonSetを指しているPodを抽出する。
+- name: Resolve elastic-agent-k8s-audit Pods
+  ansible.builtin.set_fact:
+    elastic_agent_k8s_audit_verify_pods: >-
+      {{
+        elastic_agent_k8s_audit_verify_pods
+        + [item]
+      }}
+  when:
+    - >-
+      (
+        (
+          item['metadata']['ownerReferences']
+          | default([])
+          | selectattr('kind', 'equalto', 'DaemonSet')
+          | map(attribute='uid')
+          | list
+        )
+        | intersect(elastic_agent_k8s_audit_verify_daemonset_uids)
+        | length
+      ) > 0
+  loop: >-
+    {{
+      (
+        elastic_agent_k8s_audit_verify_namespace_pods_result.stdout
+        | from_json
+      )['items']
+    }}
+  loop_control:
+    label: "{{ item.metadata.name }}"
+
+# Audit Agent Podが1個以上存在し,
+# すべてRunning状態であることを確認する。
+- name: Validate elastic-agent-k8s-audit Pods
+  ansible.builtin.assert:
+    that:
+      - elastic_agent_k8s_audit_verify_pods | length > 0
+      - >-
+        (
+          elastic_agent_k8s_audit_verify_pods
+          | selectattr('status.phase', 'equalto', 'Running')
+          | list
+          | length
+        )
+        ==
+        (
+          elastic_agent_k8s_audit_verify_pods
+          | length
+        )
+    fail_msg: >-
+      One or more elastic-agent-k8s-audit Pods are not running.
+
+# Audit Agent Podの配置先ノードが,
+# control-planeラベルを持つことを確認する。
+- name: Validate elastic-agent-k8s-audit Pod node placement
+  ansible.builtin.command:
+    argv:
+      - sudo
+      - -u
+      - "{{ k8s_runtime_helm_operator_user }}"
+      - kubectl
+      - --kubeconfig
+      - "{{ elastic_agent_k8s_audit_runtime_kubeconfig_path }}"
+      - get
+      - node
+      - "{{ item.spec.nodeName }}"
+      - -o
+      - json
+  register: elastic_agent_k8s_audit_verify_node_result
+  changed_when: false
+  become: true
+  failed_when: >-
+    elastic_agent_k8s_audit_verify_node_result.rc != 0
+    or
+    (
+      'node-role.kubernetes.io/control-plane'
+      not in
+      (
+        (
+          elastic_agent_k8s_audit_verify_node_result.stdout
+          | from_json
+        ).metadata.labels
+        | default({})
+      )
+    )
+  loop: "{{ elastic_agent_k8s_audit_verify_pods }}"
+  loop_control:
+    label: "{{ item.metadata.name }} -> {{ item.spec.nodeName }}"
+
+# 各Audit Agent PodからKubernetes API監査ログファイルを
+# 読み取り可能であることを確認する。
+# 監査ログ内容自体は標準出力へ出力しない。
+- name: Validate Kubernetes audit log readability from elastic-agent-k8s-audit Pods
+  ansible.builtin.command:
+    argv:
+      - sudo
+      - -u
+      - "{{ k8s_runtime_helm_operator_user }}"
+      - kubectl
+      - --kubeconfig
+      - "{{ elastic_agent_k8s_audit_runtime_kubeconfig_path }}"
+      - --namespace
+      - "{{ elastic_agent_k8s_audit_runtime_namespace }}"
+      - exec
+      - "{{ item.metadata.name }}"
+      - --
+      - test
+      - -r
+      - "{{ elastic_agent_k8s_audit_container_log_dir }}/audit.log"
+  register: elastic_agent_k8s_audit_verify_log_readability_result
+  changed_when: false
+  become: true
+  until: elastic_agent_k8s_audit_verify_log_readability_result.rc == 0
+  retries: "{{ elastic_agent_k8s_audit_runtime_helm_retries | int }}"
+  delay: "{{ elastic_agent_k8s_audit_runtime_helm_request_interval_seconds | int }}"
+  loop: "{{ elastic_agent_k8s_audit_verify_pods }}"
+  loop_control:
+    label: "{{ item.metadata.name }}"

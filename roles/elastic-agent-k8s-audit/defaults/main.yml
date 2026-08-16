@@ -1,0 +1,57 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  ロール固有変数のデフォルト値
+#  group_vars/all/all.yml やhost_varsで上書き可能とするため,
+#  ロール名/defaults/main.yml に定義している
+---
+
+# Kubernetes監査ログ収集用Elastic Agentの導入を有効化する。
+elastic_agent_k8s_audit_enabled: false
+
+# Helm操作タイムアウト値 (単位: 秒)。
+elastic_agent_k8s_audit_helm_timeout_seconds: 300
+
+# Helm操作の再試行回数。
+elastic_agent_k8s_audit_helm_retries: 3
+
+# Helm操作の再試行間隔 (単位: 秒)。
+elastic_agent_k8s_audit_helm_retry_interval_seconds: 5
+
+# Kubernetes APIおよびHelm状態確認の実行間隔 (単位: 秒)。
+elastic_agent_k8s_audit_helm_request_interval_seconds: 5
+
+# Kubernetes監査ログのホスト側格納ディレクトリ。
+elastic_agent_k8s_audit_host_log_dir: "/var/log/kubernetes/audit"
+
+# Elastic Agentコンテナ内でKubernetes監査ログを参照するディレクトリ。
+elastic_agent_k8s_audit_container_log_dir: "/hostfs/var/log/kubernetes/audit"
+
+# Kubernetes監査ログ収集用Elastic Agent Podのリソース要求量および上限値。
+#
+# CPU上限値は設定せず, 一時ストレージ (ephemeral-storage)についても
+# 初期仕様では制限値を設定しない。
+elastic_agent_k8s_audit_resources:
+  limits:
+    memory: 1000Mi
+  requests:
+    cpu: 100m
+    memory: 400Mi
+
+# Kubernetes監査ログ収集用Elastic Agentを配置するノードの選択条件。
+#
+# 既定ではKubernetesのコントロールプレーンノードだけを対象とする。
+elastic_agent_k8s_audit_node_selector:
+  kubernetes.io/os: linux
+  node-role.kubernetes.io/control-plane: ""
+
+# Kubernetes監査ログ収集用Elastic Agentに設定するPod配置許容条件。
+# tolerationsの設定は, Kubernetesのコントロールプレーンノードに
+# Podを配置しない指示(NoSchedule Taint)があった場合でも,
+# Kubernetes監査ログ収集用Elastic Agentをコントロールプレーンノードに配置
+# することを許容するための設定である。
+elastic_agent_k8s_audit_tolerations:
+  - key: node-role.kubernetes.io/control-plane
+    operator: Exists
+    effect: NoSchedule

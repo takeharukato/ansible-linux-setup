@@ -1,6 +1,6 @@
 # fleet-bootstrap ロール
 
-本ロールは, Kibana の Fleet API へ接続して Logstashを送信先とするFleet Output, 4種類のElastic Agent ポリシー, Package Policy及びEnrollment Tokenを作成又は更新するための初期化ロールです。4種類のElastic Agent ポリシーは, ホスト監視, Kubernetesシステム監視, Kubernetesワークロード監視及びKubernetesクラスタ監視に対応します。加えて, Logstashの下流にあるElasticsearchに対して `_cluster/health` を対象ホスト上での疎通確認と外部ホストからの疎通確認に分けて確認し, 接続先の到達性も同時に検証します。`fleet-server` と `fleet-bootstrap` を同一 `ansible-playbook` 実行で連続適用することを前提とし, Fleet Server ロール側で設定された Fleet API 呼び出し用のキーを用いて, Fleet APIに接続し, Fleet Serverの設定を行います。
+本ロールは, Kibana の Fleet API へ接続して Logstashを送信先とするFleet Output, 5種類のElastic Agent ポリシー, Package Policy及びEnrollment Tokenを作成又は更新するための初期化ロールです。5種類のElastic Agent ポリシーは, ホスト監視, Kubernetesシステム監視, Kubernetesワークロード監視, Kubernetesクラスタ監視及びKubernetes API監査ログ収集に対応します。加えて, Logstashの下流にあるElasticsearchに対して `_cluster/health` を対象ホスト上での疎通確認と外部ホストからの疎通確認に分けて確認し, 接続先の到達性も同時に検証します。`fleet-server` と `fleet-bootstrap` を同一 `ansible-playbook` 実行で連続適用することを前提とし, Fleet Server ロール側で設定された Fleet API 呼び出し用のキーを用いて, Fleet APIに接続し, Fleet Serverの設定を行います。
 本ロールでは, コンテナ起動やサービス管理は行わず, 既存の Fleet Serverの設定作業のみを実施します。
 
 ## 目次
@@ -14,6 +14,7 @@
       - [k8s\_system構成種別](#k8s_system構成種別)
       - [k8s\_workload構成種別](#k8s_workload構成種別)
       - [k8s\_cluster構成種別](#k8s_cluster構成種別)
+      - [k8s\_audit構成種別](#k8s_audit構成種別)
         - [Kubernetes統合のクラスタ状態情報](#kubernetes統合のクラスタ状態情報)
         - [現行で採取対象外の情報](#現行で採取対象外の情報)
         - [現行で採取対象外の設定項目](#現行で採取対象外の設定項目)
@@ -55,6 +56,16 @@
 
 | 正式名称 | 略称 | 意味 |
 | --- | --- | --- |
+| Ansible | - | 設定の同一化や導入作業を所定の手順に従って自動化する仕組み。 |
+| Playbook | - | 自動化処理の実行手順を記述したファイル。 |
+| Helm Chart | - | Helmで導入するKubernetesリソース定義のまとまり。 |
+| rollout | - | Deploymentなどの更新適用状況を確認する処理。 |
+| kubeconfig | - | Kubernetes API接続先と認証情報を記述した設定ファイル。 |
+| hostPath | - | Podがノード上のファイルパスを直接参照するためのボリューム定義。 |
+| preset | - | Helm valuesで導入構成を選択する設定項目。 |
+| clusterWide | - | Kubernetesクラスタ全体を対象として共通処理を実行するためのHelm valuesで指定する導入構成の選択値。 |
+| perNode | - | Kubernetesを構成するノードで実施する処理を実行するためのHelm valuesで指定する導入構成の選択値。 |
+| kube-state-metrics | - | Elastic StackでKubernetesリソース状態を収集するために利用するメトリクス公開コンポーネント。 |
 | Elasticsearch | - | ログやメトリクス情報を集約, 検索するためのサーバソフトウェア。 |
 | Elasticsearchのセキュリティ機能 | - | Elasticsearchへの接続者を認証し, 利用者に付与した権限に基づいて実行可能な操作を制御する機能。 |
 | Snapshot Repository | - | Elasticsearch がバックアップデータを保存する場所として参照する保存先の定義。 |
@@ -69,21 +80,68 @@
 | Enrollment Token | - | Elastic AgentがFleet Serverへの登録を許可されていることを確認し, 登録先のElastic Agent ポリシーを特定するための登録用認証情報。 |
 | Enrollment Token共有ファイル | - | Fleet BootstrapがEnrollment Tokenを制御ホスト上へ保存し, Elastic Agent本体ロールがFleet Serverへの登録時に読み込む権限`0600`のYAMLファイル。 |
 | Fleet Serverサービスアカウントトークンファイル | - | Fleet ServerがElasticsearchへ接続するためのサービスアカウントトークンを対象ホスト上へ保存し, Fleet Serverコンテナが起動時に読み込む権限`0600`のファイル。 |
-| コンテナイメージ | - | コンテナ実行に必要な内容をまとめた保存形式。 |
-| コンテナ | - | アプリケーションを動かす隔離された実行単位。 |
-| Docker | - | コンテナイメージやコンテナの作成, 実行, 管理を行うコマンド。 |
-| Docker Compose | - | 複数のコンテナ定義をまとめて作成, 起動, 停止, 更新する仕組み。 |
-| Docker Compose 定義ファイル | - | Docker Compose が参照するコンテナ構成の定義ファイル。 |
-| compose project 名 | - | Docker Compose によって展開される個々のアプリケーションを識別する名前です。展開されたコンテナ, ネットワーク, ボリュームなどのリソースをグループ化し, 他のアプリケーション又は別途展開された同じアプリケーションと区別するために用います。 |
-| Ansible | - | 設定の同一化や導入作業を所定の手順に従って自動化する仕組み。 |
-| Playbook | - | 自動化処理の実行手順を記述したファイル。 |
+| Classless Inter-Domain Routing | CIDR | Internet Protocolアドレスの範囲を先頭アドレスと接頭辞長で表す方式。 |
+| Docker bridge network | Dockerブリッジネットワーク | 同一対象ホスト上のコンテナ間通信に使用する仮想的なネットワーク。 |
+| Network Address Translation | NAT | 通信時にIPアドレスを変換する処理。 |
+| systemd | - | Linux上でサービスの起動順序と実行状態を管理するソフトウェア。 |
+| pipeline | - | 入力, 整形, 出力の処理順を定義する Logstash の設定単位。 |
+| Elastic Agent入力 | - | Elastic Agentからデータストリーム情報を保持したイベントを受信するLogstashの入力機能。 |
 | Host Variables | host_vars | ホスト単位の設定値を格納する変数定義。 |
 | Ansible Inventory | inventory | 実行対象ホストの一覧と接続情報を管理する定義。 |
 | inventory group | - | Ansible Inventory内で同じ役割の対象ホストをまとめる識別単位。 |
 | single-node | - | Elasticsearch を単一ノード構成で構成する方式。コンテナイメージを用いた導入時に典型的に用いられる。 |
+| Hypertext Transfer Protocol | HTTP | World Wide Webで情報をやり取りする通信手順。 |
+| Internet Protocol | IP | ネットワーク上で宛先を識別し, データを届けるための通信手順。 |
+| World Wide Web | WWW | ネットワーク上で文書や情報を相互参照できる仕組み。 |
+| Uniform Resource Locator | URL | World Wide Web上の資源の場所を示す文字列。 |
+| Fully Qualified Domain Name | FQDN | 末尾まで省略せず書いた完全なドメイン名。 |
+| Operating System | OS | 計算機の基本機能を管理し, アプリケーションを動作させる基盤ソフトウェア。 |
+| Linux | - | 多くの機器で使われる, 基本ソフトウェアの系統。 |
+| Debian | - | コミュニティ主導で開発される Linux ディストリビューション。 |
+| Red Hat | - | Red Hat Enterprise Linuxなどを提供する組織。 |
+| Red Hat Enterprise Linux | RHEL | Red Hatが提供する企業向けLinuxディストリビューション。 |
+| root | - | Unix 系システムの最上位権限を持つ管理者識別子。 |
+| cron | - | 指定した時刻や周期でコマンドを自動実行する仕組み。 |
+| Ansible Playbook | Playbook | Ansibleで実行する処理の順序と対象を記述したファイル。 |
+| iptables | - | Linux の IPv4 パケットフィルタ設定ツール。 |
+| ip6tables | - | Linux の IPv6 パケットフィルタ設定ツール。 |
+| Python | - | スクリプティングやアプリケーション開発を手早く実施するために用いられる高水準プログラミング言語の一種。 |
+| Canonical | - | Ubuntu を提供する組織名。 |
+| Structured Query Language | SQL | データベースを操作するための記述言語。 |
+| RPM Package Manager | RPM | RPM形式パッケージの導入, 更新, 削除, 情報参照を行う仕組み。 |
+| Virtual Machine | VM | 物理計算機上で動作する仮想的な計算機。 |
+| Central Processing Unit | CPU | 計算処理を実行する中核部品。 |
+| Hypertext Transfer Protocol Secure | HTTPS | 通信内容を暗号化してWorld Wide Web通信を行う方式。 |
+| localhost | - | 同一機器自身を指す名前。 |
+| Kubernetes | K8s | コンテナを管理する基盤ソフトウェア。 |
+| Kubernetes API監査機能 ( Kubernetes API Audit )| - | Kubernetesクラスター内の一連の行動を記録するセキュリティに関連した時系列の記録を提供する機能。 |
+| Pod | - | Kubernetes でコンテナをまとめて管理する最小単位。 |
+| Ubuntu | - | Canonical が提供する Debian 系の Linux ディストリビューション。 |
+| Service | - | サービスの英語表記。 |
+| Node | - | ノードの英語表記。 |
+| Package Policy | - | Elastic Agent ポリシーへ追加する収集内容と統合パッケージの設定。 |
+| Application Programming Interface | API | アプリケーション同士が機能やデータをやり取りするための取り決め。 |
+| Ansible Task | task | 自動化処理の最小単位となる実行項目。 |
+| Elastic Stack | - | Elasticsearch, Kibana, Logstash, Fleet Server, Fleet Bootstrap, Elastic Agent などで構成される, 収集, 蓄積, 検索, 可視化を行うソフトウェア群。 |
+| YAML | - | 設定を読みやすい形式で表す記述方法。 |
+| Makefile | - | 実行手順を定義したファイル。 |
+| Key-Value | - | キーと値の組で情報を表す方式。 |
+| Elasticsearchのサービスアカウントトークン ( Elasticsearch Service Account Token ) | - | Elasticsearchが提供するサービスアカウントに紐付く認証情報。 |
+| Fleet Bootstrap | - | Fleet API を使用して Fleet の初期設定と Enrollment Token 共有を実施する初期化ロール。 |
+| Deployment | - | Kubernetesで複数のPodの作成, 更新, 維持を管理するリソース。 |
+| DaemonSet | - | Kubernetesで各ノードへPodを常駐配置するリソース。 |
+| ConfigMap | - | 設定値をキーと値の組で保存するKubernetesリソース。 |
+| Secret | - | 秘密情報を保存するKubernetesリソース。 |
+| Service Account | - | Kubernetes上でPodがAPIを利用する主体を識別する情報。 |
+| ロール | - | Ansible における処理のまとまり。 |
+| System統合 | - | Elastic Agentが対象ホストのログとメトリクス情報を収集するための統合パッケージ。 |
+| Custom Logs統合 | - | Elastic Agentが指定されたログファイルからテキストを収集するための統合パッケージ。 |
+| インデックス | - | Elasticsearch に保存するデータの格納先識別単位。 |
+| コンテナイメージ | - | コンテナ実行に必要な内容をまとめた保存形式。 |
+| コンテナ | - | アプリケーションを動かす隔離された実行単位。 |
+| ホスト | - | 管理対象として識別される個別の計算機。 |
 | 制御ホスト | - | Playbook を実行し, 他ホストへの処理指示を行う管理用ホスト。 |
 | 対象ホスト | - | Playbook による設定変更や導入処理の適用先となるホスト。 |
-| ホスト | - | 管理対象として識別される個別の計算機。 |
 | サーバ | - | 他の機器や利用者へ機能やデータを提供する計算機, 又はその役割。 |
 | ネットワーク | - | 機器同士を接続してデータをやり取りする仕組み。 |
 | ディレクトリ | - | ファイルを階層的に整理するための入れ物。 |
@@ -91,57 +149,18 @@
 | メトリクス | - | ホストやサービスの状態を数値で表した観測情報。 |
 | データ | - | 処理や保存の対象となる情報。 |
 | ポート | - | 通信の出入口を識別する番号または接点。 |
-| Uniform Resource Locator | URL | World Wide Web上の資源の場所を示す文字列。 |
 | URL スキーム | - | URL の先頭で通信方式を示す部分。例: `http`, `https`。 |
 | ランタイムエンドポイント ( rumtime endpoint ) | - | 対象ホスト上で所定のサービスが動作していることを確認するための疎通確認に用いるエンドポイントです。ここでのエンドポイントは, <接続先ホスト名>と<接続先ポート番号>の組から構成されるURLになります。本ロールで規定した変数により明示的に指定されたエンドポイントがあればその値を採用し, 未指定の場合は, 対象ホスト名とポート番号からエンドポイントを組み立てます。 |
 | 対象ホスト上での疎通確認 | - | 対象ホスト上で自ホスト(localhost)を指定して待ち受け先ポートへの疎通確認を実施すること。確認対象のサービスが対象ホスト上で起動していることを確認します。 |
 | 外部ホストからの疎通確認 | - | 対象ホスト以外のホストから対象ホストを指定して待ち受け先ポートへの疎通確認を実施すること。確認対象のサービスがネットワーク接続を含めて適切に設定され, サービス受付可能な状態になっていることを確認します。 |
-| Hypertext Transfer Protocol | HTTP | World Wide Webで情報をやり取りする通信手順。 |
-| Internet Protocol | IP | ネットワーク上で宛先を識別し, データを届けるための通信手順。 |
-| World Wide Web | WWW | ネットワーク上で文書や情報を相互参照できる仕組み。 |
-| Fully Qualified Domain Name | FQDN | 末尾まで省略せず書いた完全なドメイン名。 |
-| Operating System | OS | 計算機の基本機能を管理し, アプリケーションを動作させる基盤ソフトウェア。 |
-| Linux | - | 多くの機器で使われる, 基本ソフトウェアの系統。 |
 | ディストリビューション | - | 基本ソフトウェアと関連部品をまとめた配布形態。 |
 | コミュニティ | - | 共通目的のもとで継続的に活動する利用者集団。 |
-| Debian | - | コミュニティ主導で開発される Linux ディストリビューション。 |
-| Red Hat | - | Red Hat Enterprise Linuxなどを提供する組織。 |
-| Red Hat Enterprise Linux | RHEL | Red Hatが提供する企業向けLinuxディストリビューション。 |
 | ホストメトリクス ( host metrics ) | - | リソース使用状況など, ログ収集対象となるホスト群から収集する情報。 |
-| root | - | Unix 系システムの最上位権限を持つ管理者識別子。 |
 | ループ | - | 同じ処理を繰り返すこと。 |
 | バックエンド | - | 利用者画面の背後で処理を実行する側。 |
 | メタデータ | - | 対象データの属性や説明を示す付加情報。 |
 | リソース | - | 処理に必要な計算機資源やデータ。 |
 | コマンド | - | 実行者が計算機へ処理を指示するための命令。 |
-| ansible-playbookコマンド | ansible-playbook | Ansible Playbook を実行して自動構成処理を適用するコマンド。 |
-| Python | - | スクリプティングやアプリケーション開発を手早く実施するために用いられる高水準プログラミング言語の一種。 |
-| sudoコマンド | sudo | 一時的に管理者権限でコマンドを実行するためのコマンド。 |
-| makeコマンド | make | Makefile に定義された処理を実行するコマンド。 |
-| curlコマンド | curl | URL を指定して通信結果を取得するコマンド。 |
-| 環境変数 | - | 実行時の動作を調整するために外部から渡す設定値。 |
-| cron | - | 指定した時刻や周期でコマンドを自動実行する仕組み。 |
-| Ansible Playbook | Playbook | Ansibleで実行する処理の順序と対象を記述したファイル。 |
-| Classless Inter-Domain Routing | CIDR | Internet Protocolアドレスの範囲を先頭アドレスと接頭辞長で表す方式。 |
-| Docker bridge network | Dockerブリッジネットワーク | 同一対象ホスト上のコンテナ間通信に使用する仮想的なネットワーク。 |
-| iptables | - | Linux の IPv4 パケットフィルタ設定ツール。 |
-| ip6tables | - | Linux の IPv6 パケットフィルタ設定ツール。 |
-| Network Address Translation | NAT | 通信時にIPアドレスを変換する処理。 |
-| systemd | - | Linux上でサービスの起動順序と実行状態を管理するソフトウェア。 |
-| dockerコマンド | - | Dockerブリッジネットワークを作成及び確認するコマンド。 |
-| iptablesコマンド | - | IPパケットの通過条件とNAT規則を確認するコマンド。 |
-| ip6tablesコマンド | - | IPv6パケットの通過条件とNAT規則を確認するコマンド。 |
-| systemctlコマンド | - | systemdが管理するサービスの状態を確認するコマンド。 |
-| jqコマンド | jq | JSON 形式のデータから必要な項目だけを抽出して表示するコマンド。 |
-| yqコマンド | yq | YAML 形式のデータから必要な項目だけを抽出して表示するコマンド。 |
-| pipeline | - | 入力, 整形, 出力の処理順を定義する Logstash の設定単位。 |
-| Elastic Agent入力 | - | Elastic Agentからデータストリーム情報を保持したイベントを受信するLogstashの入力機能。 |
-| インデックス | - | Elasticsearch に保存するデータの格納先識別単位。 |
-| Makefile | - | 実行手順を定義したファイル。 |
-| サービスアカウント (Service Account) | - | 自動処理中でサービスを呼び出す側のプログラムを識別するための識別情報。 |
-| Elasticsearchのサービスアカウントトークン ( Elasticsearch Service Account Token ) | - | Elasticsearchが提供するサービスアカウントに紐付く認証情報。 |
-| Hypertext Transfer Protocol Secure | HTTPS | 通信内容を暗号化してWorld Wide Web通信を行う方式。 |
-| localhost | - | 同一機器自身を指す名前。 |
 | サービス | - | 機能を利用者や他システムへ提供する仕組み。 |
 | ユーザ | - | 機能を利用する人, 又は識別された利用主体。 |
 | ツール | - | 特定作業を実行するための機能や道具。 |
@@ -166,12 +185,6 @@
 | パケット | - | ネットワークで転送するデータ単位。 |
 | カーネル | - | 基本ソフトウェアの中核機能。 |
 | シェル | - | コマンド入力で計算機を操作する仕組み。 |
-| Canonical | - | Ubuntu を提供する組織名。 |
-| Key-Value | - | キーと値の組で情報を表す方式。 |
-| Structured Query Language | SQL | データベースを操作するための記述言語。 |
-| RPM Package Manager | RPM | RPM形式パッケージの導入, 更新, 削除, 情報参照を行う仕組み。 |
-| Virtual Machine | VM | 物理計算機上で動作する仮想的な計算機。 |
-| Central Processing Unit | CPU | 計算処理を実行する中核部品。 |
 | ソフトウェア | - | 情報処理システムで使用するプログラム, 手順, 規則及び関連文書の全体又は一部分。 |
 | システム | - | 複数の要素が連携して目的を実現する仕組み全体。 |
 | アプリケーション | - | 利用者の目的を実現するために動作するソフトウェア。 |
@@ -183,42 +196,31 @@
 | コード | - | 処理内容を記述した文字列。 |
 | ファイルシステム | - | 記憶装置上のファイルとディレクトリを管理する仕組み。 |
 | プロセス | - | 実行中のプログラムを管理する単位。 |
-| Kubernetes | K8s | コンテナを管理する基盤ソフトウェア。 |
-| Pod | - | Kubernetes でコンテナをまとめて管理する最小単位。 |
 | 名前空間 ( namespace ) | - | Kubernetes内部でリソースを論理的に分離する単位。 |
-| Ubuntu | - | Canonical が提供する Debian 系の Linux ディストリビューション。 |
-| statコマンド | stat | ファイルの権限, 大きさ及び名前を表示するコマンド。 |
-| Service | - | サービスの英語表記。 |
-| Node | - | ノードの英語表記。 |
+| サービスアカウント (Service Account) | - | 自動処理中でサービスを呼び出す側のプログラムを識別するための識別情報。 |
 | Elastic Agentポリシー構成種別 | - | Fleet Bootstrap ロールの `fleet_bootstrap_agent_policy_profiles` で管理する `host`, `k8s_system`, `k8s_workload`, `k8s_cluster` の4種類を指す, Elastic Stack固有の分類単位。 |
 | 統合パッケージ | - | Elastic Agentへデータの収集方法と収集項目を追加するためのパッケージ。 |
-| Package Policy | - | Elastic Agent ポリシーへ追加する収集内容と統合パッケージの設定。 |
-| System統合 | - | Elastic Agentが対象ホストのログとメトリクス情報を収集するための統合パッケージ。 |
-| Custom Logs統合 | - | Elastic Agentが指定されたログファイルからテキストを収集するための統合パッケージ。 |
-| Application Programming Interface | API | アプリケーション同士が機能やデータをやり取りするための取り決め。 |
-| Ansible Task | task | 自動化処理の最小単位となる実行項目。 |
-| ロール | - | Ansible における処理のまとまり。 |
-| Elastic Stack | - | Elasticsearch, Kibana, Logstash, Fleet Server, Fleet Bootstrap, Elastic Agent などで構成される, 収集, 蓄積, 検索, 可視化を行うソフトウェア群。 |
-| YAML | - | 設定を読みやすい形式で表す記述方法。 |
+| Docker Compose | - | 複数のコンテナ定義をまとめて作成, 起動, 停止, 更新する仕組み。 |
+| Docker Compose 定義ファイル | - | Docker Compose が参照するコンテナ構成の定義ファイル。 |
+| compose project 名 | - | Docker Compose によって展開される個々のアプリケーションを識別する名前です。展開されたコンテナ, ネットワーク, ボリュームなどのリソースをグループ化し, 他のアプリケーション又は別途展開された同じアプリケーションと区別するために用います。 |
+| Helm導入識別名 ( Helm release ) | - | Helm が管理する導入単位を識別する名前。 |
+| values ファイル | - | Helm Chartへ渡す設定値を定義したYAMLファイル。 |
+| ansible-playbookコマンド | ansible-playbook | Ansible Playbook を実行して自動構成処理を適用するコマンド。 |
+| Docker | - | コンテナイメージやコンテナの作成, 実行, 管理を行うコマンド。 |
+| sudoコマンド | sudo | 一時的に管理者権限でコマンドを実行するためのコマンド。 |
+| makeコマンド | make | Makefile に定義された処理を実行するコマンド。 |
+| curlコマンド | curl | URL を指定して通信結果を取得するコマンド。 |
+| 環境変数 | - | 実行時の動作を調整するために外部から渡す設定値。 |
+| dockerコマンド | - | Dockerブリッジネットワークを作成及び確認するコマンド。 |
+| iptablesコマンド | - | IPパケットの通過条件とNAT規則を確認するコマンド。 |
+| ip6tablesコマンド | - | IPv6パケットの通過条件とNAT規則を確認するコマンド。 |
+| systemctlコマンド | - | systemdが管理するサービスの状態を確認するコマンド。 |
+| jqコマンド | jq | JSON 形式のデータから必要な項目だけを抽出して表示するコマンド。 |
+| yqコマンド | yq | YAML 形式のデータから必要な項目だけを抽出して表示するコマンド。 |
+| statコマンド | stat | ファイルの権限, 大きさ及び名前を表示するコマンド。 |
 | journalctlコマンド | journalctl | サービスが記録したログを確認するコマンド。 |
 | elastic-agentコマンド | elastic-agent | Elastic Agentの版数確認や管理処理を実行するコマンド。 |
-| Fleet Bootstrap | - | Fleet API を使用して Fleet の初期設定と Enrollment Token 共有を実施する初期化ロール。 |
-| Deployment | - | Kubernetesで複数のPodの作成, 更新, 維持を管理するリソース。 |
-| DaemonSet | - | Kubernetesで各ノードへPodを常駐配置するリソース。 |
-| ConfigMap | - | 設定値をキーと値の組で保存するKubernetesリソース。 |
-| Secret | - | 秘密情報を保存するKubernetesリソース。 |
-| Service Account | - | Kubernetes上でPodがAPIを利用する主体を識別する情報。 |
 | Helm | - | Kubernetes向けパッケージを導入, 更新, 削除するコマンド。 |
-| Helm Chart | - | Helmで導入するKubernetesリソース定義のまとまり。 |
-| Helm導入識別名 ( Helm release ) | - | Helm が管理する導入単位を識別する名前。 |
-| rollout | - | Deploymentなどの更新適用状況を確認する処理。 |
-| kubeconfig | - | Kubernetes API接続先と認証情報を記述した設定ファイル。 |
-| hostPath | - | Podがノード上のファイルパスを直接参照するためのボリューム定義。 |
-| preset | - | Helm valuesで導入構成を選択する設定項目。 |
-| clusterWide | - | Kubernetesクラスタ全体を対象として共通処理を実行するためのHelm valuesで指定する導入構成の選択値。 |
-| perNode | - | Kubernetesを構成するノードで実施する処理を実行するためのHelm valuesで指定する導入構成の選択値。 |
-| values ファイル | - | Helm Chartへ渡す設定値を定義したYAMLファイル。 |
-| kube-state-metrics | - | Elastic StackでKubernetesリソース状態を収集するために利用するメトリクス公開コンポーネント。 |
 | helmコマンド | helm | Kubernetes向けパッケージの導入, 更新, 状態確認を実施するコマンド。 |
 | kubectlコマンド | kubectl | Kubernetes API と通信してリソースを操作, 参照するコマンド。 |
 | grepコマンド | grep | テキストの中から条件に一致する行を抽出するコマンド。 |
@@ -238,19 +240,20 @@
   - Elastic Agentのデータ収集設定を準備します。
     - Fleet Server統合, System統合及びCustom Logs統合を導入します。
     - Elastic Stack間で共有するFleet Server用Elastic Agent ポリシーIDを使用してポリシーを作成又は再利用し, Fleet Server統合を関連付けます。
-    - ホスト監視, Kubernetesシステム監視, Kubernetesワークロード監視及びKubernetesクラスタ監視に使用する4種類のElastic Agent ポリシーを作成又は再利用します。
+    - ホスト監視, Kubernetesシステム監視, Kubernetesワークロード監視, Kubernetesクラスタ監視及びKubernetes API監査ログ収集に使用する5種類のElastic Agent ポリシーを作成又は再利用します。
       - ホスト監視では, 対象ホストのCPU使用状況, データを一時保持する領域の使用状況及び指定したホスト上のログを収集します。
       - Kubernetesシステム監視では, ホスト監視の収集対象に加えて, Kubernetesノードのファイルシステムとプロセスの情報及びKubernetesの`kube-system`名前空間に属するコンテナのログを収集します。
       - Kubernetesワークロード監視では, Kubernetesシステム監視の収集対象に加えて, Kubernetesの`kube-system`名前空間に属さないコンテナのログを収集します。
       - Kubernetesクラスタ監視では, Kubernetesクラスタの状態情報を収集します。
+      - Kubernetes API監査ログ収集では, control-planeノード上の`/var/log/kubernetes/audit/audit.log`を`audit-logs-filestream`入力から収集します。
     - 各Elastic Agent ポリシーの条件に応じてSystem統合を作成又は更新し, Custom Logs統合のPackage Policyを作成又は更新します。
   - Elastic Agentの登録情報を準備します。
     - 各Elastic Agent ポリシーのEnrollment Tokenを作成又は再利用し, 既存Enrollment Tokenを再利用する場合はFleet APIから秘密値を取得します。
   - KibanaのFleet機能の初期設定結果を検証します。
     - Fleet Output, Fleet Server用を含むElastic Agent ポリシー, Package Policy及びEnrollment Tokenが期待した状態であることをFleet APIで検証します。
-- 4種類のElastic Agent ポリシーに対応するEnrollment TokenをEnrollment Token共有ファイルへ保存します。
+- 5種類のElastic Agent ポリシーに対応するEnrollment TokenをEnrollment Token共有ファイルへ保存します。
 - Logstashの下流にあるElasticsearchへの対象ホスト上での疎通確認を実施し, 指定時は外部ホストからの疎通確認も実施します。
-4種類のElastic Agent ポリシーは個別の出力IDを持たず, 既定のLogstash Outputを継承します。Fleet Server統合の追加時だけFleet Server専用Elasticsearch Outputを一時的な既定出力に設定し, 統合追加後にLogstash Outputを既定出力へ戻します。この切替により, Basicライセンスで通常AgentはLogstashへ送信し, Fleet Serverは専用Elasticsearch Outputを使用してElasticsearchへ直接接続します。
+5種類の通常Agent用Elastic Agent ポリシーは個別の出力IDを持たず, 既定のLogstash Outputを継承します。Fleet Server統合の追加時だけFleet Server専用Elasticsearch Outputを一時的な既定出力に設定し, 統合追加後にLogstash Outputを既定出力へ戻します。この切替により, Basicライセンスで通常AgentはLogstashへ送信し, Fleet Serverは専用Elasticsearch Outputを使用してElasticsearchへ直接接続します。
 
 本ロールの実行結果及び成果物を使用して, Fleet ServerロールとElastic Agentロールは次の作業を実施します。
 
@@ -262,9 +265,9 @@
 
 ### Elastic Agentポリシー構成種別ごとの採取対象
 
-本ロールの `fleet_bootstrap_agent_policy_profiles` で定義する4種類のElastic Agentポリシー構成種別は, `include_system`, `include_k8s_system`, `include_k8s_workload`, `include_k8s_cluster` の組み合わせによって, 各Policyに追加されるPackage Policyの構成を切り替えます。
+本ロールの `fleet_bootstrap_agent_policy_profiles` で定義する5種類のElastic Agentポリシー構成種別は, `include_system`, `include_k8s_system`, `include_k8s_workload`, `include_k8s_cluster`, `include_k8s_audit` の組み合わせによって, 各Policyに追加されるPackage Policyの構成を切り替えます。
 
-本節の「採取に必要な設定」のうち, 利用者が設定する項目の設定先は「主要変数」節の「設定先別の利用者入力値」で定義します。`include_system`, `include_k8s_system`, `include_k8s_workload`, `include_k8s_cluster` は, `vars/logging-backend-common.yml` の `fleet_bootstrap_agent_policy_profiles` でロール内部既定値として管理します。
+本節の「採取に必要な設定」のうち, 利用者が設定する項目の設定先は「主要変数」節の「設定先別の利用者入力値」で定義します。`include_system`, `include_k8s_system`, `include_k8s_workload`, `include_k8s_cluster`, `include_k8s_audit` は, `vars/logging-backend-common.yml` の `fleet_bootstrap_agent_policy_profiles` でロール内部既定値として管理します。
 
 #### host構成種別
 
@@ -295,6 +298,16 @@
 | 現行で採取対象外の情報 | Kubernetes統合で無効化している入力情報及びSystem統合の情報。詳細は本節の「現行で採取対象外の情報」を参照してください。 | 無効化対象の設定項目は本節の「現行で採取対象外の設定項目」を参照してください。 | [roles/fleet-bootstrap/tasks/configure-kubernetes-package-policy.yml](roles/fleet-bootstrap/tasks/configure-kubernetes-package-policy.yml) の既定実装で制御します。 |
 
 `k8s_cluster` 構成種別向けのKubernetes統合Package Policyは, 本ロールの実装で自動作成又は自動更新します。`logging_backend_elastic_agent_k8s_cluster_package_policy_enabled` の既定値は `true` であり, `include_k8s_cluster: true` の構成種別が存在する場合にKubernetesクラスタ状態情報を収集するPackage Policyを作成します。
+
+#### k8s_audit構成種別
+
+| 区分 | 採取内容 | 採取に必要な設定 | 設定先 |
+| --- | --- | --- | --- |
+| 現行で採取する情報 | Kubernetes API監査ログ。Kubernetes統合の`audit-logs-filestream`入力で`/hostfs/var/log/kubernetes/audit/audit.log`を収集し, `kubernetes.audit_logs`データ集合へ格納します。 | `include_system: false`, `include_k8s_system: false`, `include_k8s_workload: false`, `include_k8s_cluster: false`, `include_k8s_audit: true`, `logging_backend_elastic_agent_k8s_audit_package_policy_enabled: true`。 | `include_*`は`vars/logging-backend-common.yml`の`fleet_bootstrap_agent_policy_profiles`。Package Policy設定は「主要変数」節を参照してください。 |
+| 現行で採取対象外の情報 | System統合, Custom Logs統合, Kubernetesクラスタ状態メトリクス, Kubernetes event, Kubernetes container logs及びクラウドAudit入力。 | Audit用Package PolicyでAudit filestream以外の入力を明示的に無効化します。 | [roles/fleet-bootstrap/tasks/configure-kubernetes-audit-package-policy.yml](tasks/configure-kubernetes-audit-package-policy.yml)で制御します。 |
+
+`k8s_audit`構成種別では, `logging_backend_elastic_agent_k8s_audit_data_stream_namespace`をPackage Policyの名前空間へ設定します。既定値は`k8s_system`であり, Data Streamは`logs-kubernetes.audit_logs-k8s_system`になります。Audit用Elastic Agent自身の監視対象は`logging_backend_elastic_agent_k8s_audit_monitoring_enabled`, `logging_backend_elastic_agent_k8s_audit_monitoring_logs_enabled`, `logging_backend_elastic_agent_k8s_audit_monitoring_metrics_enabled`で制御します。
+
 
 ##### Kubernetes統合のクラスタ状態情報
 
@@ -343,7 +356,7 @@ Kubernetes統合の入力は, Package Policy で未指定の場合に Fleet が�
 重複回避以外の理由で無効化している項目は次のとおりです:
 
 - kube-apiserver-kubernetes/metrics, kube-proxy-kubernetes/metrics, kube-scheduler-kubernetes/metrics, kube-controller-manager-kubernetes/metrics: コントロールプレーンノードの各コンポーネントへの接続設定を本ロールで管理していないためです。
-- audit-logs-filestream, audit-logs-aws-cloudwatch, audit-logs-azure-eventhub, audit-logs-gcp-pubsub: `kubernetes.audit_logs` の取得元を本ロールで管理していないためです。
+- audit-logs-filestream, audit-logs-aws-cloudwatch, audit-logs-azure-eventhub, audit-logs-gcp-pubsub: `k8s_cluster`構成種別ではKubernetes API監査ログを収集しないためです。監査ログは`k8s_audit`構成種別の専用Kubernetes統合Package Policyで`audit-logs-filestream`だけを有効化して収集します。
 
 各設定項目の意味は, 本書の「[公式ドキュメント](#公式ドキュメント)」節に記載している「統合パッケージ (Elastic integrations)」を参照してください。
 
@@ -453,6 +466,11 @@ ansible-playbook -i inventory/hosts logging-backend.yml --tags "fleet-server,fle
 | `logging_elastic_agent_k8s_system_kube_system_log_paths` | `k8s_system` | `kube-system`名前空間コンテナログを収集するファイルパス一覧を指定します。 | `['/var/log/containers/*_kube-system_*.log']` | `['/var/log/containers/*_kube-system_*.log']` |
 | `logging_elastic_agent_k8s_workload_log_input_enabled` | `k8s_workload` | `kube-system`名前空間以外のコンテナログ入力設定を有効化又は無効化します。 | `true` | `true` |
 | `logging_backend_elastic_agent_k8s_cluster_package_policy_enabled` | `k8s_cluster` | Kubernetes統合Package Policyの作成又は更新を切り替えます。 | `true` | `true` |
+| `logging_backend_elastic_agent_k8s_audit_package_policy_enabled` | `k8s_audit` | Kubernetes API監査ログ用Kubernetes統合Package Policyの作成又は更新を切り替えます。 | `true` | `true` |
+| `logging_backend_elastic_agent_k8s_audit_data_stream_namespace` | `k8s_audit` | Kubernetes API監査ログのData Stream名前空間を指定します。 | `k8s_system` | `k8s_system` |
+| `logging_backend_elastic_agent_k8s_audit_monitoring_enabled` | `k8s_audit` | Audit用Elastic Agent自身の監視を有効化します。 | 利用者設定 | `true` |
+| `logging_backend_elastic_agent_k8s_audit_monitoring_logs_enabled` | `k8s_audit` | Audit用Elastic Agent自身の監視ログを有効化します。 | 利用者設定 | `true` |
+| `logging_backend_elastic_agent_k8s_audit_monitoring_metrics_enabled` | `k8s_audit` | Audit用Elastic Agent自身の監視メトリクスを有効化します。 | 利用者設定 | `true` |
 | `logging_elastic_agent_k8s_cluster_metrics_period` | `k8s_cluster` | Kubernetesクラスタ状態情報メトリクスの収集周期を指定します。 | `"10s"` | `"30s"` |
 
 ##### host_vars に設定する項目
@@ -482,6 +500,11 @@ ansible-playbook -i inventory/hosts logging-backend.yml --tags "fleet-server,fle
 3: fleet_bootstrap_policy_name: "linux-host-policy"
 4: fleet_bootstrap_enrollment_token_name: "linux-host-token"
 5: logging_backend_elastic_agent_k8s_cluster_package_policy_enabled: true
+6: logging_backend_elastic_agent_k8s_audit_package_policy_enabled: true
+7: logging_backend_elastic_agent_k8s_audit_data_stream_namespace: "k8s_system"
+8: logging_backend_elastic_agent_k8s_audit_monitoring_enabled: true
+9: logging_backend_elastic_agent_k8s_audit_monitoring_logs_enabled: true
+10: logging_backend_elastic_agent_k8s_audit_monitoring_metrics_enabled: true
 ```
 
 | 行番号 | 設定値 | 有効になる動作 | 設定背景(未設定時/誤設定時の問題と防止理由) |
@@ -489,6 +512,9 @@ ansible-playbook -i inventory/hosts logging-backend.yml --tags "fleet-server,fle
 | 1 | fleet_bootstrap_enabled: true | 本ロールを実行します。 | `false` を設定した場合はFleetの初期化を実施せず, Elastic Agentの登録に必要なEnrollment Tokenが作成されないためです。 |
 | 2-4 | fleet_bootstrap_output_name, fleet_bootstrap_policy_name, fleet_bootstrap_enrollment_token_name | 作成又は再利用するFleet Output, Elastic Agent ポリシー, Enrollment Token の名称を指定します。 | これらの既定値は空文字列であり, 未設定の場合は実行時に停止するためです。 |
 | 5 | logging_backend_elastic_agent_k8s_cluster_package_policy_enabled: true | k8s_cluster構成種別向けKubernetes統合Package Policyを作成又は更新します。 | 既定値は `true` であり, 未設定時にもPackage Policyを作成できるようにするためです。 |
+| 6 | logging_backend_elastic_agent_k8s_audit_package_policy_enabled: true | k8s_audit構成種別向けKubernetes統合Package Policyを作成又は更新します。 | Audit用Package Policyを無効化すると`elastic-agent-k8s-audit`へ監査ログ収集設定が配布されないためです。 |
+| 7 | logging_backend_elastic_agent_k8s_audit_data_stream_namespace: "k8s_system" | Kubernetes API監査ログを`k8s_system`名前空間のData Streamへ格納します。 | `logs-kubernetes.audit_logs-k8s_system`として既存のKubernetesシステム系データと同じ論理名前空間で検索するためです。 |
+| 8-10 | logging_backend_elastic_agent_k8s_audit_monitoring_* | Audit用Elastic Agent自身の監視, 監視ログ及び監視メトリクスを有効化します。 | 監査ログ収集用Agent自体の稼働状態をFleetから確認できるようにするためです。 |
 
 接続先の指定と認証情報については, 次のとおり既定動作を使用します。
 
@@ -501,10 +527,11 @@ ansible-playbook -i inventory/hosts logging-backend.yml --tags "fleet-server,fle
 | 種別 | 入力 | 出力 | 目的 |
 | --- | --- | --- | --- |
 | タスク生成 | [roles/fleet-bootstrap/tasks/config.yml](roles/fleet-bootstrap/tasks/config.yml) | 既存または新規の Fleet Output, Elastic Agent ポリシー, Package Policy及びEnrollment Token | Kibana の Fleet API を呼び出して初期化対象を設定する。 |
-| タスク生成 | [roles/fleet-bootstrap/tasks/install-kubernetes-integration.yml](roles/fleet-bootstrap/tasks/install-kubernetes-integration.yml) | Kubernetes統合パッケージ導入状態 | `include_k8s_cluster: true` のポリシー構成種別が存在する場合だけ, Kubernetes統合パッケージを導入する。 |
+| タスク生成 | [roles/fleet-bootstrap/tasks/install-kubernetes-integration.yml](roles/fleet-bootstrap/tasks/install-kubernetes-integration.yml) | Kubernetes統合パッケージ導入状態 | `include_k8s_cluster: true`のポリシー構成種別が存在する場合にKubernetes統合パッケージを導入する。現行実装では`include_k8s_audit`単独を導入条件に含めていない。 |
 | タスク生成 | [roles/fleet-bootstrap/tasks/configure-kubernetes-package-policy.yml](roles/fleet-bootstrap/tasks/configure-kubernetes-package-policy.yml) | k8s_cluster構成種別向けKubernetes統合Package Policy | Kubernetesクラスタ状態情報収集用のストリームを有効化し, 不要な入力を無効化したPackage Policyを作成又は更新する。 |
+| タスク生成 | [roles/fleet-bootstrap/tasks/configure-kubernetes-audit-package-policy.yml](roles/fleet-bootstrap/tasks/configure-kubernetes-audit-package-policy.yml) | k8s_audit構成種別向けKubernetes統合Package Policy | `audit-logs-filestream`の`kubernetes.audit_logs`だけを有効化し, その他のKubernetes入力を無効化したPackage Policyを作成又は更新する。 |
 | タスク生成 | [roles/fleet-bootstrap/tasks/configure-fleet-server-policy.yml](roles/fleet-bootstrap/tasks/configure-fleet-server-policy.yml) | Fleet Server用Elastic Agent ポリシー及びFleet Server統合 | Fleet Server用Elastic Agent ポリシーを指定IDで作成し, Fleet Server統合を設定する。 |
-| Enrollment Token共有ファイル | 4種類のEnrollment Token | `group_vars/logging_collector/enrollment-token.yml` | Elastic Agentへ渡す`elastic_agent_enrollment_tokens`辞書を制御ホスト上へ権限`0600`で保存する。 |
+| Enrollment Token共有ファイル | 5種類のEnrollment Token | `group_vars/logging_collector/enrollment-token.yml` | Elastic Agentへ渡す`elastic_agent_enrollment_tokens`辞書を制御ホスト上へ権限`0600`で保存する。 |
 | 変数定義 | [roles/fleet-bootstrap/defaults/main.yml](roles/fleet-bootstrap/defaults/main.yml) | 制御用変数 | 接続先, 既定名, タイムアウト, TLS 設定を提供する。 |
 
 ## 実行フロー
@@ -514,13 +541,13 @@ ansible-playbook -i inventory/hosts logging-backend.yml --tags "fleet-server,fle
 3. [roles/fleet-bootstrap/tasks/config.yml](roles/fleet-bootstrap/tasks/config.yml) で KibanaのFleet機能の初期化API を呼び出して, GUI がなくても利用できる前提を整えます。
 4. [roles/fleet-bootstrap/tasks/config.yml](roles/fleet-bootstrap/tasks/config.yml) で Fleet Server host 設定を一覧取得し, 既定 host が存在しない場合にのみ作成します。
 5. [roles/fleet-bootstrap/tasks/config.yml](roles/fleet-bootstrap/tasks/config.yml) で Fleet Output を一覧取得し, 指定名の既定Logstash Outputが存在しない場合は作成し, 既存設定がLogstash出力の期待値と異なる場合は更新します。
-6. [roles/fleet-bootstrap/tasks/config.yml](roles/fleet-bootstrap/tasks/config.yml) でFleet Server統合, System統合及びCustom Logs統合を導入し, `include_k8s_cluster: true` の構成種別がある場合はKubernetes統合も導入します。
+6. [roles/fleet-bootstrap/tasks/config.yml](roles/fleet-bootstrap/tasks/config.yml)でFleet Server統合, System統合及びCustom Logs統合を導入し, `include_k8s_cluster: true`の構成種別がある場合はKubernetes統合も導入します。現行の既定プロファイル一覧には`k8s_cluster`構成種別が存在するため, 続く`k8s_audit` Package Policy作成時にもKubernetes統合パッケージを利用できます。
 7. [roles/fleet-bootstrap/tasks/configure-fleet-server-policy.yml](roles/fleet-bootstrap/tasks/configure-fleet-server-policy.yml) でFleet Server専用Elasticsearch Outputを一時的な既定出力に設定し, Fleet Server用Elastic Agent ポリシーを指定IDで作成又は再利用してFleet Server統合を設定した後, Logstash Outputを既定出力へ戻します。Fleet Server自身のAgent IDが空の場合は, 統合追加前に生成された不完全な登録情報を除去してコンテナを再起動します。
-8. 4種類の通常Agent用Elastic Agent ポリシーを作成又は再利用し, 各ポリシーの条件に応じてSystem統合, Custom Logs統合及びk8s_cluster構成種別向けKubernetes統合のPackage Policyを作成又は更新します。
+8. 5種類の通常Agent用Elastic Agent ポリシーを作成又は再利用し, 各ポリシーの条件に応じてSystem統合, Custom Logs統合, k8s_cluster構成種別向けKubernetes統合又はk8s_audit構成種別向けKubernetes監査ログPackage Policyを作成又は更新します。
 9. `fleet_bootstrap_enrollment_token_list_page_size`件までEnrollment Tokenを一覧取得し, 各Elastic Agent ポリシーにKibanaが`指定名 (UUID)`形式で保存したEnrollment Tokenが存在しない場合にのみ作成します。
 10. 既存Enrollment Tokenを再利用する場合は, 一覧APIからIDを取得し, 個別取得APIからEnrollment Tokenの秘密値を取得します。
-11. 4種類のEnrollment Tokenを辞書として制御ホスト上のEnrollment Token共有ファイルへ権限`0600`で保存し, 保存後にEnrollment Token共有ファイルの種別と権限を検証します。
-12. [roles/fleet-bootstrap/tasks/verify.yml](roles/fleet-bootstrap/tasks/verify.yml) で Fleet Output, Fleet Server用を含むElastic Agent ポリシー, Package Policy及びEnrollment Tokenの存在を Fleet API で確認し, `logging_backend_elastic_agent_k8s_cluster_package_policy_enabled: true` の場合はk8s_cluster構成種別向けKubernetes統合Package Policyのストリーム有効化状態も確認します。
+11. 5種類のEnrollment Tokenを辞書として制御ホスト上のEnrollment Token共有ファイルへ権限`0600`で保存し, 保存後にEnrollment Token共有ファイルの種別と権限を検証します。
+12. [roles/fleet-bootstrap/tasks/verify.yml](roles/fleet-bootstrap/tasks/verify.yml) で Fleet Output, Fleet Server用を含むElastic Agent ポリシー, Package Policy及びEnrollment Tokenの存在を Fleet API で確認し, 有効化設定に応じてk8s_cluster構成種別及びk8s_audit構成種別向けKubernetes統合Package Policyの入力・ストリーム状態も確認します。
 13. [roles/fleet-bootstrap/tasks/verify.yml](roles/fleet-bootstrap/tasks/verify.yml) で Logstashの下流にあるElasticsearchの対象ホスト上での疎通確認と, `logging_verify_external_enabled: true` 時の外部ホストからの疎通確認を `_cluster/health` で確認します。
 14. 生成または既存利用された ID と認証情報を, 以後の処理で参照できるようにします。
 
@@ -548,6 +575,11 @@ ansible-playbook -i inventory/hosts logging-backend.yml --tags "fleet-server,fle
 3: fleet_bootstrap_policy_name: "linux-host-policy"
 4: fleet_bootstrap_enrollment_token_name: "linux-host-token"
 5: logging_backend_elastic_agent_k8s_cluster_package_policy_enabled: true
+6: logging_backend_elastic_agent_k8s_audit_package_policy_enabled: true
+7: logging_backend_elastic_agent_k8s_audit_data_stream_namespace: "k8s_system"
+8: logging_backend_elastic_agent_k8s_audit_monitoring_enabled: true
+9: logging_backend_elastic_agent_k8s_audit_monitoring_logs_enabled: true
+10: logging_backend_elastic_agent_k8s_audit_monitoring_metrics_enabled: true
 ```
 
 | 行番号 | 設定値 | 有効になる動作 | 設定背景(未設定時/誤設定時の問題と防止理由) |
@@ -555,6 +587,9 @@ ansible-playbook -i inventory/hosts logging-backend.yml --tags "fleet-server,fle
 | 1 | fleet_bootstrap_enabled: true | 本ロールを実行します。 | `false` を設定した場合はFleetの初期化を実施せず, 検証対象のFleet OutputとElastic Agent ポリシーが作成されないためです。 |
 | 2-4 | fleet_bootstrap_output_name, fleet_bootstrap_policy_name, fleet_bootstrap_enrollment_token_name | 検証で確認するFleet Output, Elastic Agent ポリシー, Enrollment Token の名称を指定します。 | これらの既定値は空文字列であり, 未設定の場合は実行時に停止し, 検証手順を実行できないためです。 |
 | 5 | logging_backend_elastic_agent_k8s_cluster_package_policy_enabled: true | k8s_cluster構成種別向けKubernetes統合Package Policyを検証対象に含めます。 | 既定値は `true` であり, 未設定時にも作成結果を検証できるようにするためです。 |
+| 6 | logging_backend_elastic_agent_k8s_audit_package_policy_enabled: true | k8s_audit構成種別向けKubernetes統合Package Policyを検証対象に含めます。 | Kubernetes API監査ログ収集用Package Policyの作成結果を検証するためです。 |
+| 7 | logging_backend_elastic_agent_k8s_audit_data_stream_namespace: "k8s_system" | Kubernetes API監査ログのData Stream名前空間を`k8s_system`に設定します。 | `logs-kubernetes.audit_logs-k8s_system`への格納を検証するためです。 |
+| 8-10 | logging_backend_elastic_agent_k8s_audit_monitoring_* | Audit用Elastic Agent自身の監視, 監視ログ及び監視メトリクスを有効化します。 | Fleet上でAudit用Elastic Agentの稼働状態を確認できる検証条件にするためです。 |
 
 この設定により, 本ロールで使用するKibanaのFleet機能の対象名が明確になり, 検証手順を実行しやすくなります。Kibana 及び Elasticsearch の接続先は, 対象ホスト上の `http://127.0.0.1:5601` と `http://127.0.0.1:9200` を使用します。
 
@@ -683,7 +718,7 @@ curl -sS -u 'elastic:elastic' 'http://observer01.example.org:9200/_cluster/healt
 - 本ロールは KibanaのFleet機能の初期化を行うための処理であり, コンテナ起動やサービス管理は実施しません。
 - Enrollment Token共有ファイルの保存先は [vars/logging-backend-common.yml](../../vars/logging-backend-common.yml) の共通既定値を使用し, 保存先を変更する場合だけ [vars/all-config.yml](../../vars/all-config.yml) の`fleet_bootstrap_enrollment_token_file`で上書きしてください。
 - 既存のKibanaのFleet機能の構成が存在する場合は, 同名の Output, Elastic Agent ポリシー, 認証情報を再利用するように動作します。
-- Enrollment Token共有ファイルはFleet上の4種類のEnrollment Tokenと一致する内容へ更新します。
+- Enrollment Token共有ファイルはFleet上の5種類のEnrollment Tokenと一致する内容へ更新します。
 - 認証切り分け用の debug 出力が必要な場合は, `fleet_bootstrap_debug_auth_diagnostics: true` を一時的に指定してください。通常運用では `fleet_bootstrap_debug_auth_diagnostics: false` を維持してください。
 
 ## 参考資料

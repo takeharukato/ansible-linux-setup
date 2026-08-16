@@ -13,3 +13,6 @@
     # Fleet Bootstrapが配布する方針へ登録し, Kubernetes用のElastic Agent本体を導入する。
     - role: elastic-agent-k8s
       tags: elastic-agent-k8s
+    # Kubernetes API監査ログ収集用のElastic Agentを導入する。
+    - role: elastic-agent-k8s-audit
+      tags: elastic-agent-k8s-audit

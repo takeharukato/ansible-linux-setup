@@ -1,0 +1,71 @@
+#  -*- coding:utf-8-unix mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  Kubernetes API監査ログ収集用Package Policy構築タスク
+#
+---
+
+# Kubernetes API監査ログ収集用Package Policyの有効化フラグを解決する。
+- name: Resolve Kubernetes audit package policy runtime flags
+  ansible.builtin.set_fact:
+    fleet_bootstrap_k8s_audit_package_policy_enabled: >-
+      {{
+        logging_backend_elastic_agent_k8s_audit_package_policy_enabled
+        | default(true)
+        | bool
+      }}
+
+# k8s_audit構成種別専用のKubernetes統合Package Policyを共通CRUDタスクで管理する。
+# inputsのキーはFleetが生成する入力識別子(<policy_template名>-<入力種別>)であること。
+# Kubernetes API監査ログはローカルファイルからfilestream入力で収集し,
+# その他のKubernetes入力は重複収集を防止するため明示的に無効化する。
+- name: Configure Fleet Kubernetes audit package policy
+  ansible.builtin.include_tasks: configure-package-policy.yml
+  vars:
+    fleet_bootstrap_package_policy:
+      name: "{{ fleet_bootstrap_agent_policy_profile.policy_name }}-kubernetes"
+      body:
+        name: "{{ fleet_bootstrap_agent_policy_profile.policy_name }}-kubernetes"
+        description: Managed by Ansible
+        namespace: "{{ logging_backend_elastic_agent_k8s_audit_data_stream_namespace }}"
+        policy_id: "{{ fleet_bootstrap_current_policy_id }}"
+        package:
+          name: kubernetes
+          version: "{{ fleet_bootstrap_kubernetes_package_version }}"
+        inputs:
+          audit-logs-filestream:
+            enabled: true
+            streams:
+              kubernetes.audit_logs:
+                enabled: true
+                vars:
+                  paths:
+                    - /hostfs/var/log/kubernetes/audit/audit.log
+
+          # 未指定の入力はFleetが有効として扱う場合があるため,
+          # Kubernetes API監査ログ以外の入力をすべて明示的に無効化する。
+          kube-state-metrics-kubernetes/metrics:
+            enabled: false
+          events-kubernetes/metrics:
+            enabled: false
+          kubelet-kubernetes/metrics:
+            enabled: false
+          kube-apiserver-kubernetes/metrics:
+            enabled: false
+          kube-proxy-kubernetes/metrics:
+            enabled: false
+          kube-scheduler-kubernetes/metrics:
+            enabled: false
+          kube-controller-manager-kubernetes/metrics:
+            enabled: false
+          container-logs-filestream:
+            enabled: false
+          audit-logs-aws-cloudwatch:
+            enabled: false
+          audit-logs-azure-eventhub:
+            enabled: false
+          audit-logs-gcp-pubsub:
+            enabled: false
+  when:
+    - fleet_bootstrap_k8s_audit_package_policy_enabled | bool

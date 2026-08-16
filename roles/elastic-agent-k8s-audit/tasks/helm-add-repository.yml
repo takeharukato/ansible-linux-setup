@@ -1,0 +1,97 @@
+#  -*- coding:utf-8-unix mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  Helmリポジトリ登録タスク
+#
+---
+
+# 対象ユーザに登録されているHelmリポジトリ一覧を取得する。
+- name: Get Helm repository list for elastic-agent-k8s-audit
+  ansible.builtin.command:
+    argv:
+      - sudo
+      - -u
+      - "{{ user }}"
+      - helm
+      - repo
+      - list
+      - --output
+      - yaml
+  register: elastic_agent_k8s_audit_helm_repo_list_result
+  changed_when: false
+  become: true
+  until: elastic_agent_k8s_audit_helm_repo_list_result.rc == 0
+  retries: "{{ elastic_agent_k8s_audit_runtime_helm_retries | int }}"
+  delay: "{{ elastic_agent_k8s_audit_runtime_helm_request_interval_seconds | int }}"
+
+# 同名のHelmリポジトリが登録済みの場合は削除し,
+# URL変更時にも確実に現在の設定へ更新できるようにする。
+- name: Remove existing Helm repository for elastic-agent-k8s-audit
+  ansible.builtin.command:
+    argv:
+      - sudo
+      - -u
+      - "{{ user }}"
+      - helm
+      - repo
+      - remove
+      - "{{ elastic_agent_k8s_audit_runtime_helm_repo_name }}"
+  register: elastic_agent_k8s_audit_helm_repo_remove_result
+  changed_when: elastic_agent_k8s_audit_helm_repo_remove_result.rc == 0
+  become: true
+  until: elastic_agent_k8s_audit_helm_repo_remove_result.rc == 0
+  retries: "{{ elastic_agent_k8s_audit_runtime_helm_retries | int }}"
+  delay: "{{ elastic_agent_k8s_audit_runtime_helm_retry_interval_seconds | int }}"
+  when: >-
+    (
+      (
+        elastic_agent_k8s_audit_helm_repo_list_result.stdout
+        | from_yaml
+        | default([], true)
+      )
+      | selectattr(
+          'name',
+          'equalto',
+          elastic_agent_k8s_audit_runtime_helm_repo_name
+        )
+      | list
+      | length
+    ) > 0
+
+# Kubernetes API監査ログ収集用Elastic Agentで使用する
+# Helmリポジトリを対象ユーザへ登録する。
+- name: Add Helm repository for elastic-agent-k8s-audit
+  ansible.builtin.command:
+    argv:
+      - sudo
+      - -u
+      - "{{ user }}"
+      - helm
+      - repo
+      - add
+      - "{{ elastic_agent_k8s_audit_runtime_helm_repo_name }}"
+      - "{{ elastic_agent_k8s_audit_runtime_helm_repo_url }}"
+  register: elastic_agent_k8s_audit_helm_repo_add_result
+  changed_when: elastic_agent_k8s_audit_helm_repo_add_result.rc == 0
+  become: true
+  until: elastic_agent_k8s_audit_helm_repo_add_result.rc == 0
+  retries: "{{ elastic_agent_k8s_audit_runtime_helm_retries | int }}"
+  delay: "{{ elastic_agent_k8s_audit_runtime_helm_retry_interval_seconds | int }}"
+
+# 登録したHelmリポジトリのインデックス情報を更新する。
+- name: Update Helm repositories for elastic-agent-k8s-audit
+  ansible.builtin.command:
+    argv:
+      - sudo
+      - -u
+      - "{{ user }}"
+      - helm
+      - repo
+      - update
+  register: elastic_agent_k8s_audit_helm_repo_update_result
+  changed_when: false
+  become: true
+  until: elastic_agent_k8s_audit_helm_repo_update_result.rc == 0
+  retries: "{{ elastic_agent_k8s_audit_runtime_helm_retries | int }}"
+  delay: "{{ elastic_agent_k8s_audit_runtime_helm_retry_interval_seconds | int }}"

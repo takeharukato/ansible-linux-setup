@@ -1,11 +1,10 @@
-#  -*- coding:utf-8 mode:yaml -*-
+#  -*- coding:utf-8-unix mode:yaml -*-
 #  Ansible playbook
 #  Copyright 2020 Takeharu KATO All Rights Reserved.
 #
 #  設定関連タスク
 #
 ---
-
 
 # Helmテンプレート描画を先に実行し, Chartとvaluesの整合性を導入前に確認する。
 - name: Render elastic-agent-k8s Helm template
@@ -405,15 +404,42 @@
     - elastic_agent_k8s_helm_upgrade_first_result.rc != 0
     - elastic_agent_k8s_should_uninstall_existing_release_after_failed_upgrade | bool
 
+# 初回失敗後の解消処理結果を再取得し,
+# pending状態が実際に解消されたことを確認できるようにする。
+- name: Get elastic-agent-k8s Helm release status after failed-upgrade cleanup
+  ansible.builtin.command:
+    argv:
+      - sudo
+      - -u
+      - "{{ k8s_runtime_helm_operator_user }}"
+      - helm
+      - status
+      - "{{ elastic_agent_k8s_runtime_release_name }}"
+      - --namespace
+      - "{{ elastic_agent_k8s_runtime_namespace }}"
+      - --kubeconfig
+      - "{{ elastic_agent_k8s_runtime_kubeconfig_path }}"
+      - -o
+      - json
+  register: elastic_agent_k8s_failed_upgrade_post_cleanup_status_result
+  changed_when: false
+  failed_when: false
+  become: true
+  when:
+    - elastic_agent_k8s_helm_upgrade_first_result.rc != 0
+
 # 再試行前に pending 状態が残っていないことを検証し, 進行中操作と競合する再実行を防止する。
 - name: Assert elastic-agent-k8s Helm release is not pending before retry
   ansible.builtin.assert:
     that:
       - >-
-        elastic_agent_k8s_failed_upgrade_status_effective_result.rc != 0
+        elastic_agent_k8s_failed_upgrade_post_cleanup_status_result.rc != 0
         or
         (
-          (elastic_agent_k8s_failed_upgrade_status_effective_result.stdout | from_json).info.status
+          (
+            elastic_agent_k8s_failed_upgrade_post_cleanup_status_result.stdout
+            | from_json
+          ).info.status
           not in ['pending-install', 'pending-upgrade', 'pending-rollback']
         )
     fail_msg: >-

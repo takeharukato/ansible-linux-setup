@@ -1,0 +1,172 @@
+#  -*- coding:utf-8-unix mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  入力値検証タスク
+#
+---
+
+# Helm導入とFleet Server登録を開始する前に, 必須入力値と数値範囲を検証する。
+# 正規表現'^[0-9]+\.[0-9]+\.[0-9]+$'は, 版数をメジャー.マイナー.パッチ形式で検証し,
+# '8.19.19'のような文字列に一致する。
+# 正規表現'^/'は, 文字列先頭が'/'で始まる絶対パスを検証し,
+# '/etc/kubernetes/admin.conf'のような文字列に一致する。
+# 正規表現'^[a-z0-9]([-a-z0-9]*[a-z0-9])?$'は, Kubernetes名前空間の基本形式を検証し,
+# 'kube-system'のような文字列に一致する。
+# 正規表現'^https?://'は, Fleet Server接続先がHTTP又はHTTPSで始まるURLであることを検証する。
+- name: Validate elastic-agent-k8s-audit runtime inputs
+  ansible.builtin.assert:
+    that:
+      - elastic_agent_k8s_audit_runtime_release_name | default('', true) | string | trim | length > 0
+      - elastic_agent_k8s_audit_runtime_helm_repo_name | default('', true) | string | trim | length > 0
+      - elastic_agent_k8s_audit_runtime_helm_repo_url | default('', true) | string | trim | length > 0
+      - elastic_agent_k8s_audit_runtime_chart_name | default('', true) | string | trim | length > 0
+      - >-
+        elastic_agent_k8s_audit_runtime_chart_version | default('', true) | string
+        is regex('^[0-9]+\.[0-9]+\.[0-9]+$')
+      - elastic_agent_k8s_audit_runtime_namespace | default('', true) | string | trim | length > 0
+      - (elastic_agent_k8s_audit_runtime_namespace | default('', true) | string | trim | length) <= 63
+      - >-
+        (elastic_agent_k8s_audit_runtime_namespace | default('', true) | string)
+        is regex('^[a-z0-9]([-a-z0-9]*[a-z0-9])?$')
+      - elastic_agent_k8s_audit_runtime_kubeconfig_path | default('', true) | string | trim | length > 0
+      - >-
+        (elastic_agent_k8s_audit_runtime_kubeconfig_path | default('', true) | string)
+        is regex('^/')
+      - elastic_agent_k8s_audit_runtime_values_file_path | default('', true) | string | trim | length > 0
+      - >-
+        (elastic_agent_k8s_audit_runtime_values_file_path | default('', true) | string)
+        is regex('^/')
+      - elastic_agent_k8s_audit_runtime_config_dir | default('', true) | string | trim | length > 0
+      - >-
+        (elastic_agent_k8s_audit_runtime_config_dir | default('', true) | string)
+        is regex('^/')
+      - elastic_agent_k8s_audit_runtime_chart_ref | default('', true) | string | trim | length > 0
+      - >-
+        elastic_agent_k8s_audit_runtime_fleet_server_url
+        | default('', true)
+        | string
+        | trim
+        is regex('^https?://')
+      - elastic_agent_k8s_audit_runtime_enrollment_token | default('', true) | string | trim | length > 0
+      - elastic_agent_k8s_audit_runtime_helm_timeout_seconds | int > 0
+      - elastic_agent_k8s_audit_runtime_helm_retries | int > 0
+      - elastic_agent_k8s_audit_runtime_helm_retry_interval_seconds | int >= 0
+      - elastic_agent_k8s_audit_runtime_helm_request_interval_seconds | int >= 0
+      - (k8s_runtime_helm_execution_users | default([], true) | length) > 0
+      - k8s_runtime_helm_operator_user | default('', true) | string | trim | length > 0
+      - k8s_runtime_helm_operator_user in (k8s_runtime_helm_execution_users | default([], true))
+    fail_msg: >-
+      Invalid elastic-agent-k8s-audit settings. Set valid chart version format,
+      namespace, kubeconfig absolute path, Fleet Server URL, Enrollment Token,
+      valid timeout/retry interval/request interval values, and valid Helm execution users
+      before running Helm operations.
+
+# Kubernetes API監査ログのホスト側格納ディレクトリと,
+# Elastic Agentコンテナ内のマウント先が絶対パスであり,
+# ファイルシステムルートそのものではないことを確認する。
+- name: Validate elastic-agent-k8s-audit log paths
+  ansible.builtin.assert:
+    that:
+      - elastic_agent_k8s_audit_host_log_dir | default('', true) | string | trim | length > 0
+      - >-
+        (elastic_agent_k8s_audit_host_log_dir | default('', true) | string)
+        is regex('^/')
+      - (elastic_agent_k8s_audit_host_log_dir | string | trim) != '/'
+      - elastic_agent_k8s_audit_container_log_dir | default('', true) | string | trim | length > 0
+      - >-
+        (elastic_agent_k8s_audit_container_log_dir | default('', true) | string)
+        is regex('^/')
+      - (elastic_agent_k8s_audit_container_log_dir | string | trim) != '/'
+    fail_msg: >-
+      Invalid Kubernetes audit log paths. Set valid absolute host and container
+      audit log directories other than the filesystem root.
+
+# Kubernetes API監査ログ収集用Elastic Agent Podに設定するresourcesの
+# 必須項目が辞書形式で設定されていることを確認する。
+# CPU limitとephemeral-storageは本ロールの初期仕様では必須としない。
+- name: Validate elastic-agent-k8s-audit resources
+  ansible.builtin.assert:
+    that:
+      - elastic_agent_k8s_audit_resources is mapping
+      - elastic_agent_k8s_audit_resources.requests is defined
+      - elastic_agent_k8s_audit_resources.requests is mapping
+      - elastic_agent_k8s_audit_resources.limits is defined
+      - elastic_agent_k8s_audit_resources.limits is mapping
+      - >-
+        elastic_agent_k8s_audit_resources.get('requests', {}).get('cpu', '')
+        | default('', true)
+        | string
+        | trim
+        | length > 0
+      - >-
+        elastic_agent_k8s_audit_resources.get('requests', {}).get('memory', '')
+        | default('', true)
+        | string
+        | trim
+        | length > 0
+      - >-
+        elastic_agent_k8s_audit_resources.get('limits', {}).get('memory', '')
+        | default('', true)
+        | string
+        | trim
+        | length > 0
+    fail_msg: >-
+      Invalid elastic-agent-k8s-audit resources. Set requests.cpu,
+      requests.memory, and limits.memory.
+
+# Kubernetes API監査ログ収集用Elastic Agentの配置条件が,
+# nodeSelectorは辞書形式, tolerationsはリスト形式で設定されていることを確認する。
+- name: Validate elastic-agent-k8s-audit scheduling settings
+  ansible.builtin.assert:
+    that:
+      - elastic_agent_k8s_audit_node_selector is mapping
+      - (elastic_agent_k8s_audit_node_selector | length) > 0
+      - elastic_agent_k8s_audit_tolerations is sequence
+      - elastic_agent_k8s_audit_tolerations is not string
+      - (elastic_agent_k8s_audit_tolerations | length) > 0
+    fail_msg: >-
+      Invalid elastic-agent-k8s-audit scheduling settings.
+      nodeSelector must be a non-empty mapping and tolerations must be a non-empty list.
+
+# Elastic Agent自身の監視設定が真偽値として解決されていることを確認する。
+- name: Validate elastic-agent-k8s-audit monitoring settings
+  ansible.builtin.assert:
+    that:
+      - elastic_agent_k8s_audit_runtime_monitoring_enabled is boolean
+      - elastic_agent_k8s_audit_runtime_monitoring_logs_enabled is boolean
+      - elastic_agent_k8s_audit_runtime_monitoring_metrics_enabled is boolean
+    fail_msg: >-
+      Invalid elastic-agent-k8s-audit monitoring settings.
+      Monitoring settings must resolve to boolean values.
+
+# Kubernetes API監査ログ収集用Elastic Agentのデータストリーム送信先名前空間が,
+# Elasticのdata_stream.namespace命名規則を満たすことを確認する。
+- name: Validate elastic-agent-k8s-audit data stream namespace
+  ansible.builtin.assert:
+    that:
+      - >-
+        elastic_agent_k8s_audit_runtime_data_stream_namespace
+        | default('', true)
+        | string
+        | trim
+        | length > 0
+      - >-
+        (
+          elastic_agent_k8s_audit_runtime_data_stream_namespace
+          | default('', true)
+          | string
+          | trim
+          | length
+        ) <= 100
+      - >-
+        '-' not in (
+          elastic_agent_k8s_audit_runtime_data_stream_namespace
+          | default('', true)
+          | string
+          | trim
+        )
+    fail_msg: >-
+      Invalid elastic-agent-k8s-audit data stream namespace.
+      Set a non-empty namespace with a maximum length of 100 characters
+      that does not contain '-'.

@@ -1019,11 +1019,34 @@ common_selinux_state: "permissive"
 
 # =======================================================================
 # Elastic Agent関連ロールの必須入力値
+# 以下の値は, fleet-bootstrapロールからも参照されるため,
+# host_varsではなく, vars/all-config.ymlに設定すること
+# =======================================================================
+# Kubernetes API監査ログ収集用Elastic Agent自身の監視機能を有効化する場合はtrueに設定する。
+# logging_backend_elastic_agent_k8s_audit_monitoring_enabled: true
+#
+# Kubernetes API監査ログ収集用Elastic Agent自身の監視ログを収集する場合はtrueに設定する。
+# logging_backend_elastic_agent_k8s_audit_monitoring_logs_enabled: true
+#
+# Kubernetes API監査ログ収集用Elastic Agent自身の監視メトリクスを収集する場合はtrueに設定する。
+# logging_backend_elastic_agent_k8s_audit_monitoring_metrics_enabled: true
+
+
+# =======================================================================
+# Elastic Agent関連ロールの必須入力値
 # 原則として, **host_vars側で**各ホストの仕様に基づいて設定すること
 # =======================================================================
 # ホスト監視用Elastic Agent を導入する場合にtrueを指定する有効化フラグ。
 # logging_elastic_agent_host_enabled: true
+#
 # Kubernetesシステム監視用Elastic Agent を導入する場合にtrueを指定する有効化フラグ。
+# Kubernetes コントロールプレーンノード, ワーカーノードのhost_vars側で以下の変数を設定すること
 # logging_elastic_agent_k8s_system_enabled: true
+#
 # Kubernetesワークロード監視用Elastic Agent を導入する場合にtrueを指定する有効化フラグ。
+# Kubernetes コントロールプレーンノード, ワーカーノードのhost_vars側で以下の変数を設定すること
 # logging_elastic_agent_k8s_workload_enabled: true
+#
+# Kubernetes監査ログ収集用Elastic Agentの導入を有効化する。
+# Kubernetes コントロールプレーンノードのhost_vars側で以下の変数を設定すること
+# elastic_agent_k8s_audit_enabled: true

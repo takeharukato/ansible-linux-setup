@@ -1,0 +1,18 @@
+#  -*- coding:utf-8-unix mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  Helmリポジトリ設定タスク
+#
+---
+
+# Kubernetes API監査ログ収集用Elastic Agentで使用するHelmリポジトリを,
+# Helm実行ユーザごとに登録する。
+# k8s_runtime_helm_execution_usersは, verify.ymlで事前検証済みではあるが,
+# 念のため, default([], true)で未定義時は空リストを設定するようにしている。
+- name: Add Helm repository for elastic-agent-k8s-audit
+  ansible.builtin.include_tasks: helm-add-repository.yml
+  loop: "{{ k8s_runtime_helm_execution_users | default([], true) }}"
+  loop_control:
+    loop_var: user
+    label: "{{ user | default('', true) | string | trim }}"

@@ -1,6 +1,6 @@
 # Elasticsearch ロール
 
-本ロールは, 本 playbook で導入する Elasticsearch を, 本 playbook で導入する Elastic Stack関連ロールである Kibana, Logstash, Fleet Server, Elastic Agent と組み合わせて運用するためのロールです。
+本ロールは, 本 playbook で導入する Elasticsearch を, 本 playbook で導入する Elastic Stack関連ロールである Kibana, Logstash, Fleet Server, Elastic Agent, Elastic Agent for Kubernetes及びKubernetes API監査ログ収集用Elastic Agentと組み合わせて運用するためのロールです。
 
 Elastic Stack関連ロールを適用することで, 以下のURLからElastic StackのKibanaのWEB ユーザインターフェースにアクセス可能になります:
 ```plaintext
@@ -47,6 +47,7 @@ http://導入先ホスト:5601
     - [変数設定例](#変数設定例)
       - [host\_vars の設定例](#host_vars-の設定例)
       - [vars/all-config.yml の設定例](#varsall-configyml-の設定例)
+    - [Kubernetes API監査ログの保存先](#kubernetes-api監査ログの保存先)
     - [ログ対象を追加する手順](#ログ対象を追加する手順)
   - [バックアップ/リストア運用](#バックアップリストア運用)
     - [導入されるスクリプト仕様](#導入されるスクリプト仕様)
@@ -83,6 +84,7 @@ http://導入先ホスト:5601
     - [Kubernetesワーカーノードの`host_vars`設定例](#kubernetesワーカーノードのhost_vars設定例)
   - [参考資料](#参考資料)
     - [公式ドキュメント](#公式ドキュメント)
+    - [関連ロール](#関連ロール)
 
 ## 用語
 
@@ -223,7 +225,7 @@ http://導入先ホスト:5601
 | statコマンド | stat | ファイルの権限, 大きさ及び名前を表示するコマンド。 |
 | Service | - | サービスの英語表記。 |
 | Node | - | ノードの英語表記。 |
-| Elastic Agentポリシー構成種別 | - | Fleet Bootstrap ロールの `fleet_bootstrap_agent_policy_profiles` で管理する `host`, `k8s_system`, `k8s_workload`, `k8s_cluster` の4種類を指す, Elastic Stack固有の分類単位。 |
+| Elastic Agentポリシー構成種別 | - | Fleet Bootstrap ロールの `fleet_bootstrap_agent_policy_profiles` で管理する `host`, `k8s_system`, `k8s_workload`, `k8s_cluster`, `k8s_audit` の5種類を指す, Elastic Stack固有の分類単位。 |
 | 統合パッケージ | - | Elastic Agentへデータの収集方法と収集項目を追加するためのパッケージ。 |
 | Package Policy | - | Elastic Agent ポリシーへ追加する収集内容と統合パッケージの設定。 |
 | System統合 | - | Elastic Agentが対象ホストのログとメトリクス情報を収集するための統合パッケージ。 |
@@ -426,11 +428,14 @@ Elasticsearchの導入に関連するロールは以下の通りです:
 |ロール名|ロール定義ディレクトリ|処理内容|
 | ---| --- | --- |
 | Elasticsearch | roles/elasticsearch | Elasticsearch コンテナの設定生成, 起動, 起動確認を行うロールです。 |
+|docker-network-elastic-stack|roles/docker-network-elastic-stack|Elastic Stack関連コンテナが共有するDockerブリッジネットワークを明示したIPv4 CIDRとIPv6 CIDRで作成するロールです。|
 | Kibana | roles/kibana | Kibana コンテナの設定生成, 起動, 起動確認を行うロールです。 |
 | Logstash | roles/logstash | Logstash コンテナの pipeline 設定生成, 起動, 起動確認を行うロールです。 |
 | Fleet Server | roles/fleet-server | Elastic Agent コンテナを Fleet Server モードで起動し, 管理通信の受け口を提供するロールです。 |
 | Fleet Bootstrap | roles/fleet-bootstrap | Fleet Serverの初期化設定を行うロールです。Fleet Output, Elastic Agent ポリシー, Package Policy, Enrollment Token の生成又は再利用, Enrollment Token共有ファイルへの保存と, 接続先疎通確認を担います。 |
 | Elastic Agent | roles/elastic-agent | Fleet BootstrapがEnrollment Token共有ファイルへ保存したEnrollment Tokenを読み込み, Elastic Agent本体の導入とFleet Serverへの登録を行うロールです。 |
+| Elastic Agent for Kubernetes | roles/elastic-agent-k8s | Kubernetesクラスタ状態情報を収集するElastic Agentを公式Helm Chartで導入するロールです。 |
+| Kubernetes API監査ログ収集用Elastic Agent | roles/elastic-agent-k8s-audit | control-planeノードのKubernetes API監査ログを収集する専用Elastic Agentを公式Helm Chartで導入するロールです。 |
 
 ### 展開されるコンテナの仕様
 
@@ -578,6 +583,11 @@ ansible-playbook -i inventory/hosts logging-backend.yml
 | `logging_verify_external_enabled` | 外部ホストからの疎通確認を共通で有効化するフラグ。 | `false` | `true` |
 | `logging_verify_external_delegate_to` | 外部ホストからの疎通確認を実行する接続元ホスト名。 | `localhost` | `bastion01` |
 |`logging_backend_elastic_agent_k8s_cluster_package_policy_enabled`|k8s_cluster構成種別向けKubernetes統合Package Policyの作成又は更新を切り替える。|`true`|`true`|
+|`logging_backend_elastic_agent_k8s_audit_package_policy_enabled`|k8s_audit構成種別向けKubernetes監査ログ用Package Policyの作成又は更新を切り替える。|`true`|`true`|
+|`logging_backend_elastic_agent_k8s_audit_data_stream_namespace`|Kubernetes API監査ログのデータストリーム名前空間を指定する。|`k8s_system`|`k8s_system`|
+|`logging_backend_elastic_agent_k8s_audit_monitoring_enabled`|Kubernetes API監査ログ収集用Elastic Agent自身の監視を有効化する。|利用者設定|`true`|
+|`logging_backend_elastic_agent_k8s_audit_monitoring_logs_enabled`|Audit用Elastic Agent自身の監視ログを収集する。|利用者設定|`true`|
+|`logging_backend_elastic_agent_k8s_audit_monitoring_metrics_enabled`|Audit用Elastic Agent自身の監視メトリクスを収集する。|利用者設定|`true`|
 
 #### 共有設定値に関する補足説明
 
@@ -692,6 +702,16 @@ Elasticsearch, Logstash, Kibana, Fleet Server を導入するホストでは, `i
 | 6-10 | `elastic_search_wait_host: "127.0.0.1"`, `elastic_search_wait_timeout: 120`, `elastic_search_wait_delay: 5`, `elastic_search_wait_sleep: 2`, `elastic_search_wait_retries: 60` | 起動確認の接続先と再試行条件を定義し, 起動直後の待受未完了を吸収して到達性を検証します。 | これらが未設定又は不適切な場合, 起動直後の一時的な応答遅延を異常と誤判定し, ロール実行が失敗するためです。 |
 
 この例では, 本 playbook で導入する側の共通値を一箇所へ集約します。
+
+### Kubernetes API監査ログの保存先
+
+Kubernetes API監査ログは`elastic-agent-k8s-audit`からFleet既定のLogstash Outputへ送信され, LogstashでElastic Agentが付与したデータストリーム情報を維持したままElasticsearchへ格納します。既定設定では次のData Streamを使用します。
+
+```text
+logs-kubernetes.audit_logs-k8s_system
+```
+
+`kubernetes.audit_logs`はFleet Bootstrapの`k8s_audit`構成種別専用Kubernetes統合Package Policyで収集し, `k8s_cluster`構成種別では重複収集を防ぐためAudit入力を無効化します。
 
 ### ログ対象を追加する手順
 
@@ -1427,6 +1447,14 @@ logging_elastic_agent_k8s_system_kube_system_log_paths:
 # Kubernetes ワークロードログ
 logging_elastic_agent_k8s_workload_log_paths:
   - "/var/log/containers/*.log"
+
+# Kubernetes API監査ログ用Package PolicyとData Stream設定
+logging_backend_elastic_agent_k8s_audit_package_policy_enabled: true
+logging_backend_elastic_agent_k8s_audit_data_stream_namespace: "k8s_system"
+# Kubernetes API監査ログ収集用Elastic Agent自身の監視設定
+logging_backend_elastic_agent_k8s_audit_monitoring_enabled: true
+logging_backend_elastic_agent_k8s_audit_monitoring_logs_enabled: true
+logging_backend_elastic_agent_k8s_audit_monitoring_metrics_enabled: true
 ```
 
 ### Kubernetes以外の管理サーバやレジストリサーバなどの`host_vars`設定例
@@ -1463,6 +1491,8 @@ logging_elastic_agent_k8s_system_enabled: true
 logging_elastic_agent_k8s_workload_enabled: false
 # Kubernetesメトリクス情報監視用Elastic Agent を導入する場合にtrueを指定する
 elastic_agent_k8s_enabled: true
+# Kubernetes API監査ログ収集用Elastic Agentを導入する。
+elastic_agent_k8s_audit_enabled: true
 ```
 
 ### Kubernetesワーカーノードの`host_vars`設定例
@@ -1498,3 +1528,14 @@ elastic_agent_k8s_enabled: true
 - [Docker Compose documentation](https://docs.docker.com/compose/)
 - [Ansible documentation](https://docs.ansible.com/ansible/latest/)
 - [The java Command](https://docs.oracle.com/en/java/javase/24/docs/specs/man/java.html)
+
+### 関連ロール
+
+- [roles/docker-network-elastic-stack/Readme.md](../docker-network-elastic-stack/Readme.md)
+- [roles/kibana/Readme.md](../kibana/Readme.md)
+- [roles/logstash/Readme.md](../logstash/Readme.md)
+- [roles/fleet-server/Readme.md](../fleet-server/Readme.md)
+- [roles/fleet-bootstrap/Readme.md](../fleet-bootstrap/Readme.md)
+- [roles/elastic-agent/Readme.md](../elastic-agent/Readme.md)
+- [roles/elastic-agent-k8s/Readme.md](../elastic-agent-k8s/Readme.md)
+- [roles/elastic-agent-k8s-audit/Readme.md](../elastic-agent-k8s-audit/Readme.md)

@@ -1,0 +1,251 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  実行時変数解決タスク
+#
+---
+
+# 後続タスクで共通利用する実行時変数を解決する。
+# 設定する値は次のとおりである。
+# - elastic_agent_k8s_audit_runtime_release_name:
+#   Kubernetes監査ログ収集用Elastic AgentのHelmリリース名。
+# - elastic_agent_k8s_audit_runtime_helm_repo_name:
+#   Helmリポジトリ名。既存Kubernetes Elastic Agentの設定を継承する。
+# - elastic_agent_k8s_audit_runtime_helm_repo_url:
+#   HelmリポジトリURL。既存Kubernetes Elastic Agentの設定を継承する。
+# - elastic_agent_k8s_audit_runtime_chart_name:
+#   Helm Chart名。既存Kubernetes Elastic Agentの設定を継承する。
+# - elastic_agent_k8s_audit_runtime_chart_version:
+#   Helm Chart版数。既存Kubernetes Elastic Agentの設定を継承する。
+# - elastic_agent_k8s_audit_runtime_namespace:
+#   配置先Kubernetes名前空間。既存Kubernetes Elastic Agentの設定を継承する。
+# - elastic_agent_k8s_audit_runtime_config_dir:
+#   Helm valuesファイルを配置するディレクトリ。
+# - elastic_agent_k8s_audit_runtime_values_file_path:
+#   Helmに渡すvaluesファイルのパス。
+# - elastic_agent_k8s_audit_runtime_helm_timeout_seconds:
+#   Helm実行タイムアウト秒数。
+# - elastic_agent_k8s_audit_runtime_helm_retries:
+#   Helm実行の再試行回数。
+# - elastic_agent_k8s_audit_runtime_helm_retry_interval_seconds:
+#   Helm実行の再試行間隔。
+# - elastic_agent_k8s_audit_runtime_helm_request_interval_seconds:
+#   Helm状態確認時のリクエスト発行間隔。
+# - elastic_agent_k8s_audit_runtime_fleet_server_url:
+#   Fleet Server接続先URL。
+#   Fleet Serverロールで解決済みのURLを優先し, 未解決の場合は
+#   logging backend共通設定からURLを構成する。
+# - elastic_agent_k8s_audit_runtime_insecure:
+#   Fleet Server接続時に証明書検証を省略するかを表す真偽値。
+#   HTTP接続又はFleet ServerのTLS検証モードがfull以外の場合にtrueとする。
+- name: Resolve elastic-agent-k8s-audit runtime variables
+  ansible.builtin.set_fact:
+    elastic_agent_k8s_audit_runtime_release_name: "elastic-agent-k8s-audit"
+    elastic_agent_k8s_audit_runtime_helm_repo_name: >-
+      {{
+        elastic_agent_k8s_helm_repo_name
+        | string
+        | trim
+      }}
+    elastic_agent_k8s_audit_runtime_helm_repo_url: >-
+      {{
+        elastic_agent_k8s_helm_repo_url
+        | string
+        | trim
+      }}
+    elastic_agent_k8s_audit_runtime_chart_name: >-
+      {{
+        elastic_agent_k8s_chart_name
+        | string
+        | trim
+      }}
+    elastic_agent_k8s_audit_runtime_chart_version: >-
+      {{
+        elastic_agent_k8s_chart_version
+        | string
+        | trim
+      }}
+    elastic_agent_k8s_audit_runtime_namespace: >-
+      {{
+        elastic_agent_k8s_namespace
+        | string
+        | trim
+      }}
+    elastic_agent_k8s_audit_runtime_config_dir: >-
+      {{
+        k8s_kubeadm_config_store
+        ~ '/elastic-agent-k8s-audit'
+      }}
+    elastic_agent_k8s_audit_runtime_values_file_path: >-
+      {{
+        k8s_kubeadm_config_store
+        ~ '/elastic-agent-k8s-audit/values.yaml'
+      }}
+    elastic_agent_k8s_audit_runtime_helm_timeout_seconds: >-
+      {{
+        elastic_agent_k8s_audit_helm_timeout_seconds
+        | int
+      }}
+    elastic_agent_k8s_audit_runtime_helm_retries: >-
+      {{
+        elastic_agent_k8s_audit_helm_retries
+        | int
+      }}
+    elastic_agent_k8s_audit_runtime_helm_retry_interval_seconds: >-
+      {{
+        elastic_agent_k8s_audit_helm_retry_interval_seconds
+        | int
+      }}
+    elastic_agent_k8s_audit_runtime_helm_request_interval_seconds: >-
+      {{
+        elastic_agent_k8s_audit_helm_request_interval_seconds
+        | int
+      }}
+    elastic_agent_k8s_audit_runtime_fleet_server_url: >-
+      {{
+        (fleet_server_runtime_endpoint_url | default('', true) | string | trim)
+        if (
+          (
+            fleet_server_runtime_endpoint_url
+            | default('', true)
+            | string
+            | trim
+            | length
+          ) > 0
+        )
+        else (
+          (logging_backend_default_scheme | default('https', true) | string | trim)
+          ~ '://'
+          ~ logging_backend_resolved_host
+          ~ ':'
+          ~ (fleet_server_port | string)
+        )
+      }}
+
+# Fleet Server接続先URLと共通TLS設定を元に,
+# Elastic Agentのinsecure設定を解決する。
+#
+# agent.fleet.insecureは次の場合にtrueとする。
+# - Fleet Server URLがHTTPである。
+# - HTTPSであってもFleet ServerのTLS検証モードがfullではない。
+#
+# HTTPSかつTLS検証モードがfullの場合だけfalseとする。
+- name: Resolve elastic-agent-k8s-audit Fleet TLS runtime variable
+  ansible.builtin.set_fact:
+    elastic_agent_k8s_audit_runtime_insecure: >-
+      {{
+        not (
+          (
+            elastic_agent_k8s_audit_runtime_fleet_server_url
+            | lower
+          ) is regex('^https://')
+          and
+          (
+            fleet_server_tls_mode
+            | default(logging_backend_default_tls_mode, true)
+            | string
+            | lower
+            | trim
+          ) == 'full'
+        )
+      }}
+
+# Elastic Agent自身の監視設定を利用者設定から解決する。
+# Audit Agentでは既定で監視情報を送信しない。
+- name: Resolve elastic-agent-k8s-audit monitoring runtime variables
+  ansible.builtin.set_fact:
+    elastic_agent_k8s_audit_runtime_data_stream_namespace: >-
+      {{
+        logging_backend_elastic_agent_k8s_audit_data_stream_namespace
+        | default('k8s_system', true)
+        | string
+        | trim
+      }}
+    elastic_agent_k8s_audit_runtime_monitoring_enabled: >-
+      {{
+        logging_backend_elastic_agent_k8s_audit_monitoring_enabled
+        | default(false)
+        | bool
+      }}
+    elastic_agent_k8s_audit_runtime_monitoring_logs_enabled: >-
+      {{
+        logging_backend_elastic_agent_k8s_audit_monitoring_logs_enabled
+        | default(false)
+        | bool
+      }}
+    elastic_agent_k8s_audit_runtime_monitoring_metrics_enabled: >-
+      {{
+        logging_backend_elastic_agent_k8s_audit_monitoring_metrics_enabled
+        | default(false)
+        | bool
+      }}
+
+# Helm代表実行ユーザのホームディレクトリを取得し,
+# /home固定前提によるkubeconfig参照先の誤りを防止する。
+- name: Resolve home directory for elastic-agent-k8s-audit Helm operator user
+  ansible.builtin.getent:
+    database: passwd
+    key: "{{ k8s_runtime_helm_operator_user }}"
+  register: elastic_agent_k8s_audit_helm_operator_user_getent
+  changed_when: false
+
+# Helm代表実行ユーザのpasswd情報が取得できたことを確認する。
+- name: Validate elastic-agent-k8s-audit Helm operator user
+  ansible.builtin.assert:
+    that:
+      - >-
+        k8s_runtime_helm_operator_user
+        in (
+          elastic_agent_k8s_audit_helm_operator_user_getent
+          .ansible_facts
+          .getent_passwd
+          | default({})
+        )
+    fail_msg: >-
+      Helm operator user {{ k8s_runtime_helm_operator_user }} was not found.
+
+# Kubernetes API操作に使用するkubeconfigを解決する。
+# 既存Kubernetes Elastic Agent用の明示指定値が存在する場合はその値を継承し,
+# 未指定の場合はHelm代表実行ユーザのホームディレクトリ配下にある
+# ca-embedded-admin.confを使用する。
+- name: Resolve elastic-agent-k8s-audit runtime kubeconfig path
+  ansible.builtin.set_fact:
+    elastic_agent_k8s_audit_runtime_kubeconfig_path: >-
+      {{
+        (
+          elastic_agent_k8s_kubeconfig_path
+          | default('', true)
+          | string
+          | trim
+        )
+        if (
+          (
+            elastic_agent_k8s_kubeconfig_path
+            | default('', true)
+            | string
+            | trim
+            | length
+          ) > 0
+        )
+        else (
+          elastic_agent_k8s_audit_helm_operator_user_getent
+          .ansible_facts
+          .getent_passwd[k8s_runtime_helm_operator_user][4]
+          ~ '/.kube/ca-embedded-admin.conf'
+        )
+      }}
+
+# Helmで使用するChart参照名を"<repository>/<chart>"形式で構成する。
+# 例:
+#   repository: elastic
+#   chart: elastic-agent
+#   chart_ref: elastic/elastic-agent
+- name: Resolve elastic-agent-k8s-audit Helm chart reference
+  ansible.builtin.set_fact:
+    elastic_agent_k8s_audit_runtime_chart_ref: >-
+      {{
+        elastic_agent_k8s_audit_runtime_helm_repo_name
+        ~ '/'
+        ~ elastic_agent_k8s_audit_runtime_chart_name
+      }}

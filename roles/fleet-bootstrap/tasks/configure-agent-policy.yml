@@ -1,10 +1,43 @@
-#  -*- coding:utf-8 mode:yaml -*-
+#  -*- coding:utf-8-unix mode:yaml -*-
 #  Ansible playbook
 #  Copyright 2020 Takeharu KATO All Rights Reserved.
 #
 #  Fleet Agent Policy作成タスク
 #
 ---
+
+# Agent Policyへ設定するElastic Agent自身の監視対象をプロファイルごとに解決する。
+# 既存プロファイルでは従来どおりlogsとmetricsを有効化する。
+# k8s_auditプロファイルでは利用者設定に従って監視対象を構成し,
+# monitoring_enabledがfalseの場合は監視対象を空リストとする。
+- name: Resolve Fleet agent policy monitoring settings
+  ansible.builtin.set_fact:
+    fleet_bootstrap_current_monitoring_enabled: >-
+      {{
+        (
+          (
+            ['logs']
+            if (
+              logging_backend_elastic_agent_k8s_audit_monitoring_enabled | bool
+              and
+              logging_backend_elastic_agent_k8s_audit_monitoring_logs_enabled | bool
+            )
+            else []
+          )
+          +
+          (
+            ['metrics']
+            if (
+              logging_backend_elastic_agent_k8s_audit_monitoring_enabled | bool
+              and
+              logging_backend_elastic_agent_k8s_audit_monitoring_metrics_enabled | bool
+            )
+            else []
+          )
+        )
+        if (fleet_bootstrap_agent_policy_profile.id == 'k8s_audit')
+        else ['logs', 'metrics']
+      }}
 
 # 同名のAgent Policyを再利用し, Elastic Agent ポリシーごとの登録先を一意にする。
 - name: Resolve existing Fleet agent policy
@@ -32,9 +65,7 @@
       name: "{{ fleet_bootstrap_agent_policy_profile.policy_name }}"
       namespace: default
       description: Managed by Ansible
-      monitoring_enabled:
-        - logs
-        - metrics
+      monitoring_enabled: "{{ fleet_bootstrap_current_monitoring_enabled }}"
     status_code:
       - 200
       - 201
@@ -125,9 +156,7 @@
       description: Managed by Ansible
       data_output_id: null
       monitoring_output_id: null
-      monitoring_enabled:
-        - logs
-        - metrics
+      monitoring_enabled: "{{ fleet_bootstrap_current_monitoring_enabled }}"
     status_code:
       - 200
     return_content: true
@@ -141,7 +170,21 @@
     - fleet_bootstrap_effective_agent_policy.id is defined
     - >-
       (fleet_bootstrap_effective_agent_policy.data_output_id | default('', true) | string | length > 0) or
-      (fleet_bootstrap_effective_agent_policy.monitoring_output_id | default('', true) | string | length > 0)
+      (fleet_bootstrap_effective_agent_policy.monitoring_output_id | default('', true) | string | length > 0) or
+      (
+        (
+          fleet_bootstrap_effective_agent_policy.monitoring_enabled
+          | default([], true)
+          | sort
+          | list
+        )
+        !=
+        (
+          fleet_bootstrap_current_monitoring_enabled
+          | sort
+          | list
+        )
+      )
 
 # 既存又は新規Agent PolicyのIDを後続のPackage PolicyとEnrollment Tokenへ渡す。
 - name: Resolve Fleet agent policy id
@@ -263,6 +306,7 @@
                   paths: "{{ logging_elastic_agent_host_log_paths | default(['/var/log/syslog', '/var/log/auth.log'], true) }}"
                   data_stream.dataset: generic
   when:
+    - not (fleet_bootstrap_agent_policy_profile.include_k8s_audit | bool)
     - logging_elastic_agent_host_log_input_enabled | default(true) | bool
 
 # Kubernetes制御系ログは名前空間を含むファイル名だけを収集し, Workloadログとの重複を防ぐ。
@@ -344,6 +388,14 @@
   ansible.builtin.include_tasks: configure-kubernetes-package-policy.yml
   when:
     - fleet_bootstrap_agent_policy_profile.include_k8s_cluster | bool
+
+# Kubernetes API監査ログ収集は専用Package Policyへ分離し,
+# 他のKubernetes収集設定との重複を防止する。
+- name: Configure Fleet Kubernetes audit package policy
+  ansible.builtin.include_tasks: configure-kubernetes-audit-package-policy.yml
+  when:
+    - fleet_bootstrap_agent_policy_profile.include_k8s_audit | bool
+    - logging_backend_elastic_agent_k8s_audit_package_policy_enabled | bool
 
 # 対象Agent Policyに対応する既存Enrollment Tokenを検索する。
 - name: Resolve existing Fleet enrollment token
@@ -474,7 +526,7 @@
   when:
     - fleet_bootstrap_effective_token_item.id is defined
 
-# 4種類のAgent Policyに対応するEnrollment TokenをEnrollment Token共有ファイルへ保存できる辞書へ集約する。
+# 5種類のAgent Policyに対応するEnrollment TokenをEnrollment Token共有ファイルへ保存できる辞書へ集約する。
 - name: Store Fleet enrollment token by profile
   ansible.builtin.set_fact:
     fleet_bootstrap_enrollment_tokens: >-
