@@ -1,0 +1,15 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  実行時変数解決タスク
+#
+
+# vars/k8s-config-common.ymlの計算済みCIDR値を本ロール専用のランタイム変数へ複製し,
+# 以後のタスクとテンプレートは複製後の変数のみを参照することで, 共有変数の直接消費による
+# 他ロールとの暗黙的な結合を避ける。
+- name: Resolve runtime network CIDR values for Whereabouts
+  ansible.builtin.set_fact:
+    k8s_network_ipv4_cidr_runtime: "{{ k8s_network_ipv4_cidr_base | default('', true) }}"
+    k8s_network_ipv6_cidr_runtime: "{{ k8s_network_ipv6_cidr_base | default('', true) }}"
+  changed_when: false

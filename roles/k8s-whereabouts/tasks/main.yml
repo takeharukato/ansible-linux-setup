@@ -10,14 +10,47 @@
 # 最初に変数設定を読み直す ( role単独で実行可能とするため )
 - name: "Load Params"
   ansible.builtin.include_tasks: load-params.yml
+
+# k8s-config-common.ymlの計算済みCIDR値をロール専用のランタイム変数へ複製する
+- name: "Resolve Runtime Vars"
+  ansible.builtin.include_tasks: resolve-runtime-vars.yml
+  when:
+    - k8s_multus_enabled | default(false)
+
+# パッケージ導入関連処理
 - name: "Package"
   ansible.builtin.include_tasks: package.yml
+  when:
+    - k8s_multus_enabled | default(false)
+
+# ファイル・ディレクトリ作成処理
 - name: "Directory"
   ansible.builtin.include_tasks: directory.yml
+  when:
+    - k8s_multus_enabled | default(false)
+
+# ユーザ・グループ作成処理
 - name: "User Group"
   ansible.builtin.include_tasks: user_group.yml
+  when:
+    - k8s_multus_enabled | default(false)
+
+# サービス起動関連処理
 - name: "Service"
   ansible.builtin.include_tasks: service.yml
+  when:
+    - k8s_multus_enabled | default(false)
+
+# Whereaboutsの設定処理
+# 以下の変数が定義されている場合にのみ実行する。
+# - k8s_multus_enabled が真であること
+# - k8s_whereabouts_enabled が真であること
+# - k8s_network_ipv4_cidr_runtime が定義され, 空でない
+# - k8s_whereabouts_ipv4_range_start が定義され, 空でない
+# - k8s_whereabouts_ipv4_range_end が定義され, 空でない
+# - k8s_network_ipv6_cidr_runtime が定義され, 空でない
+# - k8s_whereabouts_ipv6_range_start が定義され, 空でない
+# - k8s_whereabouts_ipv6_range_end が定義され, 空でない
 - name: "Config Whereabouts"
   ansible.builtin.include_tasks: config-whereabouts.yml
   when:
@@ -25,8 +58,8 @@
     - k8s_whereabouts_enabled | default(false)
     - >-
       (
-        network_ipv4_cidr is defined
-        and (network_ipv4_cidr | string | length) > 0
+        k8s_network_ipv4_cidr_runtime is defined
+        and (k8s_network_ipv4_cidr_runtime | string | length) > 0
         and k8s_whereabouts_ipv4_range_start is defined
         and (k8s_whereabouts_ipv4_range_start | string | length) > 0
         and k8s_whereabouts_ipv4_range_end is defined
@@ -34,8 +67,8 @@
       )
       or
       (
-        network_ipv6_cidr is defined
-        and (network_ipv6_cidr | string | length) > 0
+        k8s_network_ipv6_cidr_runtime is defined
+        and (k8s_network_ipv6_cidr_runtime | string | length) > 0
         and k8s_whereabouts_ipv6_range_start is defined
         and (k8s_whereabouts_ipv6_range_start | string | length) > 0
         and k8s_whereabouts_ipv6_range_end is defined

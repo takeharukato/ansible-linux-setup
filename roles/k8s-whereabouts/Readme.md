@@ -326,12 +326,12 @@ ansible-playbook -i inventory/hosts site.yml --tags "k8s-whereabouts"
 
 ### ネットワークおよびインタフェース設定
 
-以下の変数は `vars/all-config.yml` と `group_vars/all/all.yml` から読み込まれ, NAD テンプレート生成に利用されます。
+以下の変数は `vars/k8s-config-common.yml` で自動算出される値, 又は `group_vars/all/all.yml` から読み込まれ, NAD テンプレート生成に利用されます。
 
 | 変数名 | 由来 | 説明 |
 | --- | --- | --- |
-| `network_ipv4_cidr` | `vars/all-config.yml` | NAD で使用する IPv4 CIDR (例: `10.0.0.0/16`)。 |
-| `network_ipv6_cidr` | `vars/all-config.yml` | NAD で使用する IPv6 CIDR (例: `fd00::/64`)。 |
+| `k8s_network_ipv4_cidr_runtime` | `vars/k8s-config-common.yml`(`network_ipv4_network_address`/`network_ipv4_prefix_len`から自動算出) | NAD で使用する IPv4 CIDR (例: `10.0.0.0/16`)。`tasks/resolve-runtime-vars.yml`がランタイム変数として設定する。 |
+| `k8s_network_ipv6_cidr_runtime` | `vars/k8s-config-common.yml`(`network_ipv6_network_address`/`network_ipv6_prefix_len`から自動算出) | NAD で使用する IPv6 CIDR (例: `fd00::/64`)。`tasks/resolve-runtime-vars.yml`がランタイム変数として設定する。 |
 | `mgmt_nic` | `group_vars/all/all.yml` | NAD の `master` インタフェース名。既定: `ens160` |
 
 ## 設定例
@@ -418,20 +418,25 @@ metadata:
 本ロールは以下の順序で処理を実行します:
 
 1. **パラメータおよび設定情報の読み込み** (`load-params.yml`): OS 別パッケージ定義, Kubernetes クラスタ共通変数, ホスト固有変数を読み込みます。
-2. **パッケージの確認** (`package.yml`): 将来の拡張用プレースホルダです。
-3. **ディレクトリ構造の作成** (`directory.yml`): Whereabouts 用の設定ディレクトリを作成します。
-4. **ユーザ・グループおよびサービス設定** (`user_group.yml`, `service.yml`): 将来の拡張用プレースホルダです。
-5. **Whereabouts 導入と NAD 適用** (`config-whereabouts.yml`): kube-apiserver 待機後, Helm チャート導入と NAD を適用します。
+2. **実行時変数の解決** (`resolve-runtime-vars.yml`): `vars/k8s-config-common.yml`で自動算出されたIPv4/IPv6 CIDR値をロール専用のランタイム変数へ複製します。
+3. **パッケージの確認** (`package.yml`): 将来の拡張用プレースホルダです。
+4. **ディレクトリ構造の作成** (`directory.yml`): Whereabouts 用の設定ディレクトリを作成します。
+5. **ユーザ・グループおよびサービス設定** (`user_group.yml`, `service.yml`): 将来の拡張用プレースホルダです。
+6. **Whereabouts 導入と NAD 適用** (`config-whereabouts.yml`): kube-apiserver 待機後, Helm チャート導入と NAD を適用します。
 
 ### パラメータおよび設定情報の読み込み
 
 `load-params.yml` を実行し, 以下の情報を読み込みます。
 
 - **OS 別パッケージ定義**: `vars/packages-ubuntu.yml`, `vars/packages-rhel.yml`
-- **Kubernetes クラスタ共通変数**: `vars/cross-distro.yml`, `vars/all-config.yml`, `vars/k8s-api-address.yml`
+- **Kubernetes クラスタ共通変数**: `vars/cross-distro.yml`, `vars/k8s-config-common.yml`, `vars/all-config.yml`, `vars/k8s-api-address.yml`
 - **ホスト固有変数**: `host_vars/` からの読み込み
 
 これらの変数は以降の処理で NAD テンプレート生成やネットワーク設定に利用されます。
+
+### 実行時変数の解決
+
+`resolve-runtime-vars.yml` が, `vars/k8s-config-common.yml`で`network_ipv4_network_address`/`network_ipv4_prefix_len`(及びIPv6版)から自動算出された`k8s_network_ipv4_cidr_base`/`k8s_network_ipv6_cidr_base`を, ロール専用のランタイム変数`k8s_network_ipv4_cidr_runtime`/`k8s_network_ipv6_cidr_runtime`へ複製します。以降のタスクとテンプレートはこのランタイム変数のみを参照します。
 
 ### パッケージの確認
 
@@ -474,7 +479,7 @@ metadata:
 
 - **IPAM プラグイン**: `whereabouts`
 - **マスタインタフェース**: `{{ mgmt_nic }}` (既定: `ens160`)
-- **ネットワーク**: `{{ network_ipv4_cidr }}`, `{{ network_ipv6_cidr }}` (from `vars/all-config.yml`)
+- **ネットワーク**: `{{ k8s_network_ipv4_cidr_runtime }}`, `{{ k8s_network_ipv6_cidr_runtime }}` (`vars/k8s-config-common.yml`で自動算出しresolve-runtime-vars.ymlが設定)
 - **IPv4 プール**: `{{ k8s_whereabouts_ipv4_range_start }}`～`{{ k8s_whereabouts_ipv4_range_end }}`
 - **IPv6 プール**: `{{ k8s_whereabouts_ipv6_range_start }}`～`{{ k8s_whereabouts_ipv6_range_end }}` (IPv6 有効時)
 - **デバイス種別**: IPvLAN (L3 モード)
@@ -828,7 +833,7 @@ kubectl get networkattachmentdefinition ipvlan-wb -o yaml
 
 **原因:**
 - `k8s_whereabouts_ipv4_range_start` または `k8s_whereabouts_ipv4_range_end` が IP アドレス形式でない。
-- `network_ipv4_cidr` が定義されていない。
+- `vars/all-config.yml`の`network_ipv4_prefix_len`又は`network_ipv4_network_address`が未定義, または不正な値である(これらから`k8s_network_ipv4_cidr_runtime`が自動算出されるため)。
 
 **対応:**
 1. テンプレート生成前に変数を確認します。
@@ -838,12 +843,14 @@ ansible-playbook -i inventory/hosts roles/k8s-whereabouts/main.yml -e "ansible_c
 ```
 
 2. 変数を修正します。
-
+`vars/all-config.yml`に記載:
 ```yaml
-# group_vars/all/all.yml
-network_ipv4_cidr: "10.100.0.0/16"
+network_ipv4_network_address: "10.100.0.0"
+network_ipv4_prefix_len: 16
+```
 
-# host_vars/k8sctrlplane01.local
+コントロールプレーンノードの`host_vars` ( `host_vars/k8sctrlplane01.local` など)に記載:
+```yaml
 k8s_whereabouts_ipv4_range_start: "10.100.1.0"
 k8s_whereabouts_ipv4_range_end: "10.100.254.255"
 ```
@@ -865,8 +872,10 @@ FAILED - RETRYING [config-whereabouts : Wait for kube-apiserver]
 
 ```bash
 kubectl get nodes
-# または
-systemctl status kubelet  # リモートノード上で
+```
+または, リモートノード上で,
+```bash
+systemctl status kubelet
 ```
 
 2. API エンドポイントへの疎通を確認します。
