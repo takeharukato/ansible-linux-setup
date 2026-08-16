@@ -14,8 +14,10 @@
   register: k8s_operator_home_getent
   changed_when: false
 
-# 後続タスクで単一ユーザ向けのホーム参照先を統一するため, 実ホームを共有ファクトへ格納する。
+# 後続タスクが同じ実ホームを参照し, ルート直下へ .ssh を作成しないため, passwd のホーム欄を両方の共有ファクトへ格納する。
+# passwd 配列のユーザ名を除く5番目の要素はホームディレクトリである (k8s_operator_home_getent.ansible_facts.getent_passwd[k8s_operator_user][4])。
 - name: Record resolved home directory for k8s operator user
   ansible.builtin.set_fact:
+    k8s_operator_home: "{{ k8s_operator_home_getent.ansible_facts.getent_passwd[k8s_operator_user][4] }}"
     k8s_operator_home_resolved: "{{ k8s_operator_home_getent.ansible_facts.getent_passwd[k8s_operator_user][4] }}"
   changed_when: false
