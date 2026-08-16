@@ -10,9 +10,11 @@
 - name: Resolve Kubernetes cluster package policy runtime flags
   ansible.builtin.set_fact:
     fleet_bootstrap_k8s_cluster_package_policy_enabled: >-
-      {{ logging_elastic_agent_k8s_cluster_package_policy_enabled | default(true) | bool }}
+      {{ logging_backend_elastic_agent_k8s_cluster_package_policy_enabled | default(true) | bool }}
 
 # k8s_cluster構成種別専用のKubernetes統合Package Policyを共通CRUDタスクで管理する。
+# inputsのキーはFleetが生成する入力識別子(<policy_template名>-<入力種別>)であること。
+# state_* は kube-state-metrics, event は events の各policy_templateに属するため, 入力を分けて指定する。
 - name: Configure Fleet Kubernetes cluster package policy
   ansible.builtin.include_tasks: configure-package-policy.yml
   vars:
@@ -27,7 +29,7 @@
           name: kubernetes
           version: "{{ fleet_bootstrap_kubernetes_package_version }}"
         inputs:
-          kubernetes/metrics:
+          kube-state-metrics-kubernetes/metrics:
             enabled: true
             streams:
               kubernetes.state_deployment:
@@ -50,8 +52,6 @@
                 enabled: true
                 vars:
                   period: "{{ logging_elastic_agent_k8s_cluster_metrics_period | default('10s') }}"
-              kubernetes.event:
-                enabled: true
               kubernetes.state_daemonset:
                 enabled: true
                 vars:
@@ -84,22 +84,34 @@
                 enabled: true
                 vars:
                   period: "{{ logging_elastic_agent_k8s_cluster_metrics_period | default('10s') }}"
-              kubernetes.container:
-                enabled: false
-              kubernetes.pod:
-                enabled: false
-              kubernetes.node:
-                enabled: false
-              kubernetes.volume:
-                enabled: false
-              kubernetes.system:
-                enabled: false
               kubernetes.state_cronjob:
                 enabled: false
-          kubernetes/logs:
-            enabled: false
+          events-kubernetes/metrics:
+            enabled: true
             streams:
-              kubernetes.container_logs:
-                enabled: false
+              kubernetes.event:
+                enabled: true
+          # 未指定の入力はFleetが有効として扱うため, 収集対象外のpolicy_templateを明示的に無効化する。
+          # kubelet系はノード側Elastic Agentの収集対象と重複し, container-logsはCustom Logs統合と重複するためです。
+          kubelet-kubernetes/metrics:
+            enabled: false
+          kube-apiserver-kubernetes/metrics:
+            enabled: false
+          kube-proxy-kubernetes/metrics:
+            enabled: false
+          kube-scheduler-kubernetes/metrics:
+            enabled: false
+          kube-controller-manager-kubernetes/metrics:
+            enabled: false
+          container-logs-filestream:
+            enabled: false
+          audit-logs-filestream:
+            enabled: false
+          audit-logs-aws-cloudwatch:
+            enabled: false
+          audit-logs-azure-eventhub:
+            enabled: false
+          audit-logs-gcp-pubsub:
+            enabled: false
   when:
     - fleet_bootstrap_k8s_cluster_package_policy_enabled | bool

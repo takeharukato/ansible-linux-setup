@@ -76,6 +76,11 @@ http://導入先ホスト:5601
     - [4. 他者導入の Fluent Bit へ影響があるように見える場合](#4-他者導入の-fluent-bit-へ影響があるように見える場合)
     - [5. Kibana 起動直後に `.kibana_task_manager` の 503 警告が出る場合](#5-kibana-起動直後に-kibana_task_manager-の-503-警告が出る場合)
   - [注意事項](#注意事項)
+  - [付録: Elastic Stackの典型的な設定例](#付録-elastic-stackの典型的な設定例)
+    - [`vars/all-config.yml`の設定](#varsall-configymlの設定)
+    - [Kubernetes以外の管理サーバやレジストリサーバなどの`host_vars`設定例](#kubernetes以外の管理サーバやレジストリサーバなどのhost_vars設定例)
+    - [Kubernetesコントロールプレーンノードの`host_vars`設定例](#kubernetesコントロールプレーンノードのhost_vars設定例)
+    - [Kubernetesワーカーノードの`host_vars`設定例](#kubernetesワーカーノードのhost_vars設定例)
   - [参考資料](#参考資料)
     - [公式ドキュメント](#公式ドキュメント)
 
@@ -572,6 +577,7 @@ ansible-playbook -i inventory/hosts logging-backend.yml
 | `logging_backend_tls_key_host_path` | logging backend 関連ロールで共通利用する HTTPS サーバ秘密鍵ファイルのホスト側パス。 | `""` | `/srv/elastic-certs/backend/tls.key` |
 | `logging_verify_external_enabled` | 外部ホストからの疎通確認を共通で有効化するフラグ。 | `false` | `true` |
 | `logging_verify_external_delegate_to` | 外部ホストからの疎通確認を実行する接続元ホスト名。 | `localhost` | `bastion01` |
+|`logging_backend_elastic_agent_k8s_cluster_package_policy_enabled`|k8s_cluster構成種別向けKubernetes統合Package Policyの作成又は更新を切り替える。|`true`|`true`|
 
 #### 共有設定値に関する補足説明
 
@@ -1353,6 +1359,130 @@ $ curl -sS 'http://127.0.0.1:5601/api/status'
 - `elastic_search_data_dir`, `elastic_search_logs_dir`, `elastic_search_snapshot_repo_path_host` の所有者は, Elasticsearchコンテナイメージ仕様で指定される実行ユーザIDと実行グループID(既定では 1000:1000)に合わせること。これらの値は playbook の設計値ではなくコンテナイメージ仕様により決定されるため, コンテナイメージの仕様変更時だけ `vars/logging-backend-common.yml` の `logging_backend_container_user_id` と `logging_backend_container_group_id` を変更する。
 - Elasticsearch のデータ保全のため, cron による定期バックアップを実施する運用方針を採用することを推奨します。
 - 定期バックアップで作成したバックアップデータについて, 世代管理, 保存先分離, 復旧手順の定期検証を実施することが望ましいです。
+## 付録: Elastic Stackの典型的な設定例
+
+### `vars/all-config.yml`の設定
+
+`observer01.example.org`にログ収集サーバを用意し, URLスキームとして, `http`で接続する場合の設定例を以下に示す:
+
+```yaml
+# ========================================================================
+# Elastic Stack の設定 (条件的必須: Elasticsearch/Logstash/Kibana/Fleet Server利用時)
+# ログを集約するホスト側の設定
+# ========================================================================
+# Elasticsearch, Kibana, Logstash, Fleet Server及びElastic Agentで共通利用する版数。
+logging_backend_elastic_stack_version: "8.19.19"
+# Elasticsearch Securityで使用する利用者名
+elastic_search_security_username: "elastic"
+# Elasticsearch Securityで使用する初期パスワード
+elastic_search_bootstrap_password: "elastic"
+# Elastic Stack関連コンテナが共有するDockerブリッジネットワーク名。
+logging_backend_network_name: "elastic-backend"
+# Elastic Stack関連ロールが参照する共通の接続先ホスト名又はIPアドレス。
+logging_backend_host: "observer01.example.org"
+# 個別の接続先URLを明示しない場合に使用する既定スキーム。
+logging_backend_default_scheme: "http"
+# HTTPS接続時に使用する既定TLS検証モード。利用可能値はnone又はfullである。
+logging_backend_default_tls_mode: "none"
+# Elastic Stack関連ロールが共通利用するHTTPSサーバ証明書のホスト側ファイルパス。
+logging_backend_tls_certificate_host_path: ""
+# Elastic Stack関連ロールが共通利用するHTTPSサーバ秘密鍵のホスト側ファイルパス。
+logging_backend_tls_key_host_path: ""
+# =======================================================================
+# Elastic Stack関連ロールの必須入力値
+# host_vars側には設定しないこと
+# =======================================================================
+# Elasticsearchを導入する場合にtrueを指定する有効化フラグ。
+logging_elastic_search_enabled: true
+# Logstashを導入する場合にtrueを指定する有効化フラグ。
+logging_logstash_enabled: true
+# Kibanaを導入する場合にtrueを指定する有効化フラグ。
+logging_kibana_enabled: true
+# Fleet Serverを導入する場合にtrueを指定する有効化フラグ。
+logging_fleet_server_enabled: true
+# Fleet Server導入時の初期化処理を実行する有効化フラグ。
+fleet_bootstrap_enabled: true
+# Elastic Agentの収集データをLogstashへ送信するFleet Outputの名称。
+fleet_bootstrap_output_name: "main-logstash-output"
+# ホスト監視用Elastic Agentポリシーの名称。
+fleet_bootstrap_policy_name: "linux-host-policy"
+# ホスト監視用Enrollment Tokenの名称。
+fleet_bootstrap_enrollment_token_name: "linux-host-token"
+
+# =======================================================================
+# Elastic Stack採取対象ログの設定
+# host_vars側には設定しないこと
+# =======================================================================
+
+# ホストのログ
+logging_elastic_agent_host_log_paths:
+  - /var/log/syslog
+  - /var/log/auth.log
+  - /var/log/cloud-init.log
+
+# Kubernetes kube-system ログ
+logging_elastic_agent_k8s_system_kube_system_log_paths:
+  - "/var/log/containers/*_kube-system_*.log"
+
+# Kubernetes ワークロードログ
+logging_elastic_agent_k8s_workload_log_paths:
+  - "/var/log/containers/*.log"
+```
+
+### Kubernetes以外の管理サーバやレジストリサーバなどの`host_vars`設定例
+
+Kubernetesを構成するノード以外の管理サーバやレジストリサーバなどでの`host_vars`設定例を以下に示す:
+
+```yaml
+# =======================================================================
+# Elastic Agent関連ロールの必須入力値
+# =======================================================================
+# ホスト監視用Elastic Agent を導入する場合にtrueを指定する有効化フラグ。
+logging_elastic_agent_host_enabled: true
+# Kubernetesシステム監視用Elastic Agent を導入する場合にtrueを指定する有効化フラグ。
+logging_elastic_agent_k8s_system_enabled: false
+# Kubernetesワークロード監視用Elastic Agent を導入する場合にtrueを指定する有効化フラグ。
+logging_elastic_agent_k8s_workload_enabled: false
+# Kubernetesメトリクス情報監視用Elastic Agent を導入する場合にtrueを指定する
+elastic_agent_k8s_enabled: false
+```
+
+### Kubernetesコントロールプレーンノードの`host_vars`設定例
+
+Kubernetesコントロールプレーンノードの`host_vars`設定例を以下に示す:
+
+```yaml
+# =======================================================================
+# Elastic Agent関連ロールの必須入力値
+# =======================================================================
+# ホスト監視用Elastic Agent を導入する場合にtrueを指定する有効化フラグ。
+logging_elastic_agent_host_enabled: true
+# Kubernetesシステム監視用Elastic Agent を導入する場合にtrueを指定する有効化フラグ。
+logging_elastic_agent_k8s_system_enabled: true
+# Kubernetesワークロード監視用Elastic Agent を導入する場合にtrueを指定する有効化フラグ。
+logging_elastic_agent_k8s_workload_enabled: false
+# Kubernetesメトリクス情報監視用Elastic Agent を導入する場合にtrueを指定する
+elastic_agent_k8s_enabled: true
+```
+
+### Kubernetesワーカーノードの`host_vars`設定例
+
+Kubernetesワーカーノードの`host_vars`設定例を以下に示す:
+
+```yaml
+# =======================================================================
+# Elastic Agent関連ロールの必須入力値
+# =======================================================================
+# ホスト監視用Elastic Agent を導入する場合にtrueを指定する有効化フラグ。
+logging_elastic_agent_host_enabled: true
+# Kubernetesシステム監視用Elastic Agent を導入する場合にtrueを指定する有効化フラグ。
+logging_elastic_agent_k8s_system_enabled: false
+# Kubernetesワークロード監視用Elastic Agent を導入する場合にtrueを指定する有効化フラグ。
+logging_elastic_agent_k8s_workload_enabled: true
+# Kubernetesメトリクス情報監視用Elastic Agent 導入処理はKubernetesの
+# コントロールプレインでのみ必要
+elastic_agent_k8s_enabled: true
+```
 
 ## 参考資料
 

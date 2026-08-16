@@ -37,6 +37,7 @@
     status_code:
       - 200
       - 201
+      - 409
     return_content: true
     validate_certs: "{{ fleet_bootstrap_kibana_validate_certs | bool }}"
     timeout: "{{ fleet_bootstrap_kibana_api_request_timeout_seconds | int }}"
@@ -89,6 +90,30 @@
         | default({})
       }}
 
+# 指定IDと同名のPolicyが別IDで存在する場合は, 作成要求が409になる前に設定不整合を検出する。
+- name: Resolve Fleet Server agent policy with conflicting name
+  ansible.builtin.set_fact:
+    fleet_bootstrap_conflicting_fleet_server_policy: >-
+      {{
+        fleet_bootstrap_policy_list.json['items'] | default([])
+        | selectattr('name', 'equalto', fleet_bootstrap_fleet_server_policy_id)
+        | list
+        | first
+        | default({})
+      }}
+
+# Fleet Serverコンテナの起動時指定と異なるPolicy IDを使用すると登録先が分断されるため, 作成前に停止する。
+- name: Assert Fleet Server agent policy name matches configured id
+  ansible.builtin.assert:
+    that:
+      - >-
+        fleet_bootstrap_conflicting_fleet_server_policy.id is not defined or
+        fleet_bootstrap_conflicting_fleet_server_policy.id == fleet_bootstrap_fleet_server_policy_id
+    fail_msg: >-
+      Fleet Server agent policy name already belongs to a different policy id.
+      expected={{ fleet_bootstrap_fleet_server_policy_id }}
+      actual={{ fleet_bootstrap_conflicting_fleet_server_policy.id | default('') }}
+
 # Basicライセンスで個別出力を指定できないため, 指定IDの専用Policyを既定出力の継承状態で作成する。
 - name: Create Fleet Server agent policy if missing
   ansible.builtin.uri:
@@ -116,9 +141,44 @@
   register: fleet_bootstrap_fleet_server_policy_create_result
   retries: "{{ fleet_bootstrap_kibana_api_retries | int }}"
   delay: "{{ fleet_bootstrap_kibana_api_retry_interval_seconds | int }}"
-  until: fleet_bootstrap_fleet_server_policy_create_result.status | default(0) | int in [200, 201]
+  until: fleet_bootstrap_fleet_server_policy_create_result.status | default(0) | int in [200, 201, 409]
   when:
     - fleet_bootstrap_existing_fleet_server_policy.id is not defined
+
+# 作成要求と別の実行が競合した場合だけ一覧を再取得し, 指定IDのPolicyが作成済みであることを確認する。
+- name: Refresh Fleet Server agent policy list after create conflict
+  ansible.builtin.uri:
+    url: "{{ fleet_bootstrap_kibana_url }}/api/fleet/agent_policies?perPage=10000"
+    method: GET
+    headers:
+      Authorization: "ApiKey {{ fleet_bootstrap_runtime_api_key }}"
+      kbn-xsrf: "{{ fleet_bootstrap_kibana_xsrf_token }}"
+      Content-Type: application/json
+    return_content: true
+    validate_certs: "{{ fleet_bootstrap_kibana_validate_certs | bool }}"
+    timeout: "{{ fleet_bootstrap_kibana_api_request_timeout_seconds | int }}"
+  register: fleet_bootstrap_fleet_server_policy_conflict_list
+  retries: "{{ fleet_bootstrap_kibana_api_retries | int }}"
+  delay: "{{ fleet_bootstrap_kibana_api_retry_interval_seconds | int }}"
+  until: fleet_bootstrap_fleet_server_policy_conflict_list.status | default(0) | int == 200
+  when:
+    - fleet_bootstrap_fleet_server_policy_create_result.status | default(0) | int == 409
+
+# 競合後に指定IDのPolicyを取得できない場合はFleet Serverの登録先が確定しないため, 処理を停止する。
+- name: Assert Fleet Server agent policy exists after create conflict
+  ansible.builtin.assert:
+    that:
+      - >-
+        fleet_bootstrap_fleet_server_policy_conflict_list.json['items'] | default([])
+        | selectattr('id', 'equalto', fleet_bootstrap_fleet_server_policy_id)
+        | selectattr('name', 'equalto', fleet_bootstrap_fleet_server_policy_id)
+        | list
+        | length == 1
+    fail_msg: >-
+      Fleet Server agent policy creation returned Conflict, but the expected policy was not found.
+      policy={{ fleet_bootstrap_fleet_server_policy_id }}
+  when:
+    - fleet_bootstrap_fleet_server_policy_create_result.status | default(0) | int == 409
 
 # 後続のFleet Server統合を作成結果又は既存Policyへ確実に関連付けるため, 指定IDを確定する。
 - name: Set Fleet Server agent policy id

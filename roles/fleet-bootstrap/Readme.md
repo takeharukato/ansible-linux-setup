@@ -291,10 +291,10 @@
 
 | 区分 | 採取内容 | 採取に必要な設定 | 設定先 |
 | --- | --- | --- | --- |
-| 現行で採取する情報 | Custom Logs統合で指定したログファイルに加えて, Kubernetes統合のクラスタ状態情報。詳細は本節の「Kubernetes統合のクラスタ状態情報」を参照してください。 | `include_system: false`, `include_k8s_system: false`, `include_k8s_workload: false`, `include_k8s_cluster: true`, `logging_elastic_agent_host_log_input_enabled: true`, `logging_elastic_agent_k8s_cluster_package_policy_enabled: true`。必要に応じて `logging_elastic_agent_k8s_cluster_metrics_period` を指定します。 | `include_*` は `vars/logging-backend-common.yml` の `fleet_bootstrap_agent_policy_profiles`。`logging_elastic_agent_*` は「主要変数」節の「設定先別の利用者入力値」を参照してください。 |
+| 現行で採取する情報 | Custom Logs統合で指定したログファイルに加えて, Kubernetes統合のクラスタ状態情報。詳細は本節の「Kubernetes統合のクラスタ状態情報」を参照してください。 | `include_system: false`, `include_k8s_system: false`, `include_k8s_workload: false`, `include_k8s_cluster: true`, `logging_elastic_agent_host_log_input_enabled: true`, `logging_backend_elastic_agent_k8s_cluster_package_policy_enabled: true`。必要に応じて `logging_elastic_agent_k8s_cluster_metrics_period` を指定します。 | `include_*` は `vars/logging-backend-common.yml` の `fleet_bootstrap_agent_policy_profiles`。`logging_elastic_agent_*` は「主要変数」節の「設定先別の利用者入力値」を参照してください。 |
 | 現行で採取対象外の情報 | Kubernetes統合で無効化している入力情報及びSystem統合の情報。詳細は本節の「現行で採取対象外の情報」を参照してください。 | 無効化対象の設定項目は本節の「現行で採取対象外の設定項目」を参照してください。 | [roles/fleet-bootstrap/tasks/configure-kubernetes-package-policy.yml](roles/fleet-bootstrap/tasks/configure-kubernetes-package-policy.yml) の既定実装で制御します。 |
 
-`k8s_cluster` 構成種別向けのKubernetes統合Package Policyは, 本ロールの実装で自動作成又は自動更新します。ただし, `logging_elastic_agent_k8s_cluster_enabled: false` の既定運用では `logging_elastic_agent_k8s_cluster_package_policy_enabled` が `false` となるため, Kubernetesクラスタ状態情報は採取しません。Kubernetesクラスタ状態情報を採取する場合は, `logging_elastic_agent_k8s_cluster_enabled: true` と `logging_elastic_agent_k8s_cluster_package_policy_enabled: true` を設定します。
+`k8s_cluster` 構成種別向けのKubernetes統合Package Policyは, 本ロールの実装で自動作成又は自動更新します。`logging_backend_elastic_agent_k8s_cluster_package_policy_enabled` の既定値は `true` であり, `include_k8s_cluster: true` の構成種別が存在する場合にKubernetesクラスタ状態情報を収集するPackage Policyを作成します。
 
 ##### Kubernetes統合のクラスタ状態情報
 
@@ -324,24 +324,23 @@
 - `kubernetes.system`
 - `kubernetes.state_cronjob`
 - `kubernetes.container_logs`
+- `kubernetes.audit_logs`
 - System統合で取得するホスト情報
 
 各項目の意味は, 本書の「[公式ドキュメント](#公式ドキュメント)」節に記載している「統合パッケージ (Elastic integrations)」及び「System integration」を参照してください。
 
 ##### 現行で採取対象外の設定項目
 
-他のロールで収集するログとの重複収集を回避するため, 以下の項目の収集を無効化しています:
+Kubernetes統合の入力は, Package Policy で未指定の場合に Fleet が有効として扱います。このため, 採取対象外の情報は入力単位で無効化しています。他のロールで収集するログとの重複収集を回避するため, 以下の入力の収集を無効化しています:
 
-- kubernetes.system: System統合で収集するホスト情報(例: CPU, メモリ, ファイルシステム, プロセス)と重複するためです。
-- kubernetes.container_logs: `k8s_system` 構成種別及び `k8s_workload` 構成種別で Custom Logs統合から収集する Kubernetesコンテナログと重複するためです。
+- kubelet-kubernetes/metrics: `kubernetes.container`, `kubernetes.pod`, `kubernetes.node`, `kubernetes.volume`, `kubernetes.system` を含み, System統合で収集するホスト情報(例: CPU, メモリ, ファイルシステム, プロセス)と重複するためです。
+- container-logs-filestream: `kubernetes.container_logs` を含み, `k8s_system` 構成種別及び `k8s_workload` 構成種別で Custom Logs統合から収集する Kubernetesコンテナログと重複するためです。
 
 重複回避以外の理由で無効化している項目は次のとおりです:
 
-- kubernetes.container
-- kubernetes.pod
-- kubernetes.node
-- kubernetes.volume
-- kubernetes.state_cronjob
+- kube-apiserver-kubernetes/metrics, kube-proxy-kubernetes/metrics, kube-scheduler-kubernetes/metrics, kube-controller-manager-kubernetes/metrics: 制御平面の各コンポーネントへの接続設定を本ロールで管理していないためです。
+- audit-logs-filestream, audit-logs-aws-cloudwatch, audit-logs-azure-eventhub, audit-logs-gcp-pubsub: `kubernetes.audit_logs` の取得元を本ロールで管理していないためです。
+- kubernetes.state_cronjob: 定期実行管理情報を現行の監視対象としていないためです。
 
 各設定項目の意味は, 本書の「[公式ドキュメント](#公式ドキュメント)」節に記載している「統合パッケージ (Elastic integrations)」を参照してください。
 
@@ -429,27 +428,27 @@ ansible-playbook -i inventory/hosts logging-backend.yml --tags "fleet-server,fle
 
 全対象ホストで同一値を使用する場合は, `vars/all-config.yml` に設定します。
 
-| 変数名 | 適用対象 | 用途 |
-| --- | --- | --- |
-| `logging_elastic_agent_host_log_input_enabled` | `host`, `k8s_cluster` | Custom Logs統合の入力設定を有効化又は無効化します。 |
-| `logging_elastic_agent_k8s_system_kube_system_logs_input_enabled` | `k8s_system` | `kube-system`名前空間コンテナログの入力設定を有効化又は無効化します。 |
-| `logging_elastic_agent_k8s_workload_log_input_enabled` | `k8s_workload` | `kube-system`名前空間以外のコンテナログ入力設定を有効化又は無効化します。 |
-| `logging_elastic_agent_k8s_cluster_enabled` | `k8s_cluster` | Kubernetesクラスタ状態情報の収集有効化を切り替えます。 |
-| `logging_elastic_agent_k8s_cluster_package_policy_enabled` | `k8s_cluster` | k8s_cluster構成種別向けKubernetes統合Package Policyの作成又は更新を有効化又は無効化します。 |
-| `logging_elastic_agent_k8s_cluster_metrics_period` | `k8s_cluster` | Kubernetesクラスタ状態情報メトリクスの収集周期を指定します。 |
+| 変数名 | 適用対象 | 用途 | 既定値 | 設定例 |
+| --- | --- | --- | --- | --- |
+| `logging_elastic_agent_host_log_input_enabled` | `host`, `k8s_cluster` | Custom Logs統合の入力設定を有効化又は無効化します。 | `true` | `true` |
+| `logging_elastic_agent_k8s_system_kube_system_logs_input_enabled` | `k8s_system` | `kube-system`名前空間コンテナログの入力設定を有効化又は無効化します。 | `true` | `true` |
+| `logging_elastic_agent_k8s_system_kube_system_log_paths` | `k8s_system` | `kube-system`名前空間コンテナログを収集するファイルパス一覧を指定します。 | `['/var/log/containers/*_kube-system_*.log']` | `['/var/log/containers/*_kube-system_*.log']` |
+| `logging_elastic_agent_k8s_workload_log_input_enabled` | `k8s_workload` | `kube-system`名前空間以外のコンテナログ入力設定を有効化又は無効化します。 | `true` | `true` |
+| `logging_backend_elastic_agent_k8s_cluster_package_policy_enabled` | `k8s_cluster` | Kubernetes統合Package Policyの作成又は更新を切り替えます。 | `true` | `true` |
+| `logging_elastic_agent_k8s_cluster_metrics_period` | `k8s_cluster` | Kubernetesクラスタ状態情報メトリクスの収集周期を指定します。 | `"10s"` | `"30s"` |
 
 ##### host_vars に設定する項目
 
-ホストごとに値を変える場合や秘密情報を扱う場合は, `host_vars` に設定することを推奨します。上表と同名の変数を `host_vars` に設定する場合は, `vars/all-config.yml` 側の同名定義を削除した上で設定します。
+本ロールの利用者入力値は, 原則として `vars/all-config.yml` に設定します。`host_vars` に設定するのは, ホストごとに値を変える場合と, `fleet_bootstrap_kibana_api_key` を単独実行時に設定する場合だけです。上表と同名の変数を `host_vars` に設定する場合は, `vars/all-config.yml` 側の同名定義を削除した上で設定します。
 
-| 変数名 | 適用対象 | 用途 |
-| --- | --- | --- |
-| `logging_elastic_agent_host_log_input_enabled` | `host`, `k8s_cluster` | 特定ホストだけCustom Logs統合の入力設定を切り替える場合に使用します。 |
-| `logging_elastic_agent_k8s_system_kube_system_logs_input_enabled` | `k8s_system` | 特定ホストだけ`kube-system`名前空間コンテナログ設定を切り替える場合に使用します。 |
-| `logging_elastic_agent_k8s_workload_log_input_enabled` | `k8s_workload` | 特定ホストだけ`kube-system`名前空間以外のコンテナログ設定を切り替える場合に使用します。 |
-| `logging_elastic_agent_k8s_cluster_enabled` | `k8s_cluster` | 特定ホストだけKubernetesクラスタ状態情報収集を有効化する場合に使用します。 |
-| `logging_elastic_agent_k8s_cluster_package_policy_enabled` | `k8s_cluster` | 特定ホストだけk8s_cluster構成種別向けKubernetes統合Package Policy作成を有効化する場合に使用します。 |
-| `logging_elastic_agent_k8s_cluster_metrics_period` | `k8s_cluster` | 特定ホストだけKubernetesクラスタ状態情報メトリクス周期を変更する場合に使用します。 |
+| 変数名 | 適用対象 | 用途 | 既定値 | 設定例 |
+| --- | --- | --- | --- | --- |
+| `logging_elastic_agent_host_log_input_enabled` | `host`, `k8s_cluster` | 特定ホストだけCustom Logs統合の入力設定を切り替える場合に使用します。 | `true` | `false` |
+| `logging_elastic_agent_k8s_system_kube_system_logs_input_enabled` | `k8s_system` | 特定ホストだけ`kube-system`名前空間コンテナログ設定を切り替える場合に使用します。 | `true` | `false` |
+| `logging_elastic_agent_k8s_system_kube_system_log_paths` | `k8s_system` | 特定ホストだけ`kube-system`名前空間コンテナログを収集するファイルパス一覧を変更する場合に使用します。 | `['/var/log/containers/*_kube-system_*.log']` | `['/var/log/containers/*_kube-system_*.log']` |
+| `logging_elastic_agent_k8s_workload_log_input_enabled` | `k8s_workload` | 特定ホストだけ`kube-system`名前空間以外のコンテナログ設定を切り替える場合に使用します。 | `true` | `false` |
+| `logging_backend_elastic_agent_k8s_cluster_package_policy_enabled` | `k8s_cluster` | 特定の実行対象だけKubernetes統合Package Policyの作成又は更新を切り替える場合に使用します。 | `true` | `true` |
+| `logging_elastic_agent_k8s_cluster_metrics_period` | `k8s_cluster` | 特定ホストだけKubernetesクラスタ状態情報メトリクス周期を変更する場合に使用します。 | `"10s"` | `"30s"` |
 
 ### Elastic Stack間共有設定値
 
@@ -457,24 +456,27 @@ ansible-playbook -i inventory/hosts logging-backend.yml --tags "fleet-server,fle
 
 ### 設定例
 
+`vars/all-config.yml`に設定する値の例です。既定値のままで動作する項目は記載しません。
+
 ```yaml
 1: fleet_bootstrap_enabled: true
-2: fleet_bootstrap_kibana_url_explicit: "https://kibana.example.org:5601"
-3: fleet_bootstrap_kibana_api_key: "your-api-key"
-4: fleet_bootstrap_output_name: "main-logstash-output"
-5: fleet_bootstrap_policy_name: "linux-host-policy"
-6: fleet_bootstrap_enrollment_token_name: "linux-host-token"
-7: fleet_bootstrap_elasticsearch_endpoints_explicit:
-8:   - "https://elasticsearch:9200"
+2: fleet_bootstrap_output_name: "main-logstash-output"
+3: fleet_bootstrap_policy_name: "linux-host-policy"
+4: fleet_bootstrap_enrollment_token_name: "linux-host-token"
+5: logging_backend_elastic_agent_k8s_cluster_package_policy_enabled: true
 ```
 
 | 行番号 | 設定値 | 有効になる動作 | 設定背景(未設定時/誤設定時の問題と防止理由) |
 | --- | --- | --- | --- |
-| 1 | fleet_bootstrap_enabled: true | 本ロールを実行する。 | 既定値のままでは実行対象となるため, 明示的に有効化するための設定です。 |
-| 2 | fleet_bootstrap_kibana_url_explicit: "https://kibana.example.org:5601" | Kibana の Fleet API 接続先を指定する。 | 未設定時は対象ホスト上の `127.0.0.1:5601` を使用するため, 別ホスト上の Kibana を使用する構成では明示設定が必要です。 |
-| 3 | fleet_bootstrap_kibana_api_key: "your-api-key" | KibanaのFleet API認証に使用する API キーを指定する。 | 秘密情報を defaults へ置かず, 原則として host_vars へ直接記載して管理するための設定です。全対象ホストで同一値を運用する場合だけ vars/all-config.yml へ記載します。 |
-| 4-6 | fleet_bootstrap_output_name, fleet_bootstrap_policy_name, fleet_bootstrap_enrollment_token_name | 生成または再利用する対象名を指定する。 | 既定名と異なる場合でも本ロールで扱えるようにするための設定です。 |
-| 7-8 | fleet_bootstrap_elasticsearch_endpoints_explicit | Logstashの下流にあるElasticsearchの疎通確認先一覧を指定する。 | 未設定時は対象ホスト上の `127.0.0.1:9200` を使用するため, 別ホスト上の Elasticsearch を使用する構成では明示設定が必要です。 |
+| 1 | fleet_bootstrap_enabled: true | 本ロールを実行します。 | `false` を設定した場合はFleetの初期化を実施せず, Elastic Agentの登録に必要なEnrollment Tokenが作成されないためです。 |
+| 2-4 | fleet_bootstrap_output_name, fleet_bootstrap_policy_name, fleet_bootstrap_enrollment_token_name | 作成又は再利用するFleet Output, Elastic Agent ポリシー, Enrollment Token の名称を指定します。 | これらの既定値は空文字列であり, 未設定の場合は実行時に停止するためです。 |
+| 5 | logging_backend_elastic_agent_k8s_cluster_package_policy_enabled: true | k8s_cluster構成種別向けKubernetes統合Package Policyを作成又は更新します。 | 既定値は `true` であり, 未設定時にもPackage Policyを作成できるようにするためです。 |
+
+接続先の指定と認証情報については, 次のとおり既定動作を使用します。
+
+- `fleet_bootstrap_kibana_url_explicit` は, 未設定時に対象ホスト上の `http://127.0.0.1:5601` を使用します。別ホスト上の Kibana を使用する場合だけ設定します。
+- `fleet_bootstrap_elasticsearch_endpoints_explicit` は, 未設定時に対象ホスト上の `http://127.0.0.1:9200` を使用します。別ホスト上の Elasticsearch を使用する場合だけ設定します。
+- `fleet_bootstrap_kibana_api_key` は, `fleet-server` と本ロールを同一の `ansible-playbook` 実行で連続適用する場合にFleet Serverが生成します。本ロールだけを単独実行する場合だけ, 秘密情報として `host_vars` へ設定します。
 
 ## テンプレートと生成ファイル
 
@@ -500,7 +502,7 @@ ansible-playbook -i inventory/hosts logging-backend.yml --tags "fleet-server,fle
 9. `fleet_bootstrap_enrollment_token_list_page_size`件までEnrollment Tokenを一覧取得し, 各Elastic Agent ポリシーにKibanaが`指定名 (UUID)`形式で保存したEnrollment Tokenが存在しない場合にのみ作成します。
 10. 既存Enrollment Tokenを再利用する場合は, 一覧APIからIDを取得し, 個別取得APIからEnrollment Tokenの秘密値を取得します。
 11. 4種類のEnrollment Tokenを辞書として制御ホスト上のEnrollment Token共有ファイルへ権限`0600`で保存し, 保存後にEnrollment Token共有ファイルの種別と権限を検証します。
-12. [roles/fleet-bootstrap/tasks/verify.yml](roles/fleet-bootstrap/tasks/verify.yml) で Fleet Output, Fleet Server用を含むElastic Agent ポリシー, Package Policy及びEnrollment Tokenの存在を Fleet API で確認し, `logging_elastic_agent_k8s_cluster_package_policy_enabled: true` の場合はk8s_cluster構成種別向けKubernetes統合Package Policyのストリーム有効化状態も確認します。
+12. [roles/fleet-bootstrap/tasks/verify.yml](roles/fleet-bootstrap/tasks/verify.yml) で Fleet Output, Fleet Server用を含むElastic Agent ポリシー, Package Policy及びEnrollment Tokenの存在を Fleet API で確認し, `logging_backend_elastic_agent_k8s_cluster_package_policy_enabled: true` の場合はk8s_cluster構成種別向けKubernetes統合Package Policyのストリーム有効化状態も確認します。
 13. [roles/fleet-bootstrap/tasks/verify.yml](roles/fleet-bootstrap/tasks/verify.yml) で Logstashの下流にあるElasticsearchの対象ホスト上での疎通確認と, `logging_verify_external_enabled: true` 時の外部ホストからの疎通確認を `_cluster/health` で確認します。
 14. 生成または既存利用された ID と認証情報を, 以後の処理で参照できるようにします。
 
@@ -518,30 +520,25 @@ ansible-playbook -i inventory/hosts logging-backend.yml --tags "fleet-server,fle
 
 ### 検証環境の設定
 
-検証用の host_vars, または, vars/all-config.yml を以下のように設定します。
+本節では, 検証用の設定内容について説明します。既定値のままで動作する項目は設定しません。
+
+**検証用の vars/all-config.yml**:
 
 ```yaml
 1: fleet_bootstrap_enabled: true
-2: fleet_bootstrap_kibana_url_explicit: "https://kibana.example.org:5601"
-3: fleet_bootstrap_kibana_api_key: "your-api-key"
-4: fleet_bootstrap_kibana_timeout_seconds: 180
-5: fleet_bootstrap_output_name: "main-logstash-output"
-6: fleet_bootstrap_policy_name: "linux-host-policy"
-7: fleet_bootstrap_enrollment_token_name: "linux-host-token"
-8: fleet_bootstrap_elasticsearch_endpoints_explicit:
-9:   - "https://elasticsearch:9200"
+2: fleet_bootstrap_output_name: "main-logstash-output"
+3: fleet_bootstrap_policy_name: "linux-host-policy"
+4: fleet_bootstrap_enrollment_token_name: "linux-host-token"
+5: logging_backend_elastic_agent_k8s_cluster_package_policy_enabled: true
 ```
 
-| 行番号 | 設定値 | 有効になる動作 | 設定背景 |
+| 行番号 | 設定値 | 有効になる動作 | 設定背景(未設定時/誤設定時の問題と防止理由) |
 | --- | --- | --- | --- |
-| 1 | fleet_bootstrap_enabled: true | 本ロールを実行する。 | 既定値のままでは実行対象となるため, 明示的に有効化するための設定です。 |
-| 2 | fleet_bootstrap_kibana_url_explicit: "https://kibana.example.org:5601" | Kibana の Fleet API 接続先を指定する。 | 未設定時は対象ホスト上の `127.0.0.1:5601` を使用するため, 別ホスト上の Kibana を使用する構成では明示設定が必要です。 |
-| 3 | fleet_bootstrap_kibana_api_key: "your-api-key" | KibanaのFleet API認証に使用する API キーを指定する。 | Kibana で作成した KibanaのFleet API用の API キーを, 秘密情報として原則 host_vars へ直接記載するための設定です。全対象ホストで同一値を運用する場合だけ vars/all-config.yml へ記載します。 |
-| 4 | fleet_bootstrap_kibana_timeout_seconds: 180 | KibanaのFleet APIでPOST処理を呼び出す待機時間を延長する。 | package registry 応答待ちで `api/fleet/setup` や `api/fleet/agent_policies` が 30 秒を超える場合があるため, 余裕を持たせるための設定です。 |
-| 5-7 | fleet_bootstrap_output_name, fleet_bootstrap_policy_name, fleet_bootstrap_enrollment_token_name | 生成または再利用する対象名を指定する。 | 既定名と異なる場合でも本ロールで扱えるようにするための設定です。 |
-| 8-9 | fleet_bootstrap_elasticsearch_endpoints_explicit | Logstashの下流にあるElasticsearchの疎通確認先一覧を指定する。 | 未設定時は対象ホスト上の `127.0.0.1:9200` を使用するため, 別ホスト上の Elasticsearch を使用する構成では明示設定が必要です。 |
+| 1 | fleet_bootstrap_enabled: true | 本ロールを実行します。 | `false` を設定した場合はFleetの初期化を実施せず, 検証対象のFleet OutputとElastic Agent ポリシーが作成されないためです。 |
+| 2-4 | fleet_bootstrap_output_name, fleet_bootstrap_policy_name, fleet_bootstrap_enrollment_token_name | 検証で確認するFleet Output, Elastic Agent ポリシー, Enrollment Token の名称を指定します。 | これらの既定値は空文字列であり, 未設定の場合は実行時に停止し, 検証手順を実行できないためです。 |
+| 5 | logging_backend_elastic_agent_k8s_cluster_package_policy_enabled: true | k8s_cluster構成種別向けKubernetes統合Package Policyを検証対象に含めます。 | 既定値は `true` であり, 未設定時にも作成結果を検証できるようにするためです。 |
 
-この設定により, 本ロールで使用するKibanaのFleet機能の対象名と接続情報が明確になり, 検証手順を実行しやすくなります。
+この設定により, 本ロールで使用するKibanaのFleet機能の対象名が明確になり, 検証手順を実行しやすくなります。Kibana 及び Elasticsearch の接続先は, 対象ホスト上の `http://127.0.0.1:5601` と `http://127.0.0.1:9200` を使用します。
 
 ### 検証コマンドと期待結果
 

@@ -286,13 +286,10 @@ logging_elastic_agent_enabled: >-
   {{
     (logging_elastic_agent_host_enabled | default(false) | bool) or
     (logging_elastic_agent_k8s_system_enabled | default(false) | bool) or
-    (logging_elastic_agent_k8s_workload_enabled | default(false) | bool) or
-    (logging_elastic_agent_k8s_cluster_enabled | default(false) | bool)
+    (logging_elastic_agent_k8s_workload_enabled | default(false) | bool)
   }}
-# Kubernetesクラスタ状態収集を有効化するフラグ。
-logging_elastic_agent_k8s_cluster_enabled: false
 # k8s_cluster構成種別向けKubernetes統合Package Policy作成の有効化フラグ。
-logging_elastic_agent_k8s_cluster_package_policy_enabled: "{{ logging_elastic_agent_k8s_cluster_enabled | bool }}"
+logging_backend_elastic_agent_k8s_cluster_package_policy_enabled: true
 # k8s_cluster構成種別向けKubernetes統合メトリクス周期。
 logging_elastic_agent_k8s_cluster_metrics_period: "10s"
 # Elastic Agentへ適用するElastic Stack共通版数。

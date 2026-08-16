@@ -1,0 +1,99 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  Fleet Package Policy更新用ペイロード正規化タスク
+#
+---
+
+# 入力キーは"${policy_template}-${type}"規則で組み立てているが, policy_templateとtypeの
+# 双方がハイフンを含み得るため, キー文字列だけでは分割位置を一意に決定できない。
+# 分割位置を推測せずに確定するため, 統合パッケージの定義を取得する。
+- name: Get Fleet integration package definition for update input resolution
+  ansible.builtin.uri:
+    url: >-
+      {{ fleet_bootstrap_kibana_url }}/api/fleet/epm/packages/{{
+      fleet_bootstrap_package_policy.body.package.name }}/{{
+      fleet_bootstrap_package_policy.body.package.version }}
+    method: GET
+    headers:
+      Authorization: "ApiKey {{ fleet_bootstrap_runtime_api_key }}"
+      kbn-xsrf: "{{ fleet_bootstrap_kibana_xsrf_token }}"
+      Content-Type: application/json
+    return_content: true
+    validate_certs: "{{ fleet_bootstrap_kibana_validate_certs | bool }}"
+    timeout: "{{ fleet_bootstrap_kibana_api_request_timeout_seconds | int }}"
+  register: fleet_bootstrap_package_definition_result
+  retries: "{{ fleet_bootstrap_kibana_api_retries | int }}"
+  delay: "{{ fleet_bootstrap_kibana_api_retry_interval_seconds | int }}"
+  until: fleet_bootstrap_package_definition_result.status | default(0) | int == 200
+  changed_when: false
+
+# パッケージ定義のpolicy_templatesと各入力typeの組から, 入力キーと同じ規則の索引を作成する。
+# 例: policy_template"fleet_server"とtype"fleet-server"から, キー"fleet_server-fleet-server"に
+# 対して値"fleet-server"を対応付ける。
+- name: Initialize Fleet package policy update input key map
+  ansible.builtin.set_fact:
+    fleet_bootstrap_package_policy_update_input_key_map: {}
+  changed_when: false
+
+# policy_templateごとに, 配下の入力typeを索引へ追加する。
+# 正規表現'^'は文字列先頭に一致するため, regex_replaceでpolicy_template接頭辞を付与する
+#   (例: type"fleet-server" -> キー"fleet_server-fleet-server")。
+- name: Resolve Fleet package policy update input key map
+  ansible.builtin.set_fact:
+    fleet_bootstrap_package_policy_update_input_key_map: >-
+      {{
+        fleet_bootstrap_package_policy_update_input_key_map
+        | combine(
+            dict(
+              fleet_bootstrap_package_definition_policy_template.inputs
+              | default([], true)
+              | map(attribute='type')
+              | map(
+                  'regex_replace', '^',
+                  fleet_bootstrap_package_definition_policy_template.name ~ '-'
+                )
+              | list
+              | zip(
+                  fleet_bootstrap_package_definition_policy_template.inputs
+                  | default([], true)
+                  | map(attribute='type')
+                  | list
+                )
+            )
+          )
+      }}
+  loop: >-
+    {{
+      fleet_bootstrap_package_definition_result.json.item.policy_templates
+      | default([], true)
+    }}
+  loop_control:
+    loop_var: fleet_bootstrap_package_definition_policy_template
+    label: "{{ fleet_bootstrap_package_definition_policy_template.name }}"
+  changed_when: false
+
+# Fleet APIの更新要求はinputs配列を使用するため, 作成要求用のinputs辞書を更新用配列へ変換する。
+- name: Initialize Fleet package policy update inputs
+  ansible.builtin.set_fact:
+    fleet_bootstrap_package_policy_update_inputs: []
+  changed_when: false
+
+# 入力ごとのストリーム辞書をFleet API更新用の配列へ変換する。
+- name: Normalize Fleet package policy update input
+  ansible.builtin.include_tasks: normalize-package-policy-update-input.yml
+  loop: "{{ fleet_bootstrap_package_policy.body.inputs | default({}, true) | dict2items }}"
+  loop_control:
+    loop_var: fleet_bootstrap_package_input
+    label: "{{ fleet_bootstrap_package_input.key }}"
+
+# 作成用本体へ正規化したinputs配列を設定し, 更新要求の本体を確定する。
+- name: Resolve Fleet package policy update body
+  ansible.builtin.set_fact:
+    fleet_bootstrap_package_policy_update_body: >-
+      {{
+        fleet_bootstrap_package_policy.body
+        | combine({'inputs': fleet_bootstrap_package_policy_update_inputs})
+      }}
+  changed_when: false

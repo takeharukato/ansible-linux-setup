@@ -42,6 +42,12 @@
   when:
     - fleet_bootstrap_existing_package_policy.id is not defined
 
+# Fleet APIの更新要求はinputs配列を要求するため, 作成要求用の辞書を更新用配列へ変換する。
+- name: Normalize existing Fleet package policy update body
+  ansible.builtin.include_tasks: normalize-package-policy-update.yml
+  when:
+    - fleet_bootstrap_existing_package_policy.id is defined
+
 # 既存Package Policyへ現在の収集設定を反映し, Ansible設定を正とする。
 - name: Update existing Fleet package policy
   ansible.builtin.uri:
@@ -54,7 +60,7 @@
       Authorization: "ApiKey {{ fleet_bootstrap_runtime_api_key }}"
       kbn-xsrf: "{{ fleet_bootstrap_kibana_xsrf_token }}"
       Content-Type: application/json
-    body: "{{ fleet_bootstrap_package_policy.body }}"
+    body: "{{ fleet_bootstrap_package_policy_update_body }}"
     status_code:
       - 200
     return_content: true
@@ -63,6 +69,15 @@
   register: fleet_bootstrap_package_policy_update_result
   retries: "{{ fleet_bootstrap_kibana_api_retries | int }}"
   delay: "{{ fleet_bootstrap_kibana_api_retry_interval_seconds | int }}"
-  until: fleet_bootstrap_package_policy_update_result.status | default(0) | int == 200
+  # 400は要求本文の検証エラーで再試行しても改善しないため, 初回応答で失敗させる。
+  until:
+    - >-
+      (
+        fleet_bootstrap_package_policy_update_result.status | default(0) | int == 200
+      ) or (
+        fleet_bootstrap_package_policy_update_result.status | default(0) | int == 400
+      )
+  failed_when:
+    - fleet_bootstrap_package_policy_update_result.status | default(0) | int != 200
   when:
     - fleet_bootstrap_existing_package_policy.id is defined

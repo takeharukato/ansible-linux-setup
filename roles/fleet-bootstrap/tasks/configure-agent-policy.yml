@@ -38,22 +38,81 @@
     status_code:
       - 200
       - 201
+      - 409
     return_content: true
     validate_certs: "{{ fleet_bootstrap_kibana_validate_certs | bool }}"
     timeout: "{{ fleet_bootstrap_kibana_api_request_timeout_seconds | int }}"
   register: fleet_bootstrap_agent_policy_create_result
   retries: "{{ fleet_bootstrap_kibana_api_retries | int }}"
   delay: "{{ fleet_bootstrap_kibana_api_retry_interval_seconds | int }}"
-  until: fleet_bootstrap_agent_policy_create_result.status | default(0) | int in [200, 201]
+  until: fleet_bootstrap_agent_policy_create_result.status | default(0) | int in [200, 201, 409]
   when:
     - fleet_bootstrap_existing_agent_policy.id is not defined
+
+# 作成要求と別の実行が競合した場合だけ一覧を再取得し, 作成済みの同名Policyを後続処理で再利用する。
+- name: Refresh Fleet agent policy list after create conflict
+  ansible.builtin.uri:
+    url: "{{ fleet_bootstrap_kibana_url }}/api/fleet/agent_policies?perPage=10000"
+    method: GET
+    headers:
+      Authorization: "ApiKey {{ fleet_bootstrap_runtime_api_key }}"
+      kbn-xsrf: "{{ fleet_bootstrap_kibana_xsrf_token }}"
+      Content-Type: application/json
+    return_content: true
+    validate_certs: "{{ fleet_bootstrap_kibana_validate_certs | bool }}"
+    timeout: "{{ fleet_bootstrap_kibana_api_request_timeout_seconds | int }}"
+  register: fleet_bootstrap_agent_policy_conflict_list
+  retries: "{{ fleet_bootstrap_kibana_api_retries | int }}"
+  delay: "{{ fleet_bootstrap_kibana_api_retry_interval_seconds | int }}"
+  until: fleet_bootstrap_agent_policy_conflict_list.status | default(0) | int == 200
+  when:
+    - fleet_bootstrap_agent_policy_create_result.status | default(0) | int == 409
+
+# 競合後に同名Policyを取得できない場合は後続の統合設定先を特定できないため, 処理を停止する。
+- name: Resolve Fleet agent policy created by concurrent execution
+  ansible.builtin.set_fact:
+    fleet_bootstrap_conflicting_agent_policy: >-
+      {{
+        fleet_bootstrap_agent_policy_conflict_list.json['items'] | default([])
+        | selectattr('name', 'equalto', fleet_bootstrap_agent_policy_profile.policy_name)
+        | list
+        | first
+        | default({})
+      }}
+  when:
+    - fleet_bootstrap_agent_policy_create_result.status | default(0) | int == 409
+
+# 作成競合を成功として扱うのは同名Policyの識別子を再取得できた場合だけに限定する。
+- name: Assert Fleet agent policy exists after create conflict
+  ansible.builtin.assert:
+    that:
+      - fleet_bootstrap_conflicting_agent_policy.id is defined
+    fail_msg: >-
+      Fleet agent policy creation returned Conflict, but the policy was not found.
+      policy={{ fleet_bootstrap_agent_policy_profile.policy_name }}
+  when:
+    - fleet_bootstrap_agent_policy_create_result.status | default(0) | int == 409
+
+# 初回検索結果又は競合後の再取得結果を統一し, 後続の出力設定更新とID解決に同じPolicyを使用する。
+- name: Resolve effective Fleet agent policy
+  ansible.builtin.set_fact:
+    fleet_bootstrap_effective_agent_policy: >-
+      {{
+        fleet_bootstrap_existing_agent_policy
+        if fleet_bootstrap_existing_agent_policy.id is defined
+        else (
+          fleet_bootstrap_conflicting_agent_policy | default({}, true)
+          if (fleet_bootstrap_agent_policy_create_result.status | default(0) | int == 409)
+          else {}
+        )
+      }}
 
 # 個別出力割当を削除し, Basicライセンスでも既定Logstash Outputを継承できるようにする。
 - name: Reset Fleet agent policy output to defaults
   ansible.builtin.uri:
     url: >-
       {{ fleet_bootstrap_kibana_url }}/api/fleet/agent_policies/{{
-      fleet_bootstrap_existing_agent_policy.id }}
+      fleet_bootstrap_effective_agent_policy.id }}
     method: PUT
     body_format: json
     headers:
@@ -79,18 +138,18 @@
   delay: "{{ fleet_bootstrap_kibana_api_retry_interval_seconds | int }}"
   until: fleet_bootstrap_agent_policy_update_result.status | default(0) | int == 200
   when:
-    - fleet_bootstrap_existing_agent_policy.id is defined
+    - fleet_bootstrap_effective_agent_policy.id is defined
     - >-
-      (fleet_bootstrap_existing_agent_policy.data_output_id | default('', true) | string | length > 0) or
-      (fleet_bootstrap_existing_agent_policy.monitoring_output_id | default('', true) | string | length > 0)
+      (fleet_bootstrap_effective_agent_policy.data_output_id | default('', true) | string | length > 0) or
+      (fleet_bootstrap_effective_agent_policy.monitoring_output_id | default('', true) | string | length > 0)
 
 # 既存又は新規Agent PolicyのIDを後続のPackage PolicyとEnrollment Tokenへ渡す。
 - name: Resolve Fleet agent policy id
   ansible.builtin.set_fact:
     fleet_bootstrap_current_policy_id: >-
       {{
-        fleet_bootstrap_existing_agent_policy.id
-        if fleet_bootstrap_existing_agent_policy.id is defined
+        fleet_bootstrap_effective_agent_policy.id
+        if fleet_bootstrap_effective_agent_policy.id is defined
         else fleet_bootstrap_agent_policy_create_result.json['item'].id
       }}
 
@@ -227,8 +286,7 @@
               filestream.generic:
                 enabled: true
                 vars:
-                  paths:
-                    - "/var/log/containers/*_{{ logging_elastic_agent_k8s_system_kube_system_namespace | default('kube-system') }}_*.log"
+                  paths: "{{ logging_elastic_agent_k8s_system_kube_system_log_paths | default(['/var/log/containers/*_kube-system_*.log'], true) }}"
                   data_stream.dataset: kubernetes.container
                   parsers: |-
                     - container:
@@ -322,22 +380,85 @@
     status_code:
       - 200
       - 201
+      - 409
     return_content: true
     validate_certs: "{{ fleet_bootstrap_kibana_validate_certs | bool }}"
     timeout: "{{ fleet_bootstrap_kibana_api_request_timeout_seconds | int }}"
   register: fleet_bootstrap_enrollment_token_create_result
   retries: "{{ fleet_bootstrap_kibana_api_retries | int }}"
   delay: "{{ fleet_bootstrap_kibana_api_retry_interval_seconds | int }}"
-  until: fleet_bootstrap_enrollment_token_create_result.status | default(0) | int in [200, 201]
+  until: fleet_bootstrap_enrollment_token_create_result.status | default(0) | int in [200, 201, 409]
   when:
     - fleet_bootstrap_existing_token_item.id is not defined
 
-# 一覧APIが秘密値を返さないため, 既存Enrollment Tokenだけ個別取得する。
+# 作成要求と別の実行が競合した場合だけ一覧を再取得し, 同じPolicyと名前を持つEnrollment Tokenを再利用する。
+- name: Refresh Fleet enrollment token list after create conflict
+  ansible.builtin.uri:
+    url: >-
+      {{ fleet_bootstrap_kibana_url }}/api/fleet/enrollment_api_keys?perPage={{
+      fleet_bootstrap_enrollment_token_list_page_size | int }}
+    method: GET
+    headers:
+      Authorization: "ApiKey {{ fleet_bootstrap_runtime_api_key }}"
+      kbn-xsrf: "{{ fleet_bootstrap_kibana_xsrf_token }}"
+      Content-Type: application/json
+    return_content: true
+    validate_certs: "{{ fleet_bootstrap_kibana_validate_certs | bool }}"
+    timeout: "{{ fleet_bootstrap_kibana_api_request_timeout_seconds | int }}"
+  register: fleet_bootstrap_enrollment_token_conflict_list
+  retries: "{{ fleet_bootstrap_kibana_api_retries | int }}"
+  delay: "{{ fleet_bootstrap_kibana_api_retry_interval_seconds | int }}"
+  until: fleet_bootstrap_enrollment_token_conflict_list.status | default(0) | int == 200
+  when:
+    - fleet_bootstrap_enrollment_token_create_result.status | default(0) | int == 409
+
+# 競合後の一覧から対象Policyと登録名が一致するTokenを選択し, 秘密値取得の対象を一意にする。
+- name: Resolve Fleet enrollment token created by concurrent execution
+  ansible.builtin.set_fact:
+    fleet_bootstrap_conflicting_token_item: >-
+      {{
+        fleet_bootstrap_enrollment_token_conflict_list.json['items'] | default([])
+        | selectattr('policy_id', 'equalto', fleet_bootstrap_current_policy_id)
+        | selectattr('name', 'equalto', fleet_bootstrap_agent_policy_profile.enrollment_token_name)
+        | list
+        | first
+        | default({})
+      }}
+  when:
+    - fleet_bootstrap_enrollment_token_create_result.status | default(0) | int == 409
+
+# 作成競合を成功として扱うのは既存Tokenの識別子を再取得できた場合だけに限定する。
+- name: Assert Fleet enrollment token exists after create conflict
+  ansible.builtin.assert:
+    that:
+      - fleet_bootstrap_conflicting_token_item.id is defined
+    fail_msg: >-
+      Fleet enrollment token creation returned Conflict, but the token was not found.
+      policy={{ fleet_bootstrap_current_policy_id }}
+      token={{ fleet_bootstrap_agent_policy_profile.enrollment_token_name }}
+  when:
+    - fleet_bootstrap_enrollment_token_create_result.status | default(0) | int == 409
+
+# 初回検索結果又は競合後の再取得結果を統一し, 秘密値取得と共有辞書への保存に同じTokenを使用する。
+- name: Resolve effective Fleet enrollment token
+  ansible.builtin.set_fact:
+    fleet_bootstrap_effective_token_item: >-
+      {{
+        fleet_bootstrap_existing_token_item
+        if fleet_bootstrap_existing_token_item.id is defined
+        else (
+          fleet_bootstrap_conflicting_token_item | default({}, true)
+          if (fleet_bootstrap_enrollment_token_create_result.status | default(0) | int == 409)
+          else {}
+        )
+      }}
+
+# 一覧APIが秘密値を返さないため, 既存又は競合後に再取得したEnrollment Tokenだけ個別取得する。
 - name: Get existing Fleet enrollment token
   ansible.builtin.uri:
     url: >-
       {{ fleet_bootstrap_kibana_url }}/api/fleet/enrollment_api_keys/{{
-      fleet_bootstrap_existing_token_item.id }}
+      fleet_bootstrap_effective_token_item.id }}
     method: GET
     headers:
       Authorization: "ApiKey {{ fleet_bootstrap_runtime_api_key }}"
@@ -351,7 +472,7 @@
   delay: "{{ fleet_bootstrap_kibana_api_retry_interval_seconds | int }}"
   until: fleet_bootstrap_enrollment_token_get_result.status | default(0) | int == 200
   when:
-    - fleet_bootstrap_existing_token_item.id is defined
+    - fleet_bootstrap_effective_token_item.id is defined
 
 # 4種類のAgent Policyに対応するEnrollment TokenをEnrollment Token共有ファイルへ保存できる辞書へ集約する。
 - name: Store Fleet enrollment token by profile
@@ -364,7 +485,7 @@
               fleet_bootstrap_agent_policy_profile.id:
                 (
                   fleet_bootstrap_enrollment_token_get_result.json['item'].api_key
-                  if fleet_bootstrap_existing_token_item.id is defined
+                  if fleet_bootstrap_effective_token_item.id is defined
                   else fleet_bootstrap_enrollment_token_create_result.json['item'].api_key
                 )
             }

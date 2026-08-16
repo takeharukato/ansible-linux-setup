@@ -1,0 +1,109 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  Fleet Package Policy入力更新用ストリーム正規化タスク
+#
+---
+
+# Fleetの"stream template"検索はストリームの登録済みdataset名(=Ansible側のストリーム
+# キーそのもの)で行われる。data_stream.dataset varは書き込み先データセットを変更する
+# 別概念であり(filestream統合の場合, ストリームキーは常に"filestream.generic"のまま,
+# 書き込み先だけをvarで変更する。実機のGET応答でdata_stream.dataset=filestream.generic
+# かつvars.data_stream.dataset.value=genericと分離されていることを確認済み),
+# 出力側のdata_stream.datasetへ混同して設定してはならない。そのため, data_stream.dataset
+# varは他の変数と同様にvarsへそのまま含め, 出力側data_stream.datasetにはストリームキーを
+# 使用する。
+- name: Resolve Fleet package policy update stream var items
+  ansible.builtin.set_fact:
+    fleet_bootstrap_package_policy_update_stream_dataset: "{{ fleet_bootstrap_package_stream.key }}"
+    fleet_bootstrap_package_policy_update_stream_var_items: >-
+      {{
+        fleet_bootstrap_package_stream.value.vars | default({}, true) | dict2items
+      }}
+  changed_when: false
+
+# data_stream.typeはFleetの統合パッケージ仕様に基づいてFleet自身が決定する値であり,
+# 入力typeからの推測ではなく, 既存Package Policy内のストリーム定義を権威ある情報源として
+# 参照する。ただし, data_stream.datasetは利用者変数(data_stream.dataset var)で変更され
+# 得る値であり, 変更直後は既存側のdatasetと新しいdatasetが一致しないため, 照合キーには
+# 使用できない。Fleetのストリームidは"${入力type}-${ストリームキー}-${Package Policy ID}"
+# 形式(例: "filestream-filestream.generic-<policy id>")であり, ストリームキーは
+# Ansible自身が定義した不変のキーであるため, これを権威ある識別子として再構築して照合する。
+- name: Resolve Fleet package policy update existing stream
+  ansible.builtin.set_fact:
+    fleet_bootstrap_package_policy_update_existing_stream: >-
+      {{
+        fleet_bootstrap_existing_package_policy.inputs | default([], true)
+        | map(attribute='streams', default=[])
+        | list
+        | flatten
+        | selectattr('id', 'defined')
+        | selectattr(
+            'id',
+            'equalto',
+            fleet_bootstrap_package_policy_update_input_type
+            ~ '-' ~ fleet_bootstrap_package_stream.key
+            ~ '-' ~ fleet_bootstrap_existing_package_policy.id
+          )
+        | list
+        | first
+        | default({})
+      }}
+  changed_when: false
+
+# 更新対象のストリームが既存Package Policyに見つからない場合はdata_stream.typeを確定できないため,
+# 誤った値を送信する前に停止する。
+- name: Assert Fleet package policy update existing stream is found
+  ansible.builtin.assert:
+    that:
+      - fleet_bootstrap_package_policy_update_existing_stream.data_stream.type is defined
+    fail_msg: >-
+      Existing Fleet package policy stream not found for dataset: {{ fleet_bootstrap_package_policy_update_stream_dataset }}
+      (input: {{ fleet_bootstrap_package_input.key }}).
+
+# Kibanaは統合パッケージが必須とする全ての変数(例: system.cpuのcpu.metrics)が
+# 存在することを要求するため, 明示指定していない必須変数まで削除してはならない。
+# 既存Package Policyが保持する変数一式(dataset単位で権威ある値)を基点とし,
+# Ansible側で明示指定した変数だけを上書きする。
+- name: Initialize Fleet package policy update stream vars
+  ansible.builtin.set_fact:
+    fleet_bootstrap_package_policy_update_stream_vars: >-
+      {{ fleet_bootstrap_package_policy_update_existing_stream.vars | default({}, true) }}
+  changed_when: false
+
+# Fleet APIのvars(PackagePolicyConfigRecord)は, 変数名をキーとし,
+# 値を{value: ...}で包んだオブジェクトを要求するため, 値をそのまま格納してはならない。
+# 変数一覧を1件ずつ{value: ...}で包み込み, 既存の変数一式へ上書き結合する。
+- name: Normalize Fleet package policy update stream var
+  ansible.builtin.set_fact:
+    fleet_bootstrap_package_policy_update_stream_vars: >-
+      {{
+        fleet_bootstrap_package_policy_update_stream_vars
+        | combine({ fleet_bootstrap_package_stream_var_item.key: {'value': fleet_bootstrap_package_stream_var_item.value} })
+      }}
+  loop: "{{ fleet_bootstrap_package_policy_update_stream_var_items }}"
+  loop_control:
+    loop_var: fleet_bootstrap_package_stream_var_item
+    label: "{{ fleet_bootstrap_package_stream_var_item.key }}"
+  changed_when: false
+
+# Fleet API更新用に, ストリーム識別子, データセット, 有効状態, 変数を配列へ変換する。
+- name: Normalize Fleet package policy update stream
+  ansible.builtin.set_fact:
+    fleet_bootstrap_package_policy_update_streams: >-
+      {{
+        fleet_bootstrap_package_policy_update_streams
+        + [
+            {
+              'id': fleet_bootstrap_package_stream.key,
+              'data_stream': {
+                'dataset': fleet_bootstrap_package_policy_update_stream_dataset,
+                'type': fleet_bootstrap_package_policy_update_existing_stream.data_stream.type
+              },
+              'enabled': fleet_bootstrap_package_stream.value.enabled | default(true) | bool,
+              'vars': fleet_bootstrap_package_policy_update_stream_vars
+            }
+          ]
+      }}
+  changed_when: false

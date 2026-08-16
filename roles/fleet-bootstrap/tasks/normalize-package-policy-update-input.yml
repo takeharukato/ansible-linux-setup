@@ -1,0 +1,82 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  Fleet Package Policy入力更新用ペイロード正規化タスク
+#
+---
+
+# 入力キーはAnsible側が"${policy_template}-${type}"という規則で組み立てている。
+# policy_templateとtypeの双方がハイフンを含み得るため(例: policy_template"kube-state-metrics",
+# type"fleet-server"), キー文字列だけでは分割位置を一意に決定できない。Fleet応答側の
+# inputs[].idは仕様上オプショナルで逆引きに使用できないため, 統合パッケージ定義から
+# 作成した索引で入力typeを決定的に解決する。
+- name: Assert Fleet package policy update input key is defined in package
+  ansible.builtin.assert:
+    that:
+      - fleet_bootstrap_package_input.key in fleet_bootstrap_package_policy_update_input_key_map
+    fail_msg: >-
+      Package policy input key is not defined in the integration package.
+      key={{ fleet_bootstrap_package_input.key }}
+      package={{ fleet_bootstrap_package_policy.body.package.name }}
+
+# 索引からFleet APIの入力typeを取得する。
+- name: Resolve Fleet package policy update input type
+  ansible.builtin.set_fact:
+    fleet_bootstrap_package_policy_update_input_type: >-
+      {{
+        fleet_bootstrap_package_policy_update_input_key_map[
+          fleet_bootstrap_package_input.key
+        ]
+      }}
+  changed_when: false
+
+# 1入力内のストリーム配列を初期化する。
+- name: Initialize Fleet package policy update streams
+  ansible.builtin.set_fact:
+    fleet_bootstrap_package_policy_update_streams: []
+  changed_when: false
+
+# 1入力内のストリーム辞書ごとに, 更新要求のデータセットと変数を分離して配列へ変換する。
+# ストリーム単位の処理はfleet_bootstrap_package_streamをloop_varとして参照するため,
+# 外側のNormalize Fleet package policy update inputと同様にinclude_tasksのloopで反復する。
+- name: Normalize Fleet package policy update input stream
+  ansible.builtin.include_tasks: normalize-package-policy-update-input-stream.yml
+  loop: "{{ fleet_bootstrap_package_input.value.streams | default({}, true) | dict2items }}"
+  loop_control:
+    loop_var: fleet_bootstrap_package_stream
+    label: "{{ fleet_bootstrap_package_stream.key }}"
+
+# 入力キーは"${policy_template}-${type}"であるため, 解決済みtypeとハイフン1文字分の
+# 長さを末尾から除いた部分がpolicy_templateとなる
+#   (例: キー"fleet_server-fleet-server"とtype"fleet-server"からpolicy_template"fleet_server")。
+- name: Resolve Fleet package policy update input policy template
+  ansible.builtin.set_fact:
+    fleet_bootstrap_package_policy_update_input_policy_template: >-
+      {{
+        fleet_bootstrap_package_input.key[
+          0:(
+            (fleet_bootstrap_package_input.key | length)
+            - (fleet_bootstrap_package_policy_update_input_type | length)
+            - 1
+          )
+        ]
+      }}
+  changed_when: false
+
+# 正規化した入力を更新用inputs配列へ追加する。
+- name: Append Fleet package policy update input
+  ansible.builtin.set_fact:
+    fleet_bootstrap_package_policy_update_inputs: >-
+      {{
+        fleet_bootstrap_package_policy_update_inputs
+        + [
+            {
+              'type': fleet_bootstrap_package_policy_update_input_type,
+              'policy_template': fleet_bootstrap_package_policy_update_input_policy_template,
+              'enabled': fleet_bootstrap_package_input.value.enabled | default(true) | bool,
+              'streams': fleet_bootstrap_package_policy_update_streams
+            }
+          ]
+      }}
+  changed_when: false

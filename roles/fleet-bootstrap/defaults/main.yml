@@ -112,6 +112,9 @@ fleet_bootstrap_elasticsearch_endpoints_explicit: []
 # vars/all-config.ymlでlogging_backend_host変数を用いて指定することが推奨される
 # 運用であるため, ここでは空リストを既定値として定義する。
 fleet_bootstrap_fleet_server_host_urls_explicit: []
+# Kubernetes kube-system名前空間のコンテナログを収集するファイルパス一覧。
+logging_elastic_agent_k8s_system_kube_system_log_paths:
+  - "/var/log/containers/*_kube-system_*.log"
 
 #
 # デバッグ動作制御変数
