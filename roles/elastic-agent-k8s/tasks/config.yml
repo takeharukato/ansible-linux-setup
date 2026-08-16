@@ -1,0 +1,270 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  設定関連タスク
+#
+---
+
+# Elastic Agent for Kubernetes 用の Helm values ファイルを生成する。
+- name: Setup elastic-agent-k8s Helm values file
+  ansible.builtin.template:
+    src: values.yaml.j2
+    dest: "{{ elastic_agent_k8s_runtime_values_file_path }}"
+    owner: "{{ elastic_agent_k8s_runtime_helm_operator_user }}"
+    group: "{{ elastic_agent_k8s_runtime_helm_operator_user }}"
+    mode: "0644"
+    backup: false
+  become: true
+
+# Helmテンプレート描画を先に実行し, Chartとvaluesの整合性を導入前に確認する。
+- name: Render elastic-agent-k8s Helm template
+  ansible.builtin.command:
+    argv:
+      - sudo
+      - -u
+      - "{{ elastic_agent_k8s_runtime_helm_operator_user }}"
+      - helm
+      - template
+      - "{{ elastic_agent_k8s_runtime_release_name }}"
+      - "{{ elastic_agent_k8s_runtime_chart_ref }}"
+      - --namespace
+      - "{{ elastic_agent_k8s_runtime_namespace }}"
+      - --version
+      - "{{ elastic_agent_k8s_runtime_chart_version }}"
+      - --kubeconfig
+      - "{{ elastic_agent_k8s_runtime_kubeconfig_path }}"
+      - -f
+      - "{{ elastic_agent_k8s_runtime_values_file_path }}"
+  register: elastic_agent_k8s_helm_template_result
+  changed_when: false
+  become: true
+  until: elastic_agent_k8s_helm_template_result.rc == 0
+  retries: "{{ elastic_agent_k8s_runtime_helm_retries | int }}"
+  delay: "{{ elastic_agent_k8s_runtime_helm_retry_interval_seconds | int }}"
+
+# 不要なHostPathを生成していないことを検証し, ホスト依存のボリューム定義混入を防止する。
+# 正規表現'^\s*hostPath\s*:'は, 行頭空白を許容しつつhostPathキー定義行を検出する。
+- name: Validate rendered template does not include HostPath
+  ansible.builtin.assert:
+    that:
+      - >-
+        not (
+          (elastic_agent_k8s_helm_template_result.stdout | default('', true))
+          is regex('(?m)^\s*hostPath\s*:')
+        )
+    fail_msg: >-
+      Rendered elastic-agent-k8s Helm manifest includes HostPath definition.
+      Review values and chart settings before install.
+
+# Helm release状態を事前に取得し, 進行中状態の検出可否を明確にする。
+- name: Get elastic-agent-k8s Helm release status before upgrade
+  ansible.builtin.command:
+    argv:
+      - sudo
+      - -u
+      - "{{ elastic_agent_k8s_runtime_helm_operator_user }}"
+      - helm
+      - status
+      - "{{ elastic_agent_k8s_runtime_release_name }}"
+      - --namespace
+      - "{{ elastic_agent_k8s_runtime_namespace }}"
+      - --kubeconfig
+      - "{{ elastic_agent_k8s_runtime_kubeconfig_path }}"
+      - -o
+      - json
+  register: elastic_agent_k8s_pre_upgrade_status_result
+  changed_when: false
+  failed_when: false
+  become: true
+
+# uninstalling状態は削除処理の遷移中であるため, 進行中の削除が完了するまで状態遷移を待機する。
+- name: Wait for uninstalling release state to complete before upgrade
+  ansible.builtin.command:
+    argv:
+      - sudo
+      - -u
+      - "{{ elastic_agent_k8s_runtime_helm_operator_user }}"
+      - helm
+      - status
+      - "{{ elastic_agent_k8s_runtime_release_name }}"
+      - --namespace
+      - "{{ elastic_agent_k8s_runtime_namespace }}"
+      - --kubeconfig
+      - "{{ elastic_agent_k8s_runtime_kubeconfig_path }}"
+      - -o
+      - json
+  register: elastic_agent_k8s_status_wait_uninstalling_result
+  changed_when: false
+  failed_when: false
+  become: true
+  until: >-
+    elastic_agent_k8s_status_wait_uninstalling_result.rc != 0
+    or
+    (
+      (elastic_agent_k8s_status_wait_uninstalling_result.stdout | from_json).info.status
+      != 'uninstalling'
+    )
+  retries: "{{ elastic_agent_k8s_runtime_helm_retries | int }}"
+  delay: "{{ elastic_agent_k8s_runtime_helm_request_interval_seconds | int }}"
+  when:
+    - elastic_agent_k8s_pre_upgrade_status_result.rc == 0
+    - (elastic_agent_k8s_pre_upgrade_status_result.stdout | from_json).info.status == 'uninstalling'
+
+# uninstalling待機の有無にかかわらず, 後続判定で使用するrelease状態を1つに集約する。
+# uninstall待機後であるため, uninstall状態以外の導入阻害条件である
+# 以下のいずれかのpending状態に集約される:
+# - pending-install: インストール進行中
+# - pending-upgrade: 更新進行中
+# - pending-rollback: ロールバック進行中
+# 上記のいずれかの状態である場合は, 後続の導入処理で進行中操作解消のため
+# 上記の状態のいずれであるかを確認し, 変数に格納する
+- name: Select effective pre-upgrade Helm release status
+  ansible.builtin.set_fact:
+    elastic_agent_k8s_pre_upgrade_status_effective_result: >-
+      {{
+        elastic_agent_k8s_status_wait_uninstalling_result
+        if (
+          elastic_agent_k8s_pre_upgrade_status_result.rc == 0
+          and
+          (elastic_agent_k8s_pre_upgrade_status_result.stdout | from_json).info.status == 'uninstalling'
+        )
+        else elastic_agent_k8s_pre_upgrade_status_result
+      }}
+
+# 導入前の解消処理要否をboolへ正規化し, 後続タスクの条件式を単純化する。
+- name: Decide pre-upgrade cleanup flags
+  ansible.builtin.set_fact:
+    elastic_agent_k8s_should_delete_pending_secret: >-
+      {{
+        elastic_agent_k8s_pre_upgrade_status_effective_result.rc == 0
+        and
+        (
+          (elastic_agent_k8s_pre_upgrade_status_effective_result.stdout | from_json).info.status
+          in ['pending-install', 'pending-upgrade', 'pending-rollback']
+        )
+      }}
+    elastic_agent_k8s_should_uninstall_existing_release: >-
+      {{
+        elastic_agent_k8s_pre_upgrade_status_effective_result.rc == 0
+        and
+        (
+          (elastic_agent_k8s_pre_upgrade_status_effective_result.stdout | from_json).info.status
+          == 'uninstalled'
+        )
+      }}
+
+# pending-install/pending-upgrade/pending-rollback を検出した場合のみ, 実行中操作解消のため対象revisionのrelease secretを削除する。
+- name: Delete pending Helm release secret before upgrade
+  ansible.builtin.command:
+    argv:
+      - sudo
+      - -u
+      - "{{ elastic_agent_k8s_runtime_helm_operator_user }}"
+      - kubectl
+      - --kubeconfig
+      - "{{ elastic_agent_k8s_runtime_kubeconfig_path }}"
+      - --namespace
+      - "{{ elastic_agent_k8s_runtime_namespace }}"
+      - delete
+      - secret
+      - >-
+        sh.helm.release.v1.{{ elastic_agent_k8s_runtime_release_name }}.v{{ (elastic_agent_k8s_pre_upgrade_status_effective_result.stdout | from_json).version }}
+  register: elastic_agent_k8s_pending_secret_delete_result
+  changed_when: elastic_agent_k8s_pending_secret_delete_result.rc == 0
+  failed_when: elastic_agent_k8s_pending_secret_delete_result.rc != 0
+  become: true
+  when:
+    - elastic_agent_k8s_should_delete_pending_secret | bool
+
+# uninstalled状態の履歴残存は導入更新時の競合要因になるため, 条件一致時のみrelease情報を削除して導入前提を揃える。
+- name: Uninstall existing elastic-agent-k8s Helm release before upgrade
+  ansible.builtin.command:
+    argv:
+      - sudo
+      - -u
+      - "{{ elastic_agent_k8s_runtime_helm_operator_user }}"
+      - helm
+      - uninstall
+      - "{{ elastic_agent_k8s_runtime_release_name }}"
+      - --namespace
+      - "{{ elastic_agent_k8s_runtime_namespace }}"
+      - --kubeconfig
+      - "{{ elastic_agent_k8s_runtime_kubeconfig_path }}"
+      - --ignore-not-found
+  register: elastic_agent_k8s_helm_uninstall_result
+  changed_when: >-
+    'uninstall' in (elastic_agent_k8s_helm_uninstall_result.stdout | default('', true) | lower)
+  failed_when: elastic_agent_k8s_helm_uninstall_result.rc != 0
+  become: true
+  when:
+    - elastic_agent_k8s_should_uninstall_existing_release | bool
+
+# 進行中操作の解消結果を確認する。
+- name: Get elastic-agent-k8s Helm release status after pending cleanup
+  ansible.builtin.command:
+    argv:
+      - sudo
+      - -u
+      - "{{ elastic_agent_k8s_runtime_helm_operator_user }}"
+      - helm
+      - status
+      - "{{ elastic_agent_k8s_runtime_release_name }}"
+      - --namespace
+      - "{{ elastic_agent_k8s_runtime_namespace }}"
+      - --kubeconfig
+      - "{{ elastic_agent_k8s_runtime_kubeconfig_path }}"
+      - -o
+      - json
+  register: elastic_agent_k8s_post_cleanup_status_result
+  changed_when: false
+  failed_when: false
+  become: true
+
+# 事前検出後の解消処理でpending状態が残っている場合は, 進行不能な再試行を避けるため明示的に停止する。
+- name: Assert elastic-agent-k8s Helm release is not pending before upgrade
+  ansible.builtin.assert:
+    that:
+      - >-
+        elastic_agent_k8s_post_cleanup_status_result.rc != 0
+        or
+        (
+          (elastic_agent_k8s_post_cleanup_status_result.stdout | from_json).info.status
+          not in ['pending-install', 'pending-upgrade', 'pending-rollback']
+        )
+    fail_msg: >-
+      Helm release is still in pending state after cleanup.
+      Resolve in-progress install/upgrade/rollback before retrying upgrade.
+
+# 検証済みテンプレートと同一入力で導入し, 待機付きで適用完了を確認する。
+- name: Install or upgrade elastic-agent-k8s via Helm
+  ansible.builtin.command:
+    argv:
+      - sudo
+      - -u
+      - "{{ elastic_agent_k8s_runtime_helm_operator_user }}"
+      - helm
+      - upgrade
+      - --install
+      - "{{ elastic_agent_k8s_runtime_release_name }}"
+      - "{{ elastic_agent_k8s_runtime_chart_ref }}"
+      - --namespace
+      - "{{ elastic_agent_k8s_runtime_namespace }}"
+      - --create-namespace
+      - --version
+      - "{{ elastic_agent_k8s_runtime_chart_version }}"
+      - --kubeconfig
+      - "{{ elastic_agent_k8s_runtime_kubeconfig_path }}"
+      - --wait
+      - --timeout
+      - "{{ elastic_agent_k8s_runtime_helm_timeout_seconds | int }}s"
+      - -f
+      - "{{ elastic_agent_k8s_runtime_values_file_path }}"
+  register: elastic_agent_k8s_helm_upgrade_result
+  become: true
+  changed_when: >-
+    (
+      'STATUS: deployed' in (elastic_agent_k8s_helm_upgrade_result.stdout | default('', true))
+    ) or (
+      'STATUS: upgraded' in (elastic_agent_k8s_helm_upgrade_result.stdout | default('', true))
+    )

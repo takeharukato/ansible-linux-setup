@@ -20,7 +20,12 @@
   ansible.builtin.service_facts:
   register: elastic_agent_service_facts_result
   retries: "{{ elastic_agent_service_retries | int }}"
-  delay: "{{ elastic_agent_service_retry_delay_seconds | int }}"
+  delay: >-
+    {{
+      elastic_agent_service_request_interval_seconds
+
+      | int
+    }}
   until:
     - elastic_agent_service_facts_result.ansible_facts.services is defined
     - >-

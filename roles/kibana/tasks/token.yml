@@ -17,7 +17,6 @@
   ansible.builtin.slurp:
     path: "{{ kibana_service_token_file }}"
   register: kibana_service_token_file_raw
-  no_log: true
   when:
     - kibana_service_token_file_stat.stat.exists
 
@@ -25,7 +24,6 @@
 - name: Set kibana service token value from existing file
   ansible.builtin.set_fact:
     kibana_service_token_value: "{{ kibana_service_token_file_raw.content | b64decode | trim }}"
-  no_log: true
   when:
     - kibana_service_token_file_stat.stat.exists
 
@@ -79,12 +77,11 @@
       - 200
     timeout: "{{ kibana_service_token_issue_timeout_seconds | int }}"
   register: kibana_service_token_issue_result
-  no_log: true
   until:
     - kibana_service_token_issue_result is succeeded
     - kibana_service_token_issue_result.status | default(0) | int == 200
   retries: "{{ kibana_service_token_issue_retries | int }}"
-  delay: "{{ kibana_service_token_issue_retry_delay_seconds | int }}"
+  delay: "{{ kibana_service_token_issue_retry_interval_seconds | int }}"
   when:
     - not kibana_service_token_file_stat.stat.exists
     - kibana_service_token_auto_create | default(false) | bool
@@ -97,7 +94,6 @@
     owner: root
     group: root
     mode: '0600'
-  no_log: true
   when:
     - kibana_service_token_issue_result is defined
     - kibana_service_token_issue_result.json is defined
@@ -108,7 +104,6 @@
 - name: Set kibana service token value from issued token
   ansible.builtin.set_fact:
     kibana_service_token_value: "{{ kibana_service_token_issue_result.json.token.value | trim }}"
-  no_log: true
   when:
     - kibana_service_token_issue_result is defined
     - kibana_service_token_issue_result.json is defined

@@ -1,0 +1,42 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  Elastic Agent for Kubernetes Helm Values
+#
+---
+# Cluster全体の情報を収集する構成として導入する。
+preset: clusterWide
+
+# clusterWide 構成の Elastic Agent Pod resources を変数で指定する。
+# 変換処理の対応関係: 辞書変数を YAML へ変換し, resources 配下へ配置する。
+agent:
+  presets:
+    clusterWide:
+      resources:
+{{ elastic_agent_k8s_clusterwide_resources | to_nice_yaml(indent=2) | indent(8, True) }}
+    perNode:
+      resources:
+{{ elastic_agent_k8s_pernode_resources | to_nice_yaml(indent=2) | indent(8, True) }}
+
+# Kubernetes統合のクラスタ状態情報を収集するため有効化する。
+kube-state-metrics:
+  enabled: true
+{% if (elastic_agent_k8s_kube_state_metrics_resources | default({}, true) | length) > 0 %}
+  # kube-state-metrics Pod resources を指定した場合のみ values へ出力する。
+  # 判定処理の対応関係: 辞書変数の要素数が1以上の場合に resources を出力する。
+  resources:
+{{ elastic_agent_k8s_kube_state_metrics_resources | to_nice_yaml(indent=2) | indent(4, True) }}
+{% endif %}
+
+# Fleet Serverへ登録するElastic Agentの接続設定。
+# 設定する値は次のとおりである:
+# - enabled: Fleet管理を有効化する。
+# - url: 接続先Fleet ServerのURLを設定する。
+# - enrollmentToken: Fleet Server登録時に使用するEnrollment Tokenを設定する。
+# - insecure: trueの場合は証明書検証を省略し, falseの場合は証明書検証を実施する。
+fleet:
+  enabled: true
+  url: "{{ elastic_agent_k8s_runtime_fleet_server_url }}"
+  enrollmentToken: "{{ elastic_agent_k8s_runtime_enrollment_token }}"
+  insecure: {{ elastic_agent_k8s_runtime_insecure | to_json }}

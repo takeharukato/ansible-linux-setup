@@ -34,23 +34,25 @@
   become: false
   run_once: true
   block:
-    # 3種類のElastic Agent ポリシーに対応する空の秘密値を保存しないため, APIから全Enrollment Tokenを取得済みであることを確認する。
+    # Fleet Agent Policyプロファイル一覧に対応する空の秘密値を保存しないため,
+    # APIから必要件数のEnrollment Tokenを取得済みであることを確認する。
     - name: Validate Fleet enrollment token file creation settings
       ansible.builtin.assert:
         that:
-          - fleet_bootstrap_enrollment_tokens | default({}, true) | length == 3
+          - >-
+            fleet_bootstrap_enrollment_tokens | default({}, true) | length
+            == (fleet_bootstrap_agent_policy_profiles | default([], true) | length)
           - >-
             fleet_bootstrap_enrollment_tokens | default({}, true)
             | dict2items
             | selectattr('value', 'string')
             | rejectattr('value', 'equalto', '')
             | list
-            | length == 3
+            | length == (fleet_bootstrap_agent_policy_profiles | default([], true) | length)
         fail_msg: >-
-          Enrollment Token file creation requires three recoverable Fleet Enrollment Tokens.
-      no_log: true
+          Enrollment Token file creation requires recoverable Fleet Enrollment Tokens for all Fleet Agent Policy profiles.
 
-    # Enrollment TokenをAnsible実行ログへ出さず, Elastic Agent ポリシーごとの辞書を権限0600で保存する。
+    # Enrollment TokenをElastic Agent ポリシーごとの辞書として権限0600で保存する。
     - name: Save Fleet enrollment token file
       ansible.builtin.copy:
         content: >-
@@ -58,7 +60,6 @@
         dest: "{{ fleet_bootstrap_enrollment_token_file }}"
         force: true
         mode: "0600"
-      no_log: true
 
 # 保存後のファイル種別と権限を検証するため, 制御ホスト上の状態を再取得する。
 - name: Check saved Fleet enrollment token file on controller

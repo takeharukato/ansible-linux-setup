@@ -1,0 +1,158 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  実行時変数解決タスク
+#
+---
+
+# 後続タスクで共通利用する実行時変数を, 明示値優先で解決する。
+# 設定する値は次のとおりである。
+# - elastic_agent_k8s_runtime_release_name: Helmリリース名。
+# - elastic_agent_k8s_runtime_helm_repo_name: Helmリポジトリ名。
+# - elastic_agent_k8s_runtime_helm_repo_url: HelmリポジトリURL。
+# - elastic_agent_k8s_runtime_chart_name: Helm Chart名。
+# - elastic_agent_k8s_runtime_chart_version: Helm Chart版数。
+# - elastic_agent_k8s_runtime_namespace: 配置先Kubernetes名前空間。
+# - elastic_agent_k8s_runtime_kubeconfig_path: Kubernetes API操作で使うkubeconfigファイルのパス。
+#   明示値が空の場合は, Helm実行ユーザのホーム配下にある
+#   ca-embedded-admin.conf を使用する。
+# - elastic_agent_k8s_runtime_values_file_path: Helmに渡すvaluesファイルのパス。
+# - elastic_agent_k8s_runtime_helm_timeout_seconds: Helm実行タイムアウト秒数(整数)。
+# - elastic_agent_k8s_runtime_helm_retries: Helm実行の再試行回数(整数)。
+# - elastic_agent_k8s_runtime_helm_retry_interval_seconds: Helm実行の再試行周期(整数)。
+# - elastic_agent_k8s_runtime_helm_request_interval_seconds: 状態確認時のリクエスト発行間隔(整数)。
+# - k8s_common_helm_execution_users: Kubernetes共通のHelm実行ユーザ一覧。
+# - k8s_runtime_helm_execution_users: Kubernetes共通の正規化済みHelm実行ユーザ一覧。
+# - k8s_runtime_helm_operator_user: Kubernetes共通のHelm代表実行ユーザ。
+# - elastic_agent_k8s_runtime_helm_execution_users: Helm実行を許可するOSユーザ一覧。
+# - elastic_agent_k8s_runtime_fleet_server_url: Fleet Server接続先URL。明示指定値があればそれを使用し, 空の場合は共通設定値から "<scheme>://<host>:<port>" 形式で組み立てる。
+# - elastic_agent_k8s_runtime_enrollment_token: Enrollment Token。
+# - elastic_agent_k8s_runtime_insecure: Fleet Server接続時の証明書検証省略フラグ(真偽値)。
+- name: Resolve elastic-agent-k8s runtime variables
+  ansible.builtin.set_fact:
+    elastic_agent_k8s_runtime_release_name: "{{ elastic_agent_k8s_release_name | string | trim }}"
+    elastic_agent_k8s_runtime_helm_repo_name: "{{ elastic_agent_k8s_helm_repo_name | string | trim }}"
+    elastic_agent_k8s_runtime_helm_repo_url: "{{ elastic_agent_k8s_helm_repo_url | string | trim }}"
+    elastic_agent_k8s_runtime_chart_name: "{{ elastic_agent_k8s_chart_name | string | trim }}"
+    elastic_agent_k8s_runtime_chart_version: "{{ elastic_agent_k8s_chart_version | string | trim }}"
+    elastic_agent_k8s_runtime_namespace: "{{ elastic_agent_k8s_namespace | string | trim }}"
+    elastic_agent_k8s_runtime_values_file_path: "{{ elastic_agent_k8s_values_file_path | string | trim }}"
+    elastic_agent_k8s_runtime_helm_timeout_seconds: "{{ elastic_agent_k8s_helm_timeout_seconds | int }}"
+    elastic_agent_k8s_runtime_helm_retries: "{{ elastic_agent_k8s_helm_retries | int }}"
+    elastic_agent_k8s_runtime_helm_retry_interval_seconds: >-
+      {{
+        (
+          elastic_agent_k8s_helm_retry_interval_seconds
+          | default(elastic_agent_k8s_helm_retry_interval_seconds, true)
+        ) | int
+      }}
+    elastic_agent_k8s_runtime_helm_request_interval_seconds: >-
+      {{
+        (
+          elastic_agent_k8s_helm_request_interval_seconds
+          | default(elastic_agent_k8s_helm_retry_interval_seconds, true)
+        ) | int
+      }}
+    elastic_agent_k8s_runtime_helm_execution_users: >-
+      {{
+        (
+          (k8s_runtime_helm_execution_users | default([], true))
+          +
+          (elastic_agent_k8s_helm_execution_users | default([], true))
+        )
+        | map('string')
+        | map('trim')
+        | reject('equalto', '')
+        | unique
+        | list
+      }}
+    elastic_agent_k8s_runtime_fleet_server_url: >-
+      {{
+        (elastic_agent_k8s_fleet_server_url_explicit | string | trim)
+        if ((elastic_agent_k8s_fleet_server_url_explicit | default('', true) | string | trim | length) > 0)
+        else (
+          (logging_backend_default_scheme | default('https', true)) ~
+          '://' ~
+          logging_backend_resolved_host ~
+          ':' ~
+          (fleet_server_port | string)
+        )
+      }}
+    elastic_agent_k8s_runtime_enrollment_token: "{{ elastic_agent_k8s_enrollment_token | default('', true) | string | trim }}"
+    elastic_agent_k8s_runtime_insecure: "{{ elastic_agent_k8s_insecure | default(false) | bool }}"
+
+# Helm実行に使う代表OSユーザは, ロール固有の明示値を優先し,
+# 未指定時は共通代表ユーザを使用する。
+# この処理を独立タスクに分けることで, 同一set_fact内での未定義参照を回避する。
+- name: Resolve elastic-agent-k8s Helm operator user
+  ansible.builtin.set_fact:
+    elastic_agent_k8s_runtime_helm_operator_user: >-
+      {{
+        (elastic_agent_k8s_helm_operator_user | default('', true) | string | trim)
+        if ((elastic_agent_k8s_helm_operator_user | default('', true) | string | trim | length) > 0)
+        else (
+          k8s_runtime_helm_operator_user
+          | default(elastic_agent_k8s_runtime_helm_execution_users | first, true)
+        )
+      }}
+    elastic_agent_k8s_runtime_kubeconfig_path: >-
+      {{
+        (elastic_agent_k8s_kubeconfig_path | default('', true) | string | trim)
+        if ((elastic_agent_k8s_kubeconfig_path | default('', true) | string | trim | length) > 0)
+        else (
+          '/home/' ~
+          (
+            (
+              (elastic_agent_k8s_helm_operator_user | default('', true) | string | trim)
+              if ((elastic_agent_k8s_helm_operator_user | default('', true) | string | trim | length) > 0)
+              else (
+                k8s_runtime_helm_operator_user
+                | default(elastic_agent_k8s_runtime_helm_execution_users | first, true)
+                | default(k8s_operator_user, true)
+              )
+            )
+          ) ~
+          '/.kube/ca-embedded-admin.conf'
+        )
+      }}
+    elastic_agent_k8s_runtime_values_file_path: >-
+      {{
+        (
+          elastic_agent_k8s_runtime_values_file_path
+          | regex_replace(
+              '^/home/' ~ (ansible_user | default('', true) | string | trim) ~ '/',
+              '/home/' ~ (
+                (elastic_agent_k8s_helm_operator_user | default('', true) | string | trim)
+                if ((elastic_agent_k8s_helm_operator_user | default('', true) | string | trim | length) > 0)
+                else (
+                  k8s_runtime_helm_operator_user
+                  | default(elastic_agent_k8s_runtime_helm_execution_users | first, true)
+                  | default(k8s_operator_user, true)
+                )
+              ) ~ '/'
+            )
+        )
+        if (
+          (ansible_user | default('', true) | string | trim | length) > 0
+          and
+          (
+            elastic_agent_k8s_runtime_values_file_path
+            is match('^/home/' ~ (ansible_user | default('', true) | string | trim) ~ '/.*')
+          )
+        )
+        else elastic_agent_k8s_runtime_values_file_path
+      }}
+
+# Helmで使うChart参照名は, リポジトリ名の後ろに"/"を入れてChart名をつなげた文字列である。
+# 例: リポジトリ名が"elastic", Chart名が"elastic-agent"の場合, "elastic/elastic-agent"になる。
+# 設定する値は次のとおりである。
+# - elastic_agent_k8s_runtime_chart_ref: "<repo名>/<chart名>" 形式の文字列。
+- name: Resolve elastic-agent-k8s Helm chart reference
+  ansible.builtin.set_fact:
+    elastic_agent_k8s_runtime_chart_ref: >-
+      {{
+        elastic_agent_k8s_runtime_helm_repo_name ~
+        '/' ~
+        elastic_agent_k8s_runtime_chart_name
+      }}

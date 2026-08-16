@@ -17,7 +17,6 @@
   ansible.builtin.slurp:
     path: "{{ fleet_server_runtime_service_token_path }}"
   register: fleet_server_service_token_file_raw
-  no_log: true
   when:
     - not (ansible_check_mode | bool)
     - fleet_server_service_token_file_stat.stat.exists | default(false)
@@ -31,7 +30,6 @@
     group: "{{ logging_backend_container_group_id }}"
     mode: "0400"
   become: true
-  no_log: true
   when:
     - not (ansible_check_mode | bool)
     - fleet_server_service_token_file_stat.stat.exists | default(false)
@@ -80,12 +78,11 @@
     return_content: true
     timeout: "{{ fleet_server_token_issue_timeout_seconds | int }}"
   register: fleet_server_service_token_issue_result
-  no_log: true
   until:
     - fleet_server_service_token_issue_result is succeeded
     - fleet_server_service_token_issue_result.status | default(0) | int == 200
   retries: "{{ fleet_server_token_issue_retries | int }}"
-  delay: "{{ fleet_server_token_issue_retry_delay_seconds | int }}"
+  delay: "{{ fleet_server_token_issue_retry_interval_seconds | int }}"
   when:
     - not (ansible_check_mode | bool)
     - not (fleet_server_service_token_file_stat.stat.exists | default(false))
@@ -100,7 +97,6 @@
     group: "{{ logging_backend_container_group_id }}"
     mode: "0400"
   become: true
-  no_log: true
   when:
     - not (ansible_check_mode | bool)
     - not (fleet_server_service_token_file_stat.stat.exists | default(false))

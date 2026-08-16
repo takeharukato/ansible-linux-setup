@@ -24,12 +24,11 @@
       Content-Type: application/json
     return_content: true
     validate_certs: "{{ fleet_bootstrap_kibana_validate_certs | bool }}"
-    timeout: "{{ fleet_bootstrap_kibana_timeout_seconds | int }}"
+    timeout: "{{ fleet_bootstrap_kibana_api_request_timeout_seconds | int }}"
   register: fleet_bootstrap_verify_output_list
-  retries: "{{ fleet_bootstrap_kibana_retries | int }}"
-  delay: "{{ fleet_bootstrap_kibana_retry_delay_seconds | int }}"
+  retries: "{{ fleet_bootstrap_kibana_api_retries | int }}"
+  delay: "{{ fleet_bootstrap_kibana_api_retry_interval_seconds | int }}"
   until: fleet_bootstrap_verify_output_list.status | default(0) | int == 200
-  no_log: "{{ fleet_bootstrap_no_log | bool }}"
   when: not (ansible_check_mode | bool)
 
 # 指定名のFleet Outputを検証対象として1件へ絞り込む。
@@ -76,15 +75,14 @@
       Content-Type: application/json
     return_content: true
     validate_certs: "{{ fleet_bootstrap_kibana_validate_certs | bool }}"
-    timeout: "{{ fleet_bootstrap_kibana_timeout_seconds | int }}"
+    timeout: "{{ fleet_bootstrap_kibana_api_request_timeout_seconds | int }}"
   register: fleet_bootstrap_verify_policy_list
-  retries: "{{ fleet_bootstrap_kibana_retries | int }}"
-  delay: "{{ fleet_bootstrap_kibana_retry_delay_seconds | int }}"
+  retries: "{{ fleet_bootstrap_kibana_api_retries | int }}"
+  delay: "{{ fleet_bootstrap_kibana_api_retry_interval_seconds | int }}"
   until: fleet_bootstrap_verify_policy_list.status | default(0) | int == 200
-  no_log: "{{ fleet_bootstrap_no_log | bool }}"
   when: not (ansible_check_mode | bool)
 
-# 3種類のFleet Agent Policyが個別出力を持たず, 既定Logstash Outputを継承することを検証する。
+# 4種類のFleet Agent Policyが個別出力を持たず, 既定Logstash Outputを継承することを検証する。
 - name: Assert Fleet agent policies exist
   ansible.builtin.assert:
     that:
@@ -144,10 +142,10 @@
         (fleet_server_runtime_tls_mode | default('off') == 'full')
         | bool
       }}
-    timeout: "{{ fleet_server_wait_sleep | default(2) | int }}"
+    timeout: "{{ fleet_bootstrap_fleet_server_status_request_timeout_seconds | int }}"
   register: fleet_bootstrap_verify_fleet_server_status_result
-  retries: "{{ fleet_server_wait_retries | default(60) | int }}"
-  delay: "{{ fleet_server_wait_sleep | default(2) | int }}"
+  retries: "{{ fleet_bootstrap_fleet_server_status_retries | int }}"
+  delay: "{{ fleet_bootstrap_fleet_server_status_retry_interval_seconds | int }}"
   until:
     - fleet_bootstrap_verify_fleet_server_status_result.status | default(0) | int == 200
     - fleet_bootstrap_verify_fleet_server_status_result.json.status | default('') == 'HEALTHY'
@@ -164,23 +162,25 @@
       Content-Type: application/json
     return_content: true
     validate_certs: "{{ fleet_bootstrap_kibana_validate_certs | bool }}"
-    timeout: "{{ fleet_bootstrap_kibana_timeout_seconds | int }}"
+    timeout: "{{ fleet_bootstrap_kibana_api_request_timeout_seconds | int }}"
   register: fleet_bootstrap_verify_package_policy_list
-  retries: "{{ fleet_bootstrap_kibana_retries | int }}"
-  delay: "{{ fleet_bootstrap_kibana_retry_delay_seconds | int }}"
+  retries: "{{ fleet_bootstrap_kibana_api_retries | int }}"
+  delay: "{{ fleet_bootstrap_kibana_api_retry_interval_seconds | int }}"
   until: fleet_bootstrap_verify_package_policy_list.status | default(0) | int == 200
-  no_log: "{{ fleet_bootstrap_no_log | bool }}"
   when: not (ansible_check_mode | bool)
 
-# 各Agent Policyに必須のSystem統合とホストログ統合が関連付けられていることを検証する。
+# 各Agent Policyに必要なSystem統合とホストログ統合が関連付けられていることを検証する。
 - name: Assert required Fleet package policies exist
   ansible.builtin.assert:
     that:
       - >-
-        fleet_bootstrap_verify_package_policy_list.json['items'] | default([])
-        | selectattr('name', 'equalto', item.policy_name ~ '-system')
-        | list
-        | length == 1
+        not (item.include_system | default(true) | bool)
+        or (
+          fleet_bootstrap_verify_package_policy_list.json['items'] | default([])
+          | selectattr('name', 'equalto', item.policy_name ~ '-system')
+          | list
+          | length == 1
+        )
       - >-
         not (logging_elastic_agent_host_log_input_enabled | default(true) | bool)
         or (
@@ -234,6 +234,15 @@
           | list
           | length == 1
         )
+      - >-
+        not (item.include_k8s_cluster | bool)
+        or not (logging_elastic_agent_k8s_cluster_package_policy_enabled | default(true) | bool)
+        or (
+          fleet_bootstrap_verify_package_policy_list.json['items'] | default([])
+          | selectattr('name', 'equalto', item.policy_name ~ '-k8s-cluster')
+          | list
+          | length == 1
+        )
     fail_msg: >-
       Kubernetes Fleet package policies are missing.
       policy={{ item.policy_name }}
@@ -241,6 +250,245 @@
   loop_control:
     label: "{{ item.policy_name }}"
   when: not (ansible_check_mode | bool)
+
+# k8s_cluster構成種別のPackage Policyを検証用に辞書へ集約する。
+- name: Collect Kubernetes cluster package policy for verification
+  ansible.builtin.set_fact:
+    fleet_bootstrap_verify_k8s_cluster_package_policy_map: >-
+      {{
+        (fleet_bootstrap_verify_k8s_cluster_package_policy_map | default({}, true))
+        | combine(
+            {
+              item.policy_name: (
+                fleet_bootstrap_verify_package_policy_list.json['items'] | default([])
+                | selectattr('name', 'equalto', item.policy_name ~ '-k8s-cluster')
+                | list
+                | first
+                | default({})
+              )
+            }
+          )
+      }}
+  loop: "{{ fleet_bootstrap_agent_policy_profiles }}"
+  loop_control:
+    label: "{{ item.policy_name }}"
+  when:
+    - not (ansible_check_mode | bool)
+    - item.include_k8s_cluster | bool
+    - logging_elastic_agent_k8s_cluster_package_policy_enabled | default(true) | bool
+
+# k8s_cluster構成種別で指定したストリームの有効化と無効化が反映されていることを検証する。
+- name: Assert Kubernetes cluster package policy stream toggles
+  ansible.builtin.assert:
+    that:
+      - fleet_bootstrap_verify_k8s_cluster_package_policy_map[item.policy_name] is defined
+      - fleet_bootstrap_verify_k8s_cluster_package_policy_map[item.policy_name].package.name | default('') == 'kubernetes'
+      - >-
+        (
+          (fleet_bootstrap_verify_k8s_cluster_package_policy_map[item.policy_name].inputs | default({}, true))
+          .get('kubernetes/metrics', {})
+          .get('streams', {})
+          .get('kubernetes.state_deployment', {})
+          .get('enabled', false)
+          | bool
+        )
+      - >-
+        (
+          (fleet_bootstrap_verify_k8s_cluster_package_policy_map[item.policy_name].inputs | default({}, true))
+          .get('kubernetes/metrics', {})
+          .get('streams', {})
+          .get('kubernetes.state_statefulset', {})
+          .get('enabled', false)
+          | bool
+        )
+      - >-
+        (
+          (fleet_bootstrap_verify_k8s_cluster_package_policy_map[item.policy_name].inputs | default({}, true))
+          .get('kubernetes/metrics', {})
+          .get('streams', {})
+          .get('kubernetes.state_pod', {})
+          .get('enabled', false)
+          | bool
+        )
+      - >-
+        (
+          (fleet_bootstrap_verify_k8s_cluster_package_policy_map[item.policy_name].inputs | default({}, true))
+          .get('kubernetes/metrics', {})
+          .get('streams', {})
+          .get('kubernetes.state_node', {})
+          .get('enabled', false)
+          | bool
+        )
+      - >-
+        (
+          (fleet_bootstrap_verify_k8s_cluster_package_policy_map[item.policy_name].inputs | default({}, true))
+          .get('kubernetes/metrics', {})
+          .get('streams', {})
+          .get('kubernetes.state_namespace', {})
+          .get('enabled', false)
+          | bool
+        )
+      - >-
+        (
+          (fleet_bootstrap_verify_k8s_cluster_package_policy_map[item.policy_name].inputs | default({}, true))
+          .get('kubernetes/metrics', {})
+          .get('streams', {})
+          .get('kubernetes.event', {})
+          .get('enabled', false)
+          | bool
+        )
+      - >-
+        (
+          (fleet_bootstrap_verify_k8s_cluster_package_policy_map[item.policy_name].inputs | default({}, true))
+          .get('kubernetes/metrics', {})
+          .get('streams', {})
+          .get('kubernetes.state_daemonset', {})
+          .get('enabled', false)
+          | bool
+        )
+      - >-
+        (
+          (fleet_bootstrap_verify_k8s_cluster_package_policy_map[item.policy_name].inputs | default({}, true))
+          .get('kubernetes/metrics', {})
+          .get('streams', {})
+          .get('kubernetes.state_replicaset', {})
+          .get('enabled', false)
+          | bool
+        )
+      - >-
+        (
+          (fleet_bootstrap_verify_k8s_cluster_package_policy_map[item.policy_name].inputs | default({}, true))
+          .get('kubernetes/metrics', {})
+          .get('streams', {})
+          .get('kubernetes.state_job', {})
+          .get('enabled', false)
+          | bool
+        )
+      - >-
+        (
+          (fleet_bootstrap_verify_k8s_cluster_package_policy_map[item.policy_name].inputs | default({}, true))
+          .get('kubernetes/metrics', {})
+          .get('streams', {})
+          .get('kubernetes.state_storageclass', {})
+          .get('enabled', false)
+          | bool
+        )
+      - >-
+        (
+          (fleet_bootstrap_verify_k8s_cluster_package_policy_map[item.policy_name].inputs | default({}, true))
+          .get('kubernetes/metrics', {})
+          .get('streams', {})
+          .get('kubernetes.state_persistentvolume', {})
+          .get('enabled', false)
+          | bool
+        )
+      - >-
+        (
+          (fleet_bootstrap_verify_k8s_cluster_package_policy_map[item.policy_name].inputs | default({}, true))
+          .get('kubernetes/metrics', {})
+          .get('streams', {})
+          .get('kubernetes.state_persistentvolumeclaim', {})
+          .get('enabled', false)
+          | bool
+        )
+      - >-
+        (
+          (fleet_bootstrap_verify_k8s_cluster_package_policy_map[item.policy_name].inputs | default({}, true))
+          .get('kubernetes/metrics', {})
+          .get('streams', {})
+          .get('kubernetes.state_resourcequota', {})
+          .get('enabled', false)
+          | bool
+        )
+      - >-
+        (
+          (fleet_bootstrap_verify_k8s_cluster_package_policy_map[item.policy_name].inputs | default({}, true))
+          .get('kubernetes/metrics', {})
+          .get('streams', {})
+          .get('kubernetes.state_service', {})
+          .get('enabled', false)
+          | bool
+        )
+      - >-
+        not (
+          (fleet_bootstrap_verify_k8s_cluster_package_policy_map[item.policy_name].inputs | default({}, true))
+          .get('kubernetes/metrics', {})
+          .get('streams', {})
+          .get('kubernetes.container', {})
+          .get('enabled', true)
+          | bool
+        )
+      - >-
+        not (
+          (fleet_bootstrap_verify_k8s_cluster_package_policy_map[item.policy_name].inputs | default({}, true))
+          .get('kubernetes/metrics', {})
+          .get('streams', {})
+          .get('kubernetes.pod', {})
+          .get('enabled', true)
+          | bool
+        )
+      - >-
+        not (
+          (fleet_bootstrap_verify_k8s_cluster_package_policy_map[item.policy_name].inputs | default({}, true))
+          .get('kubernetes/metrics', {})
+          .get('streams', {})
+          .get('kubernetes.node', {})
+          .get('enabled', true)
+          | bool
+        )
+      - >-
+        not (
+          (fleet_bootstrap_verify_k8s_cluster_package_policy_map[item.policy_name].inputs | default({}, true))
+          .get('kubernetes/metrics', {})
+          .get('streams', {})
+          .get('kubernetes.volume', {})
+          .get('enabled', true)
+          | bool
+        )
+      - >-
+        not (
+          (fleet_bootstrap_verify_k8s_cluster_package_policy_map[item.policy_name].inputs | default({}, true))
+          .get('kubernetes/metrics', {})
+          .get('streams', {})
+          .get('kubernetes.system', {})
+          .get('enabled', true)
+          | bool
+        )
+      - >-
+        not (
+          (fleet_bootstrap_verify_k8s_cluster_package_policy_map[item.policy_name].inputs | default({}, true))
+          .get('kubernetes/metrics', {})
+          .get('streams', {})
+          .get('kubernetes.state_cronjob', {})
+          .get('enabled', true)
+          | bool
+        )
+      - >-
+        not (
+          (fleet_bootstrap_verify_k8s_cluster_package_policy_map[item.policy_name].inputs | default({}, true))
+          .get('kubernetes/logs', {})
+          .get('enabled', true)
+          | bool
+        )
+      - >-
+        not (
+          (fleet_bootstrap_verify_k8s_cluster_package_policy_map[item.policy_name].inputs | default({}, true))
+          .get('kubernetes/logs', {})
+          .get('streams', {})
+          .get('kubernetes.container_logs', {})
+          .get('enabled', true)
+          | bool
+        )
+    fail_msg: >-
+      Kubernetes cluster package policy stream toggles are not applied as expected.
+      policy={{ item.policy_name }}
+  loop: "{{ fleet_bootstrap_agent_policy_profiles }}"
+  loop_control:
+    label: "{{ item.policy_name }}"
+  when:
+    - not (ansible_check_mode | bool)
+    - item.include_k8s_cluster | bool
+    - logging_elastic_agent_k8s_cluster_package_policy_enabled | default(true) | bool
 
 # 生成または再利用した Enrollment Token が実際に存在することを確認する。
 - name: List Fleet enrollment tokens for verification
@@ -255,15 +503,14 @@
       Content-Type: application/json
     return_content: true
     validate_certs: "{{ fleet_bootstrap_kibana_validate_certs | bool }}"
-    timeout: "{{ fleet_bootstrap_kibana_timeout_seconds | int }}"
+    timeout: "{{ fleet_bootstrap_kibana_api_request_timeout_seconds | int }}"
   register: fleet_bootstrap_verify_token_list
-  retries: "{{ fleet_bootstrap_kibana_retries | int }}"
-  delay: "{{ fleet_bootstrap_kibana_retry_delay_seconds | int }}"
+  retries: "{{ fleet_bootstrap_kibana_api_retries | int }}"
+  delay: "{{ fleet_bootstrap_kibana_api_retry_interval_seconds | int }}"
   until: fleet_bootstrap_verify_token_list.status | default(0) | int == 200
-  no_log: "{{ fleet_bootstrap_no_log | bool }}"
   when: not (ansible_check_mode | bool)
 
-# 3種類のEnrollment Tokenが対応するAgent Policyへ関連付けられていることを検証する。
+# 4種類のEnrollment Tokenが対応するAgent Policyへ関連付けられていることを検証する。
 - name: Assert Fleet enrollment tokens exist
   ansible.builtin.assert:
     that:
@@ -306,7 +553,7 @@
     return_content: true
     status_code:
       - 200
-    timeout: "{{ fleet_bootstrap_kibana_timeout_seconds | int }}"
+    timeout: "{{ fleet_bootstrap_elasticsearch_health_request_timeout_seconds | int }}"
   register: fleet_bootstrap_local_verify_elasticsearch_health_result
   loop: "{{ fleet_bootstrap_elasticsearch_local_verify_hosts | default([], true) }}"
   loop_control:
@@ -315,8 +562,8 @@
     - fleet_bootstrap_local_verify_elasticsearch_health_result is succeeded
     - fleet_bootstrap_local_verify_elasticsearch_health_result.json.status is defined
     - fleet_bootstrap_local_verify_elasticsearch_health_result.json.status in ['yellow', 'green']
-  retries: "{{ ((fleet_bootstrap_kibana_timeout_seconds | int) // ([fleet_bootstrap_kibana_retry_delay_seconds | int, 1] | max)) + 1 }}"
-  delay: "{{ fleet_bootstrap_kibana_retry_delay_seconds | int }}"
+  retries: "{{ fleet_bootstrap_elasticsearch_health_retries | int }}"
+  delay: "{{ fleet_bootstrap_elasticsearch_health_retry_interval_seconds | int }}"
   when:
     - not (ansible_check_mode | bool)
 
@@ -338,7 +585,7 @@
     return_content: true
     status_code:
       - 200
-    timeout: "{{ fleet_bootstrap_kibana_timeout_seconds | int }}"
+    timeout: "{{ fleet_bootstrap_elasticsearch_health_request_timeout_seconds | int }}"
   register: fleet_bootstrap_external_verify_elasticsearch_health_result
   delegate_to: "{{ fleet_bootstrap_external_verify_delegate_to }}"
   loop: "{{ fleet_bootstrap_elasticsearch_external_verify_hosts | default([], true) }}"
@@ -348,8 +595,8 @@
     - fleet_bootstrap_external_verify_elasticsearch_health_result is succeeded
     - fleet_bootstrap_external_verify_elasticsearch_health_result.json.status is defined
     - fleet_bootstrap_external_verify_elasticsearch_health_result.json.status in ['yellow', 'green']
-  retries: "{{ ((fleet_bootstrap_kibana_timeout_seconds | int) // ([fleet_bootstrap_kibana_retry_delay_seconds | int, 1] | max)) + 1 }}"
-  delay: "{{ fleet_bootstrap_kibana_retry_delay_seconds | int }}"
+  retries: "{{ fleet_bootstrap_elasticsearch_health_retries | int }}"
+  delay: "{{ fleet_bootstrap_elasticsearch_health_retry_interval_seconds | int }}"
   when:
     - not (ansible_check_mode | bool)
     - fleet_bootstrap_external_verify_enabled | bool

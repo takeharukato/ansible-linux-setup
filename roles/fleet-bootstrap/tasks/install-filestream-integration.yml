@@ -1,0 +1,31 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+# Fleet Filestream統合パッケージ導入タスク
+#
+---
+
+# Kubernetesログ用Package Policy作成前に, Kibana 8.19.19との互換性を確認済みのCustom Logs統合を導入する。
+- name: Install Fleet filestream integration package
+  ansible.builtin.uri:
+    url: >-
+      {{ fleet_bootstrap_kibana_url }}/api/fleet/epm/packages/filestream/{{
+      fleet_bootstrap_filestream_package_version }}
+    method: POST
+    body_format: json
+    headers:
+      Authorization: "ApiKey {{ fleet_bootstrap_runtime_api_key }}"
+      kbn-xsrf: "{{ fleet_bootstrap_kibana_xsrf_token }}"
+      Content-Type: application/json
+    body:
+      force: true
+    status_code:
+      - 200
+    return_content: true
+    validate_certs: "{{ fleet_bootstrap_kibana_validate_certs | bool }}"
+    timeout: "{{ fleet_bootstrap_kibana_api_request_timeout_seconds | int }}"
+  register: fleet_bootstrap_filestream_package_install_result
+  retries: "{{ fleet_bootstrap_kibana_api_retries | int }}"
+  delay: "{{ fleet_bootstrap_kibana_api_retry_interval_seconds | int }}"
+  until: fleet_bootstrap_filestream_package_install_result.status | default(0) | int == 200

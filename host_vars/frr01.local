@@ -146,3 +146,5 @@ logging_elastic_agent_host_enabled: true
 logging_elastic_agent_k8s_system_enabled: false
 # Kubernetesワークロード監視用Elastic Agent を導入する場合にtrueを指定する有効化フラグ。
 logging_elastic_agent_k8s_workload_enabled: false
+# Kubernetesメトリクス情報監視用Elastic Agent を導入する場合にtrueを指定する
+elastic_agent_k8s_enabled: false

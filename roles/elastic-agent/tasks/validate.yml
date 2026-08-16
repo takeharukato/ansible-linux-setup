@@ -20,12 +20,45 @@
       - elastic_agent_tls_mode | default('', true) | string | trim in ['off', 'none', 'full']
       - elastic_agent_download_timeout_seconds | int > 0
       - elastic_agent_download_retries | int > 0
-      - elastic_agent_download_retry_delay_seconds | int >= 0
+      - >-
+        (
+          elastic_agent_download_retry_interval_seconds
+
+          | int
+        ) >= 0
+      - >-
+        (
+          elastic_agent_download_request_interval_seconds
+
+          | int
+        ) >= 0
       - elastic_agent_install_timeout_seconds | int > 0
       - elastic_agent_install_retries | int > 0
-      - elastic_agent_install_retry_delay_seconds | int >= 0
+      - >-
+        (
+          elastic_agent_install_retry_interval_seconds
+
+          | int
+        ) >= 0
+      - >-
+        (
+          elastic_agent_install_request_interval_seconds
+
+          | int
+        ) >= 0
       - elastic_agent_service_retries | int > 0
-      - elastic_agent_service_retry_delay_seconds | int >= 0
+      - >-
+        (
+          elastic_agent_service_retry_interval_seconds
+
+          | int
+        ) >= 0
+      - >-
+        (
+          elastic_agent_service_request_interval_seconds
+
+          | int
+        ) >= 0
       - >-
         not (logging_elastic_agent_k8s_system_enabled | default(false) | bool)
         or (logging_elastic_agent_host_enabled | default(false) | bool)
@@ -42,4 +75,3 @@
       Invalid Elastic Agent installation settings. Configure a supported CPU architecture,
       Fleet Server URL, Enrollment Token, hierarchical collection flags, TLS mode,
       and positive timeout/retry values.
-  no_log: true

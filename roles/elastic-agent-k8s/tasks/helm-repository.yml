@@ -1,0 +1,70 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  Helmリポジトリ導入関連タスク
+#
+---
+
+# Elastic Agent for Kubernetes 用の Helmリポジトリを導入する。
+- name: Setup Helm Repository for elastic-agent-k8s
+  ansible.builtin.command:
+    argv:
+      - sudo
+      - -u
+      - "{{ elastic_agent_k8s_runtime_helm_operator_user }}"
+      - helm
+      - repo
+      - add
+      - "{{ elastic_agent_k8s_runtime_helm_repo_name }}"
+      - "{{ elastic_agent_k8s_runtime_helm_repo_url }}"
+      - --force-update
+  register: elastic_agent_k8s_helm_repo_add_result
+  changed_when: false
+  become: true
+
+# Helmリポジトリ導入後にリポジトリ更新処理を実行し, Chartの最新情報を取得する。
+- name: Update Helm Repository for elastic-agent-k8s
+  ansible.builtin.command:
+    argv:
+      - sudo
+      - -u
+      - "{{ elastic_agent_k8s_runtime_helm_operator_user }}"
+      - helm
+      - repo
+      - update
+  register: elastic_agent_k8s_helm_repo_update_result
+  changed_when: false
+  become: true
+
+# Helm実行ユーザの参照先へ対象リポジトリが登録済みであることを確認し, 後続のtemplate失敗を事前に防止する。
+- name: Verify Helm Repository for elastic-agent-k8s is visible to Helm operator user
+  ansible.builtin.command:
+    argv:
+      - sudo
+      - -u
+      - "{{ elastic_agent_k8s_runtime_helm_operator_user }}"
+      - helm
+      - repo
+      - list
+      - -o
+      - yaml
+  register: elastic_agent_k8s_helm_repo_list_result
+  changed_when: false
+  become: true
+
+# 後続のHelm template/upgradeで同一ユーザ視点のリポジトリ参照失敗を防ぐため, 対象別名の存在を明示判定する。
+- name: Assert Helm Repository for elastic-agent-k8s is available to Helm operator user
+  ansible.builtin.assert:
+    that:
+      - >-
+        (
+          elastic_agent_k8s_helm_repo_list_result.stdout
+          | from_yaml
+          | selectattr('name', 'equalto', elastic_agent_k8s_runtime_helm_repo_name)
+          | list
+          | length
+        ) > 0
+    fail_msg: >-
+      Helm repository '{{ elastic_agent_k8s_runtime_helm_repo_name }}' is not visible to
+      user '{{ elastic_agent_k8s_runtime_helm_operator_user }}'.

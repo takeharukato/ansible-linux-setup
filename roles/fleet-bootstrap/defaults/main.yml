@@ -42,14 +42,29 @@ fleet_bootstrap_kibana_xsrf_token: "1"
 #
 # API接続リトライ関連設定
 #
-# Fleet の初期設定では, Kibana が外部の Elastic Package Registry へ問い合わせるため,
-# 応答待ち時間が比較的長くなる場合がある。そのため, API の待ち時間に余裕を持たせる。
+# Kibana API は起動直後や統合導入直後に一時的な接続失敗が発生し得るため,
+# 1回の要求時間を短く保ち, 短い間隔で多数回再試行して復旧待ちの取りこぼしを防止する。
 # Kibana API への接続タイムアウト秒数 (単位: 秒)
-fleet_bootstrap_kibana_timeout_seconds: 180
+fleet_bootstrap_kibana_api_request_timeout_seconds: 10
 # Kibana API への再試行回数 (単位: 回)
-fleet_bootstrap_kibana_retries: 3
-# Kibana API への再試行間隔秒数 (単位: 秒)
-fleet_bootstrap_kibana_retry_delay_seconds: 5
+# 実環境が開発環境より2-4倍遅い前提で, 最大約25分(5秒 * 300回)の待機予算を確保する。
+fleet_bootstrap_kibana_api_retries: 300
+# Kibana API への再試行周期秒数 (単位: 秒)
+fleet_bootstrap_kibana_api_retry_interval_seconds: 5
+# Fleet Output用Elasticsearch hosts health検証の1回あたり要求タイムアウト値 (単位: 秒)
+fleet_bootstrap_elasticsearch_health_request_timeout_seconds: 10
+# Fleet Output用Elasticsearch hosts health検証の再試行間隔 (単位: 秒)
+fleet_bootstrap_elasticsearch_health_retry_interval_seconds: 5
+# Fleet Output用Elasticsearch hosts health検証の再試行回数 (単位: 回)
+# 実環境が開発環境より2-4倍遅い前提で, 最大約25分(5秒 * 300回)の待機予算を確保する。
+fleet_bootstrap_elasticsearch_health_retries: 300
+# Fleet Server status 検証の1回あたり要求タイムアウト値 (単位: 秒)
+fleet_bootstrap_fleet_server_status_request_timeout_seconds: 10
+# Fleet Server status 検証の再試行間隔 (単位: 秒)
+fleet_bootstrap_fleet_server_status_retry_interval_seconds: 5
+# Fleet Server status 検証の再試行回数 (単位: 回)
+# 実環境が開発環境より2-4倍遅い前提で, 最大約25分(5秒 * 300回)の待機予算を確保する。
+fleet_bootstrap_fleet_server_status_retries: 300
 
 #
 # Fleet Bootstrap に必要な初期化パラメタの規定値
@@ -68,12 +83,14 @@ fleet_bootstrap_policy_name: ""
 fleet_bootstrap_enrollment_token_name: ""
 # 既存Enrollment TokenがAPI既定の20件を超える場合も指定名を検出できるようにする一覧取得件数。
 fleet_bootstrap_enrollment_token_list_page_size: 10000
-# Kibana 8.17と互換性があるSystem統合パッケージの版数。
+# Kibana 8.19.19との互換性を確認済みのSystem統合パッケージの版数。
 fleet_bootstrap_system_package_version: "2.4.0"
-# Kibana 8.17と互換性があるCustom Logs統合パッケージの版数。
+# Kibana 8.19.19との互換性を確認済みのCustom Logs統合パッケージの版数。
 fleet_bootstrap_filestream_package_version: "1.2.0"
-# Kibana 8.17と互換性があるFleet Server統合パッケージの版数。
+# Kibana 8.19.19との互換性を確認済みのFleet Server統合パッケージの版数。
 fleet_bootstrap_fleet_server_package_version: "1.6.1"
+# Kibana 8.19.19との互換性を確認済みのKubernetes統合パッケージの版数。
+fleet_bootstrap_kubernetes_package_version: "1.83.1"
 # Fleet Server専用Agent Policyへ割り当てるElasticsearch Outputの名称。
 fleet_bootstrap_fleet_server_output_name: "fleet-server-elasticsearch-output"
 # Fleet Server専用Elasticsearch Outputの送信先一覧明示指定値。
@@ -101,6 +118,3 @@ fleet_bootstrap_fleet_server_host_urls_explicit: []
 #
 # 認証切り分け用の補助 debug 出力有無。通常運用では false のままとする
 fleet_bootstrap_debug_auth_diagnostics: false
-# Fleet Bootstrap API 呼び出しログの秘匿有無。通常は true のままとし,
-# 原因調査時のみ false に切り替える。
-fleet_bootstrap_no_log: true

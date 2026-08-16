@@ -1,0 +1,20 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+# Fleet管理対象Agent Policy構成種別適用タスク
+#
+---
+
+# Elastic Agent ポリシーごとのEnrollment Token秘密値を保存する前に空の辞書を用意する。
+- name: Initialize Fleet enrollment token map
+  ansible.builtin.set_fact:
+    fleet_bootstrap_enrollment_tokens: {}
+
+# ホスト種別に対応する4種類のAgent Policy, Package Policy及びEnrollment Tokenを管理する。
+- name: Configure Fleet managed agent policy profiles
+  ansible.builtin.include_tasks: configure-agent-policy.yml
+  loop: "{{ fleet_bootstrap_agent_policy_profiles }}"
+  loop_control:
+    loop_var: fleet_bootstrap_agent_policy_profile
+    label: "{{ fleet_bootstrap_agent_policy_profile.policy_name }}"

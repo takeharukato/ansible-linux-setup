@@ -21,7 +21,34 @@
         ('elastic-agent' in (ansible_facts.services | default({})))
       }}
 
-# 未導入時だけ公式配布物を検証付きで取得する。
+# 導入済みホストでは現在版数を取得し, 版数不一致時の再導入判定に使用する。
+- name: Query current Elastic Agent version when installed
+  become: true
+  ansible.builtin.command:
+    argv:
+      - /usr/bin/elastic-agent
+      - version
+  register: elastic_agent_installed_version_result
+  changed_when: false
+  failed_when: false
+  when: elastic_agent_runtime_installed | bool
+
+# 未導入又は導入済み版数不一致の場合にだけ導入処理を実行する。
+- name: Resolve Elastic Agent installation requirement
+  ansible.builtin.set_fact:
+    elastic_agent_runtime_requires_install: >-
+      {{
+        (not (elastic_agent_runtime_installed | bool)) or
+        (
+          (elastic_agent_runtime_installed | bool) and
+          (
+            (elastic_agent_installed_version_result.rc | default(1) | int != 0) or
+            (elastic_agent_version not in (elastic_agent_installed_version_result.stdout | default('', true)))
+          )
+        )
+      }}
+
+# 未導入又は導入済み版数不一致の場合だけ公式配布物を検証付きで取得する。
 - name: Download Elastic Agent archive when not installed
   become: true
   ansible.builtin.get_url:
@@ -34,11 +61,16 @@
     timeout: "{{ elastic_agent_download_timeout_seconds | int }}"
   register: elastic_agent_download_result
   retries: "{{ elastic_agent_download_retries | int }}"
-  delay: "{{ elastic_agent_download_retry_delay_seconds | int }}"
-  until: elastic_agent_download_result is succeeded
-  when: not (elastic_agent_runtime_installed | bool)
+  delay: >-
+    {{
+      elastic_agent_download_retry_interval_seconds
 
-# 未導入時だけ検証済み配布物を展開する。
+      | int
+    }}
+  until: elastic_agent_download_result is succeeded
+  when: elastic_agent_runtime_requires_install | bool
+
+# 未導入又は導入済み版数不一致の場合だけ検証済み配布物を展開する。
 - name: Extract Elastic Agent archive when not installed
   become: true
   ansible.builtin.unarchive:
@@ -46,9 +78,9 @@
     dest: "{{ elastic_agent_work_dir }}"
     remote_src: true
     creates: "{{ elastic_agent_source_dir }}/elastic-agent"
-  when: not (elastic_agent_runtime_installed | bool)
+  when: elastic_agent_runtime_requires_install | bool
 
-# Enrollment Tokenをコマンド出力とAnsibleログから秘匿し, 未導入時だけサービス導入とFleet登録を実行する。
+# Enrollment Tokenをコマンド出力とAnsibleログから秘匿し, 未導入又は導入済み版数不一致時だけサービス導入とFleet登録を実行する。
 - name: Install and enroll Elastic Agent when not installed
   become: true
   ansible.builtin.command:
@@ -60,6 +92,7 @@
           elastic_agent_source_dir ~ '/elastic-agent',
           'install',
           '--non-interactive',
+          '--force',
           '--url=' ~ elastic_agent_runtime_fleet_server_url,
           '--enrollment-token=' ~ elastic_agent_enrollment_token,
           '--daemon-timeout=' ~ (elastic_agent_install_timeout_seconds | string) ~ 's'
@@ -74,8 +107,12 @@
     chdir: "{{ elastic_agent_source_dir }}"
   register: elastic_agent_install_result
   retries: "{{ elastic_agent_install_retries | int }}"
-  delay: "{{ elastic_agent_install_retry_delay_seconds | int }}"
+  delay: >-
+    {{
+      elastic_agent_install_retry_interval_seconds
+
+      | int
+    }}
   until: elastic_agent_install_result.rc | default(1) == 0
   changed_when: elastic_agent_install_result.rc | default(1) == 0
-  no_log: true
-  when: not (elastic_agent_runtime_installed | bool)
+  when: elastic_agent_runtime_requires_install | bool

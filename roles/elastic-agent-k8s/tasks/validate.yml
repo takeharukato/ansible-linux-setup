@@ -1,0 +1,50 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  事前検証タスク
+#
+---
+
+# Helm導入とFleet Server登録を開始する前に, 必須入力値と数値範囲を検証する。
+# 正規表現'^[0-9]+\.[0-9]+\.[0-9]+$'は, 版数をメジャー.マイナー.パッチ形式で検証し,
+# '8.19.19'のような文字列に一致する。
+# 正規表現'^/'は, 文字列先頭が'/'で始まる絶対パスを検証し,
+# '/etc/kubernetes/admin.conf'のような文字列に一致する。
+# 正規表現'^[a-z0-9]([-a-z0-9]*[a-z0-9])?$'は, Kubernetes名前空間の基本形式を検証し,
+# 'kube-system'のような文字列に一致する。
+# 正規表現'^https?://'は, Fleet Server接続先がHTTP又はHTTPSで始まるURLであることを検証する。
+- name: Validate elastic-agent-k8s runtime inputs
+  ansible.builtin.assert:
+    that:
+      - elastic_agent_k8s_runtime_release_name | default('', true) | string | trim | length > 0
+      - elastic_agent_k8s_runtime_helm_repo_name | default('', true) | string | trim | length > 0
+      - elastic_agent_k8s_runtime_helm_repo_url | default('', true) | string | trim | length > 0
+      - elastic_agent_k8s_runtime_chart_name | default('', true) | string | trim | length > 0
+      - >-
+        elastic_agent_k8s_runtime_chart_version | default('', true) | string
+        is regex('^[0-9]+\.[0-9]+\.[0-9]+$')
+      - elastic_agent_k8s_runtime_namespace | default('', true) | string | trim | length > 0
+      - (elastic_agent_k8s_runtime_namespace | default('', true) | string | trim | length) <= 63
+      - >-
+        (elastic_agent_k8s_runtime_namespace | default('', true) | string)
+        is regex('^[a-z0-9]([-a-z0-9]*[a-z0-9])?$')
+      - elastic_agent_k8s_runtime_kubeconfig_path | default('', true) | string | trim | length > 0
+      - >-
+        (elastic_agent_k8s_runtime_kubeconfig_path | default('', true) | string)
+        is regex('^/')
+      - elastic_agent_k8s_runtime_values_file_path | default('', true) | string | trim | length > 0
+      - elastic_agent_k8s_runtime_chart_ref | default('', true) | string | trim | length > 0
+      - elastic_agent_k8s_runtime_fleet_server_url | default('', true) | string | trim is regex('^https?://')
+      - elastic_agent_k8s_runtime_enrollment_token | default('', true) | string | trim | length > 0
+      - elastic_agent_k8s_runtime_helm_timeout_seconds | int > 0
+      - elastic_agent_k8s_runtime_helm_retries | int > 0
+      - elastic_agent_k8s_runtime_helm_retry_interval_seconds | int >= 0
+      - elastic_agent_k8s_runtime_helm_request_interval_seconds | int >= 0
+      - (elastic_agent_k8s_runtime_helm_execution_users | default([], true) | length) > 0
+      - elastic_agent_k8s_runtime_helm_operator_user | default('', true) | string | trim | length > 0
+      - elastic_agent_k8s_runtime_helm_operator_user in (elastic_agent_k8s_runtime_helm_execution_users | default([], true))
+    fail_msg: >-
+      Invalid elastic-agent-k8s settings. Set valid chart version format,
+      namespace, kubeconfig absolute path, Fleet Server URL, Enrollment Token,
+      valid timeout/retry interval/request interval values, and valid Helm execution users before running Helm operations.

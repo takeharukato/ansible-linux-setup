@@ -10,3 +10,6 @@
     # Fleet Bootstrapが配布する方針へ登録し, 共通のElastic Agent本体を導入する。
     - role: elastic-agent
       tags: elastic-agent
+    # Fleet Bootstrapが配布する方針へ登録し, Kubernetes用のElastic Agent本体を導入する。
+    - role: elastic-agent-k8s
+      tags: elastic-agent-k8s

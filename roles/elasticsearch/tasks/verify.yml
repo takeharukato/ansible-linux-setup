@@ -13,14 +13,40 @@
       Check mode: skipping runtime verification for Elasticsearch.
   when: ansible_check_mode | bool
 
+# Compose が起動した Elasticsearch 実体IDを取得し, 接頭辞付き名称でも追跡できるようにする。
+- name: Resolve Elasticsearch runtime container identifier
+  ansible.builtin.command:
+    argv:
+      - docker
+      - compose
+      - -f
+      - "{{ elastic_search_compose_file }}"
+      - ps
+      - -q
+      - elasticsearch
+  args:
+    chdir: "{{ elastic_search_compose_dir }}"
+  register: elastic_search_runtime_container_id_cmd
+  changed_when: false
+  failed_when: false
+  when: not (ansible_check_mode | bool)
+
 # Elasticsearch コンテナが稼働状態へ遷移したことを確認する。
+# Docker Composeは, コンテナ生成時にelastic_search_container_nameで指定された名称に加え,
+# Docker Composeのプロジェクト名やサービス名の接頭辞を付与してコンテナ名称を
+# 生成するため, 接頭辞付き名称でも追跡できるようにする。
 - name: Inspect Elasticsearch container state
   ansible.builtin.command:
     argv:
       - docker
       - container
       - inspect
-      - "{{ elastic_search_container_name }}"
+      - >-
+        {{
+          (elastic_search_runtime_container_id_cmd.stdout | default('', true) | trim)
+          if ((elastic_search_runtime_container_id_cmd.stdout | default('', true) | trim | length) > 0)
+          else elastic_search_container_name
+        }}
   register: elastic_search_container_state_cmd
   changed_when: false
   until:
@@ -69,7 +95,7 @@
     return_content: true
     status_code:
       - 200
-    timeout: "{{ elastic_search_wait_timeout | int }}"
+    timeout: "{{ elastic_search_health_request_timeout_seconds | int }}"
   register: elastic_search_health_result
   until:
     - elastic_search_health_result is succeeded
@@ -77,9 +103,9 @@
     - elastic_search_health_result.json.status in ['yellow', 'green']
 
   # クラスタ復旧や shard 再配置に時間を要する場合があるため,
-  # 応答確認の試行回数は timeout と sleep から導出する。
-  retries: "{{ ((elastic_search_wait_timeout | int) // ([elastic_search_wait_sleep | int, 1] | max)) + 1 }}"
-  delay: "{{ elastic_search_wait_sleep }}"
+  # 実環境が開発環境より2-4倍遅い前提で十分な再試行予算を確保する。
+  retries: "{{ elastic_search_health_retries | int }}"
+  delay: "{{ elastic_search_health_retry_interval_seconds | int }}"
   when:
     - not (ansible_check_mode | bool)
     - elastic_search_security_enabled | default(false) | bool
@@ -93,16 +119,16 @@
     return_content: true
     status_code:
       - 200
-    timeout: "{{ elastic_search_wait_timeout | int }}"
+    timeout: "{{ elastic_search_health_request_timeout_seconds | int }}"
   register: elastic_search_health_result
   until:
     - elastic_search_health_result is succeeded
     - elastic_search_health_result.json.status is defined
     - elastic_search_health_result.json.status in ['yellow', 'green']
   # クラスタ復旧や shard 再配置に時間を要する場合があるため,
-  # 応答確認の試行回数は timeout と sleep から導出する。
-  retries: "{{ ((elastic_search_wait_timeout | int) // ([elastic_search_wait_sleep | int, 1] | max)) + 1 }}"
-  delay: "{{ elastic_search_wait_sleep }}"
+  # 実環境が開発環境より2-4倍遅い前提で十分な再試行予算を確保する。
+  retries: "{{ elastic_search_health_retries | int }}"
+  delay: "{{ elastic_search_health_retry_interval_seconds | int }}"
   when:
     - not (ansible_check_mode | bool)
     - not (elastic_search_security_enabled | default(false) | bool)
@@ -119,15 +145,15 @@
     return_content: true
     status_code:
       - 200
-    timeout: "{{ elastic_search_wait_timeout | int }}"
+    timeout: "{{ elastic_search_health_request_timeout_seconds | int }}"
   register: elastic_search_external_health_result
   delegate_to: "{{ elastic_search_external_verify_delegate_to }}"
   until:
     - elastic_search_external_health_result is succeeded
     - elastic_search_external_health_result.json.status is defined
     - elastic_search_external_health_result.json.status in ['yellow', 'green']
-  retries: "{{ ((elastic_search_wait_timeout | int) // ([elastic_search_wait_sleep | int, 1] | max)) + 1 }}"
-  delay: "{{ elastic_search_wait_sleep }}"
+  retries: "{{ elastic_search_health_retries | int }}"
+  delay: "{{ elastic_search_health_retry_interval_seconds | int }}"
   when:
     - not (ansible_check_mode | bool)
     - elastic_search_security_enabled | default(false) | bool
@@ -142,15 +168,15 @@
     return_content: true
     status_code:
       - 200
-    timeout: "{{ elastic_search_wait_timeout | int }}"
+    timeout: "{{ elastic_search_health_request_timeout_seconds | int }}"
   register: elastic_search_external_health_result
   delegate_to: "{{ elastic_search_external_verify_delegate_to }}"
   until:
     - elastic_search_external_health_result is succeeded
     - elastic_search_external_health_result.json.status is defined
     - elastic_search_external_health_result.json.status in ['yellow', 'green']
-  retries: "{{ ((elastic_search_wait_timeout | int) // ([elastic_search_wait_sleep | int, 1] | max)) + 1 }}"
-  delay: "{{ elastic_search_wait_sleep }}"
+  retries: "{{ elastic_search_health_retries | int }}"
+  delay: "{{ elastic_search_health_retry_interval_seconds | int }}"
   when:
     - not (ansible_check_mode | bool)
     - not (elastic_search_security_enabled | default(false) | bool)

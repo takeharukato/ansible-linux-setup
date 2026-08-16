@@ -1,0 +1,57 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  Enrollment Token読み込みタスク
+#
+---
+
+# ホスト固有のEnrollment Tokenを優先するため, Enrollment Token未設定時だけFleet BootstrapのEnrollment Token共有ファイルを確認する。
+- name: Check Fleet enrollment token file on controller
+  ansible.builtin.stat:
+    path: "{{ fleet_bootstrap_enrollment_token_file }}"
+  register: elastic_agent_k8s_enrollment_token_file_stat
+  delegate_to: localhost
+  become: false
+  when:
+    - (elastic_agent_k8s_runtime_enrollment_token | default('', true) | string | trim | length) == 0
+
+# Fleet Bootstrap未完了を導入処理前に検出し, 秘密値がない状態で登録処理が進むことを防止する。
+- name: Validate Fleet enrollment token file
+  ansible.builtin.assert:
+    that:
+      - elastic_agent_k8s_enrollment_token_file_stat.stat.exists | default(false) | bool
+      - elastic_agent_k8s_enrollment_token_file_stat.stat.isreg | default(false) | bool
+      - elastic_agent_k8s_enrollment_token_file_stat.stat.mode | default('') == '0600'
+    fail_msg: >-
+      Fleet enrollment token file is missing, invalid, or does not have mode 0600.
+      Run Fleet Bootstrap before elastic-agent-k8s, or set elastic_agent_k8s_enrollment_token
+      in host variables.
+  when:
+    - (elastic_agent_k8s_runtime_enrollment_token | default('', true) | string | trim | length) == 0
+
+# 同一playbook実行中に生成されたEnrollment Token共有ファイルも利用できるように, Enrollment Token未設定時だけ明示的に読み込む。
+- name: Load Fleet enrollment token from file
+  ansible.builtin.include_vars:
+    file: "{{ fleet_bootstrap_enrollment_token_file }}"
+  when:
+    - (elastic_agent_k8s_runtime_enrollment_token | default('', true) | string | trim | length) == 0
+
+# 本ロールはk8s_cluster構成種別向けのEnrollment Tokenを使用するため, 選択プロファイルを固定する。
+- name: Resolve Fleet enrollment token profile
+  ansible.builtin.set_fact:
+    elastic_agent_k8s_runtime_enrollment_token_profile: "k8s_cluster"
+  when:
+    - (elastic_agent_k8s_runtime_enrollment_token | default('', true) | string | trim | length) == 0
+
+# 選択したAgent Policyへ登録するEnrollment TokenをElastic Agentポリシーごとの辞書から取得する。
+- name: Select Fleet enrollment token
+  ansible.builtin.set_fact:
+    elastic_agent_k8s_runtime_enrollment_token: >-
+      {{
+        elastic_agent_enrollment_tokens[elastic_agent_k8s_runtime_enrollment_token_profile]
+        | default('')
+      }}
+  when:
+    - (elastic_agent_k8s_runtime_enrollment_token | default('', true) | string | trim | length) == 0
+    - elastic_agent_enrollment_tokens is defined

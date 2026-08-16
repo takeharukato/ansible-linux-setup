@@ -19,6 +19,9 @@
       - (kibana_encrypted_saved_objects_key_generation_timeout_seconds | int) > 0
       - (kibana_server_port | int) > 0
       - (kibana_server_port | int) < 65536
+      - (kibana_health_request_timeout_seconds | int) > 0
+      - (kibana_health_retry_interval_seconds | int) > 0
+      - (kibana_health_retries | int) > 0
       - (kibana_runtime_scheme | default('', true) | string | trim) in ['http', 'https']
       - (kibana_runtime_tls_mode | default('', true) | string | trim) in ['off', 'none', 'full']
       - >-
@@ -34,7 +37,7 @@
       - (elastic_search_http_port | int) < 65536
       - (kibana_service_token_issue_timeout_seconds | int) > 0
       - (kibana_service_token_issue_retries | int) > 0
-      - (kibana_service_token_issue_retry_delay_seconds | int) >= 0
+      - (kibana_service_token_issue_retry_interval_seconds | int) >= 0
       - ansible_facts.os_family in ['Debian', 'RedHat']
     fail_msg: >-
       Invalid kibana settings. Ensure paths, image, port, and OS family are

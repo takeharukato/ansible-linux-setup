@@ -25,5 +25,8 @@
   ansible.builtin.include_vars: "{{ playbook_dir }}/vars/logging-backend-common.yml"
 
 # 共通設定読み込み
+- name: Include k8s common config vars
+  ansible.builtin.include_vars: "{{ playbook_dir }}/vars/k8s-config-common.yml"
+
 - name: Include config vars
   ansible.builtin.include_vars: "{{ playbook_dir }}/vars/all-config.yml"

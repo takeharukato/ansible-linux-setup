@@ -1,0 +1,23 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+# Fleet統合パッケージ導入オーケストレーションタスク
+#
+---
+
+# Package Policy作成前に, Kibana 8.19.19との互換性を確認済みのSystem統合を導入する。
+- name: Install Fleet system integration package
+  ansible.builtin.include_tasks: install-system-integration.yml
+
+# Kubernetesログ用Package Policy作成前に, Kibana 8.19.19との互換性を確認済みのCustom Logs統合を導入する。
+- name: Install Fleet filestream integration package
+  ansible.builtin.include_tasks: install-filestream-integration.yml
+
+# Fleet Serverが専用Agent Policyを適用できるように, 互換版のFleet Server統合を導入する。
+- name: Install Fleet Server integration package
+  ansible.builtin.include_tasks: install-fleet-server-integration.yml
+
+# k8s_cluster構成種別を利用する場合に備えて, Kubernetes統合の導入をここで実施する。
+- name: Install Fleet Kubernetes integration package when required
+  ansible.builtin.include_tasks: install-kubernetes-integration.yml

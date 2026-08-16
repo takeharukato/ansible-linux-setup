@@ -1,0 +1,151 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  実行結果検証タスク
+#
+---
+
+# チェックモードでは実行時検証を行わない。
+- name: Skip elastic-agent-k8s runtime verification in check mode
+  ansible.builtin.debug:
+    msg: >-
+      Check mode: skipping runtime verification for elastic-agent-k8s.
+  when: ansible_check_mode | bool
+
+# Helm release状態を取得し, 導入処理で対象releaseが確定していることを確認する。
+- name: Get elastic-agent-k8s Helm release status
+  ansible.builtin.command:
+    argv:
+      - sudo
+      - -u
+      - "{{ elastic_agent_k8s_runtime_helm_operator_user }}"
+      - helm
+      - status
+      - "{{ elastic_agent_k8s_runtime_release_name }}"
+      - --namespace
+      - "{{ elastic_agent_k8s_runtime_namespace }}"
+      - --kubeconfig
+      - "{{ elastic_agent_k8s_runtime_kubeconfig_path }}"
+      - --output
+      - json
+  register: elastic_agent_k8s_helm_status_result
+  changed_when: false
+  become: true
+  until: elastic_agent_k8s_helm_status_result.rc == 0
+  retries: "{{ elastic_agent_k8s_runtime_helm_retries | int }}"
+  delay: "{{ elastic_agent_k8s_runtime_helm_request_interval_seconds | int }}"
+  when: not (ansible_check_mode | bool)
+
+# Helm releaseがdeployed状態であることを検証し, 部分適用状態で後続運用へ進むことを防止する。
+- name: Assert elastic-agent-k8s Helm release is deployed
+  ansible.builtin.assert:
+    that:
+      - (elastic_agent_k8s_helm_status_result.stdout | from_json).name | default('') == elastic_agent_k8s_runtime_release_name
+      - (elastic_agent_k8s_helm_status_result.stdout | from_json).namespace | default('') == elastic_agent_k8s_runtime_namespace
+      - ((elastic_agent_k8s_helm_status_result.stdout | from_json).info.status | default('') | lower) == 'deployed'
+    fail_msg: >-
+      Helm release verification failed for elastic-agent-k8s.
+      release={{ elastic_agent_k8s_runtime_release_name }}
+      namespace={{ elastic_agent_k8s_runtime_namespace }}
+  when: not (ansible_check_mode | bool)
+
+# 対象namespaceにrelease関連リソースが生成されていることを確認し, 空導入を検出する。
+- name: Get elastic-agent-k8s namespaced resources
+  ansible.builtin.command:
+    argv:
+      - sudo
+      - -u
+      - "{{ elastic_agent_k8s_runtime_helm_operator_user }}"
+      - kubectl
+      - --kubeconfig
+      - "{{ elastic_agent_k8s_runtime_kubeconfig_path }}"
+      - --namespace
+      - "{{ elastic_agent_k8s_runtime_namespace }}"
+      - --request-timeout={{ elastic_agent_k8s_runtime_helm_timeout_seconds | int }}s
+      - get
+      - daemonset,deployment,serviceaccount,configmap,secret
+      - --selector=app.kubernetes.io/instance={{ elastic_agent_k8s_runtime_release_name }}
+      - --output=name
+  register: elastic_agent_k8s_namespaced_resources_result
+  changed_when: false
+  become: true
+  until: elastic_agent_k8s_namespaced_resources_result.rc == 0
+  retries: "{{ elastic_agent_k8s_runtime_helm_retries | int }}"
+  delay: "{{ elastic_agent_k8s_runtime_helm_request_interval_seconds | int }}"
+  when: not (ansible_check_mode | bool)
+
+# namespace上の関連リソース件数が0件ではないことを検証する。
+- name: Assert elastic-agent-k8s namespaced resources exist
+  ansible.builtin.assert:
+    that:
+      - (elastic_agent_k8s_namespaced_resources_result.stdout_lines | default([], true) | length) > 0
+    fail_msg: >-
+      No elastic-agent-k8s related resources were found in namespace.
+      namespace={{ elastic_agent_k8s_runtime_namespace }}
+      release={{ elastic_agent_k8s_runtime_release_name }}
+  when: not (ansible_check_mode | bool)
+
+# clusterWide presetで必須となるDeploymentを取得し, 稼働待機対象を確定する。
+- name: Get elastic-agent-k8s deployment list
+  ansible.builtin.command:
+    argv:
+      - sudo
+      - -u
+      - "{{ elastic_agent_k8s_runtime_helm_operator_user }}"
+      - kubectl
+      - --kubeconfig
+      - "{{ elastic_agent_k8s_runtime_kubeconfig_path }}"
+      - --namespace
+      - "{{ elastic_agent_k8s_runtime_namespace }}"
+      - --request-timeout={{ elastic_agent_k8s_runtime_helm_timeout_seconds | int }}s
+      - get
+      - deployment
+      - --selector=app.kubernetes.io/instance={{ elastic_agent_k8s_runtime_release_name }}
+      - --output=json
+  register: elastic_agent_k8s_deployments_result
+  changed_when: false
+  become: true
+  until: elastic_agent_k8s_deployments_result.rc == 0
+  retries: "{{ elastic_agent_k8s_runtime_helm_retries | int }}"
+  delay: "{{ elastic_agent_k8s_runtime_helm_request_interval_seconds | int }}"
+  when: not (ansible_check_mode | bool)
+
+# clusterWide preset向けDeploymentが存在することを検証する。
+- name: Assert elastic-agent-k8s deployment exists for clusterWide preset
+  ansible.builtin.assert:
+    that:
+      - ((elastic_agent_k8s_deployments_result.stdout | from_json).get('items', []) | default([], true) | length) > 0
+    fail_msg: >-
+      No deployment found for elastic-agent-k8s clusterWide preset.
+      namespace={{ elastic_agent_k8s_runtime_namespace }}
+      release={{ elastic_agent_k8s_runtime_release_name }}
+  when: not (ansible_check_mode | bool)
+
+# 取得したDeploymentのAvailable条件を確認し, clusterWide presetの稼働状態を検証する。
+- name: Wait for elastic-agent-k8s deployment availability
+  ansible.builtin.command:
+    argv:
+      - sudo
+      - -u
+      - "{{ elastic_agent_k8s_runtime_helm_operator_user }}"
+      - kubectl
+      - --kubeconfig
+      - "{{ elastic_agent_k8s_runtime_kubeconfig_path }}"
+      - --namespace
+      - "{{ elastic_agent_k8s_runtime_namespace }}"
+      - --request-timeout={{ elastic_agent_k8s_runtime_helm_timeout_seconds | int }}s
+      - rollout
+      - status
+      - "deployment/{{ item.metadata.name }}"
+      - --timeout={{ elastic_agent_k8s_runtime_helm_timeout_seconds | int }}s
+  register: elastic_agent_k8s_deployment_rollout_result
+  changed_when: false
+  become: true
+  until: elastic_agent_k8s_deployment_rollout_result.rc == 0
+  retries: "{{ elastic_agent_k8s_runtime_helm_retries | int }}"
+  delay: "{{ elastic_agent_k8s_runtime_helm_request_interval_seconds | int }}"
+  loop: "{{ (elastic_agent_k8s_deployments_result.stdout | from_json).get('items', []) | default([], true) }}"
+  loop_control:
+    label: "{{ item.metadata.name }}"
+  when: not (ansible_check_mode | bool)

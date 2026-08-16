@@ -930,7 +930,7 @@ common_selinux_state: "permissive"
 # host_vars側には設定しないこと
 # ====================================================================================
 # Elasticsearch, Kibana, Logstash, Fleet Server及びElastic Agentで共通利用する版数。
-# logging_backend_elastic_stack_version: "8.17.3"
+# logging_backend_elastic_stack_version: "8.19.19"
 # Elasticsearch Securityで使用する利用者名
 # elastic_search_security_username: "elastic"
 # Elasticsearch Securityで使用する初期パスワード

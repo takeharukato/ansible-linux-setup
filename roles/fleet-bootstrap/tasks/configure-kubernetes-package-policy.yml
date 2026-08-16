@@ -1,0 +1,105 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+# Kubernetesクラスタ状態収集用Package Policy構築タスク
+#
+---
+
+# Step7で定義するストリーム詳細を安全に導入できるように, 事前に補助フラグを解決する。
+- name: Resolve Kubernetes cluster package policy runtime flags
+  ansible.builtin.set_fact:
+    fleet_bootstrap_k8s_cluster_package_policy_enabled: >-
+      {{ logging_elastic_agent_k8s_cluster_package_policy_enabled | default(true) | bool }}
+
+# k8s_cluster構成種別専用のKubernetes統合Package Policyを共通CRUDタスクで管理する。
+- name: Configure Fleet Kubernetes cluster package policy
+  ansible.builtin.include_tasks: configure-package-policy.yml
+  vars:
+    fleet_bootstrap_package_policy:
+      name: "{{ fleet_bootstrap_agent_policy_profile.policy_name }}-k8s-cluster"
+      body:
+        name: "{{ fleet_bootstrap_agent_policy_profile.policy_name }}-k8s-cluster"
+        description: Managed by Ansible
+        namespace: "{{ logging_elastic_agent_k8s_cluster_data_stream_namespace | default('default') }}"
+        policy_id: "{{ fleet_bootstrap_current_policy_id }}"
+        package:
+          name: kubernetes
+          version: "{{ fleet_bootstrap_kubernetes_package_version }}"
+        inputs:
+          kubernetes/metrics:
+            enabled: true
+            streams:
+              kubernetes.state_deployment:
+                enabled: true
+                vars:
+                  period: "{{ logging_elastic_agent_k8s_cluster_metrics_period | default('10s') }}"
+              kubernetes.state_statefulset:
+                enabled: true
+                vars:
+                  period: "{{ logging_elastic_agent_k8s_cluster_metrics_period | default('10s') }}"
+              kubernetes.state_pod:
+                enabled: true
+                vars:
+                  period: "{{ logging_elastic_agent_k8s_cluster_metrics_period | default('10s') }}"
+              kubernetes.state_node:
+                enabled: true
+                vars:
+                  period: "{{ logging_elastic_agent_k8s_cluster_metrics_period | default('10s') }}"
+              kubernetes.state_namespace:
+                enabled: true
+                vars:
+                  period: "{{ logging_elastic_agent_k8s_cluster_metrics_period | default('10s') }}"
+              kubernetes.event:
+                enabled: true
+              kubernetes.state_daemonset:
+                enabled: true
+                vars:
+                  period: "{{ logging_elastic_agent_k8s_cluster_metrics_period | default('10s') }}"
+              kubernetes.state_replicaset:
+                enabled: true
+                vars:
+                  period: "{{ logging_elastic_agent_k8s_cluster_metrics_period | default('10s') }}"
+              kubernetes.state_job:
+                enabled: true
+                vars:
+                  period: "{{ logging_elastic_agent_k8s_cluster_metrics_period | default('10s') }}"
+              kubernetes.state_storageclass:
+                enabled: true
+                vars:
+                  period: "{{ logging_elastic_agent_k8s_cluster_metrics_period | default('10s') }}"
+              kubernetes.state_persistentvolume:
+                enabled: true
+                vars:
+                  period: "{{ logging_elastic_agent_k8s_cluster_metrics_period | default('10s') }}"
+              kubernetes.state_persistentvolumeclaim:
+                enabled: true
+                vars:
+                  period: "{{ logging_elastic_agent_k8s_cluster_metrics_period | default('10s') }}"
+              kubernetes.state_resourcequota:
+                enabled: true
+                vars:
+                  period: "{{ logging_elastic_agent_k8s_cluster_metrics_period | default('10s') }}"
+              kubernetes.state_service:
+                enabled: true
+                vars:
+                  period: "{{ logging_elastic_agent_k8s_cluster_metrics_period | default('10s') }}"
+              kubernetes.container:
+                enabled: false
+              kubernetes.pod:
+                enabled: false
+              kubernetes.node:
+                enabled: false
+              kubernetes.volume:
+                enabled: false
+              kubernetes.system:
+                enabled: false
+              kubernetes.state_cronjob:
+                enabled: false
+          kubernetes/logs:
+            enabled: false
+            streams:
+              kubernetes.container_logs:
+                enabled: false
+  when:
+    - fleet_bootstrap_k8s_cluster_package_policy_enabled | bool

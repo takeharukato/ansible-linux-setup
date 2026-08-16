@@ -38,7 +38,9 @@
       - fleet_server_port | int < 65536
       - fleet_server_token_issue_timeout_seconds | int > 0
       - fleet_server_token_issue_retries | int > 0
-      - fleet_server_token_issue_retry_delay_seconds | int >= 0
+      - fleet_server_token_issue_retry_interval_seconds | int >= 0
+      - fleet_server_agent_status_retry_interval_seconds | int > 0
+      - fleet_server_agent_status_retries | int > 0
     fail_msg: >-
       Required fleet-server variables are missing or invalid.
 

@@ -26,15 +26,21 @@ elastic_agent_tls_mode: "{{ fleet_server_tls_mode | default(logging_backend_defa
 elastic_agent_download_timeout_seconds: 120
 # 配布物取得の再試行回数。
 elastic_agent_download_retries: 3
-# 配布物取得の再試行間隔秒数。
-elastic_agent_download_retry_delay_seconds: 5
+# 配布物取得の再試行周期秒数。
+elastic_agent_download_retry_interval_seconds: 5
+# 配布物取得要求の発行間隔秒数。
+elastic_agent_download_request_interval_seconds: 5
 # 導入処理のタイムアウト秒数。
 elastic_agent_install_timeout_seconds: 300
 # 導入処理の再試行回数。
 elastic_agent_install_retries: 3
-# 導入処理の再試行間隔秒数。
-elastic_agent_install_retry_delay_seconds: 10
+# 導入処理の再試行周期秒数。
+elastic_agent_install_retry_interval_seconds: 10
+# 導入要求の発行間隔秒数。
+elastic_agent_install_request_interval_seconds: 10
 # Elastic Agentが起動状態になるまでの確認回数。
 elastic_agent_service_retries: 12
-# Elastic Agentの起動状態を確認する間隔秒数。
-elastic_agent_service_retry_delay_seconds: 5
+# Elastic Agent起動状態確認の再試行周期秒数。
+elastic_agent_service_retry_interval_seconds: 5
+# Elastic Agent状態確認要求の発行間隔秒数。
+elastic_agent_service_request_interval_seconds: 5

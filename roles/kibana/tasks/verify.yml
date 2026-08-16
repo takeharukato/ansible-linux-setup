@@ -6,14 +6,39 @@
 #
 ---
 
+# Compose が起動した Kibana 実体IDを取得し, 接頭辞付き名称でも追跡できるようにする。
+- name: Resolve Kibana runtime container identifier
+  ansible.builtin.command:
+    argv:
+      - docker
+      - compose
+      - -f
+      - "{{ kibana_compose_file }}"
+      - ps
+      - -q
+      - kibana
+  args:
+    chdir: "{{ kibana_compose_dir }}"
+  register: kibana_runtime_container_id_cmd
+  changed_when: false
+  failed_when: false
+
 # Kibana コンテナが稼働状態へ遷移したことを確認する。
+# Docker Composeは, コンテナ生成時にkibana_container_nameで指定された名称に加え,
+# Docker Composeのプロジェクト名やサービス名の接頭辞を付与してコンテナ名称を
+# 生成するため, 接頭辞付き名称でも追跡できるようにする。
 - name: Inspect Kibana container state
   ansible.builtin.command:
     argv:
       - docker
       - container
       - inspect
-      - "{{ kibana_container_name }}"
+      - >-
+        {{
+          (kibana_runtime_container_id_cmd.stdout | default('', true) | trim)
+          if ((kibana_runtime_container_id_cmd.stdout | default('', true) | trim | length) > 0)
+          else kibana_container_name
+        }}
   register: kibana_container_state_cmd
   changed_when: false
   until:
@@ -59,7 +84,7 @@
     status_code:
       - 200
       - 503
-    timeout: "{{ kibana_wait_timeout | int }}"
+    timeout: "{{ kibana_health_request_timeout_seconds | int }}"
   register: kibana_status_result
   until:
     - >-
@@ -69,8 +94,8 @@
           (kibana_status_result.json | default({})).get('status', {}).get('overall', {}).get('level', '')
         )
       ) in ['green', 'yellow', 'available']
-  retries: "{{ ((kibana_wait_timeout | int) // ([kibana_wait_sleep | int, 1] | max)) + 1 }}"
-  delay: "{{ kibana_wait_sleep }}"
+  retries: "{{ kibana_health_retries | int }}"
+  delay: "{{ kibana_health_retry_interval_seconds | int }}"
 
 # Kibana の HTTP 応答を確認し, 外部ホストからの疎通確認を任意で実施する。
 - name: Verify Kibana response externally
@@ -82,7 +107,7 @@
     status_code:
       - 200
       - 503
-    timeout: "{{ kibana_wait_timeout | int }}"
+    timeout: "{{ kibana_health_request_timeout_seconds | int }}"
   register: kibana_external_status_result
   delegate_to: "{{ kibana_external_verify_delegate_to }}"
   until:
@@ -93,7 +118,7 @@
           (kibana_external_status_result.json | default({})).get('status', {}).get('overall', {}).get('level', '')
         )
       ) in ['green', 'yellow', 'available']
-  retries: "{{ ((kibana_wait_timeout | int) // ([kibana_wait_sleep | int, 1] | max)) + 1 }}"
-  delay: "{{ kibana_wait_sleep }}"
+  retries: "{{ kibana_health_retries | int }}"
+  delay: "{{ kibana_health_retry_interval_seconds | int }}"
   when:
     - kibana_external_verify_enabled | bool

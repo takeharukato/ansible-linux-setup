@@ -60,10 +60,17 @@
 
 | 正式名称 | 略称 | 意味 |
 | --- | --- | --- |
-| Kibana | - | Elasticsearchに保存されたデータを可視化し, 参照するソフトウェア。 |
 | Elasticsearch | - | ログやメトリクス情報を集約, 検索するためのサーバソフトウェア。 |
 | Elasticsearchのセキュリティ機能 | - | Elasticsearchへの接続者を認証し, 利用者に付与した権限に基づいて実行可能な操作を制御する機能。 |
+| Snapshot Repository | - | Elasticsearch がバックアップデータを保存する場所として参照する保存先の定義。 |
+| snapshot | - | ある時点の Elasticsearch データを復旧可能な形で保存したバックアップ単位。 |
+| Snapshot API | - | Elasticsearch の snapshot 作成, 一覧取得, 削除, 復元を行う操作手順。 |
+| Kibana | - | Elasticsearchに保存されたデータを可視化し, 参照するソフトウェア。 |
 | Logstash | - | 受信したデータを整形し, 送信先へ転送するソフトウェア。 |
+| Fleet Server | - | Elastic Agent の管理通信を受け付けるサーバ機能。 |
+| Elastic Agent | - | ログやメトリクスを収集して送信する実行要素。 |
+| Fleet Output | - | Elastic Agent が送信先として利用する出力設定。 |
+| Elastic Agent ポリシー | - | Fleetが管理し, Elastic Agentのデータ収集方法と動作を定める設定情報。 |
 | Enrollment Token | - | Elastic AgentがFleet Serverへの登録を許可されていることを確認し, 登録先のElastic Agent ポリシーを特定するための登録用認証情報。 |
 | Enrollment Token共有ファイル | - | Fleet BootstrapがEnrollment Tokenを制御ホスト上へ保存し, Elastic Agent本体ロールがFleet Serverへの登録時に読み込む権限`0600`のYAMLファイル。 |
 | Fleet Serverサービスアカウントトークンファイル | - | Fleet ServerがElasticsearchへ接続するためのサービスアカウントトークンを対象ホスト上へ保存し, Fleet Serverコンテナが起動時に読み込む権限`0600`のファイル。 |
@@ -78,6 +85,7 @@
 | Host Variables | host_vars | ホスト単位の設定値を格納する変数定義。 |
 | Ansible Inventory | inventory | 実行対象ホストの一覧と接続情報を管理する定義。 |
 | inventory group | - | Ansible Inventory内で同じ役割の対象ホストをまとめる識別単位。 |
+| single-node | - | Elasticsearch を単一ノード構成で構成する方式。コンテナイメージを用いた導入時に典型的に用いられる。 |
 | 制御ホスト | - | Playbook を実行し, 他ホストへの処理指示を行う管理用ホスト。 |
 | 対象ホスト | - | Playbook による設定変更や導入処理の適用先となるホスト。 |
 | ホスト | - | 管理対象として識別される個別の計算機。 |
@@ -85,6 +93,7 @@
 | ネットワーク | - | 機器同士を接続してデータをやり取りする仕組み。 |
 | ディレクトリ | - | ファイルを階層的に整理するための入れ物。 |
 | ログ | - | 処理の結果や状態を時系列で記録した情報。 |
+| メトリクス | - | ホストやサービスの状態を数値で表した観測情報。 |
 | データ | - | 処理や保存の対象となる情報。 |
 | ポート | - | 通信の出入口を識別する番号または接点。 |
 | Uniform Resource Locator | URL | World Wide Web上の資源の場所を示す文字列。 |
@@ -103,12 +112,122 @@
 | Debian | - | コミュニティ主導で開発される Linux ディストリビューション。 |
 | Red Hat | - | Red Hat Enterprise Linuxなどを提供する組織。 |
 | Red Hat Enterprise Linux | RHEL | Red Hatが提供する企業向けLinuxディストリビューション。 |
+| ホストメトリクス ( host metrics ) | - | リソース使用状況など, ログ収集対象となるホスト群から収集する情報。 |
 | root | - | Unix 系システムの最上位権限を持つ管理者識別子。 |
+| ループ | - | 同じ処理を繰り返すこと。 |
+| バックエンド | - | 利用者画面の背後で処理を実行する側。 |
+| メタデータ | - | 対象データの属性や説明を示す付加情報。 |
+| リソース | - | 処理に必要な計算機資源やデータ。 |
+| コマンド | - | 実行者が計算機へ処理を指示するための命令。 |
 | ansible-playbookコマンド | ansible-playbook | Ansible Playbook を実行して自動構成処理を適用するコマンド。 |
+| Python | - | スクリプティングやアプリケーション開発を手早く実施するために用いられる高水準プログラミング言語の一種。 |
 | sudoコマンド | sudo | 一時的に管理者権限でコマンドを実行するためのコマンド。 |
 | makeコマンド | make | Makefile に定義された処理を実行するコマンド。 |
 | curlコマンド | curl | URL を指定して通信結果を取得するコマンド。 |
+| 環境変数 | - | 実行時の動作を調整するために外部から渡す設定値。 |
+| cron | - | 指定した時刻や周期でコマンドを自動実行する仕組み。 |
+| Ansible Playbook | Playbook | Ansibleで実行する処理の順序と対象を記述したファイル。 |
+| Classless Inter-Domain Routing | CIDR | Internet Protocolアドレスの範囲を先頭アドレスと接頭辞長で表す方式。 |
+| Docker bridge network | Dockerブリッジネットワーク | 同一対象ホスト上のコンテナ間通信に使用する仮想的なネットワーク。 |
+| iptables | - | Linux の IPv4 パケットフィルタ設定ツール。 |
+| ip6tables | - | Linux の IPv6 パケットフィルタ設定ツール。 |
+| Network Address Translation | NAT | 通信時にIPアドレスを変換する処理。 |
+| systemd | - | Linux上でサービスの起動順序と実行状態を管理するソフトウェア。 |
+| dockerコマンド | - | Dockerブリッジネットワークを作成及び確認するコマンド。 |
+| iptablesコマンド | - | IPパケットの通過条件とNAT規則を確認するコマンド。 |
+| ip6tablesコマンド | - | IPv6パケットの通過条件とNAT規則を確認するコマンド。 |
+| systemctlコマンド | - | systemdが管理するサービスの状態を確認するコマンド。 |
 | jqコマンド | jq | JSON 形式のデータから必要な項目だけを抽出して表示するコマンド。 |
+| yqコマンド | yq | YAML 形式のデータから必要な項目だけを抽出して表示するコマンド。 |
+| pipeline | - | 入力, 整形, 出力の処理順を定義する Logstash の設定単位。 |
+| Elastic Agent入力 | - | Elastic Agentからデータストリーム情報を保持したイベントを受信するLogstashの入力機能。 |
+| インデックス | - | Elasticsearch に保存するデータの格納先識別単位。 |
+| Makefile | - | 実行手順を定義したファイル。 |
+| サービスアカウント (Service Account) | - | 自動処理中でサービスを呼び出す側のプログラムを識別するための識別情報。 |
+| Elasticsearchのサービスアカウントトークン ( Elasticsearch Service Account Token ) | - | Elasticsearchが提供するサービスアカウントに紐付く認証情報。 |
+| Hypertext Transfer Protocol Secure | HTTPS | 通信内容を暗号化してWorld Wide Web通信を行う方式。 |
+| localhost | - | 同一機器自身を指す名前。 |
+| サービス | - | 機能を利用者や他システムへ提供する仕組み。 |
+| ユーザ | - | 機能を利用する人, 又は識別された利用主体。 |
+| ツール | - | 特定作業を実行するための機能や道具。 |
+| Elasticsearch のクラスタ | - | 複数の Elasticsearch ノードを連携させて一体運用する構成。 |
+| プログラム | - | 計算機に処理をさせるための命令列。 |
+| プラグイン | - | 既存機能へ追加機能を組み込むための拡張部品。 |
+| コンテナランタイム | - | コンテナを起動, 停止, 管理する実行基盤。 |
+| リクエスト | - | 処理実行や情報取得を要求する操作。 |
+| コントローラ | - | 対象状態を監視し, 期待状態へ調整する制御機能。 |
+| ストレージ | - | データを保存する仕組み。 |
+| インストール | - | ソフトウェアを導入して利用可能にする作業。 |
+| マシン | - | 処理を実行する計算機。 |
+| プロビジョニング | - | 利用開始に必要な設定や資源を準備する作業。 |
+| ルーティング | - | 宛先までの経路を選択して転送する処理。 |
+| オブジェクト | - | ひとかたまりとして扱うデータ単位。 |
+| エージェント | - | 指示に従って処理を代行する構成要素。 |
+| ストア | - | データや成果物を保存する場所。 |
+| ジャーナル | - | 時系列の記録を保持する仕組み。 |
+| アカウント | - | 利用者や処理主体を識別する登録情報。 |
+| エンドポイント | - | 通信の接続先を表す識別点。 |
+| パターン | - | 繰り返し現れる構造や記述形式。 |
+| パケット | - | ネットワークで転送するデータ単位。 |
+| カーネル | - | 基本ソフトウェアの中核機能。 |
+| シェル | - | コマンド入力で計算機を操作する仕組み。 |
+| Canonical | - | Ubuntu を提供する組織名。 |
+| Key-Value | - | キーと値の組で情報を表す方式。 |
+| Structured Query Language | SQL | データベースを操作するための記述言語。 |
+| RPM Package Manager | RPM | RPM形式パッケージの導入, 更新, 削除, 情報参照を行う仕組み。 |
+| Virtual Machine | VM | 物理計算機上で動作する仮想的な計算機。 |
+| Central Processing Unit | CPU | 計算処理を実行する中核部品。 |
+| ソフトウェア | - | 情報処理システムで使用するプログラム, 手順, 規則及び関連文書の全体又は一部分。 |
+| システム | - | 複数の要素が連携して目的を実現する仕組み全体。 |
+| アプリケーション | - | 利用者の目的を実現するために動作するソフトウェア。 |
+| パッケージ | - | ソフトウェア導入に必要なファイルをまとめた配布単位。 |
+| リポジトリ | - | ソフトウェアや設定情報を保管し, 取得できるようにした管理場所。 |
+| ノード | - | ネットワークに接続された機器または処理単位。 |
+| アドレス | - | 宛先や所在を識別するための情報。 |
+| プロトコル | - | 通信やデータ交換の手順を定めた取り決め。 |
+| コード | - | 処理内容を記述した文字列。 |
+| ファイルシステム | - | 記憶装置上のファイルとディレクトリを管理する仕組み。 |
+| プロセス | - | 実行中のプログラムを管理する単位。 |
+| Kubernetes | K8s | コンテナを管理する基盤ソフトウェア。 |
+| Pod | - | Kubernetes でコンテナをまとめて管理する最小単位。 |
+| 名前空間 ( namespace ) | - | Kubernetes内部でリソースを論理的に分離する単位。 |
+| Ubuntu | - | Canonical が提供する Debian 系の Linux ディストリビューション。 |
+| statコマンド | stat | ファイルの権限, 大きさ及び名前を表示するコマンド。 |
+| Service | - | サービスの英語表記。 |
+| Node | - | ノードの英語表記。 |
+| Elastic Agentポリシー構成種別 | - | Fleet Bootstrap ロールの `fleet_bootstrap_agent_policy_profiles` で管理する `host`, `k8s_system`, `k8s_workload`, `k8s_cluster` の4種類を指す, Elastic Stack固有の分類単位。 |
+| 統合パッケージ | - | Elastic Agentへデータの収集方法と収集項目を追加するためのパッケージ。 |
+| Package Policy | - | Elastic Agent ポリシーへ追加する収集内容と統合パッケージの設定。 |
+| System統合 | - | Elastic Agentが対象ホストのログとメトリクス情報を収集するための統合パッケージ。 |
+| Custom Logs統合 | - | Elastic Agentが指定されたログファイルからテキストを収集するための統合パッケージ。 |
+| Application Programming Interface | API | アプリケーション同士が機能やデータをやり取りするための取り決め。 |
+| Ansible Task | task | 自動化処理の最小単位となる実行項目。 |
+| ロール | - | Ansible における処理のまとまり。 |
+| Elastic Stack | - | Elasticsearch, Kibana, Logstash, Fleet Server, Fleet Bootstrap, Elastic Agent などで構成される, 収集, 蓄積, 検索, 可視化を行うソフトウェア群。 |
+| YAML | - | 設定を読みやすい形式で表す記述方法。 |
+| journalctlコマンド | journalctl | サービスが記録したログを確認するコマンド。 |
+| elastic-agentコマンド | elastic-agent | Elastic Agentの版数確認や管理処理を実行するコマンド。 |
+| Fleet Bootstrap | - | Fleet API を使用して Fleet の初期設定と Enrollment Token 共有を実施する初期化ロール。 |
+| Deployment | - | Kubernetesで複数のPodの作成, 更新, 維持を管理するリソース。 |
+| DaemonSet | - | Kubernetesで各ノードへPodを常駐配置するリソース。 |
+| ConfigMap | - | 設定値をキーと値の組で保存するKubernetesリソース。 |
+| Secret | - | 秘密情報を保存するKubernetesリソース。 |
+| Service Account | - | Kubernetes上でPodがAPIを利用する主体を識別する情報。 |
+| Helm | - | Kubernetes向けパッケージを導入, 更新, 削除するコマンド。 |
+| Helm Chart | - | Helmで導入するKubernetesリソース定義のまとまり。 |
+| Helm導入識別名 ( Helm release ) | - | Helm が管理する導入単位を識別する名前。 |
+| rollout | - | Deploymentなどの更新適用状況を確認する処理。 |
+| kubeconfig | - | Kubernetes API接続先と認証情報を記述した設定ファイル。 |
+| hostPath | - | Podがノード上のファイルパスを直接参照するためのボリューム定義。 |
+| preset | - | Helm valuesで導入構成を選択する設定項目。 |
+| clusterWide | - | Kubernetesクラスタ全体を対象として共通処理を実行するためのHelm valuesで指定する導入構成の選択値。 |
+| perNode | - | Kubernetesを構成するノードで実施する処理を実行するためのHelm valuesで指定する導入構成の選択値。 |
+| values ファイル | - | Helm Chartへ渡す設定値を定義したYAMLファイル。 |
+| kube-state-metrics | - | Elastic StackでKubernetesリソース状態を収集するために利用するメトリクス公開コンポーネント。 |
+| helmコマンド | helm | Kubernetes向けパッケージの導入, 更新, 状態確認を実施するコマンド。 |
+| kubectlコマンド | kubectl | Kubernetes API と通信してリソースを操作, 参照するコマンド。 |
+| grepコマンド | grep | テキストの中から条件に一致する行を抽出するコマンド。 |
+| tailコマンド | tail | テキストの末尾側を表示するコマンド。 |
 
 ## 概要
 
@@ -126,7 +245,7 @@
 
 本ロールの Kibana 導入処理の仕様は, 次のとおりです:
 
-- コンテナイメージは `docker.elastic.co/kibana/kibana:8.17.3` を使用すること。
+- コンテナイメージは `docker.elastic.co/kibana/kibana:8.19.19` を使用すること。
 - Kibana は `0.0.0.0:5601` で待受し, TCPプロトコルのポート番号5601番 を使用すること。
 - 設定, データ, ログは, 本 playbook で導入する専用ディレクトリへ分離すること。
 - Kibana は, 本 playbook で導入する backend 用ネットワークへ参加すること。
@@ -202,7 +321,7 @@ ansible-playbook -i inventory/hosts logging-backend.yml --tags kibana
 | `kibana_service_token_issue_password` | Kibana 用 service account token 発行時に利用する Elasticsearch パスワード。 | `{{ elastic_search_bootstrap_password | default('') }}` | `DUMMY_ELASTIC_PASSWORD` |
 | `kibana_service_token_issue_timeout_seconds` | Kibana 用 service account token 発行APIの接続タイムアウト秒数。 | `30` | `30` |
 | `kibana_service_token_issue_retries` | Kibana 用 service account token 発行APIの再試行回数。 | `3` | `3` |
-| `kibana_service_token_issue_retry_delay_seconds` | Kibana 用 service account token 発行APIの再試行待機秒数。 | `5` | `5` |
+| `kibana_service_token_issue_retry_interval_seconds` | Kibana 用 service account token 発行APIの再試行待機秒数。 | `5` | `5` |
 
 ### Elastic Stack間共有設定値
 
@@ -542,7 +661,7 @@ ls -lnd /srv/kibana /srv/kibana/data /srv/kibana/logs
 ```bash
 $ docker ps -a --filter name=kibana
 CONTAINER ID   IMAGE                                    COMMAND                  CREATED       STATUS       PORTS                    NAMES
-e896a5150359   docker.elastic.co/kibana/kibana:8.17.3   "/bin/tini -- /usr/l…"   2 hours ago   Up 2 hours   0.0.0.0:5601->5601/tcp   kibana
+e896a5150359   docker.elastic.co/kibana/kibana:8.19.19   "/bin/tini -- /usr/l…"   2 hours ago   Up 2 hours   0.0.0.0:5601->5601/tcp   kibana
 $ docker logs --tail 200 kibana 2>&1 | grep -E '"log.level"[[:space:]]*:[[:space:]]*"(WARN|ERROR|FATAL)"'
 $ docker compose -f /srv/kibana/docker-compose.yml config
 name: kibana
@@ -554,7 +673,7 @@ services:
       ELASTICSEARCH_SERVICEACCOUNTTOKEN: AAEAAWVsYXN0aWMva2liYW5hL2tpYmFuYS1zZXJ2aWNlLXRva2VuOm80b2RFU0tXUWtlTGVmdjA3Znpzenc
       SERVER_HOST: 0.0.0.0
       SERVER_PORT: "5601"
-    image: docker.elastic.co/kibana/kibana:8.17.3
+    image: docker.elastic.co/kibana/kibana:8.19.19
     networks:
       elastic_backend: null
     ports:
@@ -618,7 +737,7 @@ curl -v -u 'elastic:DUMMY_ELASTIC_PASSWORD' --max-time 5 http://127.0.0.1:5601/
 ```bash
 $ docker ps --filter name=kibana
 CONTAINER ID   IMAGE                                    COMMAND                  CREATED       STATUS       PORTS                    NAMES
-e896a5150359   docker.elastic.co/kibana/kibana:8.17.3   "/bin/tini -- /usr/l…"   2 hours ago   Up 2 hours   0.0.0.0:5601->5601/tcp   kibana
+e896a5150359   docker.elastic.co/kibana/kibana:8.19.19   "/bin/tini -- /usr/l…"   2 hours ago   Up 2 hours   0.0.0.0:5601->5601/tcp   kibana
 $ ss -ltnp | grep ':5601 '
 LISTEN 0      4096         0.0.0.0:5601       0.0.0.0:*
 $ curl -v -u 'elastic:elastic' --max-time 5 http://127.0.0.1:5601/
@@ -711,7 +830,7 @@ rch:9200/
   "cluster_name" : "shared-logs",
   "cluster_uuid" : "mWEU68ySRbqcHfnuBsJ2Uw",
   "version" : {
-    "number" : "8.17.3",
+    "number" : "8.19.19",
     "build_flavor" : "default",
     "build_type" : "docker",
     "build_hash" : "a091390de485bd4b127884f7e565c0cad59b10d2",

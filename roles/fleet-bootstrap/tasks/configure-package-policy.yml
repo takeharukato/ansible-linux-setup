@@ -34,12 +34,11 @@
       - 201
     return_content: true
     validate_certs: "{{ fleet_bootstrap_kibana_validate_certs | bool }}"
-    timeout: "{{ fleet_bootstrap_kibana_timeout_seconds | int }}"
+    timeout: "{{ fleet_bootstrap_kibana_api_request_timeout_seconds | int }}"
   register: fleet_bootstrap_package_policy_create_result
-  retries: "{{ fleet_bootstrap_kibana_retries | int }}"
-  delay: "{{ fleet_bootstrap_kibana_retry_delay_seconds | int }}"
+  retries: "{{ fleet_bootstrap_kibana_api_retries | int }}"
+  delay: "{{ fleet_bootstrap_kibana_api_retry_interval_seconds | int }}"
   until: fleet_bootstrap_package_policy_create_result.status | default(0) | int in [200, 201]
-  no_log: "{{ fleet_bootstrap_no_log | bool }}"
   when:
     - fleet_bootstrap_existing_package_policy.id is not defined
 
@@ -60,11 +59,10 @@
       - 200
     return_content: true
     validate_certs: "{{ fleet_bootstrap_kibana_validate_certs | bool }}"
-    timeout: "{{ fleet_bootstrap_kibana_timeout_seconds | int }}"
+    timeout: "{{ fleet_bootstrap_kibana_api_request_timeout_seconds | int }}"
   register: fleet_bootstrap_package_policy_update_result
-  retries: "{{ fleet_bootstrap_kibana_retries | int }}"
-  delay: "{{ fleet_bootstrap_kibana_retry_delay_seconds | int }}"
+  retries: "{{ fleet_bootstrap_kibana_api_retries | int }}"
+  delay: "{{ fleet_bootstrap_kibana_api_retry_interval_seconds | int }}"
   until: fleet_bootstrap_package_policy_update_result.status | default(0) | int == 200
-  no_log: "{{ fleet_bootstrap_no_log | bool }}"
   when:
     - fleet_bootstrap_existing_package_policy.id is defined

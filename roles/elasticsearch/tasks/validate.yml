@@ -22,6 +22,9 @@
       - (elastic_search_vm_max_map_count | int) >= 262144
       - (elastic_search_http_port | int) > 0
       - (elastic_search_http_port | int) < 65536
+      - (elastic_search_health_request_timeout_seconds | int) > 0
+      - (elastic_search_health_retry_interval_seconds | int) > 0
+      - (elastic_search_health_retries | int) > 0
       - (elastic_search_runtime_scheme | default('', true) | string | trim) in ['http', 'https']
       - (elastic_search_runtime_tls_mode | default('', true) | string | trim) in ['off', 'none', 'full']
       - >-

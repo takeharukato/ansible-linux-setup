@@ -26,7 +26,7 @@ logging_backend_network_ipv4_subnet: "172.18.0.0/16"
 # logging backend関連コンテナが共有するDockerネットワークのIPv6 CIDR。
 logging_backend_network_ipv6_subnet: "fd00:172:18::/64"
 # Elastic Stack関連コンポーネントが共通利用する版数。
-logging_backend_elastic_stack_version: "8.17.3"
+logging_backend_elastic_stack_version: "8.19.19"
 # logging backend関連コンテナを実行する利用者ID (単位: 番号)。
 logging_backend_container_user_id: 1000
 # logging backend関連コンテナを実行するグループID (単位: 番号)。
@@ -240,23 +240,38 @@ logstash_monitoring_elasticsearch_auth_password: "{{ logstash_elasticsearch_auth
 fleet_bootstrap_enrollment_token_file: "{{ playbook_dir }}/group_vars/logging_collector/enrollment-token.yml"
 # Fleet BootstrapがFleet Server用Elastic Agentポリシーを識別するID。
 fleet_bootstrap_fleet_server_policy_id: "{{ fleet_server_policy_id }}"
+# Fleet BootstrapがKubernetes統合導入時に使用するパッケージ版数。
+fleet_bootstrap_kubernetes_package_version: "1.83.1"
 # Fleet Bootstrapが作成又は再利用するElastic Agentポリシーのプロファイル一覧。
 fleet_bootstrap_agent_policy_profiles:
   - id: host
     policy_name: "{{ fleet_bootstrap_policy_name }}"
     enrollment_token_name: "{{ fleet_bootstrap_enrollment_token_name }}"
+    include_system: true
     include_k8s_system: false
     include_k8s_workload: false
+    include_k8s_cluster: false
   - id: k8s_system
     policy_name: "{{ fleet_bootstrap_policy_name }}-k8s-system"
     enrollment_token_name: "{{ fleet_bootstrap_enrollment_token_name }}-k8s-system"
+    include_system: true
     include_k8s_system: true
     include_k8s_workload: false
+    include_k8s_cluster: false
   - id: k8s_workload
     policy_name: "{{ fleet_bootstrap_policy_name }}-k8s-workload"
     enrollment_token_name: "{{ fleet_bootstrap_enrollment_token_name }}-k8s-workload"
+    include_system: true
     include_k8s_system: true
     include_k8s_workload: true
+    include_k8s_cluster: false
+  - id: k8s_cluster
+    policy_name: "{{ fleet_bootstrap_policy_name }}-k8s-cluster"
+    enrollment_token_name: "{{ fleet_bootstrap_enrollment_token_name }}-k8s-cluster"
+    include_system: false
+    include_k8s_system: false
+    include_k8s_workload: false
+    include_k8s_cluster: true
 
 #
 # Elastack用ネットワーク
@@ -271,9 +286,37 @@ logging_elastic_agent_enabled: >-
   {{
     (logging_elastic_agent_host_enabled | default(false) | bool) or
     (logging_elastic_agent_k8s_system_enabled | default(false) | bool) or
-    (logging_elastic_agent_k8s_workload_enabled | default(false) | bool)
+    (logging_elastic_agent_k8s_workload_enabled | default(false) | bool) or
+    (logging_elastic_agent_k8s_cluster_enabled | default(false) | bool)
   }}
+# Kubernetesクラスタ状態収集を有効化するフラグ。
+logging_elastic_agent_k8s_cluster_enabled: false
+# k8s_cluster構成種別向けKubernetes統合Package Policy作成の有効化フラグ。
+logging_elastic_agent_k8s_cluster_package_policy_enabled: "{{ logging_elastic_agent_k8s_cluster_enabled | bool }}"
+# k8s_cluster構成種別向けKubernetes統合メトリクス周期。
+logging_elastic_agent_k8s_cluster_metrics_period: "10s"
 # Elastic Agentへ適用するElastic Stack共通版数。
 elastic_agent_version: "{{ logging_backend_elastic_stack_version }}"
 # Elastic Agent配布物の取得及び展開に使用する作業ディレクトリパス。
 elastic_agent_work_dir: "/var/tmp/elastic-agent-{{ elastic_agent_version }}"
+
+# Elastic Agent for Kubernetes の設定ファイル配置先ディレクトリ。
+elastic_agent_k8s_config_dir: "{{ k8s_kubeadm_config_store }}/elastic-agent-k8s"
+# Elastic Agent for Kubernetes の Helm リリース名。
+elastic_agent_k8s_release_name: "elastic-agent-k8s"
+# Elastic Agent for Kubernetes の Helm リポジトリ名。
+elastic_agent_k8s_helm_repo_name: "elastic"
+# Elastic Agent for Kubernetes の Helm リポジトリURL。
+elastic_agent_k8s_helm_repo_url: "https://helm.elastic.co"
+# Elastic Agent for Kubernetes の Helm Chart 名。
+elastic_agent_k8s_chart_name: "elastic-agent"
+# Elastic Agent for Kubernetes の Helm Chart バージョン。
+elastic_agent_k8s_chart_version: "{{ logging_backend_elastic_stack_version }}"
+# Elastic Agent for Kubernetes を導入する Kubernetes 名前空間。
+elastic_agent_k8s_namespace: "kube-system"
+# Kubernetes API 操作で使用する kubeconfig ファイルパス。
+# 空文字列の場合は, Helm実行ユーザのホーム配下
+# ( /home/<helm実行ユーザ>/.kube/ca-embedded-admin.conf )を使用する。
+elastic_agent_k8s_kubeconfig_path: ""
+# Helm に渡す values ファイルパス。
+elastic_agent_k8s_values_file_path: "{{ elastic_agent_k8s_config_dir }}/values.yaml"

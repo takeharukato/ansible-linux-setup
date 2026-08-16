@@ -21,7 +21,10 @@
 #
 # Logstash の pipeline を設定し, Elastic Agentからの受信と Elasticsearchへの送信を行う。
 #
+
+#
 # 入力プラグイン定義を開始し, 受信元ごとの取り込み条件を設定する。
+#
 input {
   # Elastic Agent入力を有効化し, Agentが送信したデータストリーム情報を保持する。
   elastic_agent {
@@ -30,7 +33,118 @@ input {
   }
 }
 
+
+#
+# フィルタプラグイン定義を開始し, 受信イベントの加工条件を設定する。
+#
+# [kube-state-metrics](https://github.com/kubernetes/kube-state-metrics)から
+# 送信されたkubernetesの状態情報とイベント情報を対象に, 名前空間を付与する。
+#
+# [kube-state-metrics](https://github.com/kubernetes/kube-state-metrics)から
+# 送信されたkubernetesの状態情報は, kubernetes.state_で始まるデータ集合として受信するため,
+# kubernetes.state_で始まるデータ集合とkubernetes.eventのイベント集合を対象に, 名前空間を付与し,
+# その結果をデータストリームに反映するフィルタを定義する。
+#
+# Kubernetesの名前空間 ( namespace ) 毎に以下のように分類する:
+#
+#  - kube-system 名前空間の状態情報とイベント情報は, k8s-system 名前空間として分類する。
+#  - それ以外の名前空間の状態情報とイベント情報は, k8s-workload 名前空間として分類する。
+#  - 名前空間が付与されていない状態情報とイベント情報は, k8s-cluster 名前空間として分類する。
+#
+# 判定処理の内容:
+#
+# mutate フィルタを使用して, 受信イベントの data_stream.namespace フィールド
+# (`[data_stream][namespace]`)の値を変更する。
+#
+# 例えば, 以下の処理の場合:
+# ```ruby
+# 1:   if [kubernetes][namespace] == "kube-system" {
+# 2:     mutate {
+# 3:       replace => {
+# 4:         "[data_stream][namespace]" => "k8s-system"
+# 5:       }
+# 6:     }
+# 7:   }
+# ```
+#
+# kube-system 名前空間の状態情報とイベント情報は, k8s-system に置き換える
+# - 1行目: if [kubernetes][namespace] == "kube-system"
+#   Logstashで受信したJSONデータ中の`kubernetes.namespace`フィールド(`[kubernetes][namespace]`)が
+#   `kube-system`である場合に, 2行目以降の処理を実行する。
+# - 2-6行目: mutate { ... }
+#   mutateフィルタを使用して, 受信イベントの`[data_stream][namespace]`フィールドの値を変更する。
+# - 3-4行目: replace => { "[data_stream][namespace]" => "k8s-system" }
+#   `[data_stream][namespace]`フィールドの値を`k8s-system`に置き換える。
+# 例えば受信データが以下のような場合:
+# ```json
+# {
+#   "kubernetes": {
+#     "namespace": "kube-system"
+#   },
+#   "data_stream": {
+#     "type": "metrics",
+#     "dataset": "kubernetes.state_pod",
+#     "namespace": "default"
+#   }
+# }
+# ```
+# 以下の出力に変換される( (★) の部分が書き換えられた結果の行 ):
+# ```json
+# {
+#   "kubernetes": {
+#     "namespace": "kube-system"
+#   },
+#   "data_stream": {
+#     "type": "metrics",
+#     "dataset": "kubernetes.state_pod",
+#     "namespace": "k8s-system" (★)
+#   }
+# }
+# ```
+#
+# 留意事項:
+#   Kubernetes上の名前空間名での検索に影響を与えないように
+#   kubernetes.namespaceフィールドを書き換えずに,
+#   データストリームの名前空間だけを書き換えるようにしている。
+# それぞれの意味は, 以下の通り:
+#   - kubernetes.namespace: Kubernetes上でリソースが所属しているNamespace
+#   - data_stream.namespace: データストリームのNamespace
+#
+
+filter {
+  # 正規表現'^kubernetes\.state_'は,
+  # '^'で文字列先頭を限定し, 'kubernetes.'を文字列として照合し,
+  # 'state_'で状態情報のデータ集合だけを対象にする。
+  # 例: kubernetes.state_pod, kubernetes.state_deployment
+  if [data_stream][dataset] =~ /^kubernetes\.state_/ or
+     [data_stream][dataset] == "kubernetes.event" {
+
+    if [kubernetes][namespace] == "kube-system" {
+      mutate {
+        replace => {
+          "[data_stream][namespace]" => "k8s-system"
+        }
+      }
+    } else if [kubernetes][namespace] {
+      mutate {
+        replace => {
+          "[data_stream][namespace]" => "k8s-workload"
+        }
+      }
+    } else {
+      mutate {
+        replace => {
+          "[data_stream][namespace]" => "k8s-cluster"
+        }
+      }
+    }
+  }
+}
+
+
+#
 # 出力プラグイン定義を開始し, 受信イベントの保存先を設定する。
+#
 output {
   # Elasticsearch 出力を有効化し, 受信イベントを検索基盤へ転送する。
   elasticsearch {

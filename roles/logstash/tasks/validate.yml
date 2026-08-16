@@ -46,6 +46,9 @@
       - (logstash_beats_port | int) < 65536
       - (logstash_http_port | int) > 0
       - (logstash_http_port | int) < 65536
+      - (logstash_health_request_timeout_seconds | int) > 0
+      - (logstash_health_retry_interval_seconds | int) > 0
+      - (logstash_health_retries | int) > 0
       - >-
         (not (logstash_elasticsearch_security_enabled | bool)) or
         ((logstash_elasticsearch_auth_username | default('', true) | string | trim | length) > 0)

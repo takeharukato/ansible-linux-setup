@@ -13,14 +13,40 @@
       Check mode: skipping runtime verification for fleet-server.
   when: ansible_check_mode | bool
 
+# Compose が起動した fleet-server 実体IDを取得し, 接頭辞付き名称でも追跡できるようにする。
+- name: Resolve fleet-server runtime container identifier
+  ansible.builtin.command:
+    argv:
+      - docker
+      - compose
+      - -f
+      - "{{ fleet_server_runtime_compose_file }}"
+      - ps
+      - -q
+      - fleet-server
+  args:
+    chdir: "{{ fleet_server_compose_dir }}"
+  register: fleet_server_runtime_container_id_cmd
+  changed_when: false
+  failed_when: false
+  when: not (ansible_check_mode | bool)
+
 # fleet-server コンテナが稼働状態へ遷移したことを確認する。
+# Docker Composeは, コンテナ生成時にfleet_server_container_nameで指定された名称に加え,
+# Docker Composeのプロジェクト名やサービス名の接頭辞を付与してコンテナ名称を
+# 生成するため, 接頭辞付き名称でも追跡できるようにする。
 - name: Inspect fleet-server container state
   ansible.builtin.command:
     argv:
       - docker
       - container
       - inspect
-      - "{{ fleet_server_container_name }}"
+      - >-
+        {{
+          (fleet_server_runtime_container_id_cmd.stdout | default('', true) | trim)
+          if ((fleet_server_runtime_container_id_cmd.stdout | default('', true) | trim | length) > 0)
+          else fleet_server_container_name
+        }}
   register: fleet_server_container_state_cmd
   changed_when: false
   until:
@@ -58,12 +84,24 @@
   when: not (ansible_check_mode | bool)
 
 # Bootstrap実行前はAgent ID未生成を許容し, それ以外の異常状態が解消するまで再試行する。
+# JSON形式でない空文字列やエラー文字列が返る場合もあるため, 返却値を確認し,
+# JSON形式の応答が返った場合は, fleet_server_agent_status_json_safe変数に格納
+# して以降の判定で利用する。
+# Docker Composeは, コンテナ生成時にfleet_server_container_nameで指定された名称に加え,
+# Docker Composeのプロジェクト名やサービス名の接頭辞を付与してコンテナ名称を
+# 生成するため, 実際に生成されたコンテナ名称をコンテナ名に指定して,
+# docker execコマンドを実行する。
 - name: Check fleet-server elastic-agent runtime status
   ansible.builtin.command:
     argv:
       - docker
       - exec
-      - "{{ fleet_server_container_name }}"
+      - >-
+        {{
+          (fleet_server_runtime_container_id_cmd.stdout | default('', true) | trim)
+          if ((fleet_server_runtime_container_id_cmd.stdout | default('', true) | trim | length) > 0)
+          else fleet_server_container_name
+        }}
       - elastic-agent
       - status
       - --output
@@ -71,38 +109,61 @@
   register: fleet_server_agent_status_cmd
   changed_when: false
   failed_when: false
+  vars:
+    fleet_server_agent_status_json_safe: >-
+      {{
+        (fleet_server_agent_status_cmd.stdout | from_json)
+        if (
+          (fleet_server_agent_status_cmd.stdout | default('', true) | trim | length > 0) and
+          ((fleet_server_agent_status_cmd.stdout | default('', true) | trim).startswith('{'))
+        )
+        else {}
+      }}
   until:
     - >-
       (
         (fleet_server_agent_status_cmd.rc == 0) and
-        ((fleet_server_agent_status_cmd.stdout | from_json).state | int < 3)
+        ((fleet_server_agent_status_json_safe.get('state', 3) | int) < 3)
       ) or (
         (fleet_server_runtime_bootstrap_enabled | bool) and
-        (((fleet_server_agent_status_cmd.stdout | from_json).info.id | default('')) | length == 0) and
+        ((fleet_server_agent_status_json_safe.get('info', {}).get('id', '') | string | length) == 0) and
         ('missing config fleet.agent.id' in fleet_server_agent_status_cmd.stdout)
       )
-  retries: "{{ fleet_server_wait_retries }}"
-  delay: "{{ fleet_server_wait_sleep }}"
+  retries: "{{ fleet_server_agent_status_retries }}"
+  delay: "{{ fleet_server_agent_status_retry_interval_seconds }}"
   when: not (ansible_check_mode | bool)
 
 # 後続Bootstrapで回復するAgent ID未生成状態を除き, FAILED/DEGRADEDを明示的に失敗として扱う。
+# JSON形式でない空文字列やエラー文字列が返る場合もあるため, 返却値を確認し,
+# JSON形式の応答が返った場合は, fleet_server_agent_status_json_safe変数に格納
+# して以降の判定で利用する。
 - name: Assert fleet-server elastic-agent runtime status is healthy
   ansible.builtin.assert:
     that:
       - >-
         (
           (fleet_server_agent_status_cmd.rc == 0) and
-          ((fleet_server_agent_status_cmd.stdout | from_json).state | int < 3)
+          ((fleet_server_agent_status_json_safe.get('state', 3) | int) < 3)
         ) or (
           (fleet_server_runtime_bootstrap_enabled | bool) and
-          (((fleet_server_agent_status_cmd.stdout | from_json).info.id | default('')) | length == 0) and
+          ((fleet_server_agent_status_json_safe.get('info', {}).get('id', '') | string | length) == 0) and
           ('missing config fleet.agent.id' in fleet_server_agent_status_cmd.stdout)
         )
     fail_msg: >-
       fleet-server elastic-agent runtime is not healthy.
       rc={{ fleet_server_agent_status_cmd.rc }}
-      state={{ ((fleet_server_agent_status_cmd.stdout | default('{}')) | from_json).state | default('unknown') }}
-      message={{ ((fleet_server_agent_status_cmd.stdout | default('{}')) | from_json).message | default('unknown') }}
+      state={{ fleet_server_agent_status_json_safe.get('state', 'unknown') }}
+      message={{ fleet_server_agent_status_json_safe.get('message', 'unknown') }}
+  vars:
+    fleet_server_agent_status_json_safe: >-
+      {{
+        (fleet_server_agent_status_cmd.stdout | from_json)
+        if (
+          (fleet_server_agent_status_cmd.stdout | default('', true) | trim | length > 0) and
+          ((fleet_server_agent_status_cmd.stdout | default('', true) | trim).startswith('{'))
+        )
+        else {}
+      }}
   when: not (ansible_check_mode | bool)
 
 # 実行時に生成または再利用した Kibana API キーがコンテナへ引き渡されていることを確認する。

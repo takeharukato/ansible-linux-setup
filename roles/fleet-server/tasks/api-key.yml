@@ -64,12 +64,11 @@
     return_content: true
     timeout: "{{ fleet_server_kibana_timeout_seconds | int }}"
   register: fleet_server_api_key_list_result
-  no_log: true
   until:
     - fleet_server_api_key_list_result is succeeded
     - fleet_server_api_key_list_result.status | default(0) | int == 200
   retries: "{{ fleet_server_kibana_retries | int }}"
-  delay: "{{ fleet_server_kibana_retry_delay_seconds | int }}"
+  delay: "{{ fleet_server_kibana_retry_interval_seconds | int }}"
   when:
     - (fleet_server_kibana_api_key_value | default('', true) | trim | length) == 0
     - fleet_server_runtime_kibana_api_key_create_if_missing | bool
@@ -157,12 +156,11 @@
     return_content: true
     timeout: "{{ fleet_server_kibana_timeout_seconds | int }}"
   register: fleet_server_api_key_result
-  no_log: true
   until:
     - fleet_server_api_key_result is succeeded
     - fleet_server_api_key_result.status | default(0) | int in [200, 201]
   retries: "{{ fleet_server_kibana_retries | int }}"
-  delay: "{{ fleet_server_kibana_retry_delay_seconds | int }}"
+  delay: "{{ fleet_server_kibana_retry_interval_seconds | int }}"
   when:
     - (fleet_server_kibana_api_key_value | default('', true) | trim | length) == 0
     - fleet_server_runtime_kibana_api_key_create_if_missing | bool

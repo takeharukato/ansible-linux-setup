@@ -1,0 +1,17 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  ファイル・ディレクトリ作成関連タスク
+#
+---
+
+# Elastic Agent for Kubernetes 用の Helm values ファイルを配置するディレクトリを作成する。
+- name: Create elastic-agent-k8s Helm values directory
+  ansible.builtin.file:
+    path: "{{ elastic_agent_k8s_runtime_values_file_path | dirname }}"
+    state: directory
+    owner: "{{ elastic_agent_k8s_runtime_helm_operator_user }}"
+    group: "{{ elastic_agent_k8s_runtime_helm_operator_user }}"
+    mode: "0755"
+  become: true

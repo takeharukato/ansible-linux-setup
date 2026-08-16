@@ -1,0 +1,60 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  ロール固有変数のデフォルト値
+#  group_vars/all/all.yml やhost_varsで上書き可能とするため,
+#  ロール名/defaults/main.yml に定義している
+
+---
+
+# elastic-agent-k8s ロールを有効化する。
+elastic_agent_k8s_enabled: false
+
+# Helm 操作タイムアウト値 (単位: 秒)。
+elastic_agent_k8s_helm_timeout_seconds: 300
+# Helm 操作の再試行回数 (単位: 回)。
+elastic_agent_k8s_helm_retries: 3
+# Helm 操作の再試行周期 (単位: 秒)。
+elastic_agent_k8s_helm_retry_interval_seconds: 5
+# Kubernetes API 及び Helm 状態確認のリクエスト発行間隔 (単位: 秒)。
+elastic_agent_k8s_helm_request_interval_seconds: 5
+
+# Helm実行を許可するOSユーザ一覧。
+elastic_agent_k8s_helm_execution_users: []
+# Helm実行時にsudo -uで指定する代表OSユーザ。未指定時はhelm_execution_usersの先頭を使用する。
+elastic_agent_k8s_helm_operator_user: ""
+
+# Fleet Server 接続先URLの明示指定値。空文字列の場合は共通設定から組み立てる。
+elastic_agent_k8s_fleet_server_url_explicit: ""
+# Enrollment Token 明示指定値。空文字列の場合は共有ファイル又はホスト変数から取得する。
+elastic_agent_k8s_enrollment_token: ""
+# Fleet Server へのTLS接続時に証明書検証を省略する場合は true を指定する。
+elastic_agent_k8s_insecure: false
+
+# clusterWide 構成の Elastic Agent Pod に適用する resources 辞書。
+# 既定値は elastic/elastic-agent Chart 8.19 系の clusterWide 既定値へ合わせる。
+elastic_agent_k8s_clusterwide_resources:
+  limits:
+    ephemeral-storage: 1Gi
+    memory: 800Mi
+  requests:
+    cpu: 100m
+    ephemeral-storage: 256Mi
+    memory: 400Mi
+
+# perNode 構成の Elastic Agent Pod に適用する resources 辞書。
+# DiskPressure 環境でもスケジューラとkubeletの判定を安定させるため,
+# ephemeral-storage の request/limit を明示する。
+elastic_agent_k8s_pernode_resources:
+  limits:
+    ephemeral-storage: 2Gi
+    memory: 1000Mi
+  requests:
+    cpu: 100m
+    ephemeral-storage: 512Mi
+    memory: 400Mi
+
+# kube-state-metrics Pod に適用する resources 辞書。
+# 未指定時は Chart 既定動作を使用するため空辞書を既定値にする。
+elastic_agent_k8s_kube_state_metrics_resources: {}

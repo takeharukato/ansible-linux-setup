@@ -39,12 +39,11 @@
       - 201
     return_content: true
     validate_certs: "{{ fleet_bootstrap_kibana_validate_certs | bool }}"
-    timeout: "{{ fleet_bootstrap_kibana_timeout_seconds | int }}"
+    timeout: "{{ fleet_bootstrap_kibana_api_request_timeout_seconds | int }}"
   register: fleet_bootstrap_fleet_server_output_create_result
-  retries: "{{ fleet_bootstrap_kibana_retries | int }}"
-  delay: "{{ fleet_bootstrap_kibana_retry_delay_seconds | int }}"
+  retries: "{{ fleet_bootstrap_kibana_api_retries | int }}"
+  delay: "{{ fleet_bootstrap_kibana_api_retry_interval_seconds | int }}"
   until: fleet_bootstrap_fleet_server_output_create_result.status | default(0) | int in [200, 201]
-  no_log: "{{ fleet_bootstrap_no_log | bool }}"
   when:
     - fleet_bootstrap_existing_fleet_server_output.id is not defined
 
@@ -70,12 +69,11 @@
       - 200
     return_content: true
     validate_certs: "{{ fleet_bootstrap_kibana_validate_certs | bool }}"
-    timeout: "{{ fleet_bootstrap_kibana_timeout_seconds | int }}"
+    timeout: "{{ fleet_bootstrap_kibana_api_request_timeout_seconds | int }}"
   register: fleet_bootstrap_fleet_server_output_update_result
-  retries: "{{ fleet_bootstrap_kibana_retries | int }}"
-  delay: "{{ fleet_bootstrap_kibana_retry_delay_seconds | int }}"
+  retries: "{{ fleet_bootstrap_kibana_api_retries | int }}"
+  delay: "{{ fleet_bootstrap_kibana_api_retry_interval_seconds | int }}"
   until: fleet_bootstrap_fleet_server_output_update_result.status | default(0) | int == 200
-  no_log: "{{ fleet_bootstrap_no_log | bool }}"
   when:
     - fleet_bootstrap_existing_fleet_server_output.id is defined
 
@@ -114,12 +112,11 @@
       - 201
     return_content: true
     validate_certs: "{{ fleet_bootstrap_kibana_validate_certs | bool }}"
-    timeout: "{{ fleet_bootstrap_kibana_timeout_seconds | int }}"
+    timeout: "{{ fleet_bootstrap_kibana_api_request_timeout_seconds | int }}"
   register: fleet_bootstrap_fleet_server_policy_create_result
-  retries: "{{ fleet_bootstrap_kibana_retries | int }}"
-  delay: "{{ fleet_bootstrap_kibana_retry_delay_seconds | int }}"
+  retries: "{{ fleet_bootstrap_kibana_api_retries | int }}"
+  delay: "{{ fleet_bootstrap_kibana_api_retry_interval_seconds | int }}"
   until: fleet_bootstrap_fleet_server_policy_create_result.status | default(0) | int in [200, 201]
-  no_log: "{{ fleet_bootstrap_no_log | bool }}"
   when:
     - fleet_bootstrap_existing_fleet_server_policy.id is not defined
 
@@ -169,12 +166,28 @@
       - 200
     return_content: true
     validate_certs: "{{ fleet_bootstrap_kibana_validate_certs | bool }}"
-    timeout: "{{ fleet_bootstrap_kibana_timeout_seconds | int }}"
+    timeout: "{{ fleet_bootstrap_kibana_api_request_timeout_seconds | int }}"
   register: fleet_bootstrap_logstash_output_restore_result
-  retries: "{{ fleet_bootstrap_kibana_retries | int }}"
-  delay: "{{ fleet_bootstrap_kibana_retry_delay_seconds | int }}"
+  retries: "{{ fleet_bootstrap_kibana_api_retries | int }}"
+  delay: "{{ fleet_bootstrap_kibana_api_retry_interval_seconds | int }}"
   until: fleet_bootstrap_logstash_output_restore_result.status | default(0) | int == 200
-  no_log: "{{ fleet_bootstrap_no_log | bool }}"
+
+# Docker Composeの接頭辞付き実体名でもfleet-serverコンテナを確実に参照できるように, 実体IDを解決する。
+- name: Resolve Fleet Server runtime container identifier for recovery operations
+  ansible.builtin.command:
+    argv:
+      - docker
+      - compose
+      - -f
+      - "{{ fleet_server_runtime_compose_file }}"
+      - ps
+      - -q
+      - fleet-server
+  args:
+    chdir: "{{ fleet_server_compose_dir }}"
+  register: fleet_bootstrap_fleet_server_runtime_container_id_cmd
+  changed_when: false
+  failed_when: false
 
 # 統合追加前の登録状態が残っている場合だけ回復処理を行うため, Fleet Server自身のAgent IDを取得する。
 - name: Get Fleet Server agent status after policy configuration
@@ -182,7 +195,12 @@
     argv:
       - docker
       - exec
-      - "{{ fleet_server_container_name }}"
+      - >-
+        {{
+          (fleet_bootstrap_fleet_server_runtime_container_id_cmd.stdout | default('', true) | trim)
+          if ((fleet_bootstrap_fleet_server_runtime_container_id_cmd.stdout | default('', true) | trim | length) > 0)
+          else fleet_server_container_name
+        }}
       - elastic-agent
       - status
       - --output
@@ -210,10 +228,16 @@
     argv:
       - docker
       - stop
-      - "{{ fleet_server_container_name }}"
+      - >-
+        {{
+          (fleet_bootstrap_fleet_server_runtime_container_id_cmd.stdout | default('', true) | trim)
+          if ((fleet_bootstrap_fleet_server_runtime_container_id_cmd.stdout | default('', true) | trim | length) > 0)
+          else fleet_server_container_name
+        }}
   register: fleet_bootstrap_fleet_server_stop_result
   changed_when: fleet_bootstrap_fleet_server_stop_result.rc == 0
   when:
+    - fleet_bootstrap_fleet_server_agent_status_result.rc | default(1) == 0
     - fleet_bootstrap_fleet_server_agent_id | length == 0
 
 # Agent IDを持たない暗号化済み登録情報だけを除去し, サービストークンと他の状態を維持する。
@@ -225,6 +249,7 @@
     - "{{ fleet_server_runtime_state_dir }}/fleet.enc"
     - "{{ fleet_server_runtime_state_dir }}/fleet.enc.lock"
   when:
+    - fleet_bootstrap_fleet_server_agent_status_result.rc | default(1) == 0
     - fleet_bootstrap_fleet_server_agent_id | length == 0
 
 # Fleet Server統合が存在する状態で自己登録を再実行し, 新しいAgent IDを生成する。
@@ -233,8 +258,14 @@
     argv:
       - docker
       - start
-      - "{{ fleet_server_container_name }}"
+      - >-
+        {{
+          (fleet_bootstrap_fleet_server_runtime_container_id_cmd.stdout | default('', true) | trim)
+          if ((fleet_bootstrap_fleet_server_runtime_container_id_cmd.stdout | default('', true) | trim | length) > 0)
+          else fleet_server_container_name
+        }}
   register: fleet_bootstrap_fleet_server_start_result
   changed_when: fleet_bootstrap_fleet_server_start_result.rc == 0
   when:
+    - fleet_bootstrap_fleet_server_agent_status_result.rc | default(1) == 0
     - fleet_bootstrap_fleet_server_agent_id | length == 0

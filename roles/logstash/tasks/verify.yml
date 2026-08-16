@@ -6,14 +6,39 @@
 #
 ---
 
+# Compose が起動した Logstash 実体IDを取得し, 接頭辞付き名称でも追跡できるようにする。
+- name: Resolve Logstash runtime container identifier
+  ansible.builtin.command:
+    argv:
+      - docker
+      - compose
+      - -f
+      - "{{ logstash_compose_file }}"
+      - ps
+      - -q
+      - logstash
+  args:
+    chdir: "{{ logstash_compose_dir }}"
+  register: logstash_runtime_container_id_cmd
+  changed_when: false
+  failed_when: false
+
 # Logstash コンテナが稼働状態へ遷移したことを確認する。
+# Docker Composeは, コンテナ生成時にlogstash_container_nameで指定された名称に加え,
+# Docker Composeのプロジェクト名やサービス名の接頭辞を付与してコンテナ名称を
+# 生成するため, 接頭辞付き名称でも追跡できるようにする。
 - name: Inspect Logstash container state
   ansible.builtin.command:
     argv:
       - docker
       - container
       - inspect
-      - "{{ logstash_container_name }}"
+      - >-
+        {{
+          (logstash_runtime_container_id_cmd.stdout | default('', true) | trim)
+          if ((logstash_runtime_container_id_cmd.stdout | default('', true) | trim | length) > 0)
+          else logstash_container_name
+        }}
   register: logstash_container_state_cmd
   changed_when: false
   until:
@@ -58,14 +83,14 @@
     return_content: true
     status_code:
       - 200
-    timeout: "{{ logstash_wait_timeout | int }}"
+    timeout: "{{ logstash_health_request_timeout_seconds | int }}"
   register: logstash_status_result
   until:
     - logstash_status_result is succeeded
     - logstash_status_result.status is defined
     - logstash_status_result.status == 200
-  retries: "{{ ((logstash_wait_timeout | int) // ([logstash_wait_sleep | int, 1] | max)) + 1 }}"
-  delay: "{{ logstash_wait_sleep }}"
+  retries: "{{ logstash_health_retries | int }}"
+  delay: "{{ logstash_health_retry_interval_seconds | int }}"
   failed_when:
     - logstash_status_result.status != 200
 
@@ -78,15 +103,15 @@
     return_content: true
     status_code:
       - 200
-    timeout: "{{ logstash_wait_timeout | int }}"
+    timeout: "{{ logstash_health_request_timeout_seconds | int }}"
   register: logstash_external_status_result
   delegate_to: "{{ logstash_external_verify_delegate_to }}"
   until:
     - logstash_external_status_result is succeeded
     - logstash_external_status_result.status is defined
     - logstash_external_status_result.status == 200
-  retries: "{{ ((logstash_wait_timeout | int) // ([logstash_wait_sleep | int, 1] | max)) + 1 }}"
-  delay: "{{ logstash_wait_sleep }}"
+  retries: "{{ logstash_health_retries | int }}"
+  delay: "{{ logstash_health_retry_interval_seconds | int }}"
   failed_when:
     - logstash_external_status_result.status != 200
   when:

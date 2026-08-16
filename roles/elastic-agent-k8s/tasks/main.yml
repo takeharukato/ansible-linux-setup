@@ -1,0 +1,73 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  タスクメイン部
+#
+#  include_tasksで他のタスクを読み込む
+#
+---
+
+# 最初に変数設定を読み直す ( role単独で実行可能とするため )
+- name: "Load Params"
+  ansible.builtin.include_tasks: load-params.yml
+
+# 実行時に確定する値を後続処理で共通利用できるように解決する。
+- name: "Resolve Runtime Vars"
+  ansible.builtin.include_tasks: resolve-runtime-vars.yml
+  when:
+    - elastic_agent_k8s_enabled | default(false) | bool
+
+# Fleet Server登録に必要なEnrollment Tokenを優先順位に従って読み込む。
+- name: "Load Enrollment Token"
+  ansible.builtin.include_tasks: load-enrollment-token.yml
+  when:
+    - elastic_agent_k8s_enabled | default(false) | bool
+
+# 外部実行前に必須入力値と形式の不整合を検出して停止する。
+- name: "Validate"
+  ansible.builtin.include_tasks: validate.yml
+  when:
+    - elastic_agent_k8s_enabled | default(false) | bool
+
+# パッケージ導入関連処理
+- name: "Package"
+  ansible.builtin.include_tasks: package.yml
+  when:
+    - elastic_agent_k8s_enabled | default(false) | bool
+
+# helm導入関連処理
+- name: "Setup Helm Repository"
+  ansible.builtin.include_tasks: helm-repository.yml
+  when:
+    - elastic_agent_k8s_enabled | default(false) | bool
+
+# ディレクトリ関連処理
+- name: "Directory"
+  ansible.builtin.include_tasks: directory.yml
+  when:
+    - elastic_agent_k8s_enabled | default(false) | bool
+
+# ユーザ/グループ関連処理
+- name: "User Group"
+  ansible.builtin.include_tasks: user_group.yml
+  when:
+    - elastic_agent_k8s_enabled | default(false) | bool
+
+# サービス登録関連処理
+- name: "Service"
+  ansible.builtin.include_tasks: service.yml
+  when:
+    - elastic_agent_k8s_enabled | default(false) | bool
+
+# 設定関連処理
+- name: "Config"
+  ansible.builtin.include_tasks: config.yml
+  when:
+    - elastic_agent_k8s_enabled | default(false) | bool
+
+# 導入後の状態を検証し, 設定適用の成否を明確にする。
+- name: "Verify"
+  ansible.builtin.include_tasks: verify.yml
+  when:
+    - elastic_agent_k8s_enabled | default(false) | bool

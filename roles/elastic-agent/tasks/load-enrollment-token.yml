@@ -34,7 +34,6 @@
 - name: Load Fleet enrollment token from file
   ansible.builtin.include_vars:
     file: "{{ fleet_bootstrap_enrollment_token_file }}"
-  no_log: true
   when:
     - (elastic_agent_enrollment_token | default('', true) | string | trim | length) == 0
 
@@ -62,7 +61,6 @@
         elastic_agent_enrollment_tokens[elastic_agent_enrollment_token_profile]
         | default('')
       }}
-  no_log: true
   when:
     - (elastic_agent_enrollment_token | default('', true) | string | trim | length) == 0
     - elastic_agent_enrollment_tokens is defined

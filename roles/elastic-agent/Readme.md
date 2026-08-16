@@ -38,10 +38,16 @@
 | 正式名称 | 略称 | 意味 |
 | --- | --- | --- |
 | Elasticsearch | - | ログやメトリクス情報を集約, 検索するためのサーバソフトウェア。 |
+| Elasticsearchのセキュリティ機能 | - | Elasticsearchへの接続者を認証し, 利用者に付与した権限に基づいて実行可能な操作を制御する機能。 |
+| Snapshot Repository | - | Elasticsearch がバックアップデータを保存する場所として参照する保存先の定義。 |
+| snapshot | - | ある時点の Elasticsearch データを復旧可能な形で保存したバックアップ単位。 |
+| Snapshot API | - | Elasticsearch の snapshot 作成, 一覧取得, 削除, 復元を行う操作手順。 |
 | Kibana | - | Elasticsearchに保存されたデータを可視化し, 参照するソフトウェア。 |
 | Logstash | - | 受信したデータを整形し, 送信先へ転送するソフトウェア。 |
+| Fleet Server | - | Elastic Agent の管理通信を受け付けるサーバ機能。 |
 | Elastic Agent | - | ログやメトリクスを収集して送信する実行要素。 |
-| Elastic Stack | - | Elasticsearch, Kibana, Logstash, Fleet Server, Fleet Bootstrap, Elastic Agent などで構成される, 収集, 蓄積, 検索, 可視化を行うソフトウェア群。 |
+| Fleet Output | - | Elastic Agent が送信先として利用する出力設定。 |
+| Elastic Agent ポリシー | - | Fleetが管理し, Elastic Agentのデータ収集方法と動作を定める設定情報。 |
 | Enrollment Token | - | Elastic AgentがFleet Serverへの登録を許可されていることを確認し, 登録先のElastic Agent ポリシーを特定するための登録用認証情報。 |
 | Enrollment Token共有ファイル | - | Fleet BootstrapがEnrollment Tokenを制御ホスト上へ保存し, Elastic Agent本体ロールがFleet Serverへの登録時に読み込む権限`0600`のYAMLファイル。 |
 | Fleet Serverサービスアカウントトークンファイル | - | Fleet ServerがElasticsearchへ接続するためのサービスアカウントトークンを対象ホスト上へ保存し, Fleet Serverコンテナが起動時に読み込む権限`0600`のファイル。 |
@@ -51,12 +57,12 @@
 | Docker Compose | - | 複数のコンテナ定義をまとめて作成, 起動, 停止, 更新する仕組み。 |
 | Docker Compose 定義ファイル | - | Docker Compose が参照するコンテナ構成の定義ファイル。 |
 | compose project 名 | - | Docker Compose によって展開される個々のアプリケーションを識別する名前です。展開されたコンテナ, ネットワーク, ボリュームなどのリソースをグループ化し, 他のアプリケーション又は別途展開された同じアプリケーションと区別するために用います。 |
-| YAML | - | 設定を読みやすい形式で表す記述方法。 |
 | Ansible | - | 設定の同一化や導入作業を所定の手順に従って自動化する仕組み。 |
 | Playbook | - | 自動化処理の実行手順を記述したファイル。 |
 | Host Variables | host_vars | ホスト単位の設定値を格納する変数定義。 |
 | Ansible Inventory | inventory | 実行対象ホストの一覧と接続情報を管理する定義。 |
 | inventory group | - | Ansible Inventory内で同じ役割の対象ホストをまとめる識別単位。 |
+| single-node | - | Elasticsearch を単一ノード構成で構成する方式。コンテナイメージを用いた導入時に典型的に用いられる。 |
 | 制御ホスト | - | Playbook を実行し, 他ホストへの処理指示を行う管理用ホスト。 |
 | 対象ホスト | - | Playbook による設定変更や導入処理の適用先となるホスト。 |
 | ホスト | - | 管理対象として識別される個別の計算機。 |
@@ -91,16 +97,118 @@
 | リソース | - | 処理に必要な計算機資源やデータ。 |
 | コマンド | - | 実行者が計算機へ処理を指示するための命令。 |
 | ansible-playbookコマンド | ansible-playbook | Ansible Playbook を実行して自動構成処理を適用するコマンド。 |
+| Python | - | スクリプティングやアプリケーション開発を手早く実施するために用いられる高水準プログラミング言語の一種。 |
 | sudoコマンド | sudo | 一時的に管理者権限でコマンドを実行するためのコマンド。 |
 | makeコマンド | make | Makefile に定義された処理を実行するコマンド。 |
 | curlコマンド | curl | URL を指定して通信結果を取得するコマンド。 |
-| systemctlコマンド | systemctl | サービスの起動状態と自動起動設定を確認又は変更するコマンド。 |
+| 環境変数 | - | 実行時の動作を調整するために外部から渡す設定値。 |
+| cron | - | 指定した時刻や周期でコマンドを自動実行する仕組み。 |
+| Ansible Playbook | Playbook | Ansibleで実行する処理の順序と対象を記述したファイル。 |
+| Classless Inter-Domain Routing | CIDR | Internet Protocolアドレスの範囲を先頭アドレスと接頭辞長で表す方式。 |
+| Docker bridge network | Dockerブリッジネットワーク | 同一対象ホスト上のコンテナ間通信に使用する仮想的なネットワーク。 |
+| iptables | - | Linux の IPv4 パケットフィルタ設定ツール。 |
+| ip6tables | - | Linux の IPv6 パケットフィルタ設定ツール。 |
+| Network Address Translation | NAT | 通信時にIPアドレスを変換する処理。 |
+| systemd | - | Linux上でサービスの起動順序と実行状態を管理するソフトウェア。 |
+| dockerコマンド | - | Dockerブリッジネットワークを作成及び確認するコマンド。 |
+| iptablesコマンド | - | IPパケットの通過条件とNAT規則を確認するコマンド。 |
+| ip6tablesコマンド | - | IPv6パケットの通過条件とNAT規則を確認するコマンド。 |
+| systemctlコマンド | - | systemdが管理するサービスの状態を確認するコマンド。 |
+| jqコマンド | jq | JSON 形式のデータから必要な項目だけを抽出して表示するコマンド。 |
+| yqコマンド | yq | YAML 形式のデータから必要な項目だけを抽出して表示するコマンド。 |
+| pipeline | - | 入力, 整形, 出力の処理順を定義する Logstash の設定単位。 |
+| Elastic Agent入力 | - | Elastic Agentからデータストリーム情報を保持したイベントを受信するLogstashの入力機能。 |
+| インデックス | - | Elasticsearch に保存するデータの格納先識別単位。 |
+| Makefile | - | 実行手順を定義したファイル。 |
+| サービスアカウント (Service Account) | - | 自動処理中でサービスを呼び出す側のプログラムを識別するための識別情報。 |
+| Elasticsearchのサービスアカウントトークン ( Elasticsearch Service Account Token ) | - | Elasticsearchが提供するサービスアカウントに紐付く認証情報。 |
+| Hypertext Transfer Protocol Secure | HTTPS | 通信内容を暗号化してWorld Wide Web通信を行う方式。 |
+| localhost | - | 同一機器自身を指す名前。 |
+| サービス | - | 機能を利用者や他システムへ提供する仕組み。 |
+| ユーザ | - | 機能を利用する人, 又は識別された利用主体。 |
+| ツール | - | 特定作業を実行するための機能や道具。 |
+| Elasticsearch のクラスタ | - | 複数の Elasticsearch ノードを連携させて一体運用する構成。 |
+| プログラム | - | 計算機に処理をさせるための命令列。 |
+| プラグイン | - | 既存機能へ追加機能を組み込むための拡張部品。 |
+| コンテナランタイム | - | コンテナを起動, 停止, 管理する実行基盤。 |
+| リクエスト | - | 処理実行や情報取得を要求する操作。 |
+| コントローラ | - | 対象状態を監視し, 期待状態へ調整する制御機能。 |
+| ストレージ | - | データを保存する仕組み。 |
+| インストール | - | ソフトウェアを導入して利用可能にする作業。 |
+| マシン | - | 処理を実行する計算機。 |
+| プロビジョニング | - | 利用開始に必要な設定や資源を準備する作業。 |
+| ルーティング | - | 宛先までの経路を選択して転送する処理。 |
+| オブジェクト | - | ひとかたまりとして扱うデータ単位。 |
+| エージェント | - | 指示に従って処理を代行する構成要素。 |
+| ストア | - | データや成果物を保存する場所。 |
+| ジャーナル | - | 時系列の記録を保持する仕組み。 |
+| アカウント | - | 利用者や処理主体を識別する登録情報。 |
+| エンドポイント | - | 通信の接続先を表す識別点。 |
+| パターン | - | 繰り返し現れる構造や記述形式。 |
+| パケット | - | ネットワークで転送するデータ単位。 |
+| カーネル | - | 基本ソフトウェアの中核機能。 |
+| シェル | - | コマンド入力で計算機を操作する仕組み。 |
+| Canonical | - | Ubuntu を提供する組織名。 |
+| Key-Value | - | キーと値の組で情報を表す方式。 |
+| Structured Query Language | SQL | データベースを操作するための記述言語。 |
+| RPM Package Manager | RPM | RPM形式パッケージの導入, 更新, 削除, 情報参照を行う仕組み。 |
+| Virtual Machine | VM | 物理計算機上で動作する仮想的な計算機。 |
+| Central Processing Unit | CPU | 計算処理を実行する中核部品。 |
+| ソフトウェア | - | 情報処理システムで使用するプログラム, 手順, 規則及び関連文書の全体又は一部分。 |
+| システム | - | 複数の要素が連携して目的を実現する仕組み全体。 |
+| アプリケーション | - | 利用者の目的を実現するために動作するソフトウェア。 |
+| パッケージ | - | ソフトウェア導入に必要なファイルをまとめた配布単位。 |
+| リポジトリ | - | ソフトウェアや設定情報を保管し, 取得できるようにした管理場所。 |
+| ノード | - | ネットワークに接続された機器または処理単位。 |
+| アドレス | - | 宛先や所在を識別するための情報。 |
+| プロトコル | - | 通信やデータ交換の手順を定めた取り決め。 |
+| コード | - | 処理内容を記述した文字列。 |
+| ファイルシステム | - | 記憶装置上のファイルとディレクトリを管理する仕組み。 |
+| プロセス | - | 実行中のプログラムを管理する単位。 |
+| Kubernetes | K8s | コンテナを管理する基盤ソフトウェア。 |
+| Pod | - | Kubernetes でコンテナをまとめて管理する最小単位。 |
+| 名前空間 ( namespace ) | - | Kubernetes内部でリソースを論理的に分離する単位。 |
+| Ubuntu | - | Canonical が提供する Debian 系の Linux ディストリビューション。 |
+| statコマンド | stat | ファイルの権限, 大きさ及び名前を表示するコマンド。 |
+| Service | - | サービスの英語表記。 |
+| Node | - | ノードの英語表記。 |
+| Elastic Agentポリシー構成種別 | - | Fleet Bootstrap ロールの `fleet_bootstrap_agent_policy_profiles` で管理する `host`, `k8s_system`, `k8s_workload`, `k8s_cluster` の4種類を指す, Elastic Stack固有の分類単位。 |
+| 統合パッケージ | - | Elastic Agentへデータの収集方法と収集項目を追加するためのパッケージ。 |
+| Package Policy | - | Elastic Agent ポリシーへ追加する収集内容と統合パッケージの設定。 |
+| System統合 | - | Elastic Agentが対象ホストのログとメトリクス情報を収集するための統合パッケージ。 |
+| Custom Logs統合 | - | Elastic Agentが指定されたログファイルからテキストを収集するための統合パッケージ。 |
+| Application Programming Interface | API | アプリケーション同士が機能やデータをやり取りするための取り決め。 |
+| Ansible Task | task | 自動化処理の最小単位となる実行項目。 |
+| ロール | - | Ansible における処理のまとまり。 |
+| Elastic Stack | - | Elasticsearch, Kibana, Logstash, Fleet Server, Fleet Bootstrap, Elastic Agent などで構成される, 収集, 蓄積, 検索, 可視化を行うソフトウェア群。 |
+| YAML | - | 設定を読みやすい形式で表す記述方法。 |
 | journalctlコマンド | journalctl | サービスが記録したログを確認するコマンド。 |
 | elastic-agentコマンド | elastic-agent | Elastic Agentの版数確認や管理処理を実行するコマンド。 |
+| Fleet Bootstrap | - | Fleet API を使用して Fleet の初期設定と Enrollment Token 共有を実施する初期化ロール。 |
+| Deployment | - | Kubernetesで複数のPodの作成, 更新, 維持を管理するリソース。 |
+| DaemonSet | - | Kubernetesで各ノードへPodを常駐配置するリソース。 |
+| ConfigMap | - | 設定値をキーと値の組で保存するKubernetesリソース。 |
+| Secret | - | 秘密情報を保存するKubernetesリソース。 |
+| Service Account | - | Kubernetes上でPodがAPIを利用する主体を識別する情報。 |
+| Helm | - | Kubernetes向けパッケージを導入, 更新, 削除するコマンド。 |
+| Helm Chart | - | Helmで導入するKubernetesリソース定義のまとまり。 |
+| Helm導入識別名 ( Helm release ) | - | Helm が管理する導入単位を識別する名前。 |
+| rollout | - | Deploymentなどの更新適用状況を確認する処理。 |
+| kubeconfig | - | Kubernetes API接続先と認証情報を記述した設定ファイル。 |
+| hostPath | - | Podがノード上のファイルパスを直接参照するためのボリューム定義。 |
+| preset | - | Helm valuesで導入構成を選択する設定項目。 |
+| clusterWide | - | Kubernetesクラスタ全体を対象として共通処理を実行するためのHelm valuesで指定する導入構成の選択値。 |
+| perNode | - | Kubernetesを構成するノードで実施する処理を実行するためのHelm valuesで指定する導入構成の選択値。 |
+| values ファイル | - | Helm Chartへ渡す設定値を定義したYAMLファイル。 |
+| kube-state-metrics | - | Elastic StackでKubernetesリソース状態を収集するために利用するメトリクス公開コンポーネント。 |
+| helmコマンド | helm | Kubernetes向けパッケージの導入, 更新, 状態確認を実施するコマンド。 |
+| kubectlコマンド | kubectl | Kubernetes API と通信してリソースを操作, 参照するコマンド。 |
+| grepコマンド | grep | テキストの中から条件に一致する行を抽出するコマンド。 |
+| tailコマンド | tail | テキストの末尾側を表示するコマンド。 |
 
 ## 概要
 
-本ロールは, Elastic Agent公式配布物を取得し, 対象ホストへサービスとして導入します。導入時は`elastic_agent_enrollment_token`で明示されたEnrollment Tokenを使用してFleet Serverへ登録します。Enrollment Tokenが未設定の場合は, Fleet Bootstrapが制御ホスト上へ保存したEnrollment Token共有ファイルを`fleet_bootstrap_enrollment_token_file`から特定し, `k8s_workload`, `k8s_system`, `host`の優先順で対象ホストの有効化変数に対応するEnrollment Tokenを選択します。Enrollment Tokenを使用する読込処理, 検証処理及び導入処理には`no_log: true`を設定し, Ansibleの実行ログへ秘密値を出力しません。本ロールは対象ホスト上のFleet Serverサービスアカウントトークンファイルを使用しません。
+本ロールは, Elastic Agent公式配布物を取得し, 対象ホストへサービスとして導入します。導入時は`elastic_agent_enrollment_token`で明示されたEnrollment Tokenを使用してFleet Serverへ登録します。Enrollment Tokenが未設定の場合は, Fleet Bootstrapが制御ホスト上へ保存したEnrollment Token共有ファイルを`fleet_bootstrap_enrollment_token_file`から特定し, `k8s_workload`, `k8s_system`, `host`の優先順で対象ホストの有効化変数に対応するEnrollment Tokenを選択します。本ロールは対象ホスト上のFleet Serverサービスアカウントトークンファイルを使用しません。
 
 対象ホストに`elastic-agent.service`が登録済みの場合は, 公式配布物の取得, 展開, 導入及び再登録を実行しません。既存Agentに対する`--force`を使用しないため, Fleet上の重複登録を防止します。導入済みの場合もサービスの起動状態と導入版数を検証します。
 
@@ -156,12 +264,12 @@ make run_logging_collector
 | `elastic_agent_certificate_authorities` | HTTPS証明書を検証する認証局証明書パス | 空文字列 | `/etc/elastic-agent/certs/ca.crt` |
 | `elastic_agent_download_timeout_seconds` | 公式配布物取得時の接続タイムアウト秒数 | `120` | `120` |
 | `elastic_agent_download_retries` | 公式配布物取得の再試行回数 | `3` | `3` |
-| `elastic_agent_download_retry_delay_seconds` | 公式配布物取得の再試行間隔秒数 | `5` | `5` |
+| `elastic_agent_download_retry_interval_seconds` | 公式配布物取得の再試行間隔秒数 | `5` | `5` |
 | `elastic_agent_install_timeout_seconds` | 導入処理のタイムアウト秒数 | `300` | `300` |
 | `elastic_agent_install_retries` | 導入処理の再試行回数 | `3` | `3` |
-| `elastic_agent_install_retry_delay_seconds` | 導入処理の再試行間隔秒数 | `10` | `10` |
+| `elastic_agent_install_retry_interval_seconds` | 導入処理の再試行間隔秒数 | `10` | `10` |
 | `elastic_agent_service_retries` | サービス起動確認の再試行回数 | `12` | `12` |
-| `elastic_agent_service_retry_delay_seconds` | サービス起動確認の再試行間隔秒数 | `5` | `5` |
+| `elastic_agent_service_retry_interval_seconds` | サービス起動確認の再試行間隔秒数 | `5` | `5` |
 
 ### 設定例
 
@@ -173,7 +281,7 @@ make run_logging_collector
 3: elastic_agent_certificate_authorities: "/etc/elastic-agent/certs/ca.crt"
 4: elastic_agent_download_timeout_seconds: 120
 5: elastic_agent_download_retries: 3
-6: elastic_agent_download_retry_delay_seconds: 5
+6: elastic_agent_download_retry_interval_seconds: 5
 ```
 
 | 行番号 | 設定値 | 有効になる動作 | 設定背景(未設定時/誤設定時の問題と防止理由) |
@@ -252,23 +360,22 @@ Active: active (running)
 
 ```bash
 $ systemctl status elastic-agent --no-pager
-systemctl status elastic-agent --no-pager
 ● elastic-agent.service - Elastic Agent is a unified agent to observe, monitor and protect your system.
-     Loaded: loaded (/etc/systemd/system/elastic-agent.service; enabled; preset: disabled)
-     Active: active (running) since Sun 2026-08-09 02:08:53 JST; 14h ago
-   Main PID: 2760972 (elastic-agent)
-      Tasks: 67 (limit: 48838)
-     Memory: 778.3M (peak: 978.1M)
-        CPU: 2min 24.180s
+     Loaded: loaded (/etc/systemd/system/elastic-agent.service; enabled; preset: enabled)
+     Active: active (running) since Mon 2026-08-10 15:09:11 JST; 8min ago
+   Main PID: 312947 (elastic-agent)
+      Tasks: 63 (limit: 4547)
+     Memory: 582.1M (peak: 630.9M)
+        CPU: 6.468s
      CGroup: /system.slice/elastic-agent.service
-             ├─2760972 elastic-agent
-             ├─2947801 /opt/Elastic/Agent/data/elastic-agent-8.17.3-0efe49/components/age…
-             ├─2947807 /opt/Elastic/Agent/data/elastic-agent-8.17.3-0efe49/components/age…
-             ├─2947813 /opt/Elastic/Agent/data/elastic-agent-8.17.3-0efe49/components/age…
-             ├─2947820 /opt/Elastic/Agent/data/elastic-agent-8.17.3-0efe49/components/age…
-             └─2947829 /opt/Elastic/Agent/data/elastic-agent-8.17.3-0efe49/components/age…
+             ├─312947 elastic-agent
+             ├─313301 /opt/Elastic/Agent/data/elastic-agent-8.19.19-35f53d/components/age…
+             ├─313303 /opt/Elastic/Agent/data/elastic-agent-8.19.19-35f53d/components/age…
+             ├─313304 /opt/Elastic/Agent/data/elastic-agent-8.19.19-35f53d/components/age…
+             ├─313306 /opt/Elastic/Agent/data/elastic-agent-8.19.19-35f53d/components/age…
+             └─313308 /opt/Elastic/Agent/data/elastic-agent-8.19.19-35f53d/components/age…
 
-Aug 09 02:08:59 observer01 elastic-agent[2760972]: {"log.level":"info","@timestamp":"2026-0…
+Aug 10 15:09:47 observer01 elastic-agent[312947]: {"log.level":"info","@timestamp":...
 Hint: Some lines were ellipsized, use -l to show in full.
 ```
 
@@ -289,16 +396,16 @@ sudo elastic-agent version
 **期待される出力**:
 
 ```plaintext
-Binary: 8.17.3
-Daemon: 8.17.3
+Binary: 8.19.19
+Daemon: 8.19.19
 ```
 
 **実行結果の例**:
 
 ```bash
 $ sudo elastic-agent version
-Binary: 8.17.3 (build: 0efe4920ea5cea17aad2d353244c3d3f04f6162a at 2025-02-27 22:53:35 +0000 UTC)
-Daemon: 8.17.3 (build: 0efe4920ea5cea17aad2d353244c3d3f04f6162a at 2025-02-27 22:53:35 +0000 UTC)
+Binary: 8.19.19 (build: 35f53d3bd58c09b0af3868cb3d418df31ebf631b at 2026-07-15 16:22:17 +0000 UTC)
+Daemon: 8.19.19 (build: 35f53d3bd58c09b0af3868cb3d418df31ebf631b at 2026-07-15 16:22:17 +0000 UTC)
 ```
 
 **確認ポイント**:
@@ -356,11 +463,11 @@ systemctl status elastic-agent --no-pager
         CPU: 2min 24.180s
      CGroup: /system.slice/elastic-agent.service
              ├─2760972 elastic-agent
-             ├─2947801 /opt/Elastic/Agent/data/elastic-agent-8.17.3-0efe49/components/age…
-             ├─2947807 /opt/Elastic/Agent/data/elastic-agent-8.17.3-0efe49/components/age…
-             ├─2947813 /opt/Elastic/Agent/data/elastic-agent-8.17.3-0efe49/components/age…
-             ├─2947820 /opt/Elastic/Agent/data/elastic-agent-8.17.3-0efe49/components/age…
-             └─2947829 /opt/Elastic/Agent/data/elastic-agent-8.17.3-0efe49/components/age…
+             ├─2947801 /opt/Elastic/Agent/data/elastic-agent-8.19.19-35f53d/components/age…
+             ├─2947807 /opt/Elastic/Agent/data/elastic-agent-8.19.19-35f53d/components/age…
+             ├─2947813 /opt/Elastic/Agent/data/elastic-agent-8.19.19-35f53d/components/age…
+             ├─2947820 /opt/Elastic/Agent/data/elastic-agent-8.19.19-35f53d/components/age…
+             └─2947829 /opt/Elastic/Agent/data/elastic-agent-8.19.19-35f53d/components/age…
 
 Aug 09 02:08:59 observer01 elastic-agent[2760972]: {"log.level":"info","@timestamp":"2026-0…
 Hint: Some lines were ellipsized, use -l to show in full.

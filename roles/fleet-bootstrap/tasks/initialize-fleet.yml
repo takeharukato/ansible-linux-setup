@@ -1,0 +1,78 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+# Fleet初期化タスク
+#
+---
+
+# KibanaのFleet機能の初期化手順を実行して, 以降の Output, Agent Policy, Enrollment Token作成に必要な前提を設定する。
+- name: Initialize Fleet setup
+  ansible.builtin.uri:
+    url: "{{ fleet_bootstrap_kibana_url }}/api/fleet/setup"
+    method: POST
+    headers:
+      Authorization: "ApiKey {{ fleet_bootstrap_runtime_api_key }}"
+      kbn-xsrf: "{{ fleet_bootstrap_kibana_xsrf_token }}"
+      Content-Type: application/json
+    status_code:
+      - 200
+      - 201
+      - 202
+    return_content: true
+    validate_certs: "{{ fleet_bootstrap_kibana_validate_certs | bool }}"
+    timeout: "{{ fleet_bootstrap_kibana_api_request_timeout_seconds | int }}"
+  register: fleet_bootstrap_setup_result
+  retries: "{{ fleet_bootstrap_kibana_api_retries | int }}"
+  delay: "{{ fleet_bootstrap_kibana_api_retry_interval_seconds | int }}"
+  until: fleet_bootstrap_setup_result.status | default(0) | int in [200, 201, 202]
+
+# Agent Policy 作成前に, Kibana 側の既定 Fleet Server host 設定を確保する。
+- name: List existing Fleet Server hosts
+  ansible.builtin.uri:
+    url: "{{ fleet_bootstrap_kibana_url }}/api/fleet/fleet_server_hosts"
+    method: GET
+    headers:
+      Authorization: "ApiKey {{ fleet_bootstrap_runtime_api_key }}"
+      kbn-xsrf: "{{ fleet_bootstrap_kibana_xsrf_token }}"
+      Content-Type: application/json
+    return_content: true
+    validate_certs: "{{ fleet_bootstrap_kibana_validate_certs | bool }}"
+    timeout: "{{ fleet_bootstrap_kibana_api_request_timeout_seconds | int }}"
+  register: fleet_bootstrap_fleet_server_host_list
+  retries: "{{ fleet_bootstrap_kibana_api_retries | int }}"
+  delay: "{{ fleet_bootstrap_kibana_api_retry_interval_seconds | int }}"
+  until: fleet_bootstrap_fleet_server_host_list.status | default(0) | int in [200]
+
+# Fleet Server host がKibana 側に未作成の場合は, 既定の Fleet Server host を作成する。
+- name: Create default Fleet Server host if missing
+  ansible.builtin.uri:
+    url: "{{ fleet_bootstrap_kibana_url }}/api/fleet/fleet_server_hosts"
+    method: POST
+    body_format: json
+    headers:
+      Authorization: "ApiKey {{ fleet_bootstrap_runtime_api_key }}"
+      kbn-xsrf: "{{ fleet_bootstrap_kibana_xsrf_token }}"
+      Content-Type: application/json
+    body:
+      name: "{{ fleet_bootstrap_fleet_server_host_name }}"
+      host_urls: "{{ fleet_bootstrap_fleet_server_runtime_host_urls }}"
+      is_default: true
+    status_code:
+      - 200
+      - 201
+    return_content: true
+    validate_certs: "{{ fleet_bootstrap_kibana_validate_certs | bool }}"
+    timeout: "{{ fleet_bootstrap_kibana_api_request_timeout_seconds | int }}"
+  register: fleet_bootstrap_fleet_server_host_result
+  retries: "{{ fleet_bootstrap_kibana_api_retries | int }}"
+  delay: "{{ fleet_bootstrap_kibana_api_retry_interval_seconds | int }}"
+  until: fleet_bootstrap_fleet_server_host_result.status | default(0) | int in [200, 201]
+  # 既定 Fleet Server host が未作成であることを判定してから作成する。
+  when:
+    - (
+        fleet_bootstrap_fleet_server_host_list.json['items'] | default([])
+        | selectattr('is_default', 'equalto', true)
+        | list
+        | length
+      ) == 0

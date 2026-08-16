@@ -1,0 +1,37 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+# Fleet Kibana API接続準備タスク
+#
+---
+
+# Kibana の Fleet API へ接続する前提条件として, API キーが設定されていることを確認する。
+- name: Check Fleet Bootstrap API key is configured
+  ansible.builtin.assert:
+    that:
+      - fleet_bootstrap_runtime_api_key | default('', true) | trim | length > 0
+    fail_msg: "fleet_bootstrap_kibana_api_key must be configured in host_vars, shared facts, or environment variables"
+
+# Fleet APIの許容範囲外で一覧取得が失敗する前に, Enrollment Token一覧取得件数の誤設定を検出する。
+- name: Validate Fleet enrollment token list page size
+  ansible.builtin.assert:
+    that:
+      - (fleet_bootstrap_enrollment_token_list_page_size | int) >= 1
+      - (fleet_bootstrap_enrollment_token_list_page_size | int) <= 10000
+    fail_msg: >-
+      fleet_bootstrap_enrollment_token_list_page_size must be between 1 and 10000.
+
+# 認証切り分けが必要な場合だけ, 機密値を伏せたまま API キー形式と接続先を可視化する。
+# 正規表現'^[A-Za-z0-9+/=]+$'は, '^'と'$'が文字列全体, 文字クラスがBase64で使用する英数字,
+# '+', '/', '='を表し, 'YWJjZA=='のような文字列に一致する。診断値には一致結果だけを出力する。
+- name: Debug Fleet Bootstrap API key shape
+  ansible.builtin.debug:
+    msg:
+      endpoint: "{{ fleet_bootstrap_kibana_url }}"
+      key_length: "{{ fleet_bootstrap_runtime_api_key | default('', true) | trim | length }}"
+      contains_colon: "{{ ':' in (fleet_bootstrap_runtime_api_key | default('', true) | trim) }}"
+      contains_dot: "{{ '.' in (fleet_bootstrap_runtime_api_key | default('', true) | trim) }}"
+      looks_base64_like: "{{ (fleet_bootstrap_runtime_api_key | default('', true) | trim) is regex('^[A-Za-z0-9+/=]+$') }}"
+  when:
+    - fleet_bootstrap_debug_auth_diagnostics | bool

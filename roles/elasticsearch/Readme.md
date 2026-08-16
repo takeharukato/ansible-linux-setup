@@ -149,6 +149,108 @@ http://導入先ホスト:5601
 | curlコマンド | curl | URL を指定して通信結果を取得するコマンド。 |
 | 環境変数 | - | 実行時の動作を調整するために外部から渡す設定値。 |
 | cron | - | 指定した時刻や周期でコマンドを自動実行する仕組み。 |
+| Ansible Playbook | Playbook | Ansibleで実行する処理の順序と対象を記述したファイル。 |
+| Classless Inter-Domain Routing | CIDR | Internet Protocolアドレスの範囲を先頭アドレスと接頭辞長で表す方式。 |
+| Docker bridge network | Dockerブリッジネットワーク | 同一対象ホスト上のコンテナ間通信に使用する仮想的なネットワーク。 |
+| iptables | - | Linux の IPv4 パケットフィルタ設定ツール。 |
+| ip6tables | - | Linux の IPv6 パケットフィルタ設定ツール。 |
+| Network Address Translation | NAT | 通信時にIPアドレスを変換する処理。 |
+| systemd | - | Linux上でサービスの起動順序と実行状態を管理するソフトウェア。 |
+| dockerコマンド | - | Dockerブリッジネットワークを作成及び確認するコマンド。 |
+| iptablesコマンド | - | IPパケットの通過条件とNAT規則を確認するコマンド。 |
+| ip6tablesコマンド | - | IPv6パケットの通過条件とNAT規則を確認するコマンド。 |
+| systemctlコマンド | - | systemdが管理するサービスの状態を確認するコマンド。 |
+| jqコマンド | jq | JSON 形式のデータから必要な項目だけを抽出して表示するコマンド。 |
+| yqコマンド | yq | YAML 形式のデータから必要な項目だけを抽出して表示するコマンド。 |
+| pipeline | - | 入力, 整形, 出力の処理順を定義する Logstash の設定単位。 |
+| Elastic Agent入力 | - | Elastic Agentからデータストリーム情報を保持したイベントを受信するLogstashの入力機能。 |
+| インデックス | - | Elasticsearch に保存するデータの格納先識別単位。 |
+| Makefile | - | 実行手順を定義したファイル。 |
+| サービスアカウント (Service Account) | - | 自動処理中でサービスを呼び出す側のプログラムを識別するための識別情報。 |
+| Elasticsearchのサービスアカウントトークン ( Elasticsearch Service Account Token ) | - | Elasticsearchが提供するサービスアカウントに紐付く認証情報。 |
+| Hypertext Transfer Protocol Secure | HTTPS | 通信内容を暗号化してWorld Wide Web通信を行う方式。 |
+| localhost | - | 同一機器自身を指す名前。 |
+| サービス | - | 機能を利用者や他システムへ提供する仕組み。 |
+| ユーザ | - | 機能を利用する人, 又は識別された利用主体。 |
+| ツール | - | 特定作業を実行するための機能や道具。 |
+| Elasticsearch のクラスタ | - | 複数の Elasticsearch ノードを連携させて一体運用する構成。 |
+| プログラム | - | 計算機に処理をさせるための命令列。 |
+| プラグイン | - | 既存機能へ追加機能を組み込むための拡張部品。 |
+| コンテナランタイム | - | コンテナを起動, 停止, 管理する実行基盤。 |
+| リクエスト | - | 処理実行や情報取得を要求する操作。 |
+| コントローラ | - | 対象状態を監視し, 期待状態へ調整する制御機能。 |
+| ストレージ | - | データを保存する仕組み。 |
+| インストール | - | ソフトウェアを導入して利用可能にする作業。 |
+| マシン | - | 処理を実行する計算機。 |
+| プロビジョニング | - | 利用開始に必要な設定や資源を準備する作業。 |
+| ルーティング | - | 宛先までの経路を選択して転送する処理。 |
+| オブジェクト | - | ひとかたまりとして扱うデータ単位。 |
+| エージェント | - | 指示に従って処理を代行する構成要素。 |
+| ストア | - | データや成果物を保存する場所。 |
+| ジャーナル | - | 時系列の記録を保持する仕組み。 |
+| アカウント | - | 利用者や処理主体を識別する登録情報。 |
+| エンドポイント | - | 通信の接続先を表す識別点。 |
+| パターン | - | 繰り返し現れる構造や記述形式。 |
+| パケット | - | ネットワークで転送するデータ単位。 |
+| カーネル | - | 基本ソフトウェアの中核機能。 |
+| シェル | - | コマンド入力で計算機を操作する仕組み。 |
+| Canonical | - | Ubuntu を提供する組織名。 |
+| Key-Value | - | キーと値の組で情報を表す方式。 |
+| Structured Query Language | SQL | データベースを操作するための記述言語。 |
+| RPM Package Manager | RPM | RPM形式パッケージの導入, 更新, 削除, 情報参照を行う仕組み。 |
+| Virtual Machine | VM | 物理計算機上で動作する仮想的な計算機。 |
+| Central Processing Unit | CPU | 計算処理を実行する中核部品。 |
+| ソフトウェア | - | 情報処理システムで使用するプログラム, 手順, 規則及び関連文書の全体又は一部分。 |
+| システム | - | 複数の要素が連携して目的を実現する仕組み全体。 |
+| アプリケーション | - | 利用者の目的を実現するために動作するソフトウェア。 |
+| パッケージ | - | ソフトウェア導入に必要なファイルをまとめた配布単位。 |
+| リポジトリ | - | ソフトウェアや設定情報を保管し, 取得できるようにした管理場所。 |
+| ノード | - | ネットワークに接続された機器または処理単位。 |
+| アドレス | - | 宛先や所在を識別するための情報。 |
+| プロトコル | - | 通信やデータ交換の手順を定めた取り決め。 |
+| コード | - | 処理内容を記述した文字列。 |
+| ファイルシステム | - | 記憶装置上のファイルとディレクトリを管理する仕組み。 |
+| プロセス | - | 実行中のプログラムを管理する単位。 |
+| Kubernetes | K8s | コンテナを管理する基盤ソフトウェア。 |
+| Pod | - | Kubernetes でコンテナをまとめて管理する最小単位。 |
+| 名前空間 ( namespace ) | - | Kubernetes内部でリソースを論理的に分離する単位。 |
+| Ubuntu | - | Canonical が提供する Debian 系の Linux ディストリビューション。 |
+| statコマンド | stat | ファイルの権限, 大きさ及び名前を表示するコマンド。 |
+| Service | - | サービスの英語表記。 |
+| Node | - | ノードの英語表記。 |
+| Elastic Agentポリシー構成種別 | - | Fleet Bootstrap ロールの `fleet_bootstrap_agent_policy_profiles` で管理する `host`, `k8s_system`, `k8s_workload`, `k8s_cluster` の4種類を指す, Elastic Stack固有の分類単位。 |
+| 統合パッケージ | - | Elastic Agentへデータの収集方法と収集項目を追加するためのパッケージ。 |
+| Package Policy | - | Elastic Agent ポリシーへ追加する収集内容と統合パッケージの設定。 |
+| System統合 | - | Elastic Agentが対象ホストのログとメトリクス情報を収集するための統合パッケージ。 |
+| Custom Logs統合 | - | Elastic Agentが指定されたログファイルからテキストを収集するための統合パッケージ。 |
+| Application Programming Interface | API | アプリケーション同士が機能やデータをやり取りするための取り決め。 |
+| Ansible Task | task | 自動化処理の最小単位となる実行項目。 |
+| ロール | - | Ansible における処理のまとまり。 |
+| Elastic Stack | - | Elasticsearch, Kibana, Logstash, Fleet Server, Fleet Bootstrap, Elastic Agent などで構成される, 収集, 蓄積, 検索, 可視化を行うソフトウェア群。 |
+| YAML | - | 設定を読みやすい形式で表す記述方法。 |
+| journalctlコマンド | journalctl | サービスが記録したログを確認するコマンド。 |
+| elastic-agentコマンド | elastic-agent | Elastic Agentの版数確認や管理処理を実行するコマンド。 |
+| Fleet Bootstrap | - | Fleet API を使用して Fleet の初期設定と Enrollment Token 共有を実施する初期化ロール。 |
+| Deployment | - | Kubernetesで複数のPodの作成, 更新, 維持を管理するリソース。 |
+| DaemonSet | - | Kubernetesで各ノードへPodを常駐配置するリソース。 |
+| ConfigMap | - | 設定値をキーと値の組で保存するKubernetesリソース。 |
+| Secret | - | 秘密情報を保存するKubernetesリソース。 |
+| Service Account | - | Kubernetes上でPodがAPIを利用する主体を識別する情報。 |
+| Helm | - | Kubernetes向けパッケージを導入, 更新, 削除するコマンド。 |
+| Helm Chart | - | Helmで導入するKubernetesリソース定義のまとまり。 |
+| Helm導入識別名 ( Helm release ) | - | Helm が管理する導入単位を識別する名前。 |
+| rollout | - | Deploymentなどの更新適用状況を確認する処理。 |
+| kubeconfig | - | Kubernetes API接続先と認証情報を記述した設定ファイル。 |
+| hostPath | - | Podがノード上のファイルパスを直接参照するためのボリューム定義。 |
+| preset | - | Helm valuesで導入構成を選択する設定項目。 |
+| clusterWide | - | Kubernetesクラスタ全体を対象として共通処理を実行するためのHelm valuesで指定する導入構成の選択値。 |
+| perNode | - | Kubernetesを構成するノードで実施する処理を実行するためのHelm valuesで指定する導入構成の選択値。 |
+| values ファイル | - | Helm Chartへ渡す設定値を定義したYAMLファイル。 |
+| kube-state-metrics | - | Elastic StackでKubernetesリソース状態を収集するために利用するメトリクス公開コンポーネント。 |
+| helmコマンド | helm | Kubernetes向けパッケージの導入, 更新, 状態確認を実施するコマンド。 |
+| kubectlコマンド | kubectl | Kubernetes API と通信してリソースを操作, 参照するコマンド。 |
+| grepコマンド | grep | テキストの中から条件に一致する行を抽出するコマンド。 |
+| tailコマンド | tail | テキストの末尾側を表示するコマンド。 |
 
 ## 概要
 
@@ -166,7 +268,7 @@ http://導入先ホスト:5601
 
 本ロールで Elasticsearch を導入する際の仕様は, 次のとおりです。
 
-- コンテナイメージは `docker.elastic.co/elasticsearch/elasticsearch:8.17.3` を使用すること。
+- コンテナイメージは `docker.elastic.co/elasticsearch/elasticsearch:8.19.19` を使用すること。
 - Elasticsearch のクラスタ名は `shared-logs` とすること。
 - ノード名は, 対象ホスト名を用いること。
 - Elasticsearch は `0.0.0.0:9200` で待受し, TCPプロトコルのポート番号9200番 を使用すること。
@@ -458,7 +560,7 @@ ansible-playbook -i inventory/hosts logging-backend.yml
 
 | 変数名 | 意味 | 既定値 | 設定例 |
 | --- | --- | --- | --- |
-| `logging_backend_elastic_stack_version` | Elasticsearch, Kibana, Logstash, Fleet Server及びElastic Agentで共通利用する版数。 | `8.17.3` | `8.17.3` |
+| `logging_backend_elastic_stack_version` | Elasticsearch, Kibana, Logstash, Fleet Server及びElastic Agentで共通利用する版数。 | `8.19.19` | `8.19.19` |
 | `logging_backend_network_name` | Elastic Stack関連コンテナが共有するDockerブリッジネットワーク名。 | `elastic-backend` | `elastic-backend` |
 | `logging_backend_network_ipv4_subnet` | 共有Dockerブリッジネットワークへ割り当てるIPv4 CIDR。 | `172.18.0.0/16` | `172.18.0.0/16` |
 | `logging_backend_network_ipv6_subnet` | 共有Dockerブリッジネットワークへ割り当てるIPv6 CIDR。 | `fd00:172:18::/64` | `fd00:172:18::/64` |
@@ -967,7 +1069,7 @@ ls -ld /srv/elastic-search /srv/elastic-search/config /srv/elastic-search/data /
 ```bash
 $ docker ps -a --filter name=elasticsearch
 CONTAINER ID   IMAGE                                                  COMMAND                  CREATED             STATUS                       PORTS                              NAMES
-3810ef71ee6d   docker.elastic.co/elasticsearch/elasticsearch:8.17.3   "/bin/tini -- /usr/l…"   About an hour ago   Up About an hour (healthy)   0.0.0.0:9200->9200/tcp, 9300/tcp   elasticsearch
+3810ef71ee6d   docker.elastic.co/elasticsearch/elasticsearch:8.19.19   "/bin/tini -- /usr/l…"   About an hour ago   Up About an hour (healthy)   0.0.0.0:9200->9200/tcp, 9300/tcp   elasticsearch
 $ docker logs --tail 200 elasticsearch 2>&1 | grep -E '"log.level"[[:space:]]*:[[:space:]]*"(WARN|ERROR|FATAL)"'
 $ docker compose -f /srv/elastic-search/docker-compose.yml config
 
@@ -989,7 +1091,7 @@ services:
       timeout: 5s
       interval: 10s
       retries: 12
-    image: docker.elastic.co/elasticsearch/elasticsearch:8.17.3
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.19.19
     networks:
       elastic_backend: null
     ports:
@@ -1057,7 +1159,7 @@ curl -v --max-time 5 -u 'elastic:DUMMY_ELASTIC_PASSWORD' http://127.0.0.1:9200/
 ```bash
 $ docker ps --filter name=elasticsearch
 CONTAINER ID   IMAGE                                                  COMMAND                  CREATED             STATUS                       PORTS                              NAMES
-3810ef71ee6d   docker.elastic.co/elasticsearch/elasticsearch:8.17.3   "/bin/tini -- /usr/l…"   About an hour ago   Up About an hour (healthy)   0.0.0.0:9200->9200/tcp, 9300/tcp   elasticsearch
+3810ef71ee6d   docker.elastic.co/elasticsearch/elasticsearch:8.19.19   "/bin/tini -- /usr/l…"   About an hour ago   Up About an hour (healthy)   0.0.0.0:9200->9200/tcp, 9300/tcp   elasticsearch
 $ ss -ltnp | grep ':9200 '
 LISTEN 0      4096         0.0.0.0:9200       0.0.0.0:*
 $ curl -v --max-time 5 -u 'elastic:elastic' http://127.0.0.1:9200/
@@ -1081,7 +1183,7 @@ $ curl -v --max-time 5 -u 'elastic:elastic' http://127.0.0.1:9200/
   "cluster_name" : "shared-logs",
   "cluster_uuid" : "mWEU68ySRbqcHfnuBsJ2Uw",
   "version" : {
-    "number" : "8.17.3",
+    "number" : "8.19.19",
     "build_flavor" : "default",
     "build_type" : "docker",
     "build_hash" : "a091390de485bd4b127884f7e565c0cad59b10d2",
@@ -1223,15 +1325,15 @@ $ curl -sS -u 'elastic:elastic' 'http://127.0.0.1:9200/_cluster/health?pretty'
 }
 $ curl -sS -u 'elastic:elastic' 'http://127.0.0.1:9200/_cat/indices/.kibana*?v'
 health status index                                      uuid                   pri rep docs.count docs.deleted store.size pri.store.size dataset.size
-green  open   .kibana_usage_counters_8.17.3_001          mC4hG0NWRaqj-vfEt16vFQ   1   0        112           16     61.1kb         61.1kb       61.1kb
+green  open   .kibana_usage_counters_8.19.19_001          mC4hG0NWRaqj-vfEt16vFQ   1   0        112           16     61.1kb         61.1kb       61.1kb
 green  open   .ds-.kibana-event-log-ds-2026.08.05-000001 eG6TnJGrR0e1IdJ6K4UfvQ   1   0         72            0       82kb           82kb         82kb
-green  open   .kibana_security_solution_8.17.3_001       gfo2-JeUSMu0qQNIgMFHzg   1   0          2            0     20.4kb         20.4kb       20.4kb
-green  open   .kibana_8.17.3_001                         UOILuHY5SP6o4rnElPYs6g   1   0         96           24     96.8kb         96.8kb       96.8kb
-green  open   .kibana_task_manager_8.17.3_001            eWAy13ezRQ-52FVcAplLgA   1   0         36           12    218.9kb        218.9kb      218.9kb
+green  open   .kibana_security_solution_8.19.19_001       gfo2-JeUSMu0qQNIgMFHzg   1   0          2            0     20.4kb         20.4kb       20.4kb
+green  open   .kibana_8.19.19_001                         UOILuHY5SP6o4rnElPYs6g   1   0         96           24     96.8kb         96.8kb       96.8kb
+green  open   .kibana_task_manager_8.19.19_001            eWAy13ezRQ-52FVcAplLgA   1   0         36           12    218.9kb        218.9kb      218.9kb
 green  open   .kibana_security_session_1                 rigWS9lfQXCzc7AENWSxmw   1   0          2            0     13.2kb         13.2kb       13.2kb
-green  open   .kibana_alerting_cases_8.17.3_001          Q4zHa0sVRG2CxiK_XRAzkQ   1   0          1            0      6.9kb          6.9kb        6.9kb
-green  open   .kibana_ingest_8.17.3_001                  V5vNxzNYSySdt9KwZL_Kaw   1   0        759           97      3.3mb          3.3mb        3.3mb
-green  open   .kibana_analytics_8.17.3_001               rPc8R2mLQpOyjC_AUXDRug   1   0       1378            0      2.9mb          2.9mb        2.9mb
+green  open   .kibana_alerting_cases_8.19.19_001          Q4zHa0sVRG2CxiK_XRAzkQ   1   0          1            0      6.9kb          6.9kb        6.9kb
+green  open   .kibana_ingest_8.19.19_001                  V5vNxzNYSySdt9KwZL_Kaw   1   0        759           97      3.3mb          3.3mb        3.3mb
+green  open   .kibana_analytics_8.19.19_001               rPc8R2mLQpOyjC_AUXDRug   1   0       1378            0      2.9mb          2.9mb        2.9mb
 $ curl -sS 'http://127.0.0.1:5601/api/status'
 {"status":{"overall":{"level":"available"}}}
 ```

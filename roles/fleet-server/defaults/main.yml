@@ -34,13 +34,13 @@ fleet_server_kibana_timeout_seconds: 30
 # Kibana API 呼び出しの再試行回数 (単位: 回)。
 fleet_server_kibana_retries: 3
 # Kibana API 呼び出しの再試行待機時間 (単位: 秒)。
-fleet_server_kibana_retry_delay_seconds: 5
+fleet_server_kibana_retry_interval_seconds: 5
 # サービストークン発行APIの接続タイムアウト値 (単位: 秒)。
 fleet_server_token_issue_timeout_seconds: 30
 # サービストークン発行APIの再試行回数 (単位: 回)。
 fleet_server_token_issue_retries: 3
 # サービストークン発行APIの再試行待機時間 (単位: 秒)。
-fleet_server_token_issue_retry_delay_seconds: 5
+fleet_server_token_issue_retry_interval_seconds: 5
 # 空文字列は Elasticsearch API へ expiration を送らず, 無期限キーとして作成する。
 fleet_server_kibana_api_key_expiration: ""
 # fleet-server の待受アドレス。
@@ -60,6 +60,11 @@ fleet_server_wait_sleep: 2
 fleet_server_wait_retries: 60
 # 起動検証時の接続元ホスト名/IPアドレス。
 fleet_server_wait_delegate_to: "{{ inventory_hostname }}"
+# fleet-server elastic-agent status 検証の再試行間隔 (単位: 秒)。
+fleet_server_agent_status_retry_interval_seconds: 5
+# fleet-server elastic-agent status 検証の再試行回数 (単位: 回)。
+# 実環境が開発環境より2-4倍遅い前提で, 最大約25分(5秒 * 300回)の待機予算を確保する。
+fleet_server_agent_status_retries: 300
 
 # 機密値(トークン, パスワード, 鍵)はこの defaults/main.yml に置かない。
 # fleet_server_service_token: "SET_IN_HOST_VARS_OR_SITE_CONFIG"
