@@ -1,4 +1,4 @@
-#  -*- coding:utf-8 mode:yaml -*-
+#  -*- coding:utf-8-unix mode:yaml -*-
 #  Ansible playbook
 #  Copyright 2020 Takeharu KATO All Rights Reserved.
 #
@@ -6,7 +6,8 @@
 #
 ---
 
-# Package Policy作成前に, Kibana 8.19.19との互換性を確認済みのSystem統合を導入する。
+# System構成種別を利用する場合にのみSystem統合を導入し,
+# 不要な導入を回避する。
 - name: Install Fleet system integration package
   ansible.builtin.uri:
     url: >-
@@ -22,10 +23,34 @@
       force: true
     status_code:
       - 200
+      - 400
+      - 401
+      - 403
+      - 404
+      - 429
+      - 500
+      - 502
+      - 503
+      - 504
     return_content: true
     validate_certs: "{{ fleet_bootstrap_kibana_validate_certs | bool }}"
     timeout: "{{ fleet_bootstrap_kibana_api_request_timeout_seconds | int }}"
   register: fleet_bootstrap_system_package_install_result
   retries: "{{ fleet_bootstrap_kibana_api_retries | int }}"
   delay: "{{ fleet_bootstrap_kibana_api_retry_interval_seconds | int }}"
-  until: fleet_bootstrap_system_package_install_result.status | default(0) | int == 200
+  until: >-
+    fleet_bootstrap_system_package_install_result.status
+    | default(0)
+    | int in [200, 400, 401, 403, 404]
+  failed_when: >-
+    fleet_bootstrap_system_package_install_result.status
+    | default(0)
+    | int != 200
+  when:
+    - >-
+      (
+        fleet_bootstrap_agent_policy_profiles | default([], true)
+        | selectattr('include_system', 'equalto', true)
+        | list
+        | length
+      ) > 0

@@ -1,10 +1,19 @@
-#  -*- coding:utf-8 mode:yaml -*-
+#  -*- coding:utf-8-unix mode:yaml -*-
 #  Ansible playbook
 #  Copyright 2020 Takeharu KATO All Rights Reserved.
 #
 #  Kibana/Fleet 用 API キーの生成と共有
 #
 ---
+
+# API キー秘密値の保存先と処理状態を初期化し,
+# 明示指定, 保存済み秘密値, 新規生成の各経路を同一処理で扱えるようにする。
+- name: Initialize Fleet Server Kibana API key runtime facts
+  ansible.builtin.set_fact:
+    fleet_server_runtime_kibana_api_key_file: >-
+      {{ fleet_server_runtime_service_token_path | dirname
+      }}/fleet-server-kibana-api-key
+    fleet_server_stale_kibana_api_key_ids: []
 
 # 既存の共有済み API キーがある場合は再利用し, 生成処理を省略する。
 - name: Determine Fleet Server Kibana API key value
@@ -37,6 +46,42 @@
     - (fleet_bootstrap_kibana_api_key | default('', true) | trim | length > 0)
       or (fleet_server_kibana_api_key | default('', true) | trim | length > 0)
 
+# 明示指定された API キーがない場合は,
+# 前回生成して保存した API キー秘密値の有無を確認する。
+- name: Check stored Fleet Server Kibana API key
+  ansible.builtin.stat:
+    path: "{{ fleet_server_runtime_kibana_api_key_file }}"
+  become: true
+  register: fleet_server_kibana_api_key_file_stat
+  when:
+    - (fleet_server_kibana_api_key_value | default('', true) | trim | length) == 0
+    - fleet_server_runtime_kibana_api_key_create_if_missing | bool
+
+# 保存済み API キー秘密値が存在する場合は読み込み,
+# Elasticsearch から秘密値を再取得せず再利用する。
+- name: Load stored Fleet Server Kibana API key
+  ansible.builtin.slurp:
+    src: "{{ fleet_server_runtime_kibana_api_key_file }}"
+  become: true
+  register: fleet_server_stored_kibana_api_key
+  when:
+    - fleet_server_kibana_api_key_file_stat.stat.exists | default(false)
+    - fleet_server_kibana_api_key_file_stat.stat.isreg | default(false)
+
+# 保存済み API キー秘密値を後続処理で利用できるように設定する。
+- name: Reuse stored Fleet Server Kibana API key
+  ansible.builtin.set_fact:
+    fleet_server_kibana_api_key_value: >-
+      {{
+        fleet_server_stored_kibana_api_key.content
+        | default('', true)
+        | b64decode
+        | trim
+      }}
+  when:
+    - fleet_server_stored_kibana_api_key is defined
+    - fleet_server_stored_kibana_api_key.content is defined
+
 # API キー生成時に必要な認証情報が設定されていることを確認する。
 - name: Validate Fleet Server Kibana API key creation credentials
   ansible.builtin.assert:
@@ -50,10 +95,15 @@
     - (fleet_server_kibana_api_key_value | default('', true) | trim | length) == 0
     - fleet_server_runtime_kibana_api_key_create_if_missing | bool
 
-# 既存の API キー一覧を取得し, 指定名のキーが存在する場合は再利用する。
-- name: List Fleet Server Kibana API keys
+# ローカル秘密値を利用できない場合は,
+# Elasticsearch 上に残っている同名の有効 API キーを取得する。
+- name: List active Fleet Server Kibana API keys
   ansible.builtin.uri:
-    url: "{{ fleet_server_runtime_elasticsearch_api_endpoint_url }}/_security/api_key?name={{ fleet_server_runtime_kibana_api_key_name | urlencode }}"
+    url: >-
+      {{ fleet_server_runtime_elasticsearch_api_endpoint_url
+      }}/_security/api_key?name={{
+      fleet_server_runtime_kibana_api_key_name | urlencode
+      }}&active_only=true
     method: GET
     force_basic_auth: true
     url_username: "{{ fleet_server_kibana_auth_username }}"
@@ -61,65 +111,138 @@
     validate_certs: "{{ fleet_server_runtime_elasticsearch_api_validate_certs | bool }}"
     status_code:
       - 200
+      - 400
+      - 401
+      - 403
+      - 404
+      - 429
+      - 500
+      - 502
+      - 503
+      - 504
     return_content: true
     timeout: "{{ fleet_server_kibana_timeout_seconds | int }}"
   register: fleet_server_api_key_list_result
-  until:
-    - fleet_server_api_key_list_result is succeeded
-    - fleet_server_api_key_list_result.status | default(0) | int == 200
   retries: "{{ fleet_server_kibana_retries | int }}"
   delay: "{{ fleet_server_kibana_retry_interval_seconds | int }}"
+  until: >-
+    fleet_server_api_key_list_result.status
+    | default(0)
+    | int in [200, 400, 401, 403, 404]
+  failed_when: >-
+    fleet_server_api_key_list_result.status
+    | default(0)
+    | int != 200
   when:
     - (fleet_server_kibana_api_key_value | default('', true) | trim | length) == 0
     - fleet_server_runtime_kibana_api_key_create_if_missing | bool
 
-# 既存キー一覧から指定名のキーを検索し, 既存キーが見つかった場合はその値を再利用する。
-- name: Reuse existing Fleet Server Kibana API key
+# ローカル秘密値を喪失している状態で同名の有効 API キーが残っている場合に,
+# 全てを無効化できるよう API キー ID 一覧を生成する。
+- name: Resolve stale Fleet Server Kibana API key ids
   ansible.builtin.set_fact:
-    fleet_server_kibana_api_key_value: >-
+    fleet_server_stale_kibana_api_key_ids: >-
       {{
-        (
-          fleet_server_api_key_list_result.json.api_keys
-          | default([])
-          | list
-          | first
-          | default({})
-        ).api_key | default('')
-      }}
-    fleet_server_runtime_kibana_api_key_value: >-
-      {{
-        (
-          fleet_server_api_key_list_result.json.api_keys
-          | default([])
-          | list
-          | first
-          | default({})
-        ).api_key | default('')
-      }}
-    fleet_server_runtime_bootstrap_kibana_api_key: >-
-      {{
-        (
-          fleet_server_api_key_list_result.json.api_keys
-          | default([])
-          | list
-          | first
-          | default({})
-        ).api_key | default('')
-      }}
-    fleet_bootstrap_kibana_api_key: >-
-      {{
-        (
-          fleet_server_api_key_list_result.json.api_keys
-          | default([])
-          | list
-          | first
-          | default({})
-        ).api_key | default('')
+        fleet_server_api_key_list_result.json.api_keys
+        | default([])
+        | map(attribute='id')
+        | list
+        | unique
+        | list
       }}
   when:
     - fleet_server_api_key_list_result is defined
     - fleet_server_api_key_list_result.json is defined
-    - (fleet_server_kibana_api_key_value | default('', true) | trim | length) == 0
+    - fleet_server_api_key_list_result.status | default(0) | int == 200
+
+# ローカル秘密値を喪失して再利用できない同名 API キーを全て無効化し,
+# 新しい管理対象キーを 1 つだけ作成できる状態にする。
+- name: Invalidate stale Fleet Server Kibana API keys
+  ansible.builtin.uri:
+    url: "{{ fleet_server_runtime_elasticsearch_api_endpoint_url }}/_security/api_key"
+    method: DELETE
+    force_basic_auth: true
+    url_username: "{{ fleet_server_kibana_auth_username }}"
+    url_password: "{{ fleet_server_kibana_auth_password }}"
+    headers:
+      Content-Type: application/json
+    body_format: json
+    body:
+      ids: "{{ fleet_server_stale_kibana_api_key_ids }}"
+    validate_certs: "{{ fleet_server_runtime_elasticsearch_api_validate_certs | bool }}"
+    status_code:
+      - 200
+      - 400
+      - 401
+      - 403
+      - 404
+      - 429
+      - 500
+      - 502
+      - 503
+      - 504
+    return_content: true
+    timeout: "{{ fleet_server_kibana_timeout_seconds | int }}"
+  register: fleet_server_api_key_invalidate_result
+  retries: "{{ fleet_server_kibana_retries | int }}"
+  delay: "{{ fleet_server_kibana_retry_interval_seconds | int }}"
+  until: >-
+    fleet_server_api_key_invalidate_result.status
+    | default(0)
+    | int in [200, 400, 401, 403, 404]
+  failed_when: >-
+    fleet_server_api_key_invalidate_result.status
+    | default(0)
+    | int != 200
+  when:
+    - fleet_server_stale_kibana_api_key_ids | default([]) | length > 0
+
+# 無効化対象として指定した全 API キーが無効化済みとなったことを確認し,
+# 一部だけ有効な状態で新しい API キーを追加することを防止する。
+- name: Assert stale Fleet Server Kibana API keys were invalidated
+  ansible.builtin.assert:
+    that:
+      - >-
+        (
+          (
+            fleet_server_api_key_invalidate_result.json.invalidated_api_keys
+            | default([])
+          )
+          +
+          (
+            fleet_server_api_key_invalidate_result.json.previously_invalidated_api_keys
+            | default([])
+          )
+          | unique
+          | sort
+        )
+        ==
+        (
+          fleet_server_stale_kibana_api_key_ids
+          | unique
+          | sort
+        )
+      - >-
+        fleet_server_api_key_invalidate_result.json.error_count
+        | default(0)
+        | int == 0
+    fail_msg: >-
+      Failed to invalidate all stale Fleet Server Kibana API keys.
+      expected={{ fleet_server_stale_kibana_api_key_ids }}
+      invalidated={{
+        fleet_server_api_key_invalidate_result.json.invalidated_api_keys
+        | default([])
+      }}
+      previously_invalidated={{
+        fleet_server_api_key_invalidate_result.json.previously_invalidated_api_keys
+        | default([])
+      }}
+      error_count={{
+        fleet_server_api_key_invalidate_result.json.error_count
+        | default(0)
+      }}
+  when:
+    - fleet_server_stale_kibana_api_key_ids | default([]) | length > 0
 
 # expiration に 0 を送ると即時失効キーになるため, 明示値がある場合だけ作成要求へ含める。
 - name: Build Fleet Server Kibana API key request body
@@ -137,7 +260,8 @@
     - (fleet_server_kibana_api_key_value | default('', true) | trim | length) == 0
     - fleet_server_runtime_kibana_api_key_create_if_missing | bool
 
-# 指定名の API キーが存在しない場合は, Kibana のセキュリティ API で生成する。
+# ローカルで利用可能な API キー秘密値が存在しない場合は,
+# Elasticsearch Security API で新しい API キーを生成する。
 - name: Create Fleet Server Kibana API key
   ansible.builtin.uri:
     url: "{{ fleet_server_runtime_elasticsearch_api_endpoint_url }}/_security/api_key"
@@ -153,14 +277,28 @@
     status_code:
       - 200
       - 201
+      - 400
+      - 401
+      - 403
+      - 404
+      - 429
+      - 500
+      - 502
+      - 503
+      - 504
     return_content: true
     timeout: "{{ fleet_server_kibana_timeout_seconds | int }}"
   register: fleet_server_api_key_result
-  until:
-    - fleet_server_api_key_result is succeeded
-    - fleet_server_api_key_result.status | default(0) | int in [200, 201]
   retries: "{{ fleet_server_kibana_retries | int }}"
   delay: "{{ fleet_server_kibana_retry_interval_seconds | int }}"
+  until: >-
+    fleet_server_api_key_result.status
+    | default(0)
+    | int in [200, 201, 400, 401, 403, 404]
+  failed_when: >-
+    fleet_server_api_key_result.status
+    | default(0)
+    | int not in [200, 201]
   when:
     - (fleet_server_kibana_api_key_value | default('', true) | trim | length) == 0
     - fleet_server_runtime_kibana_api_key_create_if_missing | bool
@@ -174,10 +312,27 @@
         (fleet_server_api_key_result.json.encoded | default('', true) | trim)
         if (fleet_server_api_key_result.json.encoded | default('', true) | trim | length > 0)
         else (
-          (((fleet_server_api_key_result.json.id | default('') | string) ~ ':' ~ (fleet_server_api_key_result.json.api_key | default('') | string)) | b64encode)
+          (
+            (
+              (fleet_server_api_key_result.json.id | default('') | string)
+              ~ ':'
+              ~ (fleet_server_api_key_result.json.api_key | default('') | string)
+            )
+            | b64encode
+          )
           if (
-            (fleet_server_api_key_result.json.id | default('', true) | string | trim | length > 0)
-            and (fleet_server_api_key_result.json.api_key | default('', true) | string | trim | length > 0)
+            fleet_server_api_key_result.json.id
+            | default('', true)
+            | string
+            | trim
+            | length > 0
+          )
+          and (
+            fleet_server_api_key_result.json.api_key
+            | default('', true)
+            | string
+            | trim
+            | length > 0
           )
           else ''
         )
@@ -185,7 +340,47 @@
   when:
     - fleet_server_api_key_result is defined
     - fleet_server_api_key_result.json is defined
+    - fleet_server_api_key_result.status | default(0) | int in [200, 201]
 
+# 新規作成した API キーから後続処理で使用可能な ID と encoded 値を取得できたことを確認する。
+- name: Assert generated Fleet Server Kibana API key value
+  ansible.builtin.assert:
+    that:
+      - fleet_server_kibana_api_key_id | default('', true) | trim | length > 0
+      - fleet_server_kibana_api_key_value | default('', true) | trim | length > 0
+    fail_msg: >-
+      Fleet Server Kibana API key was created,
+      but its id or encoded credential could not be resolved.
+  when:
+    - fleet_server_api_key_result is defined
+    - fleet_server_api_key_result.status | default(0) | int in [200, 201]
+
+# 新規生成した API キー秘密値を再実行時に再利用できるように,
+# Fleet Server の秘密情報ディレクトリへ保存する。
+- name: Persist generated Fleet Server Kibana API key
+  ansible.builtin.copy:
+    content: "{{ fleet_server_kibana_api_key_value | trim }}"
+    dest: "{{ fleet_server_runtime_kibana_api_key_file }}"
+    owner: "{{ logging_backend_container_user_id }}"
+    group: "{{ logging_backend_container_group_id }}"
+    mode: "0400"
+  become: true
+  when:
+    - fleet_server_api_key_result is defined
+    - fleet_server_api_key_result.status | default(0) | int in [200, 201]
+    - fleet_server_kibana_api_key_value | default('', true) | trim | length > 0
+
+# 最終的に利用可能な API キー秘密値が解決されていることを確認し,
+# 不完全な認証情報のまま Fleet Bootstrap 処理へ進むことを防止する。
+- name: Assert Fleet Server Kibana API key is resolved
+  ansible.builtin.assert:
+    that:
+      - fleet_server_kibana_api_key_value | default('', true) | trim | length > 0
+    fail_msg: >-
+      Fleet Server Kibana API key could not be resolved.
+
+# 明示指定, 保存済み又は新規生成した API キーを,
+# Fleet Server と後続の Fleet Bootstrap 処理で共有できるように伝播する。
 - name: Propagate Fleet Server Kibana API key facts
   ansible.builtin.set_fact:
     fleet_server_runtime_kibana_api_key_value: "{{ fleet_server_kibana_api_key_value | default('', true) | trim }}"

@@ -14,12 +14,16 @@
   when: ansible_check_mode | bool
 
 # Helm release状態を取得し, 導入処理で対象releaseが確定していることを確認する。
+# helm status自体には処理全体のタイムアウト指定がないため,
+# timeoutコマンドで1回あたりの実行時間に上限を設定する。
 - name: Get elastic-agent-k8s Helm release status
   ansible.builtin.command:
     argv:
       - sudo
       - -u
       - "{{ k8s_runtime_helm_operator_user }}"
+      - timeout
+      - "{{ elastic_agent_k8s_verify_request_timeout_seconds | int }}s"
       - helm
       - status
       - "{{ elastic_agent_k8s_runtime_release_name }}"
@@ -32,18 +36,30 @@
   register: elastic_agent_k8s_helm_status_result
   changed_when: false
   become: true
-  until: elastic_agent_k8s_helm_status_result.rc == 0
-  retries: "{{ elastic_agent_k8s_runtime_helm_retries | int }}"
-  delay: "{{ elastic_agent_k8s_runtime_helm_request_interval_seconds | int }}"
+  until: elastic_agent_k8s_helm_status_result.rc | default(1) | int == 0
+  retries: "{{ elastic_agent_k8s_verify_retries | int }}"
+  delay: "{{ elastic_agent_k8s_verify_retry_interval_seconds | int }}"
   when: not (ansible_check_mode | bool)
 
 # Helm releaseがdeployed状態であることを検証し, 部分適用状態で後続運用へ進むことを防止する。
 - name: Assert elastic-agent-k8s Helm release is deployed
   ansible.builtin.assert:
     that:
-      - (elastic_agent_k8s_helm_status_result.stdout | from_json).name | default('') == elastic_agent_k8s_runtime_release_name
-      - (elastic_agent_k8s_helm_status_result.stdout | from_json).namespace | default('') == elastic_agent_k8s_runtime_namespace
-      - ((elastic_agent_k8s_helm_status_result.stdout | from_json).info.status | default('') | lower) == 'deployed'
+      - >-
+        (elastic_agent_k8s_helm_status_result.stdout | from_json).name
+        | default('')
+        == elastic_agent_k8s_runtime_release_name
+      - >-
+        (elastic_agent_k8s_helm_status_result.stdout | from_json).namespace
+        | default('')
+        == elastic_agent_k8s_runtime_namespace
+      - >-
+        (
+          (elastic_agent_k8s_helm_status_result.stdout | from_json).info.status
+          | default('')
+          | lower
+        )
+        == 'deployed'
     fail_msg: >-
       Helm release verification failed for elastic-agent-k8s.
       release={{ elastic_agent_k8s_runtime_release_name }}
@@ -62,24 +78,29 @@
       - "{{ elastic_agent_k8s_runtime_kubeconfig_path }}"
       - --namespace
       - "{{ elastic_agent_k8s_runtime_namespace }}"
-      - --request-timeout={{ elastic_agent_k8s_runtime_helm_timeout_seconds | int }}s
+      - "--request-timeout={{ elastic_agent_k8s_verify_request_timeout_seconds | int }}s"
       - get
       - daemonset,deployment,serviceaccount,configmap,secret
-      - --selector=app.kubernetes.io/instance={{ elastic_agent_k8s_runtime_release_name }}
+      - "--selector=app.kubernetes.io/instance={{ elastic_agent_k8s_runtime_release_name }}"
       - --output=name
   register: elastic_agent_k8s_namespaced_resources_result
   changed_when: false
   become: true
-  until: elastic_agent_k8s_namespaced_resources_result.rc == 0
-  retries: "{{ elastic_agent_k8s_runtime_helm_retries | int }}"
-  delay: "{{ elastic_agent_k8s_runtime_helm_request_interval_seconds | int }}"
+  until: elastic_agent_k8s_namespaced_resources_result.rc | default(1) | int == 0
+  retries: "{{ elastic_agent_k8s_verify_retries | int }}"
+  delay: "{{ elastic_agent_k8s_verify_retry_interval_seconds | int }}"
   when: not (ansible_check_mode | bool)
 
 # namespace上の関連リソース件数が0件ではないことを検証する。
 - name: Assert elastic-agent-k8s namespaced resources exist
   ansible.builtin.assert:
     that:
-      - (elastic_agent_k8s_namespaced_resources_result.stdout_lines | default([], true) | length) > 0
+      - >-
+        (
+          elastic_agent_k8s_namespaced_resources_result.stdout_lines
+          | default([], true)
+          | length
+        ) > 0
     fail_msg: >-
       No elastic-agent-k8s related resources were found in namespace.
       namespace={{ elastic_agent_k8s_runtime_namespace }}
@@ -98,32 +119,58 @@
       - "{{ elastic_agent_k8s_runtime_kubeconfig_path }}"
       - --namespace
       - "{{ elastic_agent_k8s_runtime_namespace }}"
-      - --request-timeout={{ elastic_agent_k8s_runtime_helm_timeout_seconds | int }}s
+      - "--request-timeout={{ elastic_agent_k8s_verify_request_timeout_seconds | int }}s"
       - get
       - deployment
-      - --selector=app.kubernetes.io/instance={{ elastic_agent_k8s_runtime_release_name }}
+      - "--selector=app.kubernetes.io/instance={{ elastic_agent_k8s_runtime_release_name }}"
       - --output=json
   register: elastic_agent_k8s_deployments_result
   changed_when: false
   become: true
-  until: elastic_agent_k8s_deployments_result.rc == 0
-  retries: "{{ elastic_agent_k8s_runtime_helm_retries | int }}"
-  delay: "{{ elastic_agent_k8s_runtime_helm_request_interval_seconds | int }}"
+  until: elastic_agent_k8s_deployments_result.rc | default(1) | int == 0
+  retries: "{{ elastic_agent_k8s_verify_retries | int }}"
+  delay: "{{ elastic_agent_k8s_verify_retry_interval_seconds | int }}"
   when: not (ansible_check_mode | bool)
 
 # clusterWide preset向けDeploymentが存在することを検証する。
 - name: Assert elastic-agent-k8s deployment exists for clusterWide preset
   ansible.builtin.assert:
     that:
-      - ((elastic_agent_k8s_deployments_result.stdout | from_json).get('items', []) | default([], true) | length) > 0
+      - >-
+        (
+          (elastic_agent_k8s_deployments_result.stdout | from_json)
+          .get('items', [])
+          | default([], true)
+          | length
+        ) > 0
     fail_msg: >-
       No deployment found for elastic-agent-k8s clusterWide preset.
       namespace={{ elastic_agent_k8s_runtime_namespace }}
       release={{ elastic_agent_k8s_runtime_release_name }}
   when: not (ansible_check_mode | bool)
 
-# 取得したDeploymentのAvailable条件を確認し, clusterWide presetの稼働状態を検証する。
-- name: Wait for elastic-agent-k8s deployment availability
+# 各Deploymentで少なくとも1個以上のPodが要求されていることを確認し,
+# replicas設定の不整合により稼働対象が0件となる状態を早期に検出する。
+- name: Validate elastic-agent-k8s deployment desired replicas
+  ansible.builtin.assert:
+    that:
+      - item.spec.replicas | default(0) | int > 0
+    fail_msg: >-
+      elastic-agent-k8s Deployment {{ item.metadata.name }}
+      has no desired Pods.
+  loop: >-
+    {{
+      (elastic_agent_k8s_deployments_result.stdout | from_json)
+      .get('items', [])
+      | default([], true)
+    }}
+  loop_control:
+    label: "{{ item.metadata.name }}"
+  when: not (ansible_check_mode | bool)
+
+# 各Deploymentの最新状態をKubernetes APIから取得し,
+# 全要求Podが更新済みかつReady/Availableになるまで上限付きで再確認する。
+- name: Wait for elastic-agent-k8s deployment readiness
   ansible.builtin.command:
     argv:
       - sudo
@@ -134,18 +181,132 @@
       - "{{ elastic_agent_k8s_runtime_kubeconfig_path }}"
       - --namespace
       - "{{ elastic_agent_k8s_runtime_namespace }}"
-      - --request-timeout={{ elastic_agent_k8s_runtime_helm_timeout_seconds | int }}s
-      - rollout
-      - status
-      - "deployment/{{ item.metadata.name }}"
-      - --timeout={{ elastic_agent_k8s_runtime_helm_timeout_seconds | int }}s
-  register: elastic_agent_k8s_deployment_rollout_result
+      - "--request-timeout={{ elastic_agent_k8s_verify_request_timeout_seconds | int }}s"
+      - get
+      - deployment
+      - "{{ item.metadata.name }}"
+      - --output=json
+  register: elastic_agent_k8s_deployment_ready_result
   changed_when: false
   become: true
-  until: elastic_agent_k8s_deployment_rollout_result.rc == 0
-  retries: "{{ elastic_agent_k8s_runtime_helm_retries | int }}"
-  delay: "{{ elastic_agent_k8s_runtime_helm_request_interval_seconds | int }}"
-  loop: "{{ (elastic_agent_k8s_deployments_result.stdout | from_json).get('items', []) | default([], true) }}"
+  until:
+    - elastic_agent_k8s_deployment_ready_result.rc | default(1) | int == 0
+    - >-
+      (
+        (
+          elastic_agent_k8s_deployment_ready_result.stdout
+          | default('{}', true)
+          | from_json
+        ).get('spec', {}).get('replicas', 0)
+        | int
+      ) > 0
+    - >-
+      (
+        (
+          elastic_agent_k8s_deployment_ready_result.stdout
+          | default('{}', true)
+          | from_json
+        ).get('status', {}).get('observedGeneration', 0)
+        | int
+      )
+      >=
+      (
+        (
+          elastic_agent_k8s_deployment_ready_result.stdout
+          | default('{}', true)
+          | from_json
+        ).get('metadata', {}).get('generation', 0)
+        | int
+      )
+    - >-
+      (
+        (
+          elastic_agent_k8s_deployment_ready_result.stdout
+          | default('{}', true)
+          | from_json
+        ).get('status', {}).get('replicas', 0)
+        | int
+      )
+      ==
+      (
+        (
+          elastic_agent_k8s_deployment_ready_result.stdout
+          | default('{}', true)
+          | from_json
+        ).get('spec', {}).get('replicas', 0)
+        | int
+      )
+    - >-
+      (
+        (
+          elastic_agent_k8s_deployment_ready_result.stdout
+          | default('{}', true)
+          | from_json
+        ).get('status', {}).get('updatedReplicas', 0)
+        | int
+      )
+      ==
+      (
+        (
+          elastic_agent_k8s_deployment_ready_result.stdout
+          | default('{}', true)
+          | from_json
+        ).get('spec', {}).get('replicas', 0)
+        | int
+      )
+    - >-
+      (
+        (
+          elastic_agent_k8s_deployment_ready_result.stdout
+          | default('{}', true)
+          | from_json
+        ).get('status', {}).get('readyReplicas', 0)
+        | int
+      )
+      ==
+      (
+        (
+          elastic_agent_k8s_deployment_ready_result.stdout
+          | default('{}', true)
+          | from_json
+        ).get('spec', {}).get('replicas', 0)
+        | int
+      )
+    - >-
+      (
+        (
+          elastic_agent_k8s_deployment_ready_result.stdout
+          | default('{}', true)
+          | from_json
+        ).get('status', {}).get('availableReplicas', 0)
+        | int
+      )
+      ==
+      (
+        (
+          elastic_agent_k8s_deployment_ready_result.stdout
+          | default('{}', true)
+          | from_json
+        ).get('spec', {}).get('replicas', 0)
+        | int
+      )
+    - >-
+      (
+        (
+          elastic_agent_k8s_deployment_ready_result.stdout
+          | default('{}', true)
+          | from_json
+        ).get('status', {}).get('unavailableReplicas', 0)
+        | int
+      ) == 0
+  retries: "{{ elastic_agent_k8s_verify_retries | int }}"
+  delay: "{{ elastic_agent_k8s_verify_retry_interval_seconds | int }}"
+  loop: >-
+    {{
+      (elastic_agent_k8s_deployments_result.stdout | from_json)
+      .get('items', [])
+      | default([], true)
+    }}
   loop_control:
     label: "{{ item.metadata.name }}"
   when: not (ansible_check_mode | bool)

@@ -20,6 +20,15 @@ elastic_agent_k8s_helm_retry_interval_seconds: 5
 # Kubernetes API 及び Helm 状態確認のリクエスト発行間隔 (単位: 秒)。
 elastic_agent_k8s_helm_request_interval_seconds: 5
 
+# elastic-agent-k8s導入後検証の1回あたり要求タイムアウト値 (単位: 秒)。
+elastic_agent_k8s_verify_request_timeout_seconds: 10
+# elastic-agent-k8s導入後検証の再試行間隔 (単位: 秒)。
+elastic_agent_k8s_verify_retry_interval_seconds: 5
+# elastic-agent-k8s導入後検証の再試行回数 (単位: 回)。
+# 実環境が開発環境より遅い場合を考慮し,
+# 最大約5分(5秒 * 60回)の待機予算を確保する。
+elastic_agent_k8s_verify_retries: 60
+
 # Fleet Server 接続先URLの明示指定値。空文字列の場合は共通設定から組み立てる。
 elastic_agent_k8s_fleet_server_url_explicit: ""
 # Enrollment Token 明示指定値。空文字列の場合は共有ファイル又はホスト変数から取得する。

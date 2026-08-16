@@ -38,10 +38,14 @@
     - [3. Elasticsearch の起動状態を確認中に接続に失敗する場合](#3-elasticsearch-の起動状態を確認中に接続に失敗する場合)
     - [4. サービスアカウントトークン自動発行が失敗する場合](#4-サービスアカウントトークン自動発行が失敗する場合)
   - [注意事項](#注意事項)
+  - [付録](#付録)
+    - [Fleet Server認証情報の管理論理](#fleet-server認証情報の管理論理)
+      - [Kibana API Keyの管理](#kibana-api-keyの管理)
+      - [Service Tokenの管理](#service-tokenの管理)
+      - [HTTP APIエラー時の再試行方針](#http-apiエラー時の再試行方針)
   - [参考資料](#参考資料)
     - [公式ドキュメント](#公式ドキュメント)
     - [関連ロール](#関連ロール)
-
 
 ## 用語
 
@@ -611,6 +615,99 @@ $ sudo ls -ln /opt/fleet-server/secrets/fleet-server-service-token
 - 本ロールの初期化責務はFleet Bootstrap用Kibana APIキーの供給までです。本ロールが対象ホスト上で管理するFleet Serverサービスアカウントトークンファイルと異なり, Enrollment Tokenの作成, 再利用及び制御ホスト上のEnrollment Token共有ファイルへの保存は後続のFleet Bootstrapが担当します。
 - Docker Compose 定義ファイルでは`FLEET_ENROLL=1`を指定し, Fleet Serverコンテナの起動時に自己登録を実行します。後続のFleet Bootstrapが有効な場合に限り, Fleet Server統合の設定前に発生する`missing config fleet.agent.id`状態を一時的に許容します。Fleet BootstrapはFleet Server統合を設定した後, 識別子が未生成の登録状態だけを除去してコンテナを再起動し, 状態APIが`HEALTHY`を返すまで検証します。
 
+
+## 付録
+
+### Fleet Server認証情報の管理論理
+
+本ロールでは,Fleet Server及び後続の`fleet-bootstrap`ロールが使用する認証情報として,Kibana/Fleet API呼び出し用API KeyとFleet Server Service Tokenを管理します。
+
+これらの秘密値は,Elasticsearch上に資格情報本体が残っていても作成後に秘密値を再取得できないため,ローカルに保存した秘密値の有無を基準として再利用又は再生成を判断します。
+
+#### Kibana API Keyの管理
+
+Kibana/Fleet API呼び出し用API Keyは,以下の優先順位で解決します。
+
+1. 利用者が明示的に指定したAPI Key
+2. ローカルに保存済みのAPI Key秘密値
+3. Elasticsearch Security APIで新規生成したAPI Key
+
+ローカル秘密値を喪失している一方で,Elasticsearch上に同名の有効なAPI Keyが残っている場合は,秘密値を再取得できないため,同名の有効なAPI Keyを全て無効化してから新しいAPI Keyを生成します。
+
+```mermaid
+flowchart TD
+    A[API Key処理開始] --> B{明示指定API Keyあり?}
+
+    B -- Yes --> C[明示指定値を利用]
+    B -- No --> D{保存済み秘密値あり?}
+
+    D -- Yes --> E[保存済み秘密値を再利用]
+    D -- No --> F[Elasticsearchから<br/>同名active API Keyを取得]
+
+    F --> G{同名active Keyあり?}
+    G -- Yes --> H[対象Keyを全てinvalidate]
+    G -- No --> I[新規API Keyを生成]
+
+    H --> I
+    I --> J[encoded秘密値を<br/>ローカルへ保存]
+
+    C --> K[後続処理へ共有]
+    E --> K
+    J --> K
+```
+
+API Keyを新規生成した場合は,作成APIの応答から取得した`encoded`値をFleet Serverの秘密情報ディレクトリへ保存し,再実行時に再利用します。
+
+同名の有効なAPI Keyが複数存在する場合も,ローカル秘密値を喪失している場合は全て無効化し,管理対象のAPI Keyを1つだけ再生成します。
+
+#### Service Tokenの管理
+
+Fleet Server Service Tokenについても,ローカルに保存した秘密値が存在する場合はその値を再利用します。
+
+ローカル秘密値を喪失した場合は,Elasticsearch上のFleet Server Service Accountの資格情報を確認します。
+
+REST APIで作成された同名のindex-backed Service Tokenが残っている場合は,そのTokenを削除してから新しいTokenを生成します。
+
+同名のfile-backed Service Tokenが存在する場合は,本ロールの管理対象と管理方式が競合しているため,自動的な削除や上書きは行わず処理を停止します。
+
+```mermaid
+flowchart TD
+    A[Service Token処理開始] --> B{保存済み秘密値あり?}
+
+    B -- Yes --> C[保存済みTokenを再利用]
+    B -- No --> D[Service Account資格情報を取得]
+
+    D --> E{同名file-backed Tokenあり?}
+    E -- Yes --> F[管理方式競合として停止]
+    E -- No --> G{同名index-backed Tokenあり?}
+
+    G -- Yes --> H[既存TokenをDELETE]
+    G -- No --> I[新規TokenをPOST]
+
+    H --> I
+    I --> J{作成成功?}
+
+    J -- Yes --> K[秘密値をローカルへ保存]
+    J -- 409 --> L[並行操作等の異常として停止]
+
+    C --> M[後続処理へ進む]
+    K --> M
+```
+
+同一Fleet Serverに対するPlaybookの並列実行は正常ケースとして想定しません。このため,Service Tokenの新規生成時に`409 Conflict`が返された場合は自動回復せず異常として処理を停止します。
+
+#### HTTP APIエラー時の再試行方針
+
+Elasticsearch Security APIへの要求では,HTTP応答を恒久エラーと一時エラーに分類して再試行を制御します。
+
+| 応答 | 処理 |
+| --- | --- |
+| `200`, `201` | 正常終了 |
+| `400`, `401`, `403`, `404` | 同一要求を再試行しても改善しないため即時失敗 |
+| `409` | APIごとの処理論理に従う。Service Token新規生成では即時失敗 |
+| `429` | 一時的な負荷又は制限として再試行 |
+| `500`, `502`, `503`, `504` | 一時的なサーバ障害として再試行 |
+| timeout, connection error | 一時的な通信障害として再試行 |
 
 ## 参考資料
 

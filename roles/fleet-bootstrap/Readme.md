@@ -47,10 +47,15 @@
     - [5. Elasticsearch hosts の health check に失敗する場合](#5-elasticsearch-hosts-の-health-check-に失敗する場合)
     - [6. Enrollment Token共有ファイルの保存に失敗する場合](#6-enrollment-token共有ファイルの保存に失敗する場合)
   - [注意事項](#注意事項)
+  - [付録](#付録)
+    - [Fleet APIリソースの冪等管理](#fleet-apiリソースの冪等管理)
+      - [名前付きリソースの作成と409 Conflictの回復](#名前付きリソースの作成と409-conflictの回復)
+      - [既存リソースの正規化](#既存リソースの正規化)
+      - [Integration Package導入処理](#integration-package導入処理)
+      - [HTTP APIエラー時の再試行方針](#http-apiエラー時の再試行方針)
   - [参考資料](#参考資料)
     - [公式ドキュメント](#公式ドキュメント)
     - [関連ロール](#関連ロール)
-
 
 ## 用語
 
@@ -720,6 +725,125 @@ curl -sS -u 'elastic:elastic' 'http://observer01.example.org:9200/_cluster/healt
 - 既存のKibanaのFleet機能の構成が存在する場合は, 同名の Output, Elastic Agent ポリシー, 認証情報を再利用するように動作します。
 - Enrollment Token共有ファイルはFleet上の5種類のEnrollment Tokenと一致する内容へ更新します。
 - 認証切り分け用の debug 出力が必要な場合は, `fleet_bootstrap_debug_auth_diagnostics: true` を一時的に指定してください。通常運用では `fleet_bootstrap_debug_auth_diagnostics: false` を維持してください。
+
+## 付録
+
+### Fleet APIリソースの冪等管理
+
+本ロールでは,Fleet APIを使用してOutput,Fleet Server host,Agent Policy,Package Policy及びEnrollment Token等の名前付きリソースを作成又は更新します。
+
+Playbook再実行時の重複作成を防止するとともに,存在確認から作成までの間に同名リソースが作成された場合の競合を回復できるように,存在確認,作成,再取得及び更新を組み合わせて管理します。
+
+#### 名前付きリソースの作成と409 Conflictの回復
+
+名前付きFleetリソースは,原則として以下の処理で管理します。
+
+```mermaid
+flowchart TD
+    A[既存リソース一覧をGET] --> B[同名リソース件数を確認]
+
+    B --> C{同名リソースあり?}
+
+    C -- Yes --> D[既存リソースを解決]
+    C -- No --> E[リソースをPOST]
+
+    E --> F{HTTP status}
+
+    F -- 200/201 --> G[新規作成結果を利用]
+    F -- 409 --> H[リソース一覧を再GET]
+    F -- 400/401/403/404 --> I[即時失敗]
+    F -- 429/5xx/通信失敗 --> J[retry]
+
+    J --> E
+
+    H --> K[同名リソースが<br/>1件であることを確認]
+    K --> L[競合相手が作成した<br/>リソースを解決]
+
+    D --> M[管理対象リソースを確定]
+    G --> M
+    L --> M
+
+    M --> N[必要に応じてPUTで正規化]
+```
+
+`409 Conflict`は単純に成功として扱いません。競合発生後に一覧を再取得し,期待するリソースが一意に存在することを確認した上で,そのリソースを後続処理へ引き継ぎます。
+
+この処理は主に以下のリソースで使用します。
+
+| リソース | 識別方法 | `409 Conflict`発生時 |
+| --- | --- | --- |
+| Fleet Output | `name` | 再取得後に一意性を確認し,必要な設定へ更新 |
+| Fleet Server Elasticsearch Output | `name` | 再取得後に一意性を確認し,必要な設定へ更新 |
+| Fleet Server host | `name` | 再取得後に一意性を確認し,必要な設定へ更新 |
+| Agent Policy | `name`又は固定ID | 再取得後に期待するPolicyを確認 |
+| Package Policy | `name` | 再取得後に`package.name`,`policy_id`も確認 |
+| Enrollment Token | `policy_id`及び管理名 | 再取得後に一意性を確認 |
+
+#### 既存リソースの正規化
+
+既存リソースが存在する場合は,単に存在することだけをもって正常とは判断せず,Ansibleで指定した設定との差異を確認します。
+
+設定差異がある場合はFleet APIの`PUT`を使用して現在のPlaybook設定へ正規化します。
+
+```mermaid
+flowchart TD
+    A[管理対象リソースを解決] --> B{識別情報は期待値と一致?}
+
+    B -- No --> C[識別子衝突として停止]
+    B -- Yes --> D{管理対象設定に差異あり?}
+
+    D -- No --> E[更新不要]
+    D -- Yes --> F[PUTで設定を更新]
+
+    F --> G{HTTP status}
+    G -- 200 --> E
+    G -- 400/401/403/404/409 --> H[即時失敗]
+    G -- 429/5xx/通信失敗 --> I[retry]
+
+    I --> F
+```
+
+Package Policyについては,同名であっても以下が異なる場合は別用途のPolicyとの識別子衝突として処理を停止します。
+
+- `package.name`
+- `policy_id`
+
+この場合,別用途のPackage PolicyをAnsibleが自動的に上書きすることはありません。
+
+#### Integration Package導入処理
+
+System,Filestream,Fleet Server及びKubernetes Integration Packageは,名前付きFleetリソースの新規作成処理とは異なり,指定versionのPackageを`force: true`で導入します。
+
+この処理では`409 Conflict`を競合回復対象とはしません。
+
+```mermaid
+flowchart TD
+    A[Integration PackageをPOST<br/>force=true] --> B{HTTP status}
+
+    B -- 200 --> C[導入完了]
+    B -- 400/401/403/404 --> D[即時失敗]
+    B -- 429/5xx/通信失敗 --> E[retry]
+
+    E --> A
+```
+
+Kubernetes Integration Packageは,`k8s_cluster`又は`k8s_audit`構成種別のいずれかを使用する場合に導入します。
+
+#### HTTP APIエラー時の再試行方針
+
+Fleet API呼び出しでは,HTTP応答を恒久エラーと一時エラーに分類して再試行を制御します。
+
+| 応答 | GET | POST | PUT |
+| --- | --- | --- | --- |
+| `200` | 成功 | 成功 | 成功 |
+| `201` | - | 成功 | - |
+| `400`, `401`, `403`, `404` | 即時失敗 | 即時失敗 | 即時失敗 |
+| `409` | 原則使用しない | 競合回復処理がある場合は再取得 | 即時失敗 |
+| `429` | retry | retry | retry |
+| `500`, `502`, `503`, `504` | retry | retry | retry |
+| timeout, connection error | retry | retry | retry |
+
+POSTで`409 Conflict`を回復対象とする場合でも,同一要求をそのまま再送するのではなく,一覧を再取得して競合相手が作成したリソースの存在と一意性を確認します。
 
 ## 参考資料
 

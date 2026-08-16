@@ -28,7 +28,7 @@
     - [5. Data Streamと監査イベント](#5-data-streamと監査イベント)
   - [トラブルシューティング](#トラブルシューティング)
     - [1. Enrollment Tokenを取得できない場合](#1-enrollment-tokenを取得できない場合)
-    - [2. DaemonSetが配置されない場合](#2-daemonsetが配置されない場合)
+    - [2. DaemonSetが配置されない又はReadyにならない場合](#2-daemonsetが配置されない又はreadyにならない場合)
     - [3. `audit.log`をPodから読めない場合](#3-auditlogをpodから読めない場合)
     - [4. Data Streamが作成されない又は更新されない場合](#4-data-streamが作成されない又は更新されない場合)
   - [注意事項](#注意事項)
@@ -348,6 +348,9 @@ Fleet Bootstrap側の設定を変更した場合は, 先にlogging backend又は
 | `elastic_agent_k8s_audit_helm_retries` | Helm操作の再試行回数。 | `3` |
 | `elastic_agent_k8s_audit_helm_retry_interval_seconds` | Helm操作の再試行間隔秒数。 | `5` |
 | `elastic_agent_k8s_audit_helm_request_interval_seconds` | Kubernetes API及びHelm状態確認の実行間隔秒数。 | `5` |
+| `elastic_agent_k8s_audit_verify_request_timeout_seconds` | Kubernetes API監査ログ収集用DaemonSet状態確認の1回あたり要求タイムアウト秒数。 | `10` |
+| `elastic_agent_k8s_audit_verify_retry_interval_seconds` | Kubernetes API監査ログ収集用DaemonSet状態確認の再試行間隔秒数。 | `5` |
+| `elastic_agent_k8s_audit_verify_retries` | Kubernetes API監査ログ収集用DaemonSet状態確認の再試行回数。 | `60` |
 | `elastic_agent_k8s_audit_host_log_dir` | Kubernetes監査ログのホスト側格納ディレクトリ。 | `/var/log/kubernetes/audit` |
 | `elastic_agent_k8s_audit_container_log_dir` | Elastic Agentコンテナ内の監査ログ参照ディレクトリ。 | `/hostfs/var/log/kubernetes/audit` |
 | `elastic_agent_k8s_audit_resources` | Audit用Elastic Agent Podのresources定義。 | 下記参照 |
@@ -504,6 +507,9 @@ deployed
 - 上記コマンドの出力結果が`deployed`であること ( `helm status elastic-agent-k8s-audit`コマンドの出力結果として得られるJSON形式の出力中の`info.status`項目が`deployed`となっていること )。
 
 #### 2. Audit用DaemonSetとPod状態
+
+Playbook内の検証処理では,DaemonSet作成直後にPodがまだReadyへ遷移していない過渡状態を異常と判断しないように,最新のDaemonSet状態を一定間隔で再取得します。既定では1回のKubernetes API要求を10秒でタイムアウトし,5秒間隔で最大60回再試行するため, 最大待機時間は最大約15分です。
+
 
 **実施対象ホスト**: 対象ホスト
 
@@ -1005,11 +1011,36 @@ ment-token.yml
 
 - ファイルのアクセス権が不正な場合や共有ファイル内に`k8s_audit`キーが存在しない場合は, 当該ファイルのアクセス権を適切に設定, または, 削除して, Fleet Bootstrapロールを再実行します。
 
-### 2. DaemonSetが配置されない場合
+### 2. DaemonSetが配置されない又はReadyにならない場合
+
+PlaybookはDaemonSetの`desiredNumberScheduled`が1以上であることを確認した後,全配置対象Podが更新済みかつReadyになるまで上限付きで待機します。既定値では5秒間隔で最大60回再試行します。
+
+待機上限に達した場合は,配置条件だけでなくDaemonSetの`status`とPodの状態,直近のKubernetes Eventも確認してください。
+
 
 **実施対象ホスト**: 対象ホスト
 
 **実行するコマンド**:
+
+```bash
+kubectl --namespace kube-system get daemonset   -l app.kubernetes.io/instance=elastic-agent-k8s-audit   -o json |
+jq '.items[] | {
+  name: .metadata.name,
+  status: .status,
+  nodeSelector: .spec.template.spec.nodeSelector,
+  tolerations: .spec.template.spec.tolerations
+}'
+kubectl --namespace kube-system get pods -o wide
+kubectl --namespace kube-system get events   --sort-by=.metadata.creationTimestamp |
+tail -n 50
+kubectl get nodes -o json |
+jq '.items[] | {
+  name: .metadata.name,
+  labels: .metadata.labels,
+  taints: (.spec.taints // [])
+}'
+```
+
 ```bash
 kubectl --namespace kube-system get daemonset \
   -l app.kubernetes.io/instance=elastic-agent-k8s-audit \
@@ -1091,6 +1122,7 @@ jq '.items[] | {
   - 対象のコントロールプレインノードのラベルに`"node-role.kubernetes.io/control-plane"`が含まれること
 - コントロールプレーンノードの`tolerations`に`"effect": "NoSchedule"`が設定されていること(スケジューラからPod展開対象外ノードと指示されている場合でも, 本Podは展開する旨の指示)
 
+DaemonSetの`DESIRED`,`CURRENT`,`UP-TO-DATE`が一致していても`READY`が未達の場合は,Pod起動途中の可能性があります。`elastic_agent_k8s_audit_verify_retries`と`elastic_agent_k8s_audit_verify_retry_interval_seconds`で定めた待機上限内でReadyへ遷移するかを確認し,上限到達時はPod状態とEventから原因を切り分けてください。
 
 ### 3. `audit.log`をPodから読めない場合
 

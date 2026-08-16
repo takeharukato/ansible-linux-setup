@@ -1,4 +1,4 @@
-#  -*- coding:utf-8 mode:yaml -*-
+#  -*- coding:utf-8-unix mode:yaml -*-
 #  Ansible playbook
 #  Copyright 2020 Takeharu KATO All Rights Reserved.
 #
@@ -6,7 +6,8 @@
 #
 ---
 
-# KibanaのFleet機能の初期化手順を実行して, 以降の Output, Agent Policy, Enrollment Token作成に必要な前提を設定する。
+# KibanaのFleet機能の初期化手順を実行して, 以降のOutput, Agent Policy,
+# Enrollment Token作成に必要な前提を設定する。
 - name: Initialize Fleet setup
   ansible.builtin.uri:
     url: "{{ fleet_bootstrap_kibana_url }}/api/fleet/setup"
@@ -25,9 +26,21 @@
   register: fleet_bootstrap_setup_result
   retries: "{{ fleet_bootstrap_kibana_api_retries | int }}"
   delay: "{{ fleet_bootstrap_kibana_api_retry_interval_seconds | int }}"
-  until: fleet_bootstrap_setup_result.status | default(0) | int in [200, 201, 202]
+  until: >-
+    fleet_bootstrap_setup_result.status
+    | default(0)
+    | int in [200, 201, 202]
 
-# Agent Policy 作成前に, Kibana 側の既定 Fleet Server host 設定を確保する。
+# Fleet Server hostの処理状態を初期化し,
+# 後続処理で既存, 新規作成又は競合後に取得したhostを共通して扱えるようにする。
+- name: Initialize Fleet Server host runtime facts
+  ansible.builtin.set_fact:
+    fleet_bootstrap_existing_fleet_server_host: {}
+    fleet_bootstrap_conflicting_fleet_server_host: {}
+    fleet_bootstrap_current_fleet_server_host: {}
+
+# Agent Policy作成前にKibana側のFleet Server host一覧を取得し,
+# Ansible管理対象のhostがすでに存在するかを確認できるようにする。
 - name: List existing Fleet Server hosts
   ansible.builtin.uri:
     url: "{{ fleet_bootstrap_kibana_url }}/api/fleet/fleet_server_hosts"
@@ -36,15 +49,60 @@
       Authorization: "ApiKey {{ fleet_bootstrap_runtime_api_key }}"
       kbn-xsrf: "{{ fleet_bootstrap_kibana_xsrf_token }}"
       Content-Type: application/json
+    status_code:
+      - 200
     return_content: true
     validate_certs: "{{ fleet_bootstrap_kibana_validate_certs | bool }}"
     timeout: "{{ fleet_bootstrap_kibana_api_request_timeout_seconds | int }}"
   register: fleet_bootstrap_fleet_server_host_list
   retries: "{{ fleet_bootstrap_kibana_api_retries | int }}"
   delay: "{{ fleet_bootstrap_kibana_api_retry_interval_seconds | int }}"
-  until: fleet_bootstrap_fleet_server_host_list.status | default(0) | int in [200]
+  until: >-
+    fleet_bootstrap_fleet_server_host_list.status
+    | default(0)
+    | int == 200
 
-# Fleet Server host がKibana 側に未作成の場合は, 既定の Fleet Server host を作成する。
+# 同名のFleet Server hostが複数存在する場合は,
+# 更新対象を一意に決定できないため処理を停止する。
+- name: Assert Fleet Server host name is unique
+  ansible.builtin.assert:
+    that:
+      - >-
+        (
+          fleet_bootstrap_fleet_server_host_list.json['items']
+          | default([])
+          | selectattr(
+              'name',
+              'equalto',
+              fleet_bootstrap_fleet_server_host_name
+            )
+          | list
+          | length
+        ) <= 1
+    fail_msg: >-
+      Multiple Fleet Server hosts with the same name were found.
+      host={{ fleet_bootstrap_fleet_server_host_name }}
+
+# Fleet Server hostを名称で解決し,
+# 既存hostの再利用又は新規作成の判定に使用する。
+- name: Resolve existing Fleet Server host
+  ansible.builtin.set_fact:
+    fleet_bootstrap_existing_fleet_server_host: >-
+      {{
+        fleet_bootstrap_fleet_server_host_list.json['items']
+        | default([])
+        | selectattr(
+            'name',
+            'equalto',
+            fleet_bootstrap_fleet_server_host_name
+          )
+        | list
+        | first
+        | default({})
+      }}
+
+# 同名のFleet Server hostが存在しない場合だけ新規作成し,
+# 存在確認後に別処理が同名hostを作成した場合の409も競合として受け入れる。
 - name: Create default Fleet Server host if missing
   ansible.builtin.uri:
     url: "{{ fleet_bootstrap_kibana_url }}/api/fleet/fleet_server_hosts"
@@ -61,18 +119,173 @@
     status_code:
       - 200
       - 201
+      - 409
     return_content: true
     validate_certs: "{{ fleet_bootstrap_kibana_validate_certs | bool }}"
     timeout: "{{ fleet_bootstrap_kibana_api_request_timeout_seconds | int }}"
   register: fleet_bootstrap_fleet_server_host_result
   retries: "{{ fleet_bootstrap_kibana_api_retries | int }}"
   delay: "{{ fleet_bootstrap_kibana_api_retry_interval_seconds | int }}"
-  until: fleet_bootstrap_fleet_server_host_result.status | default(0) | int in [200, 201]
-  # 既定 Fleet Server host が未作成であることを判定してから作成する。
+  until: >-
+    fleet_bootstrap_fleet_server_host_result.status
+    | default(0)
+    | int in [200, 201, 409]
   when:
-    - (
-        fleet_bootstrap_fleet_server_host_list.json['items'] | default([])
-        | selectattr('is_default', 'equalto', true)
+    - fleet_bootstrap_existing_fleet_server_host.id is not defined
+
+# Fleet Server host作成要求と別の実行が競合した場合は一覧を再取得し,
+# 競合相手によって作成された同名hostを解決できるようにする。
+- name: Refresh Fleet Server host list after create conflict
+  ansible.builtin.uri:
+    url: "{{ fleet_bootstrap_kibana_url }}/api/fleet/fleet_server_hosts"
+    method: GET
+    headers:
+      Authorization: "ApiKey {{ fleet_bootstrap_runtime_api_key }}"
+      kbn-xsrf: "{{ fleet_bootstrap_kibana_xsrf_token }}"
+      Content-Type: application/json
+    status_code:
+      - 200
+    return_content: true
+    validate_certs: "{{ fleet_bootstrap_kibana_validate_certs | bool }}"
+    timeout: "{{ fleet_bootstrap_kibana_api_request_timeout_seconds | int }}"
+  register: fleet_bootstrap_fleet_server_host_conflict_list
+  retries: "{{ fleet_bootstrap_kibana_api_retries | int }}"
+  delay: "{{ fleet_bootstrap_kibana_api_retry_interval_seconds | int }}"
+  until: >-
+    fleet_bootstrap_fleet_server_host_conflict_list.status
+    | default(0)
+    | int == 200
+  when:
+    - fleet_bootstrap_fleet_server_host_result.status | default(0) | int == 409
+
+# Fleet Server host作成競合後に同名hostが1件だけ存在することを確認し,
+# 更新対象を一意に決定できない場合は処理を停止する。
+- name: Assert Fleet Server host exists uniquely after create conflict
+  ansible.builtin.assert:
+    that:
+      - >-
+        (
+          fleet_bootstrap_fleet_server_host_conflict_list.json['items']
+          | default([])
+          | selectattr(
+              'name',
+              'equalto',
+              fleet_bootstrap_fleet_server_host_name
+            )
+          | list
+          | length
+        ) == 1
+    fail_msg: >-
+      Fleet Server host creation returned Conflict,
+      but exactly one expected Fleet Server host was not found.
+      host={{ fleet_bootstrap_fleet_server_host_name }}
+  when:
+    - fleet_bootstrap_fleet_server_host_result.status | default(0) | int == 409
+
+# Fleet Server host作成競合後に再取得した一覧から同名hostを解決し,
+# 後続処理で共通して利用できるようにする。
+- name: Resolve Fleet Server host after create conflict
+  ansible.builtin.set_fact:
+    fleet_bootstrap_conflicting_fleet_server_host: >-
+      {{
+        fleet_bootstrap_fleet_server_host_conflict_list.json['items']
+        | default([])
+        | selectattr(
+            'name',
+            'equalto',
+            fleet_bootstrap_fleet_server_host_name
+          )
         | list
-        | length
-      ) == 0
+        | first
+        | default({})
+      }}
+  when:
+    - fleet_bootstrap_fleet_server_host_result.status | default(0) | int == 409
+
+# 既存のFleet Server hostが存在する場合は,
+# 後続処理で共通して利用するhostとして設定する。
+- name: Set current Fleet Server host from existing host
+  ansible.builtin.set_fact:
+    fleet_bootstrap_current_fleet_server_host: >-
+      {{ fleet_bootstrap_existing_fleet_server_host }}
+  when:
+    - fleet_bootstrap_existing_fleet_server_host.id is defined
+
+# Fleet Server hostを新規作成できた場合は,
+# 作成結果を後続処理で共通して利用するhostとして設定する。
+- name: Set current Fleet Server host from created host
+  ansible.builtin.set_fact:
+    fleet_bootstrap_current_fleet_server_host: >-
+      {{ fleet_bootstrap_fleet_server_host_result.json['item'] }}
+  when:
+    - fleet_bootstrap_fleet_server_host_result is defined
+    - fleet_bootstrap_fleet_server_host_result.status | default(0) | int in [200, 201]
+    - fleet_bootstrap_fleet_server_host_result.json is defined
+    - fleet_bootstrap_fleet_server_host_result.json['item'] is defined
+
+# Fleet Server hostの作成が競合した場合は,
+# 再取得したhostを後続処理で共通して利用するhostとして設定する。
+- name: Set current Fleet Server host from conflicting host
+  ansible.builtin.set_fact:
+    fleet_bootstrap_current_fleet_server_host: >-
+      {{ fleet_bootstrap_conflicting_fleet_server_host }}
+  when:
+    - fleet_bootstrap_fleet_server_host_result.status | default(0) | int == 409
+    - fleet_bootstrap_conflicting_fleet_server_host.id is defined
+
+# 既存, 新規作成又は競合後の再取得のいずれかによって,
+# Ansible管理対象のFleet Server hostを一意に解決できたことを確認する。
+- name: Assert current Fleet Server host is resolved
+  ansible.builtin.assert:
+    that:
+      - fleet_bootstrap_current_fleet_server_host.id is defined
+      - fleet_bootstrap_current_fleet_server_host.id | string | length > 0
+      - >-
+        fleet_bootstrap_current_fleet_server_host.name
+        | default('')
+        == fleet_bootstrap_fleet_server_host_name
+    fail_msg: >-
+      Failed to resolve Fleet Server host.
+      host={{ fleet_bootstrap_fleet_server_host_name }}
+
+# 解決したFleet Server hostのURL又は既定host設定が期待値と異なる場合は,
+# Ansibleで指定した設定へ更新する。
+- name: Update Fleet Server host when configuration differs
+  ansible.builtin.uri:
+    url: >-
+      {{ fleet_bootstrap_kibana_url }}/api/fleet/fleet_server_hosts/{{
+      fleet_bootstrap_current_fleet_server_host.id }}
+    method: PUT
+    body_format: json
+    headers:
+      Authorization: "ApiKey {{ fleet_bootstrap_runtime_api_key }}"
+      kbn-xsrf: "{{ fleet_bootstrap_kibana_xsrf_token }}"
+      Content-Type: application/json
+    body:
+      name: "{{ fleet_bootstrap_fleet_server_host_name }}"
+      host_urls: "{{ fleet_bootstrap_fleet_server_runtime_host_urls }}"
+      is_default: true
+    status_code:
+      - 200
+    return_content: true
+    validate_certs: "{{ fleet_bootstrap_kibana_validate_certs | bool }}"
+    timeout: "{{ fleet_bootstrap_kibana_api_request_timeout_seconds | int }}"
+  register: fleet_bootstrap_fleet_server_host_update_result
+  retries: "{{ fleet_bootstrap_kibana_api_retries | int }}"
+  delay: "{{ fleet_bootstrap_kibana_api_retry_interval_seconds | int }}"
+  until: >-
+    fleet_bootstrap_fleet_server_host_update_result.status
+    | default(0)
+    | int == 200
+  when:
+    - >-
+      (
+        fleet_bootstrap_current_fleet_server_host.host_urls
+        | default([], true)
+      ) != fleet_bootstrap_fleet_server_runtime_host_urls
+      or
+      not (
+        fleet_bootstrap_current_fleet_server_host.is_default
+        | default(false)
+        | bool
+      )

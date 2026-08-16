@@ -6,29 +6,46 @@
 #
 ---
 
-# Fleet Outputの作成対象を確認するための初期値を設定する。
-- name: Initialize Fleet Bootstrap API state facts
-  ansible.builtin.set_fact:
-    fleet_bootstrap_output_exists: false
-
-# 既存の Fleet Output 一覧を取得して, 指定名の Output がすでに存在するかを確認する。
+# 既存のFleet Output一覧を取得して, 指定名のOutputがすでに存在するかを確認する。
 - name: List existing Fleet outputs
   ansible.builtin.uri:
-    url: "{{ fleet_bootstrap_kibana_url }}/api/fleet/outputs"
+    url: "{{ fleet_bootstrap_kibana_url }}/api/fleet/outputs?perPage=10000"
     method: GET
     headers:
       Authorization: "ApiKey {{ fleet_bootstrap_runtime_api_key }}"
       kbn-xsrf: "{{ fleet_bootstrap_kibana_xsrf_token }}"
       Content-Type: application/json
+    status_code:
+      - 200
     return_content: true
     validate_certs: "{{ fleet_bootstrap_kibana_validate_certs | bool }}"
     timeout: "{{ fleet_bootstrap_kibana_api_request_timeout_seconds | int }}"
   register: fleet_bootstrap_output_list
   retries: "{{ fleet_bootstrap_kibana_api_retries | int }}"
   delay: "{{ fleet_bootstrap_kibana_api_retry_interval_seconds | int }}"
-  until: fleet_bootstrap_output_list.status | default(0) | int in [200]
+  until: >-
+    fleet_bootstrap_output_list.status
+    | default(0)
+    | int == 200
 
-# 指定名の既存Outputを1件へ絞り込み, 作成又は更新の判定に使用する。
+# 指定名のFleet Outputが複数存在する場合は,
+# 後続処理で使用するOutputを一意に決定できないため処理を停止する。
+- name: Assert Fleet output name is unique
+  ansible.builtin.assert:
+    that:
+      - >-
+        (
+          fleet_bootstrap_output_list.json['items'] | default([])
+          | selectattr('name', 'equalto', fleet_bootstrap_output_name)
+          | list
+          | length
+        ) <= 1
+    fail_msg: >-
+      Multiple Fleet outputs with the same name were found.
+      output={{ fleet_bootstrap_output_name }}
+
+# 指定名の既存Outputを1件へ絞り込み,
+# 作成又は更新の判定に使用する。
 - name: Resolve existing Fleet output
   ansible.builtin.set_fact:
     fleet_bootstrap_existing_output: >-
@@ -40,7 +57,8 @@
         | default({})
       }}
 
-# 既存の Output 一覧から指定名の Output を検索し, 存在しない場合にだけ新規作成する。
+# 既存のOutput一覧に指定名のOutputが存在しない場合だけ新規作成し,
+# 存在確認後に別処理が同名Outputを作成した場合の409も競合として受け入れる。
 - name: Create Fleet output if missing
   ansible.builtin.uri:
     url: "{{ fleet_bootstrap_kibana_url }}/api/fleet/outputs"
@@ -59,20 +77,127 @@
     status_code:
       - 200
       - 201
+      - 409
     return_content: true
     validate_certs: "{{ fleet_bootstrap_kibana_validate_certs | bool }}"
     timeout: "{{ fleet_bootstrap_kibana_api_request_timeout_seconds | int }}"
   register: fleet_bootstrap_output_result
   retries: "{{ fleet_bootstrap_kibana_api_retries | int }}"
   delay: "{{ fleet_bootstrap_kibana_api_retry_interval_seconds | int }}"
-  until: fleet_bootstrap_output_result.status | default(0) | int in [200, 201]
+  until: >-
+    fleet_bootstrap_output_result.status
+    | default(0)
+    | int in [200, 201, 409]
   when:
     - fleet_bootstrap_existing_output.id is not defined
 
-# 既存Outputの種別又は送信先が期待値と異なる場合は, Fleet管理下のAgentへLogstash出力を反映する。
-- name: Update existing Fleet output when configuration differs
+# Output作成要求と別の実行が競合した場合は一覧を再取得し,
+# 競合相手によって作成された指定名のOutputを解決できるようにする。
+- name: Refresh Fleet output list after create conflict
   ansible.builtin.uri:
-    url: "{{ fleet_bootstrap_kibana_url }}/api/fleet/outputs/{{ fleet_bootstrap_existing_output.id }}"
+    url: "{{ fleet_bootstrap_kibana_url }}/api/fleet/outputs?perPage=10000"
+    method: GET
+    headers:
+      Authorization: "ApiKey {{ fleet_bootstrap_runtime_api_key }}"
+      kbn-xsrf: "{{ fleet_bootstrap_kibana_xsrf_token }}"
+      Content-Type: application/json
+    status_code:
+      - 200
+    return_content: true
+    validate_certs: "{{ fleet_bootstrap_kibana_validate_certs | bool }}"
+    timeout: "{{ fleet_bootstrap_kibana_api_request_timeout_seconds | int }}"
+  register: fleet_bootstrap_output_conflict_list
+  retries: "{{ fleet_bootstrap_kibana_api_retries | int }}"
+  delay: "{{ fleet_bootstrap_kibana_api_retry_interval_seconds | int }}"
+  until: >-
+    fleet_bootstrap_output_conflict_list.status
+    | default(0)
+    | int == 200
+  when:
+    - fleet_bootstrap_output_result.status | default(0) | int == 409
+
+# 作成競合後に指定名のOutputが1件だけ存在することを確認し,
+# 後続処理で使用するOutputを一意に決定できない場合は処理を停止する。
+- name: Assert Fleet output exists uniquely after create conflict
+  ansible.builtin.assert:
+    that:
+      - >-
+        (
+          fleet_bootstrap_output_conflict_list.json['items'] | default([])
+          | selectattr('name', 'equalto', fleet_bootstrap_output_name)
+          | list
+          | length
+        ) == 1
+    fail_msg: >-
+      Fleet output creation returned Conflict,
+      but exactly one expected output was not found.
+      output={{ fleet_bootstrap_output_name }}
+  when:
+    - fleet_bootstrap_output_result.status | default(0) | int == 409
+
+# 作成競合後に再取得した一覧から指定名のOutputを解決し,
+# 後続処理で共通して利用できるようにする。
+- name: Resolve Fleet output after create conflict
+  ansible.builtin.set_fact:
+    fleet_bootstrap_conflicting_output: >-
+      {{
+        fleet_bootstrap_output_conflict_list.json['items'] | default([])
+        | selectattr('name', 'equalto', fleet_bootstrap_output_name)
+        | list
+        | first
+        | default({})
+      }}
+  when:
+    - fleet_bootstrap_output_result.status | default(0) | int == 409
+
+# 既存のFleet Outputが存在する場合は,
+# 後続処理で共通して利用するOutputとして設定する。
+- name: Set current Fleet output from existing output
+  ansible.builtin.set_fact:
+    fleet_bootstrap_current_output: "{{ fleet_bootstrap_existing_output }}"
+  when:
+    - fleet_bootstrap_existing_output.id is defined
+
+# Fleet Outputを新規作成できた場合は,
+# 作成結果を後続処理で共通して利用するOutputとして設定する。
+- name: Set current Fleet output from created output
+  ansible.builtin.set_fact:
+    fleet_bootstrap_current_output: "{{ fleet_bootstrap_output_result.json['item'] }}"
+  when:
+    - fleet_bootstrap_output_result is defined
+    - fleet_bootstrap_output_result.status | default(0) | int in [200, 201]
+    - fleet_bootstrap_output_result.json is defined
+    - fleet_bootstrap_output_result.json['item'] is defined
+
+# Fleet Outputの作成が競合した場合は,
+# 再取得したOutputを後続処理で共通して利用するOutputとして設定する。
+- name: Set current Fleet output from conflicting output
+  ansible.builtin.set_fact:
+    fleet_bootstrap_current_output: "{{ fleet_bootstrap_conflicting_output }}"
+  when:
+    - fleet_bootstrap_output_result.status | default(0) | int == 409
+    - fleet_bootstrap_conflicting_output.id is defined
+
+# 既存, 新規作成又は競合後の再取得のいずれかによって,
+# 後続処理で使用するFleet Outputを一意に解決できたことを確認する。
+- name: Assert current Fleet output is resolved
+  ansible.builtin.assert:
+    that:
+      - fleet_bootstrap_current_output is defined
+      - fleet_bootstrap_current_output.id is defined
+      - fleet_bootstrap_current_output.id | string | length > 0
+      - fleet_bootstrap_current_output.name | default('') == fleet_bootstrap_output_name
+    fail_msg: >-
+      Failed to resolve Fleet output.
+      output={{ fleet_bootstrap_output_name }}
+
+# 解決したOutputの種別又は送信先等が期待値と異なる場合は,
+# Fleet管理下のAgentへ使用するLogstash Output設定へ更新する。
+- name: Update Fleet output when configuration differs
+  ansible.builtin.uri:
+    url: >-
+      {{ fleet_bootstrap_kibana_url }}/api/fleet/outputs/{{
+      fleet_bootstrap_current_output.id }}
     method: PUT
     body_format: json
     headers:
@@ -93,28 +218,30 @@
   register: fleet_bootstrap_output_update_result
   retries: "{{ fleet_bootstrap_kibana_api_retries | int }}"
   delay: "{{ fleet_bootstrap_kibana_api_retry_interval_seconds | int }}"
-  until: fleet_bootstrap_output_update_result.status | default(0) | int == 200
+  until: >-
+    fleet_bootstrap_output_update_result.status
+    | default(0)
+    | int == 200
   when:
-    - fleet_bootstrap_existing_output.id is defined
     - >-
-      (fleet_bootstrap_existing_output.type | default('') != 'logstash') or
-      (fleet_bootstrap_existing_output.hosts | default([], true) != fleet_bootstrap_logstash_hosts) or
-      not (fleet_bootstrap_existing_output.is_default | default(false) | bool) or
-      not (fleet_bootstrap_existing_output.is_default_monitoring | default(false) | bool)
+      (fleet_bootstrap_current_output.type | default('') != 'logstash') or
+      (
+        fleet_bootstrap_current_output.hosts | default([], true)
+        != fleet_bootstrap_logstash_hosts
+      ) or
+      not (
+        fleet_bootstrap_current_output.is_default
+        | default(false)
+        | bool
+      ) or
+      not (
+        fleet_bootstrap_current_output.is_default_monitoring
+        | default(false)
+        | bool
+      )
 
-# 既存の Output から指定名の ID を取り出して, 後続の Policy 作成処理で利用できるようにする。
+# 解決したFleet OutputのIDを確定し,
+# 後続のAgent Policy作成処理で利用できるようにする。
 - name: Set Fleet output id fact
   ansible.builtin.set_fact:
-    fleet_bootstrap_output_id: >-
-      {{ fleet_bootstrap_existing_output.id | default('') }}
-
-# 新規作成した Output の ID を取り出して, 後続の Policy 作成処理で利用できるようにする。
-- name: Set Fleet output id from created result
-  ansible.builtin.set_fact:
-    fleet_bootstrap_output_id: "{{ fleet_bootstrap_output_result.json['item'].id | default('') }}"
-  # 作成結果の利用可否をfleet_bootstrap_output_resultの定義有無,
-  # 応答結果(json)の有無と応答結果内に応答結果の要素(item)が存在することで判定する。
-  when:
-    - fleet_bootstrap_output_result is defined
-    - fleet_bootstrap_output_result.json is defined
-    - fleet_bootstrap_output_result.json['item'] is defined
+    fleet_bootstrap_output_id: "{{ fleet_bootstrap_current_output.id }}"

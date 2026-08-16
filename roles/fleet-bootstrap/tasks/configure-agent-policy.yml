@@ -6,6 +6,18 @@
 #
 ---
 
+# configure-agent-policy.ymlは複数のAgent Policyプロファイルに対して繰り返し呼び出されるため,
+# 前回の呼び出し結果を誤って再利用しないように処理状態を初期化する。
+- name: Initialize Fleet agent policy runtime facts
+  ansible.builtin.set_fact:
+    fleet_bootstrap_existing_agent_policy: {}
+    fleet_bootstrap_conflicting_agent_policy: {}
+    fleet_bootstrap_effective_agent_policy: {}
+    fleet_bootstrap_existing_token_item: {}
+    fleet_bootstrap_conflicting_token_item: {}
+    fleet_bootstrap_effective_token_item: {}
+  changed_when: false
+
 # Agent Policyへ設定するElastic Agent自身の監視対象をプロファイルごとに解決する。
 # 既存プロファイルでは従来どおりlogsとmetricsを有効化する。
 # k8s_auditプロファイルでは利用者設定に従って監視対象を構成し,
@@ -39,6 +51,22 @@
         else ['logs', 'metrics']
       }}
 
+# 同名のAgent Policyが複数存在する場合は,
+# 後続処理で使用するPolicyを一意に決定できないため処理を停止する。
+- name: Assert Fleet agent policy name is unique
+  ansible.builtin.assert:
+    that:
+      - >-
+        (
+          fleet_bootstrap_policy_list.json['items'] | default([])
+          | selectattr('name', 'equalto', fleet_bootstrap_agent_policy_profile.policy_name)
+          | list
+          | length
+        ) <= 1
+    fail_msg: >-
+      Multiple Fleet agent policies with the same name were found.
+      policy={{ fleet_bootstrap_agent_policy_profile.policy_name }}
+
 # 同名のAgent Policyを再利用し, Elastic Agent ポリシーごとの登録先を一意にする。
 - name: Resolve existing Fleet agent policy
   ansible.builtin.set_fact:
@@ -69,14 +97,30 @@
     status_code:
       - 200
       - 201
+      - 400
+      - 401
+      - 403
+      - 404
       - 409
+      - 429
+      - 500
+      - 502
+      - 503
+      - 504
     return_content: true
     validate_certs: "{{ fleet_bootstrap_kibana_validate_certs | bool }}"
     timeout: "{{ fleet_bootstrap_kibana_api_request_timeout_seconds | int }}"
   register: fleet_bootstrap_agent_policy_create_result
   retries: "{{ fleet_bootstrap_kibana_api_retries | int }}"
   delay: "{{ fleet_bootstrap_kibana_api_retry_interval_seconds | int }}"
-  until: fleet_bootstrap_agent_policy_create_result.status | default(0) | int in [200, 201, 409]
+  until: >-
+    fleet_bootstrap_agent_policy_create_result.status
+    | default(0)
+    | int in [200, 201, 400, 401, 403, 404, 409]
+  failed_when: >-
+    fleet_bootstrap_agent_policy_create_result.status
+    | default(0)
+    | int in [400, 401, 403, 404]
   when:
     - fleet_bootstrap_existing_agent_policy.id is not defined
 
@@ -89,17 +133,55 @@
       Authorization: "ApiKey {{ fleet_bootstrap_runtime_api_key }}"
       kbn-xsrf: "{{ fleet_bootstrap_kibana_xsrf_token }}"
       Content-Type: application/json
+    status_code:
+      - 200
+      - 400
+      - 401
+      - 403
+      - 404
+      - 429
+      - 500
+      - 502
+      - 503
+      - 504
     return_content: true
     validate_certs: "{{ fleet_bootstrap_kibana_validate_certs | bool }}"
     timeout: "{{ fleet_bootstrap_kibana_api_request_timeout_seconds | int }}"
   register: fleet_bootstrap_agent_policy_conflict_list
   retries: "{{ fleet_bootstrap_kibana_api_retries | int }}"
   delay: "{{ fleet_bootstrap_kibana_api_retry_interval_seconds | int }}"
-  until: fleet_bootstrap_agent_policy_conflict_list.status | default(0) | int == 200
+  until: >-
+    fleet_bootstrap_agent_policy_conflict_list.status
+    | default(0)
+    | int in [200, 400, 401, 403, 404]
+  failed_when: >-
+    fleet_bootstrap_agent_policy_conflict_list.status
+    | default(0)
+    | int != 200
   when:
     - fleet_bootstrap_agent_policy_create_result.status | default(0) | int == 409
 
-# 競合後に同名Policyを取得できない場合は後続の統合設定先を特定できないため, 処理を停止する。
+# 作成競合後に同名Agent Policyが1件だけ存在することを確認し,
+# 後続処理で使用するPolicyを一意に決定できない場合は処理を停止する。
+- name: Assert Fleet agent policy exists uniquely after create conflict
+  ansible.builtin.assert:
+    that:
+      - >-
+        (
+          fleet_bootstrap_agent_policy_conflict_list.json['items'] | default([])
+          | selectattr('name', 'equalto', fleet_bootstrap_agent_policy_profile.policy_name)
+          | list
+          | length
+        ) == 1
+    fail_msg: >-
+      Fleet agent policy creation returned Conflict,
+      but exactly one expected policy was not found.
+      policy={{ fleet_bootstrap_agent_policy_profile.policy_name }}
+  when:
+    - fleet_bootstrap_agent_policy_create_result.status | default(0) | int == 409
+
+# 作成競合後の一覧から同名Agent Policyを解決し,
+# 後続の統合設定先とEnrollment Token作成先を確定する。
 - name: Resolve Fleet agent policy created by concurrent execution
   ansible.builtin.set_fact:
     fleet_bootstrap_conflicting_agent_policy: >-
@@ -113,11 +195,16 @@
   when:
     - fleet_bootstrap_agent_policy_create_result.status | default(0) | int == 409
 
-# 作成競合を成功として扱うのは同名Policyの識別子を再取得できた場合だけに限定する。
+# 作成競合を成功として扱うのは,
+# 同名Agent Policyの識別子を再取得できた場合だけに限定する。
 - name: Assert Fleet agent policy exists after create conflict
   ansible.builtin.assert:
     that:
       - fleet_bootstrap_conflicting_agent_policy.id is defined
+      - fleet_bootstrap_conflicting_agent_policy.id | string | length > 0
+      - >-
+        fleet_bootstrap_conflicting_agent_policy.name | default('')
+        == fleet_bootstrap_agent_policy_profile.policy_name
     fail_msg: >-
       Fleet agent policy creation returned Conflict, but the policy was not found.
       policy={{ fleet_bootstrap_agent_policy_profile.policy_name }}
@@ -159,18 +246,37 @@
       monitoring_enabled: "{{ fleet_bootstrap_current_monitoring_enabled }}"
     status_code:
       - 200
+      - 400
+      - 401
+      - 403
+      - 404
+      - 409
+      - 429
+      - 500
+      - 502
+      - 503
+      - 504
     return_content: true
     validate_certs: "{{ fleet_bootstrap_kibana_validate_certs | bool }}"
     timeout: "{{ fleet_bootstrap_kibana_api_request_timeout_seconds | int }}"
   register: fleet_bootstrap_agent_policy_update_result
   retries: "{{ fleet_bootstrap_kibana_api_retries | int }}"
   delay: "{{ fleet_bootstrap_kibana_api_retry_interval_seconds | int }}"
-  until: fleet_bootstrap_agent_policy_update_result.status | default(0) | int == 200
+  until: >-
+    fleet_bootstrap_agent_policy_update_result.status
+    | default(0)
+    | int in [200, 400, 401, 403, 404, 409]
+  failed_when: >-
+    fleet_bootstrap_agent_policy_update_result.status
+    | default(0)
+    | int != 200
   when:
     - fleet_bootstrap_effective_agent_policy.id is defined
     - >-
       (fleet_bootstrap_effective_agent_policy.data_output_id | default('', true) | string | length > 0) or
       (fleet_bootstrap_effective_agent_policy.monitoring_output_id | default('', true) | string | length > 0) or
+      (fleet_bootstrap_effective_agent_policy.namespace | default('') != 'default') or
+      (fleet_bootstrap_effective_agent_policy.description | default('') != 'Managed by Ansible') or
       (
         (
           fleet_bootstrap_effective_agent_policy.monitoring_enabled
@@ -397,6 +503,30 @@
     - fleet_bootstrap_agent_policy_profile.include_k8s_audit | bool
     - logging_backend_elastic_agent_k8s_audit_package_policy_enabled | bool
 
+# 対象Agent Policyと登録名パターンに一致するEnrollment Tokenが複数存在する場合は,
+# 再利用するTokenを一意に決定できないため処理を停止する。
+- name: Assert Fleet enrollment token is unique
+  ansible.builtin.assert:
+    that:
+      - >-
+        (
+          fleet_bootstrap_token_list.json['items'] | default([])
+          | selectattr('policy_id', 'equalto', fleet_bootstrap_current_policy_id)
+          | selectattr('name', 'defined')
+          | selectattr(
+              'name',
+              'match',
+              '^' ~ (fleet_bootstrap_agent_policy_profile.enrollment_token_name | regex_escape)
+              ~ ' \([0-9a-fA-F-]{36}\)$'
+            )
+          | list
+          | length
+        ) <= 1
+    fail_msg: >-
+      Multiple Fleet enrollment tokens matched the expected policy and name.
+      policy={{ fleet_bootstrap_current_policy_id }}
+      token={{ fleet_bootstrap_agent_policy_profile.enrollment_token_name }}
+
 # 対象Agent Policyに対応する既存Enrollment Tokenを検索する。
 - name: Resolve existing Fleet enrollment token
   ansible.builtin.set_fact:
@@ -432,14 +562,30 @@
     status_code:
       - 200
       - 201
+      - 400
+      - 401
+      - 403
+      - 404
       - 409
+      - 429
+      - 500
+      - 502
+      - 503
+      - 504
     return_content: true
     validate_certs: "{{ fleet_bootstrap_kibana_validate_certs | bool }}"
     timeout: "{{ fleet_bootstrap_kibana_api_request_timeout_seconds | int }}"
   register: fleet_bootstrap_enrollment_token_create_result
   retries: "{{ fleet_bootstrap_kibana_api_retries | int }}"
   delay: "{{ fleet_bootstrap_kibana_api_retry_interval_seconds | int }}"
-  until: fleet_bootstrap_enrollment_token_create_result.status | default(0) | int in [200, 201, 409]
+  until: >-
+    fleet_bootstrap_enrollment_token_create_result.status
+    | default(0)
+    | int in [200, 201, 400, 401, 403, 404, 409]
+  failed_when: >-
+    fleet_bootstrap_enrollment_token_create_result.status
+    | default(0)
+    | int in [400, 401, 403, 404]
   when:
     - fleet_bootstrap_existing_token_item.id is not defined
 
@@ -454,24 +600,76 @@
       Authorization: "ApiKey {{ fleet_bootstrap_runtime_api_key }}"
       kbn-xsrf: "{{ fleet_bootstrap_kibana_xsrf_token }}"
       Content-Type: application/json
+    status_code:
+      - 200
+      - 400
+      - 401
+      - 403
+      - 404
+      - 429
+      - 500
+      - 502
+      - 503
+      - 504
     return_content: true
     validate_certs: "{{ fleet_bootstrap_kibana_validate_certs | bool }}"
     timeout: "{{ fleet_bootstrap_kibana_api_request_timeout_seconds | int }}"
   register: fleet_bootstrap_enrollment_token_conflict_list
   retries: "{{ fleet_bootstrap_kibana_api_retries | int }}"
   delay: "{{ fleet_bootstrap_kibana_api_retry_interval_seconds | int }}"
-  until: fleet_bootstrap_enrollment_token_conflict_list.status | default(0) | int == 200
+  until: >-
+    fleet_bootstrap_enrollment_token_conflict_list.status
+    | default(0)
+    | int in [200, 400, 401, 403, 404]
+  failed_when: >-
+    fleet_bootstrap_enrollment_token_conflict_list.status
+    | default(0)
+    | int != 200
   when:
     - fleet_bootstrap_enrollment_token_create_result.status | default(0) | int == 409
 
-# 競合後の一覧から対象Policyと登録名が一致するTokenを選択し, 秘密値取得の対象を一意にする。
+# Enrollment Token作成競合後に対象Policyと登録名パターンに一致するTokenが
+# 1件だけ存在することを確認し, 秘密値取得対象を一意にする。
+- name: Assert Fleet enrollment token exists uniquely after create conflict
+  ansible.builtin.assert:
+    that:
+      - >-
+        (
+          fleet_bootstrap_enrollment_token_conflict_list.json['items'] | default([])
+          | selectattr('policy_id', 'equalto', fleet_bootstrap_current_policy_id)
+          | selectattr('name', 'defined')
+          | selectattr(
+              'name',
+              'match',
+              '^' ~ (fleet_bootstrap_agent_policy_profile.enrollment_token_name | regex_escape)
+              ~ ' \([0-9a-fA-F-]{36}\)$'
+            )
+          | list
+          | length
+        ) == 1
+    fail_msg: >-
+      Fleet enrollment token creation returned Conflict,
+      but exactly one expected token was not found.
+      policy={{ fleet_bootstrap_current_policy_id }}
+      token={{ fleet_bootstrap_agent_policy_profile.enrollment_token_name }}
+  when:
+    - fleet_bootstrap_enrollment_token_create_result.status | default(0) | int == 409
+
+# 競合後の一覧から対象Policyと登録名パターンが一致するTokenを選択し,
+# 秘密値取得の対象を一意にする。
 - name: Resolve Fleet enrollment token created by concurrent execution
   ansible.builtin.set_fact:
     fleet_bootstrap_conflicting_token_item: >-
       {{
         fleet_bootstrap_enrollment_token_conflict_list.json['items'] | default([])
         | selectattr('policy_id', 'equalto', fleet_bootstrap_current_policy_id)
-        | selectattr('name', 'equalto', fleet_bootstrap_agent_policy_profile.enrollment_token_name)
+        | selectattr('name', 'defined')
+        | selectattr(
+            'name',
+            'match',
+            '^' ~ (fleet_bootstrap_agent_policy_profile.enrollment_token_name | regex_escape)
+            ~ ' \([0-9a-fA-F-]{36}\)$'
+          )
         | list
         | first
         | default({})
@@ -484,6 +682,8 @@
   ansible.builtin.assert:
     that:
       - fleet_bootstrap_conflicting_token_item.id is defined
+      - fleet_bootstrap_conflicting_token_item.id | string | length > 0
+      - fleet_bootstrap_conflicting_token_item.policy_id | default('') == fleet_bootstrap_current_policy_id
     fail_msg: >-
       Fleet enrollment token creation returned Conflict, but the token was not found.
       policy={{ fleet_bootstrap_current_policy_id }}
@@ -516,13 +716,31 @@
       Authorization: "ApiKey {{ fleet_bootstrap_runtime_api_key }}"
       kbn-xsrf: "{{ fleet_bootstrap_kibana_xsrf_token }}"
       Content-Type: application/json
+    status_code:
+      - 200
+      - 400
+      - 401
+      - 403
+      - 404
+      - 429
+      - 500
+      - 502
+      - 503
+      - 504
     return_content: true
     validate_certs: "{{ fleet_bootstrap_kibana_validate_certs | bool }}"
     timeout: "{{ fleet_bootstrap_kibana_api_request_timeout_seconds | int }}"
   register: fleet_bootstrap_enrollment_token_get_result
   retries: "{{ fleet_bootstrap_kibana_api_retries | int }}"
   delay: "{{ fleet_bootstrap_kibana_api_retry_interval_seconds | int }}"
-  until: fleet_bootstrap_enrollment_token_get_result.status | default(0) | int == 200
+  until: >-
+    fleet_bootstrap_enrollment_token_get_result.status
+    | default(0)
+    | int in [200, 400, 401, 403, 404]
+  failed_when: >-
+    fleet_bootstrap_enrollment_token_get_result.status
+    | default(0)
+    | int != 200
   when:
     - fleet_bootstrap_effective_token_item.id is defined
 

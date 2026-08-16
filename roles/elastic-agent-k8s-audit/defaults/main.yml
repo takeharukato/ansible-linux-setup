@@ -22,6 +22,20 @@ elastic_agent_k8s_audit_helm_retry_interval_seconds: 5
 # Kubernetes APIおよびHelm状態確認の実行間隔 (単位: 秒)。
 elastic_agent_k8s_audit_helm_request_interval_seconds: 5
 
+# Kubernetes API監査ログ収集用DaemonSet状態確認の
+# 1回あたり要求タイムアウト値 (単位: 秒)。
+elastic_agent_k8s_audit_verify_request_timeout_seconds: 10
+
+# Kubernetes API監査ログ収集用DaemonSet状態確認の
+# 再試行間隔 (単位: 秒)。
+elastic_agent_k8s_audit_verify_retry_interval_seconds: 5
+
+# Kubernetes API監査ログ収集用DaemonSet状態確認の
+# 再試行回数 (単位: 回)。
+# 実環境が開発環境より遅い場合を考慮し,
+# 最大約5分(5秒 * 60回)の待機予算を確保する。
+elastic_agent_k8s_audit_verify_retries: 60
+
 # Kubernetes監査ログのホスト側格納ディレクトリ。
 elastic_agent_k8s_audit_host_log_dir: "/var/log/kubernetes/audit"
 

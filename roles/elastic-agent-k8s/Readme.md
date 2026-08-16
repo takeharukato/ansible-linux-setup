@@ -31,7 +31,7 @@
       - [3. kube-state-metrics 設定確認](#3-kube-state-metrics-設定確認)
   - [トラブルシューティング](#トラブルシューティング)
     - [1. Helm template 検証で停止する場合](#1-helm-template-検証で停止する場合)
-    - [2. Deployment の rollout 待機で停止する場合](#2-deployment-の-rollout-待機で停止する場合)
+    - [2. Deployment の稼働待機で停止する場合](#2-deployment-の稼働待機で停止する場合)
   - [注意事項](#注意事項)
   - [参考資料](#参考資料)
     - [公式ドキュメント](#公式ドキュメント)
@@ -225,7 +225,7 @@
 - DiskPressure 発生時の資源判定を安定化するため, Elastic Agent の resources で ephemeral-storage の要求値と上限値を明示します。
 - `helm template` で導入前検証を実施し, `hostPath` 定義の混入がないことを確認します。
 - `helm upgrade --install` を待機付きで実行し, 再試行条件を満たすまで適用を試みます。
-- 導入後は, Helm導入識別名状態, 名前空間上の関連リソース, 対象のKubernetesクラスタに属するノード全体に対する Deployment 稼働状態を検証します。
+- 導入後は, Helm導入識別名状態, 名前空間上の関連リソース, Deployment 稼働状態を検証します。DeploymentはKubernetes APIから最新状態を一定間隔で再取得し, 全要求Podが更新済みかつReady/Availableになるまで上限付きで待機します。
 
 ### Kubernetes API監査ログ収集用Elastic Agentとの役割分担
 
@@ -278,6 +278,9 @@ ansible-playbook -i inventory/hosts logging-collector.yml
 | `elastic_agent_k8s_helm_retries` | Helm 実行再試行回数。 | `3` | `3` |
 | `elastic_agent_k8s_helm_retry_interval_seconds` | Helm 実行再試行周期。 | `5` | `5` |
 | `elastic_agent_k8s_helm_request_interval_seconds` | Kubernetes API 及び Helm 状態確認のリクエスト発行間隔。 | `5` | `5` |
+| `elastic_agent_k8s_verify_request_timeout_seconds` | 導入後検証の1回あたり要求タイムアウト秒数。 | `10` | `10` |
+| `elastic_agent_k8s_verify_retry_interval_seconds` | 導入後検証の再試行間隔秒数。 | `5` | `5` |
+| `elastic_agent_k8s_verify_retries` | 導入後検証の再試行回数。 | `60` | `60` |
 | `elastic_agent_k8s_fleet_server_url_explicit` | Fleet Server 接続先 URL 明示指定値。 | 空文字列 | `https://fleet.example.org:8220` |
 | `elastic_agent_k8s_insecure` | Fleet Server 接続時の証明書検証省略フラグ。 | `false` | `false` |
 | `elastic_agent_k8s_clusterwide_resources` | clusterWide 構成の Elastic Agent Pod に適用する resources 辞書。 | [elastic_agent_k8s_clusterwide_resources](#elastic_agent_k8s_clusterwide_resources) を参照してください。 | [elastic_agent_k8s_clusterwide_resources](#elastic_agent_k8s_clusterwide_resources) を参照してください。 |
@@ -313,31 +316,35 @@ ansible-playbook -i inventory/hosts logging-collector.yml
 3: elastic_agent_k8s_helm_retries: 3
 4: elastic_agent_k8s_helm_retry_interval_seconds: 5
 5: elastic_agent_k8s_helm_request_interval_seconds: 5
-6: elastic_agent_k8s_fleet_server_url_explicit: "http://fleet.example.org:8220"
-7: elastic_agent_k8s_insecure: true
-8: elastic_agent_k8s_clusterwide_resources:
-9:   limits:
-10:     ephemeral-storage: "2Gi"
-11:     memory: "1200Mi"
-12:   requests:
-13:     cpu: "200m"
-14:     ephemeral-storage: "512Mi"
-15:     memory: "600Mi"
-16: elastic_agent_k8s_kube_state_metrics_resources:
-17:   limits:
-18:     memory: "512Mi"
-19:   requests:
-20:     cpu: "100m"
-21:     memory: "256Mi"
+6: elastic_agent_k8s_verify_request_timeout_seconds: 10
+7: elastic_agent_k8s_verify_retry_interval_seconds: 5
+8: elastic_agent_k8s_verify_retries: 60
+9: elastic_agent_k8s_fleet_server_url_explicit: "http://fleet.example.org:8220"
+10: elastic_agent_k8s_insecure: true
+11: elastic_agent_k8s_clusterwide_resources:
+12:   limits:
+13:     ephemeral-storage: "2Gi"
+14:     memory: "1200Mi"
+15:   requests:
+16:     cpu: "200m"
+17:     ephemeral-storage: "512Mi"
+18:     memory: "600Mi"
+19: elastic_agent_k8s_kube_state_metrics_resources:
+20:   limits:
+21:     memory: "512Mi"
+22:   requests:
+23:     cpu: "100m"
+24:     memory: "256Mi"
 ```
 
 | 行番号 | 設定値 | 有効になる動作 | 設定背景(未設定時/誤設定時の問題と防止理由) |
 | --- | --- | --- | --- |
 | 1 | `elastic_agent_k8s_enabled: true` | 本ロールの導入処理を実行します。 | `false` のままでは導入処理が実行されないためです。 |
-| 2-5 | タイムアウト値, 再試行回数, 再試行周期, リクエスト発行間隔 | 一時的な接続失敗時に, 指定した周期と間隔で所定回数の再試行を実施します。 | 値が不適切な場合は早期失敗又は過剰待機が発生するためです。 |
-| 6-7 | Fleet Server接続先URL, 証明書検証省略フラグ | Fleet Server 登録先と接続方式を指定します。 | URL不整合又は検証設定不整合で登録処理が失敗するためです。 |
-| 8-15 | `elastic_agent_k8s_clusterwide_resources` | clusterWide 構成の Elastic Agent Pod が使用する CPU, メモリ, 一時領域の要求値及び上限値を指定します。 | 値が未指定又は不適切な場合は, Pod の資源割当が不足し, 稼働が不安定になるためです。 |
-| 16-21 | `elastic_agent_k8s_kube_state_metrics_resources` | kube-state-metrics Pod が使用する CPU とメモリの要求値及び上限値を指定します。 | 値が未指定又は不適切な場合は, クラスタ状態情報収集処理が遅延又は停止するためです。 |
+| 2-5 | Helm処理のタイムアウト値, 再試行回数, 再試行周期, リクエスト発行間隔 | Helm導入処理の一時的な失敗時に, 指定した条件で再試行します。 | 値が不適切な場合は早期失敗又は過剰待機が発生するためです。 |
+| 6-8 | 導入後検証の要求タイムアウト値, 再試行間隔, 再試行回数 | Helm状態確認及びKubernetes APIによるDeployment状態確認を上限付きで再試行します。 | Kubernetesリソースが起動途中である過渡状態を即時失敗とせず, 一時的な通信失敗にも対応するためです。 |
+| 9-10 | Fleet Server接続先URL, 証明書検証省略フラグ | Fleet Server 登録先と接続方式を指定します。 | URL不整合又は検証設定不整合で登録処理が失敗するためです。 |
+| 11-18 | `elastic_agent_k8s_clusterwide_resources` | clusterWide 構成の Elastic Agent Pod が使用する CPU, メモリ, 一時領域の要求値及び上限値を指定します。 | 値が未指定又は不適切な場合は, Pod の資源割当が不足し, 稼働が不安定になるためです。 |
+| 19-24 | `elastic_agent_k8s_kube_state_metrics_resources` | kube-state-metrics Pod が使用する CPU とメモリの要求値及び上限値を指定します。 | 値が未指定又は不適切な場合は, クラスタ状態情報収集処理が遅延又は停止するためです。 |
 
 ## テンプレートと生成ファイル
 
@@ -360,7 +367,7 @@ values.yamlファイルは, Helm 実行ユーザに合わせて実行時に決�
 8. [tasks/config.yml](tasks/config.yml) で `helm upgrade --install` を実行し, 待機付き導入が失敗した場合は release 状態を再確認して `pending-*` 又は `uninstalling` を解消した後に再試行します。
 9. [tasks/verify.yml](tasks/verify.yml) で `helm status` により release 状態を確認します。
 10. [tasks/verify.yml](tasks/verify.yml) で名前空間上の関連リソース存在を確認します。
-11. [tasks/verify.yml](tasks/verify.yml) で対象のKubernetesクラスタに属するノード全体に対する Deployment の rollout 状態を確認します。
+11. [tasks/verify.yml](tasks/verify.yml) で各Deploymentの最新状態をKubernetes APIから再取得し, `observedGeneration`, `replicas`, `updatedReplicas`, `readyReplicas`, `availableReplicas`, `unavailableReplicas`を確認して稼働完了まで上限付きで待機します。
 
 ## 検証ポイント
 
@@ -430,7 +437,7 @@ Kubernetes 共通設定で解決された Helm 実行ユーザを使用し, 共�
 
 ```bash
 kubectl --kubeconfig "${HOME}/.kube/ca-embedded-admin.conf" -n kube-system get deployment -l app.kubernetes.io/instance=elastic-agent-k8s
-kubectl --kubeconfig "${HOME}/.kube/ca-embedded-admin.conf" -n kube-system rollout status deployment/kube-state-metrics --timeout=300s
+kubectl --kubeconfig "${HOME}/.kube/ca-embedded-admin.conf" -n kube-system get deployment -l app.kubernetes.io/instance=elastic-agent-k8s -o json | jq '.items[] | {name: .metadata.name, generation: .metadata.generation, desired: .spec.replicas, status: .status}'
 ```
 
 **期待される出力**:
@@ -438,7 +445,7 @@ kubectl --kubeconfig "${HOME}/.kube/ca-embedded-admin.conf" -n kube-system rollo
 ```plaintext
 NAME                                        READY   UP-TO-DATE   AVAILABLE
 kube-state-metrics                          1/1     1            1
-deployment "kube-state-metrics" successfully rolled out
+全Deploymentで desired, updatedReplicas, readyReplicas, availableReplicas が一致し, unavailableReplicas が0
 ```
 
 **実行結果の例**:
@@ -448,14 +455,15 @@ $ kubectl --kubeconfig "${HOME}/.kube/ca-embedded-admin.conf" -n kube-system get
 NAME                                  READY   UP-TO-DATE   AVAILABLE   AGE
 agent-clusterwide-elastic-agent-k8s   1/1     1            1           44m
 kube-state-metrics                    1/1     1            1           44m
-$ kubectl --kubeconfig "${HOME}/.kube/ca-embedded-admin.conf" -n kube-system rollout status deployment/kube-state-metrics --timeout=300s
-deployment "kube-state-metrics" successfully rolled out
+$ kubectl --kubeconfig "${HOME}/.kube/ca-embedded-admin.conf" -n kube-system get deployment -l app.kubernetes.io/instance=elastic-agent-k8s -o json | jq '.items[] | {name: .metadata.name, generation: .metadata.generation, desired: .spec.replicas, status: .status}'
+全Deploymentで desired, updatedReplicas, readyReplicas, availableReplicas が一致し, unavailableReplicas が0
 ```
 
 **確認ポイント**:
 
 - `AVAILABLE` 列が `1` 以上であることを確認することで, 対象のKubernetesクラスタに属するノード全体に対するDeploymentが稼働していることを確認します。
-- `successfully rolled out` が表示されることを確認することで, rollout が完了していることを確認します。
+- `status.observedGeneration` が `metadata.generation` 以上であり, `status.replicas`, `status.updatedReplicas`, `status.readyReplicas`, `status.availableReplicas` が `spec.replicas` と一致し, `status.unavailableReplicas` が `0`又は未設定であることを確認します。
+- Playbook内では1回のKubernetes API要求を既定10秒でタイムアウトし, 5秒間隔で最大60回再試行します。最大待機時間は約15分です。
 
 #### 3. kube-state-metrics 設定確認
 
@@ -508,7 +516,7 @@ $
 - 出力に一致行がある場合は, values ファイル又は Chart 版数の組み合わせにより不要なボリューム定義が混入していることを確認します。
 - 出力に一致行がない場合は, テンプレート検証失敗の原因が `hostPath` 混入でないことを確認します。
 
-### 2. Deployment の rollout 待機で停止する場合
+### 2. Deployment の稼働待機で停止する場合
 
 **実施対象ホスト**: logging_collector グループに属する対象ホスト (K8sのコントロールプレーンノード)
 
@@ -591,6 +599,7 @@ $ kubectl --kubeconfig "${HOME}/.kube/ca-embedded-admin.conf" -n kube-system get
 **確認ポイント**:
 
 - `get deployment` の出力結果中の `READY` と `AVAILABLE` を確認することで, 起動完了状態を確認します。
+- Playbookが待機上限に達した場合は, Deploymentの`status`だけでなくPod状態と直近のEventを確認し, ImagePullBackOff, CrashLoopBackOff, DiskPressure等の原因を切り分けます。
 - `describe deployment` の出力結果中の `Events` を確認することで, イメージ取得失敗又は権限不足などの原因を確認します。
 - `get events` の出力結果中の `Warning` を確認することで, 直近の異常事象を確認します。
 
@@ -614,7 +623,6 @@ $ kubectl --kubeconfig "${HOME}/.kube/ca-embedded-admin.conf" -n kube-system get
 - [jq Manual](https://jqlang.github.io/jq/manual/)
 - [yq Documentation](https://mikefarah.gitbook.io/yq/)
 - [kubectlコマンド](https://kubernetes.io/docs/reference/kubectl/)
-- [kubectl rollout status](https://kubernetes.io/docs/reference/kubectl/generated/kubectl_rollout/kubectl_rollout_status/)
 - [Elastic Agent for Kubernetes](https://www.elastic.co/guide/en/fleet/current/running-on-kubernetes-managed-by-fleet.html)
 - [Fleet Server](https://www.elastic.co/docs/reference/fleet/fleet-server)
 - [Enrollment Token](https://www.elastic.co/docs/reference/fleet/fleet-enrollment-tokens)

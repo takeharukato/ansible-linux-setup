@@ -147,9 +147,9 @@
       No DaemonSet with the Kubernetes audit log volume was found
       in the elastic-agent-k8s-audit Helm release.
 
-# 各DaemonSetのdesired数とready数が一致し,
-# 少なくとも1個以上のPodが配置対象になっていることを確認する。
-- name: Validate elastic-agent-k8s-audit DaemonSet readiness
+# 各DaemonSetで少なくとも1個以上のPodが配置対象になっていることを確認し,
+# nodeSelector等の設定不整合により配置対象が0件となる状態を早期に検出する。
+- name: Validate elastic-agent-k8s-audit DaemonSet desired count
   ansible.builtin.assert:
     that:
       - >-
@@ -157,21 +157,111 @@
         | default(0)
         | int
         > 0
-      - >-
-        (
-          item['status']['numberReady']
-          | default(0)
-          | int
-        )
-        ==
-        (
-          item['status']['desiredNumberScheduled']
-          | default(0)
-          | int
-        )
     fail_msg: >-
       elastic-agent-k8s-audit DaemonSet {{ item.metadata.name }}
-      is not fully ready.
+      has no desired Pods.
+  loop: "{{ elastic_agent_k8s_audit_verify_daemonsets }}"
+  loop_control:
+    label: "{{ item.metadata.name }}"
+
+# Kubernetes API監査ログ収集用DaemonSetの最新状態をKubernetes APIから取得し,
+# 全配置対象Podが更新済みかつReadyになるまで上限付きで再確認する。
+- name: Wait for elastic-agent-k8s-audit DaemonSet readiness
+  ansible.builtin.command:
+    argv:
+      - sudo
+      - -u
+      - "{{ k8s_runtime_helm_operator_user }}"
+      - kubectl
+      - --kubeconfig
+      - "{{ elastic_agent_k8s_audit_runtime_kubeconfig_path }}"
+      - --namespace
+      - "{{ elastic_agent_k8s_audit_runtime_namespace }}"
+      - "--request-timeout={{ elastic_agent_k8s_audit_verify_request_timeout_seconds | int }}s"
+      - get
+      - daemonset
+      - "{{ item.metadata.name }}"
+      - -o
+      - json
+  register: elastic_agent_k8s_audit_verify_daemonset_ready_result
+  changed_when: false
+  become: true
+  until:
+    - elastic_agent_k8s_audit_verify_daemonset_ready_result.rc | default(1) | int == 0
+    - >-
+      (
+        (
+          elastic_agent_k8s_audit_verify_daemonset_ready_result.stdout
+          | default('{}', true)
+          | from_json
+        ).get('status', {}).get('desiredNumberScheduled', 0)
+        | int
+      ) > 0
+    - >-
+      (
+        (
+          elastic_agent_k8s_audit_verify_daemonset_ready_result.stdout
+          | default('{}', true)
+          | from_json
+        ).get('status', {}).get('currentNumberScheduled', 0)
+        | int
+      )
+      ==
+      (
+        (
+          elastic_agent_k8s_audit_verify_daemonset_ready_result.stdout
+          | default('{}', true)
+          | from_json
+        ).get('status', {}).get('desiredNumberScheduled', 0)
+        | int
+      )
+    - >-
+      (
+        (
+          elastic_agent_k8s_audit_verify_daemonset_ready_result.stdout
+          | default('{}', true)
+          | from_json
+        ).get('status', {}).get('updatedNumberScheduled', 0)
+        | int
+      )
+      ==
+      (
+        (
+          elastic_agent_k8s_audit_verify_daemonset_ready_result.stdout
+          | default('{}', true)
+          | from_json
+        ).get('status', {}).get('desiredNumberScheduled', 0)
+        | int
+      )
+    - >-
+      (
+        (
+          elastic_agent_k8s_audit_verify_daemonset_ready_result.stdout
+          | default('{}', true)
+          | from_json
+        ).get('status', {}).get('numberReady', 0)
+        | int
+      )
+      ==
+      (
+        (
+          elastic_agent_k8s_audit_verify_daemonset_ready_result.stdout
+          | default('{}', true)
+          | from_json
+        ).get('status', {}).get('desiredNumberScheduled', 0)
+        | int
+      )
+    - >-
+      (
+        (
+          elastic_agent_k8s_audit_verify_daemonset_ready_result.stdout
+          | default('{}', true)
+          | from_json
+        ).get('status', {}).get('numberUnavailable', 0)
+        | int
+      ) == 0
+  retries: "{{ elastic_agent_k8s_audit_verify_retries | int }}"
+  delay: "{{ elastic_agent_k8s_audit_verify_retry_interval_seconds | int }}"
   loop: "{{ elastic_agent_k8s_audit_verify_daemonsets }}"
   loop_control:
     label: "{{ item.metadata.name }}"

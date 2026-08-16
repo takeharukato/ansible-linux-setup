@@ -6,25 +6,66 @@
 #
 ---
 
-# 既存のサービストークンファイル有無を確認する。
+# サービストークン処理状態を初期化し,
+# 保存済み秘密値の再利用又は再生成の判定に使用する。
+- name: Initialize fleet-server service token runtime facts
+  ansible.builtin.set_fact:
+    fleet_server_existing_service_token_value: ""
+    fleet_server_existing_index_service_token: false
+    fleet_server_existing_file_service_token: false
+
+# 既存のサービストークンファイル有無と属性を確認する。
 - name: Check fleet-server service token file
   ansible.builtin.stat:
     path: "{{ fleet_server_runtime_service_token_path }}"
+  become: true
   register: fleet_server_service_token_file_stat
 
-# 既存のサービストークン内容を読み取り, 改行混入を正規化できるようにする。
+# サービストークン保存先に通常ファイル以外が存在する場合は,
+# 認証情報を安全に読み書きできないため処理を停止する。
+- name: Assert fleet-server service token path is a regular file
+  ansible.builtin.assert:
+    that:
+      - >-
+        not (fleet_server_service_token_file_stat.stat.exists | default(false))
+        or (fleet_server_service_token_file_stat.stat.isreg | default(false))
+    fail_msg: >-
+      fleet-server service token path exists but is not a regular file.
+      path={{ fleet_server_runtime_service_token_path }}
+
+# 既存のサービストークン内容を読み取り,
+# 空ファイル又は末尾改行を含むファイルを判定できるようにする。
 - name: Read existing fleet-server service token file
   ansible.builtin.slurp:
-    path: "{{ fleet_server_runtime_service_token_path }}"
+    src: "{{ fleet_server_runtime_service_token_path }}"
+  become: true
   register: fleet_server_service_token_file_raw
   when:
     - not (ansible_check_mode | bool)
     - fleet_server_service_token_file_stat.stat.exists | default(false)
+    - fleet_server_service_token_file_stat.stat.isreg | default(false)
 
-# 既存トークン末尾の改行を除去し, Authorization ヘッダ不正を防止する。
+# 保存済みサービストークンの秘密値を正規化し,
+# 非空の場合だけ再利用可能な秘密値として扱う。
+- name: Resolve existing fleet-server service token value
+  ansible.builtin.set_fact:
+    fleet_server_existing_service_token_value: >-
+      {{
+        fleet_server_service_token_file_raw.content
+        | default('', true)
+        | b64decode
+        | trim
+      }}
+  when:
+    - not (ansible_check_mode | bool)
+    - fleet_server_service_token_file_raw is defined
+    - fleet_server_service_token_file_raw.content is defined
+
+# 再利用可能な既存トークンについて末尾改行を除去し,
+# Authorizationヘッダへ渡す秘密値を正規化する。
 - name: Normalize fleet-server service token file content
   ansible.builtin.copy:
-    content: "{{ fleet_server_service_token_file_raw.content | b64decode | trim }}"
+    content: "{{ fleet_server_existing_service_token_value }}"
     dest: "{{ fleet_server_runtime_service_token_path }}"
     owner: "{{ logging_backend_container_user_id }}"
     group: "{{ logging_backend_container_group_id }}"
@@ -32,19 +73,24 @@
   become: true
   when:
     - not (ansible_check_mode | bool)
-    - fleet_server_service_token_file_stat.stat.exists | default(false)
+    - fleet_server_existing_service_token_value | trim | length > 0
 
-# チェックモードでトークン未作成の場合は, 実行時に自動発行されることを通知する。
+# チェックモードでトークン未作成又は空の場合は,
+# 実行時に自動発行されることを通知する。
 - name: Notify token auto-create behavior in check mode
   ansible.builtin.debug:
     msg: >-
-      Check mode: fleet-server service token file is missing and will be created at runtime.
+      Check mode: fleet-server service token file is missing or empty
+      and will be created at runtime.
   when:
     - ansible_check_mode | bool
-    - not (fleet_server_service_token_file_stat.stat.exists | default(false))
+    - >-
+      not (fleet_server_service_token_file_stat.stat.exists | default(false))
+      or (fleet_server_service_token_file_stat.stat.size | default(0) | int == 0)
     - fleet_server_runtime_service_token_auto_create | bool
 
-# トークン未作成かつ自動発行を有効にした場合は, 発行API接続用資格情報の有無を検証する。
+# 再利用可能な秘密値がなく自動発行を有効にした場合は,
+# Service Token管理APIへ接続するための資格情報を検証する。
 - name: Validate token issue API credentials
   ansible.builtin.assert:
     that:
@@ -53,14 +99,164 @@
       - fleet_server_token_issue_password is defined
       - fleet_server_token_issue_password | string | trim | length > 0
     fail_msg: >-
-      Token file is missing and auto-create is enabled, but token issue API credentials are not set.
-      Set fleet_server_token_issue_username and fleet_server_token_issue_password.
+      Service token secret is missing and auto-create is enabled,
+      but token issue API credentials are not set.
+      Set fleet_server_token_issue_username and
+      fleet_server_token_issue_password.
   when:
     - not (ansible_check_mode | bool)
-    - not (fleet_server_service_token_file_stat.stat.exists | default(false))
+    - fleet_server_existing_service_token_value | trim | length == 0
     - fleet_server_runtime_service_token_auto_create | bool
 
-# Elasticsearch security APIでfleet-server用サービストークンを初回発行する。
+# ローカルに再利用可能な秘密値がない場合は,
+# Elasticsearch上に残っているfleet-server Service Accountの資格情報を取得する。
+- name: List fleet-server service account credentials
+  ansible.builtin.uri:
+    url: >-
+      {{
+        fleet_server_runtime_elasticsearch_api_endpoint_url ~
+        '/_security/service/elastic/fleet-server/credential'
+      }}
+    method: GET
+    force_basic_auth: true
+    url_username: "{{ fleet_server_token_issue_username }}"
+    url_password: "{{ fleet_server_token_issue_password }}"
+    validate_certs: "{{ fleet_server_runtime_token_issue_validate_certs | bool }}"
+    status_code:
+      - 200
+      - 400
+      - 401
+      - 403
+      - 404
+      - 429
+      - 500
+      - 502
+      - 503
+      - 504
+    return_content: true
+    timeout: "{{ fleet_server_token_issue_timeout_seconds | int }}"
+  register: fleet_server_service_credentials_result
+  retries: "{{ fleet_server_token_issue_retries | int }}"
+  delay: "{{ fleet_server_token_issue_retry_interval_seconds | int }}"
+  until: >-
+    fleet_server_service_credentials_result.status
+    | default(0)
+    | int in [200, 400, 401, 403, 404]
+  failed_when: >-
+    fleet_server_service_credentials_result.status
+    | default(0)
+    | int != 200
+  when:
+    - not (ansible_check_mode | bool)
+    - fleet_server_existing_service_token_value | trim | length == 0
+    - fleet_server_runtime_service_token_auto_create | bool
+
+# 取得した資格情報から同名のindex-backed Service Tokenとfile-backed Service Tokenの
+# 存在状態を解決し, 管理方式の競合を検出できるようにする。
+- name: Resolve existing fleet-server service token types
+  ansible.builtin.set_fact:
+    fleet_server_existing_index_service_token: >-
+      {{
+        fleet_server_runtime_service_token_name
+        in (
+          fleet_server_service_credentials_result.json.tokens
+          | default({})
+        )
+      }}
+    fleet_server_existing_file_service_token: >-
+      {{
+        fleet_server_runtime_service_token_name
+        in (
+          fleet_server_service_credentials_result.json.nodes_credentials.file_tokens
+          | default({})
+        )
+      }}
+  when:
+    - not (ansible_check_mode | bool)
+    - fleet_server_service_credentials_result is defined
+    - fleet_server_service_credentials_result.status | default(0) | int == 200
+
+# 同名のfile-backed Service TokenはREST API管理対象ではないため,
+# Ansible管理のindex-backed Tokenと競合する場合は処理を停止する。
+- name: Assert fleet-server service token is not file-backed
+  ansible.builtin.assert:
+    that:
+      - not (fleet_server_existing_file_service_token | bool)
+    fail_msg: >-
+      A file-backed fleet-server service token with the managed token name
+      already exists.
+      token={{ fleet_server_runtime_service_token_name }}
+      Remove or rename the file-backed token before running this playbook.
+  when:
+    - not (ansible_check_mode | bool)
+    - fleet_server_existing_service_token_value | trim | length == 0
+    - fleet_server_runtime_service_token_auto_create | bool
+
+# ローカル秘密値を喪失して再利用できない同名のindex-backed Service Tokenを削除し,
+# 同じ管理名で新しいTokenを生成できる状態にする。
+- name: Delete stale fleet-server service token
+  ansible.builtin.uri:
+    url: >-
+      {{
+        fleet_server_runtime_elasticsearch_api_endpoint_url ~
+        '/_security/service/elastic/fleet-server/credential/token/' ~
+        fleet_server_runtime_service_token_name
+      }}
+    method: DELETE
+    force_basic_auth: true
+    url_username: "{{ fleet_server_token_issue_username }}"
+    url_password: "{{ fleet_server_token_issue_password }}"
+    validate_certs: "{{ fleet_server_runtime_token_issue_validate_certs | bool }}"
+    status_code:
+      - 200
+      - 400
+      - 401
+      - 403
+      - 404
+      - 429
+      - 500
+      - 502
+      - 503
+      - 504
+    return_content: true
+    timeout: "{{ fleet_server_token_issue_timeout_seconds | int }}"
+  register: fleet_server_service_token_delete_result
+  retries: "{{ fleet_server_token_issue_retries | int }}"
+  delay: "{{ fleet_server_token_issue_retry_interval_seconds | int }}"
+  until: >-
+    fleet_server_service_token_delete_result.status
+    | default(0)
+    | int in [200, 400, 401, 403, 404]
+  failed_when: >-
+    fleet_server_service_token_delete_result.status
+    | default(0)
+    | int not in [200, 404]
+  when:
+    - not (ansible_check_mode | bool)
+    - fleet_server_existing_service_token_value | trim | length == 0
+    - fleet_server_runtime_service_token_auto_create | bool
+    - fleet_server_existing_index_service_token | bool
+
+# DELETEが200を返した場合は対象Tokenが実際に削除されたことを確認し,
+# 不完全な削除状態で再発行へ進むことを防止する。
+- name: Assert stale fleet-server service token was deleted
+  ansible.builtin.assert:
+    that:
+      - fleet_server_service_token_delete_result.json.found
+        | default(false)
+        | bool
+    fail_msg: >-
+      Elasticsearch returned success for fleet-server service token deletion,
+      but the token was not reported as found.
+      token={{ fleet_server_runtime_service_token_name }}
+  when:
+    - not (ansible_check_mode | bool)
+    - fleet_server_service_token_delete_result is defined
+    - fleet_server_service_token_delete_result.status | default(0) | int == 200
+
+# Service Token秘密値を再利用できない場合は,
+# Elasticsearch security APIでfleet-server用Service Tokenを新規発行する。
+# 同じFleet Serverに対するPlaybookの並列実行は想定しないため, 409は即時失敗とする。
 - name: Issue fleet-server service token
   ansible.builtin.uri:
     url: >-
@@ -74,21 +270,63 @@
     url_username: "{{ fleet_server_token_issue_username }}"
     url_password: "{{ fleet_server_token_issue_password }}"
     validate_certs: "{{ fleet_server_runtime_token_issue_validate_certs | bool }}"
-    status_code: 200
+    status_code:
+      - 200
+      - 400
+      - 401
+      - 403
+      - 404
+      - 409
+      - 429
+      - 500
+      - 502
+      - 503
+      - 504
     return_content: true
     timeout: "{{ fleet_server_token_issue_timeout_seconds | int }}"
   register: fleet_server_service_token_issue_result
-  until:
-    - fleet_server_service_token_issue_result is succeeded
-    - fleet_server_service_token_issue_result.status | default(0) | int == 200
   retries: "{{ fleet_server_token_issue_retries | int }}"
   delay: "{{ fleet_server_token_issue_retry_interval_seconds | int }}"
+  until: >-
+    fleet_server_service_token_issue_result.status
+    | default(0)
+    | int in [200, 400, 401, 403, 404, 409]
+  failed_when: >-
+    fleet_server_service_token_issue_result.status
+    | default(0)
+    | int != 200
   when:
     - not (ansible_check_mode | bool)
-    - not (fleet_server_service_token_file_stat.stat.exists | default(false))
+    - fleet_server_existing_service_token_value | trim | length == 0
     - fleet_server_runtime_service_token_auto_create | bool
 
-# 発行したサービストークンをホストへ保存し, 再実行時に再利用する。
+# 新規発行APIが期待した管理名と非空の秘密値を返したことを確認し,
+# 不完全なレスポンスをホストへ保存することを防止する。
+- name: Assert issued fleet-server service token
+  ansible.builtin.assert:
+    that:
+      - fleet_server_service_token_issue_result.json.created
+        | default(false)
+        | bool
+      - >-
+        fleet_server_service_token_issue_result.json.token.name
+        | default('')
+        == fleet_server_runtime_service_token_name
+      - >-
+        fleet_server_service_token_issue_result.json.token.value
+        | default('', true)
+        | trim
+        | length > 0
+    fail_msg: >-
+      Fleet Server service token creation returned an unexpected response.
+      token={{ fleet_server_runtime_service_token_name }}
+  when:
+    - not (ansible_check_mode | bool)
+    - fleet_server_service_token_issue_result is defined
+    - fleet_server_service_token_issue_result.status | default(0) | int == 200
+
+# 発行したサービストークンをホストへ保存し,
+# 再実行時に秘密値を再利用できるようにする。
 - name: Persist fleet-server service token file
   ansible.builtin.copy:
     content: "{{ fleet_server_service_token_issue_result.json.token.value | trim }}"
@@ -99,23 +337,46 @@
   become: true
   when:
     - not (ansible_check_mode | bool)
-    - not (fleet_server_service_token_file_stat.stat.exists | default(false))
+    - fleet_server_existing_service_token_value | trim | length == 0
     - fleet_server_runtime_service_token_auto_create | bool
+    - fleet_server_service_token_issue_result is defined
+    - fleet_server_service_token_issue_result.status | default(0) | int == 200
 
-# 実行モードでは, サービストークンファイルの最終存在を確認する。
+# 実行モードでは, サービストークンファイルの最終状態を確認する。
 - name: Recheck fleet-server service token file
   ansible.builtin.stat:
     path: "{{ fleet_server_runtime_service_token_path }}"
+  become: true
   register: fleet_server_service_token_file_stat_final
   when: not (ansible_check_mode | bool)
 
-# 実行モードでは, 最終的にトークンファイルが存在することを保証する。
-- name: Assert fleet-server service token file exists
+# 実行モードでは最終トークン内容を再読込し,
+# 空ファイルのままFleet Server起動処理へ進むことを防止する。
+- name: Read final fleet-server service token file
+  ansible.builtin.slurp:
+    src: "{{ fleet_server_runtime_service_token_path }}"
+  become: true
+  register: fleet_server_service_token_file_raw_final
+  when:
+    - not (ansible_check_mode | bool)
+    - fleet_server_service_token_file_stat_final.stat.exists | default(false)
+    - fleet_server_service_token_file_stat_final.stat.isreg | default(false)
+
+# 実行モードでは, 最終的に通常ファイルとして存在し,
+# 非空のService Token秘密値が保存されていることを保証する。
+- name: Assert fleet-server service token file is valid
   ansible.builtin.assert:
     that:
       - fleet_server_service_token_file_stat_final.stat.exists | default(false)
       - fleet_server_service_token_file_stat_final.stat.isreg | default(false)
+      - >-
+        fleet_server_service_token_file_raw_final.content
+        | default('', true)
+        | b64decode
+        | trim
+        | length > 0
     fail_msg: >-
-      fleet-server service token file does not exist after token preparation.
+      fleet-server service token file is missing, invalid, or empty
+      after token preparation.
       path={{ fleet_server_runtime_service_token_path }}
   when: not (ansible_check_mode | bool)
