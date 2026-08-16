@@ -37,21 +37,94 @@
   ansible.builtin.set_fact:
     _current_mgmt_iface: "{{ ansible_facts.default_ipv4.interface | default('') }}"
 
-## いま SSH 到達先へのルートが乗っている IF ( ＝実際の制御経路 )を特定
-- name: Detect SSH route device (dev) to controller
-  ansible.builtin.shell: |
-    set -o pipefail
-    ip -4 route get {{ ansible_host | default(inventory_hostname) }} \
-      | awk '{ for (i=1;i<=NF;i++) if ($i=="dev") {print $(i+1); exit} }'
-  args:
-    executable: /bin/bash
-  register: _ssh_route_dev
+## 現在の SSH 接続を維持するため, 対象ホスト自身ではなく制御ホストの接続元アドレスから経路を判定する。
+# 権限昇格後は SSH_CONNECTION が除外されるため, 接続元アドレスは権限昇格前に取得する。
+- name: Get SSH controller connection information
+  ansible.builtin.command:
+    argv:
+      - printenv
+      - SSH_CONNECTION
+  become: false
+  register: _ssh_connection
   changed_when: false
   failed_when: false
 
-- name: Normalize ssh route device fact
+# SSH_CONNECTION の先頭要素は接続元アドレスであり, IPv4 又は IPv6 のいずれでも ip route get の宛先に使用できる。
+- name: Split SSH controller connection information
   ansible.builtin.set_fact:
-    _ssh_route_iface: "{{ (_ssh_route_dev.stdout | trim) | default('', true) }}"
+    _ssh_connection_fields: "{{ _ssh_connection.stdout | default('', true) | string | split }}"
+  changed_when: false
+
+# 接続元情報が存在する場合だけ先頭要素を使い, ローカル接続など接続元不明時は経路保護処理を省略する。
+- name: Record SSH controller source address
+  ansible.builtin.set_fact:
+    _ssh_controller_address: >-
+      {{
+        _ssh_connection_fields[0]
+        if (_ssh_connection_fields | default([], true) | length) > 0
+        else ''
+      }}
+  changed_when: false
+
+# 接続元アドレスが IPv4 である場合は IPv4 経路を取得し, IPv6 又は未解決値の場合は失敗結果を後続の IPv6 判定に渡す。
+- name: Get IPv4 route to SSH controller
+  ansible.builtin.command:
+    argv:
+      - ip
+      - -4
+      - route
+      - get
+      - "{{ _ssh_controller_address }}"
+  register: _ssh_route_ipv4
+  changed_when: false
+  failed_when: false
+  when:
+    - (_ssh_controller_address | default('', true) | string | length) > 0
+
+# IPv4 経路取得が失敗した接続元だけ IPv6 経路を取得し, 二重到達できる環境でも実際の SSH 接続種別を優先する。
+- name: Get IPv6 route to SSH controller
+  ansible.builtin.command:
+    argv:
+      - ip
+      - -6
+      - route
+      - get
+      - "{{ _ssh_controller_address }}"
+  register: _ssh_route_ipv6
+  changed_when: false
+  failed_when: false
+  when:
+    - (_ssh_controller_address | default('', true) | string | length) > 0
+    - (_ssh_route_ipv4.rc | default(1)) != 0
+
+# IPv4 経路を優先し, IPv4 経路がない場合だけ IPv6 経路の出力を選択する。
+- name: Select SSH controller route result
+  ansible.builtin.set_fact:
+    _ssh_route_output: >-
+      {{
+        _ssh_route_ipv4.stdout | default('', true) | string
+        if (_ssh_route_ipv4.rc | default(1)) == 0
+        else (_ssh_route_ipv6.stdout | default('', true) | string)
+      }}
+  changed_when: false
+
+# ip route get の出力では dev の直後が経路に使用するネットワークインターフェース名である。
+- name: Split SSH controller route result
+  ansible.builtin.set_fact:
+    _ssh_route_fields: "{{ _ssh_route_output | default('', true) | string | split }}"
+  changed_when: false
+
+# 経路出力に dev と後続要素がある場合だけインターフェース名を記録し, 経路未検出時は既存の保護対象を増やさない。
+- name: Normalize SSH route device fact
+  ansible.builtin.set_fact:
+    _ssh_route_iface: >-
+      {{
+        _ssh_route_fields[_ssh_route_fields.index('dev') + 1]
+        if ('dev' in (_ssh_route_fields | default([], true))) and
+           ((_ssh_route_fields.index('dev') + 1) < (_ssh_route_fields | length))
+        else ''
+      }}
+  changed_when: false
 
 ## いまアクティブな NM 接続が割り当てられているデバイス一覧
 - name: Get active NM devices
