@@ -56,17 +56,6 @@ k8s_embed_kubeconfig_user_name_postfix: ""
 # 空文字列を設定するようにしている。
 # 空文字列以外で定義されている場合は, 接頭辞, 接尾辞をクラスタ名に付与した値を設定する
 k8s_embed_kubeconfig_user_name: "{{ (k8s_cilium_cm_cluster_name | default('', true)) | ternary((k8s_embed_kubeconfig_user_name_prefix | default('', true)) ~ k8s_cilium_cm_cluster_name ~ (k8s_embed_kubeconfig_user_name_postfix | default('', true)), '') }}"
-# kubeconfigファイル結合ツールのパス
-k8s_create_unique_kubeconfig_script_path: "{{ k8s_node_setup_tools_dir }}/create-uniq-kubeconfig.py"
-
-#
-# Kubernetes コントロールプレインノード固有設定
-#
-
-# 物理サーバ/管理用VMネットワークのIPv4CIDR
-network_ipv4_cidr: "{{ network_ipv4_network_address }}/{{ network_ipv4_prefix_len }}"
-# 物理サーバ/管理用VMネットワークのIPv6CIDR
-network_ipv6_cidr: "{{ network_ipv6_network_address }}/{{ network_ipv6_prefix_len }}"
 
 # kubeadm preflight ignore errors argumentの指定値
 k8s_kubeadm_ignore_preflight_errors_arg: "--ignore-preflight-errors=all"
@@ -78,15 +67,6 @@ k8s_control_plane_ports:
   - "10257/tcp"       # controller-manager
   - "10259/tcp"       # scheduler
   - "2379-2380/tcp"   # etcd (ローカル etcd の場合)
-
-# ノイズ測定グラフ作成用にgnuplot, python3-pip, python3-matplotlibを導入している
-# 本来は, グラフ作成作業ノードだけに導入すればよいが, ここでは,
-# 全コントロールプレインに導入している
-k8s_netgauge_packages:
-  - python3-pip
-  - gnuplot
-  - python3-matplotlib
-  - python3-numpy
 
 # Helmのアーカイブ名
 k8s_helm_archive_name: "helm-v{{ k8s_helm_version }}-linux-amd64.tar.gz"
@@ -121,9 +101,3 @@ k8s_cilium_helm_chart_version: "{{ k8s_cilium_version }}"
 k8s_cilium_image_version: "v{{ k8s_cilium_version }}"
 # Cilium Helm リポジトリ URL
 k8s_cilium_helm_repo_url: "https://helm.cilium.io/"
-# コントロールプレイン再構築時に古いCilium CRDを削除してから再インストールするか
-k8s_cilium_delete_legacy_crds: true
-# Cilium HelmチャートからCRDを適用するかどうか
-k8s_cilium_manage_crds: true
-# Helm再導入前に既存のCilium ServiceAccountを削除するか
-k8s_cilium_cleanup_serviceaccounts: true
