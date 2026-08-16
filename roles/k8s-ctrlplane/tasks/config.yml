@@ -210,14 +210,14 @@
 
     - name: Copy admin config
       ansible.builtin.shell: |
-        cp /etc/kubernetes/admin.conf /root/.kube/config
+        cp {{ k8s_embed_kubeconfig_admin_conf }} /root/.kube/config
       become: true
       register: _result
       changed_when: _result.rc == 0
 
     - name: Copy admin config to ansible
       ansible.builtin.shell: |
-        cp "/etc/kubernetes/admin.conf" "{{ ansible_home_dir }}/.kube/config"
+        cp "{{ k8s_embed_kubeconfig_admin_conf }}" "{{ ansible_home_dir }}/.kube/config"
       become: true
       register: _result
       changed_when: _result.rc == 0
@@ -232,7 +232,7 @@
 
     - name: Copy admin config to /home/{{ k8s_operator_user }}/.kube directory
       ansible.builtin.shell: |
-        cp /etc/kubernetes/admin.conf "/home/{{ k8s_operator_user }}/.kube/config"
+        cp {{ k8s_embed_kubeconfig_admin_conf }} "/home/{{ k8s_operator_user }}/.kube/config"
       become: true
       register: _result
       changed_when: _result.rc == 0
@@ -247,7 +247,7 @@
       become: true
 
 # マシンをリブートする
-- name: Reboot host gracefully
+- name: Reboot host gracefully  # noqa var-naming[no-role-prefix]
   ansible.builtin.include_role:
     name: reboot-common
   vars:

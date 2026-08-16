@@ -27,7 +27,7 @@
     --namespace kube-system \
     --version {{ k8s_whereabouts_helm_chart_version }}
   environment:
-    KUBECONFIG: /etc/kubernetes/admin.conf
+    KUBECONFIG: "{{ k8s_admin_kubeconfig_path }}"
   become: true
   register: _result
   changed_when: _result.rc == 0
@@ -48,7 +48,7 @@
     kubectl delete network-attachment-definitions.k8s.cni.cncf.io ipvlan-wb \
       -n default --ignore-not-found
   environment:
-    KUBECONFIG: /etc/kubernetes/admin.conf
+    KUBECONFIG: "{{ k8s_admin_kubeconfig_path }}"
   become: true
   register: _nad_cleanup_result
   changed_when: '"deleted" in (_nad_cleanup_result.stdout | lower)'
@@ -58,7 +58,7 @@
   ansible.builtin.shell: |
     kubectl apply -f "{{ k8s_whereabouts_config_dir }}/ipvlan-wb-nad.yml"
   environment:
-    KUBECONFIG: /etc/kubernetes/admin.conf
+    KUBECONFIG: "{{ k8s_admin_kubeconfig_path }}"
   become: true
   register: _result
   changed_when: >-

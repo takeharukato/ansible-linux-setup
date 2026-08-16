@@ -38,7 +38,7 @@ virtualcluster_api_version: "v1alpha1"
 # vc-managerのnamespace
 virtualcluster_namespace: "vc-manager"
 # スーパークラスタの kubeconfig パス
-virtualcluster_supercluster_kubeconfig_path: "/etc/kubernetes/admin.conf"
+virtualcluster_supercluster_kubeconfig_path: "{{ k8s_admin_kubeconfig_path }}"
 
 # virtual cluster の etcd URL スキーム
 # k8s-virtual-cluster でも共通利用する
@@ -81,6 +81,6 @@ vcinstances_force_recreate_resources: true
 # スーパークラスタへの接続設定
 #
 # スーパークラスタの kubeconfig パス
-k8s_supercluster_kubeconfig_path: "/etc/kubernetes/admin.conf"
+k8s_supercluster_kubeconfig_path: "{{ k8s_admin_kubeconfig_path }}"
 # スーパークラスタのコンテキスト (空の場合は現在のコンテキストを使用)
 k8s_supercluster_context: ""

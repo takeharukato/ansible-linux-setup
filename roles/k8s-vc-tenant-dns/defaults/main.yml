@@ -57,7 +57,7 @@ k8s_vc_tenant_dns_unqualified_image_registry: "docker.io"
 # K8sノード上のイメージ配置先一時ディレクトリ
 k8s_vc_tenant_dns_remote_cache_dir: "/tmp/k8s-vc-tenant-dns-register"
 # ワーカーノード自動検出時に参照する kubeconfig のパス
-k8s_vc_tenant_dns_kubeconfig_path: "/etc/kubernetes/admin.conf"
+k8s_vc_tenant_dns_kubeconfig_path: "{{ k8s_admin_kubeconfig_path }}"
 # k8sノードへの登録後に一時tarファイルを削除するかどうか
 k8s_vc_tenant_dns_cleanup_remote_tar: true
 #
@@ -92,4 +92,4 @@ k8s_vc_tenant_dns_k8s_pod_name: "vc-tenant-dns"
 k8s_vc_tenant_dns_virtualcluster_namespace: "{{ virtualcluster_namespace | default('vc-manager', true) }}"
 
 # スーパークラスタ操作用 kubeconfig
-k8s_vc_tenant_dns_supercluster_kubeconfig_path: "{{ virtualcluster_supercluster_kubeconfig_path | default('/etc/kubernetes/admin.conf', true) }}"
+k8s_vc_tenant_dns_supercluster_kubeconfig_path: "{{ virtualcluster_supercluster_kubeconfig_path | default(k8s_admin_kubeconfig_path, true) }}"

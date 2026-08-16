@@ -7,10 +7,6 @@
 #  ロール名/defaults/main.yml に定義している
 ---
 
-# k8s-common ロールで使用するKubeadm設定保存ディレクトリパスと
-# 同じディレクトリに設定すること
-k8s_kubeadm_config_store: "{{ ansible_home_dir }}/kubeadm"
-
 #
 # kube-api待機設定
 #

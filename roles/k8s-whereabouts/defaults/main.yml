@@ -24,15 +24,6 @@ k8s_api_wait_sleep: 1
 # Kubernetes APIサーバ待ち合わせる際の接続元ホスト名/IPアドレス
 k8s_api_wait_delegate_to: "localhost"
 
-# Kubernetesオペレータユーザ設定
-k8s_operator_user: "kube"
-# Kubernetesオペレータユーザのホームディレクトリ
-k8s_operator_home: "/home/kube"
-# Kubernetesオペレータユーザのデフォルトシェル
-k8s_operator_shell: "/bin/bash"
-# Kubernetesオペレータユーザの所属グループ
-k8s_operator_groups_list: "{{ adm_groups }}"
-
 # Kubernetes Whereabouts 各種設定ディレクトリパス
 k8s_whereabouts_config_dir: "{{ k8s_kubeadm_config_store }}/whereabouts"
 

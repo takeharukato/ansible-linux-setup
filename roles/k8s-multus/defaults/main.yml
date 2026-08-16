@@ -6,15 +6,6 @@
 #  ロール名/defaults/main.yml に定義している
 ---
 
-# Kubernetesオペレータユーザ設定
-k8s_operator_user: "kube"
-# Kubernetesオペレータユーザのホームディレクトリ
-k8s_operator_home: "/home/kube"
-# Kubernetesオペレータユーザのデフォルトシェル
-k8s_operator_shell: "/bin/bash"
-# Kubernetesオペレータユーザの所属グループ
-k8s_operator_groups_list: "{{ adm_groups }}"
-
 #
 # kube-api待機設定
 #

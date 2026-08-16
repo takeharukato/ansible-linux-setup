@@ -78,7 +78,7 @@ virtualcluster_fetch_retry_enabled: true
 # control-plane -> localhost fetch 時の最大試行回数
 virtualcluster_fetch_retries: 3
 # control-plane -> localhost fetch 時の試行間隔秒数
-virtualcluster_fetch_retry_delay_seconds: 5
+virtualcluster_fetch_retry_interval_seconds: 5
 
 # worker 検出前に Ready 条件を待機するかどうか
 virtualcluster_wait_for_worker_ready_enabled: true
@@ -92,7 +92,7 @@ virtualcluster_worker_discovery_retry_enabled: true
 # worker 検出コマンド最大試行回数
 virtualcluster_worker_discovery_retries: 3
 # worker 検出コマンド試行間隔秒数
-virtualcluster_worker_discovery_retry_delay_seconds: 5
+virtualcluster_worker_discovery_retry_interval_seconds: 5
 
 # 明示指定する各コンポーネントのtarファイルパス (空文字は未指定)
 # vc-manager, syncer, vn-agent のイメージtarファイルを明示指定する場合は,
@@ -132,11 +132,8 @@ virtualcluster_keep_image_cache: false
 # コントロールプレーン上のイメージキャッシュディレクトリ
 virtualcluster_ctrlplane_cache_dir: "/tmp/vc-images"
 
-# Kubeadmで生成される設定保存ディレクトリパス
-k8s_kubeadm_config_store: "{{ ansible_home_dir }}/kubeadm"
-
 # K8sクラスタ(スーパークラスタ)操作に使用するkubeconfigのパス
-virtualcluster_supercluster_kubeconfig_path: "/etc/kubernetes/admin.conf"
+virtualcluster_supercluster_kubeconfig_path: "{{ k8s_admin_kubeconfig_path }}"
 
 # Virtual Cluster 管理コンポーネント用 namespace (内部変数)
 virtualcluster_namespace: "vc-manager"

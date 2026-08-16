@@ -16,6 +16,9 @@
 - name: Include cross-distro.yml
   ansible.builtin.include_vars: "{{ playbook_dir }}/vars/cross-distro.yml"
 
+- name: Include k8s common config vars
+  ansible.builtin.include_vars: "{{ playbook_dir }}/vars/k8s-config-common.yml"
+
 - name: Include config vars
   ansible.builtin.include_vars: "{{ playbook_dir }}/vars/all-config.yml"
 

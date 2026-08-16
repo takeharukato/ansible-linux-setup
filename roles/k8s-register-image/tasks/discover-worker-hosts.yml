@@ -12,7 +12,7 @@
     argv:
       - kubectl
       - --kubeconfig
-      - "{{ k8s_register_image_kubeconfig_to_discover_workers_path | default(k8s_kubeconfig_to_discover_workers_path, true) | default(k8s_supercluster_kubeconfig_path, true) | default('/etc/kubernetes/admin.conf', true) }}"
+      - "{{ k8s_register_image_kubeconfig_to_discover_workers_path | default(k8s_kubeconfig_to_discover_workers_path, true) | default(k8s_supercluster_kubeconfig_path, true) | default(k8s_admin_kubeconfig_path, true) }}"
       - wait
       - --for=condition=Ready
       - nodes
@@ -50,7 +50,7 @@
     argv:
       - kubectl
       - --kubeconfig
-      - "{{ k8s_register_image_kubeconfig_to_discover_workers_path | default(k8s_kubeconfig_to_discover_workers_path, true) | default(k8s_supercluster_kubeconfig_path, true) | default('/etc/kubernetes/admin.conf', true) }}"
+      - "{{ k8s_register_image_kubeconfig_to_discover_workers_path | default(k8s_kubeconfig_to_discover_workers_path, true) | default(k8s_supercluster_kubeconfig_path, true) | default(k8s_admin_kubeconfig_path, true) }}"
       - get
       - nodes
       - --selector=!node-role.kubernetes.io/control-plane
@@ -60,7 +60,7 @@
   register: k8s_register_image_worker_nodes_result
   until: (not (k8s_register_image_worker_discovery_retry_enabled | bool)) or (k8s_register_image_worker_nodes_result is succeeded)
   retries: "{{ (k8s_register_image_worker_discovery_retry_enabled | bool) | ternary(k8s_register_image_worker_discovery_retries, 1) }}"
-  delay: "{{ k8s_register_image_worker_discovery_retry_delay_seconds }}"
+  delay: "{{ k8s_register_image_worker_discovery_retry_interval_seconds }}"
   changed_when: false
   become: true
 

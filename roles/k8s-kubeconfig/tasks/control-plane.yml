@@ -41,6 +41,24 @@
     path: "{{ k8s_kubeconfig_embedded_source_path }}"
   register: k8s_kubeconfig_embedded_source_stat
 
+# Helm実行候補ユーザへ同一kubeconfigを配布し, 実行ユーザ差異による参照不整合を防止する。
+- name: Resolve kubeconfig distribution users
+  ansible.builtin.set_fact:
+    k8s_kubeconfig_distribution_users: >-
+      {{
+        (
+          [k8s_operator_user | default('', true) | string | trim]
+          +
+          (k8s_common_helm_execution_users | default([], true))
+        )
+        | map('string')
+        | map('trim')
+        | reject('equalto', '')
+        | unique
+        | list
+      }}
+  changed_when: false
+
 # オペレータディレクトリ内の CA 埋め込み kubeconfig を整備
 - name: Copy embedded kubeconfig to operator CA path
   ansible.builtin.copy:
@@ -50,6 +68,31 @@
     group: "{{ k8s_operator_user }}"
     mode: "0600"
     remote_src: true
+  when:
+    - k8s_kubeconfig_embedded_source_stat.stat.exists
+
+# Helm実行候補ユーザごとのホームに配布先を準備し, ca-embedded-admin.conf を配置可能にする。
+- name: Ensure kubeconfig directory exists for distribution users
+  ansible.builtin.file:
+    path: "/home/{{ item }}/.kube"
+    state: directory
+    owner: "{{ item }}"
+    group: "{{ item }}"
+    mode: "0700"
+  loop: "{{ k8s_kubeconfig_distribution_users | default([], true) }}"
+  when:
+    - k8s_kubeconfig_embedded_source_stat.stat.exists
+
+# クラスタローカル操作の既定として, 各Helm実行候補ユーザへ ca-embedded-admin.conf を配布する。
+- name: Copy embedded kubeconfig to distribution users
+  ansible.builtin.copy:
+    src: "{{ k8s_kubeconfig_ca_embedded_operator_path }}"
+    dest: "/home/{{ item }}/.kube/{{ k8s_kubeconfig_ca_embedded_filename }}"
+    owner: "{{ item }}"
+    group: "{{ item }}"
+    mode: "0600"
+    remote_src: true
+  loop: "{{ k8s_kubeconfig_distribution_users | default([], true) }}"
   when:
     - k8s_kubeconfig_embedded_source_stat.stat.exists
 
@@ -187,6 +230,19 @@
     group: "{{ k8s_operator_user }}"
     mode: "0600"
     remote_src: true
+  when:
+    - k8s_kubeconfig_merge_sources | default([]) | length > 0
+
+# Helm実行候補ユーザ全員で統合kubeconfigを共有し, クラスタ横断操作時の参照先を統一する。
+- name: Copy merged kubeconfig to distribution users
+  ansible.builtin.copy:
+    src: "{{ k8s_kubeconfig_merged_system_path }}"
+    dest: "/home/{{ item }}/.kube/{{ k8s_kubeconfig_merged_filename }}"
+    owner: "{{ item }}"
+    group: "{{ item }}"
+    mode: "0600"
+    remote_src: true
+  loop: "{{ k8s_kubeconfig_distribution_users | default([], true) }}"
   when:
     - k8s_kubeconfig_merge_sources | default([]) | length > 0
 

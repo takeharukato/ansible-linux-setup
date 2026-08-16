@@ -48,7 +48,7 @@
     --version {{ k8s_multus_helm_chart_version }} \
     -f {{ k8s_multus_config_dir }}/multus-values.yml
   environment:
-    KUBECONFIG: /etc/kubernetes/admin.conf
+    KUBECONFIG: "{{ k8s_admin_kubeconfig_path }}"
   become: true
   register: multus_helm_install
   changed_when: "'deployed' in multus_helm_install.stdout or 'upgraded' in multus_helm_install.stdout"

@@ -32,7 +32,7 @@
   args:
     executable: /bin/bash
   environment:
-    KUBECONFIG: /etc/kubernetes/admin.conf
+    KUBECONFIG: "{{ k8s_admin_kubeconfig_path }}"
   become: true
   when: k8s_multus_cleanup_resources | default(false)
   register: multus_cleanup_result

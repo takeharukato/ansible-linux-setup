@@ -11,6 +11,26 @@
     path: "{{ k8s_kubeconfig_operator_config_path }}"
   register: k8s_kubeconfig_operator_config_stat
 
+# kubeconfig参照先を統一するため, operatorユーザを含む対象一覧を解決する。
+- name: Resolve kubeconfig symlink users
+  ansible.builtin.set_fact:
+    k8s_kubeconfig_symlink_users: >-
+      {{
+        (
+          (
+            [k8s_operator_user | default('', true) | string | trim]
+            +
+            (k8s_common_helm_execution_users | default([], true))
+          )
+          | map('string')
+          | map('trim')
+          | reject('equalto', '')
+          | unique
+          | list
+        )
+      }}
+  changed_when: false
+
 # 既存ファイルが通常ファイルでバックアップが未作成なら控えを作る
 - name: Backup current operator kubeconfig if needed
   ansible.builtin.copy:
@@ -33,12 +53,13 @@
     - k8s_kubeconfig_operator_config_stat.stat.exists
     - not k8s_kubeconfig_operator_config_stat.stat.islnk
 
-# シンボリックリンクを整備
-- name: Create operator kubeconfig symlink to merged file
+# クラスタ横断操作時の既定参照先を揃えるため, 対象ユーザのconfigを統合kubeconfigへリンクする。
+- name: Create kubeconfig symlink to merged file for symlink users
   ansible.builtin.file:
-    src: "{{ k8s_kubeconfig_merged_operator_path | basename }}"
-    dest: "{{ k8s_kubeconfig_operator_config_path }}"
+    src: "{{ k8s_kubeconfig_merged_filename }}"
+    dest: "/home/{{ item }}/.kube/config"
     state: link
-    owner: "{{ k8s_operator_user }}"
-    group: "{{ k8s_operator_user }}"
+    owner: "{{ item }}"
+    group: "{{ item }}"
     force: true
+  loop: "{{ k8s_kubeconfig_symlink_users | default([], true) }}"

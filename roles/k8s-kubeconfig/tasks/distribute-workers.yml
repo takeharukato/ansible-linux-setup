@@ -23,7 +23,7 @@
   register: k8s_kubeconfig_probe_result
   until: k8s_kubeconfig_probe_result is succeeded
   retries: "{{ k8s_kubeconfig_probe_retries | default(8,true) }}"
-  delay: "{{ k8s_kubeconfig_probe_retry_delay | default(10,true) }}"
+  delay: "{{ k8s_kubeconfig_probe_retry_interval | default(10,true) }}"
 
 # 共通で利用するローカルキャッシュディレクトリを決定
 - name: Define local staging directory for kubeconfig artifacts
@@ -68,6 +68,42 @@
     owner: "{{ k8s_operator_user }}"
     group: "{{ k8s_operator_user }}"
     mode: "0600"
+
+# Helm実行候補ユーザ全員へ統合kubeconfigを配布し, クラスタ横断操作の参照先を統一する。
+- name: Resolve kubeconfig distribution users for worker
+  ansible.builtin.set_fact:
+    k8s_kubeconfig_distribution_users: >-
+      {{
+        (
+          [k8s_operator_user | default('', true) | string | trim]
+          +
+          (k8s_common_helm_execution_users | default([], true))
+        )
+        | map('string')
+        | map('trim')
+        | reject('equalto', '')
+        | unique
+        | list
+      }}
+  changed_when: false
+
+- name: Ensure kubeconfig directory exists for distribution users on worker
+  ansible.builtin.file:
+    path: "/home/{{ item }}/.kube"
+    state: directory
+    owner: "{{ item }}"
+    group: "{{ item }}"
+    mode: "0700"
+  loop: "{{ k8s_kubeconfig_distribution_users | default([], true) }}"
+
+- name: Deploy merged kubeconfig to distribution users on worker
+  ansible.builtin.copy:
+    src: "{{ k8s_kubeconfig_local_cache_file }}"
+    dest: "/home/{{ item }}/.kube/{{ k8s_kubeconfig_merged_filename }}"
+    owner: "{{ item }}"
+    group: "{{ item }}"
+    mode: "0600"
+  loop: "{{ k8s_kubeconfig_distribution_users | default([], true) }}"
 
 # システムディレクトリにも配置し, root から参照可能にする
 - name: Copy merged kubeconfig to system directory

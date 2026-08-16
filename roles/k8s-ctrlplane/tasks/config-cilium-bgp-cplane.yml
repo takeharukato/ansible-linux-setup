@@ -74,7 +74,7 @@
       delegate_to: "{{ cilium_bgp_delegate_host }}"
 
     - name: Wait for CiliumBGPAdvertisement CRD availability
-      ansible.builtin.command: kubectl --kubeconfig {{ k8s_bgp.kubeconfig | default('/etc/kubernetes/admin.conf', true) }} get crd ciliumbgpadvertisements.cilium.io
+      ansible.builtin.command: kubectl --kubeconfig {{ k8s_bgp.kubeconfig | default(k8s_admin_kubeconfig_path, true) }} get crd ciliumbgpadvertisements.cilium.io
       register: cilium_bgp_advertisement_crd_check
       until: cilium_bgp_advertisement_crd_check.rc == 0
       retries: 30
@@ -84,7 +84,7 @@
       delegate_to: "{{ cilium_bgp_delegate_host }}"
 
     - name: Wait for CiliumBGPPeerConfig CRD availability
-      ansible.builtin.command: kubectl --kubeconfig {{ k8s_bgp.kubeconfig | default('/etc/kubernetes/admin.conf', true) }} get crd ciliumbgppeerconfigs.cilium.io
+      ansible.builtin.command: kubectl --kubeconfig {{ k8s_bgp.kubeconfig | default(k8s_admin_kubeconfig_path, true) }} get crd ciliumbgppeerconfigs.cilium.io
       register: cilium_bgp_peer_crd_check
       until: cilium_bgp_peer_crd_check.rc == 0
       retries: 30
@@ -94,7 +94,7 @@
       delegate_to: "{{ cilium_bgp_delegate_host }}"
 
     - name: Wait for CiliumBGPClusterConfig CRD availability
-      ansible.builtin.command: kubectl --kubeconfig {{ k8s_bgp.kubeconfig | default('/etc/kubernetes/admin.conf', true) }} get crd ciliumbgpclusterconfigs.cilium.io
+      ansible.builtin.command: kubectl --kubeconfig {{ k8s_bgp.kubeconfig | default(k8s_admin_kubeconfig_path, true) }} get crd ciliumbgpclusterconfigs.cilium.io
       register: cilium_bgp_cluster_crd_check
       until: cilium_bgp_cluster_crd_check.rc == 0
       retries: 30
@@ -106,7 +106,7 @@
     - name: Apply Cilium BGP resources manifest
       ansible.builtin.shell: |
         set -o pipefail
-        kubectl --kubeconfig {{ k8s_bgp.kubeconfig | default('/etc/kubernetes/admin.conf', true) }} apply -f "{{ cilium_bgp_manifest_path }}"
+        kubectl --kubeconfig {{ k8s_bgp.kubeconfig | default(k8s_admin_kubeconfig_path, true) }} apply -f "{{ cilium_bgp_manifest_path }}"
       args:
         executable: /bin/bash
       become: true

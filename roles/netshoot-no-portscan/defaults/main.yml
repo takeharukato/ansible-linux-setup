@@ -35,7 +35,7 @@ netshoot_unqualified_image_registry: "registry1.local"
 # k8sノード上のイメージ配置先一時ディレクトリ
 netshoot_remote_cache_dir: "/tmp/netshoot-register"
 # ワーカーノード自動検出時に参照する kubeconfig のパス
-netshoot_kubeconfig_path: "/etc/kubernetes/admin.conf"
+netshoot_kubeconfig_path: "{{ k8s_admin_kubeconfig_path }}"
 # k8sノードへの登録後に一時tarファイルを削除するかどうか
 netshoot_cleanup_remote_tar: true
 
