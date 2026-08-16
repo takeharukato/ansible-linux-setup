@@ -265,12 +265,13 @@ ansible-playbook -i inventory/hosts site.yml --tags "k8s-kubeconfig"
 ### 全ノード共通フロー
 
 1. `load-params.yml` でディストリビューション別パッケージ名, 共通設定, API エンドポイント定義などを読み込みます。
-2. `prepare-vars.yml` が `kubeconfig` 関連パスを計算し, 埋め込みファイル名や `/etc/kubernetes` 配置先を決定します。
-3. `directory.yml` で `/etc/kubernetes` と `{{ k8s_operator_user }}` の `~/.kube` を作成し, 必要な所有者, パーミッションを整えます。
+2. `resolve-operator-home.yml` が `k8s_operator_user` の passwd 情報を参照し, 実ホームディレクトリを `k8s_operator_home` と `k8s_operator_home_resolved` へ反映します。
+3. `prepare-vars.yml` が `kubeconfig` 関連パスを計算し, 埋め込みファイル名や `/etc/kubernetes` 配置先を決定します。
+4. `directory.yml` で `/etc/kubernetes` と `{{ k8s_operator_user }}` の `~/.kube` を作成し, 必要な所有者, パーミッションを整えます。
 
 ### コントロールプレーンノード向けフロー
 
-4. `control-plane.yml` ( `k8s_ctrl_plane` グループのみ )では次を実施します:
+5. `control-plane.yml` ( `k8s_ctrl_plane` グループのみ )では次を実施します:
    - `/etc/kubernetes/admin.conf` を `config-default` としてバックアップ。
    - `create-embedded-kubeconfig.py` を呼び出し, Kubernetesクラスタ毎の証明書埋め込み `kubeconfig` を生成。
    - 各コントロールプレーンノードから埋め込み `kubeconfig` を収集し, 一時ディレクトリに展開。
@@ -279,8 +280,8 @@ ansible-playbook -i inventory/hosts site.yml --tags "k8s-kubeconfig"
 
 ### ワーカーノード向けフロー
 
-5. `distribute-workers.yml` ( `k8s_worker` グループのみ )はホスト変数 (`k8s_ctrlplane_host` 変数) で指定されたコントロールプレーンノード上の `merged-kubeconfig.conf` を取得し, 制御ノード上の `~/.ansible/kubeconfig-cache/` に一旦キャッシュしてからワーカーノードへコピーします。
-6. `symlink.yml` が `~/.kube/config` を `merged-kubeconfig.conf` への相対シンボリックリンクに置き換え, 既存ファイル(あれば)は `config-default` にリネームして退避します。
+6. `distribute-workers.yml` ( `k8s_worker` グループのみ )はホスト変数 (`k8s_ctrlplane_host` 変数) で指定されたコントロールプレーンノード上の `merged-kubeconfig.conf` を取得し, 制御ノード上の `~/.ansible/kubeconfig-cache/` に一旦キャッシュしてからワーカーノードへコピーします。
+7. `symlink.yml` が `~/.kube/config` を `merged-kubeconfig.conf` への相対シンボリックリンクに置き換え, 既存ファイル(あれば)は `config-default` にリネームして退避します。
 
 ## 検証ポイント
 

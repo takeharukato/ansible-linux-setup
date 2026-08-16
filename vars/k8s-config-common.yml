@@ -15,29 +15,10 @@
 k8s_operator_user: "kube"
 
 # Kubernetesオペレータユーザのホームディレクトリ
-# なお, vars/all-config.ymlで, k8s_operator_userの値を上書きした場合であっても,
-# ansibleの仕様から, k8s_operator_homeの値は, 適切にvars/all-config.ymlの値を
-# 参照して設定される:
-# 1. include_vars は実行時に変数を読み込む
-#    公式 include_vars モジュールに「タスク実行時(runtime)に動的に読み込む」と明記されています。
-#    https://docs.ansible.com/ansible/latest/collections/ansible/builtin/include_vars_module.html
-
-# 2. include_vars で定義した変数は host scope で, 同一カテゴリ内は後勝ち
-#    公式 precedence ドキュメントに「一般に last defined wins」「include_vars は host scope 変数」とあります。
-#    https://docs.ansible.com/ansible/latest/reference_appendices/general_precedence.html
-#    https://docs.ansible.com/ansible/latest/playbook_guide/playbooks_variables.html
-#
-# 3. 通常変数は 遅延評価により値が決定される
-#    公式 set_fact の注記で「set_fact は 静的設定(static)となる。
-#    通常の 遅延評価(lazy)変数と違い代入時に評価される」と明記されています。
-#    この記述は逆に, 通常の変数は代入時に確定せず, 利用時に評価されることを示します。
-#    https://docs.ansible.com/ansible/latest/collections/ansible/builtin/set_fact_module.html
-#
-# 留意事項: 典型的な場合には問題にならないが以下の点に留意すること
-# - all-config 読み込み前に k8s_operator_home を参照するタスクがあれば, その時点の値で評価されます。
-# - all-config 側で k8s_operator_home 自体を明示的に定義した場合は, そちらが優先されます。
-#
-k8s_operator_home: "/home/{{ k8s_operator_user }}"
+# /home 直書きを避けるため, 初期値は空文字列とし, 各ロールで getent / user module の実行結果から
+# 実ホームディレクトリを解決した後に set_fact で上書きして使用する。
+# 明示的に固定値を使用する場合は vars/all-config.yml で k8s_operator_home を上書きする。
+k8s_operator_home: ""
 # Kubernetesオペレータユーザのデフォルトシェル
 k8s_operator_shell: "/bin/bash"
 # Kubernetesオペレータユーザの所属グループ

@@ -13,6 +13,10 @@
 - name: Load parameter files
   ansible.builtin.include_tasks: load-params.yml
 
+# /home 固定前提を避けるため, 後続のパス計算前にオペレータ実ホームを解決する。
+- name: Resolve k8s operator home
+  ansible.builtin.include_tasks: resolve-operator-home.yml
+
 # kubeconfig 関連の派生変数を計算
 - name: Prepare kubeconfig variables
   ansible.builtin.include_tasks: prepare-vars.yml
