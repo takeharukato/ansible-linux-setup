@@ -7,39 +7,53 @@
 # 最初に変数設定を読み直す ( role単独で実行可能とするため )
 - name: "Load Params"
   ansible.builtin.include_tasks: load-params.yml
+
+# パッケージ導入処理
 - name: "Package"
   ansible.builtin.include_tasks: package.yml
   when:
-    - dns_server is defined
-    - ( dns_server|default('', true) | length ) > 0
+    - dns_dns_server_enabled | default(false) | bool
+    - ( dns_server | default('', true) | length ) > 0
+
+# ファイル/ディレクトリ作成処理
 - name: "Directory"
   ansible.builtin.include_tasks: directory.yml
   when:
-    - dns_server is defined
-    - ( dns_server|default('', true) | length ) > 0
+    - dns_dns_server_enabled | default(false) | bool
+    - ( dns_server | default('', true) | length ) > 0
+
+# ユーザ/グループ作成処理
 - name: "User Group"
   ansible.builtin.include_tasks: user_group.yml
   when:
-    - dns_server is defined
-    - ( dns_server|default('', true) | length ) > 0
+    - dns_dns_server_enabled | default(false) | bool
+    - ( dns_server | default('', true) | length ) > 0
+
+# サービス導入, 起動処理
 - name: "Service"
   ansible.builtin.include_tasks: service.yml
   when:
-    - dns_server is defined
-    - ( dns_server|default('', true) | length ) > 0
+    - dns_dns_server_enabled | default(false) | bool
+    - ( dns_server | default('', true) | length ) > 0
+
+# 設定ファイル作成処理
 - name: "Config"
   ansible.builtin.include_tasks: config.yml
   when:
-    - dns_server is defined
-    - ( dns_server|default('', true) | length ) > 0
+    - dns_dns_server_enabled | default(false) | bool
+    - ( dns_server | default('', true) | length ) > 0
+
+# systemd drop-in 設定処理
 - name: "Config Systemd Ipv4 Only"
   ansible.builtin.include_tasks: config-systemd-ipv4-only.yml
   when:
-    - dns_server is defined
-    - ( dns_server|default('', true) | length ) > 0
+    - dns_dns_server_enabled | default(false) | bool
+    - ( dns_server | default('', true) | length ) > 0
+
+# Firewall 設定処理
 - name: "Config Firewall"
   ansible.builtin.include_tasks: config-firewall.yml
   when:
-    - dns_server is defined
-    - ( dns_server|default('', true) | length ) > 0
+    - dns_dns_server_enabled | default(false) | bool
+    - ( dns_server | default('', true) | length ) > 0
     - enable_firewall | default(false,true)

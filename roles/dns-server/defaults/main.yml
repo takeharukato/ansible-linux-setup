@@ -12,6 +12,8 @@ dns_ddns_key_name: "ddns-clients"
 #
 # 以下はサーバ側のみ
 #
+# DNSサーバ(bind)を導入する場合は, true に設定する
+dns_dns_server_enabled: false
 
 # === 実行ユーザ/グループ/サービス名 ===
 dns_bind_user: "{{ (ansible_facts.os_family == 'Debian') | ternary('bind', 'named') }}"

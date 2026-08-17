@@ -55,6 +55,9 @@
         - [広域設定ファイル (vars/all-config.yml) のElastic関連設定値](#広域設定ファイル-varsall-configyml-のelastic関連設定値)
     - [host\_vars/ ディレクトリ配下のホスト設定ファイル](#host_vars-ディレクトリ配下のホスト設定ファイル)
       - [ホスト設定ファイル中でのネットワークインターフェース設定](#ホスト設定ファイル中でのネットワークインターフェース設定)
+      - [ホスト設定ファイル中でのDomain Name System (DNS) サーバの設定](#ホスト設定ファイル中でのdomain-name-system-dns-サーバの設定)
+        - [`dns_host_list`の設定例](#dns_host_listの設定例)
+        - [`internal_network_list`の設定例](#internal_network_listの設定例)
       - [ホスト設定ファイル中でのElastic Stack関連設定値](#ホスト設定ファイル中でのelastic-stack関連設定値)
         - [Kubernetes以外の管理サーバやレジストリサーバ用の設定](#kubernetes以外の管理サーバやレジストリサーバ用の設定)
         - [Kubernetesのコントロールプレーンノード用の設定](#kubernetesのコントロールプレーンノード用の設定)
@@ -313,25 +316,15 @@ ntp_servers_list:
 
 #### Domain Name System (DNS) サーバの設定
 
-以下の項目を設定します。
+広域設定ファイル(vars/all-config.yml)には, Domain Name System (DNS) サーバの設定として, 以下の項目を設定します:
 
-|変数名|意味|設定値の例|
-|---|---|---|
-|dns_server|DNSサーバのドメイン名|"devserver.example.org"|
-|dns_server_ipv4_address|DNSサーバのIPv4アドレス|"{{devserver_ipv4_address}}"|
-|dns_server_ipv6_address|DNSサーバのIPv6アドレス(将来対応)|"{{devserver_ipv6_address}}"|
-|dns_domain|DNSドメイン名(末尾のドットを除いて指定)|"example.org"|
-|dns_network_ipv4_prefix|IPv4ネットワークプレフィクス(末尾のドットを除いて指定)|"{{ network_ipv4_prefix }}"|
-|dns_network|DNSサーバにアクセス可能なホストのIPv4ネットワークアドレス|"{{ network_ipv4_network_address }}"|
-|dns_network_ipv4_prefix_len|DNSサーバの所属するネットワークのIPv4アドレスのプレフィクス長|"{{ network_ipv4_prefix_len }}"|
-|dns_network_ipv6_prefix|DNSサーバにアクセス可能なホストのIPv6ネットワークアドレス|"{{ network_ipv6_network_address }}"|
-|dns_network_ipv6_prefix_len|DNSサーバの所属するネットワークのIPv6アドレスのプレフィクス長|"{{ network_ipv6_prefix_len }}"|
-|dns_bind_ipv4_only|BIND を IPv4 のみで待ち受けさせる場合に true|false|
-|dns_network_ipv6_prefix_filename|IPv6逆引きゾーンファイル名|"fd69-6684-61a-1"|
-|dns_ipv4_reverse|IPv4逆引きゾーンファイル名/ゾーン名|"20.168.192"|
-|dns_ipv6_reverse|IPv6逆引きゾーン名|"1.0.0.0.a.1.6.0.4.8.6.6.9.6.d.f"|
-|dns_ddns_key_secret|Dynamic DNS updateで使用します。共通鍵(`ddns-confgen -a hmac-sha256 -k ddns-clients`で生成された値を指定)|"Kdi362s+dCkToqo4F+JfwMK6yILQyn1mrqI1xfGqDfk="|
-|use_nm_ddns_update_scripts|ip monitorコマンドでIPv6アドレス変更を監視する機能とNetwork Manager dispatcher経由でDynamic DNSでホスト名とIPアドレスをDNSに自動登録する機能を有効にする場合はtrueに設定。|true|
+| 変数名 | 説明 | 既定値 | 設定例 |
+| --- | --- | --- | --- |
+| `dns_server_ipv4_address` | DNS サーバの IPv4 アドレス。 | `""` | `"192.168.20.11"` |
+| `dns_server_ipv6_address` |  DNS サーバの IPv6 アドレス。| `""` | `"fd00:1234:5678:1::11"` |
+| `dns_domain` | 正引きゾーン名。ゾーンファイルの SOA, NS レコードを決定。 | `""` | `"example.org"` |
+| `dns_ddns_key_secret` | Dynamic DNS updateで使用する共通鍵(`ddns-confgen -a hmac-sha256 -k ddns-clients`で生成された値)を指定。 | `"Kdi362s+dCkToqo4F+JfwMK6yILQyn1mrqI1xfGqDfk="` |
+| `use_nm_ddns_update_scripts` | ip monitorコマンドでIPv6アドレス変更を監視する機能とNetwork Manager dispatcher経由でDynamic DNSでホスト名とIPアドレスをDNSに自動登録する機能を有効にする場合はtrueに設定。| 未定義 (`false`として扱う) | `true` |
 
 #### Network File System (NFS) サーバの設定
 
@@ -1356,6 +1349,58 @@ netif_list変数は, 以下の要素からなる辞書のリストです。
 
 ルートメトリックについては, ネットワークの設計方針に応じて適切に設定します。
 例えば, 運用系ネットワークを通して外部ネットワークにつなぐ場合は, 運用系NIC以外のNICのメトリックを高めに設定します。
+
+#### ホスト設定ファイル中でのDomain Name System (DNS) サーバの設定
+
+Domain Name System (DNS) サーバを導入するホストの`host_vars`には, 以下の項目を設定します。以下の変数は, DNSサーバ導入先ホストの`host_vars`にのみ設定し, `vars/all-config.yml`には設定しないことを推奨します:
+
+| 変数名 | 説明 | 既定値 | 設定例 |
+| --- | --- | --- | --- |
+| `dns_dns_server_enabled` | DNSサーバ導入処理を有効にする。| `false` | `true` |
+| `dns_server` | SOA ホスト名 (FQDN)。`dns_dns_server_enabled`が`false`, または, **本変数が未定義, または, 本変数が空文字列の場合, パッケージインストール, ディレクトリ作成, ユーザ/グループ作成, サービス設定, 設定ファイル生成の各タスクはスキップされます**。 | 未定義 | `"mgmt-server.example.org"` |
+| `dns_network` | IPv4 ACL とゾーン内 A レコードのネットワークアドレス。 | 未定義(`""`として扱われる)。 | `"192.168.20.0"` |
+| `dns_network_ipv4_prefix` | IPv4 ACL とゾーン内 A レコードのネットワークアドレスのネットワークプレフィクス部分。本変数で設定された文字列の後に各ホストのオクテットアドレスを設定するため, **末尾にドットなどをつけないこと** | `""` |`"192.168.20"` |
+| `dns_network_ipv4_prefix_len` | IPv4 ネットワークプレフィクス長 。 | `""` | `24` |
+| `dns_network_ipv6_prefix` | IPv6 ACL や逆引きゾーンの生成に使用するプレフィクス。 | `""` | `"fd00:1234:5678:1::"` |
+| `dns_network_ipv6_prefix_len` | IPv6 ネットワークプレフィクス長 。 | `""` | `64` |
+| `dns_host_list` | 順引き/逆引きレコードを生成するためのホスト定義リスト。 | `[]` | `dns_host_list`の設定例の節を参照。 |
+| `dns_ipv4_reverse` | IPv4 逆引きゾーン名。 | `""` | `"20.168.192"` |
+| `dns_ipv6_reverse` | IPv6 逆引きゾーン名 (ニブル形式)。 | `""` | `"1.0.0.0.a.1.6.0.4.8.6.6.9.6.d.f"` |
+| `internal_network_list` | 複数ネットワーク逆引きゾーン対応: 追加ネットワークのリスト。各要素は `{ipv4: "...", ipv6: "..."}` 形式。 | `[]` | `internal_network_list`の設定例の節を参照。 |
+
+##### `dns_host_list`の設定例
+
+`dns_host_list`は, 以下の構造を持つ辞書を要素とするリストであり, 本ロールでは, `dns_host_list`変数内の辞書で設定されたホスト名とIPv4アドレスを用いて, DNSの順引き/逆引きレコードを生成します:
+
+| キー | 設定値 | 設定値の例 |
+| --- | --- | --- |
+| name | ホスト名を指定する。 | `"host3"` |
+| ipv4_addr | IPv4アドレスの最終オクテットを指定する。 | `20` |
+
+`dns_host_list`変数の設定例は以下の通りです:
+
+```yaml
+dns_host_list:
+  - { name: 'host3', ipv4_addr: '20' }
+```
+
+##### `internal_network_list`の設定例
+
+`internal_network_list`は, 以下の構造を持つ辞書を要素とするリストであり, 本ロールでは, `internal_network_list`変数内の辞書に記載されたネットワークを内部ネットワークとして扱うようDNSサーバを設定します。
+
+| キー | 設定値 | 設定値の例 |
+| --- | --- | --- |
+| ipv4 | IPv4ネットワークアドレスをCIDR形式で指定する。 | `"192.168.20.0/24"` |
+| ipv6 | IPv6ネットワークアドレスをCIDR形式で指定する。 | `"fd00:1234:5678:1::/64"` |
+
+`internal_network_list`変数の設定例は以下の通りです:
+
+```yaml
+internal_network_list:
+  # 仮想環境内部管理ネットワーク
+  - ipv4: "192.168.20.0/24"
+    ipv6: "fd00:1234:5678:1::/64"
+```
 
 #### ホスト設定ファイル中でのElastic Stack関連設定値
 

@@ -179,6 +179,27 @@ common_selinux_state: "permissive"
 #   - ipv4: "192.168.30.0/24"
 #     ipv6: "fdad:ba50:248b:1::/64"
 
+# ======================================================
+# サーバ/クライアント共通DNSサーバ設定
+# (条件付き必須: DDNS/DNS設定で使用)
+# ======================================================
+#
+# DNS サーバの IPv4 アドレス
+# dns_server_ipv4_address: "192.168.20.11"
+#
+# DNS サーバの IPv6 アドレス
+# dns_server_ipv6_address: "fd69:6684:61a:1::11"
+#
+# 順引きゾーン名 (ドメイン名)
+# dns_domain: "example.org"
+#
+# Dynamic DNS (DDNS, IP アドレスの変化に合わせて DNS を更新する仕組み) update key のシークレット (Base64 エンコード済み)
+# 生成コマンド例: ddns-confgen -a hmac-sha256 -k ddns-clients -r /dev/urandom
+# dns_ddns_key_secret: "Base64EncodedSecretKeyHere=="
+#
+# NetworkManager (Linux のネットワーク管理ツール) 経由で Dynamic DNS にホスト名と IP アドレスを自動登録する場合は true に設定する
+# use_nm_ddns_update_scripts: true
+
 # =======================================================
 # DNSクライアント設定
 # (条件的必須: クライアントの使用DNSサーバ明示的指定時)
@@ -241,20 +262,15 @@ common_selinux_state: "permissive"
 #   - "ntp.nict.jp"
 
 # ======================================================
-# DNSサーバ設定 (条件的必須: DNSサーバ機能利用時)
+# DNSサーバ導入設定 (条件的必須: DNSサーバ機能利用時)
+# 以下は, host_vars側で設定する
 # ======================================================
-
+#
+# DNSサーバ(bind)を導入する
+# dns_dns_server_enabled: true
+#
 # SOA (Start of Authority, 権威開始レコード) ホスト名 (FQDN, 完全修飾ドメイン名)
 # dns_server: "mgmt-server.example.org"
-#
-# DNS サーバの IPv4 アドレス
-# dns_server_ipv4_address: "192.168.20.11"
-#
-# DNS サーバの IPv6 アドレス
-# dns_server_ipv6_address: "fd69:6684:61a:1::11"
-#
-# 順引きゾーン名 (ドメイン名)
-# dns_domain: "example.org"
 #
 # IPv4 ACL (Access Control List, アクセス制御リスト) とゾーン内 A レコードのベースアドレス
 # dns_network: "192.168.20.0"
@@ -280,12 +296,6 @@ common_selinux_state: "permissive"
 # IPv6 逆引きゾーン名 (ニブル形式, 4ビット単位で逆順に並べる)
 # dns_ipv6_reverse: "1.0.0.0.a.1.6.0.4.8.6.6.9.6.d.f"
 #
-# Dynamic DNS (DDNS, IP アドレスの変化に合わせて DNS を更新する仕組み) update key のシークレット (Base64 エンコード済み)
-# 生成コマンド例: ddns-confgen -a hmac-sha256 -k ddns-clients -r /dev/urandom
-# dns_ddns_key_secret: "Base64EncodedSecretKeyHere=="
-#
-# NetworkManager (Linux のネットワーク管理ツール) 経由で Dynamic DNS にホスト名と IP アドレスを自動登録する場合は true に設定する
-# use_nm_ddns_update_scripts: true
 
 # ======================================================
 # NFSサーバ設定 (条件的必須: NFS利用時)

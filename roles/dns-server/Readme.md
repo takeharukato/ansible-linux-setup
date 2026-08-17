@@ -16,6 +16,9 @@
     - [ロール固有変数](#ロール固有変数)
     - [OS 差異吸収変数](#os-差異吸収変数)
     - [サイト全体共通変数](#サイト全体共通変数)
+    - [DNSサーバ導入ホストの`host_vars`に設定する変数](#dnsサーバ導入ホストのhost_varsに設定する変数)
+      - [`dns_host_list`の設定例](#dns_host_listの設定例)
+      - [`internal_network_list`の設定例](#internal_network_listの設定例)
     - [設定例](#設定例)
       - [基本設定 (単一ネットワーク)](#基本設定-単一ネットワーク)
       - [IPv4 限定設定](#ipv4-限定設定)
@@ -135,7 +138,9 @@
 | リモートホスト | - | ネットワーク越しに接続して操作する別ホスト。 |
 | 対象ホスト | - | Playbook による設定変更や導入処理の適用先となるホスト。 |
 | sudoコマンド | sudo | 一時的に管理者権限でコマンドを実行するためのコマンド。 |
+
 ## 概要
+
 BIND を用いた権威兼キャッシュ DNS サーバーを構成するロールです。対象 OS に応じて Debian 系と RHEL 系の差異を吸収の上, ゾーンファイルと `named.conf`/`named.conf.options` をテンプレートから生成します。
 また, クライアントからのホスト名, IPアドレス登録を受け付けるためのDynamic DNS 更新用 Transaction SIGnature (TSIG) キーを組み込み, IPv4/IPv6 双方の順引き, 逆引きゾーンを作成します。
 必要に応じて systemd, Security-Enhanced Linux (SELinux), Firewall の周辺設定も行います。
@@ -210,21 +215,67 @@ ansible-playbook -i inventory/hosts server.yml --tags dns-server --skip-tags con
 
 ### サイト全体共通変数
 
-| 変数名 | 既定値 | 説明 |
-|-------|--------|------|
-| `dns_domain` | `""` | 正引きゾーン名。ゾーンファイルの SOA, NS レコードを決定。 |
-| `dns_server` | `""` | SOA ホスト名 (FQDN)。**この変数が空の場合, パッケージインストール, ディレクトリ作成, ユーザ/グループ作成, サービス設定, 設定ファイル生成の各タスクはスキップされます**。 |
-| `dns_network` | `""` | IPv4 ACL とゾーン内 A レコードのベースアドレス。 |
-| `dns_network_ipv4_prefix` | `""` | ネットワークプレフィクス (IPv4, 例: `"192.168.20.0"`)。 |
-| `dns_network_ipv4_prefix_len` | `""` | IPv4 ネットワークプレフィクス長 (例: `24`)。 |
-| `dns_network_ipv6_prefix` | `""` | IPv6 ACL や逆引きゾーンの生成に使用するプレフィクス (例: `"fd00:1234:5678:1::"`)。 |
-| `dns_network_ipv6_prefix_len` | `""` | IPv6 ネットワークプレフィクス長 (例: `64`)。 |
-| `dns_host_list` | `[]` | 順引き/逆引きレコードを生成するためのホスト定義リスト。 |
-| `dns_ipv4_reverse` | `""` | IPv4 逆引きゾーン名 (例: `"20.168.192"`  =>  `"20.168.192.in-addr.arpa"`)。 |
-| `dns_ipv6_reverse` | `""` | IPv6 逆引きゾーン名 (ニブル形式)。 |
-| `dns_ddns_key_secret` | `""` | Dynamic DNS update key のシークレット。**バージョン管理外に保管してください**。 |
-| `internal_network_list` | `[]` | 複数ネットワーク逆引きゾーン対応: 追加ネットワークのリスト。各要素は `{ipv4: "...", ipv6: "..."}` 形式。 |
-| `enable_firewall` | `false` | Firewall 設定の有効化フラグ (roles/common/defaults/main.yml で定義)。 |
+以下の変数は, ロール間で共有される変数であるため, `vars/all-config.yml`で設定する。
+
+| 変数名 | 説明 | 既定値 | 設定例 |
+| --- | --- | --- | --- |
+| `dns_server_ipv4_address` | DNS サーバの IPv4 アドレス。 | `""` | `"192.168.20.11"` |
+| `dns_server_ipv6_address` |  DNS サーバの IPv6 アドレス。| `""` | `"fd00:1234:5678:1::11"` |
+| `dns_domain` | 正引きゾーン名。ゾーンファイルの SOA, NS レコードを決定。 | `""` | `"example.org"` |
+| `dns_ddns_key_secret` | Dynamic DNS updateで使用する共通鍵(`ddns-confgen -a hmac-sha256 -k ddns-clients`で生成された値)を指定。 | `"Kdi362s+dCkToqo4F+JfwMK6yILQyn1mrqI1xfGqDfk="` |
+
+### DNSサーバ導入ホストの`host_vars`に設定する変数
+
+Domain Name System (DNS) サーバを導入するホストの`host_vars`に, 以下の項目を設定する。
+以下の変数は, DNSサーバ導入先ホストの`host_vars`にのみ設定し, `vars/all-config.yml`には設定しないことを推奨する:
+
+| 変数名 | 説明 | 既定値 | 設定例 |
+| --- | --- | --- | --- |
+| `dns_dns_server_enabled` | DNSサーバ導入処理を有効にする。| `false` | `true` |
+| `dns_server` | SOA ホスト名 (FQDN)。`dns_dns_server_enabled`が`false`, または, **本変数が未定義, または, 本変数が空文字列の場合, パッケージインストール, ディレクトリ作成, ユーザ/グループ作成, サービス設定, 設定ファイル生成の各タスクはスキップされます**。 | 未定義 | `"mgmt-server.example.org"` |
+| `dns_network` | IPv4 ACL とゾーン内 A レコードのネットワークアドレス。 | 未定義(`""`として扱われる)。 | `"192.168.20.0"` |
+| `dns_network_ipv4_prefix` | IPv4 ACL とゾーン内 A レコードのネットワークアドレスのネットワークプレフィクス部分。本変数で設定された文字列の後に各ホストのオクテットアドレスを設定するため, **末尾にドットなどをつけないこと** | `""` |`"192.168.20"` |
+| `dns_network_ipv4_prefix_len` | IPv4 ネットワークプレフィクス長 。 | `""` | `24` |
+| `dns_network_ipv6_prefix` | IPv6 ACL や逆引きゾーンの生成に使用するプレフィクス。 | `""` | `"fd00:1234:5678:1::"` |
+| `dns_network_ipv6_prefix_len` | IPv6 ネットワークプレフィクス長 。 | `""` | `64` |
+| `dns_host_list` | 順引き/逆引きレコードを生成するためのホスト定義リスト。 | `[]` | `dns_host_list`の設定例の節を参照。 |
+| `dns_ipv4_reverse` | IPv4 逆引きゾーン名。 | `""` | `"20.168.192"` |
+| `dns_ipv6_reverse` | IPv6 逆引きゾーン名 (ニブル形式)。 | `""` | `"1.0.0.0.a.1.6.0.4.8.6.6.9.6.d.f"` |
+| `internal_network_list` | 複数ネットワーク逆引きゾーン対応: 追加ネットワークのリスト。各要素は `{ipv4: "...", ipv6: "..."}` 形式。 | `[]` | `internal_network_list`の設定例の節を参照。 |
+
+#### `dns_host_list`の設定例
+
+`dns_host_list`は, 以下の構造を持つ辞書を要素とするリストであり, 本ロールでは, `dns_host_list`変数内の辞書で設定されたホスト名とIPv4アドレスを用いて, DNSの順引き/逆引きレコードを生成する:
+
+| キー | 設定値 | 設定値の例 |
+| --- | --- | --- |
+| name | ホスト名を指定する。 | `"host3"` |
+| ipv4_addr | IPv4アドレスの最終オクテットを指定する。 | `20` |
+
+`dns_host_list`変数の設定例は以下の通り:
+
+```yaml
+dns_host_list:
+  - { name: 'host3', ipv4_addr: '20' }
+```
+
+#### `internal_network_list`の設定例
+
+`internal_network_list`は, 以下の構造を持つ辞書を要素とするリストであり, 本ロールでは, `internal_network_list`変数内の辞書に記載されたネットワークを内部ネットワークとして扱うようDNSサーバを設定する。
+
+| キー | 設定値 | 設定値の例 |
+| --- | --- | --- |
+| ipv4 | IPv4ネットワークアドレスをCIDR形式で指定する。 | `"192.168.20.0/24"` |
+| ipv6 | IPv6ネットワークアドレスをCIDR形式で指定する。 | `"fd00:1234:5678:1::/64"` |
+
+`internal_network_list`変数の設定例は以下の通りです:
+
+```yaml
+internal_network_list:
+  # 仮想環境内部管理ネットワーク
+  - ipv4: "192.168.20.0/24"
+    ipv6: "fd00:1234:5678:1::/64"
+```
 
 ### 設定例
 
@@ -235,7 +286,8 @@ ansible-playbook -i inventory/hosts server.yml --tags dns-server --skip-tags con
 ```yaml
 dns_domain: "example.org"
 dns_server: "ns1.example.org"
-dns_server_ipv4_address: "192.168.20.1"
+dns_server_ipv4_address: "192.168.20.11"
+dns_server_ipv6_address: "fd00:1234:5678:1::11"
 dns_network: "192.168.20.0"
 dns_network_ipv4_prefix_len: 24
 dns_network_ipv6_prefix: "fd00:1234:5678:1::"
@@ -243,8 +295,8 @@ dns_network_ipv6_prefix_len: 64
 dns_ipv4_reverse: "20.168.192"
 dns_ipv6_reverse: "1.0.0.0.8.7.6.5.4.3.2.1.0.0.d.f"
 dns_host_list:
-  - { name: "host1", ipv4_addr: "10", ipv6_addr: "::10" }
-  - { name: "host2", ipv4_addr: "11", ipv6_addr: "::11" }
+  - { name: "host1", ipv4_addr: "12", ipv6_addr: "::12" }
+  - { name: "host2", ipv4_addr: "13", ipv6_addr: "::13" }
 dns_ddns_key_secret: "YOUR_BASE64_ENCODED_SECRET_HERE"
 ```
 
@@ -523,15 +575,15 @@ ansible-playbook -i inventory/hosts site.yml --syntax-check
 
 - 検証対象 DNS サーバー: `mgmt-server.local` (または任意のホスト名)
 - DNS ドメイン: `example.org`
-- DNS サーバー IPv4 アドレス: `192.168.20.1`
-- DNS サーバー IPv6 アドレス: `fd00:1234:5678:1::1`
+- DNS サーバー IPv4 アドレス: `192.168.20.11`
+- DNS サーバー IPv6 アドレス: `fd00:1234:5678:1::11`
 - ネットワーク IPv4: `192.168.20.0/24`
 - ネットワーク IPv6: `fd00:1234:5678:1::/64`
 - 逆引きゾーン IPv4: `20.168.192.in-addr.arpa`
 - 逆引きゾーン IPv6: `1.0.0.0.8.7.6.5.4.3.2.1.0.0.d.f.ip6.arpa`
 - 登録ホスト例:
-  - `host1.example.org`: `192.168.20.10`, `fd00:1234:5678:1::10`
-  - `host2.example.org`: `192.168.20.11`, `fd00:1234:5678:1::11`
+  - `host1.example.org`: `192.168.20.12`, `fd00:1234:5678:1::12`
+  - `host2.example.org`: `192.168.20.13`, `fd00:1234:5678:1::13`
 - TSIG キー名: `ddns-clients`
 - Firewall: 有効 (`enable_firewall: true`)
 
@@ -688,13 +740,13 @@ host1.example.org.      86400   IN      AAAA    fd00:1234:5678:1::10
 **実施ノード**: DNS サーバー (`mgmt-server.local`) または任意のクライアントノード
 
 ```bash
-dig @localhost -x 192.168.20.10
+dig @localhost -x 192.168.20.11
 ```
 
 **期待される出力例**:
 
 ```
-; <<>> DiG 9.18.24 <<>> @localhost -x 192.168.20.10
+; <<>> DiG 9.18.24 <<>> @localhost -x 192.168.20.11
 ; (2 servers found)
 ;; global options: +cmd
 ;; Got answer:
@@ -732,13 +784,13 @@ dig @localhost -x 192.168.20.10
 **実施ノード**: DNS サーバー (`mgmt-server.local`) または任意のクライアントノード
 
 ```bash
-dig @localhost -x fd00:1234:5678:1::10
+dig @localhost -x fd00:1234:5678:1::11
 ```
 
 **期待される出力例**:
 
 ```
-; <<>> DiG 9.18.24 <<>> @localhost -x fd00:1234:5678:1::10
+; <<>> DiG 9.18.24 <<>> @localhost -x fd00:1234:5678:1::11
 ; (2 servers found)
 ;; global options: +cmd
 ;; Got answer:
@@ -928,7 +980,7 @@ To                         Action      From
 ```bash
 # DDNS レコード追加
 nsupdate -k /etc/bind/rndc.key << EOF
-server 192.168.20.1
+server 192.168.20.11
 zone example.org.
 update add test-host.example.org. 300 A 192.168.20.100
 send
@@ -1003,7 +1055,7 @@ cat /var/lib/bind/db.example.org
 
 ```bash
 nsupdate -k /etc/bind/rndc.key << EOF
-server 192.168.20.1
+server 192.168.20.11
 zone example.org.
 update delete test-host.example.org. A
 send
@@ -1037,12 +1089,12 @@ $TTL 86400
        IN      NS       mgmt-server.example.org.
 
 ; === A レコード ===
-host1                   IN      A       192.168.20.10
-host2                   IN      A       192.168.20.11
+host1                   IN      A       192.168.20.12
+host2                   IN      A       192.168.20.13
 
 ; === AAAA レコード ===
-host1                   IN      AAAA    fd00:1234:5678:1::10
-host2                   IN      AAAA    fd00:1234:5678:1::11
+host1                   IN      AAAA    fd00:1234:5678:1::12
+host2                   IN      AAAA    fd00:1234:5678:1::13
 ```
 
 **確認ポイント**:
@@ -1056,10 +1108,10 @@ host2                   IN      AAAA    fd00:1234:5678:1::11
 3. **NS レコード**: `IN  NS  mgmt-server.example.org.` が定義されていることを確認 (ネームサーバー自身を NS レコードとして登録)
 4. **A レコード**: `dns_host_list` で定義した各ホストの IPv4 アドレスが正しく登録されていることを確認
    - 形式: `<ホスト名>  IN  A  <IPv4アドレス>`
-   - 例: `host1  IN  A  192.168.20.10`
+   - 例: `host1  IN  A  192.168.20.12`
 5. **AAAA レコード**: `dns_host_list` で定義した各ホストの IPv6 アドレスが正しく登録されていることを確認
    - 形式: `<ホスト名>  IN  AAAA  <IPv6アドレス>`
-   - 例: `host1  IN  AAAA  fd00:1234:5678:1::10`
+   - 例: `host1  IN  AAAA  fd00:1234:5678:1::12`
 6. **コメント**: セクション区切りのコメント (`; === A レコード ===` など) が含まれていることを確認 (可読性向上)
 
 **逆引きゾーンファイルの確認 (IPv4)**:
@@ -1095,7 +1147,7 @@ $TTL 86400
 
 1. **PTR レコード**: 各 IPv4 アドレスの最終オクテットに対する PTR レコードが定義されていることを確認
    - 形式: `<最終オクテット>  IN  PTR  <ホスト名FQDN>.`
-   - 例: `10  IN  PTR  host1.example.org.` (192.168.20.10 の逆引き)
+   - 例: `10  IN  PTR  host1.example.org.` (192.168.20.11 の逆引き)
    - ホスト名の末尾にドット `.` が付いている (FQDN 形式)
 
 **逆引きゾーンファイルの確認 (IPv6)**:
@@ -1123,15 +1175,15 @@ $TTL 86400
        IN      NS       mgmt-server.example.org.
 
 ; === PTR レコード ===
-0.1.0.0.0.0.0.0.0.0.0.0.0.0.0.0       IN      PTR     host1.example.org.
-1.1.0.0.0.0.0.0.0.0.0.0.0.0.0.0       IN      PTR     host2.example.org.
+2.1.0.0.0.0.0.0.0.0.0.0.0.0.0.0       IN      PTR     host1.example.org.
+3.1.0.0.0.0.0.0.0.0.0.0.0.0.0.0       IN      PTR     host2.example.org.
 ```
 
 **確認ポイント (IPv6 逆引き)**:
 
 1. **PTR レコード**: 各 IPv6 アドレスのホスト部がニブル形式で定義されていることを確認
    - 形式: `<ニブル表現>  IN  PTR  <ホスト名FQDN>.`
-   - 例: `0.1.0.0.0.0.0.0.0.0.0.0.0.0.0.0  IN  PTR  host1.example.org.` (`fd00:1234:5678:1::10` の逆引き)
+   - 例: `2.1.0.0.0.0.0.0.0.0.0.0.0.0.0.0  IN  PTR  host1.example.org.` (`fd00:1234:5678:1::12` の逆引き)
    - ホスト名の末尾にドット `.` が付いている (FQDN 形式)
 
 ### パターン2: IPv4 限定構成
