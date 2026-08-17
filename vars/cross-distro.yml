@@ -24,6 +24,15 @@ pkg_mgr_family: "{{ pkg_mgr_family_map[pkg_mgr] | default('unknown') }}"
 pkg_mgr_is_debian: "{{ pkg_mgr_family == 'debian' }}"
 pkg_mgr_is_rhel: "{{ pkg_mgr_family == 'rhel' }}"
 
+# ロール間共通DNF / YUM の共通オプション
+
+# インストールオプション
+# setopt=timeout=30: タイムアウト秒数を30秒に設定
+# setopt=minrate=10240: 転送速度の下限を 10KB/s に設定
+# setopt=install_weak_deps=False: 推奨（Recommends）や提案（Suggests）などの
+#                                 弱い依存関係の自動インストールを無効化
+dnf_install_opts: "-y --setopt=timeout=30 --setopt=minrate=10240 --setopt=install_weak_deps=False"
+
 ########################################################################################
 # URLモジュール( get_url / uri / authorized_key URL取得 )HTTPS健全性チェック設定
 ########################################################################################

@@ -11,11 +11,12 @@
 FROM almalinux:9.6
 
 # パッケージ構築に必要なパッケージをインストールする
-RUN dnf -y install \
-      dnf-plugins-core \
-      epel-release && \
-    crb enable && \
-    dnf -y install \
+RUN dnf {{ dnf_install_opts }} \
+    install \
+      dnf-plugins-core && \
+    dnf config-manager --set-enabled crb && \
+    dnf {{ dnf_install_opts }} \
+    install \
       git \
       rpm-build \
       make \

@@ -23,7 +23,9 @@ install_build_dependencies(){
 
     # dnf が利用可能な場合は dnf を使用してビルドに必要なパッケージを導入する
     if command -v dnf >/dev/null 2>&1; then
-        dnf -y install git cmake pkgconf-pkg-config pcre2-devel gcc gcc-c++ make dpkg dpkg-devel
+
+        # パッケージ構築にEPELは不要であるため, EPEL を無効化する
+        dnf {{ dnf_install_opts }} --disablerepo=epel* install git cmake pkgconf-pkg-config pcre2-devel gcc gcc-c++ make dpkg dpkg-devel
         return 0
     fi
 

@@ -53,9 +53,12 @@ is_true() {
 }
 
 prepare_tools() {
+
     # curl-minimal と curl が競合する環境があるため,
     # 先に既存の curl コマンド有無を確認し, 未導入時のみ補完する
-    dnf install -y \
+    # パッケージ構築にEPELは不要であるため,
+    # 応答不良のミラーで停止しないよう EPEL を無効化
+    dnf {{ dnf_install_opts }} --disablerepo=epel install \
         ca-certificates \
         git \
         golang \
@@ -65,7 +68,7 @@ prepare_tools() {
         gzip
 
     if ! command -v curl >/dev/null 2>&1; then
-        dnf install -y curl-minimal || dnf install -y --allowerasing curl
+        dnf {{ dnf_install_opts }} --disablerepo=epel install curl-minimal || dnf {{ dnf_install_opts }} --disablerepo=epel install --allowerasing curl
     fi
 }
 
