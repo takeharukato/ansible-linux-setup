@@ -40,21 +40,19 @@
         - [Multus メタCNI](#multus-メタcni)
         - [Whereabouts CNI](#whereabouts-cni)
         - [Hubble UI](#hubble-ui)
-      - [複数コントロールプレインの操作](#複数コントロールプレインの操作)
-        - [kubeconfig ファイルの配置と属性](#kubeconfig-ファイルの配置と属性)
-        - [`kubeconfig` ファイルの収集](#kubeconfig-ファイルの収集)
-          - [RedHat系 の場合](#redhat系-の場合)
-          - [Debian 系 の場合](#debian-系-の場合)
-        - [共通認証局(Certificate Authority)証明書の確認方法](#共通認証局certificate-authority証明書の確認方法)
-        - [Cluster Mesh 用 機密情報を保持するリソース(`Secret`)の確認方法](#cluster-mesh-用-機密情報を保持するリソースsecretの確認方法)
-        - [`kubeconfig`の更新と再配布](#kubeconfigの更新と再配布)
-          - [`~kube/.kube/config`ファイルに関する補足事項](#kubekubeconfigファイルに関する補足事項)
+        - [複数コントロールプレインの操作](#複数コントロールプレインの操作)
+          - [`kubeconfig`の更新と再配布](#kubeconfigの更新と再配布)
           - [コンテキスト一覧取得](#コンテキスト一覧取得)
-        - [コンテキスト指定による操作対象コントロールプレインの切り替え](#コンテキスト指定による操作対象コントロールプレインの切り替え)
-    - [Netgauge](#netgauge)
-    - [Elastic Stack](#elastic-stack)
-      - [inventory group と Elasticsearch 関連コンポーネントの関係](#inventory-group-と-elasticsearch-関連コンポーネントの関係)
-      - [広域設定ファイル (vars/all-config.yml) のElastic関連設定値](#広域設定ファイル-varsall-configyml-のelastic関連設定値)
+          - [コンテキスト指定による操作対象コントロールプレインの切り替え](#コンテキスト指定による操作対象コントロールプレインの切り替え)
+          - [共通認証局(Certificate Authority)証明書の確認方法](#共通認証局certificate-authority証明書の確認方法)
+          - [Cluster Mesh 用 機密情報を保持するリソース(`Secret`)の確認方法](#cluster-mesh-用-機密情報を保持するリソースsecretの確認方法)
+          - [kubeconfig ファイルの配置と属性](#kubeconfig-ファイルの配置と属性)
+          - [`kubeconfig` ファイルの収集](#kubeconfig-ファイルの収集)
+          - [`~kube/.kube/config`ファイルに関する補足事項](#kubekubeconfigファイルに関する補足事項)
+      - [Netgauge](#netgauge)
+      - [Elastic Stack](#elastic-stack)
+        - [inventory group と Elasticsearch 関連コンポーネントの関係](#inventory-group-と-elasticsearch-関連コンポーネントの関係)
+        - [広域設定ファイル (vars/all-config.yml) のElastic関連設定値](#広域設定ファイル-varsall-configyml-のelastic関連設定値)
     - [host\_vars/ ディレクトリ配下のホスト設定ファイル](#host_vars-ディレクトリ配下のホスト設定ファイル)
       - [ホスト設定ファイル中でのネットワークインターフェース設定](#ホスト設定ファイル中でのネットワークインターフェース設定)
       - [ホスト設定ファイル中でのElastic Stack関連設定値](#ホスト設定ファイル中でのelastic-stack関連設定値)
@@ -1020,121 +1018,27 @@ Hubble UI関連の設定を以下に記載します。
 |hubble_ui_ingress_hosts|Ingressのホスト名リスト (将来対応予定)|`[]`|
 |hubble_ui_ingress_class_name|IngressのClass Name (将来対応予定)|`""`|
 
-#### 複数コントロールプレインの操作
+##### 複数コントロールプレインの操作
 
 `k8s-kubeconfig` ロールは, 各コントロールプレインで証明書を埋め込んだ `kubeconfig` を生成し, kubeconfigファイル結合ツール(`create-uniq-kubeconfig.py`) で統合した `merged-kubeconfig.conf` (統合 `kubeconfig`)を全ノードに配布します。これにより, 1 つの `kubeconfig` で複数K8sクラスタ のコンテキストを切り替えて操作できます。
 
 本playbookでは Kubernetesオペレータとして, `kube` ユーザを作成します。`kube` ユーザの既定 `kubeconfig` (`~/.kube/config`) を `merged-kubeconfig.conf` へのシンボリックリンクとして作成するため, `kube` ユーザであれば `kubectl` の `--kubeconfig` オプションを省略して, K8sクラスタ のコンテキスト操作を行うことが可能です。
 
-##### kubeconfig ファイルの配置と属性
-
-|ファイル|配置ホスト|所有者/グループ|権限|含まれる情報|
-|---|---|---|---|---|
-|~kube/.kube/cluster*-embedded.kubeconfig|コントロールプレインのみ|`kube:kube`|`0600`|各コントロールプレイン専用の証明書を内包した `kubeconfig`。共通CA証明書 `/etc/kubernetes/pki/shared-ca/cluster-mesh-ca.crt` (共通CA証明書未使用時は `/etc/kubernetes/pki/ca.crt`), および `/etc/kubernetes/admin.conf` が保持する管理者クライアント証明書と秘密鍵, クラスタ定義 (`clusters`) とユーザー定義 (`users`) とを内包します。統合 `kubeconfig` (`merged-kubeconfig.conf`)の生成に使用される。|
-|~kube/.kube/ca-embedded-admin.conf|コントロールプレインのみ|`kube:kube`|`0600`|`/etc/kubernetes/admin.conf` に含まれるクラスタCA証明書, 共通CA証明書 ( `/etc/kubernetes/pki/shared-ca/cluster-mesh-ca.crt` ( 共通CA証明書未使用時は `/etc/kubernetes/pki/ca.crt` ), 管理者クライアント証明書, 管理者クライアント秘密鍵とを内包します。|
-|~kube/.kube/merged-kubeconfig.conf|全ノード|`kube:kube`|`0600`|全コントロールプレインのコンテキスト (`kubernetes-admin@<Kubernetes API エンドポイントを識別するための名前>`) を統合した統合 `kubeconfig`。クラスタ定義 (`clusters`), ユーザー定義 (`users`), コンテキスト定義 (`contexts`) をまとめて保持します。|
-|~kube/.kube/config (シンボリックリンク)|全ノード|`kube:kube`|`0600`|`kubectl` を`--kubeconfig`オプション無しに, 統合 `kubeconfig`を使用して実行するためのシンボリックリンク。|
-|~kube/.kube/config-default|全ノード|`kube:kube`|`0600`|`kubeadm init` 実行時の`kubeconfig`ファイル (`~/.kube/config`) を保存するためのバックアップファイル。統合 `kubeconfig`へのシンボリックリンクを`~/.kube/config`として作成する際に, 既存の `~/.kube/config` が通常ファイルとして存在していた場合にのみ作成される。|
-|/etc/kubernetes/ca-embedded-admin.conf|コントロールプレインのみ|`root:root`|`0600`|root 向けに配置する証明書埋め込み `kubeconfig` クラスタCA証明書, 共通CA証明書 ( `/etc/kubernetes/pki/shared-ca/cluster-mesh-ca.crt`, 共通CA証明書未使用時は `/etc/kubernetes/pki/ca.crt` ), 管理者クライアント証明書, 管理者クライアント秘密鍵とを内包します。root 権限での操作時に使用します。|
-|/etc/kubernetes/merged-kubeconfig.conf|全ノード|`root:root`|`0600`|全コントロールプレインのコンテキスト (`kubernetes-admin@<Kubernetes API エンドポイントを識別するための名前>`) を統合した統合 `kubeconfig`。クラスタ定義 (`clusters`), ユーザー定義 (`users`), コンテキスト定義 (`contexts`) をまとめて保持します。`sudo KUBECONFIG=/etc/kubernetes/merged-kubeconfig.conf kubectl` を実行することで利用します。|
-
-なお, 制御ノード側では, `~/.ansible/kubeconfig-cache/` (権限 `0700`) に最新の 統合 `kubeconfig` (`merged-kubeconfig.conf`) をキャッシュし, ワーカーノード配布時に再利用します。
-
-##### `kubeconfig` ファイルの収集
-
-本節では, 取得ファイルをローカルの `dest/` に整理し, シンボリックリンクの参照先を記録する手順を, OS 系列ごとに示す。
-
-`kubeconfig ファイルの配置と属性` に挙げたうち, `/etc/kubernetes/ca-embedded-admin.conf` と `/etc/kubernetes/merged-kubeconfig.conf` は, それぞれ `~kube/.kube/ca-embedded-admin.conf` と `~kube/.kube/merged-kubeconfig.conf` と同内容です。不要な権限昇格を避けるため, `~kube/.kube` 配下のファイルのみ収集すれば十分です。
-
-以下の例では, 収集対象コントロールプレインを列挙したファイル (例: `ctrlplane-hosts.txt`) を用意し, `pslurp` / `parallel-slurp`コマンドの実行時に使用します。
-
-```plaintext
-k8sctrlplane01.local
-k8sctrlplane02.local
-```
-
-`pslurp` / `parallel-slurp` は `-L` で指定したディレクトリ配下にホスト名ごとのサブディレクトリを作成し, 取得したファイルを保存します。必要に応じて `-O "-oStrictHostKeyChecking=no"` や `-x "-i <鍵ファイル>"` 等の SSH オプションを付与して環境に合わせる。`pssh` パッケージの導入手順や利用可能なコマンドオプションは [pssh の GitHub リポジトリ](https://github.com/lilydjwg/pssh) を参照すること。
-
-###### RedHat系 の場合
-
-|ファイル|説明|取得コマンド例|
-|---|---|---|
-|~kube/.kube/cluster*-embedded.kubeconfig|各コントロールプレイン専用の証明書を内包した `kubeconfig`|`pslurp -h ctrlplane-hosts.txt -l kube -L dest "~/.kube/cluster*-embedded.kubeconfig" .`|
-|~kube/.kube/ca-embedded-admin.conf|管理者クライアント証明書と秘密鍵を内包した `kubeconfig`|`pslurp -h ctrlplane-hosts.txt -l kube -L dest "~/.kube/ca-embedded-admin.conf" .`|
-|~kube/.kube/merged-kubeconfig.conf|全コントロールプレインの`kubeconfig`を統合した統合 `kubeconfig`|`pslurp -h ctrlplane-hosts.txt -l kube -L dest "~/.kube/merged-kubeconfig.conf" .`|
-|~kube/.kube/config-default|`kubeadm init` 実行時の`kubeconfig`ファイル (`~/.kube/config`) を保存するための, バックアップファイル。|`pslurp -h ctrlplane-hosts.txt -l kube -L dest "~/.kube/config-default" .`|
-
-###### Debian 系 の場合
-
-Debian 系では `pslurp` が `parallel-slurp` という名称で提供される。引数は同一で利用できます。
-
-|ファイル|説明|取得コマンド例|
-|---|---|---|
-|~kube/.kube/cluster*-embedded.kubeconfig|各コントロールプレイン専用の証明書を内包した `kubeconfig`|`parallel-slurp -h ctrlplane-hosts.txt -l kube -L dest "~/.kube/cluster*-embedded.kubeconfig" .`|
-|~kube/.kube/ca-embedded-admin.conf|管理者クライアント証明書と秘密鍵を内包した `kubeconfig`|`parallel-slurp -h ctrlplane-hosts.txt -l kube -L dest "~/.kube/ca-embedded-admin.conf" .`|
-|~kube/.kube/merged-kubeconfig.conf|全コントロールプレインの`kubeconfig`を統合した統合 `kubeconfig`|`parallel-slurp -h ctrlplane-hosts.txt -l kube -L dest "~/.kube/merged-kubeconfig.conf" .`|
-|~kube/.kube/config-default|`kubeadm init` 実行時の`kubeconfig`ファイル (`~/.kube/config`) を保存するための, バックアップファイル。|`parallel-slurp -h ctrlplane-hosts.txt -l kube -L dest "~/.kube/config-default" .`|
-
-##### 共通認証局(Certificate Authority)証明書の確認方法
-
-本節では, Cilium Cluster Mesh などで共有する Kubernetes 共通認証局(Certificate Authority)証明書 (CA) ( 以下, 共通CA )がコントロールプレイン間で適切に適用されていることを確認する手順を述べる。
-
-まずコンテキスト名を確認します。
-
-```bash
-kubectl config get-contexts
-CURRENT   NAME                            CLUSTER    AUTHINFO             NAMESPACE
-*         kubernetes-admin@kubernetes     cluster1   kubernetes-admin
-          kubernetes-admin@kubernetes-2   cluster2   kubernetes-admin-2
-```
-
-上記の`NAME`列に出力されている文字列をコンテキスト名(`<context>`)として使用します。
-以下のコマンドを各コントロールプレインで実行し, 出力されるハッシュ値がコントロールプレイン間で一致することを確認します。
-
-```bash
-kubectl --context <context> -n kube-system get secret cilium-ca -o jsonpath='{.data.ca\.crt}' | base64 -d | sha256sum
-```
-
-##### Cluster Mesh 用 機密情報を保持するリソース(`Secret`)の確認方法
-
-本節では, Cluster Mesh 用 機密情報を保持するリソース(`Secret`) `cilium-clustermesh`がコントロールプレイン間で適切に適用されていることを確認する手順を述べる。
-
-まずコンテキスト名を確認します。
-
-```bash
-kubectl config get-contexts
-CURRENT   NAME                            CLUSTER    AUTHINFO             NAMESPACE
-*         kubernetes-admin@kubernetes     cluster1   kubernetes-admin
-          kubernetes-admin@kubernetes-2   cluster2   kubernetes-admin-2
-```
-
-上記の`NAME`列に出力されている文字列をコンテキスト名(`<context>`)として使用します。以下のコマンドを各コントロールプレインで実行し, 出力されるハッシュ値がコントロールプレイン間で一致することを確認します。
-
-```bash
-kubectl --context <context> -n kube-system get secret cilium-clustermesh -o jsonpath='{.data.tls\.crt}' | base64 -d | openssl x509 -noout -text
-```
-
-##### `kubeconfig`の更新と再配布
+###### `kubeconfig`の更新と再配布
 
 - **コントロールプレインの更新**:
-  `inventory/hosts`の`k8s_ctrl_plane`の項目に集約対象となるコントロールプレインのホスト名を記載したうえで, コントロールプレインの`kubeconfig`を更新するMake ターゲット(`update-ctrlplane-kubeconfig`)を実行し, すべてのコントロールプレインノードに対して, 埋め込みファイル生成と`kubeconfig`の統合とを行う。
+  `inventory/hosts`の`k8s_ctrl_plane`の項目に集約対象となるコントロールプレインのホスト名を記載したうえで, コントロールプレインの`kubeconfig`を更新するMake ターゲット(`update-ctrlplane-kubeconfig`)を実行し, すべてのコントロールプレインノードに対して, 埋め込みファイル生成と`kubeconfig`の統合とを行います。
 
   ```shell
   make update-ctrlplane-kubeconfig
   ```
 
 - **ワーカーノードへの再配布**:
-  `inventory/hosts`の`k8s_worker`の項目に配布対象となるワーカノードのホスト名を記載したうえで, コントロールプレインで統合された統合 `kubeconfig` (`merged-kubeconfig.conf`) を各ワーカーに配布する Make ターゲット (`update-worker-kubeconfig`)を実行します。`update-worker-kubeconfig` は直前の手順で最新化された 統合 `kubeconfig` (`merged-kubeconfig.conf`) をコントロールプレインから取得するため, 事前に `make update-ctrlplane-kubeconfig` を完了していることが前提となる。
+  `inventory/hosts`の`k8s_worker`の項目に配布対象となるワーカノードのホスト名を記載したうえで, コントロールプレインで統合された統合 `kubeconfig` (`merged-kubeconfig.conf`) を各ワーカーに配布する Make ターゲット (`update-worker-kubeconfig`)を実行します。`update-worker-kubeconfig` は直前の手順で最新化された 統合 `kubeconfig` (`merged-kubeconfig.conf`) をコントロールプレインから取得するため, 事前に `make update-ctrlplane-kubeconfig` を完了していることが前提となります。
 
   ```shell
   make update-worker-kubeconfig
   ```
-
-###### `~kube/.kube/config`ファイルに関する補足事項
-
-本playbookの`k8s-kubeconfig` ロールは `~kube/.kube/config` を 統合 `kubeconfig` (`merged-kubeconfig.conf`) へのシンボリックリンクに置き換え, 旧ファイルを `config-default` として退避します。
-
-手動で差し替える必要はないが, 独自に編集する場合はロール再実行時に同リンクへ戻される点に注意します。
 
 ###### コンテキスト一覧取得
 
@@ -1150,7 +1054,7 @@ CURRENT   NAME                            CLUSTER    AUTHINFO             NAMESP
 `NAME` 列には コンテキスト名が表示される。
 `CLUSTER` 列は これらは Kubernetes API エンドポイントを識別するための名前が表示される。本プレイブックでは, Cilium Cluster Meshを設定する場合, かつ, `hosts_vars`配下の各ホスト定義ファイル中に`k8s_cilium_cm_cluster_name`変数が定義されている場合は, `k8s_cilium_cm_cluster_name`変数で定義されたCilium Cluster Meshのクラスタ名が設定される。
 
-##### コンテキスト指定による操作対象コントロールプレインの切り替え
+###### コンテキスト指定による操作対象コントロールプレインの切り替え
 
 取得したコンテキスト名を `kubectl config use-context` で切り替える。
 `kube` ユーザでログインして, コンテキスト指定により操作対象コントロールプレインを切り替える例を以下に示す:
@@ -1172,7 +1076,101 @@ k8sworker0101    Ready    <none>          7h7m    v1.31.13
 k8sworker0102    Ready    <none>          7h31m   v1.31.13
 ```
 
-### Netgauge
+###### 共通認証局(Certificate Authority)証明書の確認方法
+
+本節では, Cilium Cluster Mesh などで共有する Kubernetes 共通認証局(Certificate Authority)証明書 (CA) ( 以下, 共通CA )がコントロールプレイン間で適切に適用されていることを確認する手順を述べる。
+
+まずコンテキスト名を確認します。
+
+```bash
+kubectl config get-contexts
+CURRENT   NAME                            CLUSTER    AUTHINFO             NAMESPACE
+*         kubernetes-admin@kubernetes     cluster1   kubernetes-admin
+          kubernetes-admin@kubernetes-2   cluster2   kubernetes-admin-2
+```
+
+上記の`NAME`列に出力されている文字列をコンテキスト名(`<context>`)として使用します。
+以下のコマンドを各コントロールプレインで実行し, 出力されるハッシュ値がコントロールプレイン間で一致することを確認します。
+
+```bash
+kubectl --context <context> -n kube-system get secret cilium-ca -o jsonpath='{.data.ca\.crt}' | base64 -d | sha256sum
+```
+
+###### Cluster Mesh 用 機密情報を保持するリソース(`Secret`)の確認方法
+
+本節では, Cluster Mesh 用 機密情報を保持するリソース(`Secret`) `cilium-clustermesh`がコントロールプレイン間で適切に適用されていることを確認する手順を述べる。
+
+まずコンテキスト名を確認します。
+
+```bash
+kubectl config get-contexts
+CURRENT   NAME                            CLUSTER    AUTHINFO             NAMESPACE
+*         kubernetes-admin@kubernetes     cluster1   kubernetes-admin
+          kubernetes-admin@kubernetes-2   cluster2   kubernetes-admin-2
+```
+
+上記の`NAME`列に出力されている文字列をコンテキスト名(`<context>`)として使用します。以下のコマンドを各コントロールプレインで実行し, 出力されるハッシュ値がコントロールプレイン間で一致することを確認します。
+
+```bash
+kubectl --context <context> -n kube-system get secret cilium-clustermesh -o jsonpath='{.data.tls\.crt}' | base64 -d | openssl x509 -noout -text
+```
+
+###### kubeconfig ファイルの配置と属性
+
+|ファイル|配置ホスト|所有者/グループ|権限|含まれる情報|
+|---|---|---|---|---|
+|~kube/.kube/cluster*-embedded.kubeconfig|コントロールプレインのみ|`kube:kube`|`0600`|各コントロールプレイン専用の証明書を内包した `kubeconfig`。共通CA証明書 `/etc/kubernetes/pki/shared-ca/cluster-mesh-ca.crt` (共通CA証明書未使用時は `/etc/kubernetes/pki/ca.crt`), および `/etc/kubernetes/admin.conf` が保持する管理者クライアント証明書と秘密鍵, クラスタ定義 (`clusters`) とユーザー定義 (`users`) とを内包します。統合 `kubeconfig` (`merged-kubeconfig.conf`)の生成に使用される。|
+|~kube/.kube/ca-embedded-admin.conf|コントロールプレインのみ|`kube:kube`|`0600`|`/etc/kubernetes/admin.conf` に含まれるクラスタCA証明書, 共通CA証明書 ( `/etc/kubernetes/pki/shared-ca/cluster-mesh-ca.crt` ( 共通CA証明書未使用時は `/etc/kubernetes/pki/ca.crt` ), 管理者クライアント証明書, 管理者クライアント秘密鍵とを内包します。|
+|~kube/.kube/merged-kubeconfig.conf|全ノード|`kube:kube`|`0600`|全コントロールプレインのコンテキスト (`kubernetes-admin@<Kubernetes API エンドポイントを識別するための名前>`) を統合した統合 `kubeconfig`。クラスタ定義 (`clusters`), ユーザー定義 (`users`), コンテキスト定義 (`contexts`) をまとめて保持します。|
+|~kube/.kube/config (シンボリックリンク)|全ノード|`kube:kube`|`0600`|`kubectl` を`--kubeconfig`オプション無しに, 統合 `kubeconfig`を使用して実行するためのシンボリックリンク。|
+|~kube/.kube/config-default|全ノード|`kube:kube`|`0600`|`kubeadm init` 実行時の`kubeconfig`ファイル (`~/.kube/config`) を保存するためのバックアップファイル。統合 `kubeconfig`へのシンボリックリンクを`~/.kube/config`として作成する際に, 既存の `~/.kube/config` が通常ファイルとして存在していた場合にのみ作成される。|
+|/etc/kubernetes/ca-embedded-admin.conf|コントロールプレインのみ|`root:root`|`0600`|root 向けに配置する証明書埋め込み `kubeconfig` クラスタCA証明書, 共通CA証明書 ( `/etc/kubernetes/pki/shared-ca/cluster-mesh-ca.crt`, 共通CA証明書未使用時は `/etc/kubernetes/pki/ca.crt` ), 管理者クライアント証明書, 管理者クライアント秘密鍵とを内包します。root 権限での操作時に使用します。|
+|/etc/kubernetes/merged-kubeconfig.conf|全ノード|`root:root`|`0600`|全コントロールプレインのコンテキスト (`kubernetes-admin@<Kubernetes API エンドポイントを識別するための名前>`) を統合した統合 `kubeconfig`。クラスタ定義 (`clusters`), ユーザー定義 (`users`), コンテキスト定義 (`contexts`) をまとめて保持します。`sudo KUBECONFIG=/etc/kubernetes/merged-kubeconfig.conf kubectl` を実行することで利用します。|
+
+なお, 制御ノード側では, `~/.ansible/kubeconfig-cache/` (権限 `0700`) に最新の 統合 `kubeconfig` (`merged-kubeconfig.conf`) をキャッシュし, ワーカーノード配布時に再利用します。
+
+###### `kubeconfig` ファイルの収集
+
+本節では, 取得ファイルをローカルの `dest/` に整理し, シンボリックリンクの参照先を記録する手順を, OS 系列ごとに示す。
+
+`kubeconfig ファイルの配置と属性` に挙げたうち, `/etc/kubernetes/ca-embedded-admin.conf` と `/etc/kubernetes/merged-kubeconfig.conf` は, それぞれ `~kube/.kube/ca-embedded-admin.conf` と `~kube/.kube/merged-kubeconfig.conf` と同内容です。不要な権限昇格を避けるため, `~kube/.kube` 配下のファイルのみ収集すれば十分です。
+
+以下の例では, 収集対象コントロールプレインを列挙したファイル (例: `ctrlplane-hosts.txt`) を用意し, `pslurp` / `parallel-slurp`コマンドの実行時に使用します。
+
+```plaintext
+k8sctrlplane01.local
+k8sctrlplane02.local
+```
+
+`pslurp` / `parallel-slurp` は `-L` で指定したディレクトリ配下にホスト名ごとのサブディレクトリを作成し, 取得したファイルを保存します。必要に応じて `-O "-oStrictHostKeyChecking=no"` や `-x "-i <鍵ファイル>"` 等の SSH オプションを付与して環境に合わせる。`pssh` パッケージの導入手順や利用可能なコマンドオプションは [pssh の GitHub リポジトリ](https://github.com/lilydjwg/pssh) を参照すること。
+
+**RedHat系 の場合**:
+
+|ファイル|説明|取得コマンド例|
+|---|---|---|
+|~kube/.kube/cluster*-embedded.kubeconfig|各コントロールプレイン専用の証明書を内包した `kubeconfig`|`pslurp -h ctrlplane-hosts.txt -l kube -L dest "~/.kube/cluster*-embedded.kubeconfig" .`|
+|~kube/.kube/ca-embedded-admin.conf|管理者クライアント証明書と秘密鍵を内包した `kubeconfig`|`pslurp -h ctrlplane-hosts.txt -l kube -L dest "~/.kube/ca-embedded-admin.conf" .`|
+|~kube/.kube/merged-kubeconfig.conf|全コントロールプレインの`kubeconfig`を統合した統合 `kubeconfig`|`pslurp -h ctrlplane-hosts.txt -l kube -L dest "~/.kube/merged-kubeconfig.conf" .`|
+|~kube/.kube/config-default|`kubeadm init` 実行時の`kubeconfig`ファイル (`~/.kube/config`) を保存するための, バックアップファイル。|`pslurp -h ctrlplane-hosts.txt -l kube -L dest "~/.kube/config-default" .`|
+
+**Debian 系 の場合**:
+
+Debian 系では `pslurp` が `parallel-slurp` という名称で提供される。引数は同一で利用できます。
+
+|ファイル|説明|取得コマンド例|
+|---|---|---|
+|~kube/.kube/cluster*-embedded.kubeconfig|各コントロールプレイン専用の証明書を内包した `kubeconfig`|`parallel-slurp -h ctrlplane-hosts.txt -l kube -L dest "~/.kube/cluster*-embedded.kubeconfig" .`|
+|~kube/.kube/ca-embedded-admin.conf|管理者クライアント証明書と秘密鍵を内包した `kubeconfig`|`parallel-slurp -h ctrlplane-hosts.txt -l kube -L dest "~/.kube/ca-embedded-admin.conf" .`|
+|~kube/.kube/merged-kubeconfig.conf|全コントロールプレインの`kubeconfig`を統合した統合 `kubeconfig`|`parallel-slurp -h ctrlplane-hosts.txt -l kube -L dest "~/.kube/merged-kubeconfig.conf" .`|
+|~kube/.kube/config-default|`kubeadm init` 実行時の`kubeconfig`ファイル (`~/.kube/config`) を保存するための, バックアップファイル。|`parallel-slurp -h ctrlplane-hosts.txt -l kube -L dest "~/.kube/config-default" .`|
+
+###### `~kube/.kube/config`ファイルに関する補足事項
+
+本playbookの`k8s-kubeconfig` ロールは `~kube/.kube/config` を 統合 `kubeconfig` (`merged-kubeconfig.conf`) へのシンボリックリンクに置き換え, 旧ファイルを `config-default` として退避します。
+
+手動で差し替える必要はないが, 独自に編集する場合はロール再実行時に同リンクへ戻される点に注意します。
+
+#### Netgauge
 
 ネットワーク性能測定ツールであるNetgauge関連の設定を以下に記載します。
 
@@ -1182,12 +1180,12 @@ k8sworker0102    Ready    <none>          7h31m   v1.31.13
 |netgauge_dir|Netgaugeインストールディレクトリ|"/opt/netgauge"|
 |netgauge_configure|Netgauge configureオプション|"--with-mpi=no --prefix={{ netgauge_dir }}"|
 
-### Elastic Stack
+#### Elastic Stack
 
 本playbookでは, 他者導入の Fluent Bit などと干渉しないように独立したメトリクス収集機能をElastic Stack 用いて構築することが可能です。
 
 
-#### inventory group と Elasticsearch 関連コンポーネントの関係
+##### inventory group と Elasticsearch 関連コンポーネントの関係
 
 本節では, inventory group とその上で動作するコンポーネントの対応関係を図と表で示します。
 
@@ -1252,7 +1250,7 @@ flowchart LR
 
 Enrollment Token共有ファイルは`logging_backend`に属するファイルではなく, Fleet Bootstrapロールが制御ホスト上へ生成し, Elastic Agentロールが導入時に読み込むファイルです。実行時の管理設定はFleet ServerからElastic Agentへ配布されます。
 
-#### 広域設定ファイル (vars/all-config.yml) のElastic関連設定値
+##### 広域設定ファイル (vars/all-config.yml) のElastic関連設定値
 
 Elastic Stack関連ロールで共有する利用者入力値は以下の通りです。これらの設定は, **`host_vars`に設定してはいけません**。
 
