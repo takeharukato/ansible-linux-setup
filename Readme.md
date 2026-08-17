@@ -32,6 +32,7 @@
         - [Kubernetesからローカルコンテナレジストリを使用するための設定](#kubernetesからローカルコンテナレジストリを使用するための設定)
         - [K8sクラスタ間の接続設定](#k8sクラスタ間の接続設定)
         - [FRRoutingの設定](#frroutingの設定)
+    - [Kubernetes API監査関連](#kubernetes-api監査関連)
         - [Cilium CNI](#cilium-cni)
         - [Cilium BGP Control Planeの設定](#cilium-bgp-control-planeの設定)
         - [`k8s_bgp`変数の`address_families`の要素を辞書として指定する場合の指定方法](#k8s_bgp変数のaddress_familiesの要素を辞書として指定する場合の指定方法)
@@ -51,8 +52,15 @@
           - [コンテキスト一覧取得](#コンテキスト一覧取得)
         - [コンテキスト指定による操作対象コントロールプレインの切り替え](#コンテキスト指定による操作対象コントロールプレインの切り替え)
     - [Netgauge](#netgauge)
+    - [Elastic Stack](#elastic-stack)
+      - [inventory group と Elasticsearch 関連コンポーネントの関係](#inventory-group-と-elasticsearch-関連コンポーネントの関係)
+      - [広域設定ファイル (vars/all-config.yml) のElastic関連設定値](#広域設定ファイル-varsall-configyml-のelastic関連設定値)
     - [host\_vars/ ディレクトリ配下のホスト設定ファイル](#host_vars-ディレクトリ配下のホスト設定ファイル)
       - [ホスト設定ファイル中でのネットワークインターフェース設定](#ホスト設定ファイル中でのネットワークインターフェース設定)
+      - [ホスト設定ファイル中でのElastic Stack関連設定値](#ホスト設定ファイル中でのelastic-stack関連設定値)
+        - [Kubernetes以外の管理サーバやレジストリサーバ用の設定](#kubernetes以外の管理サーバやレジストリサーバ用の設定)
+        - [Kubernetesのコントロールプレーンノード用の設定](#kubernetesのコントロールプレーンノード用の設定)
+        - [Kubernetesのワーカーノード用の設定](#kubernetesのワーカーノード用の設定)
   - [ansible-lint設定ファイル (ansible-lint.yml)の使用法](#ansible-lint設定ファイル-ansible-lintymlの使用法)
   - [host\_varsファイル作成作業支援ツールについて](#host_varsファイル作成作業支援ツールについて)
   - [用語](#用語)
@@ -816,9 +824,23 @@ K8sを構成するコントロールプレイン, ワーカーノードとは別
 |`frr_networks_v4`|BGPで広告するIPv4プレフィックスをCIDR表記のリストで指定します。|`['192.168.30.0/24', '192.168.90.0/24']`|
 |`frr_networks_v6`|BGPで広告するIPv6プレフィックスをCIDR表記のリストで指定します。|`['fd69:6684:61a:2::/64', 'fd69:6684:61a:90::/64']`|
 
+### Kubernetes API監査関連
+
+Kubernetes API監査機能関連の設定変数を以下に記載します。
+
+| 変数名 | 説明 | 設定値の例 |
+| --- | --- | --- |
+| `k8s_audit_enabled` | Kubernetes API監査機能を有効化する。 | `true` |
+| `k8s_audit_policy_path` | 監査ポリシーファイルのパス。 | `/etc/kubernetes/audit-policy.yaml` |
+| `k8s_audit_log_dir` | 監査ログ格納ディレクトリ。 | `/var/log/kubernetes/audit` |
+| `k8s_audit_log_path` | 監査ログファイルのパス。 | `/var/log/kubernetes/audit/audit.log` |
+| `k8s_audit_log_max_age` | 古い監査ログを保持する最大日数 (単位:日)。 | `30` |
+| `k8s_audit_log_max_backup` | 保持する監査ログファイルの最大数 (単位:個)。 | `20` |
+| `k8s_audit_log_max_size` | ローテーション前の1ファイルの最大サイズ (単位:MiB)。 | `200` |
+
 ##### Cilium CNI
 
-Cilium Container Network Interface (`CNI`) 関連の設定を以下に記載します。
+Cilium Container Network Interface (`CNI`) 関連の設定変数を以下に記載します。
 
 |変数名|意味|設定値の例|
 |---|---|---|
@@ -1160,6 +1182,117 @@ k8sworker0102    Ready    <none>          7h31m   v1.31.13
 |netgauge_dir|Netgaugeインストールディレクトリ|"/opt/netgauge"|
 |netgauge_configure|Netgauge configureオプション|"--with-mpi=no --prefix={{ netgauge_dir }}"|
 
+### Elastic Stack
+
+本playbookでは, 他者導入の Fluent Bit などと干渉しないように独立したメトリクス収集機能をElastic Stack 用いて構築することが可能です。
+
+
+#### inventory group と Elasticsearch 関連コンポーネントの関係
+
+本節では, inventory group とその上で動作するコンポーネントの対応関係を図と表で示します。
+
+Elasticsearch 関連コンポーネントに関するinventory groupは以下の2種類に分類されます:
+
+1. `logging_backend` : Fleet Server, Elasticsearch, Logstash, Kibana が動作し, 収集データの管理, 集約, 保存, 可視化を提供するホストです。
+2. `logging_collector` : Elastic Agent 関連ロールが適用され, VM ゲスト OS のサービスログ, Pod ログ, cgroup 由来の資源使用状況, ホストメトリクス ( host metrics ) を収集するホストです。
+
+inventory group, ノード, ノード上で動作するコンポーネントの包含関係を箱で示し, コンポーネント間のデータフローを矢印で表した関係図を以下に示します:
+
+```mermaid
+flowchart LR
+  subgraph LC[logging_collector]
+    direction TB
+    subgraph COL_NODE[ログ収集ノード]
+      direction LR
+      subgraph EA_GRP[Elastic Agent群]
+        direction TB
+        EA_COMP[Elastic Agent]
+        EA_K8S_COMP[Elastic Agent for Kubernetes]
+        EA_K8S_AUIDT_COMP[Kubernetes API監査ログ収集用Elastic Agent]
+      end
+
+      subgraph LOG_GRP[ログファイル/メトリクス情報]
+        LOG_SRC[(共有ログ情報: VM ゲスト OS のサービスログと Pod ログ)]
+        METRIC_SRC[(共有メトリクス情報: 対象ホストの資源使用状況)]
+      end
+    end
+  end
+
+  subgraph LB[logging_backend]
+    direction TB
+    subgraph AGG_NODE[ログ集約ノード]
+      direction TB
+      FS_COMP[Fleet Server]
+      LS_COMP[Logstash]
+      ES_COMP[Elasticsearch]
+      KB_COMP[Kibana]
+    end
+  end
+
+  subgraph CTRL[制御ホスト]
+    TOKEN_FILE_COMP[(Enrollment Token共有ファイル)]
+  end
+
+  TOKEN_FILE_COMP -. Elastic Agent導入時にEnrollment Tokenを読込 .-> EA_COMP
+
+  LOG_SRC -. ホスト上のログを参照 .-> EA_COMP
+
+  LOG_SRC -. Kubernetes監査ログを参照 .-> EA_K8S_AUIDT_COMP -. Kubernetes監査ログを解析 .-> EA_COMP
+
+  METRIC_SRC -. ホストのメトリクス情報を参照 .-> EA_COMP
+  METRIC_SRC -. Kubernetes メトリクス情報を参照 .- EA_K8S_COMP .-> EA_COMP
+
+  FS_COMP -- Fleet管理設定を配布 --> EA_COMP
+  EA_COMP --> LS_COMP
+  LS_COMP --> ES_COMP
+  ES_COMP --> KB_COMP
+```
+
+上記の図は, 単純化のため, `logging_collector`, `logging_backend`のそれぞれ単一ノード構成で記載していますが, `logging_collector`, `logging_backend` のそれぞれのinventory groupに複数のノードを含めることが可能です。
+
+Enrollment Token共有ファイルは`logging_backend`に属するファイルではなく, Fleet Bootstrapロールが制御ホスト上へ生成し, Elastic Agentロールが導入時に読み込むファイルです。実行時の管理設定はFleet ServerからElastic Agentへ配布されます。
+
+#### 広域設定ファイル (vars/all-config.yml) のElastic関連設定値
+
+Elastic Stack関連ロールで共有する利用者入力値は以下の通りです。これらの設定は, **`host_vars`に設定してはいけません**。
+
+| 変数名 | 意味 | 設定例 |
+| --- | --- | --- |
+| `elastic_search_enabled` | Elasticsearch ロールの有効化フラグ。 | `true` |
+| `logging_kibana_enabled` | Kibana ロールの有効化フラグ。 | `true` |
+| `logging_logstash_enabled` | Logstash ロールの有効化フラグ。 | `true` |
+| `logging_fleet_server_enabled` | Fleet Server ロールの有効化フラグ。 | `true` |
+| `fleet_bootstrap_enabled` | Fleet Server 導入時の初期化処理を実施するロールの有効化フラグ。 | `true` |
+| `logging_backend_host` | Elasticsearch, Kibana, Logstash, Fleet Server, Fleet Bootstrap, Elastic Agent 関連ロールが参照する共通の接続先ホスト を IP アドレス, または, Fully Qualified Domain Name (FQDN) で指定する。 | `elastic-backend01.example.org` |
+| `logging_backend_default_scheme` | ランタイムエンドポイントの明示指定がない場合に使用する既定の URL スキーム。 | `http` |
+| `logging_backend_default_tls_mode` | `https` 利用時に各ロールの TLS 検証モード既定値として使用する値。 | `none` |
+|`logging_backend_elastic_agent_k8s_cluster_package_policy_enabled`|k8s_cluster構成種別向けKubernetes統合Package Policyの作成又は更新処理の有効化フラグ。| `true` |
+|`logging_backend_elastic_agent_k8s_audit_package_policy_enabled`|k8s_audit構成種別向けKubernetes監査ログ用Package Policyの作成又は更新処理の有効化フラグ。| `true` |
+|`logging_backend_elastic_agent_k8s_audit_monitoring_enabled`|Kubernetes API監査ログ収集用Elastic Agent自身の監視を有効化する。| `true` |
+|`logging_backend_elastic_agent_k8s_audit_monitoring_logs_enabled`|Audit用Elastic Agent自身の監視ログを収集処理を有効化する。| `true` |
+|`logging_backend_elastic_agent_k8s_audit_monitoring_metrics_enabled`|Audit用Elastic Agent自身の監視メトリクスを収集処理を有効化する。 | `true` |
+| `fleet_bootstrap_output_name` | Elastic Agentの収集データをLogstashへ送信するFleet Outputの名称。 | `"main-logstash-output"` |
+| `fleet_bootstrap_policy_name` | ホスト監視用Elastic Agentポリシーの名称。 | `"linux-host-policy"` |
+| `fleet_bootstrap_enrollment_token_name` | ホスト監視用Enrollment Tokenの名称。 | `"linux-host-token"` |
+| `logging_elastic_agent_host_log_paths` | ホストから収集するログファイルへのパスのリスト。 | [ "/var/log/syslog", "/var/log/auth.log", "/var/log/cloud-init.log" ] |
+| `logging_elastic_agent_k8s_system_kube_system_log_paths` | Kubernetes システムログ (kube-system名前空間) 収集対象ファイルへのパスリスト。 | [ "/var/log/containers/*_kube-system_*.log" ] |
+| `logging_elastic_agent_k8s_workload_log_paths` | Kubernetes のワークロードログ収集対象ファイルへのパスリスト。 | [ "/var/log/containers/*.log" ] |
+| `logging_backend_elastic_agent_k8s_audit_monitoring_enabled` | Kubernetes API監査ログ収集用Elastic Agent自身の監視機能を有効化する。 | `true` |
+| `logging_backend_elastic_agent_k8s_audit_monitoring_logs_enabled` | Kubernetes API監査ログ収集用Elastic Agent自身の監視ログを収集する。 | `true` |
+| `logging_backend_elastic_agent_k8s_audit_monitoring_metrics_enabled` | Kubernetes API監査ログ収集用Elastic Agent自身のメトリクス情報を収集する。 | `true` |
+
+詳細は, 以下のElastic Stack関連ロールのReadme.mdを参照ください:
+
+- [roles/docker-network-elastic-stack/Readme.md](roles/docker-network-elastic-stack/Readme.md)
+- [roles/elasticsearch/Readme.md](roles/elasticsearch/Readme.md)
+- [roles/kibana/Readme.md](roles/kibana/Readme.md)
+- [roles/logstash/Readme.md](roles/logstash/Readme.md)
+- [roles/fleet-server/Readme.md](roles/fleet-server/Readme.md)
+- [roles/fleet-bootstrap/Readme.md](roles/fleet-bootstrap/Readme.md)
+- [roles/elastic-agent/Readme.md](roles/elastic-agent/Readme.md)
+- [roles/elastic-agent-k8s/Readme.md](roles/elastic-agent-k8s/Readme.md)
+- [roles/elastic-agent-k8s-audit/Readme.md](roles/elastic-agent-k8s-audit/Readme.md)
+
 ### host_vars/ ディレクトリ配下のホスト設定ファイル
 
 host_varsには主にネットワークインターフェースの設定やK8s関連の設定を記載します。
@@ -1227,6 +1360,50 @@ netif_list変数は, 以下の要素からなる辞書のリストです。
 ルートメトリックについては, ネットワークの設計方針に応じて適切に設定します。
 例えば, 運用系ネットワークを通して外部ネットワークにつなぐ場合は, 運用系NIC以外のNICのメトリックを高めに設定します。
 
+#### ホスト設定ファイル中でのElastic Stack関連設定値
+
+本節では, ホスト設定ファイル中でのElastic Stack関連設定値の概要について説明します。詳細は, 以下のElastic Stack関連ロールのReadme.mdを参照ください:
+
+- [roles/docker-network-elastic-stack/Readme.md](roles/docker-network-elastic-stack/Readme.md)
+- [roles/elasticsearch/Readme.md](roles/elasticsearch/Readme.md)
+- [roles/kibana/Readme.md](roles/kibana/Readme.md)
+- [roles/logstash/Readme.md](roles/logstash/Readme.md)
+- [roles/fleet-server/Readme.md](roles/fleet-server/Readme.md)
+- [roles/fleet-bootstrap/Readme.md](roles/fleet-bootstrap/Readme.md)
+- [roles/elastic-agent/Readme.md](roles/elastic-agent/Readme.md)
+- [roles/elastic-agent-k8s/Readme.md](roles/elastic-agent-k8s/Readme.md)
+- [roles/elastic-agent-k8s-audit/Readme.md](roles/elastic-agent-k8s-audit/Readme.md)
+
+
+##### Kubernetes以外の管理サーバやレジストリサーバ用の設定
+
+Kubernetesを構成するノード以外の管理サーバやレジストリサーバの`host_vars`ファイル内に設定するElastic Stack関連設定変数は以下の通りです:
+
+|変数名|意味|設定値の例|
+|---|---|---|
+| `logging_elastic_agent_host_enabled` | ホスト監視用Elastic Agent を導入する。 | `true` |
+
+##### Kubernetesのコントロールプレーンノード用の設定
+
+Kubernetesのコントロールプレーンノードの`host_vars`ファイル内に設定するElastic Stack関連設定変数は以下の通りです:
+
+|変数名|意味|設定値の例|
+|---|---|---|
+| `logging_elastic_agent_host_enabled` | ホスト監視用Elastic Agent を導入する。 | `true` |
+| `logging_elastic_agent_k8s_system_enabled` | Kubernetesシステム監視用Elastic Agent を導入する。 | `true` |
+| `elastic_agent_k8s_enabled` | Kubernetesメトリクス情報監視用Elastic Agent を導入する。 | `true` |
+| `elastic_agent_k8s_audit_enabled` | Kubernetes監査ログ収集用Elastic Agentを導入する。 | `true` |
+
+##### Kubernetesのワーカーノード用の設定
+
+Kubernetesのワーカーノードの`host_vars`ファイル内に設定するElastic Stack関連設定変数は以下の通りです:
+
+|変数名|意味|設定値の例|
+|---|---|---|
+| `logging_elastic_agent_host_enabled` | ホスト監視用Elastic Agent を導入する。 | `true` |
+| `logging_elastic_agent_k8s_system_enabled` | Kubernetesシステム監視用Elastic Agent を導入する。 | `true` |
+| `logging_elastic_agent_k8s_workload_enabled` | Kubernetesワークロード監視用Elastic Agent を導入する。 | `true` |
+
 ## ansible-lint設定ファイル (ansible-lint.yml)の使用法
 
 playbookの保守のため, 本プロジェクトでのansible playbook記述方針に合わせて, ansible-lintの設定を行うためのファイルを`ansible-lint.yml`という名前で作成している。
@@ -1263,6 +1440,7 @@ ansible-lintコマンドを, `-c`オプションを指定せずに実行した�
 | Internet Control Message Protocol | ICMP | IP通信における誤りの通知や通信に関する情報の通知などのために使用される通信規約。 |
 | Internet Protocol | IP | インターネットでデータを送受信するための通信規約。 |
 | Kubernetes | K8s | コンテナオーケストレーションのためのプラットフォーム。 |
+| Kubernetes API監査機能 ( Kubernetes API Audit )| - | Kubernetesクラスター内の一連の行動を記録するセキュリティに関連した時系列の記録を提供する機能。 |
 | Lightweight Directory Access Protocol | LDAP | ネットワーク内のユーザー, デバイス, ファイルなどの情報を一元管理し, 検索や認証を行うための通信規約。 |
 | Local Area Network | LAN | 建物やフロア等の限定範囲で構成されるローカルネットワーク。 |
 | Multicast DNS | mDNS | ユニキャストDNSサーバーが存在しない環境において, ローカルリンク上でDNSに類似した操作を実行する機能を提供するための通信規約。 |
@@ -1276,6 +1454,16 @@ ansible-lintコマンドを, `-c`オプションを指定せずに実行した�
 | sudoコマンド | sudo | 一時的に管理者権限でコマンドを実行するためのコマンド。 |
 | Uncomplicated Firewall | UFW | Linux のパケットフィルタ ( iptables / nftables ) を簡便に操作するためのフロントエンド。Ubuntu Linuxで使用されるファイアウォール機能を提供するパッケージ。 |
 | Virtual Machine | VM | 物理マシン上で仮想的に動作する計算機環境。 |
+| ログ | - | 処理の結果や状態を時系列で記録した情報。 |
+| メトリクス | - | ホストやサービスの状態を数値で表した観測情報。 |
+| Elasticsearch | - | ログやメトリクス情報を集約, 検索するためのサーバソフトウェア。 |
+| Kibana | - | Elasticsearchに保存されたデータを可視化し, 参照するソフトウェア。 |
+| Logstash | - | 受信したデータを整形し, 送信先へ転送するソフトウェア。 |
+| Fleet Server | - | Elastic Agent の管理通信を受け付けるサーバ機能。 |
+| Elastic Agent | - | ログやメトリクスを収集して送信する実行要素。 |
+| Fleet Output | - | Elastic Agent が送信先として利用する出力設定。 |
+| Enrollment Token | - | Elastic AgentがFleet Serverへの登録を許可されていることを確認し, 登録先のElastic Agent ポリシーを特定するための登録用認証情報。 |
+| Enrollment Token共有ファイル | - | Fleet BootstrapがEnrollment Tokenを制御ホスト上へ保存し, Elastic Agent本体ロールがFleet Serverへの登録時に読み込む権限`0600`のYAMLファイル。 |
 
 ## 参考サイト
 

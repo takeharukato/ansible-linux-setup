@@ -322,7 +322,7 @@ flowchart LR
     KB[Kibana]
     LS[Logstash]
     FS[Fleet Server]
-    COL[Elastic Agent]
+    COL[Elastic Agent群]
   end
 
   subgraph files[本 playbook で生成するファイル]
@@ -334,7 +334,7 @@ flowchart LR
   METRIC_SRC -. 収集対象として参照可能 .-> FBIT
   METRIC_SRC -. 収集対象として参照可能 .-> COL
   TOKEN_FILE -. Elastic Agent導入時にEnrollment Tokenを読込 .-> COL
-  FS -->|Fleet管理設定を配布| COL
+  FS --|Fleet管理設定を配布| --> COL
   COL --> LS
   LS --> ES
   ES --> KB
@@ -375,8 +375,18 @@ flowchart LR
   subgraph LC[logging_collector]
     direction TB
     subgraph COL_NODE[ログ収集ノード]
-      direction TB
-      EA_COMP[Elastic Agent]
+      direction LR
+      subgraph EA_GRP[Elastic Agent群]
+        direction TB
+        EA_COMP[Elastic Agent]
+        EA_K8S_COMP[Elastic Agent for Kubernetes]
+        EA_K8S_AUIDT_COMP[Kubernetes API監査ログ収集用Elastic Agent]
+      end
+
+      subgraph LOG_GRP[ログファイル/メトリクス情報]
+        LOG_SRC[(共有ログ情報: VM ゲスト OS のサービスログと Pod ログ)]
+        METRIC_SRC[(共有メトリクス情報: 対象ホストの資源使用状況)]
+      end
     end
   end
 
@@ -396,7 +406,15 @@ flowchart LR
   end
 
   TOKEN_FILE_COMP -. Elastic Agent導入時にEnrollment Tokenを読込 .-> EA_COMP
-  FS_COMP -->|Fleet管理設定を配布| EA_COMP
+
+  LOG_SRC -. ホスト上のログを参照 .-> EA_COMP
+
+  LOG_SRC -. Kubernetes監査ログを参照 .-> EA_K8S_AUIDT_COMP -. Kubernetes監査ログを解析 .-> EA_COMP
+
+  METRIC_SRC -. ホストのメトリクス情報を参照 .-> EA_COMP
+  METRIC_SRC -. Kubernetes メトリクス情報を参照 .- EA_K8S_COMP .-> EA_COMP
+
+  FS_COMP -- Fleet管理設定を配布 --> EA_COMP
   EA_COMP --> LS_COMP
   LS_COMP --> ES_COMP
   ES_COMP --> KB_COMP
@@ -538,7 +556,7 @@ ansible-playbook -i inventory/hosts logging-backend.yml
 | 変数名 | 意味 | 既定値 | 設定例 |
 | --- | --- | --- | --- |
 | `elastic_search_cluster_name` | Elasticsearch のクラスタ名。 | `shared-logs` | `shared-logs` |
-| `elastic_search_node_name` | Elasticsearch ノード名。IPアドレス, または, ホスト名 (FQDN形式) で記載する。 | `{{ inventory_hostname }}` | `elasticsearch01.local` |
+| `elastic_search_node_name` | Elasticsearch ノード名。IPアドレス, または, ホスト名 (FQDN形式) で記載する。 | `{{ inventory_hostname }}` | `elasticsearch01.example.org` |
 | `elastic_search_discovery_type` | 単一ノード起動時の探索方式。 | `single-node` | `single-node` |
 | `elastic_search_http_host` | Elasticsearch の HTTP 待受アドレス。 | `0.0.0.0` | `0.0.0.0` |
 | `elastic_search_http_port` | Elasticsearch の HTTP 待受ポート。 | `9200` | `9200` |
@@ -566,7 +584,7 @@ ansible-playbook -i inventory/hosts logging-backend.yml
 
 ### `vars/all-config.yml`に設定するElastic Stack間共有設定値
 
-本節は, Elastic Stack関連ロールで共有する利用者入力値の正本です。共通既定値を使用する変数は`vars/all-config.yml`への記載を省略し, 既定値を変更する場合だけ`vars/all-config.yml`へ設定します。`host_vars`への重複定義は行いません。
+本節では, Elastic Stack関連ロールで共有する利用者入力値の正本となるElastic Stack間共有設定値について説明します。共通既定値を使用する変数は`vars/all-config.yml`への記載を省略し, 既定値を変更する場合だけ`vars/all-config.yml`へ設定します。`host_vars`への重複定義は行いません。
 
 | 変数名 | 意味 | 既定値 | 設定例 |
 | --- | --- | --- | --- |
@@ -658,19 +676,19 @@ Elasticsearch, Logstash, Kibana, Fleet Server を導入するホストでは, `i
 
 #### host_vars の設定例
 
-ホスト固有に変える値を `host_vars/elastic-search01.local.yml` に記載します。
+ホスト固有に変える値を `host_vars/elastic-search01.local` に記載します。
 `logging_backend_host` は共通変数であるため, この例には含めず `vars/all-config.yml` に記載します。
 
 ```yaml
 1: elastic_search_enabled: true
-2: elastic_search_node_name: "elastic-search01.local"
+2: elastic_search_node_name: "elasticsearch01.example.org"
 3: elastic_search_wait_delegate_to: "{{ inventory_hostname }}"
 ```
 
 | 行番号 | 設定値 | 有効になる動作 | 設定背景(未設定時/誤設定時の問題と防止理由) |
 | --- | --- | --- | --- |
 | 1 | `elastic_search_enabled: true` | Elasticsearch ロールを有効化し, ディレクトリ作成, 設定生成, コンテナ起動, 起動確認を実行します。 | `false` の場合は Elasticsearch ロールの処理が実行されず, 期待した導入結果を得られないためです。 |
-| 2 | `elastic_search_node_name: "elastic-search01.local"` | Elasticsearch ノード名を `elastic-search01.local` として設定し, Elasticsearch のクラスタ状態確認で識別可能にします。 | ノード名が未設定又は誤設定の場合, 運用時の識別性が低下し, 障害切り分けが難しくなるためです。 |
+| 2 | `elastic_search_node_name: "elasticsearch01.example.org"` | Elasticsearch ノード名を `elasticsearch01.example.org` として設定し, Elasticsearch のクラスタ状態確認で識別可能にします。 | ノード名が未設定又は誤設定の場合, 運用時の識別性が低下し, 障害切り分けが難しくなるためです。 |
 | 3 | `elastic_search_wait_delegate_to: "{{ inventory_hostname }}"` | 起動確認タスクを対象ホスト自身から実行します。 | 到達不能な接続元を設定した場合, 起動済みでも待受確認に失敗し, ロール実行が異常終了するためです。 |
 
 この例では, ノード名を対象ホスト名に合わせ, 起動確認の接続元を対象ホスト自身にします。
