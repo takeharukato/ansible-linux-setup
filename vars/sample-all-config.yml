@@ -190,6 +190,12 @@ common_selinux_state: "permissive"
 # DNS サーバの IPv6 アドレス
 # dns_server_ipv6_address: "fd69:6684:61a:1::11"
 #
+# 逆引きネットワーク(IPv4) (必須: DNS逆引きゾーン生成とDDNS逆引き更新に使用)
+# dns_ipv4_reverse: "20.168.192"
+#
+# 逆引きネットワーク(IPv6) (必須: DNS逆引きゾーン生成とDDNS逆引き更新に使用)
+# dns_ipv6_reverse: "1.0.0.0.a.1.6.0.4.8.6.6.9.6.d.f"
+#
 # 順引きゾーン名 (ドメイン名)
 # dns_domain: "example.org"
 #

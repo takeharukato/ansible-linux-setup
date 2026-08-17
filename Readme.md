@@ -322,6 +322,8 @@ ntp_servers_list:
 | --- | --- | --- | --- |
 | `dns_server_ipv4_address` | DNS サーバの IPv4 アドレス。 | `""` | `"192.168.20.11"` |
 | `dns_server_ipv6_address` |  DNS サーバの IPv6 アドレス。| `""` | `"fd00:1234:5678:1::11"` |
+| `dns_ipv4_reverse` | IPv4 逆引きゾーン名。 | `""` | `"20.168.192"` |
+| `dns_ipv6_reverse` | IPv6 逆引きゾーン名 (ニブル形式)。 | `""` | `"1.0.0.0.a.1.6.0.4.8.6.6.9.6.d.f"` |
 | `dns_domain` | 正引きゾーン名。ゾーンファイルの SOA, NS レコードを決定。 | `""` | `"example.org"` |
 | `dns_ddns_key_secret` | Dynamic DNS updateで使用する共通鍵(`ddns-confgen -a hmac-sha256 -k ddns-clients`で生成された値)を指定。 | `"Kdi362s+dCkToqo4F+JfwMK6yILQyn1mrqI1xfGqDfk="` |
 | `use_nm_ddns_update_scripts` | ip monitorコマンドでIPv6アドレス変更を監視する機能とNetwork Manager dispatcher経由でDynamic DNSでホスト名とIPアドレスをDNSに自動登録する機能を有効にする場合はtrueに設定。| 未定義 (`false`として扱う) | `true` |
@@ -1364,8 +1366,6 @@ Domain Name System (DNS) サーバを導入するホストの`host_vars`には, 
 | `dns_network_ipv6_prefix` | IPv6 ACL や逆引きゾーンの生成に使用するプレフィクス。 | `""` | `"fd00:1234:5678:1::"` |
 | `dns_network_ipv6_prefix_len` | IPv6 ネットワークプレフィクス長 。 | `""` | `64` |
 | `dns_host_list` | 順引き/逆引きレコードを生成するためのホスト定義リスト。 | `[]` | `dns_host_list`の設定例の節を参照。 |
-| `dns_ipv4_reverse` | IPv4 逆引きゾーン名。 | `""` | `"20.168.192"` |
-| `dns_ipv6_reverse` | IPv6 逆引きゾーン名 (ニブル形式)。 | `""` | `"1.0.0.0.a.1.6.0.4.8.6.6.9.6.d.f"` |
 | `internal_network_list` | 複数ネットワーク逆引きゾーン対応: 追加ネットワークのリスト。各要素は `{ipv4: "...", ipv6: "..."}` 形式。 | `[]` | `internal_network_list`の設定例の節を参照。 |
 
 ##### `dns_host_list`の設定例
