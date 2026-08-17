@@ -54,8 +54,60 @@ netif_list:
     name_server_ipv6_2: "{{ipv6_name_server2}}"
     dns_search: "example.org"
 
+# ======================================================
+# DNSサーバ導入設定 (条件的必須: DNSサーバ機能利用時)
+# 以下は, host_vars側で設定する
+# ======================================================
 #
-# Gitlab
+# DNSサーバ(bind)を導入する
+dns_dns_server_enabled: true
+# DNSサーバ名 (条件付き必須: dns-server roleが有効な場合に必須)
+dns_server: "ubuntu-server.example.org"
+# namedのACLに設定するIPv4ネットワークアドレス
+dns_network: "{{ network_ipv4_network_address }}"
+# ネットワークプレフィクス(IPv4)
+# 設定例: 192.168.20
+# 上記の後にドットをつけて, 固定IPアドレスのDNS登録を行うため,
+# 末尾にドットなどを付けないこと
+dns_network_ipv4_prefix: "{{ network_ipv4_prefix }}"
+# ネットワークプレフィクス長(IPv4)
+dns_network_ipv4_prefix_len: "{{ network_ipv4_prefix_len }}"
+# ネットワークプレフィクス(IPv6)
+dns_network_ipv6_prefix: "{{ network_ipv6_network_address }}"
+# ネットワークプレフィクス長(IPv6)
+dns_network_ipv6_prefix_len: "{{ network_ipv6_prefix_len }}"
+# IPv6逆引きファイル名
+dns_network_ipv6_prefix_filename: "fd69-6684-61a-1"
+# 逆引きネットワーク(IPv4) (必須: DNS逆引きゾーン生成とDDNS逆引き更新に使用)
+dns_ipv4_reverse: "20.168.192"
+# 逆引きネットワーク(IPv6) (必須: DNS逆引きゾーン生成とDDNS逆引き更新に使用)
+dns_ipv6_reverse: "1.0.0.0.a.1.6.0.4.8.6.6.9.6.d.f"
+
 #
+# LDAP設定
+#
+# LDAPサーバを導入する場合は, trueに設定する
+# host_vars側で設定し, vars/all-config.ymlには設定しないことを推奨
+ldap_enabled: true
+
+#
+# Redmine 設定
+#
+# Redmineサーバを導入する
+redmine_enabled: true
+
+#
+# Gitlab 設定
+#
+# GitLabを導入する
+gitlab_enabled: true
 # GitLabサーバのWEB UI公開URLのホスト名
 gitlab_hostname: "ubuntu-server.example.org"
+
+#
+# OpenGrok 設定
+#
+# OpenGrok サーバを導入する
+opengrok_enabled: true
+# ソース同期処理ユーザ
+opengrok_sync_user_list: []
