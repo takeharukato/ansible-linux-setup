@@ -32,7 +32,7 @@
         - [Kubernetesからローカルコンテナレジストリを使用するための設定](#kubernetesからローカルコンテナレジストリを使用するための設定)
         - [K8sクラスタ間の接続設定](#k8sクラスタ間の接続設定)
         - [FRRoutingの設定](#frroutingの設定)
-    - [Kubernetes API監査関連](#kubernetes-api監査関連)
+        - [Kubernetes API監査関連設定](#kubernetes-api監査関連設定)
         - [Cilium CNI](#cilium-cni)
         - [Cilium BGP Control Planeの設定](#cilium-bgp-control-planeの設定)
         - [`k8s_bgp`変数の`address_families`の要素を辞書として指定する場合の指定方法](#k8s_bgp変数のaddress_familiesの要素を辞書として指定する場合の指定方法)
@@ -824,7 +824,7 @@ K8sを構成するコントロールプレイン, ワーカーノードとは別
 |`frr_networks_v4`|BGPで広告するIPv4プレフィックスをCIDR表記のリストで指定します。|`['192.168.30.0/24', '192.168.90.0/24']`|
 |`frr_networks_v6`|BGPで広告するIPv6プレフィックスをCIDR表記のリストで指定します。|`['fd69:6684:61a:2::/64', 'fd69:6684:61a:90::/64']`|
 
-### Kubernetes API監査関連
+##### Kubernetes API監査関連設定
 
 Kubernetes API監査機能関連の設定変数を以下に記載します。
 
