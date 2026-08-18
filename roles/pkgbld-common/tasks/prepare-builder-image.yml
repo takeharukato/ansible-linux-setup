@@ -1,0 +1,79 @@
+#  -*- coding:utf-8-unix mode:yaml -*-
+#  Ansible playbook
+#
+#  builder image準備
+#
+
+---
+
+#
+# Debian系
+#
+
+# Debian系builder image用Dockerfileを構築ホストへ配置する
+- name: Copy Debian builder Dockerfile to build host workspace
+  ansible.builtin.copy:
+    src: "{{ pkgbld_builder_dockerfile_src_debian }}"
+    dest: "{{ package_build_workspace }}/Dockerfile.pkgbld.debian"
+    mode: "0644"
+  delegate_to: "{{ package_build_host }}"
+  run_once: true
+  when:
+    - hostvars['localhost'].pkgbld_has_debian_targets | default(false)
+    - pkgbld_builder_dockerfile_src_debian | default('') | length > 0
+
+# Debian系builder imageを生成する
+- name: Build Debian builder container image
+  ansible.builtin.command:
+    argv:
+      - "{{ pkgbld_container_runtime }}"
+      - build
+      - --network
+      - "{{ pkgbld_container_network_mode }}"
+      - -t
+      - "{{ pkgbld_builder_image_debian }}"
+      - -f
+      - "{{ package_build_workspace }}/Dockerfile.pkgbld.debian"
+      - "{{ package_build_workspace }}"
+  delegate_to: "{{ package_build_host }}"
+  run_once: true
+  changed_when: true
+  when:
+    - hostvars['localhost'].pkgbld_has_debian_targets | default(false)
+    - pkgbld_builder_dockerfile_src_debian | default('') | length > 0
+
+#
+# RedHat 系
+#
+
+# RedHat系builder image用Dockerfileを構築ホストへ配置する
+- name: Copy RedHat builder Dockerfile to build host workspace
+  ansible.builtin.copy:
+    src: "{{ pkgbld_builder_dockerfile_src_rhel }}"
+    dest: "{{ package_build_workspace }}/Dockerfile.pkgbld.rhel"
+    mode: "0644"
+  delegate_to: "{{ package_build_host }}"
+  run_once: true
+  when:
+    - hostvars['localhost'].pkgbld_has_redhat_targets | default(false)
+    - pkgbld_builder_dockerfile_src_rhel | default('') | length > 0
+
+# RedHat系builder imageを生成する
+- name: Build RedHat builder container image
+  ansible.builtin.command:
+    argv:
+      - "{{ pkgbld_container_runtime }}"
+      - build
+      - --network
+      - "{{ pkgbld_container_network_mode }}"
+      - -t
+      - "{{ pkgbld_builder_image_rhel }}"
+      - -f
+      - "{{ package_build_workspace }}/Dockerfile.pkgbld.rhel"
+      - "{{ package_build_workspace }}"
+  delegate_to: "{{ package_build_host }}"
+  run_once: true
+  changed_when: true
+  when:
+    - hostvars['localhost'].pkgbld_has_redhat_targets | default(false)
+    - pkgbld_builder_dockerfile_src_rhel | default('') | length > 0

@@ -57,6 +57,20 @@ pkgbld_build_script_mode: "0755"
 pkgbld_container_env_args: []
 
 #
+# Dockerfile関連
+#
+# Debian系builder imageを生成するDockerfile。
+# 空の場合は既存builder imageをそのまま使用する。
+pkgbld_builder_dockerfile_src_debian: ""
+
+# RedHat系builder imageを生成するDockerfile。
+# 空の場合は既存builder imageをそのまま使用する。
+pkgbld_builder_dockerfile_src_rhel: ""
+
+# trueの場合はbuilder imageが呼び出し側ですでに生成済みであることを示す。
+pkgbld_builder_image_prepared: false
+
+#
 # 生成パッケージ関連設定
 #
 # 入力検証用のパッケージ形式。実行時のOS分岐はansible_facts.os_familyで判定。

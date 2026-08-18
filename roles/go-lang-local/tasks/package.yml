@@ -68,6 +68,8 @@
         - not (go_installation_skipped | default(false))
         - not (ansible_check_mode | bool)
       block:
+
+        # 制御ホスト上に構築用のディレクトリを作成する
         - name: Create configured go build workspace on controller
           ansible.builtin.file:
             path: "{{ go_build_workspace_effective }}"
@@ -76,6 +78,7 @@
           delegate_to: localhost
           become: false
 
+        # 構築用作業ディレクトリが書き込み可能であることを確認する
         - name: Verify configured go build workspace is writable on controller
           ansible.builtin.command:
             argv:
@@ -93,6 +96,7 @@
             go_build_workspace_effective: >-
               /tmp/go-build-fallback-{{ lookup('env', 'USER') | default('ansible', true) }}
 
+        # ユーザごとの構築用ディレクトリを作成し書き込み可能であることを保証する
         - name: Create fallback go build workspace on controller
           ansible.builtin.file:
             path: "{{ go_build_workspace_effective }}"
@@ -101,6 +105,7 @@
           delegate_to: localhost
           become: false
 
+        # 作成したディレクトリに書き込み可能であることを確認する
         - name: Verify fallback go build workspace is writable on controller
           ansible.builtin.command:
             argv:
@@ -112,6 +117,10 @@
           delegate_to: localhost
           become: false
           changed_when: false
+
+    #
+    # buildスクリプト生成
+    #
 
     # 制御ホストでbuildスクリプトを生成し, pkgbld-commonが構築ホストへコピーする
     - name: Render go deb build script on controller for pkgbld-common
@@ -139,7 +148,39 @@
         - not (go_installation_skipped | default(false))
         - not (ansible_check_mode | bool)
 
+    #
+    # Dockerfile生成
+    #
+
+    # 制御ホストでDebian系builder Dockerfileを生成する
+    - name: Render go deb builder Dockerfile on controller for pkgbld-common
+      ansible.builtin.template:
+        src: Dockerfile.ubuntu.j2
+        dest: "{{ go_build_workspace_effective }}/Dockerfile.go-deb"
+        mode: "0644"
+      delegate_to: localhost
+      become: false
+      run_once: true
+      when:
+        - not (go_installation_skipped | default(false))
+        - not (ansible_check_mode | bool)
+
+    # 制御ホストでRedHat系builder Dockerfileを生成する
+    - name: Render go rpm builder Dockerfile on controller for pkgbld-common
+      ansible.builtin.template:
+        src: Dockerfile.almalinux.j2
+        dest: "{{ go_build_workspace_effective }}/Dockerfile.go-rpm"
+        mode: "0644"
+      delegate_to: localhost
+      become: false
+      run_once: true
+      when:
+        - not (go_installation_skipped | default(false))
+        - not (ansible_check_mode | bool)
+
+    #
     # Goパッケージを構築ホストで作成して導入する
+    #
     - name: Build and install go local packages via pkgbld-common # noqa var-naming[no-role-prefix]
       ansible.builtin.include_role:
         name: pkgbld-common
@@ -151,6 +192,8 @@
         pkgbld_container_network_mode: "{{ go_build_container_network_mode }}"
         pkgbld_builder_image_debian: "{{ go_build_container_image_debian }}"
         pkgbld_builder_image_rhel: "{{ go_build_container_image_rhel }}"
+        pkgbld_builder_dockerfile_src_debian: "{{ go_build_workspace_effective }}/Dockerfile.go-deb"
+        pkgbld_builder_dockerfile_src_rhel: "{{ go_build_workspace_effective }}/Dockerfile.go-rpm"
         pkgbld_container_workdir: "{{ go_build_container_workdir }}"
         pkgbld_container_output_dir: "{{ go_build_container_workdir }}/output"
         pkgbld_build_script_src_debian: "{{ go_build_workspace_effective }}/build-go-deb.sh"

@@ -259,34 +259,36 @@
 9: pkgbld_container_network_mode: "host"
 10: pkgbld_builder_image_debian: "example-build-ubuntu:24.04"
 11: pkgbld_builder_image_rhel: "example-build-almalinux:9.6"
-12: pkgbld_container_workdir: "/work"
-13: pkgbld_container_output_dir: "/work/output"
-14: pkgbld_build_script_src_debian: "/tmp/example-build/build-example-deb.sh"
-15: pkgbld_build_script_name_debian: "build-example-deb.sh"
-16: pkgbld_build_script_src_rhel: "/tmp/example-build/build-example-rpm.sh"
-17: pkgbld_build_script_name_rhel: "build-example-rpm.sh"
-18: pkgbld_build_script_args: []
-19: pkgbld_container_env_args: []
-20: pkgbld_package_type: "deb"
-21: pkgbld_package_name: "example"
-22: pkgbld_package_file_patterns_debian:
-23: - "example_*.deb"
-24: pkgbld_package_file_patterns_rhel:
-25: - "example-*.rpm"
-26: package_targets:
-27: - "target-host-01.example.local"
-28: - "target-host-02.example.local"
-29: pkgbld_install_dest_dir: "/tmp"
+12: pkgbld_builder_dockerfile_src_debian:"/tmp/example-build/Dockerfile.deb"
+13: pkgbld_builder_dockerfile_src_rhel:"/tmp/example-build/Dockerfile.rhel"
+14: pkgbld_container_workdir: "/work"
+15: pkgbld_container_output_dir: "/work/output"
+16: pkgbld_build_script_src_debian: "/tmp/example-build/build-example-deb.sh"
+17: pkgbld_build_script_name_debian: "build-example-deb.sh"
+18: pkgbld_build_script_src_rhel: "/tmp/example-build/build-example-rpm.sh"
+19: pkgbld_build_script_name_rhel: "build-example-rpm.sh"
+20: pkgbld_build_script_args: []
+21: pkgbld_container_env_args: []
+22: pkgbld_package_type: "deb"
+23: pkgbld_package_name: "example"
+24: pkgbld_package_file_patterns_debian:
+25: - "example_*.deb"
+26: pkgbld_package_file_patterns_rhel:
+27: - "example-*.rpm"
+28: package_targets:
+29: - "target-host-01.example.local"
+30: - "target-host-02.example.local"
+31: pkgbld_install_dest_dir: "/tmp"
 ```
 
 上記例の各行での記載内容は以下の通り:
 
 - 1-3 行目: は, `pkgbld-common` ロール呼び出し処理を実施するための記載です。
 - 5-7 行目: は, 構築ホスト, 作業ディレクトリ, パッケージ成果物出力ディレクトリを指定するための設定です。
-- 8-13 行目: は, コンテナ実行方式, ネットワーク共有方式, パッケージ作成用コンテナイメージ, コンテナ内作業ディレクトリを指定するための設定です。
-- 14-19 行目: は, OS別の成果物作成用シェルスクリプト設定, 実行引数, 環境変数引数を指定するための設定です。
-- 20-25 行目: は, パッケージ形式, パッケージ名, パッケージ成果物探索パターンを指定するための設定です。
-- 26-29 行目: は, OSターゲット有無判定用のホスト配列と導入先ディレクトリを指定するための設定です。
+- 8-15 行目: は, コンテナ実行方式, ネットワーク共有方式, パッケージ作成用コンテナイメージ, コンテナイメージ作成用Dockerfile, コンテナ内作業ディレクトリを指定するための設定です。
+- 16-21 行目: は, OS別の成果物作成用シェルスクリプト設定, 実行引数, 環境変数引数を指定するための設定です。
+- 22-27 行目: は, パッケージ形式, パッケージ名, パッケージ成果物探索パターンを指定するための設定です。
+- 29-31 行目: は, OSターゲット有無判定用のホスト配列と導入先ディレクトリを指定するための設定です。
 
 ### 各パラメタ変数に設定する値
 
@@ -294,7 +296,8 @@
 | --- | --- | --- |
 | 構築実行 | package_build_host, package_build_workspace, package_build_output_dir | 構築ホスト, 作業ディレクトリ, パッケージ成果物出力ディレクトリを指定します。 |
 | 構築実行 | pkgbld_container_runtime, pkgbld_container_network_mode | パッケージ作成用コンテナの実行方式とネットワーク共有方式を指定します。 |
-| 構築実行 | pkgbld_builder_image_debian, pkgbld_builder_image_rhel | Debian系統向けパッケージ作成用コンテナイメージ名, Red Hat系統向けパッケージ作成用コンテナイメージ名を指定します。本ロールでは, 指定されたイメージを`pkgbld_container_runtime`変数で指定されたコンテナランタイム(`docker`など)を用いて起動し, コンテナ内でパッケージの構築を行う。|
+| 構築実行 | pkgbld_builder_image_debian, pkgbld_builder_image_rhel | Debian系統向けパッケージ作成用コンテナイメージ名, Red Hat系統向けパッケージ作成用コンテナイメージ名を指定します。本ロールでは, 指定されたイメージを`pkgbld_container_runtime`変数で指定されたコンテナランタイム(`docker`など)を用いて起動し, コンテナ内でパッケージの構築を行います。|
+| 構築実行 | pkgbld_builder_dockerfile_src_debian, pkgbld_builder_dockerfile_src_rhel | Debian系統向けパッケージ作成用コンテナイメージ作成用Dockerfile, Red Hat系統向けパッケージ作成用コンテナイメージ作成用Dockerfileを指定します。|
 | 構築実行 | pkgbld_build_script_src_debian, pkgbld_build_script_name_debian, pkgbld_build_script_src_rhel, pkgbld_build_script_name_rhel | 呼び出し側が生成したOS別の成果物作成用シェルスクリプトの配置元とスクリプト名を指定します。 |
 | 構築実行 | pkgbld_build_script_src, pkgbld_build_script_name | 互換用途の共通指定値。OS別変数未指定時のフォールバックとして使う。 |
 | 構築実行 | pkgbld_container_env_args | 成果物作成用シェルスクリプトへ渡す環境変数引数を配列で明示します。 |
@@ -378,6 +381,8 @@ Debian/Ubuntuホストに対し, 前掲のパラメタで本ロールを呼び�
     pkgbld_container_network_mode: "host"
     pkgbld_builder_image_debian: "go-build-ubuntu:24.04"
     pkgbld_builder_image_rhel: "go-build-almalinux:9.6"
+    pkgbld_builder_dockerfile_src_debian: "/tmp/go-build/Dockerfile.deb"
+    pkgbld_builder_dockerfile_src_rhel: "/tmp/go-build/Dockerfile.rhel"
     pkgbld_container_workdir: "/work"
     pkgbld_container_output_dir: "/work/output"
     pkgbld_build_script_src_debian: "/tmp/go-build/build-go-deb.sh"
@@ -438,6 +443,8 @@ RHEL(AlmaLinuxなど)ホストに対し, 前掲のパラメタで本ロールを
     pkgbld_container_network_mode: "host"
     pkgbld_builder_image_debian: "go-build-ubuntu:24.04"
     pkgbld_builder_image_rhel: "go-build-almalinux:9.6"
+    pkgbld_builder_dockerfile_src_debian: "/tmp/go-build/Dockerfile.deb"
+    pkgbld_builder_dockerfile_src_rhel: "/tmp/go-build/Dockerfile.rhel"
     pkgbld_container_workdir: "/work"
     pkgbld_container_output_dir: "/work/output"
     pkgbld_build_script_src_debian: "/tmp/go-build/build-go-deb.sh"

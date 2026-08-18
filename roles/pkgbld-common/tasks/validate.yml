@@ -126,6 +126,62 @@
   delegate_facts: true
   run_once: true
 
+#
+# Dockerfileの確認
+#
+
+# Debian系builder Dockerfileの元ファイルが制御ホスト上に存在するか確認する
+- name: Validate Debian builder Dockerfile exists on controller
+  ansible.builtin.stat:
+    path: "{{ pkgbld_builder_dockerfile_src_debian }}"
+  register: pkgbld_builder_dockerfile_src_stat_debian
+  delegate_to: localhost
+  become: false
+  run_once: true
+  when:
+    - hostvars['localhost'].pkgbld_has_debian_targets | default(false)
+    - pkgbld_builder_dockerfile_src_debian | default('') | length > 0
+
+# Debian系builder Dockerfileが存在しない場合は停止する
+- name: Fail when Debian builder Dockerfile does not exist on controller
+  ansible.builtin.fail:
+    msg: >-
+      Debian builder Dockerfile does not exist on controller:
+      {{ pkgbld_builder_dockerfile_src_debian }}
+  run_once: true
+  when:
+    - hostvars['localhost'].pkgbld_has_debian_targets | default(false)
+    - pkgbld_builder_dockerfile_src_debian | default('') | length > 0
+    - not (pkgbld_builder_dockerfile_src_stat_debian.stat.exists | default(false))
+
+# RedHat系builder Dockerfileの元ファイルが制御ホスト上に存在するか確認する
+- name: Validate RedHat builder Dockerfile exists on controller
+  ansible.builtin.stat:
+    path: "{{ pkgbld_builder_dockerfile_src_rhel }}"
+  register: pkgbld_builder_dockerfile_src_stat_rhel
+  delegate_to: localhost
+  become: false
+  run_once: true
+  when:
+    - hostvars['localhost'].pkgbld_has_redhat_targets | default(false)
+    - pkgbld_builder_dockerfile_src_rhel | default('') | length > 0
+
+# RedHat系builder Dockerfileが存在しない場合は停止する
+- name: Fail when RedHat builder Dockerfile does not exist on controller
+  ansible.builtin.fail:
+    msg: >-
+      RedHat builder Dockerfile does not exist on controller:
+      {{ pkgbld_builder_dockerfile_src_rhel }}
+  run_once: true
+  when:
+    - hostvars['localhost'].pkgbld_has_redhat_targets | default(false)
+    - pkgbld_builder_dockerfile_src_rhel | default('') | length > 0
+    - not (pkgbld_builder_dockerfile_src_stat_rhel.stat.exists | default(false))
+
+#
+# buildスクリプトの確認
+#
+
 # build スクリプトの元ファイルが制御ホスト上に存在するかを確認する
 - name: Validate build script exists on controller
   ansible.builtin.stat:

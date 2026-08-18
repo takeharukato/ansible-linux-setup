@@ -92,6 +92,10 @@
           become: false
           changed_when: false
 
+    #
+    # 構築スクリプト生成
+    #
+
     # Go k8s client 構築スクリプトを生成する (Debian/Ubuntu用)
     - name: Render go k8s client deb build script on controller for pkgbld-common
       ansible.builtin.template:
@@ -112,7 +116,33 @@
       become: false
       run_once: true
 
+    #
+    # Dockerfile生成
+    #
+
+    # Go k8s client builder Dockerfileを生成する (Debian/Ubuntu用)
+    - name: Render go k8s client deb builder Dockerfile on controller for pkgbld-common
+      ansible.builtin.template:
+        src: Dockerfile.ubuntu.j2
+        dest: "{{ go_k8s_client_build_workspace_effective }}/Dockerfile.go-k8s-client-deb"
+        mode: "0644"
+      delegate_to: localhost
+      become: false
+      run_once: true
+
+    # Go k8s client builder Dockerfileを生成する (RHEL系用)
+    - name: Render go k8s client rpm builder Dockerfile on controller for pkgbld-common
+      ansible.builtin.template:
+        src: Dockerfile.almalinux.j2
+        dest: "{{ go_k8s_client_build_workspace_effective }}/Dockerfile.go-k8s-client-rpm"
+        mode: "0644"
+      delegate_to: localhost
+      become: false
+      run_once: true
+
+    #
     # Go k8s client パッケージ構築処理を pkgbld-common に委譲し, 構築ホストで導入する
+    #
     - name: Build and install go k8s client local packages via pkgbld-common # noqa var-naming[no-role-prefix]
       ansible.builtin.include_role:
         name: pkgbld-common
@@ -124,6 +154,10 @@
         pkgbld_container_network_mode: "{{ go_k8s_client_build_container_network_mode }}"
         pkgbld_builder_image_debian: "{{ go_k8s_client_build_container_image_debian }}"
         pkgbld_builder_image_rhel: "{{ go_k8s_client_build_container_image_rhel }}"
+        pkgbld_builder_dockerfile_src_debian: >-
+          {{ go_k8s_client_build_workspace_effective }}/Dockerfile.go-k8s-client-deb
+        pkgbld_builder_dockerfile_src_rhel: >-
+          {{ go_k8s_client_build_workspace_effective }}/Dockerfile.go-k8s-client-rpm
         pkgbld_container_workdir: "{{ go_k8s_client_build_container_workdir }}"
         pkgbld_container_output_dir: "{{ go_k8s_client_build_container_workdir }}/output"
         pkgbld_build_script_src_debian: "{{ go_k8s_client_build_workspace_effective }}/build-k8s-client-go-deb.sh"

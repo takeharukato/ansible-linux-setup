@@ -13,6 +13,12 @@
 - name: Prepare build workdir
   ansible.builtin.include_tasks: prepare-build-workdir.yml
 
+# 必要に応じてbuilder imageを生成する
+- name: Prepare builder image
+  ansible.builtin.include_tasks: prepare-builder-image.yml
+  when:
+    - not (pkgbld_builder_image_prepared | default(false) | bool)
+
 # 構築ホストでビルド用コンテナを起動する
 - name: Run build container
   ansible.builtin.include_tasks: run-build-container.yml
