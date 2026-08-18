@@ -196,14 +196,7 @@
               | string
               | trim
             }}
-          - >-
-            {{
-              (ansible_facts.os_family == 'Debian')
-              | ternary(
-                python_k8s_client_build_container_image_debian,
-                python_k8s_client_build_container_image_rhel
-              )
-            }}
+          - "{{ python_k8s_client_version_resolver_image }}"
           - /bin/bash
           - -lc
           - |-

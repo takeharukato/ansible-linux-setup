@@ -48,3 +48,12 @@ python_k8s_client_build_container_image_debian: "python-k8s-client-build-ubuntu:
 python_k8s_client_build_container_image_rhel: "python-k8s-client-build-almalinux:9.6"
 # コンテナ内で構築作業を行う作業ディレクトリ
 python_k8s_client_build_container_workdir: "/work"
+
+#
+# 内部変数
+#
+# Python Kubernetes client の期待バージョン解決に使用するコンテナイメージ
+# OSに依存せず, PyPI側の版数情報にのみ依存するので, Debian側のイメージで
+# 確認すればよい
+python_k8s_client_version_resolver_image: >-
+  {{ python_k8s_client_build_container_image_debian }}
