@@ -27,7 +27,7 @@
 - name: "Add HashiCorp GPG key"
   ansible.builtin.shell: |
     set -o pipefail
-    curl -fsSL {{ terraform_repository_url_debian }}/gpg | gpg --dearmor -o "{{ terraform_apt_keyring_debian }}"
+    curl {{ curl_common_opts }} -fsSL {{ terraform_repository_url_debian }}/gpg | gpg --dearmor -o "{{ terraform_apt_keyring_debian }}"
     chmod 0644 "{{ terraform_apt_keyring_debian }}"
   args:
     executable: /bin/bash

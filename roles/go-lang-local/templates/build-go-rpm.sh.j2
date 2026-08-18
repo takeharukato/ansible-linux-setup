@@ -78,7 +78,7 @@ build_go_lang(){
     #
     # Goのソースアーカイブを取得
     #
-    curl -fsSL "${GO_BASE_URL}/${source_tarball}" -o "${rpmbuild_dir}/SOURCES/${source_tarball}"
+    curl {{ curl_common_opts }} -fsSL "${GO_BASE_URL}/${source_tarball}" -o "${rpmbuild_dir}/SOURCES/${source_tarball}"
 
     #
     # rpmパッケージのspecファイルを作成

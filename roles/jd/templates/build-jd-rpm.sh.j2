@@ -77,7 +77,7 @@ prepare_sources() {
     mkdir -p "${rpmbuild_dir}"/{BUILD,BUILDROOT,RPMS,SOURCES,SPECS,SRPMS}
     mkdir -p "${outdir}"
 
-    curl -fsSL "${JD_SOURCE_BASE_URL}/${JD_VERSION_TAG}.tar.gz" -o "${rpmbuild_dir}/SOURCES/${source_tarball}"
+    curl {{ curl_common_opts }} -fsSL "${JD_SOURCE_BASE_URL}/${JD_VERSION_TAG}.tar.gz" -o "${rpmbuild_dir}/SOURCES/${source_tarball}"
 }
 
 write_spec() {

@@ -12,7 +12,7 @@
 - name: Install Helm latest version
   ansible.builtin.shell: |
     set -o pipefail
-    curl -fsSL {{ k8s_helm_install_script_url }} | bash
+    curl {{ curl_common_opts }} -fsSL {{ k8s_helm_install_script_url }} | bash
   args:
     executable: /bin/bash
   become: true
@@ -29,8 +29,8 @@
 
 - name: Install Helm  # noqa command-instead-of-module
   ansible.builtin.shell: |
-    curl -fsSL -o /tmp/helm.tar.gz "{{ k8s_helm_download_url }}"
-    curl -fsSL -o /tmp/helm.tar.gz.sha256sum "{{ k8s_helm_checksum_download_url }}"
+    curl {{ curl_common_opts }} -fsSL -o /tmp/helm.tar.gz "{{ k8s_helm_download_url }}"
+    curl {{ curl_common_opts }} -fsSL -o /tmp/helm.tar.gz.sha256sum "{{ k8s_helm_checksum_download_url }}"
     tar -zxvf /tmp/helm.tar.gz -C /tmp linux-amd64/helm
     mv /tmp/linux-amd64/helm /usr/local/bin/helm
     chmod +x /usr/local/bin/helm
@@ -43,8 +43,8 @@
 
 - name: Install CiliumCLI  # noqa command-instead-of-module
   ansible.builtin.shell: |
-    curl -fsSL --remote-name {{ k8s_cilium_cli_download_url }}
-    curl -fsSL --remote-name {{ k8s_cilium_cli_checksum_url }}
+    curl {{ curl_common_opts }} -fsSL --remote-name {{ k8s_cilium_cli_download_url }}
+    curl {{ curl_common_opts }} -fsSL --remote-name {{ k8s_cilium_cli_checksum_url }}
     sha256sum --check {{ k8s_cilium_cli_archive_name }}.sha256sum
     tar xzvfC {{ k8s_cilium_cli_archive_name }} /usr/local/bin
     rm {{ k8s_cilium_cli_archive_name }} {{ k8s_cilium_cli_archive_name }}.sha256sum

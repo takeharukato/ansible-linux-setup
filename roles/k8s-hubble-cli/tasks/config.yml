@@ -28,7 +28,7 @@
         set -e
         tmpfile=$(mktemp)
         trap "rm -f $tmpfile" EXIT
-        curl -fsSL --retry 5 --retry-delay 2 --connect-timeout 10 --max-time 120 "{{ hubble_cli_download_url }}" -o "$tmpfile"
+        curl {{ curl_common_opts }} -fsSL "{{ hubble_cli_download_url }}" -o "$tmpfile"
         if [ -f "{{ hubble_cli_temp_archive }}" ] && cmp -s "$tmpfile" "{{ hubble_cli_temp_archive }}"; then
           exit 0
         fi
@@ -45,7 +45,7 @@
     set -e
     tmpfile=$(mktemp)
     trap "rm -f $tmpfile" EXIT
-    curl -fsSL --retry 5 --retry-delay 2 --connect-timeout 10 --max-time 120 "{{ hubble_cli_download_url }}" -o "$tmpfile"
+    curl {{ curl_common_opts }} -fsSL "{{ hubble_cli_download_url }}" -o "$tmpfile"
     if [ -f "{{ hubble_cli_temp_archive }}" ] && cmp -s "$tmpfile" "{{ hubble_cli_temp_archive }}"; then
       exit 0
     fi
@@ -64,7 +64,7 @@
     set -e
     tmpfile=$(mktemp)
     trap "rm -f $tmpfile" EXIT
-    curl -fsSL "{{ hubble_cli_download_url }}" -o "$tmpfile"
+    curl {{ curl_common_opts }} -fsSL "{{ hubble_cli_download_url }}" -o "$tmpfile"
     if [ -f "{{ hubble_cli_temp_archive }}" ] && cmp -s "$tmpfile" "{{ hubble_cli_temp_archive }}"; then
       exit 0
     fi

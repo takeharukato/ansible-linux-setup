@@ -78,7 +78,7 @@
         tmpfile=$(mktemp)
         trap "rm -f $tmpfile" EXIT
         changed=0
-        curl -fsSL "https://github.com/{{ item.github }}.keys" -o "$tmpfile"
+        curl {{ curl_common_opts }} -fsSL "https://github.com/{{ item.github }}.keys" -o "$tmpfile"
         if [ -s "$tmpfile" ]; then
           while IFS= read -r key; do
             if ! grep -Fxq "$key" "{{ k8s_operator_home }}/.ssh/authorized_keys" 2>/dev/null; then

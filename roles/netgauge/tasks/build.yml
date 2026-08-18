@@ -27,7 +27,7 @@
     if [ -d "{{ netgauge_build_dir.stdout }}" ]; then
       cwd=`pwd`
       cd "{{ netgauge_build_dir.stdout }}"
-      curl -fsSOL "{{ netgauge_URL }}" -o "{{ netgauge_build_dir.stdout }}/{{ netgauge_archive }}"
+      curl {{ curl_common_opts }} -fsSOL "{{ netgauge_URL }}" -o "{{ netgauge_build_dir.stdout }}/{{ netgauge_archive }}"
       if [ -f "{{ netgauge_build_dir.stdout }}/{{ netgauge_archive }}" ]; then
         tar xf "{{ netgauge_archive }}"
       fi

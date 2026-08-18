@@ -38,6 +38,18 @@ pkg_mgr_is_rhel: "{{ pkg_mgr_family == 'rhel' }}"
 apt_install_opts: "-y --no-install-recommends"
 dnf_install_opts: "-y --setopt=timeout=30 --setopt=minrate=10240 --setopt=install_weak_deps=False"
 
+#
+# curl 標準オプション
+# --retry 5:
+#   一時的な通信エラーや一部のHTTPエラー
+#   (408, 429, 500, 502, 503, 504など) 発生時に最大5回再試行する。
+# --retry-all-errors:
+#   --retryが対象とするエラーに加え, curlがエラーと判断したすべての
+#   エラーを再試行対象とする。
+# --connect-timeout 15:
+#   サーバーとの接続確立に許容する最大時間を15秒とする。
+#
+curl_common_opts: "--retry 5 --retry-all-errors --connect-timeout 15"
 ########################################################################################
 # URLモジュール( get_url / uri / authorized_key URL取得 )HTTPS健全性チェック設定
 ########################################################################################

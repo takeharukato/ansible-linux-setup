@@ -83,7 +83,7 @@ build_yq_binary() {
         rm -rf "${src_dir:?}"
     fi
 
-    curl -fsSL "${YQ_SOURCE_BASE_URL}/${YQ_VERSION_TAG}.tar.gz" -o "${src_tarball}"
+    curl {{ curl_common_opts }} -fsSL "${YQ_SOURCE_BASE_URL}/${YQ_VERSION_TAG}.tar.gz" -o "${src_tarball}"
     tar -xzf "${src_tarball}" -C "${workdir}"
 
     cd "${src_dir}"

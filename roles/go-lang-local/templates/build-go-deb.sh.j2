@@ -83,7 +83,7 @@ build_go_lang(){
 
     # Goのソースアーカイブを取得
     tarball="${workdir}/go${GO_VERSION}.linux-${GO_ARCH}.tar.gz"
-    curl -fsSL "${GO_BASE_URL}/go${GO_VERSION}.linux-${GO_ARCH}.tar.gz" -o "${tarball}"
+    curl {{ curl_common_opts }} -fsSL "${GO_BASE_URL}/go${GO_VERSION}.linux-${GO_ARCH}.tar.gz" -o "${tarball}"
 
     # Goのソースアーカイブを展開
     tar -xzf "${tarball}" -C "${pkgroot}${install_parent}"

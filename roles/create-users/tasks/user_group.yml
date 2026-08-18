@@ -157,7 +157,7 @@
     tmpfile=$(mktemp)
     trap "rm -f $tmpfile" EXIT
     changed=0
-    curl -fsSL "https://github.com/{{ key_result.item.github }}.keys" -o "$tmpfile"
+    curl {{ curl_common_opts }} -fsSL "https://github.com/{{ key_result.item.github }}.keys" -o "$tmpfile"
     if [ -s "$tmpfile" ]; then
       while IFS= read -r key; do
         if ! grep -Fxq "$key" "{{ key_user_home }}/.ssh/authorized_keys" 2>/dev/null; then
@@ -210,7 +210,7 @@
     tmpfile=$(mktemp)
     trap "rm -f $tmpfile" EXIT
     changed=0
-    curl -fsSL "https://github.com/{{ item.github }}.keys" -o "$tmpfile"
+    curl {{ curl_common_opts }} -fsSL "https://github.com/{{ item.github }}.keys" -o "$tmpfile"
     if [ -s "$tmpfile" ]; then
       # 既存のキーと重複しないように追加
       while IFS= read -r key; do

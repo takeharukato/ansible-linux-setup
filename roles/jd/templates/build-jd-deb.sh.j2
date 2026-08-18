@@ -73,7 +73,7 @@ build_jd_binary() {
         rm -rf "${src_dir:?}"
     fi
 
-    curl -fsSL "${JD_SOURCE_BASE_URL}/${JD_VERSION_TAG}.tar.gz" -o "${src_tarball}"
+    curl {{ curl_common_opts }} -fsSL "${JD_SOURCE_BASE_URL}/${JD_VERSION_TAG}.tar.gz" -o "${src_tarball}"
     tar -xzf "${src_tarball}" -C "${workdir}"
 
     export CGO_ENABLED=0

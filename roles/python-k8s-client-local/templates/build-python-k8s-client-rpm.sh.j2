@@ -117,7 +117,7 @@ build_rpm(){
 
     # ソースアーカイブをSOURCESに取得する
     source_url="https://github.com/kubernetes-client/python/archive/v${package_version}.tar.gz"
-    curl -fL "${source_url}" -o "${source_tarball_path}"
+    curl {{ curl_common_opts }} -fL "${source_url}" -o "${source_tarball_path}"
 
     #
     # rpmパッケージを作成する

@@ -18,6 +18,7 @@
 set -eu
 
 # /reindex は Authorization ヘッダ必須のため, 固定の任意文字列を付与する。
+# localhostへの接続確認であるため, curl_common_optsは使用しない。
 exec curl --fail --show-error --silent \
   -H "Authorization: Bearer trigger" \
   "http://127.0.0.1:{{ opengrok_reindex_service_port }}/reindex"
