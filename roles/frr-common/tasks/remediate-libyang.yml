@@ -1,11 +1,11 @@
-#  -*- coding:utf-8 mode:yaml -*-
+#  -*- coding:utf-8-unix mode:yaml -*-
 #  Ansible playbook
 #  Copyright 2020 Takeharu KATO All Rights Reserved.
 #
 #  Debian/Ubuntu用libyang構築・導入処理
 #
 #  コンパイル時のlibyangシンボル不足時と導入後のlibyangシンボル不足時の
-#  で双方で必要となる共通処理を実装
+#  双方で必要となる共通処理を実装
 #
 ---
 
@@ -17,12 +17,13 @@
   block:
 
     # ターゲットホスト上で使用すべきランタイムパッケージ名を判定する
-    # Ubuntu 24.04 系では libyang2t64 が既定になるため, build host 側ではなく
-    # target 側の実状態に合わせる
+    # Ubuntu 24.04 系では libyang2t64 が既定になるため,
+    # build host側ではなくtarget側の実状態に合わせる
     - name: Detect libyang runtime package variant on target host ({{ frr_libyang_phase_label }})
       ansible.builtin.shell: >-
         set -o pipefail;
-        if dpkg-query -W -f='${Status}' libyang2t64 2>/dev/null | grep -q 'install ok installed'; then
+        if dpkg-query -W -f='${Status}' libyang2t64 2>/dev/null |
+          grep -q 'install ok installed'; then
           echo libyang2t64;
         else
           echo libyang2;
@@ -35,200 +36,16 @@
     # ターゲットホスト上で使用すべきランタイムパッケージ名を変数に格納する
     - name: Set libyang runtime package variant fact ({{ frr_libyang_phase_label }})
       ansible.builtin.set_fact:
-        frr_libyang_runtime_pkg_name: "{{ frr_libyang_runtime_pkg_detect_cmd.stdout | trim }}"
+        frr_libyang_runtime_pkg_name: >-
+          {{ frr_libyang_runtime_pkg_detect_cmd.stdout | trim }}
 
-    # libyangのインストール処理スクリプトを構築ホストに配置する
-    - name: Render libyang installer script on build host ({{ frr_libyang_phase_label }})
-      ansible.builtin.template:
-        src: install-libyang.sh.j2
-        dest: /tmp/install-libyang.sh
-        mode: "0755"
-      delegate_to: "{{ frr_build_host }}"
-      run_once: true
-
-    # libyang構築処理スクリプトを構築ホストに配置する
-    - name: Render libyang runtime control template on build host ({{ frr_libyang_phase_label }})
-      ansible.builtin.template:
-        src: install-libyang-runtime.control.j2
-        dest: /tmp/install-libyang-runtime.control.in
-        mode: "0644"
-      delegate_to: "{{ frr_build_host }}"
-      run_once: true
-
-    # libyang deb パッケージの制御ファイルを構築ホストに配置する
-    - name: Render libyang dev control template on build host ({{ frr_libyang_phase_label }})
-      ansible.builtin.template:
-        src: install-libyang-dev.control.j2
-        dest: /tmp/install-libyang-dev.control.in
-        mode: "0644"
-      delegate_to: "{{ frr_build_host }}"
-      run_once: true
-
-    # libyang導入処理スクリプトを構築ホストで実行
-    - name: Build compatible libyang deb packages on build host ({{ frr_libyang_phase_label }})
-      ansible.builtin.command:
-        argv:
-          - /bin/bash
-          - /tmp/install-libyang.sh
-      environment:
-        LIBYANG_RUNTIME_PKG: "{{ frr_libyang_runtime_pkg_name }}"
-      delegate_to: "{{ frr_build_host }}"
-      run_once: true
-      register: frr_libyang_build_cmd
-      changed_when: frr_libyang_build_cmd.rc == 0
-
-    # libyang deb パッケージの成果物を構築ホストから取得する
-    - name: Discover rebuilt libyang deb packages on build host ({{ frr_libyang_phase_label }})
-      ansible.builtin.find:
-        paths: /tmp
-        patterns:
-          - "{{ frr_libyang_runtime_pkg_name }}_{{ frr_libyang_version }}-{{ frr_libyang_deb_revision }}_*.deb"
-          - "libyang2-dev_{{ frr_libyang_version }}-{{ frr_libyang_deb_revision }}_*.deb"
-        file_type: file
-      register: frr_libyang_deb_files_current_discovered
-      delegate_to: "{{ frr_build_host }}"
-      run_once: true
-
-    # libyang deb パッケージの成果物のリストをfrr_libyang_deb_files_currentに格納する
-    - name: Set rebuilt libyang deb package list ({{ frr_libyang_phase_label }})
-      ansible.builtin.set_fact:
-        frr_libyang_deb_files_current: "{{ frr_libyang_deb_files_current_discovered.files | default([]) }}"
-      delegate_to: "{{ frr_build_host }}"
-      delegate_facts: true
-      run_once: true
-
-    # run_once + delegate_to で取得した成果物リストを, build host / localhost / 対象ホストの
-    # いずれのスコープからでも参照できるように解決する
-    - name: Resolve rebuilt libyang deb package list scope (host or build host or localhost) ({{ frr_libyang_phase_label }})
-      ansible.builtin.set_fact:
-        frr_libyang_deb_source_files: >-
-          {{
-            (frr_libyang_deb_files_current | default([]))
-            if ((frr_libyang_deb_files_current | default([]) | length) > 0)
-            else (
-              (hostvars[frr_build_host].frr_libyang_deb_files_current | default([]))
-              if ((hostvars[frr_build_host].frr_libyang_deb_files_current | default([]) | length) > 0)
-              else (hostvars['localhost'].frr_libyang_deb_files_current | default([]))
-            )
-          }}
-
-    # 解決済み成果物リストから, ターゲットホストで必要なランタイムdebのみを抽出する
-    - name: Set rebuilt runtime libyang deb package list ({{ frr_libyang_phase_label }})
-      ansible.builtin.set_fact:
-        frr_libyang_runtime_deb_files_current: >-
-          {{
-            frr_libyang_deb_source_files
-            | default([])
-            | selectattr('path', 'search', frr_libyang_runtime_pkg_name ~ '_')
-            | rejectattr('path', 'search', 'libyang2-dev_')
-            | list
-          }}
-
-    # 解決済み成果物リストから, 開発用debのみを抽出する
-    - name: Set rebuilt dev libyang deb package list ({{ frr_libyang_phase_label }})
-      ansible.builtin.set_fact:
-        frr_libyang_dev_deb_files_current: >-
-          {{
-            frr_libyang_deb_source_files
-            | default([])
-            | selectattr('path', 'search', 'libyang2-dev_')
-            | list
-          }}
-
-    # パッケージ生成に失敗したらplaybookを失敗させる
-    - name: Fail when libyang deb packages were not generated ({{ frr_libyang_phase_label }})
-      ansible.builtin.fail:
-        msg: "libyang deb package was not generated on build host for requested version {{ frr_libyang_version }} ({{ frr_libyang_phase_label }})"
+    # Debian対象の代表ホストからlibyang再構築処理を実行する
+    - name: Build compatible libyang packages ({{ frr_libyang_phase_label }})
+      ansible.builtin.include_tasks: remediate-libyang-build.yml
       when:
-        - (frr_libyang_deb_source_files | default([]) | length) == 0
-      delegate_to: "{{ frr_build_host }}"
-      run_once: true
+        - frr_package_targets_debian | default([]) | length > 0
+        - inventory_hostname == (frr_package_targets_debian | first)
 
-    # ターゲットホストで必要なランタイムdebが成果物に含まれない場合は処理を中断する
-    - name: Fail when runtime libyang deb package was not generated ({{ frr_libyang_phase_label }})
-      ansible.builtin.fail:
-        msg: >-
-          Runtime libyang deb package was not generated on build host.
-          expected={{ frr_libyang_runtime_pkg_name }}_{{ frr_libyang_version }}-{{ frr_libyang_deb_revision }}_*.deb
-          phase={{ frr_libyang_phase_label }}
-      when:
-        - (frr_libyang_runtime_deb_files_current | default([]) | length) == 0
-
-    # 開発用debが成果物に含まれない場合は処理を中断する
-    - name: Fail when dev libyang deb package was not generated ({{ frr_libyang_phase_label }})
-      ansible.builtin.fail:
-        msg: >-
-          Dev libyang deb package was not generated on build host.
-          expected=libyang2-dev_{{ frr_libyang_version }}-{{ frr_libyang_deb_revision }}_*.deb
-          phase={{ frr_libyang_phase_label }}
-      when:
-        - (frr_libyang_dev_deb_files_current | default([]) | length) == 0
-
-    # libyang deb パッケージのパーミッションを構築ホスト上で読み取り可能に変更する
-    - name: Ensure rebuilt libyang deb package permissions are readable ({{ frr_libyang_phase_label }})
-      ansible.builtin.file:
-        path: "{{ item.path }}"
-        mode: "0644"
-      loop: "{{ frr_libyang_deb_source_files | default([]) }}"
-      delegate_to: "{{ frr_build_host }}"
-      run_once: true
-
-    # 構築ホストから制御ホストへ回収するための一時ディレクトリを作成する
-    - name: Ensure local staging directory exists for rebuilt libyang deb packages ({{ frr_libyang_phase_label }})
-      ansible.builtin.tempfile:
-        state: directory
-        path: "{{ lookup('env', 'HOME') }}/.ansible/tmp"
-        prefix: "{{ frr_libyang_fetch_prefix }}"
-      register: frr_libyang_fetch_tmpdir_current
-      delegate_to: localhost
-      become: false
-      run_once: true
-
-    # 構築済みlibyang debパッケージを構築ホストから制御ホストに回収する
-    - name: Fetch rebuilt libyang deb packages from build host to controller ({{ frr_libyang_phase_label }})
-      ansible.builtin.fetch:
-        src: "{{ item.path }}"
-        dest: "{{ frr_libyang_fetch_tmpdir_current.path }}/{{ item.path | basename }}"
-        flat: true
-      loop: "{{ frr_libyang_deb_source_files | default([]) }}"
-      delegate_to: "{{ frr_build_host }}"
-      run_once: true
-
-    # 構築済みlibyang debパッケージが制御ホストに存在することを確認する
-    - name: Check fetched rebuilt libyang deb packages exist on controller ({{ frr_libyang_phase_label }})
-      ansible.builtin.stat:
-        path: "{{ frr_libyang_fetch_tmpdir_current.path }}/{{ item.path | basename }}"
-      loop: "{{ frr_libyang_deb_source_files | default([]) }}"
-      register: frr_libyang_fetch_stat_current
-      delegate_to: localhost
-      become: false
-      run_once: true
-
-    # 構築済みlibyang debパッケージが制御ホストに存在しない場合は処理を中断する
-    - name: Fail when fetched rebuilt libyang deb package is missing on controller ({{ frr_libyang_phase_label }})
-      ansible.builtin.fail:
-        msg: "Fetched rebuilt libyang deb package is missing on controller: {{ item.item.path | basename }} ({{ frr_libyang_phase_label }})"
-      loop: "{{ frr_libyang_fetch_stat_current.results | default([]) }}"
-      when:
-        - not (item.stat.exists | default(false))
-
-    # 構築済みlibyang debパッケージをターゲットホストへコピーする
-    - name: Copy rebuilt libyang deb packages from controller to target host ({{ frr_libyang_phase_label }})
-      ansible.builtin.copy:
-        src: "{{ frr_libyang_fetch_tmpdir_current.path }}/{{ item.path | basename }}"
-        dest: "/tmp/{{ item.path | basename }}"
-        mode: "0644"
-      loop: "{{ frr_libyang_deb_source_files | default([]) }}"
-
-    # ターゲットホストにlibyang debパッケージをインストールする
-    - name: Install rebuilt libyang deb packages on target host ({{ frr_libyang_phase_label }})
-      ansible.builtin.shell: >-
-        set -euo pipefail;
-        runtime_deb="/tmp/{{ (frr_libyang_runtime_deb_files_current | map(attribute='path') | map('basename') | list | first) }}";
-        dev_deb="/tmp/{{ (frr_libyang_dev_deb_files_current | map(attribute='path') | map('basename') | list | first) }}";
-        DEBIAN_FRONTEND=noninteractive apt-get -y --allow-downgrades install "${runtime_deb}" "${dev_deb}";
-        ldconfig
-      args:
-        executable: /bin/bash
-      register: frr_libyang_install_cmd
-      changed_when: frr_libyang_install_cmd.rc == 0
+    # 再構築したlibyangパッケージを各Debian対象ホストへ導入する
+    - name: Install rebuilt libyang packages ({{ frr_libyang_phase_label }})
+      ansible.builtin.include_tasks: remediate-libyang-install.yml

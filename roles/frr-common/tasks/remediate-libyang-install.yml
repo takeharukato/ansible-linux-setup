@@ -1,0 +1,137 @@
+#  -*- coding:utf-8-unix mode:yaml -*-
+#  Ansible playbook
+#
+#  Debian/Ubuntu用libyang再構築パッケージ導入処理
+#
+---
+
+# 制御ホストに成果物一覧が存在することを確認する
+- name: Assert rebuilt libyang package list exists on controller ({{ frr_libyang_phase_label }})
+  ansible.builtin.assert:
+    that:
+      - hostvars['localhost'].frr_libyang_deb_source_files is defined
+      - hostvars['localhost'].frr_libyang_deb_source_files | length > 0
+      - hostvars['localhost'].frr_libyang_fetch_tmpdir_path is defined
+      - hostvars['localhost'].frr_libyang_fetch_tmpdir_path | length > 0
+    fail_msg: >-
+      Rebuilt libyang package information is not available on controller
+      ({{ frr_libyang_phase_label }}).
+
+# 成果物一覧からターゲットホストで必要なランタイムdebのみを抽出する
+- name: Set rebuilt runtime libyang deb package list ({{ frr_libyang_phase_label }})
+  ansible.builtin.set_fact:
+    frr_libyang_runtime_deb_files_current: >-
+      {{
+        hostvars['localhost'].frr_libyang_deb_source_files
+        | default([])
+        | selectattr('path', 'search', frr_libyang_runtime_pkg_name ~ '_')
+        | rejectattr('path', 'search', 'libyang2-dev_')
+        | list
+      }}
+
+# 成果物一覧から開発用debのみを抽出する
+- name: Set rebuilt dev libyang deb package list ({{ frr_libyang_phase_label }})
+  ansible.builtin.set_fact:
+    frr_libyang_dev_deb_files_current: >-
+      {{
+        hostvars['localhost'].frr_libyang_deb_source_files
+        | default([])
+        | selectattr('path', 'search', 'libyang2-dev_')
+        | list
+      }}
+
+# ターゲットホストで必要なランタイムdebが成果物に含まれない場合は処理を中断する
+- name: Fail when runtime libyang deb package was not generated ({{ frr_libyang_phase_label }})
+  ansible.builtin.fail:
+    msg: >-
+      Runtime libyang deb package was not generated on build host.
+      expected={{ frr_libyang_runtime_pkg_name }}_{{ frr_libyang_version }}-{{ frr_libyang_deb_revision }}_*.deb
+      phase={{ frr_libyang_phase_label }}
+  when:
+    - (frr_libyang_runtime_deb_files_current | default([]) | length) == 0
+
+# ランタイムdebが複数見つかった場合は処理を中断する
+- name: Fail when multiple runtime libyang deb packages were generated ({{ frr_libyang_phase_label }})
+  ansible.builtin.fail:
+    msg: >-
+      Multiple runtime libyang deb packages were found.
+      package={{ frr_libyang_runtime_pkg_name }}
+      files={{
+        frr_libyang_runtime_deb_files_current
+        | map(attribute='path')
+        | map('basename')
+        | list
+      }}
+      phase={{ frr_libyang_phase_label }}
+  when:
+    - (frr_libyang_runtime_deb_files_current | default([]) | length) != 1
+
+# 開発用debが成果物に含まれない場合は処理を中断する
+- name: Fail when dev libyang deb package was not generated ({{ frr_libyang_phase_label }})
+  ansible.builtin.fail:
+    msg: >-
+      Dev libyang deb package was not generated on build host.
+      expected=libyang2-dev_{{ frr_libyang_version }}-{{ frr_libyang_deb_revision }}_*.deb
+      phase={{ frr_libyang_phase_label }}
+  when:
+    - (frr_libyang_dev_deb_files_current | default([]) | length) == 0
+
+# 開発用debが複数見つかった場合は処理を中断する
+- name: Fail when multiple dev libyang deb packages were generated ({{ frr_libyang_phase_label }})
+  ansible.builtin.fail:
+    msg: >-
+      Multiple dev libyang deb packages were found.
+      files={{
+        frr_libyang_dev_deb_files_current
+        | map(attribute='path')
+        | map('basename')
+        | list
+      }}
+      phase={{ frr_libyang_phase_label }}
+  when:
+    - (frr_libyang_dev_deb_files_current | default([]) | length) != 1
+
+# 構築済みlibyang debパッケージを制御ホストからターゲットホストへコピーする
+- name: Copy rebuilt libyang deb packages from controller to target host ({{ frr_libyang_phase_label }})
+  ansible.builtin.copy:
+    src: >-
+      {{ hostvars['localhost'].frr_libyang_fetch_tmpdir_path }}/{{ item.path | basename }}
+    dest: "/tmp/{{ item.path | basename }}"
+    mode: "0644"
+  loop: >-
+    {{ hostvars['localhost'].frr_libyang_deb_source_files | default([]) }}
+
+# ターゲットホストにlibyang debパッケージをインストールする
+- name: Install rebuilt libyang deb packages on target host ({{ frr_libyang_phase_label }})
+  ansible.builtin.shell: |-
+    set -euo pipefail
+
+    runtime_deb="/tmp/{{
+      (
+        frr_libyang_runtime_deb_files_current
+        | map(attribute='path')
+        | map('basename')
+        | list
+        | first
+      )
+    }}"
+
+    dev_deb="/tmp/{{
+      (
+        frr_libyang_dev_deb_files_current
+        | map(attribute='path')
+        | map('basename')
+        | list
+        | first
+      )
+    }}"
+
+    DEBIAN_FRONTEND=noninteractive \
+    apt-get -y --allow-downgrades \
+      install "${runtime_deb}" "${dev_deb}"
+
+    ldconfig
+  args:
+    executable: /bin/bash
+  register: frr_libyang_install_cmd
+  changed_when: frr_libyang_install_cmd.rc == 0

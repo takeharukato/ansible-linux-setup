@@ -217,7 +217,9 @@
         dest: "{{ frr_build_workspace_effective }}/Dockerfile.frr-deb"
         mode: "0644"
       delegate_to: "{{ frr_build_host }}"
-      run_once: true
+      when:
+        - frr_package_targets_debian | default([]) | length > 0
+        - inventory_hostname == (frr_package_targets_debian | first)
 
     # FRR構築用Dockerイメージを構築する (Ubuntu/Debian用)
     - name: Build FRR deb builder container image for pkgbld-common
@@ -236,8 +238,10 @@
       poll: 0
       register: frr_deb_builder_image_build_job_pkgbld
       delegate_to: "{{ frr_build_host }}"
-      run_once: true
       changed_when: true
+      when:
+        - frr_package_targets_debian | default([]) | length > 0
+        - inventory_hostname == (frr_package_targets_debian | first)
 
     # FRR構築用Dockerイメージの構築完了を待機する (Ubuntu/Debian用)
     - name: Wait FRR deb builder image build for pkgbld-common
@@ -249,7 +253,9 @@
       delay: "{{ frr_build_loop_delay_seconds }}"
       failed_when: (frr_deb_builder_image_build_cmd_pkgbld.rc | default(0)) != 0
       delegate_to: "{{ frr_build_host }}"
-      run_once: true
+      when:
+        - frr_package_targets_debian | default([]) | length > 0
+        - inventory_hostname == (frr_package_targets_debian | first)
 
     # FRR構築スクリプトを生成する (Ubuntu/Debian用)
     - name: Render FRR deb build script on build host for pkgbld-common
@@ -385,7 +391,9 @@
         dest: "{{ frr_build_workspace_effective }}/Dockerfile.frr-rpm"
         mode: "0644"
       delegate_to: "{{ frr_build_host }}"
-      run_once: true
+      when:
+        - frr_package_targets_rhel | default([]) | length > 0
+        - inventory_hostname == (frr_package_targets_rhel | first)
 
     # FRR構築用Dockerイメージを構築する (RHEL系用)
     - name: Build FRR rpm builder container image for pkgbld-common
@@ -404,8 +412,10 @@
       poll: 0
       register: frr_rpm_builder_image_build_job_pkgbld
       delegate_to: "{{ frr_build_host }}"
-      run_once: true
       changed_when: true
+      when:
+        - frr_package_targets_rhel | default([]) | length > 0
+        - inventory_hostname == (frr_package_targets_rhel | first)
 
     # FRR構築用Dockerイメージの構築完了を待機する (RHEL系用)
     - name: Wait FRR rpm builder image build for pkgbld-common
@@ -417,7 +427,9 @@
       delay: "{{ frr_build_loop_delay_seconds }}"
       failed_when: (frr_rpm_builder_image_build_cmd_pkgbld.rc | default(0)) != 0
       delegate_to: "{{ frr_build_host }}"
-      run_once: true
+      when:
+        - frr_package_targets_rhel | default([]) | length > 0
+        - inventory_hostname == (frr_package_targets_rhel | first)
 
     # FRR構築スクリプトを生成する (RHEL系用)
     - name: Render FRR rpm build script on build host for pkgbld-common
