@@ -70,8 +70,8 @@ build_libyang(){
     # libyangのビルドに必要なパッケージを導入する
     #
     apt-get update
-    apt-get -y --no-install-recommends install libyang2 || true
-    apt-get -y --no-install-recommends install cmake pkg-config libpcre2-dev
+    apt-get {{ apt_install_opts }} install libyang2 || true
+    apt-get {{ apt_install_opts }} install cmake pkg-config libpcre2-dev
 
     #
     # libyangのソースコードをビルドしてインストールする
@@ -129,7 +129,7 @@ build_frr(){
     # カレントディレクトリ(.)にあるDebianパッケージ定義を読み取り,
     # ビルドに必要な依存パッケージを apt-get で自動導入する
     #
-    apt-get -y --no-install-recommends build-dep .
+    apt-get {{ apt_install_opts }} build-dep .
     # FRRのDebianパッケージをビルドする
     dpkg-buildpackage -us -uc -b
 

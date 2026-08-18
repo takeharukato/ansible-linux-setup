@@ -17,7 +17,7 @@ install_build_dependencies(){
     # apt-get が利用可能な場合は apt-get を使用してビルドに必要なパッケージを導入する
     if command -v apt-get >/dev/null 2>&1; then
         apt-get update
-        apt-get -y --no-install-recommends install git cmake pkg-config libpcre2-dev dpkg-dev build-essential
+        apt-get {{ apt_install_opts }} install git cmake pkg-config libpcre2-dev dpkg-dev build-essential
         return 0
     fi
 

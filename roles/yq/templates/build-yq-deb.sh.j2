@@ -66,7 +66,7 @@ generate_completion() {
 prepare_tools() {
     export DEBIAN_FRONTEND=noninteractive
     apt-get update
-    apt-get install -y --no-install-recommends \
+    apt-get install {{ apt_install_opts }} \
         ca-certificates \
         curl \
         git \

@@ -9,7 +9,7 @@
 FROM almalinux:9.6
 
 # パッケージ構築に必要なパッケージをインストールする
-RUN dnf -y install --setopt=install_weak_deps=False \
+RUN dnf -y install {{ dnf_install_opts }} \
       rpm-build \
       findutils \
       tar \

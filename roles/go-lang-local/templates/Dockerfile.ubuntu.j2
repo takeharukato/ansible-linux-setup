@@ -14,7 +14,7 @@ ENV DEBIAN_FRONTEND=noninteractive
 
 # パッケージ構築に必要なパッケージをインストールする
 RUN apt-get update && \
-    apt-get install -y --no-install-recommends \
+    apt-get install {{ apt_install_opts }} \
       ca-certificates \
       curl \
       dpkg-dev \

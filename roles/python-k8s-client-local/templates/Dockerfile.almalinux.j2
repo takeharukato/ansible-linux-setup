@@ -10,6 +10,15 @@ FROM almalinux:9.6
 
 #
 # 開発環境の導入
+#
+
+# python3-wheel, pyproject-rpm-macrosがCodeReady Builder (CRB)にあるので,
+# 事前に, dnf-plugins-coreを導入の上, crbを有効にする
+RUN dnf {{ dnf_install_opts }} \
+    install \
+    dnf-plugins-core && \
+    dnf config-manager --set-enabled crb
+
 # 開発用のpython版数をk8s_python_packages_versionで指定している場合は,
 # 当該版数のpythonインタプリタ, 開発パッケージ, pipも導入する
 # 応答不良のミラーで停止しないよう 転送速度の下限を設ける
