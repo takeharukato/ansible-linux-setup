@@ -17,5 +17,19 @@
 # コントロールプレーン上の kubeconfig 配置先を統一するため, 実ホームを共有ファクトへ格納する。
 - name: Record resolved home directory for k8s operator user on control plane
   ansible.builtin.set_fact:
-    k8s_operator_home_resolved: "{{ k8s_ctrlplane_operator_home_getent.ansible_facts.getent_passwd[k8s_operator_user][4] }}"
+    k8s_operator_home: >-
+      {{ k8s_ctrlplane_operator_home_getent.ansible_facts.getent_passwd[k8s_operator_user][4] }}
+    k8s_operator_home_resolved: >-
+      {{ k8s_ctrlplane_operator_home_getent.ansible_facts.getent_passwd[k8s_operator_user][4] }}
   changed_when: false
+
+# 共通のkubeconfig出力先を評価する前に, 実ホームが解決済みであることを保証する。
+- name: Validate resolved home directory for k8s operator user on control plane
+  ansible.builtin.assert:
+    that:
+      - k8s_operator_home is defined
+      - (k8s_operator_home | default('', true) | string | trim | length) > 0
+    fail_msg: >-
+      Failed to resolve home directory for k8s operator user {{ k8s_operator_user }}
+      on {{ inventory_hostname }}.
+    quiet: true
