@@ -311,7 +311,7 @@ ansible-lint:
 	fi
 
 audit_readme_term_coverage:
-	tools/audit-readme-term-coverage.sh --allow-issues
+	tools/audit-readme/audit-readme-term-coverage.sh --allow-issues
 
 cloc:
 	cloc "${CLOC_LANG_OPT}" "${CLOC_EXCLUDES}" "${CLOC_EXCLUDE_EXTS}" .

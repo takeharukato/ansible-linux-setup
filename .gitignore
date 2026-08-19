@@ -42,6 +42,9 @@ log/
 
 # ユーザごとのローカル設定ファイル
 /vars/all-config.yml
+# 文書検証ツール出力
+/tools/docs
+
 *.gcno
 *.gcda
 *.gcov
