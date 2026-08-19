@@ -145,7 +145,7 @@
 # Docker CE GPG keyを配置・登録する
 - name: Fetch Docker CE RPM GPG key (using get_url with curl fallback)
   when:
-    - repo_enable_docker
+    - repo_enable_docker_ce
     - not (ansible_url_module_https_workaround_enabled | default(false))
   block:
     # Docker CE RPM GPG key を取得する (get_url)
@@ -197,19 +197,19 @@
   register: repo_rpm_docker_key_curl_result
   changed_when: repo_rpm_docker_key_curl_result.rc == 0
   when:
-    - repo_enable_docker
+    - repo_enable_docker_ce
     - ansible_url_module_https_workaround_enabled | default(false)
 
 # Docker CE GPG keyをインポートする
 - name: Import Docker RPM GPG key
-  when: repo_enable_docker
+  when: repo_enable_docker_ce
   ansible.builtin.rpm_key:
     state: present
     key: "{{ docker_ce_rpm_gpg_file }}"
 
 # Docker CE リポジトリを設定する
 - name: Configure Docker CE repo
-  when: repo_enable_docker
+  when: repo_enable_docker_ce
   ansible.builtin.yum_repository:
     name: "Docker-ce"
     description: "Docker CE"
