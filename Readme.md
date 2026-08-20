@@ -13,9 +13,7 @@
       - [クライアントのDomain Name System (DNS) サーバ関連設定](#クライアントのdomain-name-system-dns-サーバ関連設定)
       - [multicast DNS (mDNS) 関連設定](#multicast-dns-mdns-関連設定)
       - [Network Time Protocol (NTP) クライアントの設定](#network-time-protocol-ntp-クライアントの設定)
-      - [Domain Name System (DNS) サーバの設定](#domain-name-system-dns-サーバの設定)
-      - [Network File System (NFS) サーバの設定](#network-file-system-nfs-サーバの設定)
-      - [Network Time Protocol (NTP)サーバの設定](#network-time-protocol-ntpサーバの設定)
+      - [Domain Name System (DNS) サーバのサーバ/クライアント共通設定](#domain-name-system-dns-サーバのサーバクライアント共通設定)
       - [プロキシ設定](#プロキシ設定)
       - [Rancher 関連設定](#rancher-関連設定)
       - [Docker Community Edition関連設定](#docker-community-edition関連設定)
@@ -25,9 +23,6 @@
       - [ユーザ設定ファイルスケルトンの生成](#ユーザ設定ファイルスケルトンの生成)
       - [ホームディレクトリのバックアップ](#ホームディレクトリのバックアップ)
       - [Emacsパッケージ関連設定](#emacsパッケージ関連設定)
-      - [Lightweight Directory Access Protocol (LDAP) サーバ関連設定](#lightweight-directory-access-protocol-ldap-サーバ関連設定)
-      - [Redmine関連設定](#redmine関連設定)
-      - [Gitlab関連設定](#gitlab関連設定)
       - [Kubernetes関連設定](#kubernetes関連設定)
         - [Kubernetes API監査関連設定](#kubernetes-api監査関連設定)
         - [Kubernetesからローカルコンテナレジストリを使用するための設定](#kubernetesからローカルコンテナレジストリを使用するための設定)
@@ -55,9 +50,15 @@
         - [広域設定ファイル (vars/all-config.yml) のElastic関連設定値](#広域設定ファイル-varsall-configyml-のelastic関連設定値)
     - [host\_vars/ ディレクトリ配下のホスト設定ファイル](#host_vars-ディレクトリ配下のホスト設定ファイル)
       - [ホスト設定ファイル中でのネットワークインターフェース設定](#ホスト設定ファイル中でのネットワークインターフェース設定)
+      - [ホスト設定ファイル中でのNetwork Time Protocol (NTP)サーバの設定](#ホスト設定ファイル中でのnetwork-time-protocol-ntpサーバの設定)
+      - [ホスト設定ファイル中でのNetwork File System (NFS) サーバの設定](#ホスト設定ファイル中でのnetwork-file-system-nfs-サーバの設定)
       - [ホスト設定ファイル中でのDomain Name System (DNS) サーバの設定](#ホスト設定ファイル中でのdomain-name-system-dns-サーバの設定)
         - [`dns_host_list`の設定例](#dns_host_listの設定例)
         - [`internal_network_list`の設定例](#internal_network_listの設定例)
+      - [ホスト設定ファイル中でのLightweight Directory Access Protocol (LDAP) サーバ関連設定](#ホスト設定ファイル中でのlightweight-directory-access-protocol-ldap-サーバ関連設定)
+      - [ホスト設定ファイル中でのRancher 関連設定](#ホスト設定ファイル中でのrancher-関連設定)
+      - [ホスト設定ファイル中でのRedmine関連設定](#ホスト設定ファイル中でのredmine関連設定)
+      - [ホスト設定ファイル中でのGitlab関連設定](#ホスト設定ファイル中でのgitlab関連設定)
       - [ホスト設定ファイル中でのElastic Stack関連設定値](#ホスト設定ファイル中でのelastic-stack関連設定値)
         - [Kubernetes以外の管理サーバやレジストリサーバ用の設定](#kubernetes以外の管理サーバやレジストリサーバ用の設定)
         - [Kubernetesのコントロールプレーンノード用の設定](#kubernetesのコントロールプレーンノード用の設定)
@@ -77,6 +78,7 @@
 |-- ansible-lint.yml       ansible-lint設定ファイル
 |-- basic.yml              基本サーバ設定実施用ロール構成定義
 |-- devel.yml              開発サーバ設定実施用ロール構成定義
+|-- docs                   文書ディレクトリ (将来予約)
 |-- frr.yml                FRRoutingノード設定実施用ロール構成定義
 |-- group_vars             グループ固有の変数
 |-- host_vars              ホスト固有の変数定義
@@ -92,6 +94,7 @@
 |-- router-clear-rules.yml ルータノードのファイアウォールルールクリア用ロール定義
 |-- server.yml             管理サーバノード設定実施用ロール構成定義
 |-- site.yml               メインサイト定義
+|-- tools                  playbook管理支援ツール群
 `-- vars                   設定関連変数定義
 ```
 
@@ -314,9 +317,9 @@ ntp_servers_list:
   - "ntp.nict.jp"
 ```
 
-#### Domain Name System (DNS) サーバの設定
+#### Domain Name System (DNS) サーバのサーバ/クライアント共通設定
 
-広域設定ファイル(vars/all-config.yml)には, Domain Name System (DNS) サーバの設定として, 以下の項目を設定します:
+広域設定ファイル(vars/all-config.yml)には, Domain Name System (DNS) サーバ/クライアント共通の設定として, 以下の項目を設定します:
 
 | 変数名 | 説明 | 既定値 | 設定例 |
 | --- | --- | --- | --- |
@@ -327,38 +330,6 @@ ntp_servers_list:
 | `dns_domain` | 正引きゾーン名。ゾーンファイルの SOA, NS レコードを決定。 | `""` | `"example.org"` |
 | `dns_ddns_key_secret` | Dynamic DNS updateで使用する共通鍵(`ddns-confgen -a hmac-sha256 -k ddns-clients`で生成された値)を指定。 | `"Kdi362s+dCkToqo4F+JfwMK6yILQyn1mrqI1xfGqDfk="` |
 | `use_nm_ddns_update_scripts` | ip monitorコマンドでIPv6アドレス変更を監視する機能とNetwork Manager dispatcher経由でDynamic DNSでホスト名とIPアドレスをDNSに自動登録する機能を有効にする場合はtrueに設定。| 未定義 (`false`として扱う) | `true` |
-
-#### Network File System (NFS) サーバの設定
-
-以下の項目を設定します。
-
-|変数名|意味|設定値の例|
-|---|---|---|
-|nfs_export_directory|NFSで公開するディレクトリ|"/home/nfsshare"|
-|nfs_network|NFSのクライアントアドレス(ネットワークアドレスを指定)|"{{ network_ipv4_network_address }}/{{ network_ipv4_prefix_len }}"|
-|nfs_options|NFS exportのオプション|"rw,no_root_squash,sync,no_subtree_check,no_wdelay"|
-
-#### Network Time Protocol (NTP)サーバの設定
-
-以下の項目を設定します。
-
-|変数名|意味|設定値の例|
-|---|---|---|
-|ntp_allow|NTPサーバにアクセス可能なホストが所属するネットワークのネットワークアドレス|"{{ network_ipv4_network_address }}/{{ network_ipv4_prefix_len }}"|
-
-上記の他に, external_ntp_servers_listに参照する外部NTPサーバをリスト形式で指定します。
-
-```yaml
-external_ntp_servers_list:
-  - ntp.nict.jp
-  - jp.pool.ntp.org
-  - ntp.jst.mfeed.ad.jp
-  - ntp.ring.gr.jp
-  - time.google.com
-  - time.aws.com
-  - ats1.e-timing.ne.jp
-  - s2csntp.miz.nao.ac.jp
-```
 
 #### プロキシ設定
 
@@ -604,84 +575,6 @@ create_user_emacs_package_list:
   - plantuml-mode
   - yaml-mode
 ```
-
-#### Lightweight Directory Access Protocol (LDAP) サーバ関連設定
-
-以下の項目を設定します。
-
-|変数名|意味|設定値の例|
-|---|---|---|
-|ldap_enabled|LDAPを導入する場合は, `true`に設定する。規定値は`false`。|`true`|
-|ldap_organization|LDAPの組織名|"user1-private"|
-|ldap_domain|LDAPのドメイン名|"example.org"|
-|ldap_admin_password|LDAP管理者のパスワード|"ldap"|
-|ldap_admin_port|LDAP管理WEB画面ポート番号|10443|
-|openldap_wait_host_stopped|OpenLDAPサービス停止を待ち合わせる(接続先)ホスト名/IPアドレス|"127.0.0.1"|
-|openldap_wait_host_started|OpenLDAPサービス開始を待ち合わせる(接続先)ホスト名/IPアドレス|"{{ inventory_hostname }}"|
-|openldap_wait_timeout|OpenLDAPサービス待ち合わせ時間(単位: 秒)|600|
-|openldap_wait_delay|OpenLDAPサービスを待ち合わせる際の開始遅延時間(単位: 秒)|5|
-|openldap_wait_sleep|OpenLDAPサービスを待ち合わせる際の待機間隔(単位: 秒)|2|
-|openldap_wait_delegate_to|OpenLDAPサービスを待ち合わせる際の接続元ホスト名/IPアドレス|"localhost"|
-
-#### Redmine関連設定
-
-Redmineのデイリーバックアップ関連の設定を記載します。
-Redmineのデイリーバックアップについては, `roles/redmine-server/Readme.md`参照。
-
-|変数名|意味|設定値の例|
-|---|---|---|
-|redmine_enabled|Redmineを導入する場合は, `true`に設定する。規定値は`false`。|`true`|
-|redmine_enable_backup_script|バックアップスクリプト生成有効化フラグ。`true`に設定すると, backup-redmine-data.sh と restore-redmine-data.sh が配置される。daily-backup-redmine.sh を配置するには, さらに `redmine_backup_nfs_server` と `redmine_backup_nfs_dir` が非空である必要がある。規定値は`false`。|"true" みたは "false"|
-|redmine_backup_rotation|バックアップ世代数|7|
-|redmine_backup_nfs_server|マウントするNFSサーバ|"nas.example.org"|
-|redmine_backup_nfs_dir|マウントする共有ディレクトリ|"/share"|
-|redmine_backup_mount_point|デイリーバックアップ時のNFSマウントポイント(NFSのマウント/アンマウント時に使用)|"/mnt"|
-|redmine_backup_dir_on_nfs|NFSマウントポイント配下のRedmineバックアップ配置先ディレクトリ|"/Linux/Redmine"|
-|redmine_wait_host_stopped|Redmineサービス停止を待ち合わせる(接続先)ホスト名/IPアドレス|"127.0.0.1"|
-|redmine_wait_host_started|Redmineサービス開始を待ち合わせる(接続先)ホスト名/IPアドレス|"{{ inventory_hostname }}"|
-|redmine_wait_timeout|Redmineサービス待ち合わせ時間(単位: 秒)|300|
-|redmine_wait_delay|Redmineサービスを待ち合わせる際の開始遅延時間(単位: 秒)|5|
-|redmine_wait_sleep|Redmineサービスを待ち合わせる際の待機間隔(単位: 秒)|2|
-|redmine_wait_delegate_to|Redmineサービスを待ち合わせる際の接続元ホスト名/IPアドレス|"localhost"|
-
-#### Gitlab関連設定
-
-Gitlabの公開URL, イメージファイル関連の設定を記載します。
-
-| 変数名 | 意味 | 設定値の例 |
-| --- | --- | --- |
-|gitlab_enabled|Gitlabを導入する場合は, `true`に設定する。規定値は`false`。|`true`|
-| gitlab_hostname | GitLab WEB UI/Container Registryの公開URL中のホスト名部分を指定。本変数が, 未設定または空文字列の場合, Gitlabの導入を行わない。 | "devserver.example.org" |
-| gitlab_https_port | GitLab Web UI (HTTPS) 公開ポート。 | 9443 |
-| gitlab_ssh_port | GitLab SSH (リポジトリ操作用) 公開ポート。 | 2224 |
-| gitlab_registry_port | コンテナレジストリ公開ポート。 | 5050 |
-| gitlab_registry_require_auth | GitLab Container Registry の認証を必須にする場合は true を指定。false の場合は認証不要で利用します。 | false |
-| gitlab_docker_image | GitLab Omnibus Docker イメージ。公式の推奨に従って, バージョン名を明示してイメージを指定。 | "gitlab/gitlab-ce:18.6.2-ce.0" |
-| gitlab_runner_docker_image | GitLab Runner Docker イメージ。GitLab 本体とメジャーバージョン, マイナーバージョンを合わせること。 | "gitlab/gitlab-runner:ubuntu-v18.6.6" |
-| gitlab_enable_backup_script | バックアップスクリプト生成有効化フラグ。`true`に設定した場合にバックアップ・リストアスクリプト(gitlab-backup.py, gitlab-restore.py)が配置される。デイリーバックアップスクリプト(daily-backup-gitlab.sh)の配置には, 加えて`gitlab_backup_nfs_server`, `gitlab_backup_mount_point`, `gitlab_backup_output_dir`が非空で, かつ`gitlab_backup_rotation`が正の整数である必要がある。規定値は`false`。 | "true" または "false" |
-| gitlab_backup_rotation | デイリーバックアップのローテーション世代数 | 7 |
-| gitlab_backup_nfs_server | Gitlabのバックアップバンドルファイルを保存するNFSサーバ | "nfs.example.org" |
-| gitlab_backup_nfs_dir | Gitlabのバックアップバンドルファイルを保存するNFSサーバのマウント時に指定する共有ディレクトリ名| "share" |
-| gitlab_backup_mount_point | デイリーバックアップ時のNFSマウントポイント(NFSのマウント/アンマウント時に使用) | "/mnt" |
-| gitlab_backup_dir_on_nfs | デイリーバックアップ時のNFSマウントポイント配下のバックアップ配置先ディレクトリ | "/gitlab-backups" |
-| gitlab_wait_host_stopped | GitLabサービス停止を待ち合わせる(接続先)ホスト名/IPアドレス。| "127.0.0.1" |
-| gitlab_wait_host_started | GitLabサービス開始を待ち合わせる(接続先)ホスト名/IPアドレス。 | "{{ inventory_hostname }}" |
-| gitlab_wait_timeout | GitLabサービス待ち合わせ時間(単位: 秒)。| 600 |
-| gitlab_wait_delay | GitLabサービスを待ち合わせる際の開始遅延時間(単位: 秒)。| 5 |
-| gitlab_wait_sleep | GitLabサービスを待ち合わせる際の待機間隔(単位: 秒)。| 2 |
-| gitlab_wait_delegate_to | GitLabサービスを待ち合わせる際の接続元ホスト名/IPアドレス。| "localhost" |
-
-上記設定を行うと, 以下のようにGitlab環境が構築される:
-
-|用途|URL/コンテナレジストリ|URL/コンテナレジストリの例|
-|---|---|---|
-|Gitlab WEB UIのURL|https://`gitlab_hostname`:`gitlab_https_port`|`https://devserver.example.org:9443`|
-|Gitlabリポジトリ操作用SSH|ssh://`gitlab_hostname`:`gitlab_ssh_port`|`ssh://devserver.example.org:2224`|
-|Gitlab Container Registry|`gitlab_hostname`:`gitlab_registry_port`|`devserver.example.org:5050`|
-
-Gitlabの既定の設定の場合, `8080`ポートや`2222`番ポートが他の用途に使用されている
-可能性があるため, 公開ポート番号を変更している。
-GitLab Web UI (HTTPS)ポート(`gitlab_https_port`)やGitLab Container Registryのポート(`gitlab_registry_port`)を変更する際は, `roles/gitlab-server/templates/docker-compose.yml.j2`で設定しているGitlabの`external_url`, `registry_external_url`との整合性を保つように設定すること。
 
 #### Kubernetes関連設定
 
@@ -1345,6 +1238,40 @@ netif_list変数は, 以下の要素からなる辞書のリストです。
 ルートメトリックについては, ネットワークの設計方針に応じて適切に設定します。
 例えば, 運用系ネットワークを通して外部ネットワークにつなぐ場合は, 運用系NIC以外のNICのメトリックを高めに設定します。
 
+#### ホスト設定ファイル中でのNetwork Time Protocol (NTP)サーバの設定
+
+Network Time Protocol (NTP) サーバを導入するホストの`host_vars`には, 以下の項目を設定します。以下の変数は, NTPサーバ導入先ホストの`host_vars`にのみ設定し, `vars/all-config.yml`には設定しないことを推奨します:
+
+|変数名|意味|設定値の例|
+|---|---|---|
+| `ntp_server_enabled` | NTPサーバ導入指定フラグ。NTPサーバを導入する場合は, `true`に設定します。 | `true` |
+|ntp_allow|NTPサーバにアクセス可能なホストが所属するネットワークのネットワークアドレス|"{{ network_ipv4_network_address }}/{{ network_ipv4_prefix_len }}"|
+
+上記の他に, external_ntp_servers_listに参照する外部NTPサーバをリスト形式で指定します。
+
+```yaml
+external_ntp_servers_list:
+  - ntp.nict.jp
+  - jp.pool.ntp.org
+  - ntp.jst.mfeed.ad.jp
+  - ntp.ring.gr.jp
+  - time.google.com
+  - time.aws.com
+  - ats1.e-timing.ne.jp
+  - s2csntp.miz.nao.ac.jp
+```
+
+#### ホスト設定ファイル中でのNetwork File System (NFS) サーバの設定
+
+Network File System (NFS) サーバを導入するホストの`host_vars`には, 以下の項目を設定します。以下の変数は, NFSサーバ導入先ホストの`host_vars`にのみ設定し, `vars/all-config.yml`には設定しないことを推奨します:
+
+|変数名|意味|設定値の例|
+|---|---|---|
+| `nfs_server_enabled` | NFSサーバ導入指定フラグ。NFSサーバを導入する場合は, `true`に設定します。 | `true` |
+|nfs_export_directory|NFSで公開するディレクトリ|"/home/nfsshare"|
+|nfs_network|NFSのクライアントアドレス(ネットワークアドレスを指定)|"{{ network_ipv4_network_address }}/{{ network_ipv4_prefix_len }}"|
+|nfs_options|NFS exportのオプション|"rw,no_root_squash,sync,no_subtree_check,no_wdelay"|
+
 #### ホスト設定ファイル中でのDomain Name System (DNS) サーバの設定
 
 Domain Name System (DNS) サーバを導入するホストの`host_vars`には, 以下の項目を設定します。以下の変数は, DNSサーバ導入先ホストの`host_vars`にのみ設定し, `vars/all-config.yml`には設定しないことを推奨します:
@@ -1394,6 +1321,104 @@ internal_network_list:
   - ipv4: "192.168.20.0/24"
     ipv6: "fd00:1234:5678:1::/64"
 ```
+
+#### ホスト設定ファイル中でのLightweight Directory Access Protocol (LDAP) サーバ関連設定
+
+Lightweight Directory Access Protocol (LDAP) サーバを導入するホストの`host_vars`には, 以下の項目を設定します。以下の変数は, LDAPサーバ導入先ホストの`host_vars`にのみ設定し, `vars/all-config.yml`には設定しないことを推奨します:
+
+|変数名|意味|設定値の例|
+|---|---|---|
+|ldap_enabled|LDAPを導入する場合は, `true`に設定する。規定値は`false`。|`true`|
+|ldap_organization|LDAPの組織名|"user1-private"|
+|ldap_domain|LDAPのドメイン名|"example.org"|
+|ldap_admin_password|LDAP管理者のパスワード|"ldap"|
+|ldap_admin_port|LDAP管理WEB画面ポート番号|10443|
+|openldap_wait_host_stopped|OpenLDAPサービス停止を待ち合わせる(接続先)ホスト名/IPアドレス|"127.0.0.1"|
+|openldap_wait_host_started|OpenLDAPサービス開始を待ち合わせる(接続先)ホスト名/IPアドレス|"{{ inventory_hostname }}"|
+|openldap_wait_timeout|OpenLDAPサービス待ち合わせ時間(単位: 秒)|600|
+|openldap_wait_delay|OpenLDAPサービスを待ち合わせる際の開始遅延時間(単位: 秒)|5|
+|openldap_wait_sleep|OpenLDAPサービスを待ち合わせる際の待機間隔(単位: 秒)|2|
+|openldap_wait_delegate_to|OpenLDAPサービスを待ち合わせる際の接続元ホスト名/IPアドレス|"localhost"|
+
+#### ホスト設定ファイル中でのRancher 関連設定
+
+Rancher を導入するホストの`host_vars`には, 以下の項目を設定します。以下の変数は, Rancherサーバ導入先ホストの`host_vars`にのみ設定し, `vars/all-config.yml`には設定しないことを推奨します:
+
+|変数名|意味|設定値の例|
+|---|---|---|
+|rancher_host|Rancherのホスト名|"rancher01"|
+|rancher_cert_domain_name|Rancherのドメイン名|"example.org"|
+|rancher_cert_subject_country|Rancher証明書の国|"JP"|
+|rancher_cert_subject_state|Rancher証明書の州|"XXXX"|
+|rancher_cert_subject_locality|Rancher証明書の市町村|"YYYY"|
+|rancher_cert_subject_org|Rancher証明書の組織名|"example-org"|
+|rancher_wait_host_stopped|Rancherサービス停止を待ち合わせる(接続先)ホスト名/IPアドレス|"127.0.0.1"|
+|rancher_wait_host_started|Rancherサービス開始を待ち合わせる(接続先)ホスト名/IPアドレス|"{{ inventory_hostname }}"|
+|rancher_wait_timeout|Rancherサービス待ち合わせ時間(単位: 秒)|300|
+|rancher_wait_delay|Rancherサービスを待ち合わせる際の開始遅延時間(単位: 秒)|5|
+|rancher_wait_sleep|Rancherサービスを待ち合わせる際の待機間隔(単位: 秒)|2|
+|rancher_wait_delegate_to|Rancherサービスを待ち合わせる際の接続元ホスト名/IPアドレス|"localhost"|
+
+#### ホスト設定ファイル中でのRedmine関連設定
+
+Redmine サーバを導入するホストの`host_vars`には, 以下の項目を設定します。以下の変数は, Redmineサーバ導入先ホストの`host_vars`にのみ設定し, `vars/all-config.yml`には設定しないことを推奨します:
+
+|変数名|意味|設定値の例|
+|---|---|---|
+|redmine_enabled|Redmineを導入する場合は, `true`に設定する。規定値は`false`。|`true`|
+|redmine_enable_backup_script|バックアップスクリプト生成有効化フラグ。`true`に設定すると, backup-redmine-data.sh と restore-redmine-data.sh が配置される。daily-backup-redmine.sh を配置するには, さらに `redmine_backup_nfs_server` と `redmine_backup_nfs_dir` が非空である必要がある。規定値は`false`。|"true" みたは "false"|
+|redmine_backup_rotation|バックアップ世代数|7|
+|redmine_backup_nfs_server|マウントするNFSサーバ|"nas.example.org"|
+|redmine_backup_nfs_dir|マウントする共有ディレクトリ|"/share"|
+|redmine_backup_mount_point|デイリーバックアップ時のNFSマウントポイント(NFSのマウント/アンマウント時に使用)|"/mnt"|
+|redmine_backup_dir_on_nfs|NFSマウントポイント配下のRedmineバックアップ配置先ディレクトリ|"/Linux/Redmine"|
+|redmine_wait_host_stopped|Redmineサービス停止を待ち合わせる(接続先)ホスト名/IPアドレス|"127.0.0.1"|
+|redmine_wait_host_started|Redmineサービス開始を待ち合わせる(接続先)ホスト名/IPアドレス|"{{ inventory_hostname }}"|
+|redmine_wait_timeout|Redmineサービス待ち合わせ時間(単位: 秒)|300|
+|redmine_wait_delay|Redmineサービスを待ち合わせる際の開始遅延時間(単位: 秒)|5|
+|redmine_wait_sleep|Redmineサービスを待ち合わせる際の待機間隔(単位: 秒)|2|
+|redmine_wait_delegate_to|Redmineサービスを待ち合わせる際の接続元ホスト名/IPアドレス|"localhost"|
+
+Redmineのデイリーバックアップについては, `roles/redmine-server/Readme.md`参照。
+
+#### ホスト設定ファイル中でのGitlab関連設定
+
+Gitlabを導入するホストの`host_vars`には, 以下の項目を設定します。以下の変数は, Gitlab導入先ホストの`host_vars`にのみ設定し, `vars/all-config.yml`には設定しないことを推奨します:
+
+| 変数名 | 意味 | 設定値の例 |
+| --- | --- | --- |
+|gitlab_enabled|Gitlabを導入する場合は, `true`に設定する。規定値は`false`。|`true`|
+| gitlab_hostname | GitLab WEB UI/Container Registryの公開URL中のホスト名部分を指定。本変数が, 未設定または空文字列の場合, Gitlabの導入を行わない。 | "devserver.example.org" |
+| gitlab_https_port | GitLab Web UI (HTTPS) 公開ポート。 | 9443 |
+| gitlab_ssh_port | GitLab SSH (リポジトリ操作用) 公開ポート。 | 2224 |
+| gitlab_registry_port | コンテナレジストリ公開ポート。 | 5050 |
+| gitlab_registry_require_auth | GitLab Container Registry の認証を必須にする場合は true を指定。false の場合は認証不要で利用します。 | false |
+| gitlab_docker_image | GitLab Omnibus Docker イメージ。公式の推奨に従って, バージョン名を明示してイメージを指定。 | "gitlab/gitlab-ce:18.6.2-ce.0" |
+| gitlab_runner_docker_image | GitLab Runner Docker イメージ。GitLab 本体とメジャーバージョン, マイナーバージョンを合わせること。 | "gitlab/gitlab-runner:ubuntu-v18.6.6" |
+| gitlab_enable_backup_script | バックアップスクリプト生成有効化フラグ。`true`に設定した場合にバックアップ・リストアスクリプト(gitlab-backup.py, gitlab-restore.py)が配置される。デイリーバックアップスクリプト(daily-backup-gitlab.sh)の配置には, 加えて`gitlab_backup_nfs_server`, `gitlab_backup_mount_point`, `gitlab_backup_output_dir`が非空で, かつ`gitlab_backup_rotation`が正の整数である必要がある。規定値は`false`。 | "true" または "false" |
+| gitlab_backup_rotation | デイリーバックアップのローテーション世代数 | 7 |
+| gitlab_backup_nfs_server | Gitlabのバックアップバンドルファイルを保存するNFSサーバ | "nfs.example.org" |
+| gitlab_backup_nfs_dir | Gitlabのバックアップバンドルファイルを保存するNFSサーバのマウント時に指定する共有ディレクトリ名| "share" |
+| gitlab_backup_mount_point | デイリーバックアップ時のNFSマウントポイント(NFSのマウント/アンマウント時に使用) | "/mnt" |
+| gitlab_backup_dir_on_nfs | デイリーバックアップ時のNFSマウントポイント配下のバックアップ配置先ディレクトリ | "/gitlab-backups" |
+| gitlab_wait_host_stopped | GitLabサービス停止を待ち合わせる(接続先)ホスト名/IPアドレス。| "127.0.0.1" |
+| gitlab_wait_host_started | GitLabサービス開始を待ち合わせる(接続先)ホスト名/IPアドレス。 | "{{ inventory_hostname }}" |
+| gitlab_wait_timeout | GitLabサービス待ち合わせ時間(単位: 秒)。| 600 |
+| gitlab_wait_delay | GitLabサービスを待ち合わせる際の開始遅延時間(単位: 秒)。| 5 |
+| gitlab_wait_sleep | GitLabサービスを待ち合わせる際の待機間隔(単位: 秒)。| 2 |
+| gitlab_wait_delegate_to | GitLabサービスを待ち合わせる際の接続元ホスト名/IPアドレス。| "localhost" |
+
+上記設定を行うと, 以下のようにGitlab環境が構築される:
+
+|用途|URL/コンテナレジストリ|URL/コンテナレジストリの例|
+|---|---|---|
+|Gitlab WEB UIのURL|https://`gitlab_hostname`:`gitlab_https_port`|`https://devserver.example.org:9443`|
+|Gitlabリポジトリ操作用SSH|ssh://`gitlab_hostname`:`gitlab_ssh_port`|`ssh://devserver.example.org:2224`|
+|Gitlab Container Registry|`gitlab_hostname`:`gitlab_registry_port`|`devserver.example.org:5050`|
+
+Gitlabの既定の設定の場合, `8080`ポートや`2222`番ポートが他の用途に使用されている
+可能性があるため, 公開ポート番号を変更している。
+GitLab Web UI (HTTPS)ポート(`gitlab_https_port`)やGitLab Container Registryのポート(`gitlab_registry_port`)を変更する際は, `roles/gitlab-server/templates/docker-compose.yml.j2`で設定しているGitlabの`external_url`, `registry_external_url`との整合性を保つように設定すること。
 
 #### ホスト設定ファイル中でのElastic Stack関連設定値
 
