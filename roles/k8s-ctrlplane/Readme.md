@@ -257,17 +257,12 @@ ansible-playbook -i inventory/hosts k8s-ctrl-plane.yml -t k8s-ctrlplane
 
 ### API待機・kubeadm関連
 
+Kubernetes API Server の待機条件および kubeadm の共通内部設定は [k8s-common ロール](../k8s-common/Readme.md) を参照してください。
+
 | 変数名 | 既定値 | 説明 |
 | --- | --- | --- |
 | `k8s_ctrlplane_endpoint` | host_vars で指定 | Control Plane API の広告アドレス。 |
-| `k8s_api_wait_host` | host_vars で指定した Control Plane API アドレス | API サーバ待機先ホスト。 |
-| `k8s_api_wait_port` | `6443` | API サーバ待機先ポート。`k8s_ctrlplane_endpoint` にポート番号を含めた場合はその値を使用。 |
-| `k8s_api_wait_timeout` | `600` | API 待機タイムアウト(秒)。 |
-| `k8s_api_wait_delay` | `2` | API 待機開始遅延(秒)。 |
-| `k8s_api_wait_sleep` | `1` | API 待機ポーリング間隔(秒)。 |
-| `k8s_api_wait_delegate_to` | `localhost` | API 待機を実行する接続元ホスト。 |
 | `k8s_kubeadm_config_store` | `/home/ansible/kubeadm` | kubeadm/Cilium 設定生成の基点ディレクトリ。 |
-| `k8s_kubeadm_ignore_preflight_errors_arg` | `--ignore-preflight-errors=all` | `kubeadm init` 実行時の preflight 制御。 |
 | `k8s_pod_ipv4_network_cidr` / `k8s_pod_ipv6_network_cidr` | 必須 | Pod ネットワーク CIDR。 |
 | `k8s_pod_ipv4_service_subnet` / `k8s_pod_ipv6_service_subnet` | 必須 | Service CIDR。 |
 
@@ -328,21 +323,19 @@ k8s_audit_log_max_size: 200
 | `k8s_cilium_helm_chart_version` | `1.18.9` | Cilium Helm Chart バージョン。 |
 | `k8s_cilium_image_version` | `v1.18.9` | Cilium イメージタグ。 |
 | `k8s_cilium_helm_repo_url` | `https://helm.cilium.io/` | Cilium Helm リポジトリURL。 |
-| `k8s_cilium_config_dir` | `/home/ansible/kubeadm/cilium` | Cilium values 出力先。 |
 | `k8s_cilium_cli_completion_enabled` | `true` | Cilium CLI 補完の生成有効化。 |
 | `k8s_cilium_shared_ca_enabled` | `false` | `k8s-cilium-shared-ca` の実行可否。 |
 | `k8s_cilium_bgp_control_plane_enabled` | 未定義 | Helm values の `bgpControlPlane.enabled` を明示制御。未定義時は `k8s_bgp.enabled` に連動。 |
 
 ### Cilium BGP/Cluster Mesh関連
 
+Cluster Mesh で使用する埋め込み kubeconfig の生成仕様は [k8s-kubeconfig ロール](../k8s-kubeconfig/Readme.md) を参照してください。本ロールでは Cluster Mesh 固有のクラスタ名, クラスタ ID および共有 CA 連携を設定します。
+
 | 変数名 | 既定値 | 説明 |
 | --- | --- | --- |
 | `k8s_bgp` | (未定義) | BGP Control Plane 設定マッピング。`enabled: true` のとき `neighbors` が必須。 |
 | `k8s_cilium_cm_cluster_name` | 未定義 | Cluster Mesh クラスタ名。 |
 | `k8s_cilium_cm_cluster_id` | 未定義 | Cluster Mesh クラスタID。 |
-| `k8s_embed_kubeconfig_script_path` | `/opt/k8snodes/sbin/create-embedded-kubeconfig.py` | 埋め込み kubeconfig 生成スクリプト配置先。 |
-| `k8s_embed_kubeconfig_output_dir` | `/home/kube/.kube` | 埋め込み kubeconfig 出力先。 |
-| `k8s_embed_kubeconfig_file_postfix` | `-embedded.kubeconfig` | 埋め込み kubeconfig の接尾辞。 |
 
 ### 共有CA関連
 
@@ -361,8 +354,6 @@ k8s_audit_log_max_size: 200
 | `firewall_backend` | Debian/Ubuntu: `['ufw']`, RHEL: `['firewalld']` | `ufw` または `firewalld`。 |
 | `k8s_control_plane_ports` | 6443,10250,10257,10259,2379-2380 | 開放ポート一覧。 |
 | `k8s_operator_user` | `kube` | オペレータユーザ。 |
-| `k8s_node_setup_tools_prefix` | `/opt/k8snodes` | ツール類ベースパス。 |
-| `k8s_node_setup_tools_dir` | `/opt/k8snodes/sbin` | ツール配置ディレクトリ。 |
 | `k8s_node_setup_tools_docs_dir` | `/opt/k8snodes/docs` | ドキュメント配置ディレクトリ。 |
 | `reboot_timeout_sec` | `600` | 再起動待機タイムアウト(秒)。 |
 

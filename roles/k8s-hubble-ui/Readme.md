@@ -231,14 +231,7 @@ ansible-playbook -i inventory/hosts site.yml --tags "k8s-hubble-ui"
 
 ### API 待ち合わせ設定
 
-| 変数名 | 既定値 | 説明 |
-| ------ | ------ | ---- |
-| `k8s_api_wait_host` | `k8s_ctrlplane_endpoint のホスト値` | kube-apiserver の待ち合わせ先ホスト名/IP アドレス。`host_vars` で定義したコントロールプレーン API エンドポイントを使用します。 |
-| `k8s_api_wait_port` | `6443` | kube-apiserver の待ち合わせ先ポート番号。`k8s_ctrlplane_endpoint` にポートを含む場合はその値を使用し, 含まない場合は `6443` を使用します。 |
-| `k8s_api_wait_timeout` | `600` | kube-apiserver 待ち合わせ時間 (単位: 秒)。 |
-| `k8s_api_wait_delay` | `2` | kube-apiserver 待ち合わせ開始遅延時間 (単位: 秒)。 |
-| `k8s_api_wait_sleep` | `1` | kube-apiserver 待ち合わせ時の待機間隔 (単位: 秒)。 |
-| `k8s_api_wait_delegate_to` | `"localhost"` | kube-apiserver 待ち合わせ実行ホスト名/IP アドレス。 |
+Kubernetes API Server の待ち合わせ条件は [k8s-common ロール](../k8s-common/Readme.md) の共通内部設定を使用します。
 
 ### Hubble UI 設定
 

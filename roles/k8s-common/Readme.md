@@ -13,6 +13,7 @@
     - [Makefile を使用](#makefile-を使用)
     - [Ansible コマンド直接実行](#ansible-コマンド直接実行)
   - [主要変数](#主要変数)
+    - [Kubernetes 関連ロール共通内部設定](#kubernetes-関連ロール共通内部設定)
     - [オペレータユーザ設定](#オペレータユーザ設定)
     - [公開鍵設定](#公開鍵設定)
     - [kubeconfig ツール設定](#kubeconfig-ツール設定)
@@ -266,6 +267,26 @@ ansible-playbook -i inventory/hosts k8s-base.yml --limit <hostname>
 ```
 
 ## 主要変数
+
+### Kubernetes 関連ロール共通内部設定
+
+複数の Kubernetes 関連ロールで共通利用する既定値は, ロール間の動作やディレクトリ構成を統一するための内部設定として管理します。これらの内部設定は通常, 利用者が `vars/all-config.yml` や `host_vars` から変更することを想定していません。
+
+Kubernetes API Server の待機処理では, 以下の共通設定を使用します。
+
+| 変数名 | 既定値 | 説明 |
+| --- | --- | --- |
+| `k8s_api_wait_host` | `{{ k8s_ctrlplane_endpoint }}` | Kubernetes API Server の待ち合わせ先ホスト。 |
+| `k8s_api_wait_port` | `{{ k8s_ctrlplane_port }}` | Kubernetes API Server の待ち合わせ先ポート。 |
+| `k8s_api_wait_timeout` | `600` | 待ち合わせのタイムアウト時間 (秒)。 |
+| `k8s_api_wait_delay` | `2` | 待ち合わせ開始までの遅延時間 (秒)。 |
+| `k8s_api_wait_sleep` | `1` | 待ち合わせの再試行間隔 (秒)。 |
+| `k8s_api_wait_delegate_to` | `localhost` | 待ち合わせ処理を実行するホスト。 |
+| `k8s_kubeadm_ignore_preflight_errors_arg` | `--ignore-preflight-errors=all` | `kubeadm init/join` で共通利用する preflight オプション。 |
+| `k8s_cilium_config_dir` | `{{ k8s_kubeadm_config_store }}/cilium` | Cilium 関連設定ファイルの共通配置先。 |
+
+ノードセットアップツールは `k8s_node_setup_tools_prefix` を基点として `sbin` と `docs` に配置します。kubeconfig の生成, 統合, 配布に関する仕様は [k8s-kubeconfig ロール](../k8s-kubeconfig/Readme.md) を参照してください。
+
 
 ### オペレータユーザ設定
 

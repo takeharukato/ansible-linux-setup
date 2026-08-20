@@ -414,6 +414,8 @@ ansible-playbook k8s-management.yml -t k8s-virtual-cluster
 
 ## 主要変数
 
+Kubernetes API Server の待機条件は [k8s-common ロール](../k8s-common/Readme.md) の共通内部設定を使用します。
+
 | 変数名 | 既定値 | 説明 |
 | --- | --- | --- |
 | `k8s_virtualcluster_enabled` | `false` | ロールを実行する可否を指定します。 |
@@ -463,12 +465,6 @@ ansible-playbook k8s-management.yml -t k8s-virtual-cluster
 | `virtualcluster_skip_cache_on_clean_build` | `false` | クリーンビルド時にキャッシュ(過去に生成されたコンテナイメージ)の使用を抑止します。`virtualcluster_clean_build: true` かつ `virtualcluster_build_from_source: true` のときに `cache` モードをスキップし, ソースからコンテナイメージを再構築します(強制的に`build`モードで動作します)。 |
 | `virtualcluster_tenant_ns_wait_timeout` | `60` | クリーンビルド時にテナント名前空間 ( namespace ) の消滅を待機する最大時間(秒)です。 |
 | `virtualcluster_tenant_ns_wait_delay` | `5` | クリーンビルド時にテナント名前空間 ( namespace ) の消滅を確認するポーリング間隔(秒)です。 |
-| `k8s_api_wait_host` | 各host_varsの`k8s_ctrlplane_endpoint`変数で指定したコントロールプレーンAPIエンドポイント | kube-apiserverの待ち受け先です。 |
-| `k8s_api_wait_port` | `6443` | kube-apiserverの待ち受けポートです。 |
-| `k8s_api_wait_timeout` | `600` | Kubernetes APIサーバ待ち合わせ時間(秒)です。 |
-| `k8s_api_wait_delay` | `2` | Kubernetes APIサーバ待ち合わせ時の開始遅延時間(秒)です。 |
-| `k8s_api_wait_sleep` | `1` | Kubernetes APIサーバ待ち合わせ時のポーリング間隔(秒)です。 |
-| `k8s_api_wait_delegate_to` | `"localhost"` | Kubernetes APIサーバ待機タスクの実行元ホストです。 |
 | `virtualcluster_kubectl_vc_install_dir` | `"/usr/local/bin"` | kubectl-vc プラグインのインストール先ディレクトリです。 |
 | `virtualcluster_kubectl_vc_binary` | `"kubectl-vc"` | kubectl-vc プラグインのバイナリ名です。 |
 | `virtualcluster_build_kubectl_vc` | `true` | kubectl-vc プラグインをソースからビルドする可否を指定します。 |

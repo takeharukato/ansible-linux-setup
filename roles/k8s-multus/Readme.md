@@ -419,9 +419,7 @@ ansible-playbook -i inventory/hosts site.yml --tags "k8s-multus"
 
 ### API 待機設定
 
-| 変数名 | 既定値 | 説明 |
-| --- | --- | --- |
-| `k8s_api_wait_timeout` | `600` | kube-apiserver の応答を待機する最大秒数。 |
+Kubernetes API Server の待機条件は [k8s-common ロール](../k8s-common/Readme.md) の共通内部設定を使用します。
 
 ### オペレータユーザ設定
 

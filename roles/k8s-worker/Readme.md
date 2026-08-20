@@ -258,15 +258,11 @@ ansible-playbook -i inventory/hosts site.yml --tags "k8s-worker"
 
 ### API 待機設定
 
+Kubernetes API Server の待機条件は [k8s-common ロール](../k8s-common/Readme.md) の共通内部設定を使用します。
+
 | 変数名 | 既定値 | 説明 |
 | --- | --- | --- |
 | `k8s_ctrlplane_endpoint` | `""` (未設定) | コントロールプレーン API の到達先アドレス。本ロールでは, kubelet 側で優先される Pod CIDR のIPアドレスファミリと Kubernetes API エンドポイント広告アドレスのアドレスファミリ整合を確実にするため, IPアドレスを指定します。 |
-| `k8s_api_wait_host` | コントロールプレーン API の到達先アドレスと同一値 | kube-apiserver 待機先ホスト。 |
-| `k8s_api_wait_port` | `6443` | kube-apiserver 待機先ポート。`k8s_ctrlplane_endpoint` にポート番号を含めた場合はその値を使用し, ポート指定がない場合は `6443` を使用します。 |
-| `k8s_api_wait_timeout` | `600` | kube-apiserver 待機タイムアウト (秒)。 |
-| `k8s_api_wait_delay` | `2` | 待機開始前ディレイ (秒)。 |
-| `k8s_api_wait_sleep` | `1` | 待機リトライ間隔 (秒)。 |
-| `k8s_api_wait_delegate_to` | `localhost` | 待機処理を実行する接続元ホスト。 |
 
 補足 (未定義時の動作):
 - `k8s_ctrlplane_endpoint` または `k8s_ctrlplane_host` が未定義, もしくは空文字列の場合, `roles/k8s-worker/tasks/main.yml` のガード条件により `k8s-worker` の実処理タスクはスキップされます。
@@ -290,13 +286,10 @@ ansible-playbook -i inventory/hosts site.yml --tags "k8s-worker"
 
 ### セットアップツール配置先
 
+セットアップツールの共通配置規約は [k8s-common ロール](../k8s-common/Readme.md) を参照してください。kubeconfig の生成・統合・配布仕様は [k8s-kubeconfig ロール](../k8s-kubeconfig/Readme.md) を参照してください。
+
 | 変数名 | 既定値 | 説明 |
 | --- | --- | --- |
-| `k8s_node_setup_tools_prefix` | `/opt/k8snodes` | ツール配置プレフィックス。 |
-| `k8s_node_setup_tools_dir` | `/opt/k8snodes/sbin` | CPU割り当てスクリプト等の配置先。 |
-| `k8s_node_setup_tools_docs_dir` | `/opt/k8snodes/docs` | ドキュメント配置先。 |
-| `k8s_embed_kubeconfig_script_path` | `/opt/k8snodes/sbin/create-embedded-kubeconfig.py` | kubeconfig 生成スクリプト配置先。 |
-| `k8s_embed_kubeconfig_output_dir` | `/home/kube/.kube` | kubeconfig 出力先。 |
 
 ### ワーカーノード固有設定
 
@@ -304,7 +297,6 @@ ansible-playbook -i inventory/hosts site.yml --tags "k8s-worker"
 | --- | --- | --- |
 | `k8s_ctrlplane_host` | `""` (未設定) | `delegate_to` で `kubeadm`, `kubectl` を実行するコントロールプレーンノード。 |
 | `k8s_kubeadm_config_store` | `/home/ansible/kubeadm` | `kubeadm.config.yml` や Cilium BGP Control Plane マニフェスト保存先。 |
-| `k8s_kubeadm_ignore_preflight_errors_arg` | `--ignore-preflight-errors=all` | `kubeadm join` に渡す preflight オプション。 |
 | `k8s_drain_timeout_minutes` | `5` | Pod退避 (`kubectl drain`) のタイムアウト (分)。 |
 | `k8s_worker_delete_wait_sec` | `5` | ワーカーノード削除 (`kubectl delete node`) 後の待機時間 (秒)。 |
 | `reboot_timeout_sec` | `600` | 再起動後の復帰待ちタイムアウト (秒)。 |

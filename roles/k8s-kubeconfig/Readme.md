@@ -212,6 +212,11 @@ ansible-playbook -i inventory/hosts site.yml --tags "k8s-kubeconfig"
 
 ## 主要変数
 
+本節の kubeconfig 生成・統合用変数は, Kubernetes 関連ロールから共通利用する内部設定を含みます。通常, 利用者がこれらの内部設定を変更する必要はありません。ツールの共通配置規約については [k8s-common ロール](../k8s-common/Readme.md) を参照してください。
+
+`k8s_operator_home` は利用者が設定する変数ではありません。`k8s_operator_user` の passwd 情報から実行時にホームディレクトリを解決し, `k8s_operator_home` と `k8s_operator_home_resolved` に反映します。ホームディレクトリを解決できない場合は, kubeconfig の出力先にファイルを出力する前に処理を停止します。
+
+
 ### 基本設定
 
 | 変数名 | 既定値 | 説明 |

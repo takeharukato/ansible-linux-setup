@@ -28,6 +28,7 @@
   - [テンプレートと生成ファイル](#テンプレートと生成ファイル)
   - [実行フロー](#実行フロー)
     - [パラメータおよび設定情報の読み込み](#パラメータおよび設定情報の読み込み)
+    - [実行時変数の解決](#実行時変数の解決)
     - [パッケージの確認](#パッケージの確認)
     - [ディレクトリ構造の作成](#ディレクトリ構造の作成)
     - [ユーザ・グループおよびサービス設定](#ユーザグループおよびサービス設定)
@@ -280,17 +281,13 @@ ansible-playbook -i inventory/hosts site.yml --tags "k8s-whereabouts"
 
 ### Kubernetes API 接続設定
 
+Kubernetes API Server の待ち合わせ条件は [k8s-common ロール](../k8s-common/Readme.md) の共通内部設定を使用します。
+
 これらの変数は kube-apiserver の起動待機処理で使用されます。
 
 | 変数名 | 既定値 | 説明 |
 | --- | --- | --- |
 | `k8s_ctrlplane_endpoint` | 各ホストの `host_vars` で指定 | Control Plane API の広告アドレス (IPv4/IPv6)。待機処理で使用。|
-| `k8s_api_wait_host` | `"{{ k8s_ctrlplane_endpoint }}"` | kube-apiserver の待ち合わせ先ホスト名/IP アドレス。 |
-| `k8s_api_wait_port` | `"{{ k8s_ctrlplane_port }}"` | kube-apiserver の待ち合わせ先ポート番号。既定: `6443` |
-| `k8s_api_wait_timeout` | `600` | kube-apiserver 待ち合わせ時間 (単位: 秒)。 |
-| `k8s_api_wait_delay` | `2` | kube-apiserver 待ち合わせ開始の遅延時間 (単位: 秒)。 |
-| `k8s_api_wait_sleep` | `1` | kube-apiserver 待機間隔 (単位: 秒)。 |
-| `k8s_api_wait_delegate_to` | `"localhost"` | kube-apiserver 待ち合わせ実行ホスト (制御側)。 |
 
 ### 有効化フラグ
 
@@ -326,12 +323,12 @@ ansible-playbook -i inventory/hosts site.yml --tags "k8s-whereabouts"
 
 ### ネットワークおよびインタフェース設定
 
-以下の変数は `vars/k8s-config-common.yml` で自動算出される値, 又は `group_vars/all/all.yml` から読み込まれ, NAD テンプレート生成に利用されます。
+以下の変数はネットワーク設定から自動算出される値, 又は `group_vars/all/all.yml` から読み込まれ, NAD テンプレート生成に利用されます。IPv6 を使用しない場合は `network_ipv6_network_address` の設定は不要です。
 
 | 変数名 | 由来 | 説明 |
 | --- | --- | --- |
 | `k8s_network_ipv4_cidr_runtime` | `vars/k8s-config-common.yml`(`network_ipv4_network_address`/`network_ipv4_prefix_len`から自動算出) | NAD で使用する IPv4 CIDR (例: `10.0.0.0/16`)。`tasks/resolve-runtime-vars.yml`がランタイム変数として設定する。 |
-| `k8s_network_ipv6_cidr_runtime` | `vars/k8s-config-common.yml`(`network_ipv6_network_address`/`network_ipv6_prefix_len`から自動算出) | NAD で使用する IPv6 CIDR (例: `fd00::/64`)。`tasks/resolve-runtime-vars.yml`がランタイム変数として設定する。 |
+| `k8s_network_ipv6_cidr_runtime` | `network_ipv6_network_address` / `network_ipv6_prefix_len` から自動算出 | NAD で使用する IPv6 CIDR (例: `fd00::/64`)。IPv6 を使用しない場合は空文字列として扱い, IPv6 用の設定を生成しない。 |
 | `mgmt_nic` | `group_vars/all/all.yml` | NAD の `master` インタフェース名。既定: `ens160` |
 
 ## 設定例

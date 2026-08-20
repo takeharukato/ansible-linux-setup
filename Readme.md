@@ -228,7 +228,7 @@ users_listには, 以下の要素からなる辞書のリストを記述する.
 |network_ipv4_prefix|物理サーバ/管理用VMネットワークのIPv4ネットワークのプレフィクスアドレス|"{{router_ipv4_prefix}}"|
 |network_ipv6_prefix|物理サーバ/管理用VMネットワークのIPv6ネットワークのプレフィクスアドレス|"{{router_ipv6_prefix}}"|
 |network_ipv4_network_address|物理サーバ/管理用VMネットワークのIPv4ネットワークアドレス|"{{router_ipv4_prefix}}.0"|
-|network_ipv6_network_address|物理サーバ/管理用VMネットワークのIPv6ネットワークアドレス|"{{router_ipv6_prefix}}"|
+|network_ipv6_network_address|物理サーバ/管理用VMネットワークのIPv6ネットワークアドレス。IPv6を使用する場合に設定する。IPv6を使用しない場合は設定不要。|"{{router_ipv6_prefix}}"|
 |gateway4|IPv4ゲートウエイアドレス|"{{router_ipv4_address}}"|
 |gateway6|IPv6ゲートウエイアドレス|"{{router_ipv6_address}}"|
 |gpm_mgmt_ipv4_prefix|仮想環境内部管理ネットワークのIPv4ネットワークプレフィクス|"192.168.30"|
@@ -696,19 +696,12 @@ Kubernetes (以下K8sと記す)関連の設定を以下に記載します。
 |k8s_shared_ca_output_dir|共通CAをノード内に展開するディレクトリ|"/etc/kubernetes/pki/shared-ca"|
 |k8s_shared_ca_replace_kube_ca|共通CAで `/etc/kubernetes/pki/ca.{crt,key}` を置き換え, `kubeadm init` 時にAPIサーバ証明書などを再発行する|true|
 |k8s_kubeadm_config_store|`kubeadm init/join` 用の設定ファイルや CNI values を格納するワークディレクトリ|"{{ ansible_home_dir }}/kubeadm"|
-|k8s_kubeadm_ignore_preflight_errors_arg|`kubeadm init/join` 時に無視する preflight エラーの指定|"--ignore-preflight-errors=all"|
 |k8s_kubeconfig_system_dir|`k8s-kubeconfig` ロールが `kubeconfig` を配置するシステム側ディレクトリ。既定では `/etc/kubernetes` を使用し, `k8s-kubeconfig` ロール中の `control-plane.yml` / `distribute-workers.yml` が参照する|"/etc/kubernetes"|
 |k8s_pod_ipv4_service_subnet|K8sのIPv4サービスネットワークのClassless Inter-Domain Routing ( CIDR )|"10.245.0.0/16"|
 |k8s_pod_ipv6_service_subnet|K8sのIPv6サービスネットワークのCIDR|"fdb6:6e92:3cfb:feed::/112"|
 |k8s_reserved_system_cpus_default|K8sのシステムCentral Processing Unit ( CPU ) 予約範囲。未定義時は, システム用CPUを予約しない。|"0-1"|
 |k8s_worker_enable_nodeport|NodePortによるサービスネットワーク公開を行う場合は, trueに設定(将来対応)|false|
 |k8s_worker_nodeport_range|NodePortの範囲|"30000-32767"|
-|k8s_api_wait_host|Kubernetes APIサーバの待ち合わせ先(接続先)ホスト名/IPアドレス|"{{ k8s_ctrlplane_endpoint }}"|
-|k8s_api_wait_port|Kubernetes APIサーバの待ち合わせ先ポート番号|"{{ k8s_ctrlplane_port }}"  (規定: 6443)|
-|k8s_api_wait_timeout|Kubernetes APIサーバ待ち合わせ時間(単位: 秒)|600|
-|k8s_api_wait_delay|Kubernetes APIサーバ待ち合わせる際の開始遅延時間(単位: 秒)|2|
-|k8s_api_wait_sleep|Kubernetes APIサーバ待ち合わせる際の待機間隔(単位: 秒)|1|
-|k8s_api_wait_delegate_to|Kubernetes APIサーバ待ち合わせる際の接続元ホスト名/IPアドレス|"localhost"|
 |k8s_containerd_wait_timeout|containerdソケット待ち合わせ時間(単位: 秒)|60|
 |k8s_containerd_wait_delegate_to|containerdソケット待ち合わせる際の接続元ホスト名/IPアドレス|"localhost"|
 |k8s_operator_authorized_key_list|K8sオペレータアカウント(`kube`)に追加で登録したい公開鍵のリスト。各要素はGitHub 取得分と合わせてソート, 重複排除され, K8sオペレータアカウント(`kube`)の公開鍵に反映されます。|`[]`|

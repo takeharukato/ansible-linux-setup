@@ -304,14 +304,13 @@ ansible -i inventory/hosts <対象ホスト> -m ansible.builtin.debug -a "var=an
 **実行するコマンド**:
 
 ```bash
-grep -n "repo_enable_docker_ce\|repo_enable_docker" vars/all-config.yml host_vars/*.yml
+grep -n "^repo_enable_docker_ce:" vars/all-config.yml host_vars/*.yml
 ```
 
 **確認ポイント**:
 
-- `repo_enable_docker_ce` の設定値を確認できること。
-- 外部リポジトリ処理で参照する `repo_enable_docker` の設定値を確認できること。
-- `repo_enable_docker_ce` と `repo_enable_docker` が意図した動作になる組み合わせであること。
+- `repo_enable_docker_ce` が意図した値になっていること。
+- `true` の場合に Docker CE リポジトリ設定タスクが実行されること。
 
 ### 6. 優先度が意図どおりに反映されない場合
 
