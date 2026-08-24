@@ -15,7 +15,6 @@
       - [Network Time Protocol (NTP) クライアントの設定](#network-time-protocol-ntp-クライアントの設定)
       - [Domain Name System (DNS) サーバのサーバ/クライアント共通設定](#domain-name-system-dns-サーバのサーバクライアント共通設定)
       - [プロキシ設定](#プロキシ設定)
-      - [Rancher 関連設定](#rancher-関連設定)
       - [Docker Community Edition関連設定](#docker-community-edition関連設定)
         - [ローカルコンテナレジストリ設定](#ローカルコンテナレジストリ設定)
         - [ローカルコンテナレジストリ設定時のansible 制御ノード側の設定について](#ローカルコンテナレジストリ設定時のansible-制御ノード側の設定について)
@@ -342,25 +341,6 @@ ntp_servers_list:
 |proxy_port|プロキシポート|""|
 |proxy_user|プロキシユーザ|""|
 |proxy_password|プロキシパスワード|""|
-
-#### Rancher 関連設定
-
-以下の項目を設定します。
-
-|変数名|意味|設定値の例|
-|---|---|---|
-|rancher_host|Rancherのホスト名|"rancher01"|
-|rancher_cert_domain_name|Rancherのドメイン名|"example.org"|
-|rancher_cert_subject_country|Rancher証明書の国|"JP"|
-|rancher_cert_subject_state|Rancher証明書の州|"XXXX"|
-|rancher_cert_subject_locality|Rancher証明書の市町村|"YYYY"|
-|rancher_cert_subject_org|Rancher証明書の組織名|"example-org"|
-|rancher_wait_host_stopped|Rancherサービス停止を待ち合わせる(接続先)ホスト名/IPアドレス|"127.0.0.1"|
-|rancher_wait_host_started|Rancherサービス開始を待ち合わせる(接続先)ホスト名/IPアドレス|"{{ inventory_hostname }}"|
-|rancher_wait_timeout|Rancherサービス待ち合わせ時間(単位: 秒)|300|
-|rancher_wait_delay|Rancherサービスを待ち合わせる際の開始遅延時間(単位: 秒)|5|
-|rancher_wait_sleep|Rancherサービスを待ち合わせる際の待機間隔(単位: 秒)|2|
-|rancher_wait_delegate_to|Rancherサービスを待ち合わせる際の接続元ホスト名/IPアドレス|"localhost"|
 
 #### Docker Community Edition関連設定
 
