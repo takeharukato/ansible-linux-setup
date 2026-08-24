@@ -51,6 +51,7 @@ common_packages:
   - attr
   - iptables-persistent
   - python3-yaml
+  - sosreport
 
 common_langpack_packages:
   - language-pack-ja-base
