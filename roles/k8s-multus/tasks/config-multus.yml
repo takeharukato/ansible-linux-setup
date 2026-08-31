@@ -22,7 +22,7 @@
 - name: Copy Multus Helm Chart to remote host
   ansible.builtin.copy:
     src: "{{ k8s_multus_helm_chart_source }}/"
-    dest: "{{ k8s_multus_helm_chart_path }}/"
+    dest: "{{ k8s_multus_runtime_helm_chart_path }}/"
     owner: root
     group: root
     mode: preserve
@@ -32,23 +32,8 @@
 - name: Setup Multus Helm values file
   ansible.builtin.template:
     src: multus-values.yml.j2
-    dest: "{{ k8s_multus_config_dir }}/multus-values.yml"
+    dest: "{{ k8s_multus_runtime_values_file }}"
     owner: root
     group: root
     mode: '0644'
     backup: false
-
-# Multus CNIのインストール（Helm経由）
-# https://github.com/k8snetworkplumbingwg/multus-cni/blob/master/docs/quickstart.md
-# の機能をHelm Chartで実装
-- name: Install Multus via Helm
-  ansible.builtin.shell: |
-    helm upgrade --install multus-cni {{ k8s_multus_helm_chart_path }} \
-    --namespace kube-system \
-    --version {{ k8s_multus_helm_chart_version }} \
-    -f {{ k8s_multus_config_dir }}/multus-values.yml
-  environment:
-    KUBECONFIG: "{{ k8s_admin_kubeconfig_path }}"
-  become: true
-  register: multus_helm_install
-  changed_when: "'deployed' in multus_helm_install.stdout or 'upgraded' in multus_helm_install.stdout"

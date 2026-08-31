@@ -42,7 +42,7 @@
     - [5. RBAC リソースの確認](#5-rbac-リソースの確認)
     - [6. CNI 設定ファイルの確認](#6-cni-設定ファイルの確認)
     - [7. Multus 動作確認 (テストポッド起動)](#7-multus-動作確認-テストポッド起動)
-      - [7.1. 事前準備 (NetworkAttachmentDefinitionの作成)](#71-事前準備-networkattachmentdefinitionの作成)
+      - [7.1. 事前準備 (NetworkAttachmentDefinitionの確認)](#71-事前準備-networkattachmentdefinitionの確認)
       - [7.2. テストポッドの起動](#72-テストポッドの起動)
       - [7.3. Pod 内のネットワークインターフェース確認](#73-pod-内のネットワークインターフェース確認)
       - [7.4 テストポッドの削除](#74-テストポッドの削除)
@@ -245,11 +245,12 @@
 
 ### 基本仕様
 
-- **デフォルト導入方式**: Helm Chart (推奨)
+- **デフォルト導入方式**: ロール内のローカル Helm Chartを使用したHelm Release管理 (推奨)
 - **代替導入方式**: kubectl apply (後方互換性のため提供)
 - **Multus タイプ**: thin インストール (軽量版, 既定)
 - **配置対象**: すべての Kubernetes ノード (DaemonSet)
-- **再実行対応**: 可 (冪等性を保証)
+- **Helm 実行方式**: `k8s-helm-common` を使用して事前描画, インストール/アップグレード, Release状態確認を実行
+- **再実行対応**: 可
 
 ## 導入方式
 
@@ -365,7 +366,8 @@ ip route add <DESTINATION_NETWORK> via <GATEWAY> dev net1 src <NET1_IP>
   - kubectl: Kubernetes クラスタ操作用 (/usr/local/bin/kubectl)
   - helm: Helm Chart 導入用 (Helm 方式使用時, 既定で有効)
 - **kube-apiserver**: 稼働中で応答可能であること
-- **管理者権限**: kubectl 実行に /etc/kubernetes/admin.conf を使用する場合は, root 権限が必要 (sudoコマンドによるコマンド実行が可能であることが必要)
+- **Helm 実行ユーザ**: `k8s_runtime_helm_operator_user` が設定済みで, 当該ユーザの `$HOME/.kube/ca-embedded-admin.conf` が存在し読み取り可能であること
+- **管理者権限**: 既存リソースのクリーンアップや kubectl apply 方式では `/etc/kubernetes/admin.conf` を使用するため, root 権限が必要 (sudoコマンドによるコマンド実行が可能であることが必要)
 - **ネットワーク接続**: コンテナイメージ取得のためのインターネット接続 (または内部レジストリへの接続)
 
 ## 実行方法
@@ -385,17 +387,18 @@ ansible-playbook -i inventory/hosts site.yml --tags "k8s-multus"
 
 | 変数名 | 既定値 | 説明 |
 | --- | --- | --- |
-| `k8s_multus_enabled` | `true` | Multus 導入を有効化する可否。`false` にするとロール全体をスキップします。 |
-| `k8s_multus_cleanup_resources` | `false` | 既存の Multus リソースを削除する可否。導入方式の切り替え時に使用します。 |
+| `k8s_multus_enabled` | `false` | Multus 導入を有効化する。Multusを導入する場合は, `true`に設定し, 導入しない場合は, `false` に設定する。 |
+| `k8s_multus_cleanup_resources` | `true` | Helm 再導入前に既存の Multus リソースを削除する場合は, `true`に設定する。 |
 | `k8s_node_setup_tools_prefix` | `"/opt/k8snodes"` | ノード向け補助スクリプト格納先ディレクトリのプレフィックス。 |
-| `k8s_node_setup_tools_dir` | `"{{ k8s_node_setup_tools_prefix }}/sbin"` | ノード向け補助スクリプト格納先ディレクトリ。 |
+| `k8s_node_setup_tools_dir` | `"{{ k8s_node_setup_tools_prefix }}/sbin"` (既定: `/opt/k8snodes/sbin` ) | ノード向け補助スクリプト格納先ディレクトリ。 |
 
 ### Helm 設定
 
 | 変数名 | 既定値 | 説明 |
 | --- | --- | --- |
 | `k8s_multus_kubectl_apply_enabled` | `false` | kubectl apply 方式を有効化する可否。`false` の場合は Helm Chart 方式を使用します。 |
-| `k8s_multus_helm_chart_path` | `"/tmp/multus-chart"` | ターゲットホストにコピーする Helm Chart のパス。 |
+| `k8s_multus_helm_chart_source` | `"{{ role_path }}/files/multus-chart"` | Ansible 制御ホスト上で使用する Multus Helm Chart のソースディレクトリ。現在はロール内の独自 Chart を使用します。 |
+| `k8s_multus_helm_chart_version` | `""` | Helm Chart のバージョン指定。現在のローカル Chart では空文字列とし `helm template` / `helm upgrade` に `--version` を付与しません。将来 repository または OCI Chart を使用する場合の版数指定に使用します。 |
 
 ### コンテナイメージ設定
 
@@ -432,11 +435,11 @@ Kubernetes API Server の待機条件は [k8s-common ロール](../k8s-common/Re
 | 変数名 | 既定値 | 説明 |
 | --- | --- | --- |
 | `k8s_collect_pod_ips_completion_enabled` | `true` | `collect-pod-ips.py` 用の bash/zsh 補完ファイルを配置する可否。 |
-| `k8s_collect_pod_ips_script_path` | `"{{ k8s_node_setup_tools_dir }}/collect-pod-ips.py"` | Pod アドレス収集ツール本体の配置先。 |
+| `k8s_collect_pod_ips_script_path` | `"{{ k8s_node_setup_tools_dir }}/collect-pod-ips.py"` (既定: `/opt/k8snodes/sbin/collect-pod-ips.py`)| Pod アドレス収集ツール本体の配置先。 |
 | `k8s_collect_pod_ips_bash_completion_path` | `"/etc/bash_completion.d/collect-pod-ips"` | bash 補完ファイルの配置先。 |
 | `k8s_collect_pod_ips_zsh_completion_path_debian` | `"/usr/share/zsh/vendor-completions/_collect-pod-ips"` | Debian/Ubuntu 系での zsh 補完ファイル配置先。 |
 | `k8s_collect_pod_ips_zsh_completion_path_rhel` | `"/usr/share/zsh/site-functions/_collect-pod-ips"` | RHEL 系での zsh 補完ファイル配置先。 |
-| `k8s_collect_pod_ips_zsh_completion_path` | `"{{ (ansible_facts.os_family == 'Debian') | ternary(k8s_collect_pod_ips_zsh_completion_path_debian, k8s_collect_pod_ips_zsh_completion_path_rhel) }}"` | 実行ホストのディストリビューション差異を吸収した zsh 補完ファイル配置先。 |
+| `k8s_collect_pod_ips_zsh_completion_path` | RHEL系: `/usr/share/zsh/site-functions/_collect-pod-ips`, Debian系: `/usr/share/zsh/vendor-completions/_collect-pod-ips` | 実行ホストのディストリビューション差異を吸収した zsh 補完ファイル配置先。 |
 
 ### 共通変数参照
 
@@ -476,9 +479,13 @@ Kubernetes API Server の待機条件は [k8s-common ロール](../k8s-common/Re
 
 **使用方法**:
 
-1. ロール実行時に `files/multus-chart/` がターゲットホストの `/tmp/multus-chart/` にコピーされます。
-2. `templates/multus-values.yml.j2` から `/tmp/multus-values.yml` が生成されます。
-3. `helm upgrade --install multus /tmp/multus-chart/ --namespace kube-system --values /tmp/multus-values.yml` でデプロイされます。
+1. ロール実行時に `k8s_multus_helm_chart_source` で指定した Chart が `{{ k8s_multus_config_dir }}/chart` (既定: `/home/ansible/kubeadm/multus/chart`) にコピーされます。
+2. `templates/multus-values.yml.j2` から `{{ k8s_multus_config_dir }}/multus-values.yml` (既定: `/home/ansible/kubeadm/multus/multus-values.yml`) が生成されます。
+3. `k8s-helm-common` の `template.yml` で Chart を事前描画し, Helm入力と生成結果を検証します。
+4. `k8s-helm-common` の `upgrade.yml` で Release `multus-cni` を `kube-system` Namespaceへ `helm upgrade --install --wait --timeout` で適用します。
+5. `k8s-helm-common` の `wait-release.yml` で Release が `deployed` 状態になったことを確認します。
+
+Helm コマンドは `k8s_runtime_helm_operator_user` で実行され, kubeconfig には当該ユーザの `$HOME/.kube/ca-embedded-admin.conf` を使用します。現在のローカル Chartでは `k8s_multus_helm_chart_version` の既定値が空文字列のため `--version` は指定されません。
 
 **カスタマイズポイント**:
 
@@ -495,14 +502,15 @@ Kubernetes API Server の待機条件は [k8s-common ロール](../k8s-common/Re
 3. **ディレクトリ作成** (`directory.yml`): Multus 用の設定ディレクトリを作成します。
 4. **ユーザ/グループ作成** (`user_group.yml`): オペレータユーザ (`k8s_operator_user`) の設定を行います (既定では作成しない)。
 5. **サービス設定** (`service.yml`): Multus 関連サービスの設定を行います (現在は処理なし, 将来の拡張用)。
-6. **既存リソースのクリーンアップ** (`config-cleanup-multus.yml`): `k8s_multus_cleanup_resources: true` の場合, 既存の Multus リソース (DaemonSet, ClusterRole, ClusterRoleBinding, ServiceAccount, ConfigMap, CRD) を削除します。導入方式の切り替え時に使用します。
-7. **Multus 導入 (Helm 方式)** (`config-multus.yml`): `k8s_multus_kubectl_apply_enabled: false` (既定) の場合, 以下の手順で Helm Chart を使用して Multus を導入します:
+6. **Helm 実行時変数の解決** (`resolve-runtime-vars.yml`): `k8s_multus_kubectl_apply_enabled: false` の場合, Release名, Namespace, Chart配置先, valuesファイル, Helm実行ユーザ, kubeconfig, timeout/retry値を実行時変数として解決します。
+7. **既存リソースのクリーンアップ** (`config-cleanup-multus.yml`): `k8s_multus_cleanup_resources: true` の場合, 既存の Multus リソース (DaemonSet, ClusterRole, ClusterRoleBinding, ServiceAccount, ConfigMap) を削除します。
+8. **Multus Helm入力の準備** (`config-multus.yml`): `k8s_multus_kubectl_apply_enabled: false` (既定) の場合, 以下の手順で Helm Chart と values を準備します:
    - **kube-apiserver 応答待機**: `wait_for` モジュールで kube-apiserver (https://{{ k8s_api_wait_host }}:{{ k8s_api_wait_port }}) が応答可能になるまで最大 {{ k8s_api_wait_timeout }} 秒待機します。
    - **Helm Chart コピー**: `files/multus-chart/` をターゲットホストへコピーします。
    - **Helm values 生成**: `templates/multus-values.yml.j2` から values ファイルを生成します。
-   - **Helm インストール/アップグレード**: `helm upgrade --install` コマンドで Multus をデプロイします。
-8. **Multus 導入 (kubectl apply 方式)** (`config-kubectl-applied-multus.yml`): `k8s_multus_kubectl_apply_enabled: true` の場合, 公式マニフェスト ({{ k8s_multus_daemonset_manifest_url }}) を `kubectl apply` で適用します。
-9. **テストポッド用マニフェスト配置** (`directory-multus-test-pod.yml`): Multus 動作確認用のテストポッド定義 (`templates/app-pod.yml.j2`) を `{{ k8s_multus_config_dir }}/app-pod.yml` に配置します。
+9. **Multus 導入 (Helm 方式)** (`helm.yml`): `k8s-helm-common` を使用して `helm template` による事前描画, `helm upgrade --install --wait --timeout` による適用, Release の `deployed` 状態確認を順に実行します。Ansible check modeでは Helm 操作を実行しません。
+10. **Multus 導入 (kubectl apply 方式)** (`config-kubectl-applied-multus.yml`): `k8s_multus_kubectl_apply_enabled: true` の場合, 公式マニフェスト ({{ k8s_multus_daemonset_manifest_url }}) を `kubectl apply` で適用します。
+11. **テストポッド用マニフェスト配置** (`directory-multus-test-pod.yml`): Multus 動作確認用のテストポッド定義 (`templates/app-pod.yml.j2`) を `{{ k8s_multus_config_dir }}/app-pod.yml` に配置します。
 
 ## 検証ポイント
 
@@ -655,94 +663,46 @@ Multus の設定ファイル (`00-multus.conf` または `multus.d/multus.kubeco
 
 ### 7. Multus 動作確認 (テストポッド起動)
 
-本節では, テストポッド投入によるMultusの動作確認手順を説明します。
+本節では, `k8s-whereabouts` ロールが生成する検証用 NetworkAttachmentDefinition (NAD) `ipvlan-wb` を使用して, テストポッドへセカンダリネットワークインターフェースを追加できることを確認します。
 
-#### 7.1. 事前準備 (NetworkAttachmentDefinitionの作成)
+#### 7.1. 事前準備 (NetworkAttachmentDefinitionの確認)
 
-Podを展開する前に, Pod が参照する NetworkAttachmentDefinition `ipvlan-wb` が `default` 名前空間に存在することを確認します:
-
-```bash
-kubectl get network-attachment-definition -n default ipvlan-wb
-```
-
-`NotFound` になる場合は, 以下の手順でNetworkAttachmentDefinitionを作成します。
-例えば, 上記は, WhereaboutsによるIPアドレスの割当てとipvlan を利用する場合は以下のように, NetworkAttachmentDefinitionを作成するためのマニュフェストを生成します。
-
-`ipvlan` の `master` には, **Pod内の `eth0` ではなく, Podが配置されるノード上の実インターフェース名** を指定します。
-Pod投入先K8sクラスタのワーカノード上で以下のコマンドを実行し, 実インターフェース名を取得します:
+`k8s-whereabouts` ロールが正常終了し, `kube-system` 名前空間に検証用 NAD `ipvlan-wb` が存在することを確認します:
 
 ```bash
-ip -o route show default | awk '{print $5; exit}'
+kubectl -n kube-system \
+  get network-attachment-definition ipvlan-wb
 ```
 
-実行結果の例:
-```bash
-$ ip -o route show default | awk '{print $5; exit}'
-ens160
+期待される出力の例:
+
+```text
+NAME        AGE
+ipvlan-wb   6d19h
 ```
 
-上記コマンドの出力結果を以下の`<NODE_PRIMARY_IFNAME>`の部分に指定して, 以下のコマンドを実行し, NetworkAttachmentDefinitionを作成するためのマニュフェストを生成します:
+NAD `ipvlan-wb` が存在しない場合は, 先に `k8s-whereabouts` ロールを実行して検証用 NAD を生成してください。
+
 ```bash
-cat <<'EOF' >/tmp/ipvlan-wb-nad.yml
-apiVersion: k8s.cni.cncf.io/v1
-kind: NetworkAttachmentDefinition
-metadata:
-  name: ipvlan-wb
-  namespace: default
-spec:
-  config: |
-    {
-      "cniVersion": "0.3.1",
-      "type": "ipvlan",
-      "master": "<NODE_PRIMARY_IFNAME>",
-      "mode": "l2",
-      "ipam": {
-        "type": "whereabouts",
-        "range": "192.168.20.0/24"
-      }
-    }
-EOF
+make run_k8s_whereabouts
 ```
 
-実行例:
+Whereabouts の Pod が正常に起動していることも確認します:
+
 ```bash
-$ cat <<'EOF' >/tmp/ipvlan-wb-nad.yml
-apiVersion: k8s.cni.cncf.io/v1
-kind: NetworkAttachmentDefinition
-metadata:
-  name: ipvlan-wb
-  namespace: default
-spec:
-  config: |
-    {
-      "cniVersion": "0.3.1",
-      "type": "ipvlan",
-      "master": "ens160",
-      "mode": "l2",
-      "ipam": {
-        "type": "whereabouts",
-        "range": "192.168.20.0/24"
-      }
-    }
-EOF
+kubectl -n kube-system \
+  get pods -o wide \
+  | grep -i whereabouts
 ```
 
-以下のコマンドにより, 上記で作成したNetworkAttachmentDefinition作成用マニュフェストを適用します:
-```bash
-kubectl apply -f /tmp/ipvlan-wb-nad.yml
-```
-
-実行例:
-```bash
-$ kubectl apply -f /tmp/ipvlan-wb-nad.yml
-networkattachmentdefinition.k8s.cni.cncf.io/ipvlan-wb created
-```
+`namespace` を省略すると, Multus は Pod と同じ名前空間から NAD を検索します。異なる名前空間に NAD を作成した場合は, `namespace` を明示する必要があります。例えば, `kube-system` に NAD を作成している場合は, `namespace: kube-system` を指定します。
 
 #### 7.2. テストポッドの起動
 
-本ロールでは, Multusの動作確認用マニフェスト (`{{ k8s_multus_config_dir }}/app-pod.yml`, 既定は, `/home/ansible/kubeadm/multus/app-pod.yml`) をコントロールプレインノード上に導入します。
+本ロールでは, Multusの動作確認用マニフェスト (`{{ k8s_multus_config_dir }}/app-pod.yml`, 既定は, `/home/ansible/kubeadm/multus/app-pod.yml`) をコントロールプレーンノード上に導入します。
 
 Multusの動作確認用マニフェストの内容は以下の通りです:
+
 ```yaml
 apiVersion: v1
 kind: Pod
@@ -752,7 +712,10 @@ metadata:
   annotations:
     k8s.v1.cni.cncf.io/networks: |
       [
-        { "name": "ipvlan-wb" }
+        {
+          "name": "ipvlan-wb",
+          "namespace": "kube-system"
+        }
       ]
 spec:
   containers:
@@ -761,87 +724,81 @@ spec:
     command: ["/bin/sh","-c","ip addr; echo '---'; ip route; sleep 3600"]
 ```
 
-以下のコマンドを実行し, 本マニュフェストを適用します:
+テストポッドは `default` 名前空間へ作成し, `kube-system` 名前空間の検証用 NAD `ipvlan-wb` を参照します。
+
+以下のコマンドを実行し, 本マニフェストを適用します:
+
 ```bash
 kubectl apply -f /home/ansible/kubeadm/multus/app-pod.yml
 kubectl wait --for=condition=ready pod/demo-net1 --timeout=60s
 ```
 
 実行結果の例:
-```bash
-$ kubectl apply -f app-pod.yml
+
+```text
 pod/demo-net1 created
-$ kubectl wait --for=condition=ready pod/demo-net1 --timeout=60s
 pod/demo-net1 condition met
 ```
 
-`kubectl wait` がタイムアウトし, `kubectl describe pod demo-net1` に
-`failed to lookup master "eth0": Link not found` が表示される場合は,
-NAD の `master` がノード実IF名と不一致です。`master` を実IF名へ修正して再適用してください。
+`kubectl wait` がタイムアウトした場合は, `kubectl describe pod demo-net1` の Events を確認します。NAD の参照先名前空間, NAD の `master` に指定したノード上の実インターフェース名, Whereabouts の動作状態などを確認してください。
 
 #### 7.3. Pod 内のネットワークインターフェース確認
 
 以下のコマンドを実行し, Pod内のネットワークインターフェース情報を確認します:
 
 ```bash
-kubectl exec demo-net1 -- ip addr show
+kubectl exec demo-net1 -- ip addr
 ```
 
 **期待される結果**:
 
-`eth0` (プライマリインターフェース, Cilium) に加えて, `net1` (セカンダリインターフェース, ipvlan) が表示されることを確認します:
+`eth0` (プライマリインターフェース, Cilium) に加えて, `net1` (セカンダリインターフェース, ipvlan) が表示されることを確認します。Whereabouts を IPv4/IPv6 Dual Stack で設定している場合は, `net1` に IPv4 と IPv6 の両方が割り当てられます。
 
-```
-1: lo: <LOOPBACK,UP,LOWER_UP> mtu 65536 qdisc noqueue qlen 1000
-    link/loopback 00:00:00:00:00:00 brd 00:00:00:00:00:00
-    inet 127.0.0.1/8 scope host lo
+実行結果の例:
+
+```text
+2: net1@if3: <BROADCAST,MULTICAST,UP,LOWER_UP,M-DOWN> mtu 1500 qdisc noqueue
+    link/ether 00:50:56:00:bf:7b brd ff:ff:ff:ff:ff:ff
+    inet 192.168.40.100/24 brd 192.168.40.255 scope global net1
        valid_lft forever preferred_lft forever
-2: net1@net1: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc noqueue
-    link/ether 00:50:56:00:bf:1d brd ff:ff:ff:ff:ff:ff
-    inet 192.168.20.50/24 brd 192.168.20.255 scope global net1
+    inet6 fd69:6684:61a:2::100/64 scope global
        valid_lft forever preferred_lft forever
-18: eth0@if19: <BROADCAST,MULTICAST,UP,LOWER_UP,M-DOWN> mtu 1500 qdisc noqueue qlen 1000
-    link/ether 62:eb:6d:4d:1c:ab brd ff:ff:ff:ff:ff:ff
-    inet 10.244.2.43/32 scope global eth0
+    inet6 fe80::50:5600:100:bf7b/64 scope link
+       valid_lft forever preferred_lft forever
+32: eth0@if33: <BROADCAST,MULTICAST,UP,LOWER_UP,M-DOWN> mtu 1500 qdisc noqueue
+    link/ether 8a:37:fd:dd:0c:57 brd ff:ff:ff:ff:ff:ff
+    inet 10.244.2.201/32 scope global eth0
+       valid_lft forever preferred_lft forever
+    inet6 fdb6:6e92:3cfb:202::d574/128 scope global flags 02
        valid_lft forever preferred_lft forever
 ```
 
 **確認ポイント**:
 
-- `lo`: ループバックインターフェース (常に存在)
-  - `inet 127.0.0.1/8` が表示されていること
-- `net1`: セカンダリネットワークインターフェース (Multus が NetworkAttachmentDefinition に基づいてアタッチ)
-  - インターフェース名は NetworkAttachmentDefinition の設定により変わります (net1, net2, ... など)
-  - `<BROADCAST,MULTICAST,UP,LOWER_UP>` のフラグが表示されていること
-  - IP アドレスが割り当てられていること (上記例では `192.168.20.50/24`)
-  - ブロードキャストアドレスが表示されていること (上記例では `192.168.20.255`)
-- `eth0`: プライマリネットワークインターフェース (Cilium が管理, Pod 間通信や Service 通信に使用)
-  - `<BROADCAST,MULTICAST,UP,LOWER_UP,M-DOWN>` のフラグが表示されていること
-  - IP アドレスが割り当てられていること (通常は /32, 上記例では `10.244.2.43/32`)
-  - インターフェース番号は環境により変わります (上記例では 18)
+- `net1` が存在し, `UP` 状態であること。
+- `net1` に `k8s-whereabouts` で設定した IPv4 アドレス割り当て範囲からアドレスが割り当てられていること。
+- IPv6 のアドレス割り当て範囲を設定している場合は, `net1` にその範囲の IPv6 アドレスも割り当てられていること。
+- `eth0` に Cilium が管理する Pod の IPv4/IPv6 アドレスが割り当てられていること。
+
+IPv4/IPv6 のアドレスだけを個別に確認する場合は, 次のコマンドを使用します:
+
+```bash
+kubectl exec demo-net1 -- ip -4 addr show dev net1
+kubectl exec demo-net1 -- ip -6 addr show dev net1
+```
 
 **ルーティング確認**:
 
 ```bash
 kubectl exec demo-net1 -- ip route show
-```
-
-**期待される結果**:
-
-プライマリインターフェース (`eth0`) がデフォルトゲートウェイとして設定され, セカンダリインターフェース (`net1`) 用のルートが追加されていることを確認します:
-
-```
-default via 10.244.2.168 dev eth0
-10.244.2.168 dev eth0 scope link
-192.168.20.0/24 dev net1 scope link  src 192.168.20.50
+kubectl exec demo-net1 -- ip -6 route show
 ```
 
 **確認ポイント**:
 
-- `default via ...` のルートが `eth0` 経由で設定されていること (デフォルトゲートウェイ, Cilium 管理のプライマリネットワーク, 上記例では `10.244.2.168`)
-- Cilium ゲートウェイへの直接ルート (`10.244.2.168 dev eth0 scope link`) が存在すること
-- セカンダリネットワーク用のルートが `net1` 経由で設定されていること (上記例では `192.168.20.0/24 dev net1 scope link src 192.168.20.50`)
-- セカンダリネットワークのルートに送信元IP (`src`) が指定されていること (これにより通信経路の安定化が図られる)
+- プライマリネットワークの経路が `eth0` 経由で設定されていること。
+- セカンダリネットワークの IPv4 経路が `net1` 経由で設定されていること。
+- IPv6 を使用する場合は, セカンダリネットワークの IPv6 経路も `net1` 経由で設定されていること。
 
 #### 7.4 テストポッドの削除
 
@@ -849,8 +806,9 @@ default via 10.244.2.168 dev eth0
 
 ```bash
 kubectl delete -f /home/ansible/kubeadm/multus/app-pod.yml
-kubectl delete -f /tmp/ipvlan-wb-nad.yml --ignore-not-found
 ```
+
+`ipvlan-wb` は `k8s-whereabouts` ロールが管理する検証用 NAD であるため, Multus の動作確認後に本手順から削除しません。
 
 ### 8. Multus ログの確認
 
@@ -924,7 +882,7 @@ kubectl logs -n kube-system -l app=multus --tail=50
 
 **症状**:
 
-- `helm upgrade --install` コマンドがエラーを返す
+- `k8s-helm-common` 経由の `helm template` または `helm upgrade --install` がエラーを返す
 - `helm list -n kube-system` で Multus Release が `failed` 状態
 
 **原因**:
@@ -935,11 +893,12 @@ kubectl logs -n kube-system -l app=multus --tail=50
 
 **対処方法**:
 
-1. Helm Release の状態を確認: `helm list -n kube-system | grep multus`
-2. Release の詳細を確認: `helm get all multus -n kube-system`
-3. values ファイルの内容を確認: `cat /tmp/multus-values.yml`
-4. kube-apiserver の応答を確認: `kubectl cluster-info`
-5. Helm を使用せず kubectl apply 方式に切り替える: `k8s_multus_kubectl_apply_enabled: true`
+1. Helm Release の状態を確認: `helm list -n kube-system | grep multus-cni`
+2. Release の詳細を確認: `helm get all multus-cni -n kube-system`
+3. values ファイルの内容を確認: `cat /home/ansible/kubeadm/multus/multus-values.yml`
+4. `k8s_runtime_helm_operator_user` の kubeconfig (`$HOME/.kube/ca-embedded-admin.conf`) が存在し読み取り可能であることを確認
+5. kube-apiserver の応答を確認: `kubectl cluster-info`
+6. Helm を使用せず kubectl apply 方式に切り替える: `k8s_multus_kubectl_apply_enabled: true`
 
 ### 5. kube-apiserver に接続できない
 
@@ -1794,7 +1753,7 @@ zsh の場合は, 新しいターミナルセッションを開始しなおし�
 
 ### 関連ロール
 
-- `k8s-common`: Kubernetes クラスタ共通設定
-- `k8s-ctrlplane`: コントロールプレーンノード構築 (Cilium 導入)
-- `k8s-whereabouts`: Multus セカンダリネットワーク用 IPAM プラグインと NAD 導入例
-- `python-k8s-client-local`: Python版 Kubernetes Clientライブラリ導入ロール
+- [k8s-common](../k8s-common/Readme.md) : Kubernetes クラスタ共通設定
+- [k8s-ctrlplane](../k8s-ctrlplane/Readme.md) : コントロールプレーンノード構築 (Cilium 導入)
+- [k8s-whereabouts](../k8s-whereabouts/Readme.md) : Multus セカンダリネットワーク用 IPAM プラグインと NAD 導入例
+- [python-k8s-client-local](../python-k8s-client-local/Readme.md) : Python版 Kubernetes Clientライブラリ導入ロール

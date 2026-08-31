@@ -18,6 +18,13 @@
   ansible.builtin.include_tasks: user_group.yml
 - name: "Service"
   ansible.builtin.include_tasks: service.yml
+# Helm経由でMultusを導入する場合だけ, 共通Helm処理へ渡す実行時値を先に解決する。
+- name: "Resolve Runtime Vars"
+  ansible.builtin.include_tasks: resolve-runtime-vars.yml
+  when:
+    - k8s_multus_enabled | default(false) | bool
+    - not (k8s_multus_kubectl_apply_enabled | default(false) | bool)
+
 - name: "Config Cleanup Multus"
   ansible.builtin.include_tasks: config-cleanup-multus.yml
   when:
@@ -27,6 +34,14 @@
   when:
     - k8s_multus_enabled | default(false)
     - not (k8s_multus_kubectl_apply_enabled | default(false))
+# local Chartとvaluesの準備後にHelm操作だけを共通ロールへ委譲する。
+# check modeではcopy/templateが実体ファイルを生成しないため, 従来動作と同様にHelm操作を実行しない。
+- name: "Helm Multus"
+  ansible.builtin.include_tasks: helm.yml
+  when:
+    - k8s_multus_enabled | default(false) | bool
+    - not (k8s_multus_kubectl_apply_enabled | default(false) | bool)
+    - not ansible_check_mode
 - name: "Config Kubectl Applied Multus"
   ansible.builtin.include_tasks: config-kubectl-applied-multus.yml
   when:

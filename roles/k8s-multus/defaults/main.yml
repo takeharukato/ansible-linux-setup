@@ -15,11 +15,11 @@ k8s_multus_enabled: false
 # Multus CNIのバージョン(v4.2.3など上流イメージのタグを指定)
 k8s_multus_version: "v4.2.3"
 # Multus Helm Chartのバージョン
-k8s_multus_helm_chart_version: "{{ k8s_multus_version }}"
+# 現在のロール内local ChartではHelmの--versionを使用しない。
+# 将来repository又はOCI Chartへ切り替える場合にChart版数を指定する。
+k8s_multus_helm_chart_version: ""
 # Multus Helm Chartのソースパス (Ansible コントロールノード側のローカル Chart)
 k8s_multus_helm_chart_source: "{{ role_path }}/files/multus-chart"
-# Multus Helm Chartのデプロイ先パス (リモートホスト側の Chart 配置先)
-k8s_multus_helm_chart_path: "{{ k8s_multus_config_dir }}/chart"
 # Multusコンテナイメージのリポジトリ
 k8s_multus_image_repository: "ghcr.io/k8snetworkplumbingwg/multus-cni"
 # Multusコンテナイメージのバージョン

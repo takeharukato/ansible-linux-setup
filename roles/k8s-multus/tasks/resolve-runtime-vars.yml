@@ -1,0 +1,111 @@
+#  -*- coding:utf-8-unix mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  実行時変数解決タスク
+#
+---
+
+# Multus固有の公開設定値とHelm共通設定値から,
+# k8s-helm-commonへ渡す本ロール専用の実行時値を解決する。
+# 現在はロール内local Chartを対象ホストへ配置して使用するため,
+# Chart参照先は対象ホスト上の配置先とし, Chart版数は任意入力値をそのまま渡す。
+# 時間制限と再試行制御値はvars/k8s-config-common.ymlのHelm共通値を使用する。
+- name: Resolve runtime Helm values for Multus
+  ansible.builtin.set_fact:
+    k8s_multus_runtime_release_name: "multus-cni"
+    k8s_multus_runtime_namespace: "kube-system"
+    k8s_multus_runtime_operator_user: >-
+      {{ k8s_runtime_helm_operator_user | string | trim }}
+    k8s_multus_runtime_helm_chart_path: >-
+      {{ k8s_multus_config_dir | string | trim }}/chart
+    k8s_multus_runtime_chart_ref: >-
+      {{ k8s_multus_config_dir | string | trim }}/chart
+    k8s_multus_runtime_chart_version: >-
+      {{ k8s_multus_helm_chart_version | default('', true) | string | trim }}
+    k8s_multus_runtime_values_file: >-
+      {{ k8s_multus_config_dir | string | trim }}/multus-values.yml
+    k8s_multus_runtime_helm_timeout_seconds: >-
+      {{ k8s_helm_timeout_seconds | int }}
+    k8s_multus_runtime_helm_retries: >-
+      {{ k8s_helm_retries | int }}
+    k8s_multus_runtime_helm_retry_interval_seconds: >-
+      {{ k8s_helm_retry_interval_seconds | int }}
+    k8s_multus_runtime_helm_request_interval_seconds: >-
+      {{ k8s_helm_request_interval_seconds | int }}
+  changed_when: false
+
+# kubeconfig参照先を解決する前提として,
+# Multus代表実行ユーザ名が空でないことを確認する。
+- name: Validate Multus operator user input
+  ansible.builtin.assert:
+    that:
+      - >-
+        k8s_multus_runtime_operator_user
+        | default('', true)
+        | string
+        | trim
+        | length > 0
+    fail_msg: >-
+      Kubernetes operator user is not configured for Multus.
+
+# Multus代表実行ユーザの実ホームディレクトリを取得し,
+# /home固定前提によるkubeconfig参照先の誤りを防止する。
+# ユーザが存在しない場合は後続assertで原因を明示するため, getent自身では失敗させない。
+- name: Resolve home directory for Multus operator user
+  ansible.builtin.getent:
+    database: passwd
+    key: "{{ k8s_multus_runtime_operator_user | string | trim }}"
+    fail_key: false
+  register: k8s_multus_operator_user_getent
+  changed_when: false
+
+# getent結果からMultus代表実行ユーザのpasswdエントリを安全に取り出し,
+# ユーザ不存在時も後続assertで原因を明示できるように空listへ正規化する。
+- name: Resolve Multus operator passwd entry
+  ansible.builtin.set_fact:
+    k8s_multus_operator_user_passwd_entry: >-
+      {{
+        (
+          k8s_multus_operator_user_getent
+          .ansible_facts
+          .getent_passwd
+          | default({})
+        ).get(
+          k8s_multus_runtime_operator_user | string | trim,
+          []
+        )
+        | default([], true)
+      }}
+  changed_when: false
+
+# Multus代表実行ユーザのpasswd情報とホームディレクトリが取得できたことを確認し,
+# 不完全なpasswd情報を参照する前に明示的に停止する。
+- name: Validate Multus operator user
+  ansible.builtin.assert:
+    that:
+      - k8s_multus_operator_user_passwd_entry | length > 4
+      - >-
+        (
+          (
+            k8s_multus_operator_user_passwd_entry
+            + ['', '', '', '', '']
+          )[4]
+          | default('', true)
+          | string
+          | trim
+          | length
+        ) > 0
+    fail_msg: >-
+      Kubernetes operator user {{ k8s_multus_runtime_operator_user }} does not have valid passwd information.
+
+# k8s-kubeconfigロールがHelm実行候補ユーザへ配布するca-embedded-admin.confを
+# MultusのHelm操作で使用する。
+- name: Resolve Multus runtime kubeconfig path
+  ansible.builtin.set_fact:
+    k8s_multus_runtime_kubeconfig_path: >-
+      {{
+        k8s_multus_operator_user_passwd_entry[4]
+        ~ '/.kube/ca-embedded-admin.conf'
+      }}
+  changed_when: false

@@ -1,0 +1,63 @@
+#  -*- coding:utf-8-unix mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  Multus Helm release操作タスク
+#
+---
+
+# Multus固有local Chartとvaluesはconfig-multus.ymlで準備済みであるため,
+# k8s-helm-commonへrelease情報と共通Helm実行条件だけを渡し,
+# templateによる事前検証, upgrade, upgrade結果確認, deployed状態確認を同じ入力値で実行する。
+- name: Install Multus Helm release via k8s-helm-common
+  vars:
+    k8s_helm_release_name: "{{ k8s_multus_runtime_release_name }}"
+    k8s_helm_namespace: "{{ k8s_multus_runtime_namespace }}"
+    k8s_helm_chart_ref: "{{ k8s_multus_runtime_chart_ref }}"
+    k8s_helm_chart_version: "{{ k8s_multus_runtime_chart_version }}"
+    k8s_helm_kubeconfig_path: "{{ k8s_multus_runtime_kubeconfig_path }}"
+    k8s_helm_values_files:
+      - "{{ k8s_multus_runtime_values_file }}"
+    k8s_helm_create_namespace: false
+    k8s_helm_operation_timeout_seconds: >-
+      {{ k8s_multus_runtime_helm_timeout_seconds }}
+    k8s_helm_operation_retries: >-
+      {{ k8s_multus_runtime_helm_retries }}
+    k8s_helm_operation_retry_interval_seconds: >-
+      {{ k8s_multus_runtime_helm_retry_interval_seconds }}
+    k8s_helm_operation_request_interval_seconds: >-
+      {{ k8s_multus_runtime_helm_request_interval_seconds }}
+  block:
+    # local Chartとvaluesを変更操作前に事前描画し,
+    # Chart内容, values, kubeconfigとHelm実行環境の不整合を検出する。
+    - name: Render Multus Helm template
+      ansible.builtin.include_role:
+        name: k8s-helm-common
+        tasks_from: template.yml
+
+    # release更新処理はk8s-helm-commonへ委譲し,
+    # 失敗時の状態判断を呼出元で行えるように実行結果を受け取る。
+    - name: Install or upgrade Multus Helm release
+      ansible.builtin.include_role:
+        name: k8s-helm-common
+        tasks_from: upgrade.yml
+
+    # k8s-helm-commonのupgrade.ymlは失敗結果を呼出元へ返すためfailed_when:falseとしている。
+    # Multusには既存の自動recovery処理がないため, 非0終了時はここで停止して
+    # 従来の直接helm実行と同じ失敗時動作を維持する。
+    - name: Validate Multus Helm upgrade result
+      ansible.builtin.assert:
+        that:
+          - k8s_helm_upgrade_result.rc | default(1) | int == 0
+        fail_msg: >-
+          Multus Helm upgrade failed.
+          rc={{ k8s_helm_upgrade_result.rc | default('unknown') }},
+          stderr={{ k8s_helm_upgrade_result.stderr | default('', true) }}
+
+    # upgrade成功後のpost-conditionとしてHelm releaseがdeployed状態であることを確認する。
+    # DaemonSetやPod等のMultus固有readiness確認は別タスクで扱い,
+    # k8s-helm-commonには持ち込まない。
+    - name: Wait for Multus Helm release
+      ansible.builtin.include_role:
+        name: k8s-helm-common
+        tasks_from: wait-release.yml
