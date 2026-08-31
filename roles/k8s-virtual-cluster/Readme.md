@@ -1816,6 +1816,7 @@ kubectl -n $TENANT_NS apply -f manifest.yaml
    - `kubectl get nodes` で実際のワーカノード リストを取得します。
    - コントロールプレーンノード からAnsibleの制御ノード(localhost)へイメージをfetchします。
    - Ansibleの制御ノード(localhost)から各ワーカノード へイメージをcopyします。
+   - ワーカノード上の一時tar配置先には, `k8s-register-image`ロールの既定値 `/tmp/k8s-register-image` を使用します。
    - 各ワーカノードで `ctr -n k8s.io images import` を実行します。
 10. `deploy-manager.yml` で vc-manager, vc-syncer, vn-agent を展開 (デプロイ) します。
 11. `verify.yml` で CRD と Pod 起動を確認します。

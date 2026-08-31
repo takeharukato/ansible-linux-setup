@@ -100,7 +100,6 @@
       manager: "{{ virtualcluster_manager_image | default('virtualcluster/manager-amd64:latest', true) }}"
       syncer: "{{ virtualcluster_syncer_image | default('virtualcluster/syncer-amd64:latest', true) }}"
       vn-agent: "{{ virtualcluster_vn_agent_image | default('virtualcluster/vn-agent-amd64:latest', true) }}"
-    k8s_register_image_remote_cache_dir: "/tmp"
     k8s_register_image_unqualified_image_registry: "{{ virtualcluster_unqualified_image_registry }}"
     k8s_register_image_auto_discover_worker_hosts: false
     k8s_register_image_skip_discovery: true
