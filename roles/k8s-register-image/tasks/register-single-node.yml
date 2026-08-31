@@ -13,7 +13,7 @@
     connect_timeout: "{{ k8s_register_image_connection_preflight_connect_timeout }}"
     delay: "{{ k8s_register_image_connection_preflight_delay_seconds }}"
     sleep: "{{ k8s_register_image_connection_preflight_sleep_seconds }}"
-  delegate_to: "{{ target_host }}"
+  delegate_to: "{{ k8s_register_image_target_delegate_host }}"
   register: k8s_image_connection_preflight_result
   until: k8s_image_connection_preflight_result is succeeded
   retries: "{{ k8s_register_image_connection_preflight_retries | default(8,true) }}"
@@ -26,7 +26,7 @@
     path: "{{ k8s_register_image_remote_cache_dir }}"
     state: directory
     mode: "0755"
-  delegate_to: "{{ target_host }}"
+  delegate_to: "{{ k8s_register_image_target_delegate_host }}"
   become: true
 
 # 制御ノード上の tar 配置先ディレクトリから, 対象ノード上の一時 tar 配置先に
@@ -41,7 +41,7 @@
   retries: "{{ (k8s_register_image_transfer_retry_enabled | bool) | ternary(k8s_register_image_transfer_retries, 1) }}"
   delay: "{{ k8s_register_image_transfer_retry_interval_seconds }}"
   loop: "{{ k8s_register_image_components | dict2items }}"
-  delegate_to: "{{ target_host }}"
+  delegate_to: "{{ k8s_register_image_target_delegate_host }}"
   become: true
 
 # 対象ノード上の一時 tar 配置先に転送した tar ファイルを,
@@ -57,7 +57,7 @@
   args:
     executable: /bin/bash
   loop: "{{ k8s_register_image_components | dict2items }}"
-  delegate_to: "{{ target_host }}"
+  delegate_to: "{{ k8s_register_image_target_delegate_host }}"
   become: true
   changed_when: true
 
@@ -87,7 +87,7 @@
   args:
     executable: /bin/bash
   loop: "{{ k8s_register_image_components | dict2items }}"
-  delegate_to: "{{ target_host }}"
+  delegate_to: "{{ k8s_register_image_target_delegate_host }}"
   become: true
   changed_when: false
 
@@ -97,6 +97,6 @@
     path: "{{ k8s_register_image_remote_cache_dir }}/{{ item.value | basename }}"
     state: absent
   loop: "{{ k8s_register_image_components | dict2items }}"
-  delegate_to: "{{ target_host }}"
+  delegate_to: "{{ k8s_register_image_target_delegate_host }}"
   become: true
   when: k8s_register_image_cleanup_remote_tar | bool

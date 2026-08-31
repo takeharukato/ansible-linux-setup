@@ -290,7 +290,7 @@
             group: root
             mode: "0755"
 
-        # netplan設定ファイルを配置
+        # 設定内容に変更がある場合だけ文法検証と適用を行えるように, テンプレート配置結果を後続判定へ渡す。
         - name: Deploy netplan file
           ansible.builtin.template:
             src: 95-netcfg-multi.yaml.j2
@@ -298,15 +298,27 @@
             owner: root
             group: root
             mode: "0600"
+          register: deploy_netplan_file
 
-        # 文法チェックのためのnetplan generate実行
+        # 変更した設定を適用する前に文法エラーを検出し, 不正な設定で管理ネットワークを変更しないようにする。
         - name: Netplan generate (syntax check)
           ansible.builtin.command: netplan generate
           register: netplan_generate
-          changed_when: netplan_generate.rc == 0
+          changed_when: false
           failed_when: netplan_generate.rc != 0
+          when:
+            - deploy_netplan_file is changed
+
+        # RHEL側と同様に設定ファイル変更と文法検証成功を適用条件とし, 変更がない場合の不要なネットワーク再構成を防止する。
+        - name: Queue netplan apply handler when template changed
+          ansible.builtin.debug:
+            msg: "Queue handler to apply netplan configuration"
+          changed_when: true
           notify:
             - "netplan_apply"
+          when:
+            - deploy_netplan_file is changed
+            - netplan_generate.rc | default(1) == 0
 
 
 #
@@ -448,11 +460,14 @@
 #  確実性を重視し, 強制リブートする。
 #
 
-# マシンをリブートする
+# reboot-commonの公開変数をblockスコープで渡し, 呼出先ロールの変数名を維持する。
 - name: Reboot host gracefully
-  ansible.builtin.include_role:
-    name: reboot-common
   vars:
     reboot_common_timeout: "{{ reboot_timeout_sec }}"
     reboot_common_message: "Reboot triggered by role: common"
     reboot_common_pre_reboot_delay: 2
+  block:
+    # 共通の再起動処理へ委譲し, commonロール内へ再起動実装を重複させない。
+    - name: Run reboot-common role
+      ansible.builtin.include_role:
+        name: reboot-common

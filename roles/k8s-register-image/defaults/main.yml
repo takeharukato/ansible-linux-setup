@@ -70,7 +70,16 @@ k8s_register_image_wait_for_worker_ready_enabled: true
 k8s_register_image_wait_for_worker_ready_timeout: 180
 # worker Ready 待機の失敗を致命エラーとするかどうか
 k8s_register_image_wait_for_worker_ready_fail_on_timeout: false
+# worker Ready 待機コマンド実行時の再試行有効化フラグ
+# 既存動作との互換性を維持するため既定値では再試行しない
+k8s_register_image_wait_for_worker_ready_retry_enabled: false
+# worker Ready 待機コマンド実行時の最大試行回数
+k8s_register_image_wait_for_worker_ready_retries: 3
+# worker Ready 待機コマンド実行時の試行間隔秒数
+k8s_register_image_wait_for_worker_ready_retry_interval_seconds: 5
 
+# worker検出要求1回あたりのタイムアウト秒数
+k8s_register_image_worker_discovery_request_timeout_seconds: 10
 # worker検出コマンド実行時の再試行有効化フラグ
 k8s_register_image_worker_discovery_retry_enabled: true
 # worker検出コマンド実行時の最大試行回数

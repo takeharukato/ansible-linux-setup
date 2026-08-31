@@ -2,19 +2,27 @@
 #  Ansible playbook
 #  Copyright 2020 Takeharu KATO All Rights Reserved.
 #
-- name: "Avahi"
-  ansible.builtin.import_tasks: avahi.yml
-- name: "Disable Gui for Debian"
-  ansible.builtin.import_tasks: disable-gui.yml
-- name: "Auto Remove for Debian"
-  ansible.builtin.import_tasks: auto-remove.yml
-- name: "Unattended Upgrades for Debian"
-  ansible.builtin.import_tasks: unattended-upgrades.yml
+
+# RHELではNetworkManagerによる接続変更をAvahi再起動より先に完了させ, 確定したインターフェース状態でmDNSを再登録する。
 - name: "Network Manager Handlers for RHEL"
   ansible.builtin.import_tasks: nm-handlers-rhel.yml
+
+# Debianではnetplanによる接続変更をAvahi再起動より先に完了させ, 確定したインターフェース状態でmDNSを再登録する。
 - name: "Netplan Handlers for Debian"
   ansible.builtin.import_tasks: netplan-handlers-debian.yml
-- name: "Netplan"
-  ansible.builtin.import_tasks: netplan.yml
+
+# ネットワーク変更後にAvahiを再起動し, 変更前のmDNSレコードとの一時的な自己競合を避ける。
+- name: "Avahi"
+  ansible.builtin.import_tasks: avahi.yml
+
+# DebianのGUI無効化通知を既存順序で処理し, ネットワーク処理との依存関係を追加しない。
+- name: "Disable Gui for Debian"
+  ansible.builtin.import_tasks: disable-gui.yml
+
+# Debianの不要パッケージ削除通知を既存順序で処理し, ネットワーク処理との依存関係を追加しない。
+- name: "Auto Remove for Debian"
+  ansible.builtin.import_tasks: auto-remove.yml
+
+# sysctl変更通知を既存順序で処理し, ネットワーク処理との依存関係を追加しない。
 - name: "Reload Sysctl"
   ansible.builtin.import_tasks: reload-sysctl.yml

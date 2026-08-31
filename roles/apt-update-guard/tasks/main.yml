@@ -1,0 +1,49 @@
+#  -*- coding:utf-8-unix; mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  タスクメイン部
+#
+#  include_tasksで他のタスクを読み込む
+#
+---
+
+# 最初に変数設定を読み直す ( role単独で実行可能とするため )
+- name: "Load Params"
+  ansible.builtin.include_tasks: load-params.yml
+
+# 外部状態を変更する前に動作状態を検証し, 誤った状態指定による部分実行を防止する。
+- name: "Validate parameters"
+  ansible.builtin.include_tasks: validate.yml
+
+# パッケージ導入処理
+- name: "Package"
+  ansible.builtin.include_tasks: package.yml
+
+# ファイル・ディレクトリ作成処理
+- name: "Directory"
+  ansible.builtin.include_tasks: directory.yml
+
+# ユーザ・グループ作成処理
+- name: "User Group"
+  ansible.builtin.include_tasks: user_group.yml
+
+# サービス起動処理
+- name: "Service"
+  ansible.builtin.include_tasks: service.yml
+
+# 設定ファイル作成処理
+- name: "Config"
+  ansible.builtin.include_tasks: config.yml
+
+# Playbook実行中にAPT自動更新が後続処理へ割り込まない状態を確立する
+# (apt_update_guard_state == "active")。
+- name: "Activate APT update guard"
+  ansible.builtin.include_tasks: activate.yml
+  when: apt_update_guard_state == "active"
+
+# Playbook完了後にAPT自動更新をディストリビューション既定の運用状態へ戻す
+# (apt_update_guard_state == "inactive")。
+- name: "Deactivate APT update guard"
+  ansible.builtin.include_tasks: deactivate.yml
+  when: apt_update_guard_state == "inactive"

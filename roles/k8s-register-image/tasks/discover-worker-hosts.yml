@@ -6,117 +6,50 @@
 #
 ---
 
-# worker 検出の前に, 取得対象ノードが Ready になるまで待機する。
-- name: "Wait for worker nodes to become Ready"
-  ansible.builtin.command:
-    argv:
-      - kubectl
-      - --kubeconfig
-      - "{{ k8s_register_image_kubeconfig_to_discover_workers_path | default(k8s_kubeconfig_to_discover_workers_path, true) | default(k8s_supercluster_kubeconfig_path, true) | default(k8s_admin_kubeconfig_path, true) }}"
-      - wait
-      - --for=condition=Ready
-      - nodes
-      - --selector=!node-role.kubernetes.io/control-plane
-      - --timeout={{ k8s_register_image_wait_for_worker_ready_timeout }}s
-  register: k8s_register_image_worker_ready_wait_result
-  changed_when: false
-  failed_when: false
-  become: true
-  when: k8s_register_image_wait_for_worker_ready_enabled | bool
-
-- name: "Fail when worker node Ready wait timed out"
-  ansible.builtin.fail:
-    msg: >-
-      ERROR: worker node Ready wait failed.
-      rc={{ k8s_register_image_worker_ready_wait_result.rc | default('undefined') }}
-      stderr={{ k8s_register_image_worker_ready_wait_result.stderr | default('') }}
-  when:
-    - k8s_register_image_wait_for_worker_ready_enabled | bool
-    - k8s_register_image_wait_for_worker_ready_fail_on_timeout | bool
-    - (k8s_register_image_worker_ready_wait_result.rc | default(1)) != 0
-
-# worker ノード一覧と InternalIP 一覧を取得する。
-# 1. kubeconfig は次の優先順位で決定する。
-#    a. k8s_register_image_kubeconfig_to_discover_workers_path
-#    b. k8s_kubeconfig_to_discover_workers_path
-#    c. k8s_supercluster_kubeconfig_path
-#    d. /etc/kubernetes/admin.conf
-# 2. ラベル "!node-role.kubernetes.io/control-plane" で control-plane を除外する。
-# 3. 出力形式は custom-columns を使用し, ノード名 (.metadata.name) と
-#    InternalIP(.status.addresses中のtypeが"InternalIP"の項目) を取得し,
-#    --no-headers によりヘッダ行は除外する。
-- name: "Get worker node list and InternalIP from Kubernetes cluster"
-  ansible.builtin.command:
-    argv:
-      - kubectl
-      - --kubeconfig
-      - "{{ k8s_register_image_kubeconfig_to_discover_workers_path | default(k8s_kubeconfig_to_discover_workers_path, true) | default(k8s_supercluster_kubeconfig_path, true) | default(k8s_admin_kubeconfig_path, true) }}"
-      - get
-      - nodes
-      - --selector=!node-role.kubernetes.io/control-plane
-      - -o
-      - custom-columns=NAME:.metadata.name,INTERNAL_IPS:.status.addresses[?(@.type=="InternalIP")].address
-      - --no-headers
-  register: k8s_register_image_worker_nodes_result
-  until: (not (k8s_register_image_worker_discovery_retry_enabled | bool)) or (k8s_register_image_worker_nodes_result is succeeded)
-  retries: "{{ (k8s_register_image_worker_discovery_retry_enabled | bool) | ternary(k8s_register_image_worker_discovery_retries, 1) }}"
-  delay: "{{ k8s_register_image_worker_discovery_retry_interval_seconds }}"
-  changed_when: false
-  become: true
-
-# worker ノード名と接続先InternalIPの対応表を初期化する。
-- name: "Initialize worker node InternalIP map"
-  ansible.builtin.set_fact:
-    k8s_register_image_worker_node_internal_ip_map: {}
-
-# worker ノード名と接続先InternalIPの対応表を作成する。
-# _worker_node_ips_raw に含まれるカンマ区切りの候補から, 接続先として使用する
-# 代表アドレスを 1 つ選択する。
-#
+# 既存呼び出し元との互換性を保ちながら, worker状態確認用kubeconfigを従来と同じ優先順位で解決する。
 # 処理ロジック:
-# 1. _worker_node_name: "{{ item | regex_replace('\\s+.*$', '') | trim }}"
-#    行頭のノード名だけを抽出する。
-# 2. _worker_node_ips_raw: "{{ item | regex_replace('^\\S+\\s*', '') | trim }}"
-#    ノード名以降の IP 候補文字列を抽出する。
-# 3. split(',') -> map('trim') -> reject('equalto', '') -> first
-#    最初の非空要素を代表アドレスとして採用する。
-# 4. 候補がない場合はノード名にフォールバックする。
-- name: "Build worker node InternalIP map"
+# 1. k8s_register_image_kubeconfig_to_discover_workers_pathを最優先する。
+# 2. 未指定時はk8s_kubeconfig_to_discover_workers_pathを使用する。
+# 3. 未指定時はk8s_supercluster_kubeconfig_pathを使用する。
+# 4. 最後にk8s_admin_kubeconfig_pathを使用する。
+# 対応するJinja2式: (k8s_register_image_kubeconfig_to_discover_workers_path | default(k8s_kubeconfig_to_discover_workers_path, true) | default(k8s_supercluster_kubeconfig_path, true) | default(k8s_admin_kubeconfig_path, true))
+- name: "Resolve kubeconfig path to discover worker hosts"
   ansible.builtin.set_fact:
-    k8s_register_image_worker_node_internal_ip_map: >-
+    k8s_register_image_runtime_kubeconfig_to_discover_workers_path: >-
       {{
-        (k8s_register_image_worker_node_internal_ip_map | default({}))
-        | combine(
-          {
-            _worker_node_name: _worker_delegate_host
-          }
-        )
+        k8s_register_image_kubeconfig_to_discover_workers_path
+        | default(k8s_kubeconfig_to_discover_workers_path, true)
+        | default(k8s_supercluster_kubeconfig_path, true)
+        | default(k8s_admin_kubeconfig_path, true)
       }}
+
+# worker選択, Ready待機, worker取得, InternalIP対応表生成をk8s-cluster-readyへ集約し, 同目的処理を共通化する。
+# 呼び出し先ロールの入力変数は, Multus/Whereaboutsからk8s-helm-commonを呼び出す既存方式と同様に,
+# blockのvarsでまとめて渡すことでロール間の変数境界を明示する。
+- name: "Discover worker hosts with k8s-cluster-ready"
   vars:
-    _worker_node_name: "{{ item | regex_replace('\\s+.*$', '') | trim }}"
-    _worker_node_ips_raw: "{{ item | regex_replace('^\\S+\\s*', '') | trim }}"
-    _worker_delegate_host: >-
-      {{
-        (
-          _worker_node_ips_raw
-          | default('', true)
-          | split(',')
-          | map('trim')
-          | reject('equalto', '')
-          | first
-          | default(_worker_node_name, true)
-        )
-      }}
-  loop: "{{ k8s_register_image_worker_nodes_result.stdout_lines | default([], true) }}"
-  when: (item | trim | length) > 0
+    k8s_cluster_ready_kubeconfig_path: "{{ k8s_register_image_runtime_kubeconfig_to_discover_workers_path }}"
+    k8s_cluster_ready_wait_for_worker_ready_enabled: "{{ k8s_register_image_wait_for_worker_ready_enabled | bool }}"
+    k8s_cluster_ready_wait_for_worker_ready_timeout_seconds: "{{ k8s_register_image_wait_for_worker_ready_timeout | int }}"
+    k8s_cluster_ready_wait_for_worker_ready_fail_on_timeout: "{{ k8s_register_image_wait_for_worker_ready_fail_on_timeout | bool }}"
+    k8s_cluster_ready_wait_retry_enabled: "{{ k8s_register_image_wait_for_worker_ready_retry_enabled | bool }}"
+    k8s_cluster_ready_wait_retries: "{{ k8s_register_image_wait_for_worker_ready_retries | int }}"
+    k8s_cluster_ready_wait_retry_interval_seconds: "{{ k8s_register_image_wait_for_worker_ready_retry_interval_seconds | int }}"
+    k8s_cluster_ready_worker_discovery_request_timeout_seconds: "{{ k8s_register_image_worker_discovery_request_timeout_seconds | int }}"
+    k8s_cluster_ready_worker_discovery_retry_enabled: "{{ k8s_register_image_worker_discovery_retry_enabled | bool }}"
+    k8s_cluster_ready_worker_discovery_retries: "{{ k8s_register_image_worker_discovery_retries | int }}"
+    k8s_cluster_ready_worker_discovery_retry_interval_seconds: "{{ k8s_register_image_worker_discovery_retry_interval_seconds | int }}"
+  block:
+    # worker状態確認の実処理はk8s-cluster-readyへ委譲し, 呼び出し元ごとの重複実装を防ぐ。
+    - name: "Run k8s-cluster-ready worker discovery"
+      ansible.builtin.include_role:
+        name: k8s-cluster-ready
+        tasks_from: worker-ready.yml
 
-# worker ホスト一覧を変数に格納する。
-- name: "Set worker hosts"
+# k8s-register-imageを直接利用する既存ロールを変更せずに済むよう, 共通処理結果を既存公開変数へ変換する。
+- name: "Set k8s-register-image worker discovery results"
   ansible.builtin.set_fact:
-    k8s_register_image_worker_hosts: "{{ k8s_register_image_worker_node_internal_ip_map.keys() | list }}"
-
-# worker が存在しない場合は明示的に失敗させる。
-- name: "Verify that worker hosts exist"
-  ansible.builtin.fail:
-    msg: "ERROR: No worker nodes found in the cluster"
-  when: (k8s_register_image_worker_hosts | default([], true) | length) == 0
+    k8s_register_image_worker_ready_wait_result: "{{ k8s_cluster_ready_worker_ready_wait_result | default({}) }}"
+    k8s_register_image_worker_nodes_result: "{{ k8s_cluster_ready_worker_nodes_result | default({}) }}"
+    k8s_register_image_worker_hosts: "{{ k8s_cluster_ready_worker_hosts | default([], true) }}"
+    k8s_register_image_worker_node_internal_ip_map: "{{ k8s_cluster_ready_worker_node_internal_ip_map | default({}, true) }}"

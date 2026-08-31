@@ -25,11 +25,14 @@
       register: _result
       changed_when: _result.rc == 0
 
-    # マシンをリブートする
+    # reboot-commonの公開変数をblockスコープで渡し, 呼出先ロールの変数名を維持する。
     - name: Reboot host gracefully
-      ansible.builtin.include_role:
-        name: reboot-common
       vars:
         reboot_common_timeout: "{{ reboot_timeout_sec }}"
         reboot_common_message: "Reboot triggered by role: common"
         reboot_common_pre_reboot_delay: 2
+      block:
+        # 共通の再起動処理へ委譲し, commonロール内へ再起動実装を重複させない。
+        - name: Run reboot-common role
+          ansible.builtin.include_role:
+            name: reboot-common

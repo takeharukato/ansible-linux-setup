@@ -1,0 +1,54 @@
+#  -*- coding:utf-8-unix; mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  APT自動更新復帰タスク
+#
+---
+
+# 一時drop-in削除中にtimerが起動しないように停止状態を保証する。
+- name: "Stop APT timers before removing guard"
+  ansible.builtin.systemd:
+    name: "{{ item }}"
+    state: stopped
+  loop: "{{ apt_update_guard_timers_to_restore }}"
+  become: true
+
+# 利用者独自のdrop-inを保持したまま, 本ロールが作成したPersistent=falseだけを削除する。
+- name: "Remove APT timer persistent guard files"
+  ansible.builtin.file:
+    path: >-
+      /etc/systemd/system/{{ item }}.d/{{ apt_update_guard_persistent_dropin_name }}
+    state: absent
+  loop: "{{ apt_update_guard_timers_to_restore }}"
+  become: true
+
+# 一時drop-in削除結果をsystemdへ反映してから通常timerを再起動する。
+- name: "Reload systemd after removing APT timer guard"
+  ansible.builtin.systemd:
+    daemon_reload: true
+  become: true
+
+# 既存実装と同じく, unattended-upgradesをディストリビューション既定の通常運用へ戻す。
+- name: "Restore unattended-upgrades to distro default operation"
+  ansible.builtin.systemd:
+    name: unattended-upgrades
+    state: started
+    enabled: true
+  become: true
+
+# service本体はtimerから必要時に起動されるため,
+# ディストリビューション既定運用へ戻す対象はtimerだけに限定する。
+- name: "Restore APT daily timers to distro default operation"
+  ansible.builtin.systemd:
+    name: "{{ item }}"
+    state: started
+    enabled: true
+  loop: "{{ apt_update_guard_timers_to_restore }}"
+  become: true
+
+# 同一Ansible実行中でも次のguardライフサイクル開始時には再起動できるように状態を初期化する。
+- name: "Clear APT update guard runtime facts"
+  ansible.builtin.set_fact:
+    apt_update_guard_active: false
+    apt_update_guard_reboot_done: false

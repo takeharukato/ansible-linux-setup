@@ -8,31 +8,8 @@
 # 再起動後の応答待ちのタイムアウト時間 (秒)
 reboot_timeout_sec: 600
 
-# aptロック待ち合わせ設定 (Debian系のみ)
-# aptコマンド実行時に他プロセスがロックを保持している場合の最大待機時間 (秒)
+# NetworkManager導入時にaptロックが使用中の場合の最大待機時間 (秒)
 apt_lock_wait_timeout: 1800
-# aptロックファイルの確認間隔 (秒)
-apt_lock_check_interval: 5
-# 監視対象のaptロックファイルリスト
-apt_lock_files:
-  - "/var/lib/dpkg/lock-frontend"
-  - "/var/lib/dpkg/lock"
-  - "/var/cache/apt/archives/lock"
-  - "/var/lib/apt/lists/lock"
-
-# apt lock 回避のために一時停止する unit 一覧
-apt_daily_units_to_stop:
-  - apt-daily.service
-  - apt-daily-upgrade.service
-  - apt-daily.timer
-  - apt-daily-upgrade.timer
-
-# playbook完了時にデフォルト運用へ戻す timer 一覧
-# service 本体 (apt-daily.service, apt-daily-upgrade.service) は
-# timer により必要時起動されるため, timer のみ有効化/起動する
-apt_daily_timers_to_restore:
-  - apt-daily.timer
-  - apt-daily-upgrade.timer
 
 # タイムゾーン
 common_timezone: "Asia/Tokyo"

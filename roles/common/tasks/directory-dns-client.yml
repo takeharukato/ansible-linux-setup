@@ -150,11 +150,14 @@
 # NetworkManager-dispatcherの設定を更新したらリブート
 #
 
-# マシンをリブートする
+# reboot-commonの公開変数をblockスコープで渡し, 呼出先ロールの変数名を維持する。
 - name: Reboot host gracefully
-  ansible.builtin.include_role:
-    name: reboot-common
   vars:
     reboot_common_timeout: "{{ reboot_timeout_sec }}"
     reboot_common_message: "Reboot triggered by role: common"
     reboot_common_pre_reboot_delay: 2
+  block:
+    # NetworkManager-dispatcher更新後の再起動処理を共通ロールへ委譲する。
+    - name: Run reboot-common role
+      ansible.builtin.include_role:
+        name: reboot-common

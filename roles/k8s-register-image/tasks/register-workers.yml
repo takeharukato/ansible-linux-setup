@@ -11,9 +11,9 @@
   ansible.builtin.include_tasks: discover-target-hosts.yml
   when: not (k8s_register_image_skip_discovery | bool)
 
-# k8s_register_image_target_kind を worker に設定の上,
-# worker 登録対象ホストに対して, register-single-node.yml を呼び出し,
-# worker ホストに対してイメージ登録を行う。
+# k8s_register_image_target_kind を worker に設定し, Kubernetes Node名に対応する
+# InternalIPを接続先として解決した上で, worker 登録対象ホストに対して
+# register-single-node.yml を呼び出し, worker ホストに対してイメージ登録を行う。
 - name: "Register images on each worker host"
   ansible.builtin.include_tasks: register-single-node.yml
   loop: "{{ k8s_register_image_worker_hosts }}"
@@ -22,4 +22,9 @@
     label: "{{ target_host }}"
   vars:
     k8s_register_image_target_kind: "worker"
+    k8s_register_image_target_delegate_host: >-
+      {{
+        (k8s_register_image_worker_node_internal_ip_map | default({}, true))
+        .get(target_host, target_host)
+      }}
   when: k8s_register_image_is_cluster_leader | default(true) | bool

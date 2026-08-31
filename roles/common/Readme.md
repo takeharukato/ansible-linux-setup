@@ -13,7 +13,6 @@
   - [実行方法](#実行方法)
   - [主要変数](#主要変数)
     - [基本設定](#基本設定)
-    - [APT Lock 管理 (Debian 系のみ)](#apt-lock-管理-debian-系のみ)
     - [ネットワーク設定](#ネットワーク設定)
     - [Sysctl 設定](#sysctl-設定)
     - [Sudoers 設定](#sudoers-設定)
@@ -71,7 +70,6 @@
       - [nm-ra-addr-watch サービスの確認](#nm-ra-addr-watch-サービスの確認)
       - [NetworkManager Dispatcher の動作確認](#networkmanager-dispatcher-の動作確認)
   - [トラブルシューティング](#トラブルシューティング)
-    - [APT Lock タイムアウト時の対処](#apt-lock-タイムアウト時の対処)
     - [NetworkManager 設定が適用されない場合 (RHEL 系)](#networkmanager-設定が適用されない場合-rhel-系)
     - [netplan 適用失敗時の対処 (Debian 系)](#netplan-適用失敗時の対処-debian-系)
     - [再起動後にネットワーク接続が失われる場合](#再起動後にネットワーク接続が失われる場合)
@@ -242,10 +240,11 @@
 
 ### 主な処理
 
-- **APT ロック待機**: Debian 系で apt frontend lock を取得できるまで待機し, 後続タスクの失敗を防止します。`unattended-upgrades`, `apt-daily.service`, `apt-daily-upgrade.service`, `apt-daily.timer`, `apt-daily-upgrade.timer` を一時停止し, 復旧時は `unattended-upgrades` と `unattended-upgrades`, `apt-daily.service`を呼び出す`timer`サービス (`apt-daily.timer`, `apt-daily-upgrade.timer`) を有効化/起動してデフォルト運用に戻します。
+- **APT自動更新との競合回避**: Ubuntu/Debian系では, `site.yml`から呼び出される`apt-update-guard`ロールがAPT自動更新の停止, ロック解放確認, 正常完了時の復旧を担当します。本ロールはAPT自動更新のライフサイクル制御を実施しません。
 - **ファイアウォール無効化**: firewalld, UFW, nftables の rpfix テーブルを無効化します。Kubernetes の CNI (Container Network Interface) が独自にネットワークポリシーを管理するため, ホストレベルのファイアウォールは無効化します。
 - **NetworkManager 優先設定**: systemd-networkd を無効化し, NetworkManager を有効化します。一貫したネットワーク管理インターフェースを提供します。
 - **マルチネットワークインターフェース設定**: 複数の NIC に対して静的 IP アドレス, ゲートウェイ, DNS サーバを設定します。RHEL 系では NetworkManager keyfiles, Debian 系では netplan を使用します。
+- **mDNS再登録順序制御**: 静的ネットワーク設定を生成して再起動した後にAvahiを導入し, ネットワーク設定変更時はRHEL系のNetworkManager又はDebian系のnetplanによる設定反映をAvahi再起動より先に実行します。
 - **MAC アドレス固定化**: systemd .link ファイルで NIC 名と MAC アドレスを紐付け, 再起動後も同じデバイス名を維持します。
 - **Sudoers 設定**: `/etc/sudoers.d/` に drop-in ファイルを配置し, 指定グループのユーザがパスワード無しで sudo を実行可能にします。既存の `/etc/sudoers` を変更しないため, 安全に設定を追加, 削除できます。
 - **Sysctl 設定**: 一般ユーザによる ptrace / dmesg を有効化し, ファイル監視数の上限を引き上げます。開発環境での利便性向上を目的とします。
@@ -279,16 +278,6 @@ ansible-playbook -i inventory/hosts site.yml --tags "common"
 | `common_selinux_state` | `"permissive"` | SELinux の状態 (`enforcing`, `permissive`, `disabled` のいずれか)。 |
 | `enable_firewall` | `false` | ファイアウォール有効化フラグ。`false` の場合は無効化します。 |
 | `common_disable_cron_mails` | `false` | cron からのメール送信を無効化する場合は `true` に設定します。 |
-
-### APT Lock 管理 (Debian 系のみ)
-
-| 変数名 | 既定値 | 説明 |
-| --- | --- | --- |
-| `apt_lock_wait_timeout` | `1800` | apt ロック待機の最大時間 (秒)。 |
-| `apt_lock_check_interval` | `5` | apt ロックファイル確認間隔 (秒)。 |
-| `apt_lock_files` | `["/var/lib/dpkg/lock-frontend", "/var/lib/dpkg/lock", "/var/cache/apt/archives/lock", "/var/lib/apt/lists/lock"]` | 監視対象の apt ロックファイルパス。 |
-| `apt_daily_units_to_stop` | `['apt-daily.service', 'apt-daily-upgrade.service', 'apt-daily.timer', 'apt-daily-upgrade.timer']` | aptのロックファイル獲得失敗回避のために一時停止する unit 一覧。 |
-| `apt_daily_timers_to_restore` | `['apt-daily.timer', 'apt-daily-upgrade.timer']` | playbook 完了時にデフォルト運用へ戻す timer系サービス一覧。サービス本体は timer系サービスから起動されるため, playbook 完了時に操作する必要はありません。 |
 
 ### ネットワーク設定
 
@@ -494,35 +483,30 @@ netif_list:
 
 本ロールは以下の順序で処理を実行します:
 
-1. **APT Lock 管理** (Debian 系のみ): `apt-get` による自動更新等がロックを保持している場合, 最大 1800 秒 (既定値) 待機して apt frontend lock を取得します。処理中は `unattended-upgrades` と `apt_daily_units_to_stop` に含まれる unit (`apt-daily.service`, `apt-daily-upgrade.service`, `apt-daily.timer`, `apt-daily-upgrade.timer`) を一時停止します。playbook 完了時に `unattended-upgrades` を再度 started/enabled にし, `apt_daily_timers_to_restore` (`apt-daily.timer`, `apt-daily-upgrade.timer`) を 再起動, 有効化 (started/enabled) します。後続の `apt update` などの`apt`操作の失敗を防止します。
-2. **パラメータ読み込み**: OS 別パッケージ定義 (`vars/packages-ubuntu.yml`, `vars/packages-rhel.yml`) とクラスタ共通変数 (`vars/cross-distro.yml`, `vars/all-config.yml`) を読み込みます。
-3. **設定前チェック**: `mgmt_nic` 変数の正規化と検証を行います。未定義時は `common_default_nic` (既定: `ens160`) で補完します。
-4. **タイムゾーン設定**: `common_timezone` (既定: `Asia/Tokyo`) を設定します。
-5. **ファイアウォール無効化**: `enable_firewall` が `false` (既定) の場合, firewalld (RHEL) または UFW (Debian) を停止, 無効化し, nftables の rpfix テーブル( 逆経路フィルタ （Reverse Path Filter） ) を削除します。
-6. **NetworkManager 準備**: NetworkManager をインストール, 有効化し, systemd-networkd を無効化します。
-7. **マルチネットワークインターフェース設定**:
-   - `netif_list` 変数から複数ネットワークインターフェースの設定を行います。
-   - RHEL 系: NetworkManager keyfiles (`/etc/NetworkManager/system-connections/*.nmconnection`) を配置します。
-   - Debian 系: netplan 設定 (`/etc/netplan/95-netcfg.yaml`) を配置します。
-   - systemd .link ファイル (`/etc/systemd/network/10-*.link`) で MAC アドレス固定化を行います。
-   - 不要な旧接続を削除し, 設定適用後に再起動します。
-8. **Sudoers 設定**: `sudo_nopasswd_groups_extra` で指定されたグループ (`adm`, `sudo`, `wheel` 等) に対してパスワード無し sudo を設定します (`/etc/sudoers.d/` drop-in files)。
-9. **Sysctl 設定**:
-   - `kernel.yama.ptrace_scope` = 0 (一般ユーザの ptrace 有効化)
-   - `kernel.dmesg_restrict` = 0 (一般ユーザの dmesg 有効化)
-   - `fs.inotify.max_user_watches` = 524288 (ファイル監視数上限)
-10. **Cron 設定**: `common_disable_cron_mails` が `true` の場合, `/etc/crontab` に `MAILTO=""` を設定してメール送信を無効化します。
-11. **パッケージインストール**:
-    - Kubernetes 前提パッケージ (`ca-certificates`, `curl`, `apt-transport-https` 等)
-    - 共通パッケージ (基本コマンド群: `bash`, `vim`, `emacs`, `tmux`, `kubectl`, `ansible` 等)
-    - yq コマンド (YAML processor, GitHub からバイナリを直接取得)
-    - 言語パッケージ (`language-pack-ja` 等)
-    - mDNS (Avahi) - `mdns_enabled` が `true` の場合
-    - VMware tools - `use_vmware` が `true` の場合
-    - XCP-NG guest utilities - `use_xcpng` が `true` の場合
-12. **ディレクトリ作成**: `/usr/local/sbin`, NAS mount スクリプト用ディレクトリを作成します。
-13. **DNS Client スクリプト配置** (オプション): `use_nm_ddns_update_scripts` が `true` の場合, Dynamic DNS update scripts, NetworkManager dispatcher scripts, Router Advertisement address watch service を配置します。
-14. **再起動**: `/var/run/reboot-required` が存在する場合に再起動します。
+1. **パラメータ読み込み**: OS別パッケージ定義 (`vars/packages-ubuntu.yml`, `vars/packages-rhel.yml`) とクラスタ共通変数 (`vars/cross-distro.yml`, `vars/all-config.yml`) を読み込みます。
+2. **設定前チェック**: `mgmt_nic`変数の正規化と検証を行います。未定義時は`common_default_nic`で補完します。
+3. **タイムゾーン設定**: `common_timezone`を設定します。
+4. **ファイアウォール無効化**: `enable_firewall`が`false`の場合, RHEL系又はDebian系のファイアウォール処理を停止, 無効化します。
+5. **NetworkManager準備**: NetworkManagerを導入, 有効化し, systemd-networkdを無効化します。
+6. **静的ネットワーク設定の生成と再起動**:
+   - RHEL系ではNetworkManager keyfileを生成します。
+   - Debian系ではnetplan設定を生成し, ファイル変更時だけ`netplan generate`で文法を確認します。
+   - systemd .linkファイルを生成してネットワークインターフェース名を設定します。
+   - ネットワーク設定ファイルが変更された場合は, RHEL系では`nm_reload_and_activate`, Debian系では`netplan_apply`のhandlerを予約します。
+   - `reboot-common`ロールへ再起動を委譲し, 静的ネットワーク設定を起動時から使用した状態でAnsible接続を再確立します。Avahiが既に導入済みの場合は, この再起動に伴ってAvahiも停止, 起動します。
+7. **Sudoers設定**: 指定されたグループ又はユーザへsudo設定を配置します。
+8. **Sysctl設定**: ptrace, dmesg, inotifyなどの共通カーネル設定を適用します。
+9. **Cron設定**: 必要に応じてcronメール送信を無効化します。
+10. **パッケージ導入**:
+    - mDNSを有効にしている場合は, 静的ネットワーク設定で再接続した後にAvahiを導入又は更新します。
+    - Avahiパッケージが変更された場合は`avahi_restarted_and_enabled` handlerを予約します。
+    - その他の共通パッケージ, 言語パッケージ, 仮想化環境向けパッケージを導入します。
+11. **ディレクトリ作成**: 共通スクリプトなどの配置先を作成します。
+12. **DNS Clientスクリプト配置**: `use_nm_ddns_update_scripts`が`true`の場合にDynamic DNS関連スクリプトを配置します。
+13. **パッケージ更新要求による再起動**: `/var/run/reboot-required`が存在する場合は`reboot-common`へ再起動を委譲します。
+14. **basic.ymlのplay終了時のhandler実行**: 本ロールが通知したhandlerはbasic.ymlのplay終了時に実行されます。複数のhandlerが予約されている場合は`handlers/main.yml`の定義順に従い, RHEL系のNetworkManager又はDebian系のnetplanによるネットワーク設定反映をAvahi再起動より先に実行します。Avahi再起動handlerはAvahiパッケージが導入又は更新された場合に実行します。
+
+APT自動更新の停止, APTロック解放確認, Playbook正常完了後の復旧は本ロールでは実施しません。Ubuntu/Debian系では`site.yml`が`apt-update-guard`ロールを通常Playbook群の前後で呼び出して管理します。
 
 ### OS 差異
 
@@ -557,7 +541,7 @@ netif_list:
 | 項目 | RHEL 系 | Debian 系 |
 | --- | --- | --- |
 | パッケージマネージャ | `dnf` | `apt` |
-| ロックファイル待機 | 不要 | 必要 (`apt_lock_wait_timeout`) |
+| APT自動更新抑止 | 対象外 | `site.yml`から`apt-update-guard`を呼び出して実施 |
 | 環境ファイル配置先 | `/etc/sysconfig/` | `/etc/default/` |
 | Admin グループ名 | `wheel` | `sudo` |
 
@@ -1258,46 +1242,6 @@ Feb 23 10:30:01 hostname NetworkManager[1234]: <info>  [1234567890.2345] dispatc
 
 ## トラブルシューティング
 
-### APT Lock タイムアウト時の対処
-
-**症状**: Debian 系で `apt_lock_wait_timeout` (既定: 1800 秒) を超えてもロックが解放されず, タスクが失敗します。
-
-**原因**: 他のプロセス (unattended-upgrades, apt-daily 等) が長時間ロックを保持している。
-
-**対処方法**:
-
-1. ロックを保持しているプロセスを特定します:
-
-```bash
-sudo lsof /var/lib/dpkg/lock-frontend
-sudo lsof /var/lib/apt/lists/lock
-```
-
-2. 該当プロセスが自動更新の場合, 完了を待つか, 緊急時は以下で停止します:
-
-```bash
-sudo systemctl stop unattended-upgrades
-sudo systemctl stop apt-daily.timer
-sudo systemctl stop apt-daily-upgrade.timer
-```
-
-3. ロックファイルを手動で削除します (最終手段):
-
-```bash
-sudo rm /var/lib/dpkg/lock-frontend
-sudo rm /var/lib/dpkg/lock
-sudo rm /var/cache/apt/archives/lock
-sudo rm /var/lib/apt/lists/lock
-sudo dpkg --configure -a
-```
-
-4. `apt_lock_wait_timeout` を延長します:
-
-```yaml
-# group_vars/all/all.yml
-apt_lock_wait_timeout: 3600  # 1 時間
-```
-
 ### NetworkManager 設定が適用されない場合 (RHEL 系)
 
 **症状**: `.nmconnection` ファイルを配置したが, `nmcli connection show` で接続が表示されない, または IP アドレスが設定されない。
@@ -1593,14 +1537,16 @@ sudo whoami
 
 本ロールは以下のハンドラを定義しています:
 
-- **avahi**: Avahi (mDNS) サービスを再起動します (`mdns_enabled: true` の場合)。
+- **avahi_restarted_and_enabled**: Avahi (mDNS) サービスを再起動, 有効化します。Avahiパッケージの導入又は更新時に通知され, RHEL系のNetworkManager又はDebian系のnetplan設定反映handlerより後に定義することで, 両方が通知された場合に確定したネットワーク状態でmDNSを再登録します。
 - **disable_gui**: GUI を無効化し, multi-user.target に設定します (サーバ環境用)。
 - **auto_remove** / **pkg-autoremove**: 不要なパッケージを自動削除します (apt autoremove / dnf autoremove)。
-- **nm_reload_and_activate**: NetworkManager 設定をリロードし, 接続を有効化します (RHEL 系)。
-- **netplan_apply**: netplan 設定を適用します (Debian 系)。
+- **nm_reload_and_activate**: NetworkManager 設定をリロードし, 必要な接続を有効化します (RHEL 系)。Avahi再起動より先に実行します。
+- **netplan_apply**: 文法検証済みのnetplan設定を変更時だけ適用します (Debian 系)。Avahi再起動より先に実行します。
 - **common_reload_sysctl**: sysctl 設定をリロードします。
 
 ### 他ロールとの依存関係
+
+`site.yml`はUbuntu/Debian系ホストで`common`ロールを含む通常処理を開始する前に`apt-update-guard`を`active`で呼び出し, 全Playbookの正常完了後に`inactive`で呼び出します。本ロールが静的ネットワーク設定後に必要とする再起動は`reboot-common`ロールへ委譲します。
 
 `common` ロールは他のすべてのロールの基盤となるため, playbook の最初に実行されます。典型的なノード設定作業ロール実行順序は以下のようになります:
 

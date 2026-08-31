@@ -1,6 +1,6 @@
 # k8s-register-image ロール
 
-本ロールは, 呼び出し元ロールが事前に用意したコンテナイメージ tar を Kubernetes ノードへ配布し, control plane ノードと worker ノード上の Container Runtime Interface (CRI, containerd など) に登録するための共通ロールです。
+本ロールは, 呼び出し元ロールが事前に用意したコンテナイメージ tar を Kubernetes ノードへ配布するための共通ロールです。
 
 ## 目次
 
@@ -9,6 +9,7 @@
   - [用語](#用語)
   - [概要](#概要)
   - [本ロールの動作仕様](#本ロールの動作仕様)
+    - [`k8s-cluster-ready`との責務分界](#k8s-cluster-readyとの責務分界)
   - [呼び出し元ロールからの使用方法](#呼び出し元ロールからの使用方法)
     - [呼び出し元ロール作成者が実施する作業](#呼び出し元ロール作成者が実施する作業)
     - [呼び出し元ロールでのパラメタの設定手順](#呼び出し元ロールでのパラメタの設定手順)
@@ -21,6 +22,9 @@
   - [主要変数](#主要変数)
   - [テンプレートと生成ファイル](#テンプレートと生成ファイル)
   - [実行フロー](#実行フロー)
+    - [`k8s-cluster-ready`への入力パラメタ変換](#k8s-cluster-readyへの入力パラメタ変換)
+    - [`k8s-cluster-ready`からの出力変数変換](#k8s-cluster-readyからの出力変数変換)
+    - [worker自動検出時の処理分担](#worker自動検出時の処理分担)
   - [検証ポイント](#検証ポイント)
   - [トラブルシューティング](#トラブルシューティング)
     - [1. 入力検証で停止し, required inputs エラーが表示される場合](#1-入力検証で停止し-required-inputs-エラーが表示される場合)
@@ -143,6 +147,18 @@
 - 対象ノード上で containerd の `ctr` コマンドを用いて image import を行う。
 - 未修飾名のイメージについては, CRI の既定レジストリ解決差異を吸収するための別名タグを付与します。
 - 本ロールは, コンテナイメージ tar を新しく作成したり, 外部から取得したりしない。利用者は, 配布対象の tar ファイルを制御ホスト上の所定ディレクトリに事前配置しておく。
+- worker Nodeの選択, Ready待機, worker Node名取得, InternalIP取得, worker存在確認は`k8s-cluster-ready`へ委譲します。
+- `k8s-register-image`は, 既存の公開入力を`k8s-cluster-ready`の公開入力へ変換し, 共通処理の公開出力を既存の`k8s_register_image_*`変数へ戻すadapterとして動作します。
+
+### `k8s-cluster-ready`との責務分界
+
+本ロールでは, 入力されたパラメタを`k8s-cluster-ready`ロール用に変換し, `k8s-cluster-ready`ロールを経由して, worker Nodeの自動検出とworker nodeのReady確認を実施します。
+
+
+| ロール | 責務 |
+| --- | --- |
+| `k8s-cluster-ready` | 対象Kubernetesクラスタのworker Node選択, Ready待機, worker Node名取得, InternalIP取得, worker存在確認を担当します。 |
+| `k8s-register-image` | 対象クラスタ用kubeconfigの解決, `k8s-cluster-ready`への入力変換, worker/control planeへのイメージ転送, イメージ登録, 登録結果確認, 既存公開変数との互換性維持を担当します。 |
 
 ## 呼び出し元ロールからの使用方法
 
@@ -322,7 +338,7 @@
 
 ## 前提条件
 
-- 対象ホストが inventory に登録済みであること
+- control planeノードなど明示指定する接続先はAnsibleから接続可能であること。worker自動検出時はKubernetes Node名から取得したInternalIPを接続先として使用するため, workerのKubernetes Node名を別のinventory hostとして登録する必要はありません。
 - 関連する共通変数が vars/all-config.yml または host_vars に定義済みであること
 - 呼び出しパラメタが適切に設定されていること
 
@@ -355,9 +371,71 @@
 3. `k8s_register_image_control_plane_hosts` が1件以上ある場合は `register-control-plane.yml` を実行します。`k8s_register_image_skip_discovery` が `false` のときは `discover-target-hosts.yml` を先行実行し, 代表ノード判定後に代表ノードだけが配布処理を継続します。
 4. control plane 配布処理では対象ノードごとに `register-single-node.yml` を実行し, 接続前確認, 一時ディレクトリ作成, tar 転送, `ctr` による import, 期待タグ検証, 必要に応じた tar 削除を順に実施します。
 5. `k8s_register_image_worker_hosts` が1件以上ある場合は `register-workers.yml` を実行します。`k8s_register_image_skip_discovery` が `false` のときは `discover-target-hosts.yml` を先行実行し, 代表ノード判定後に代表ノードだけが配布処理を継続します。
-6. worker 自動検出が有効(`k8s_register_image_auto_discover_worker_hosts: true`)かつ worker 一覧が空の場合は `discover-worker-hosts.yml` を実行し, Ready 待機, `kubectl` による worker 一覧取得, InternalIP 解決, 動的インベントリ追加を行います。worker が0件の場合は失敗で停止します。
-7. worker 配布処理では対象ノードごとに `register-single-node.yml` を実行し, control plane 配布と同じ手順で import とタグ検証を行います。
+6. worker 自動検出が有効(`k8s_register_image_auto_discover_worker_hosts: true`)かつ worker 一覧が空の場合は`discover-worker-hosts.yml`を実行します。本タスクは対象クラスタ用kubeconfigと待機・再試行パラメタを解決し, `k8s-cluster-ready`の`worker-ready.yml`へ委譲します。worker一覧取得, Ready待機, Kubernetes Node名とInternalIPの対応表作成, worker存在確認は`k8s-cluster-ready`が実行します。
+7. worker 配布処理ではKubernetes Node名を論理識別子として保持し, 対応表から解決したInternalIPを`delegate_to`の接続先として`register-single-node.yml`を実行します。対応表に対象ノードが存在しない明示指定経路では対象ノード名自身を接続先として使用します。これにより, Kubernetes Node名を別の動的inventory hostとして追加せず, control plane配布と同じ手順でimportとタグ検証を行います。
 8. `package.yml`, `directory.yml`, `user_group.yml`, `service.yml`, `config.yml` を順に実行します。現行実装ではこれらのファイルに追加処理定義はありません。
+
+### `k8s-cluster-ready`への入力パラメタ変換
+
+worker自動検出時に`k8s-register-image`から`k8s-cluster-ready`へ渡す主な入力は次の通りです。
+
+| `k8s-register-image`側 | `k8s-cluster-ready`側 | 変換内容 |
+| --- | --- | --- |
+| 解決済みworker discovery用kubeconfig | `k8s_cluster_ready_kubeconfig_path` | `k8s-register-image`側の既存優先順位で解決後に渡します。 |
+| `k8s_register_image_wait_for_worker_ready_enabled` | `k8s_cluster_ready_wait_for_worker_ready_enabled` | booleanへ変換して同値を渡します。 |
+| `k8s_register_image_wait_for_worker_ready_timeout` | `k8s_cluster_ready_wait_for_worker_ready_timeout_seconds` | 秒数として渡します。 |
+| `k8s_register_image_wait_for_worker_ready_fail_on_timeout` | `k8s_cluster_ready_wait_for_worker_ready_fail_on_timeout` | booleanへ変換して同値を渡します。 |
+| `k8s_register_image_wait_for_worker_ready_retry_enabled` | `k8s_cluster_ready_wait_retry_enabled` | booleanへ変換して同値を渡します。 |
+| `k8s_register_image_wait_for_worker_ready_retries` | `k8s_cluster_ready_wait_retries` | 整数へ変換して渡します。 |
+| `k8s_register_image_wait_for_worker_ready_retry_interval_seconds` | `k8s_cluster_ready_wait_retry_interval_seconds` | 秒数として渡します。 |
+| `k8s_register_image_worker_discovery_request_timeout_seconds` | `k8s_cluster_ready_worker_discovery_request_timeout_seconds` | 秒数として渡します。 |
+| `k8s_register_image_worker_discovery_retry_enabled` | `k8s_cluster_ready_worker_discovery_retry_enabled` | booleanへ変換して同値を渡します。 |
+| `k8s_register_image_worker_discovery_retries` | `k8s_cluster_ready_worker_discovery_retries` | 整数へ変換して渡します。 |
+| `k8s_register_image_worker_discovery_retry_interval_seconds` | `k8s_cluster_ready_worker_discovery_retry_interval_seconds` | 秒数として渡します。 |
+
+worker discovery用kubeconfigは, `k8s_register_image_kubeconfig_to_discover_workers_path` → `k8s_kubeconfig_to_discover_workers_path` → `k8s_supercluster_kubeconfig_path` → `k8s_admin_kubeconfig_path`の優先順位で解決した後に`k8s_cluster_ready_kubeconfig_path`へ渡します。
+
+### `k8s-cluster-ready`からの出力変数変換
+
+共通処理の出力は, 既存の`k8s-register-image`呼び出し元を変更しないために次の互換出力へ変換します。
+
+| `k8s-cluster-ready`出力 | `k8s-register-image`互換出力 | 用途 |
+| --- | --- | --- |
+| `k8s_cluster_ready_worker_ready_wait_result` | `k8s_register_image_worker_ready_wait_result` | worker Ready待機結果を保持します。 |
+| `k8s_cluster_ready_worker_nodes_result` | `k8s_register_image_worker_nodes_result` | worker Node取得コマンド結果を保持します。 |
+| `k8s_cluster_ready_worker_hosts` | `k8s_register_image_worker_hosts` | worker配布先のKubernetes Node名一覧として使用します。 |
+| `k8s_cluster_ready_worker_node_internal_ip_map` | `k8s_register_image_worker_node_internal_ip_map` | Kubernetes Node名から`delegate_to`接続先への対応表として使用します。 |
+
+### worker自動検出時の処理分担
+
+```mermaid
+flowchart TD
+    subgraph REG["k8s-register-image"]
+        A["対象クラスタ用kubeconfigを解決"]
+        B["k8s-cluster-ready用入力へ変換"]
+        C["互換出力変数へ変換"]
+        D["workerへイメージ転送"]
+        E["CRIへイメージ登録"]
+        F["登録結果確認"]
+    end
+
+    subgraph READY["k8s-cluster-ready"]
+        G["worker Ready待機"]
+        H["worker Node名とInternalIP取得"]
+        I["worker存在確認"]
+    end
+
+    A --> B
+    B --> G
+    G --> H
+    H --> I
+    I --> C
+    C --> D
+    D --> E
+    E --> F
+```
+
+`k8s-register-image`側はadapterとして入出力変換を担当し, worker状態確認の実処理は`k8s-cluster-ready`へ集約します。
 
 ## 検証ポイント
 
@@ -405,7 +483,7 @@ grep -n 'k8s_register_image_components\|k8s_register_image_expected_images' vars
 **実行するコマンド**:
 
 ```bash
-kubectl --kubeconfig <path> get nodes
+kubectl get nodes
 ```
 
 **確認ポイント**:
@@ -496,6 +574,7 @@ ls -l <k8s_register_image_remote_cache_dir>
 
 ## 注意事項
 
+- worker自動検出ではKubernetes Node名とInternalIPを分離して扱い, Kubernetes Node名を`add_host`で動的inventoryへ追加しません。同一workerを静的inventory名とKubernetes Node名の2つのAnsible host objectとして扱わないためです。
 - 対象ノードで `ctr` コマンドが利用可能であることを前提とします。
 - 利用者は, 対象ノードで管理者権限のコマンド実行ができるように, 実行ユーザーの権限設定(sudo設定など)を事前に済ませておく。あわせて, 権限昇格時に対話入力が必要にならない設定であることを確認します。
 - control plane ノードと worker ノードの一覧は, 呼び出し側で明示的に渡すか, 自動検出用変数を設定してロール側で検出します。
@@ -503,6 +582,8 @@ ls -l <k8s_register_image_remote_cache_dir>
 - `k8s_register_image_cleanup_remote_tar` の設定は呼び出し元責務です。後続処理で同じ tar を再利用する場合は `false` を指定します。
 
 ## 参考資料
+
+- [`k8s-cluster-ready`](../k8s-cluster-ready/Readme.md): worker Node選択, Ready待機, worker Node名/InternalIP取得を提供する共通ロール。worker自動検出時のadapter先として使用します。
 
 ### 公式ドキュメント
 

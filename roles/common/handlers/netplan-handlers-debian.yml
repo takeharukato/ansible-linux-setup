@@ -2,36 +2,30 @@
 #  Ansible playbook
 #  Copyright 2020 Takeharu KATO All Rights Reserved.
 #
-# Debian 系で netplan generate が成功した場合にのみ apply を行います。
+# Debian 系ではタスク側の netplan generate で文法検証に成功した設定だけを適用します。
 
-- name: Netplan generate
+# 文法検証済みの変更だけを1回適用し, 不要なインターフェース再構成によるmDNS再登録を防止する。
+- name: Netplan apply after successful validation
   listen: "netplan_apply"
   when:
     - ansible_facts.os_family == "Debian"
-  ansible.builtin.command: netplan generate
-  register: netplan_generate
-  changed_when: false
-  failed_when: netplan_generate.rc != 0
-
-- name: Netplan apply (only after valid generate)
-  listen: "netplan_apply"
-  when:
-    - ansible_facts.os_family == "Debian"
-    - netplan_generate is defined
-    - netplan_generate.rc == 0
   ansible.builtin.command: netplan apply
   register: netplan_apply
   changed_when: netplan_apply.rc == 0
   failed_when: netplan_apply.rc != 0
 
+# 適用後のアドレス状態を記録し, ネットワーク変更後の状態を実行ログから確認可能にする。
 - name: Verify current interface configuration
   listen: "netplan_apply"
   when:
     - ansible_facts.os_family == "Debian"
   ansible.builtin.command: ip -br addr
-  register: before_netplan_apply
+  register: after_netplan_apply
   changed_when: false
 
+# IPv4とIPv6の経路を分けて表示し, default又はmetricを含む経路だけを診断情報として残す。
+# 1行目はIPv4経路, 2行目はIPv6経路を取得する。grepの正規表現'metric|default'は'metric'又は'default'を含む行に一致する。
+# 診断対象の経路が存在しない場合もhandlerを失敗させないため, 各grepの終了状態はtrueで吸収する。
 - name: Show route metrics after apply
   listen: "netplan_apply"
   when:

@@ -1,0 +1,137 @@
+#  -*- coding:utf-8-unix; mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  APT自動更新抑止タスク
+#
+---
+
+# Playbook実行中にunattended-upgradesがAPTロックを再取得しないようにサービスを停止する。
+- name: "Stop unattended-upgrades service"
+  ansible.builtin.systemd:
+    name: unattended-upgrades
+    state: stopped
+    enabled: false
+  become: true
+
+# unattended-upgradesを再起動し得るAPT自動更新unitを停止し, 後続処理への割り込みを防止する。
+- name: "Stop APT automatic update units"
+  ansible.builtin.systemd:
+    name: "{{ item }}"
+    state: stopped
+    enabled: false
+  loop: "{{ apt_update_guard_units_to_stop }}"
+  become: true
+
+# サービス停止要求後も残存するunattended-upgradesプロセスの終了を待ち,
+# package操作や再起動へ進む前に更新処理が完了していることを保証する。
+- name: "Wait until unattended-upgrades process exits"
+  ansible.builtin.command:
+    argv:
+      - timeout
+      - "{{ apt_update_guard_command_timeout_seconds | string }}s"
+      - pgrep
+      - -x
+      - unattended-upgr
+  register: apt_update_guard_unattended_process_check
+  changed_when: false
+  failed_when: apt_update_guard_unattended_process_check.rc not in [0, 1, 124]
+  until: apt_update_guard_unattended_process_check.rc == 1
+  retries: >-
+    {{
+      (
+        apt_update_guard_wait_timeout_seconds
+        / apt_update_guard_wait_interval_seconds
+      ) | int
+    }}
+  delay: "{{ apt_update_guard_wait_interval_seconds }}"
+  become: true
+
+# reboot後にtimerが過去の実行予定を補完実行しないようにするため,
+# 利用者独自のdrop-inとは別の本ロール専用ディレクトリを用意する。
+- name: "Create APT timer drop-in directories"
+  ansible.builtin.file:
+    path: "/etc/systemd/system/{{ item }}.d"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+  loop: "{{ apt_update_guard_timers_to_restore }}"
+  become: true
+
+# Ansible管理下の構築期間だけtimerのcatch-up動作を停止し,
+# systemd更新や再起動後にAPT自動更新が再介入することを防止する。
+- name: "Disable persistent APT timer catch-up"
+  ansible.builtin.copy:
+    dest: >-
+      /etc/systemd/system/{{ item }}.d/{{ apt_update_guard_persistent_dropin_name }}
+    owner: root
+    group: root
+    mode: "0644"
+    content: |
+      [Timer]
+      Persistent=false
+  loop: "{{ apt_update_guard_timers_to_restore }}"
+  become: true
+
+# 作成したtimer drop-inを再起動前のsystemdへ認識させ,
+# 再起動後にPersistent=falseが確実に有効となるようにする。
+- name: "Reload systemd after installing APT timer guard"
+  ansible.builtin.systemd:
+    daemon_reload: true
+  become: true
+
+# reboot-commonの公開変数をblockスコープで渡し,
+# 同一Ansible実行中にAPT guard確立用の再起動を重複実行しない。
+- name: "Reboot once after activating APT update guard"
+  vars:
+    reboot_common_timeout: "{{ apt_update_guard_reboot_timeout_seconds }}"
+    reboot_common_message: "Reboot triggered after activating APT update guard"
+    reboot_common_pre_reboot_delay: 2
+  when: not (apt_update_guard_reboot_done | default(false) | bool)
+  block:
+    # systemd/udev更新が完了した状態から後続構築を開始するため, 共通再起動処理へ委譲する。
+    - name: "Run reboot-common role after activating APT update guard"
+      ansible.builtin.include_role:
+        name: reboot-common
+
+# 同一Ansible実行中の再呼び出しで不要な再起動を行わないように完了状態を保持する。
+- name: "Mark APT update guard reboot as done"
+  ansible.builtin.set_fact:
+    apt_update_guard_reboot_done: true
+
+# fuserによる明示的なロック解放確認を実施できるようにpsmiscを導入する。
+- name: "Ensure psmisc package is installed"
+  ansible.builtin.package:
+    name: psmisc
+    state: present
+  become: true
+
+# APT自動更新停止後にも残る可能性があるロック保持者の終了を待ち,
+# 後続のpackage操作がfrontend lock競合で失敗することを防止する。
+- name: "Wait for APT lock files to be released"
+  ansible.builtin.command:
+    argv:
+      - timeout
+      - "{{ apt_update_guard_command_timeout_seconds | string }}s"
+      - fuser
+      - "{{ item }}"
+  register: apt_update_guard_lock_check
+  changed_when: false
+  failed_when: apt_update_guard_lock_check.rc not in [0, 1, 124]
+  until: apt_update_guard_lock_check.rc == 1
+  retries: >-
+    {{
+      (
+        apt_update_guard_wait_timeout_seconds
+        / apt_update_guard_wait_interval_seconds
+      ) | int
+    }}
+  delay: "{{ apt_update_guard_wait_interval_seconds }}"
+  loop: "{{ apt_update_guard_lock_files }}"
+  become: true
+
+# 後続処理がAPT guard確立済みであることを参照できるように状態を保持する。
+- name: "Mark APT update guard as active"
+  ansible.builtin.set_fact:
+    apt_update_guard_active: true

@@ -6,12 +6,6 @@
 #  ネットワーク設定 (NetworkManager 導入と有効化)
 #
 
-# 初回起動直後は unattended-upgrades が再度ロックを保持し得るため,
-# NetworkManager 導入直前にも frontend lock の解放を待つ
-- name: Wait frontend lockfile before NetworkManager install (Debian/Ubuntu)
-  ansible.builtin.include_tasks: config-wait-frontend-lock.yml
-  when: ansible_facts.os_family == "Debian"
-
 # NetworkManagerのインストール
 - name: Ensure NetworkManager installed (Debian/Ubuntu)
   ansible.builtin.apt:
@@ -190,9 +184,8 @@
   register: existing_profiles
   when: ansible_facts.os_family == "RedHat"
 
+# reboot-commonの公開変数をblockスコープで渡し, 呼出先ロールの変数名を維持する。
 - name: Reboot to clear old network configuration (RHEL only, if profiles exist)
-  ansible.builtin.include_role:
-    name: reboot-common
   vars:
     reboot_common_timeout: "{{ reboot_timeout_sec }}"
     reboot_common_message: "Reboot to clear legacy network configuration"
@@ -200,3 +193,8 @@
   when:
     - ansible_facts.os_family == "RedHat"
     - existing_profiles.matched | default(0) > 0
+  block:
+    # 旧ネットワーク設定の影響を再起動で除去する処理を共通ロールへ委譲する。
+    - name: Run reboot-common role to clear old network configuration
+      ansible.builtin.include_role:
+        name: reboot-common
