@@ -181,7 +181,7 @@
 | プロセス | - | 実行中のプログラムを管理する単位。 |
 | 名前空間 ( namespace ) | - | Kubernetes内部でリソースを論理的に分離する単位。 |
 | サービスアカウント (Service Account) | - | 自動処理中でサービスを呼び出す側のプログラムを識別するための識別情報。 |
-| Elastic Agentポリシー構成種別 | - | Fleet Bootstrap ロールの `fleet_bootstrap_agent_policy_profiles` で管理する `host`, `k8s_system`, `k8s_workload`, `k8s_cluster` の4種類を指す, Elastic Stack固有の分類単位。 |
+| Elastic Agentポリシー構成種別 | - | Fleet Bootstrap ロールの `fleet_bootstrap_agent_policy_profiles` で管理する `host`, `k8s_system`, `k8s_workload`, `k8s_cluster`, `k8s_audit`の5種類を指す,Elastic Stack固有の分類単位。 |
 | 統合パッケージ | - | Elastic Agentへデータの収集方法と収集項目を追加するためのパッケージ。 |
 | Docker Compose | - | 複数のコンテナ定義をまとめて作成, 起動, 停止, 更新する仕組み。 |
 | Docker Compose 定義ファイル | - | Docker Compose が参照するコンテナ構成の定義ファイル。 |

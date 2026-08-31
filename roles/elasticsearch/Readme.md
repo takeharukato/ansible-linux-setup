@@ -225,7 +225,7 @@ http://導入先ホスト:5601
 | statコマンド | stat | ファイルの権限, 大きさ及び名前を表示するコマンド。 |
 | Service | - | サービスの英語表記。 |
 | Node | - | ノードの英語表記。 |
-| Elastic Agentポリシー構成種別 | - | Fleet Bootstrap ロールの `fleet_bootstrap_agent_policy_profiles` で管理する `host`, `k8s_system`, `k8s_workload`, `k8s_cluster`, `k8s_audit` の5種類を指す, Elastic Stack固有の分類単位。 |
+| Elastic Agentポリシー構成種別 | - | Fleet Bootstrap ロールの `fleet_bootstrap_agent_policy_profiles` で管理する `host`, `k8s_system`, `k8s_workload`, `k8s_cluster`, `k8s_audit`の5種類を指す,Elastic Stack固有の分類単位。 |
 | 統合パッケージ | - | Elastic Agentへデータの収集方法と収集項目を追加するためのパッケージ。 |
 | Package Policy | - | Elastic Agent ポリシーへ追加する収集内容と統合パッケージの設定。 |
 | System統合 | - | Elastic Agentが対象ホストのログとメトリクス情報を収集するための統合パッケージ。 |
