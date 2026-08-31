@@ -1,4 +1,4 @@
-#  -*- coding:utf-8 mode:yaml -*-
+#  -*- coding:utf-8-unix; mode:yaml -*-
 #  Ansible playbook
 #  Copyright 2020 Takeharu KATO All Rights Reserved.
 #
@@ -20,10 +20,57 @@
 - name: Include cross-distro.yml
   ansible.builtin.include_vars: "{{ playbook_dir }}/vars/cross-distro.yml"
 
+#
+# ロール間共有変数読込み部
+#
+# 留意事項
+# 以下のインクルード処理の順序関係を守るようにする。
+# これは, vars/all-config.yml内で定義した変数で共通定義変数を上書きするためである。
+# ansibleの変数は, 実行時に評価されるため, 以下の順序で読み込むことで, 共通定義変数を上書きすることができる。
+#
+# 参考: [Lazy Evaluation](https://docs.ansible.com/projects/ansible/latest/reference_appendices/glossary.html#term-Lazy-Evaluation)
+#   --
+#   Lazy Evaluation
+#     In general, Ansible evaluates any variables in playbook content at the last
+#     possible second, which means that if you define a data structure that data
+#     structure itself can define variable values within it, and everything
+#     “just works” as you would expect. This also means variable strings can include
+#     other variables inside of those strings.
+#
+#   遅延評価
+#     一般的に, Ansibleはプレイブックの内容内の変数を可能な限り最後の瞬間に評価します。
+#     つまり, データ構造を定義すると, そのデータ構造自体がその中で変数値を定義でき,
+#     すべてが期待通りに「うまく動作」します。
+#     これはまた, 変数文字列がその文字列内の他の変数を含むことができることも意味します。
+# --
+#
+# 本playbookでのロール間共通変数定義のインクルード処理の順序
+#
+# - 各ロール群固有の設定読み込み (logging backendやkubernetesなど関連ロール間で共有する定義)
+# - 共通設定読み込み (all-config.yml)
+# - 共通設定読込み後の共通変数定義 (共通設定確定後に実施する変数定義, kubernetesのAPI広告アドレス設定など)
+#
+
+# logging backend共通設定読み込み ( logging backend関連ロールでのみ有効化する )
+# - name: Include logging backend common vars
+#  ansible.builtin.include_vars: "{{ playbook_dir }}/vars/logging-backend-common.yml"
+
+# kubernetes関連設定読み込み ( kubernetes関連ロールでのみ有効化する )
+# - name: Include k8s common config vars
+#  ansible.builtin.include_vars: "{{ playbook_dir }}/vars/k8s-config-common.yml"
+
+#
+# ロール間共有変数読込み部の終わり
+#
+
 # 共通設定読み込み
 - name: Include config vars
   ansible.builtin.include_vars: "{{ playbook_dir }}/vars/all-config.yml"
 
-# Kubernetes API広告アドレス設定読み込み
-- name: Include K8s API address vars
-  ansible.builtin.include_vars: "{{ playbook_dir }}/vars/k8s-api-address.yml"
+#
+# 共通設定読込み後の共通変数定義
+#
+#
+# Kubernetes API広告アドレス設定読み込み ( kubernetes関連ロールでのみ有効化する )
+# - name: Include K8s API address vars
+#  ansible.builtin.include_vars: "{{ playbook_dir }}/vars/k8s-api-address.yml"

@@ -1,4 +1,4 @@
-#  -*- coding:utf-8 mode:yaml -*-
+#  -*- coding:utf-8-unix; mode:yaml -*-
 #  Ansible playbook
 #  Copyright 2020 Takeharu KATO All Rights Reserved.
 #
