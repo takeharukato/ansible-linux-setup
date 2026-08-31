@@ -51,7 +51,7 @@ common_packages:
   - acl
   - attr
   - python3-pyyaml
-  - iptables-service
+  - iptables-services
   - sos
 
 common_langpack_packages:
