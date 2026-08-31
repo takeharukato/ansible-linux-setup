@@ -1,0 +1,98 @@
+#  -*- coding:utf-8-unix; mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  workerノード自動検出タスク
+#
+---
+
+# workerノード一覧とInternalIP一覧を1回のAPI要求で取得し, worker選択と接続先解決で同じ結果を使用する。
+# 1. ラベル"!node-role.kubernetes.io/control-plane"でcontrol-planeを除外する。
+# 2. custom-columnsでノード名(.metadata.name)とInternalIP
+#    (.status.addresses中のtypeが"InternalIP"の項目)を取得する。
+# 3. --no-headersでヘッダ行を除外する。
+# 4. Kubernetes API要求自体が停止し続けないように--request-timeoutを指定する。
+- name: "Get worker node list and InternalIP from Kubernetes cluster"
+  ansible.builtin.command:
+    argv:
+      - kubectl
+      - --request-timeout={{ k8s_cluster_ready_worker_discovery_request_timeout_seconds | int }}s
+      - --kubeconfig
+      - "{{ k8s_cluster_ready_runtime_kubeconfig_path }}"
+      - get
+      - nodes
+      - --selector=!node-role.kubernetes.io/control-plane
+      - -o
+      - custom-columns=NAME:.metadata.name,INTERNAL_IPS:.status.addresses[?(@.type=="InternalIP")].address
+      - --no-headers
+  register: k8s_cluster_ready_worker_nodes_result
+  until: >-
+    (not (k8s_cluster_ready_worker_discovery_retry_enabled | bool))
+    or (k8s_cluster_ready_worker_nodes_result is succeeded)
+  retries: >-
+    {{
+      (k8s_cluster_ready_worker_discovery_retry_enabled | bool)
+      | ternary(k8s_cluster_ready_worker_discovery_retries | int, 1)
+    }}
+  delay: "{{ k8s_cluster_ready_worker_discovery_retry_interval_seconds | int }}"
+  changed_when: false
+  become: true
+
+# workerノード名と接続先InternalIPの対応表を毎回再構築し, 過去の呼び出し結果が混在しないようにする。
+- name: "Initialize worker node InternalIP map"
+  ansible.builtin.set_fact:
+    k8s_cluster_ready_worker_node_internal_ip_map: {}
+
+# workerノード名と接続先InternalIPの対応表を作成する。
+# 正規表現'\s+.*$': '\s+'は1文字以上の空白, '.*$'はその後から行末までを表す。
+# 例: 'worker01 192.0.2.10'から'worker01'を抽出する。
+# 正規表現'^\S+\s*': '^\S+'は行頭から空白以外の1文字以上, '\s*'は続く0文字以上の空白を表す。
+# 例: 'worker01 192.0.2.10'から'192.0.2.10'を残す。
+# 処理ロジック:
+# 1. _worker_node_nameで行頭のノード名だけを抽出する。
+#    対応するJinja2式: (item | regex_replace('\\s+.*$', '') | trim)
+# 2. _worker_node_ips_rawでノード名以降のIP候補文字列を抽出する。
+#    対応するJinja2式: (item | regex_replace('^\\S+\\s*', '') | trim)
+# 3. カンマ区切りの候補を分割し, 空要素を除外して最初の要素を代表アドレスとする。
+#    対応するJinja2式: (_worker_node_ips_raw | default('', true) | split(',') | map('trim') | reject('equalto', '') | first)
+# 4. IP候補がない場合はノード名を接続先として使用する。
+#    対応するJinja2式: (... | default(_worker_node_name, true))
+- name: "Build worker node InternalIP map"
+  ansible.builtin.set_fact:
+    k8s_cluster_ready_worker_node_internal_ip_map: >-
+      {{
+        (k8s_cluster_ready_worker_node_internal_ip_map | default({}))
+        | combine(
+          {
+            _worker_node_name: _worker_delegate_host
+          }
+        )
+      }}
+  vars:
+    _worker_node_name: "{{ item | regex_replace('\\s+.*$', '') | trim }}"
+    _worker_node_ips_raw: "{{ item | regex_replace('^\\S+\\s*', '') | trim }}"
+    _worker_delegate_host: >-
+      {{
+        (
+          _worker_node_ips_raw
+          | default('', true)
+          | split(',')
+          | map('trim')
+          | reject('equalto', '')
+          | first
+          | default(_worker_node_name, true)
+        )
+      }}
+  loop: "{{ k8s_cluster_ready_worker_nodes_result.stdout_lines | default([], true) }}"
+  when: (item | trim | length) > 0
+
+# worker一覧とInternalIP対応表で同じ検出結果を共有するため, 対応表のキーをworker一覧として公開する。
+- name: "Set worker hosts"
+  ansible.builtin.set_fact:
+    k8s_cluster_ready_worker_hosts: "{{ k8s_cluster_ready_worker_node_internal_ip_map.keys() | list }}"
+
+# workerが存在しない状態ではcluster-wideコンポーネントの配置先がないため, 明示的に停止する。
+- name: "Verify that worker hosts exist"
+  ansible.builtin.fail:
+    msg: "ERROR: No worker nodes found in the cluster"
+  when: (k8s_cluster_ready_worker_hosts | default([], true) | length) == 0

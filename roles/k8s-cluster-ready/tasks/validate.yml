@@ -1,0 +1,43 @@
+#  -*- coding:utf-8-unix; mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  入力検証タスク
+#
+---
+
+# Kubernetes API操作を開始する前に, 必須パラメタの型と値域が有効であることを確認する。
+- name: "Validate Kubernetes worker readiness inputs"
+  ansible.builtin.assert:
+    that:
+      - (k8s_cluster_ready_runtime_kubeconfig_path | default('', true) | string | trim | length) > 0
+      - k8s_cluster_ready_wait_for_worker_ready_enabled is boolean
+      - (k8s_cluster_ready_wait_for_worker_ready_timeout_seconds | int) > 0
+      - k8s_cluster_ready_wait_for_worker_ready_fail_on_timeout is boolean
+      - k8s_cluster_ready_wait_retry_enabled is boolean
+      - (k8s_cluster_ready_wait_retries | int) > 0
+      - (k8s_cluster_ready_wait_retry_interval_seconds | int) >= 0
+      - (k8s_cluster_ready_worker_discovery_request_timeout_seconds | int) > 0
+      - k8s_cluster_ready_worker_discovery_retry_enabled is boolean
+      - (k8s_cluster_ready_worker_discovery_retries | int) > 0
+      - (k8s_cluster_ready_worker_discovery_retry_interval_seconds | int) >= 0
+    fail_msg: >-
+      ERROR: Invalid Kubernetes worker readiness parameters.
+      Check kubeconfig path, boolean flags, timeouts, retries, and retry intervals.
+
+# kubeconfigの設定誤りをkubectl実行前に検出するため, 解決済みパスのファイル状態を取得する。
+- name: "Check Kubernetes worker readiness kubeconfig file"
+  ansible.builtin.stat:
+    path: "{{ k8s_cluster_ready_runtime_kubeconfig_path }}"
+  register: k8s_cluster_ready_kubeconfig_stat
+  become: true
+
+# kubeconfigが存在しない場合は後続の全Kubernetes API操作が失敗するため, この時点で停止する。
+- name: "Fail when Kubernetes worker readiness kubeconfig is unavailable"
+  ansible.builtin.fail:
+    msg: >-
+      ERROR: Kubernetes worker readiness kubeconfig is unavailable:
+      {{ k8s_cluster_ready_runtime_kubeconfig_path }}
+  when: >-
+    not (k8s_cluster_ready_kubeconfig_stat.stat.exists | default(false))
+    or not (k8s_cluster_ready_kubeconfig_stat.stat.isreg | default(false))

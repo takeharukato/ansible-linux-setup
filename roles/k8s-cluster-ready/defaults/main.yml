@@ -1,0 +1,38 @@
+#  -*- coding:utf-8-unix; mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  ロール固有変数のデフォルト値
+#  group_vars/all/all.yml やhost_varsで上書き可能とするため,
+#  ロール名/defaults/main.yml に定義している
+
+# worker状態確認に使用するkubeconfigパス
+# 空の場合はk8s_admin_kubeconfig_pathを使用する
+k8s_cluster_ready_kubeconfig_path: ""
+
+# worker検出前にReady条件を待機するかどうか
+k8s_cluster_ready_wait_for_worker_ready_enabled: true
+# worker Ready待機1回あたりのタイムアウト秒数
+k8s_cluster_ready_wait_for_worker_ready_timeout_seconds: 180
+# worker Ready待機の失敗を致命エラーとするかどうか
+k8s_cluster_ready_wait_for_worker_ready_fail_on_timeout: true
+# worker Ready待機コマンド実行時の再試行有効化フラグ
+k8s_cluster_ready_wait_retry_enabled: true
+# worker Ready待機コマンド実行時の最大試行回数
+k8s_cluster_ready_wait_retries: 3
+# worker Ready待機コマンド実行時の試行間隔秒数
+k8s_cluster_ready_wait_retry_interval_seconds: 5
+
+# worker検出要求1回あたりのタイムアウト秒数
+k8s_cluster_ready_worker_discovery_request_timeout_seconds: 10
+# worker検出コマンド実行時の再試行有効化フラグ
+k8s_cluster_ready_worker_discovery_retry_enabled: true
+# worker検出コマンド実行時の最大試行回数
+k8s_cluster_ready_worker_discovery_retries: 3
+# worker検出コマンド実行時の試行間隔秒数
+k8s_cluster_ready_worker_discovery_retry_interval_seconds: 5
+
+# workerホスト一覧
+k8s_cluster_ready_worker_hosts: []
+# workerノード名とInternalIPの対応表
+k8s_cluster_ready_worker_node_internal_ip_map: {}

@@ -1,0 +1,47 @@
+#  -*- coding:utf-8-unix; mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  worker Ready待機タスク
+#
+---
+
+# worker検出前に, control-plane以外のNodeがReady条件を満たすまで待機する。
+# failed_when=falseで失敗を後段のポリシー判定へ委ねるため, retry継続条件はコマンド終了コードで判定する。
+- name: "Wait for worker nodes to become Ready"
+  ansible.builtin.command:
+    argv:
+      - kubectl
+      - --kubeconfig
+      - "{{ k8s_cluster_ready_runtime_kubeconfig_path }}"
+      - wait
+      - --for=condition=Ready
+      - nodes
+      - --selector=!node-role.kubernetes.io/control-plane
+      - --timeout={{ k8s_cluster_ready_wait_for_worker_ready_timeout_seconds | int }}s
+  register: k8s_cluster_ready_worker_ready_wait_result
+  until: >-
+    (not (k8s_cluster_ready_wait_retry_enabled | bool))
+    or ((k8s_cluster_ready_worker_ready_wait_result.rc | default(1)) == 0)
+  retries: >-
+    {{
+      (k8s_cluster_ready_wait_retry_enabled | bool)
+      | ternary(k8s_cluster_ready_wait_retries | int, 1)
+    }}
+  delay: "{{ k8s_cluster_ready_wait_retry_interval_seconds | int }}"
+  changed_when: false
+  failed_when: false
+  become: true
+  when: k8s_cluster_ready_wait_for_worker_ready_enabled | bool
+
+# cluster-wideコンポーネントを安全に導入できない場合に処理を停止するポリシーを呼び出し元から指定可能とする。
+- name: "Fail when worker node Ready wait failed"
+  ansible.builtin.fail:
+    msg: >-
+      ERROR: Worker node Ready wait failed.
+      rc={{ k8s_cluster_ready_worker_ready_wait_result.rc | default('undefined') }}
+      stderr={{ k8s_cluster_ready_worker_ready_wait_result.stderr | default('') }}
+  when:
+    - k8s_cluster_ready_wait_for_worker_ready_enabled | bool
+    - k8s_cluster_ready_wait_for_worker_ready_fail_on_timeout | bool
+    - (k8s_cluster_ready_worker_ready_wait_result.rc | default(1)) != 0

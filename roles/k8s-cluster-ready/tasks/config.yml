@@ -1,0 +1,11 @@
+#  -*- coding:utf-8-unix; mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  設定関連タスク
+#
+---
+
+# cluster-wideコンポーネントの導入前提を同一ロジックで確認するため, 共通worker状態確認処理を呼び出す。
+- name: "Verify Kubernetes worker readiness"
+  ansible.builtin.include_tasks: worker-ready.yml

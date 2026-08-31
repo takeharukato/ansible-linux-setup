@@ -1,0 +1,23 @@
+#  -*- coding:utf-8-unix; mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  worker状態確認共通タスク
+#
+---
+
+# 呼び出し元によるkubeconfig指定を優先し, 未指定時だけ通常クラスタ管理用kubeconfigへフォールバックする。
+- name: "Resolve Kubernetes worker readiness parameters"
+  ansible.builtin.include_tasks: resolve-runtime-vars.yml
+
+# Kubernetes API操作前に入力値とkubeconfigファイルを検証し, 設定不備を早期に検出する。
+- name: "Validate Kubernetes worker readiness parameters"
+  ansible.builtin.include_tasks: validate.yml
+
+# 既存のworker検出ロジックと同じ順序を維持し, worker取得前にReady条件を待機する。
+- name: "Wait for Kubernetes worker readiness"
+  ansible.builtin.include_tasks: wait-worker-ready.yml
+
+# worker一覧とInternalIPを1回のAPI要求で取得し, 後続処理で再利用可能な共通結果を生成する。
+- name: "Discover Kubernetes worker nodes"
+  ansible.builtin.include_tasks: discover-worker-hosts.yml

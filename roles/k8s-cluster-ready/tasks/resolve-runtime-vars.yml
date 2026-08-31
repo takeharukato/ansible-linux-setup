@@ -1,0 +1,22 @@
+#  -*- coding:utf-8-unix; mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  実行時変数解決タスク
+#
+---
+
+# 明示指定されたkubeconfigを優先し, 空または未定義の場合は通常クラスタ管理用kubeconfigを使用する。
+# 処理ロジック:
+# 1. k8s_cluster_ready_kubeconfig_pathが未定義または空の場合はk8s_admin_kubeconfig_pathを採用する。
+# 2. 採用値を文字列化し, 前後の空白を除去して実行時変数へ格納する。
+# 対応するJinja2式: (k8s_cluster_ready_kubeconfig_path | default(k8s_admin_kubeconfig_path | default('', true), true) | string | trim)
+- name: "Resolve Kubernetes worker readiness kubeconfig path"
+  ansible.builtin.set_fact:
+    k8s_cluster_ready_runtime_kubeconfig_path: >-
+      {{
+        k8s_cluster_ready_kubeconfig_path
+        | default(k8s_admin_kubeconfig_path | default('', true), true)
+        | string
+        | trim
+      }}
