@@ -17,6 +17,16 @@
   when:
     - sbom_enabled | default(false) | bool
 
+# Kubernetesクラスタ参照に使用する実行ユーザ, kubeconfigと実行制御値を解決する。
+- name: Resolve SBOM Kubernetes runtime variables
+  ansible.builtin.include_tasks: resolve-runtime-vars.yml
+  when:
+    - sbom_enabled | default(false) | bool
+    - sbom_extra_sboms_enabled | default(false) | bool
+    - >-
+      (sbom_helm_sbom_enabled | default(false) | bool)
+      or (sbom_k8s_images_sbom_enabled | default(false) | bool)
+
 - name: Install sbom-tool
   ansible.builtin.include_tasks: package.yml
   when:

@@ -113,6 +113,8 @@
 | ansible-playbookコマンド | - | Ansible Playbook を実行して自動構成処理を適用するコマンド。 |
 | `helm` | - | Kubernetesアプリケーションのパッケージ管理ツール。Chart形式でアプリケーションを配布, インストールします。 |
 | `kubectl` | - | Kubernetesクラスタを操作するためのコマンドラインツール。 |
+| kubeconfig | - | Kubernetesクラスタへの接続先と認証情報を保持する設定ファイル。 |
+| timeoutコマンド | - | 指定時間を超えたコマンド実行を終了するコマンド。 |
 | rpmコマンド | - | RPM パッケージの情報参照や導入確認を行うコマンド。 |
 | ノード | - | ネットワークに接続された機器または処理単位。 |
 | 制御ホスト | - | Playbook を実行し, 他ホストへの処理指示を行う管理用ホスト。 |
@@ -141,6 +143,7 @@
 
 - 対象ホストが inventory に登録済みであること
 - 関連する共通変数が vars/all-config.yml または host_vars に定義済みであること
+- `k8s_ctrl_plane`グループのホストでは, `k8s_runtime_helm_operator_user`のホームディレクトリに`~/.kube/ca-embedded-admin.conf`が配布済みであること
 
 ## 実行方法
 
@@ -180,6 +183,9 @@ ansible-playbook -i inventory/hosts site.yml --tags "sbom"
 | `sbom_k8s_component_name_patterns` | ( roles/sbom/defaults/main.yml 参照 ) | OSパッケージ名からK8s関連を抽出する正規表現リスト |
 | `sbom_helm_sbom_enabled` | `true` | Helm releases SBOMのON/OFF |
 | `sbom_k8s_images_sbom_enabled` | `true` | 稼働Pod image SBOMのON/OFF |
+| `sbom_k8s_request_timeout_seconds` | `30` | Kubernetes API参照1回の要求タイムアウト秒数 |
+| `sbom_k8s_retries` | `3` | Kubernetes API参照失敗時の再試行回数 |
+| `sbom_k8s_retry_interval_seconds` | `5` | Kubernetes API参照失敗後の再試行間隔秒数 |
 | `sbom_compose_sbom_enabled` | `false` | docker-compose image SBOMのON/OFF |
 | `sbom_compose_files` | ( roles/sbom/defaults/main.yml 参照 ) | 対象 docker-compose YAML のパス |
 | `sbom_collect_artifacts_enabled` | `true` | `*.spdx.json` を制御ノードへ収集する設定の可否 |
@@ -200,7 +206,9 @@ ansible-playbook -i inventory/hosts site.yml --tags "sbom"
 2. 追加SBOMが有効な場合、対象ホスト上の情報を収集して `{{ sbom_extra_output_dir }}` へ追加SBOMを出力します。
 
 - `k8s-components.spdx.json` は、OSパッケージ名に加えて `kubelet` / `kubectl` / `containerd` のバイナリ版数 ( 取得できた場合 ) も含めます。
-- `helm` / `kubectl` が無い、または接続できない場合、該当SBOMは空の一覧になり得ます。
+- Helm releaseとPod imageは`k8s_ctrl_plane`グループのホストから収集し, それ以外のホストでは対応する追加SBOMを空のpackage一覧として正常生成します。
+- `k8s_ctrl_plane`グループで`helm`又は`kubectl`が導入されていない場合と, Helm release又はPodが0件の場合は, 対応する追加SBOMを空のpackage一覧として正常生成します。
+- `k8s_ctrl_plane`グループで`helm`又は`kubectl`が導入済みのホストからKubernetes APIへの参照が再試行後も失敗した場合は, ロールを失敗させます。
 
 収集が有効な場合、対象ホストの `{{ sbom_drop_path }}/_manifest` 配下から `*.spdx.json` を検索して制御ノードへ収集します。
 
@@ -268,7 +276,7 @@ ls -l {{ sbom_extra_output_dir }}/*.spdx.json
 
 ### 4. k8s-components や k8s-images が空になる場合
 
-**実施対象ホスト**: 対象ホスト
+**実施対象ホスト**: `k8s_ctrl_plane`グループのホスト, その他の対象ホスト
 
 **実行するコマンド**:
 
@@ -280,9 +288,11 @@ kubectl get pods -A -o json | head -n 20
 
 **確認ポイント**:
 
-- `kubectl` が利用可能であること。
-- 対象ホストから Kubernetes API へ接続できること。
-- 接続不可環境では空一覧になる仕様であることを運用側で許容していること。
+- `k8s_ctrl_plane`グループ以外のホストでは, `kubectl`の導入状態にかかわらず空のKubernetes image SBOMが正常生成されること。
+- `k8s_ctrl_plane`グループで`kubectl`未導入の場合は空のKubernetes image SBOMが正常生成されること。
+- `k8s_ctrl_plane`グループで`kubectl`導入済みの場合はKubernetes APIへ接続できること。
+- Podが0件の場合は空のKubernetes image SBOMが正常生成されること。
+- `k8s_ctrl_plane`グループで`kubectl`導入済みかつKubernetes API参照が再試行後も失敗した場合はロールが失敗すること。
 
 ### 5. compose-images.spdx.json が生成されない場合
 
@@ -324,7 +334,7 @@ ls -l {{ sbom_artifact_dir }}/<inventory_hostname>/
 - `{{ sbom_drop_path }}` と `{{ sbom_extra_output_dir }}` には SBOM 生成物が蓄積されるため, 運用開始前に保存期間と削除方針を決め, 容量監視を実施してください。
 - `sbom_force_regenerate: true` では再実行のたびに `manifest.spdx.json` が再生成されるため, 差分比較運用を行う場合は取得時刻と対象ホストを成果物に紐付けて管理してください。
 - `sbom_collect_artifacts_enabled: true` で収集を有効化する場合は, 制御ホスト側の `{{ sbom_artifact_dir }}` の保管容量とアクセス権限を事前に確認してください。
-- `sbom_k8s_components_sbom_enabled`, `sbom_helm_sbom_enabled`, `sbom_k8s_images_sbom_enabled` を有効化した場合, 対象ホストから Kubernetes API へ接続できない環境では空一覧が出力されることを前提に結果を評価してください。
+- `sbom_helm_sbom_enabled`又は`sbom_k8s_images_sbom_enabled`を有効化した場合, Helm releaseとPod imageは`k8s_ctrl_plane`グループのホストから収集します。Control Planeでは`k8s_runtime_helm_operator_user`のホームディレクトリに`~/.kube/ca-embedded-admin.conf`が配布済みである必要があります。`k8s_ctrl_plane`グループ以外, コマンド未導入, Helm release 0件又はPod 0件の場合は空のpackage一覧を正常生成し, Control Planeでコマンド導入済みかつKubernetes API参照が再試行後も失敗した場合はロールを失敗させます。
 - RHEL系では, インストール済み実体に含まれるライセンス/著作権文書 (例: `/usr/share/licenses/<pkg>` や `rpm -q --licensefiles --docfiles`) から `copyrightText` を抽出します。パッケージによっては文書が同梱されないため, `NOASSERTION` が出力される場合があります。
 - `sbom_compose_sbom_enabled: true` を利用する場合は, `sbom_compose_files` に指定したファイルの存在確認を定期的に実施し, パス変更時は変数定義を更新してください。
 

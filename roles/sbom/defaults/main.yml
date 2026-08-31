@@ -92,6 +92,13 @@ sbom_compose_files:
 # 5) kubectlで実際に動いているPodのimage一覧
 sbom_k8s_images_sbom_enabled: true
 
+# Kubernetes API参照1回の要求タイムアウト時間(単位: 秒)
+sbom_k8s_request_timeout_seconds: 30
+# Kubernetes API参照失敗時の再試行回数
+sbom_k8s_retries: 3
+# Kubernetes API参照失敗後の再試行間隔(単位: 秒)
+sbom_k8s_retry_interval_seconds: 5
+
 # 生成したSBOMを制御ノードへ収集
 sbom_collect_artifacts_enabled: true
 # 制御ノード上の収集先 (実行ディレクトリからの相対パス/絶対パスどちらも可)

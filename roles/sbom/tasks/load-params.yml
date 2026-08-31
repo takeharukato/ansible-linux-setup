@@ -23,6 +23,10 @@
 - name: Include config vars
   ansible.builtin.include_vars: "{{ role_path }}/../../vars/all-config.yml"
 
+# Kubernetes共通設定読み込み
+- name: Include K8s config common vars
+  ansible.builtin.include_vars: "{{ role_path }}/../../vars/k8s-config-common.yml"
+
 # Kubernetes API広告アドレス設定読み込み
 - name: Include K8s API address vars
   ansible.builtin.include_vars: "{{ role_path }}/../../vars/k8s-api-address.yml"

@@ -833,30 +833,44 @@
     - sbom_extra_sboms_enabled | default(false) | bool
     - sbom_k8s_components_sbom_enabled | default(false) | bool
 
+# Kubernetesクラスタ上のHelm release一覧を共通代表ユーザの資格情報で取得し,
+# 一時的なAPI通信失敗時は共通Helm状態確認設定に従って再試行する。
+# releaseが存在しない場合の正常な空JSON配列は後続処理で空SBOMとして扱う。
 - name: Collect Helm releases
   ansible.builtin.command:
     argv:
+      - sudo
+      - -u
+      - "{{ sbom_runtime_k8s_operator_user | string | trim }}"
+      - timeout
+      - "{{ (sbom_runtime_helm_timeout_seconds | int | string) ~ 's' }}"
       - helm
       - list
-      - -A
-      - -o
+      - --all-namespaces
+      - --kubeconfig
+      - "{{ sbom_runtime_kubeconfig_path | string | trim }}"
+      - --output
       - json
   register: sbom_helm_list
   changed_when: false
-  failed_when: false
+  become: true
+  until: sbom_helm_list.rc | default(1) | int == 0
+  retries: "{{ sbom_runtime_helm_retries | int }}"
+  delay: "{{ sbom_runtime_helm_request_interval_seconds | int }}"
   when:
     - sbom_extra_sboms_enabled | default(false) | bool
     - sbom_helm_sbom_enabled | default(false) | bool
+    - sbom_runtime_helm_available | default(false) | bool
 
+# helm listが正常終了したJSONをSPDX package一覧へ変換し,
+# releaseが0件の場合は空listを生成する。
 - name: Build Helm SPDX package list
   ansible.builtin.set_fact:
     sbom_helm_spdx_packages: >-
       {%- set out = [] -%}
-      {%- if (sbom_helm_list.rc | default(1)) == 0 -%}
-      {%- for r in (sbom_helm_list.stdout | default('[]') | from_json) -%}
+      {%- for r in (sbom_helm_list.stdout | default('[]', true) | from_json) -%}
       {%- set _ = out.append({'name': (r.chart | default(r.name)), 'version': (r.app_version | default(''))}) -%}
       {%- endfor -%}
-      {%- endif -%}
       {{ out }}
   when:
     - sbom_extra_sboms_enabled | default(false) | bool
@@ -881,29 +895,43 @@
     - sbom_extra_sboms_enabled | default(false) | bool
     - sbom_helm_sbom_enabled | default(false) | bool
 
+# Kubernetesクラスタ上のPod一覧をHelmと同じ共通代表ユーザの資格情報で取得し,
+# 一時的なAPI通信失敗時はSBOM用Kubernetes API参照設定に従って再試行する。
+# Podが存在しない場合の正常なitems空配列は後続処理で空SBOMとして扱う。
 - name: Collect Kubernetes pod images (kubectl)
   ansible.builtin.command:
     argv:
+      - sudo
+      - -u
+      - "{{ sbom_runtime_k8s_operator_user | string | trim }}"
       - kubectl
+      - --kubeconfig
+      - "{{ sbom_runtime_kubeconfig_path | string | trim }}"
+      - "--request-timeout={{ sbom_runtime_k8s_request_timeout_seconds | int }}s"
       - get
       - pods
-      - -A
-      - -o
+      - --all-namespaces
+      - --output
       - json
   register: sbom_kubectl_pods
   changed_when: false
-  failed_when: false
+  become: true
+  until: sbom_kubectl_pods.rc | default(1) | int == 0
+  retries: "{{ sbom_runtime_k8s_retries | int }}"
+  delay: "{{ sbom_runtime_k8s_retry_interval_seconds | int }}"
   when:
     - sbom_extra_sboms_enabled | default(false) | bool
     - sbom_k8s_images_sbom_enabled | default(false) | bool
+    - sbom_runtime_kubectl_available | default(false) | bool
 
+# kubectlが正常終了したJSONからPod imageを重複除去してSPDX package一覧へ変換し,
+# Podが0件の場合は空listを生成する。
 - name: Build Kubernetes image SPDX package list
   ansible.builtin.set_fact:
     sbom_k8s_image_spdx_packages: >-
       {%- set imgs = [] -%}
       {%- set out = [] -%}
-      {%- if (sbom_kubectl_pods.rc | default(1)) == 0 -%}
-      {%- set data = sbom_kubectl_pods.stdout | default('{}') | from_json -%}
+      {%- set data = sbom_kubectl_pods.stdout | default('{}', true) | from_json -%}
       {%- for pod in data.get('items', []) -%}
       {%- set spec = pod.get('spec', {}) -%}
       {%- for c in ((spec.get('containers', [])) + (spec.get('initContainers', []))) -%}
@@ -914,7 +942,6 @@
       {%- endif -%}
       {%- endfor -%}
       {%- endfor -%}
-      {%- endif -%}
       {%- for img in imgs -%}
       {%- set _ = out.append({'name': img}) -%}
       {%- endfor -%}

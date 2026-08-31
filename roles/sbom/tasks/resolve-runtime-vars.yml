@@ -1,0 +1,197 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  Kubernetesクラスタ参照用実行時変数解決タスク
+#
+---
+
+# Kubernetesクラスタ単位のHelm releaseとPod imageはControl Planeから収集するため,
+# 対象判定と共通Helm代表ユーザ, 共通Helm実行制御値, SBOM固有のKubernetes API参照制御値を解決する。
+- name: Resolve SBOM Kubernetes runtime values
+  ansible.builtin.set_fact:
+    sbom_runtime_k8s_collection_target: >-
+      {{ inventory_hostname in (groups['k8s_ctrl_plane'] | default([])) }}
+    sbom_runtime_k8s_operator_user: >-
+      {{ k8s_runtime_helm_operator_user | string | trim }}
+    sbom_runtime_helm_timeout_seconds: >-
+      {{ k8s_helm_timeout_seconds | int }}
+    sbom_runtime_helm_retries: >-
+      {{ k8s_helm_retries | int }}
+    sbom_runtime_helm_request_interval_seconds: >-
+      {{ k8s_helm_request_interval_seconds | int }}
+    sbom_runtime_k8s_request_timeout_seconds: >-
+      {{ sbom_k8s_request_timeout_seconds | int }}
+    sbom_runtime_k8s_retries: >-
+      {{ sbom_k8s_retries | int }}
+    sbom_runtime_k8s_retry_interval_seconds: >-
+      {{ sbom_k8s_retry_interval_seconds | int }}
+  changed_when: false
+
+# Control Planeでkubeconfig参照先を解決する前提として,
+# Kubernetesクラスタ参照に使用する共通代表ユーザ名と実行制御値を検証する。
+- name: Validate SBOM Kubernetes runtime inputs
+  ansible.builtin.assert:
+    that:
+      - sbom_runtime_k8s_operator_user | default('', true) | string | trim | length > 0
+      - sbom_runtime_helm_timeout_seconds | int > 0
+      - sbom_runtime_helm_retries | int > 0
+      - sbom_runtime_helm_request_interval_seconds | int >= 0
+      - sbom_runtime_k8s_request_timeout_seconds | int > 0
+      - sbom_runtime_k8s_retries | int > 0
+      - sbom_runtime_k8s_retry_interval_seconds | int >= 0
+    fail_msg: >-
+      SBOM Kubernetes runtime settings are invalid.
+  when: sbom_runtime_k8s_collection_target | bool
+
+# k8s-kubeconfigロールがca-embedded-admin.confを配布した実ホームを使用するため,
+# 共通代表ユーザのpasswd情報を取得する。
+- name: Resolve home directory for SBOM Kubernetes operator user
+  ansible.builtin.getent:
+    database: passwd
+    key: "{{ sbom_runtime_k8s_operator_user | string | trim }}"
+    fail_key: false
+  register: sbom_k8s_operator_user_getent
+  changed_when: false
+  when: sbom_runtime_k8s_collection_target | bool
+
+# ユーザ不存在時も後続assertで原因を明示できるよう,
+# getent結果からpasswdエントリを空listへ正規化して取り出す。
+- name: Resolve SBOM Kubernetes operator passwd entry
+  ansible.builtin.set_fact:
+    sbom_k8s_operator_user_passwd_entry: >-
+      {{
+        (
+          sbom_k8s_operator_user_getent
+          .ansible_facts
+          .getent_passwd
+          | default({})
+        ).get(
+          sbom_runtime_k8s_operator_user | string | trim,
+          []
+        )
+        | default([], true)
+      }}
+  changed_when: false
+  when: sbom_runtime_k8s_collection_target | bool
+
+# 共通代表ユーザのpasswd情報とホームディレクトリが取得できたことを確認し,
+# 不完全なpasswd情報を参照する前に明示的に停止する。
+- name: Validate SBOM Kubernetes operator user
+  ansible.builtin.assert:
+    that:
+      - sbom_k8s_operator_user_passwd_entry | length > 4
+      - >-
+        (
+          (
+            sbom_k8s_operator_user_passwd_entry
+            + ['', '', '', '', '']
+          )[4]
+          | default('', true)
+          | string
+          | trim
+          | length
+        ) > 0
+    fail_msg: >-
+      Kubernetes operator user {{ sbom_runtime_k8s_operator_user }} does not have valid passwd information.
+  when: sbom_runtime_k8s_collection_target | bool
+
+# Control PlaneでHelm release SBOMが有効な場合に共通代表ユーザからhelmコマンドを検索し,
+# Helm未導入時は空SBOMとして扱えるよう利用可否を取得する。
+# command -vはシェル組み込み機能のためsh -cを明示して実行する。
+- name: Check Helm command for SBOM collection
+  ansible.builtin.command:
+    argv:
+      - sudo
+      - -u
+      - "{{ sbom_runtime_k8s_operator_user | string | trim }}"
+      - timeout
+      - "{{ (sbom_runtime_helm_timeout_seconds | int | string) ~ 's' }}"
+      - sh
+      - -c
+      - command -v helm
+  register: sbom_helm_command_check
+  changed_when: false
+  failed_when: false
+  become: true
+  when:
+    - sbom_runtime_k8s_collection_target | bool
+    - sbom_helm_sbom_enabled | default(false) | bool
+
+# Control PlaneでPod image SBOMが有効な場合に共通代表ユーザからkubectlコマンドを検索し,
+# kubectl未導入時は空SBOMとして扱えるよう利用可否を取得する。
+# command -vはシェル組み込み機能のためsh -cを明示して実行する。
+- name: Check kubectl command for SBOM collection
+  ansible.builtin.command:
+    argv:
+      - sudo
+      - -u
+      - "{{ sbom_runtime_k8s_operator_user | string | trim }}"
+      - timeout
+      - "{{ (sbom_runtime_k8s_request_timeout_seconds | int | string) ~ 's' }}"
+      - sh
+      - -c
+      - command -v kubectl
+  register: sbom_kubectl_command_check
+  changed_when: false
+  failed_when: false
+  become: true
+  when:
+    - sbom_runtime_k8s_collection_target | bool
+    - sbom_k8s_images_sbom_enabled | default(false) | bool
+
+# Helmとkubectlの検出結果からKubernetesクラスタ参照処理の実行可否を解決し,
+# 未導入コマンドに対応する追加SBOMは空一覧として生成できるようにする。
+- name: Resolve SBOM Kubernetes command availability
+  ansible.builtin.set_fact:
+    sbom_runtime_helm_available: >-
+      {{
+        (sbom_runtime_k8s_collection_target | bool)
+        and (sbom_helm_sbom_enabled | default(false) | bool)
+        and (sbom_helm_command_check.rc | default(1) | int == 0)
+      }}
+    sbom_runtime_kubectl_available: >-
+      {{
+        (sbom_runtime_k8s_collection_target | bool)
+        and (sbom_k8s_images_sbom_enabled | default(false) | bool)
+        and (sbom_kubectl_command_check.rc | default(1) | int == 0)
+      }}
+  changed_when: false
+
+# k8s-kubeconfigロールが共通Helm実行候補ユーザへ配布する
+# ca-embedded-admin.confをHelmとkubectlの両方で使用する。
+- name: Resolve SBOM runtime kubeconfig path
+  ansible.builtin.set_fact:
+    sbom_runtime_kubeconfig_path: >-
+      {{
+        sbom_k8s_operator_user_passwd_entry[4]
+        ~ '/.kube/ca-embedded-admin.conf'
+      }}
+  changed_when: false
+  when: sbom_runtime_k8s_collection_target | bool
+
+# Kubernetesクラスタ参照開始前に,
+# 解決した証明書埋め込み版kubeconfigの存在と通常ファイル属性を確認する。
+- name: Check SBOM runtime kubeconfig
+  ansible.builtin.stat:
+    path: "{{ sbom_runtime_kubeconfig_path | string | trim }}"
+  register: sbom_runtime_kubeconfig_stat
+  changed_when: false
+  when:
+    - >-
+      (sbom_runtime_helm_available | bool)
+      or (sbom_runtime_kubectl_available | bool)
+
+# kubeconfig不存在時にHelmやkubectlの暗黙設定へフォールバックさせず,
+# 共通代表ユーザ向けkubeconfigが利用可能であることを明示的に検証する。
+- name: Validate SBOM runtime kubeconfig
+  ansible.builtin.assert:
+    that:
+      - sbom_runtime_kubeconfig_stat.stat.exists | default(false) | bool
+      - sbom_runtime_kubeconfig_stat.stat.isreg | default(false) | bool
+    fail_msg: >-
+      Kubernetes kubeconfig {{ sbom_runtime_kubeconfig_path }} is not available for SBOM collection.
+  when:
+    - >-
+      (sbom_runtime_helm_available | bool)
+      or (sbom_runtime_kubectl_available | bool)
