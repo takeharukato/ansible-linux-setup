@@ -1,0 +1,79 @@
+#  -*- coding:utf-8-unix mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  Helm release履歴取得タスク
+#
+---
+
+# release履歴取得に必要な実行環境, release名, namespace, kubeconfig,
+# 時間制限と再試行制御値を履歴取得開始前に検証する。
+# historyは存在するreleaseの診断情報を取得する操作であり,
+# release不存在の判定はstatus.ymlのk8s_helm_release_existsを使用する。
+- name: Validate Helm history operation inputs
+  ansible.builtin.include_tasks: validate.yml
+  vars:
+    k8s_helm_validation_requirements:
+      - runtime
+      - release
+      - namespace
+      - kubeconfig
+      - timing
+
+# helm historyはreleaseのrevision履歴をJSON形式で返す読み取り処理であるためchanged=falseとする。
+# check modeでもrevision履歴を後続のrecovery判断へ渡す必要があるため,
+# check_mode=falseを指定して履歴取得を実行する。
+# コマンド自体にはプロセス全体の時間制限がないためGNU timeoutを使用し,
+# 一時的なKubernetes API通信失敗を考慮して状態確認要求間隔で再試行する。
+# releaseが存在しない場合はHelmがエラーを返すため,
+# 呼出元は必要に応じてstatus.ymlで存在状態を確認してから本タスクを呼び出す。
+- name: Get Helm release history
+  ansible.builtin.command:
+    argv:
+      - sudo
+      - -u
+      - "{{ k8s_runtime_helm_operator_user | string | trim }}"
+      - timeout
+      - "{{ (k8s_helm_operation_timeout_seconds | int | string) ~ 's' }}"
+      - helm
+      - history
+      - "{{ k8s_helm_release_name | string | trim }}"
+      - --namespace
+      - "{{ k8s_helm_namespace | string | trim }}"
+      - --kubeconfig
+      - "{{ k8s_helm_kubeconfig_path | string | trim }}"
+      - --output
+      - json
+  register: k8s_helm_history_result
+  changed_when: false
+  check_mode: false
+  become: true
+  until: k8s_helm_history_result.rc | default(1) | int == 0
+  retries: "{{ k8s_helm_operation_retries | int }}"
+  delay: "{{ k8s_helm_operation_request_interval_seconds | int }}"
+
+# historyのJSON出力をrevision履歴リストへ変換し,
+# 呼出元がJSON文字列を再解析せずrollback判断等に利用できるようにする。
+# stdoutが空の場合は想定外出力として空リストへ正規化し,
+# 直後の形式検証で処理可能なデータ型であることを確認する。
+# 対応するjinja2式:
+# (k8s_helm_history_result.stdout | default('[]', true) | from_json)。
+- name: Parse Helm release history
+  ansible.builtin.set_fact:
+    k8s_helm_release_history: >-
+      {{
+        k8s_helm_history_result.stdout
+        | default('[]', true)
+        | from_json
+      }}
+
+# Helm historyのJSON出力はrevisionごとの要素を持つリストであるため,
+# 文字列や辞書が返された場合はrecovery判断へ進まず停止する。
+- name: Validate Helm release history data
+  ansible.builtin.assert:
+    that:
+      - k8s_helm_release_history is sequence
+      - k8s_helm_release_history is not string
+      - k8s_helm_release_history is not mapping
+    fail_msg: >-
+      Helm release history output is not a supported JSON list.

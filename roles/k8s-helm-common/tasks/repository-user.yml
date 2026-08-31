@@ -1,0 +1,385 @@
+#  -*- coding:utf-8-unix mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  Helmリポジトリユーザ別更新タスク
+#
+---
+
+# repositoryを操作するOSユーザについて, 実際のsudo -u経路でHelm CLIとtimeoutを確認し,
+# repository情報と時間制限・再試行制御値を再検証して単独呼出し時にも前提条件を保証する。
+# repository用ループ変数を共通runtime検証のruntime検証対象ユーザへ対応付ける
+# (k8s_helm_validation_runtime_user: k8s_helm_repository_user)。
+- name: Validate Helm repository user operation inputs
+  ansible.builtin.include_tasks: validate.yml
+  vars:
+    k8s_helm_validation_runtime_user: "{{ k8s_helm_repository_user }}"
+    k8s_helm_validation_requirements:
+      - runtime
+      - repository
+      - timing
+
+# Helmの導入版数によってrepositoryサブコマンドのオプション差異があるため,
+# add/updateのhelpを実行して利用可能な機能を事前に取得する。
+# help表示は状態を変更しないためchanged=falseとし, 実際のHelm操作と同じsudo -u経路で実行する。
+# check modeでも後続の機能判定にhelp出力が必要なためcheck_mode=falseで実行する。
+- name: Get Helm repository add command help
+  ansible.builtin.command:
+    argv:
+      - sudo
+      - -u
+      - "{{ k8s_helm_repository_user | string | trim }}"
+      - timeout
+      - "{{ (k8s_helm_operation_timeout_seconds | int | string) ~ 's' }}"
+      - helm
+      - repo
+      - add
+      - --help
+  register: k8s_helm_repository_add_help_result
+  changed_when: false
+  check_mode: false
+  become: true
+
+# repository更新処理で使用可能な失敗検出オプションとtimeoutオプションを確認するため,
+# updateサブコマンドのhelpを同じ実行経路で取得する。
+# check modeでも後続の機能判定にhelp出力が必要なためcheck_mode=falseで実行する。
+- name: Get Helm repository update command help
+  ansible.builtin.command:
+    argv:
+      - sudo
+      - -u
+      - "{{ k8s_helm_repository_user | string | trim }}"
+      - timeout
+      - "{{ (k8s_helm_operation_timeout_seconds | int | string) ~ 's' }}"
+      - helm
+      - repo
+      - update
+      - --help
+  register: k8s_helm_repository_update_help_result
+  changed_when: false
+  check_mode: false
+  become: true
+
+# Helm 3とHelm 4のrepositoryオプション差異を版数の推測ではなくhelp出力から判定し,
+# 対応するオプションだけを後続argvへ追加できるようにする。
+# timeout対応は各help内に'--timeout'が含まれることで判定する
+# ('--timeout' in k8s_helm_repository_add_help_result.stdout 等)。
+# update失敗検出オプション対応は'--fail-on-repo-update-fail'の存在で判定する。
+# Helm 4判定の正規表現'^v4\\.'は先頭の'v4.'に一致し, 例として'v4.2.4'に一致する。
+# Helm版数はvalidate.ymlのhelm version --short結果を再利用する
+# ((k8s_helm_command_check.stdout | default('', true) | string | trim) is regex('^v4\\.'))。
+- name: Resolve Helm repository command capabilities
+  ansible.builtin.set_fact:
+    k8s_helm_repository_add_timeout_supported: >-
+      {{
+        '--timeout'
+        in (k8s_helm_repository_add_help_result.stdout | default('', true) | string)
+      }}
+    k8s_helm_repository_update_timeout_supported: >-
+      {{
+        '--timeout'
+        in (k8s_helm_repository_update_help_result.stdout | default('', true) | string)
+      }}
+    k8s_helm_repository_update_fail_flag_supported: >-
+      {{
+        '--fail-on-repo-update-fail'
+        in (k8s_helm_repository_update_help_result.stdout | default('', true) | string)
+      }}
+    k8s_helm_repository_is_helm_v4: >-
+      {{
+        (k8s_helm_command_check.stdout | default('', true) | string | trim)
+        is regex('^v4\\.')
+      }}
+
+# Helm 3ではrepository index更新失敗を終了コードへ反映させるため
+# --fail-on-repo-update-failを必要とする版があるため,
+# 当該オプションを持たないHelm 3を自動処理対象から除外して失敗を見逃さないようにする。
+# Helm 4では失敗時にupdateコマンド自体が失敗する仕様へ変更されているため許容する。
+- name: Validate Helm repository update failure detection capability
+  ansible.builtin.assert:
+    that:
+      - >-
+        (k8s_helm_repository_update_fail_flag_supported | bool)
+        or (k8s_helm_repository_is_helm_v4 | bool)
+    fail_msg: >-
+      The installed Helm version cannot reliably report repository update failures.
+
+# 対象OSユーザのHelm設定に登録されているrepository一覧を取得する。
+# Helm設定が未作成でrepositoryが1件もない場合は'no repositories to show'で非0終了するため,
+# この状態だけを空一覧として許容し, timeoutやその他のエラーは再試行対象とする。
+# check modeでもrepositoryの現在状態を判定する必要があるためcheck_mode=falseで取得する。
+# 外側のtimeoutはHelmプロセス自体の停止を防止するために使用する。
+- name: Get Helm repository list for user
+  ansible.builtin.command:
+    argv:
+      - sudo
+      - -u
+      - "{{ k8s_helm_repository_user | string | trim }}"
+      - timeout
+      - "{{ (k8s_helm_operation_timeout_seconds | int | string) ~ 's' }}"
+      - helm
+      - repo
+      - list
+      - --output
+      - yaml
+  register: k8s_helm_repository_list_result
+  changed_when: false
+  failed_when: false
+  check_mode: false
+  become: true
+  until: >-
+    (k8s_helm_repository_list_result.rc | int == 0)
+    or
+    (
+      k8s_helm_repository_list_result.rc | int == 1
+      and
+      'no repositories to show'
+      in (k8s_helm_repository_list_result.stderr | default('', true) | string)
+    )
+  retries: "{{ k8s_helm_operation_retries | int }}"
+  delay: "{{ k8s_helm_operation_request_interval_seconds | int }}"
+
+# 一覧取得の終了状態を明示評価し, repository未登録以外のエラーが
+# 再試行上限まで継続した場合はrepository変更前に停止する。
+- name: Assert Helm repository list result is valid
+  ansible.builtin.assert:
+    that:
+      - >-
+        (k8s_helm_repository_list_result.rc | int == 0)
+        or
+        (
+          k8s_helm_repository_list_result.rc | int == 1
+          and
+          'no repositories to show'
+          in (k8s_helm_repository_list_result.stderr | default('', true) | string)
+        )
+    fail_msg: >-
+      Failed to get Helm repository list for the configured repository user.
+
+# repository未登録時は空リストを設定し, 一覧取得成功時はHelmが出力したYAMLをリストへ変換する。
+# 処理ロジックの対応関係:
+# 1. rcが0の場合はstdoutをfrom_yamlで解析する。
+# 2. YAMLが空の場合はdefault([], true)で空リストへ正規化する。
+# 3. repository未登録を表すrc=1の場合は空リストを設定する。
+# 対応するjinja2式:
+# ((k8s_helm_repository_list_result.stdout | from_yaml | default([], true))
+#  if (k8s_helm_repository_list_result.rc | int == 0) else [])。
+- name: Normalize Helm repository list
+  ansible.builtin.set_fact:
+    k8s_helm_repository_list: >-
+      {{
+        (
+          k8s_helm_repository_list_result.stdout
+          | from_yaml
+          | default([], true)
+        )
+        if (k8s_helm_repository_list_result.rc | int == 0)
+        else []
+      }}
+
+# Helm出力の形式が想定外の場合にselectattr処理へ進まず早期停止できるように,
+# repository一覧が文字列又は辞書ではないリスト形式であることを確認する。
+- name: Validate parsed Helm repository list
+  ansible.builtin.assert:
+    that:
+      - k8s_helm_repository_list is sequence
+      - k8s_helm_repository_list is not string
+      - k8s_helm_repository_list is not mapping
+    fail_msg: >-
+      Helm repository list output is not a supported YAML list.
+
+# 対象repositoryだけを抽出し, 他コンポーネントが登録したrepositoryを変更判定から除外する。
+# 処理ロジックの対応関係:
+# 1. repository一覧からname属性を対象名と比較する。
+# 2. 一致した要素だけをlistへ変換する。
+# 対応するjinja2式:
+# (k8s_helm_repository_list
+#  | selectattr('name', 'equalto', k8s_helm_repository_name | string | trim)
+#  | list)。
+- name: Select target Helm repository entry
+  ansible.builtin.set_fact:
+    k8s_helm_repository_target_entries: >-
+      {{
+        k8s_helm_repository_list
+        | selectattr(
+            'name',
+            'equalto',
+            k8s_helm_repository_name | string | trim
+          )
+        | list
+      }}
+
+# Helm repository名は一意であることを前提として対象repositoryを指定内容に設定するため,
+# 同名entryが複数存在する想定外状態では自動修正せず停止する。
+- name: Validate target Helm repository entry count
+  ansible.builtin.assert:
+    that:
+      - (k8s_helm_repository_target_entries | length) <= 1
+    fail_msg: >-
+      Multiple Helm repository entries with the same name were detected.
+
+# 対象repositoryの存在状態と現在URLを共通の状態変数へ変換し,
+# 後続処理で不存在, URL一致, URL相違の3状態を明示的に判定できるようにする。
+# 存在判定は抽出結果件数が1であることを確認する
+# ((k8s_helm_repository_target_entries | length) == 1)。
+# URLは先頭entryのurl属性を未定義時空文字列へ正規化して使用する
+# ((k8s_helm_repository_target_entries | first | default({})).url
+#  | default('', true) | string | trim)。
+- name: Resolve target Helm repository state
+  ansible.builtin.set_fact:
+    k8s_helm_repository_exists: >-
+      {{ (k8s_helm_repository_target_entries | length) == 1 }}
+    k8s_helm_repository_current_url: >-
+      {{
+        (k8s_helm_repository_target_entries | first | default({})).url
+        | default('', true)
+        | string
+        | trim
+      }}
+
+# 対象repositoryが存在しない場合だけ新規登録する。
+# check modeではHelm設定を変更しないため新規登録を実行しない。
+# 外側のtimeoutはHelmプロセス全体を制限し, Helmの--timeoutは
+# repository index取得完了までの待機時間を同じ操作上限値で制限する。
+# 新規登録は同じrepository名とURLを設定する再実行可能な操作なので,
+# 一時失敗時に再試行する。
+# argv構築の対応関係:
+# 1. sudo -u, 外側timeout, helm repo add, repository名, URLを基本引数列にする。
+# 2. add helpで--timeout対応を確認できた場合だけ['--timeout', '<N>s']を追加する。
+# 3. 未対応版では外側timeoutだけを使用する。
+# 対応するjinja2式: 基本引数list + ([--timeout引数] if timeout対応 else [])。
+- name: Add missing Helm repository
+  ansible.builtin.command:
+    argv: >-
+      {{
+        [
+          'sudo',
+          '-u',
+          k8s_helm_repository_user | string | trim,
+          'timeout',
+          (k8s_helm_operation_timeout_seconds | int | string) ~ 's',
+          'helm',
+          'repo',
+          'add',
+          k8s_helm_repository_name | string | trim,
+          k8s_helm_repository_url | string | trim
+        ]
+        +
+        (
+          [
+            '--timeout',
+            (k8s_helm_operation_timeout_seconds | int | string) ~ 's'
+          ]
+          if (k8s_helm_repository_add_timeout_supported | bool)
+          else []
+        )
+      }}
+  register: k8s_helm_repository_add_result
+  changed_when: k8s_helm_repository_add_result.rc == 0
+  become: true
+  until: k8s_helm_repository_add_result.rc == 0
+  retries: "{{ k8s_helm_operation_retries | int }}"
+  delay: "{{ k8s_helm_operation_retry_interval_seconds | int }}"
+  when:
+    - not ansible_check_mode
+    - not (k8s_helm_repository_exists | bool)
+
+# 同名repositoryのURLが要求値と異なる場合はremoveを挟まず--force-updateで上書きし,
+# check modeではHelm設定を変更しないためURL更新を実行しない。
+# repository設定を指定されたURLへ更新する。
+# 外側のtimeoutとHelmの--timeoutの役割は新規登録時と同じであり,
+# --force-updateにより同一操作を再実行可能な形にして一時失敗時に再試行する。
+# argv構築の対応関係:
+# 1. sudo -u, 外側timeout, helm repo add, repository名, URL, --force-updateを基本引数列にする。
+# 2. add helpで--timeout対応を確認できた場合だけ['--timeout', '<N>s']を追加する。
+# 3. 未対応版では外側timeoutだけを使用する。
+# 対応するjinja2式: 基本引数list + ([--timeout引数] if timeout対応 else [])。
+- name: Update Helm repository URL
+  ansible.builtin.command:
+    argv: >-
+      {{
+        [
+          'sudo',
+          '-u',
+          k8s_helm_repository_user | string | trim,
+          'timeout',
+          (k8s_helm_operation_timeout_seconds | int | string) ~ 's',
+          'helm',
+          'repo',
+          'add',
+          k8s_helm_repository_name | string | trim,
+          k8s_helm_repository_url | string | trim,
+          '--force-update'
+        ]
+        +
+        (
+          [
+            '--timeout',
+            (k8s_helm_operation_timeout_seconds | int | string) ~ 's'
+          ]
+          if (k8s_helm_repository_add_timeout_supported | bool)
+          else []
+        )
+      }}
+  register: k8s_helm_repository_force_update_result
+  changed_when: k8s_helm_repository_force_update_result.rc == 0
+  become: true
+  until: k8s_helm_repository_force_update_result.rc == 0
+  retries: "{{ k8s_helm_operation_retries | int }}"
+  delay: "{{ k8s_helm_operation_retry_interval_seconds | int }}"
+  when:
+    - not ansible_check_mode
+    - k8s_helm_repository_exists | bool
+    - >-
+      (k8s_helm_repository_current_url | string | trim)
+      != (k8s_helm_repository_url | string | trim)
+
+# 対象repositoryのindexだけを更新し, 他コンポーネントのrepositoryへ不要な通信を行わない。
+# repository indexはOSユーザのHelm cacheを更新するためcheck modeでは実行しない。
+# --fail-on-repo-update-failによりindex取得失敗を終了コードへ反映させ,
+# 外側のtimeoutとHelmの--timeoutでプロセス全体とindex取得待機の双方を制限する。
+# index更新はAnsible管理対象設定の変更ではないためchanged=falseとする。
+# argv構築の対応関係:
+# 1. sudo -u, 外側timeout, helm repo update, repository名を基本引数列にする。
+# 2. update helpで失敗検出オプション対応を確認できた場合だけ--fail-on-repo-update-failを追加する。
+# 3. update helpで--timeout対応を確認できた場合だけ['--timeout', '<N>s']を追加する。
+# 対応するjinja2式: 基本引数list + (失敗検出引数 if 対応 else [])
+# + (timeout引数 if 対応 else [])。
+- name: Update target Helm repository index
+  ansible.builtin.command:
+    argv: >-
+      {{
+        [
+          'sudo',
+          '-u',
+          k8s_helm_repository_user | string | trim,
+          'timeout',
+          (k8s_helm_operation_timeout_seconds | int | string) ~ 's',
+          'helm',
+          'repo',
+          'update',
+          k8s_helm_repository_name | string | trim
+        ]
+        +
+        (
+          ['--fail-on-repo-update-fail']
+          if (k8s_helm_repository_update_fail_flag_supported | bool)
+          else []
+        )
+        +
+        (
+          [
+            '--timeout',
+            (k8s_helm_operation_timeout_seconds | int | string) ~ 's'
+          ]
+          if (k8s_helm_repository_update_timeout_supported | bool)
+          else []
+        )
+      }}
+  register: k8s_helm_repository_update_result
+  changed_when: false
+  become: true
+  until: k8s_helm_repository_update_result.rc == 0
+  retries: "{{ k8s_helm_operation_retries | int }}"
+  delay: "{{ k8s_helm_operation_retry_interval_seconds | int }}"
+  when: not ansible_check_mode

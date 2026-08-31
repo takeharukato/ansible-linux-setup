@@ -1,0 +1,43 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  Helm valuesファイル引数構築タスク
+#
+---
+
+# values引数を構築する前に共通のvaluesファイル検証を再利用し,
+# 引数構築処理と入力検証処理で異なる判定ロジックを持たないようにする。
+- name: Validate Helm values files before building arguments
+  ansible.builtin.include_tasks: validate.yml
+  vars:
+    k8s_helm_validation_requirements:
+      - values
+
+# valuesファイル未指定時に空の引数列を返し,
+# 呼出元が条件分岐せず基本引数列と連結できるように初期化する。
+- name: Initialize Helm values arguments
+  ansible.builtin.set_fact:
+    k8s_helm_values_argv: []
+
+# valuesファイルは指定順がHelmの値上書き順序に影響するため,
+# 入力リストの順序を保持したまま各ファイルを'-f', '<path>'の2要素として末尾へ追加する。
+# 処理ロジックの対応関係:
+# 1. 現在の引数列(k8s_helm_values_argv)を保持する。
+# 2. 現在要素(k8s_helm_values_file)を文字列化してtrimする。
+# 3. ['-f', '<path>']を現在の引数列へ+で連結する。
+# 対応するjinja2式:
+# (k8s_helm_values_argv + ['-f', k8s_helm_values_file | string | trim])。
+# loopでは未定義時を空リストへ正規化し, 入力順に各要素を処理する
+# (k8s_helm_values_files | default([], true))。
+- name: Append Helm values file arguments
+  ansible.builtin.set_fact:
+    k8s_helm_values_argv: >-
+      {{
+        k8s_helm_values_argv
+        + ['-f', k8s_helm_values_file | string | trim]
+      }}
+  loop: "{{ k8s_helm_values_files | default([], true) }}"
+  loop_control:
+    loop_var: k8s_helm_values_file
+    label: "{{ k8s_helm_values_file | string | trim }}"

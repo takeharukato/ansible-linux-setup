@@ -1,0 +1,15 @@
+#  -*- coding:utf-8-unix mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  ロール固有変数のデフォルト値
+#  group_vars/all/all.yml やhost_varsで上書き可能とするため,
+#  ロール名/defaults/main.yml に定義している
+
+# helm get valuesでChart既定値を含むcomputed valuesを取得する場合はtrueとする。
+# falseではreleaseへ利用者が設定したvaluesだけを取得する。
+k8s_helm_get_values_all: false
+
+# helm upgrade --installでKubernetes資源のreadinessを待機する場合はtrueとする。
+# 導入時点でPendingが許容されるreleaseではfalseを指定する。
+k8s_helm_wait: true

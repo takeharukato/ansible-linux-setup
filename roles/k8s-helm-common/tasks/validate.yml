@@ -1,0 +1,495 @@
+#  -*- coding:utf-8-unix mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  Helm共通入力値検証タスク
+#
+---
+
+# 呼出元が指定した検証項目だけを実行できるようにし,
+# 操作に不要な入力値まで要求して共通タスク間の結合を強めないようにする。
+# 検証項目一覧はリストであること, 空でないこと, 許可済み項目だけで構成されることを確認する。
+# 判定の対応関係: 指定された項目一覧から許可済み項目一覧をdifferenceで除外し,
+# 残件数が0であることを確認する
+# ((k8s_helm_validation_requirements | difference(k8s_helm_validation_allowed_requirements) | length) == 0)。
+# runtime検証では時間制限付きで外部コマンドを実行するため,
+# runtime指定時はtimingも指定されていることを確認する。
+- name: Validate Helm validation requirements
+  ansible.builtin.assert:
+    that:
+      - k8s_helm_validation_requirements is defined
+      - k8s_helm_validation_requirements is sequence
+      - k8s_helm_validation_requirements is not string
+      - k8s_helm_validation_requirements is not mapping
+      - (k8s_helm_validation_requirements | length) > 0
+      - >-
+        (
+          k8s_helm_validation_requirements
+          | difference(k8s_helm_validation_allowed_requirements)
+          | length
+        ) == 0
+      - >-
+        ('runtime' not in k8s_helm_validation_requirements)
+        or ('timing' in k8s_helm_validation_requirements)
+    fail_msg: >-
+      Invalid Helm validation requirements. Specify one or more supported
+      validation requirements and include timing when runtime is requested.
+  vars:
+    k8s_helm_validation_allowed_requirements:
+      - runtime
+      - release
+      - namespace
+      - chart
+      - kubeconfig
+      - values
+      - timing
+      - repository
+      - repository_users
+      - create_namespace
+      - get_values
+      - wait
+
+# Helm操作の時間制限と再試行制御値が不正な場合は,
+# 外部コマンドを実行する前に停止して無制限待機又は無効な再試行設定を防止する。
+# 正規表現'^[0-9]+$'は文字列全体が1文字以上の10進数字だけで構成されることを確認し,
+# 例として'0', '5', '300'に一致し, '-1', '1.5', 'abc', 'True'には一致しない。
+# 判定の対応関係: 各入力値が非負整数の表記であることを確認した後にintへ変換して範囲比較し,
+# timeoutとretriesは正値, retry intervalとrequest intervalは0以上であることを確認する
+# ((k8s_helm_operation_timeout_seconds | default('') | string | trim)
+#  is regex('^[0-9]+$'), k8s_helm_operation_timeout_seconds | int > 0 等)。
+# timing指定時だけ実行する ('timing' in k8s_helm_validation_requirements)。
+- name: Validate Helm operation timing inputs
+  ansible.builtin.assert:
+    that:
+      - k8s_helm_operation_timeout_seconds is defined
+      - k8s_helm_operation_retries is defined
+      - k8s_helm_operation_retry_interval_seconds is defined
+      - k8s_helm_operation_request_interval_seconds is defined
+      - >-
+        (k8s_helm_operation_timeout_seconds | default('') | string | trim)
+        is regex('^[0-9]+$')
+      - >-
+        (k8s_helm_operation_retries | default('') | string | trim)
+        is regex('^[0-9]+$')
+      - >-
+        (k8s_helm_operation_retry_interval_seconds | default('') | string | trim)
+        is regex('^[0-9]+$')
+      - >-
+        (k8s_helm_operation_request_interval_seconds | default('') | string | trim)
+        is regex('^[0-9]+$')
+      - k8s_helm_operation_timeout_seconds | default(0) | int > 0
+      - k8s_helm_operation_retries | default(0) | int > 0
+      - k8s_helm_operation_retry_interval_seconds | default(-1) | int >= 0
+      - k8s_helm_operation_request_interval_seconds | default(-1) | int >= 0
+    fail_msg: >-
+      Invalid Helm operation timing settings. Set all timing values to
+      non-negative integers, with timeout and retries greater than zero.
+  when: "'timing' in k8s_helm_validation_requirements"
+
+# runtime指定時は実際のHelm操作と同じsudo -u経路で実行環境を確認する。
+# 対象OSユーザで実行するtimeoutへ渡す秒数は操作タイムアウト値へ's'を付与して生成する
+# ((k8s_helm_operation_timeout_seconds | int | string) ~ 's')。
+# 対象OSユーザはrepository操作から検証対象ユーザが明示された場合はその値を使用し,
+# 未指定の場合はk8s_runtime_helm_operator_userを使用する。
+# runtime指定時だけ本blockを実行する ('runtime' in k8s_helm_validation_requirements)。
+- name: Validate Helm runtime environment
+  when: "'runtime' in k8s_helm_validation_requirements"
+  block:
+    # sudo -uの対象が空文字列の場合は後続確認の意味がなくなるため,
+    # Helm操作を実行するOSユーザ名が設定されていることを確認する。
+    - name: Validate Helm runtime user input
+      ansible.builtin.assert:
+        that:
+          - (k8s_helm_validation_runtime_user | default(k8s_runtime_helm_operator_user | default('', true)) | string | trim | length) > 0
+        fail_msg: >-
+          Invalid Helm operator user. Set a non-empty OS user name for Helm runtime validation.
+
+    # 外部Helm処理の停止防止に使用するtimeoutコマンド自体が利用できることを確認する。
+    # check modeでも後続assertに実行結果が必要な読み取り確認であるため,
+    # check_mode=falseを指定してコマンドを実行する。
+    # failed_when=falseはエラーを無視する目的ではなく,
+    # 直後のassertで終了コードを明示評価するために使用する。
+    - name: Check timeout command availability
+      ansible.builtin.command:
+        argv:
+          - timeout
+          - --version
+      register: k8s_helm_timeout_command_check
+      changed_when: false
+      failed_when: false
+      check_mode: false
+      become: true
+
+    # timeoutコマンドの確認結果が未取得の場合は終了コード1として扱い,
+    # intへ変換した値が0であることを確認する
+    # (k8s_helm_timeout_command_check.rc | default(1) | int == 0)。
+    - name: Assert timeout command is available
+      ansible.builtin.assert:
+        that:
+          - k8s_helm_timeout_command_check.rc | default(1) | int == 0
+        fail_msg: >-
+          timeout command is required for Helm operations but is not available in PATH.
+
+    # 対象OSユーザからtimeoutを実行して, OSユーザの存在と対象ユーザのPATHを確認する。
+    # check modeでも後続assertに実行結果が必要な読み取り確認であるため,
+    # check_mode=falseを指定してコマンドを実行する。
+    # failed_when=falseは直後のassertで終了コードを明示評価するために使用する。
+    - name: Check timeout command for Helm runtime user
+      ansible.builtin.command:
+        argv:
+          - sudo
+          - -u
+          - "{{ k8s_helm_validation_runtime_user | default(k8s_runtime_helm_operator_user | default('', true)) | string | trim }}"
+          - timeout
+          - "{{ (k8s_helm_operation_timeout_seconds | int | string) ~ 's' }}"
+          - timeout
+          - --version
+      register: k8s_helm_operator_timeout_check
+      changed_when: false
+      failed_when: false
+      check_mode: false
+      become: true
+
+    # 対象OSユーザからのtimeout実行結果が未取得の場合は終了コード1として扱い,
+    # intへ変換した値が0であることを確認する
+    # (k8s_helm_operator_timeout_check.rc | default(1) | int == 0)。
+    - name: Assert timeout command is available for Helm runtime user
+      ansible.builtin.assert:
+        that:
+          - k8s_helm_operator_timeout_check.rc | default(1) | int == 0
+        fail_msg: >-
+          Helm runtime user is invalid or timeout command is not available for the user.
+
+    # 対象OSユーザからhelm versionを時間制限付きで実行し,
+    # 実際の操作経路でHelm CLIを利用できることを確認する。
+    # check modeでも後続assertとHelm版数判定に実行結果が必要な読み取り確認であるため,
+    # check_mode=falseを指定してコマンドを実行する。
+    # failed_when=falseは直後のassertで終了コードを明示評価するために使用する。
+    - name: Check Helm command for Helm runtime user
+      ansible.builtin.command:
+        argv:
+          - sudo
+          - -u
+          - "{{ k8s_helm_validation_runtime_user | default(k8s_runtime_helm_operator_user | default('', true)) | string | trim }}"
+          - timeout
+          - "{{ (k8s_helm_operation_timeout_seconds | int | string) ~ 's' }}"
+          - helm
+          - version
+          - --short
+      register: k8s_helm_command_check
+      changed_when: false
+      failed_when: false
+      check_mode: false
+      become: true
+
+    # Helm CLI確認結果が未取得の場合は終了コード1として扱い,
+    # intへ変換した値が0であることを確認する
+    # (k8s_helm_command_check.rc | default(1) | int == 0)。
+    - name: Assert Helm command is available for Helm runtime user
+      ansible.builtin.assert:
+        that:
+          - k8s_helm_command_check.rc | default(1) | int == 0
+        fail_msg: >-
+          helm command is not available for the configured Helm runtime user.
+
+# release名は各Helm操作の対象識別に必須であるため,
+# 未定義又は空文字列を空文字列へ正規化し, trim後の文字数が1以上であることを確認する
+# (k8s_helm_release_name | default('', true) | string | trim | length > 0)。
+# release指定時だけ実行する ('release' in k8s_helm_validation_requirements)。
+- name: Validate Helm release name input
+  ansible.builtin.assert:
+    that:
+      - k8s_helm_release_name | default('', true) | string | trim | length > 0
+    fail_msg: >-
+      Invalid Helm release name. Set k8s_helm_release_name to a non-empty value.
+  when: "'release' in k8s_helm_validation_requirements"
+
+# namespaceはKubernetes名前空間として使用するため,
+# 空文字列ではなく63文字以下のDNSラベル形式であることを確認する。
+# 正規表現'^[a-z0-9]([-a-z0-9]*[a-z0-9])?$'は,
+# 先頭と末尾を英小文字又は数字とし, 中間に英小文字, 数字, '-'を許可する。
+# 例として'kube-system'又は'default'に一致する。
+# 判定の対応関係: 入力を文字列へ正規化してtrimした文字数と正規表現を評価する
+# (k8s_helm_namespace | default('', true) | string | trim | length,
+#  (k8s_helm_namespace | default('', true) | string | trim)
+#  is regex('^[a-z0-9]([-a-z0-9]*[a-z0-9])?$'))。
+# namespace指定時だけ実行する ('namespace' in k8s_helm_validation_requirements)。
+- name: Validate Helm namespace input
+  ansible.builtin.assert:
+    that:
+      - k8s_helm_namespace | default('', true) | string | trim | length > 0
+      - (k8s_helm_namespace | default('', true) | string | trim | length) <= 63
+      - >-
+        (k8s_helm_namespace | default('', true) | string | trim)
+        is regex('^[a-z0-9]([-a-z0-9]*[a-z0-9])?$')
+    fail_msg: >-
+      Invalid Helm namespace. Set a non-empty Kubernetes namespace name up to 63 characters.
+  when: "'namespace' in k8s_helm_validation_requirements"
+
+# Chart参照はtemplate及びupgrade操作の対象指定に必須であるため,
+# 共通ロールでは形式を狭めず空文字列でないことだけを確認する。
+# Chart版数はrepository又はOCI Chartで版数を選択する場合だけ使用し,
+# local ChartではChart.yamlに定義された版数を使用できるよう任意入力とする。
+# 判定の対応関係: Chart参照を空文字列へ正規化し,
+# trim後の文字数が1以上であることを確認する
+# (k8s_helm_chart_ref | default('', true) | string | trim | length > 0)。
+# chart指定時だけ実行する ('chart' in k8s_helm_validation_requirements)。
+- name: Validate Helm chart input
+  ansible.builtin.assert:
+    that:
+      - k8s_helm_chart_ref | default('', true) | string | trim | length > 0
+    fail_msg: >-
+      Invalid Helm chart setting. Set a non-empty chart reference.
+  when: "'chart' in k8s_helm_validation_requirements"
+
+# kubeconfigはHelm実行対象クラスタを明示するため,
+# 空文字列ではなく絶対パスで指定されている通常ファイルであることを確認する。
+# 正規表現'^/'は文字列先頭が'/'で始まることを確認し,
+# 例として'/etc/kubernetes/admin.conf'に一致する。
+# pathの対応関係: 検証済み入力値を文字列化してtrimした値を参照する
+# (k8s_helm_kubeconfig_path | string | trim)。
+# kubeconfig指定時だけ本blockを実行する ('kubeconfig' in k8s_helm_validation_requirements)。
+- name: Validate Helm kubeconfig
+  when: "'kubeconfig' in k8s_helm_validation_requirements"
+  block:
+    # kubeconfigの文字列形式と絶対パス指定を確認する。
+    - name: Validate Helm kubeconfig path input
+      ansible.builtin.assert:
+        that:
+          - k8s_helm_kubeconfig_path | default('', true) | string | trim | length > 0
+          - >-
+            (k8s_helm_kubeconfig_path | default('', true) | string | trim)
+            is regex('^/')
+        fail_msg: >-
+          Invalid Helm kubeconfig path. Set k8s_helm_kubeconfig_path to an absolute path.
+
+    # symlinkを解決したkubeconfigのファイル状態を取得し,
+    # 未作成又はディレクトリ誤指定を検出できるようにする。
+    - name: Get Helm kubeconfig file status
+      ansible.builtin.stat:
+        path: "{{ k8s_helm_kubeconfig_path | string | trim }}"
+        follow: true
+      register: k8s_helm_kubeconfig_stat
+      become: true
+
+    # stat結果が未取得の場合はfalseとして扱い, existsとisregの双方を確認する
+    # (k8s_helm_kubeconfig_stat.stat.exists | default(false) | bool,
+    #  k8s_helm_kubeconfig_stat.stat.isreg | default(false) | bool)。
+    - name: Assert Helm kubeconfig file exists
+      ansible.builtin.assert:
+        that:
+          - k8s_helm_kubeconfig_stat.stat.exists | default(false) | bool
+          - k8s_helm_kubeconfig_stat.stat.isreg | default(false) | bool
+        fail_msg: >-
+          Helm kubeconfig file does not exist or is not a regular file.
+
+# runtimeとkubeconfigの双方を指定した場合は,
+# 実際のHelm実行ユーザからkubeconfigを読み取り可能であることも確認する。
+# timeout秒数, 対象ユーザ, kubeconfigパスは各入力を正規化してargvへ渡す。
+# 対象ユーザはrepository操作から検証対象ユーザが明示された場合はその値を使用し,
+# 未指定の場合はk8s_runtime_helm_operator_userを使用する。
+# check modeでも後続assertに実行結果が必要な読み取り確認であるため,
+# check_mode=falseを指定してコマンドを実行する。
+# failed_when=falseは直後のassertで終了コードを明示評価するために使用する。
+# 条件はruntimeとkubeconfigの双方が要求されていることである。
+- name: Check Helm kubeconfig readability for runtime user
+  ansible.builtin.command:
+    argv:
+      - sudo
+      - -u
+      - "{{ k8s_helm_validation_runtime_user | default(k8s_runtime_helm_operator_user | default('', true)) | string | trim }}"
+      - timeout
+      - "{{ (k8s_helm_operation_timeout_seconds | int | string) ~ 's' }}"
+      - test
+      - -r
+      - "{{ k8s_helm_kubeconfig_path | string | trim }}"
+  register: k8s_helm_kubeconfig_readable_check
+  changed_when: false
+  failed_when: false
+  check_mode: false
+  become: true
+  when:
+    - "'runtime' in k8s_helm_validation_requirements"
+    - "'kubeconfig' in k8s_helm_validation_requirements"
+
+# 実行ユーザからの読み取り確認結果が未取得の場合は終了コード1として扱い,
+# intへ変換した値が0であることを確認する
+# (k8s_helm_kubeconfig_readable_check.rc | default(1) | int == 0)。
+# 条件はruntimeとkubeconfigの双方が要求されていることである。
+- name: Assert Helm kubeconfig is readable for runtime user
+  ansible.builtin.assert:
+    that:
+      - k8s_helm_kubeconfig_readable_check.rc | default(1) | int == 0
+    fail_msg: >-
+      Helm kubeconfig file is not readable by the configured Helm runtime user.
+  when:
+    - "'runtime' in k8s_helm_validation_requirements"
+    - "'kubeconfig' in k8s_helm_validation_requirements"
+
+# valuesファイルは未指定を空リストとして許容し,
+# 指定時は順序を保持できるリスト形式, 空でない絶対パス, 存在する通常ファイルを要求する。
+# 正規表現'^/'は文字列先頭が'/'で始まることを確認し,
+# 例として'/tmp/values.yaml'に一致する。
+# loopでは未定義時を空リストへ正規化し, 入力順に各要素を処理する
+# (k8s_helm_values_files | default([], true))。
+# values指定時だけ本blockを実行する ('values' in k8s_helm_validation_requirements)。
+- name: Validate Helm values files
+  when: "'values' in k8s_helm_validation_requirements"
+  block:
+    # valuesファイル一覧がリストとして扱える形式であることを確認する。
+    - name: Validate Helm values files collection
+      ansible.builtin.assert:
+        that:
+          - k8s_helm_values_files | default([], true) is sequence
+          - k8s_helm_values_files | default([], true) is not string
+          - k8s_helm_values_files | default([], true) is not mapping
+        fail_msg: >-
+          Invalid Helm values files. Set k8s_helm_values_files to a list of local file paths.
+
+    # 各要素を文字列化してtrimし, 空でない絶対パスであることを確認する
+    # (k8s_helm_values_file | default('', true) | string | trim | length > 0,
+    #  (k8s_helm_values_file | default('', true) | string | trim) is regex('^/'))。
+    - name: Validate Helm values file path
+      ansible.builtin.assert:
+        that:
+          - k8s_helm_values_file is string
+          - k8s_helm_values_file | default('', true) | string | trim | length > 0
+          - >-
+            (k8s_helm_values_file | default('', true) | string | trim)
+            is regex('^/')
+        fail_msg: >-
+          Invalid Helm values file path. Each values file must be a non-empty absolute path.
+      loop: "{{ k8s_helm_values_files | default([], true) }}"
+      loop_control:
+        loop_var: k8s_helm_values_file
+        label: "{{ k8s_helm_values_file | default('', true) | string }}"
+
+    # 各valuesファイルの状態を取得し, 未作成又はディレクトリ誤指定を検出できるようにする。
+    # pathは各要素を文字列化してtrimした値を使用する
+    # (k8s_helm_values_file | string | trim)。
+    - name: Get Helm values file status
+      ansible.builtin.stat:
+        path: "{{ k8s_helm_values_file | string | trim }}"
+      loop: "{{ k8s_helm_values_files | default([], true) }}"
+      loop_control:
+        loop_var: k8s_helm_values_file
+        label: "{{ k8s_helm_values_file | string | trim }}"
+      register: k8s_helm_values_file_stats
+      become: true
+
+    # stat結果の各要素についてexistsとisregを未取得時falseとして評価する
+    # (k8s_helm_values_file_stat.stat.exists | default(false) | bool,
+    #  k8s_helm_values_file_stat.stat.isreg | default(false) | bool)。
+    # register結果はloop_var名を保持するため, 表示ラベルも同じキーを参照する
+    # (k8s_helm_values_file_stat.k8s_helm_values_file | default('', true) | string)。
+    - name: Assert Helm values files exist
+      ansible.builtin.assert:
+        that:
+          - k8s_helm_values_file_stat.stat.exists | default(false) | bool
+          - k8s_helm_values_file_stat.stat.isreg | default(false) | bool
+        fail_msg: >-
+          Helm values file does not exist or is not a regular file.
+      loop: "{{ k8s_helm_values_file_stats.results | default([], true) }}"
+      loop_control:
+        loop_var: k8s_helm_values_file_stat
+        label: >-
+          {{
+            k8s_helm_values_file_stat.k8s_helm_values_file
+            | default('', true)
+            | string
+          }}
+      when: (k8s_helm_values_files | default([], true) | length) > 0
+
+# repository操作では対象名とURLの双方が必要となるため,
+# 各入力を空文字列へ正規化し, trim後の文字数が1以上であることを確認する
+# (k8s_helm_repository_name | default('', true) | string | trim | length > 0,
+#  k8s_helm_repository_url | default('', true) | string | trim | length > 0)。
+# repository指定時だけ実行する ('repository' in k8s_helm_validation_requirements)。
+- name: Validate Helm repository inputs
+  ansible.builtin.assert:
+    that:
+      - k8s_helm_repository_name | default('', true) | string | trim | length > 0
+      - k8s_helm_repository_url | default('', true) | string | trim | length > 0
+    fail_msg: >-
+      Invalid Helm repository settings. Set non-empty repository name and URL values.
+  when: "'repository' in k8s_helm_validation_requirements"
+
+# repositoryを設定するOSユーザ一覧は1件以上のリストとして受け取り,
+# 各要素が空でない文字列であることを確認する。
+# 一覧は未定義時を空リストへ正規化して評価及びloopへ使用する
+# (k8s_helm_repository_users | default([], true))。
+# repository_users指定時だけ本blockを実行する
+# ('repository_users' in k8s_helm_validation_requirements)。
+- name: Validate Helm repository users
+  when: "'repository_users' in k8s_helm_validation_requirements"
+  block:
+    # 文字列や辞書が誤って渡された場合はrepository操作前に停止する。
+    - name: Validate Helm repository users collection
+      ansible.builtin.assert:
+        that:
+          - k8s_helm_repository_users | default([], true) is sequence
+          - k8s_helm_repository_users | default([], true) is not string
+          - k8s_helm_repository_users | default([], true) is not mapping
+          - (k8s_helm_repository_users | default([], true) | length) > 0
+        fail_msg: >-
+          Invalid Helm repository users. Set k8s_helm_repository_users to a non-empty list.
+
+    # 呼出元のrepository操作で使用するk8s_helm_repository_userとのloop変数衝突を避けるため,
+    # 検証専用loop変数へ各要素を格納して文字列化し, trim後の文字数が1以上であることを確認する
+    # (k8s_helm_repository_validation_user | default('', true) | string | trim | length > 0)。
+    - name: Validate Helm repository user input
+      ansible.builtin.assert:
+        that:
+          - k8s_helm_repository_validation_user is string
+          - >-
+            k8s_helm_repository_validation_user
+            | default('', true)
+            | string
+            | trim
+            | length > 0
+        fail_msg: >-
+          Invalid Helm repository user. Each repository user must be a non-empty string.
+      loop: "{{ k8s_helm_repository_users | default([], true) }}"
+      loop_control:
+        loop_var: k8s_helm_repository_validation_user
+        label: >-
+          {{ k8s_helm_repository_validation_user | default('', true) | string }}
+
+
+# upgrade時のreadiness待機有無は文字列等への暗黙変換を避けるためboolean型だけを受け付ける。
+# wait指定時だけ実行する ('wait' in k8s_helm_validation_requirements)。
+- name: Validate Helm wait setting
+  ansible.builtin.assert:
+    that:
+      - k8s_helm_wait is defined
+      - k8s_helm_wait is boolean
+    fail_msg: >-
+      Invalid Helm wait setting. Set k8s_helm_wait to a boolean value.
+  when: "'wait' in k8s_helm_validation_requirements"
+
+# get_values指定時はhelm get valuesの--all使用有無をboolean型で厳密に検証し,
+# 文字列'true'/'false'等の暗黙変換に依存しない。
+# k8s_helm_get_values_all=falseでは利用者が設定したvaluesを取得し,
+# trueではChart既定値を含むcomputed valuesを取得する。
+- name: Validate Helm get values options
+  ansible.builtin.assert:
+    that:
+      - k8s_helm_get_values_all is defined
+      - k8s_helm_get_values_all is boolean
+    fail_msg: >-
+      Invalid Helm get values setting. Set k8s_helm_get_values_all to a boolean value.
+  when: "'get_values' in k8s_helm_validation_requirements"
+
+# namespace自動作成の指定はHelm upgradeへ真偽値として渡すため,
+# 文字列等への暗黙変換を避けてboolean型だけを受け付ける
+# (k8s_helm_create_namespace is boolean)。
+# create_namespace指定時だけ実行する
+# ('create_namespace' in k8s_helm_validation_requirements)。
+- name: Validate Helm create namespace input
+  ansible.builtin.assert:
+    that:
+      - k8s_helm_create_namespace is defined
+      - k8s_helm_create_namespace is boolean
+    fail_msg: >-
+      Invalid Helm create namespace setting. Set k8s_helm_create_namespace to a boolean value.
+  when: "'create_namespace' in k8s_helm_validation_requirements"

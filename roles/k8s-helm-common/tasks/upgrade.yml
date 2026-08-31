@@ -1,0 +1,112 @@
+#  -*- coding:utf-8-unix mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  Helm release導入更新タスク
+#
+---
+
+# Helm release導入更新に必要な実行環境, release名, namespace, Chart,
+# kubeconfig, namespace作成指定, 時間制限と再試行制御値を操作開始前に検証する。
+# valuesファイルはbuild-values-argv.yml内で同じ共通検証を実行するため,
+# ここでは重複して検証しない。
+- name: Validate Helm upgrade operation inputs
+  ansible.builtin.include_tasks: validate.yml
+  vars:
+    k8s_helm_validation_requirements:
+      - runtime
+      - release
+      - namespace
+      - chart
+      - kubeconfig
+      - timing
+      - create_namespace
+      - wait
+
+# valuesファイルを指定順に'-f', '<path>'の引数列へ変換し,
+# templateとupgradeで同じvalues引数生成処理を使用する。
+- name: Build Helm values arguments for upgrade
+  ansible.builtin.include_tasks: build-values-argv.yml
+
+# helm upgrade --installはrelease revisionを更新する変更操作であるため,
+# check modeでは実行せず, template.ymlによる事前描画結果だけを利用する。
+# 外側のGNU timeoutはHelmプロセス自体の停止を防止し,
+# Helmの--timeoutはKubernetes資源の待機時間を制限するため両方を指定する。
+# upgrade失敗後はreleaseがpending-*等の状態になる可能性があり,
+# 状態確認と製品固有recoveryを行わず同じ変更操作を自動再試行すると状態を悪化させる可能性があるため,
+# 本タスクでは自動再試行せず結果をk8s_helm_upgrade_resultへ返す。
+# 呼出元はrcが非0の場合にstatus/historyと製品固有recoveryを実行した後,
+# 必要に応じて本タスクを再度呼び出す。
+# argv構築の対応関係:
+# 1. sudo -u, timeout, helm upgrade --install, release名, Chart参照を基本引数列にする。
+# 2. namespaceを基本引数列へ追加する。
+# 3. Chart版数が指定されている場合だけ--versionとChart版数を追加する。
+# 4. kubeconfigを追加し, k8s_helm_waitがtrueの場合だけ--waitを追加する。
+# 5. Helm --timeoutを追加する。
+# 6. k8s_helm_create_namespaceがtrueの場合だけ--create-namespaceを追加する。
+# 7. build-values-argv.ymlで生成したvalues引数列を末尾へ追加する。
+# 対応するjinja2式: 基本引数list + Chart版数引数list + kubeconfig引数list
+# + (['--wait'] if 指定 else []) + Helm timeout引数list
+# + (['--create-namespace'] if 指定 else []) + k8s_helm_values_argv。
+- name: Install or upgrade Helm release
+  ansible.builtin.command:
+    argv: >-
+      {{
+        [
+          'sudo',
+          '-u',
+          k8s_runtime_helm_operator_user | string | trim,
+          'timeout',
+          (k8s_helm_operation_timeout_seconds | int | string) ~ 's',
+          'helm',
+          'upgrade',
+          '--install',
+          k8s_helm_release_name | string | trim,
+          k8s_helm_chart_ref | string | trim,
+          '--namespace',
+          k8s_helm_namespace | string | trim
+        ]
+        +
+        (
+          [
+            '--version',
+            k8s_helm_chart_version | string | trim
+          ]
+          if (
+            k8s_helm_chart_version
+            | default('', true)
+            | string
+            | trim
+            | length
+          ) > 0
+          else []
+        )
+        +
+        [
+          '--kubeconfig',
+          k8s_helm_kubeconfig_path | string | trim
+        ]
+        +
+        (
+          ['--wait']
+          if (k8s_helm_wait | default(true) | bool)
+          else []
+        )
+        +
+        [
+          '--timeout',
+          (k8s_helm_operation_timeout_seconds | int | string) ~ 's'
+        ]
+        +
+        (
+          ['--create-namespace']
+          if (k8s_helm_create_namespace | default(false) | bool)
+          else []
+        )
+        + (k8s_helm_values_argv | default([], true))
+      }}
+  register: k8s_helm_upgrade_result
+  changed_when: k8s_helm_upgrade_result.rc | default(1) | int == 0
+  failed_when: false
+  become: true
+  when: not ansible_check_mode

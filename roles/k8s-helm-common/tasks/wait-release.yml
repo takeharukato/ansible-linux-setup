@@ -1,0 +1,114 @@
+#  -*- coding:utf-8-unix mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  Helm release完了待機タスク
+#
+---
+
+# Helm release完了待機に必要な実行環境, release名, namespace, kubeconfig,
+# 時間制限と再試行制御値を状態確認開始前に検証する。
+- name: Validate Helm release wait operation inputs
+  ansible.builtin.include_tasks: validate.yml
+  vars:
+    k8s_helm_validation_requirements:
+      - runtime
+      - release
+      - namespace
+      - kubeconfig
+      - timing
+
+# Helm release自身がdeployed状態になるまでhelm statusをJSON形式で確認する。
+# DeploymentやDaemonSet等の製品固有readinessは本タスクでは確認しない。
+# 本処理はupgrade/rollback後の状態を確認するpost-conditionであり,
+# check modeでは先行する変更操作自体を実行しないため本待機処理も実行しない。
+# 1回のstatus要求はGNU timeoutで制限し, 非deployed又は一時的なAPI通信失敗の場合は
+# request intervalを待って設定回数まで再実行する。
+# untilの対応関係:
+# 1. helm statusが終了コード0であることを確認する。
+# 2. 終了コード0の場合だけJSONを解析してinfo.statusが'deployed'であることを確認する。
+# 対応するjinja2式:
+# (rc == 0) and ((stdout | from_json).info.status == 'deployed')。
+- name: Wait for Helm release to become deployed
+  ansible.builtin.command:
+    argv:
+      - sudo
+      - -u
+      - "{{ k8s_runtime_helm_operator_user | string | trim }}"
+      - timeout
+      - "{{ (k8s_helm_operation_timeout_seconds | int | string) ~ 's' }}"
+      - helm
+      - status
+      - "{{ k8s_helm_release_name | string | trim }}"
+      - --namespace
+      - "{{ k8s_helm_namespace | string | trim }}"
+      - --kubeconfig
+      - "{{ k8s_helm_kubeconfig_path | string | trim }}"
+      - --output
+      - json
+  register: k8s_helm_wait_release_result
+  changed_when: false
+  become: true
+  until: >-
+    (k8s_helm_wait_release_result.rc | default(1) | int == 0)
+    and
+    (
+      (
+        k8s_helm_wait_release_result.stdout
+        | from_json
+      ).info.status
+      | default('', true)
+      | string
+      | lower
+    ) == 'deployed'
+  retries: "{{ k8s_helm_operation_retries | int }}"
+  delay: "{{ k8s_helm_operation_request_interval_seconds | int }}"
+  when: not ansible_check_mode
+
+# deployed状態を確認した最終status出力を辞書へ変換し,
+# status.ymlと同じ共通状態変数へ反映する前に出力形式を検証できるようにする。
+- name: Parse deployed Helm release status
+  ansible.builtin.set_fact:
+    k8s_helm_wait_release_data: >-
+      {{ k8s_helm_wait_release_result.stdout | from_json }}
+  when: not ansible_check_mode
+
+# 待機完了時のstatus JSONが対象releaseとnamespaceに対応し,
+# deployed状態と1以上のrevisionを持つことを確認する。
+# revisionの正規表現'^[1-9][0-9]*$'は1以上の10進整数表記に一致し,
+# 例として'1', '27'に一致し, '0', '-1', 'abc'には一致しない。
+- name: Validate deployed Helm release status
+  ansible.builtin.assert:
+    that:
+      - k8s_helm_wait_release_data is mapping
+      - >-
+        (k8s_helm_wait_release_data.name | default('', true) | string | trim)
+        == (k8s_helm_release_name | string | trim)
+      - >-
+        (k8s_helm_wait_release_data.namespace | default('', true) | string | trim)
+        == (k8s_helm_namespace | string | trim)
+      - k8s_helm_wait_release_data.info | default({}) is mapping
+      - >-
+        (
+          k8s_helm_wait_release_data.info.status
+          | default('', true)
+          | string
+          | lower
+        ) == 'deployed'
+      - >-
+        (k8s_helm_wait_release_data.version | default('') | string | trim)
+        is regex('^[1-9][0-9]*$')
+    fail_msg: >-
+      Helm release did not return a valid deployed status after waiting.
+  when: not ansible_check_mode
+
+# 検証済みstatusから共通release状態を設定し,
+# 後続の製品固有readiness確認が再度JSONを解析しなくても利用できるようにする。
+- name: Set deployed Helm release status facts
+  ansible.builtin.set_fact:
+    k8s_helm_release_exists: true
+    k8s_helm_release_state: "deployed"
+    k8s_helm_release_revision: >-
+      {{ k8s_helm_wait_release_data.version | int }}
+    k8s_helm_status_result: "{{ k8s_helm_wait_release_result }}"
+  when: not ansible_check_mode

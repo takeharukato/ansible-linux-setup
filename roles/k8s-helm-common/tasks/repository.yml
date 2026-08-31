@@ -1,0 +1,28 @@
+#  -*- coding:utf-8-unix mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  Helmリポジトリ設定タスク
+#
+---
+
+# repository操作に必要な対象repository情報, 対象OSユーザ一覧,
+# 時間制限と再試行制御値を操作開始前に検証し, 不正入力による部分更新を防止する。
+- name: Validate Helm repository operation inputs
+  ansible.builtin.include_tasks: validate.yml
+  vars:
+    k8s_helm_validation_requirements:
+      - repository
+      - repository_users
+      - timing
+
+# repository設定はOSユーザごとのHelm設定へ保存されるため,
+# 検証済みユーザ一覧を順に処理して各ユーザの対象repositoryを指定内容に設定する。
+# loopでは未定義時を空リストへ正規化して入力順に処理する
+# (k8s_helm_repository_users | default([], true))。
+- name: Reconcile Helm repository for each user
+  ansible.builtin.include_tasks: repository-user.yml
+  loop: "{{ k8s_helm_repository_users | default([], true) }}"
+  loop_control:
+    loop_var: k8s_helm_repository_user
+    label: "{{ k8s_helm_repository_user | default('', true) | string | trim }}"

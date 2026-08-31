@@ -1,0 +1,63 @@
+#  -*- coding:utf-8-unix mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  Helm release削除タスク
+#
+---
+
+# release不存在時を安全なno-opとして扱い, changed判定をstdout文字列へ依存させないため,
+# 削除前に共通status.ymlで対象releaseの存在状態を取得する。
+- name: Get Helm release status before uninstall
+  ansible.builtin.include_tasks: status.yml
+
+# helm uninstallはreleaseと管理資源を削除する変更操作であるためcheck modeでは実行しない。
+# releaseが存在する場合だけ実行し, 事前状態が不存在の場合は何も変更しない。
+# --ignore-not-foundによりstatus取得後に別処理でreleaseが削除された場合も成功として扱い,
+# 同じ削除要求を再実行可能にする。
+# --waitとHelm --timeoutで資源削除完了を待機し,
+# 外側のGNU timeoutでHelmプロセス自体の停止も防止する。
+# uninstall --ignore-not-foundは再実行安全であるため, 一時的な失敗時は設定回数と間隔で再試行する。
+- name: Uninstall Helm release
+  ansible.builtin.command:
+    argv:
+      - sudo
+      - -u
+      - "{{ k8s_runtime_helm_operator_user | string | trim }}"
+      - timeout
+      - "{{ (k8s_helm_operation_timeout_seconds | int | string) ~ 's' }}"
+      - helm
+      - uninstall
+      - "{{ k8s_helm_release_name | string | trim }}"
+      - --namespace
+      - "{{ k8s_helm_namespace | string | trim }}"
+      - --kubeconfig
+      - "{{ k8s_helm_kubeconfig_path | string | trim }}"
+      - --ignore-not-found
+      - --wait
+      - --timeout
+      - "{{ (k8s_helm_operation_timeout_seconds | int | string) ~ 's' }}"
+  register: k8s_helm_uninstall_result
+  changed_when: >-
+    (k8s_helm_release_exists | bool)
+    and (k8s_helm_uninstall_result.rc | default(1) | int == 0)
+  become: true
+  until: k8s_helm_uninstall_result.rc | default(1) | int == 0
+  retries: "{{ k8s_helm_operation_retries | int }}"
+  delay: "{{ k8s_helm_operation_retry_interval_seconds | int }}"
+  when:
+    - not ansible_check_mode
+    - k8s_helm_release_exists | bool
+
+# uninstall成功時は--keep-historyを使用していないためrelease履歴も削除される。
+# 後続処理が削除前statusを誤って参照しないように共通状態を不存在へ更新する。
+- name: Set Helm release status facts after uninstall
+  ansible.builtin.set_fact:
+    k8s_helm_release_exists: false
+    k8s_helm_release_state: "absent"
+    k8s_helm_release_revision: 0
+    k8s_helm_status_result: {}
+  when:
+    - not ansible_check_mode
+    - k8s_helm_release_exists | bool
+    - k8s_helm_uninstall_result.rc | default(1) | int == 0

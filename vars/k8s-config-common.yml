@@ -1,4 +1,5 @@
-# -*- coding: utf-8 mode: yaml -*-
+#
+# -*- coding: utf-8-unix mode: yaml -*-
 #
 # Copyright 2020 Takeharu KATO All Rights Reserved.
 #
@@ -53,6 +54,8 @@ k8s_api_wait_timeout: 600
 k8s_api_wait_delay: 2
 # Kubernetes APIサーバ待ち合わせる際の待機間隔(単位: 秒)
 k8s_api_wait_sleep: 1
+# Kubernetes APIサーバ待ち合わせ処理の再試行回数
+k8s_api_wait_retries: 5
 # Kubernetes APIサーバ待ち合わせる際の接続元ホスト名/IPアドレス
 k8s_api_wait_delegate_to: "localhost"
 
@@ -98,6 +101,18 @@ k8s_embed_kubeconfig_user_name_postfix: ""
 # 未定義, または, 空文字列の場合はkubeadmの設定値から変更しない
 # k8s_cilium_cm_cluster_nameが未定義または空文字列の場合は空文字列を設定する。
 k8s_embed_kubeconfig_user_name: "{{ (k8s_cilium_cm_cluster_name | default('', true)) | ternary((k8s_embed_kubeconfig_user_name_prefix | default('', true)) ~ k8s_cilium_cm_cluster_name ~ (k8s_embed_kubeconfig_user_name_postfix | default('', true)), '') }}"
+
+#
+# Helm操作共通設定
+#
+# Helm操作1回のタイムアウト時間(単位: 秒)
+k8s_helm_timeout_seconds: 300
+# Helm操作失敗時の再試行回数
+k8s_helm_retries: 3
+# Helm操作失敗後の再試行間隔(単位: 秒)
+k8s_helm_retry_interval_seconds: 5
+# Helm状態確認要求を再実行する際の要求間隔(単位: 秒)
+k8s_helm_request_interval_seconds: 5
 
 # Helm操作を実施するユーザ一覧。
 # 既定ではansible_userを候補として保持する。

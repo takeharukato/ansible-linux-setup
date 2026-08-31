@@ -1,0 +1,72 @@
+#  -*- coding:utf-8-unix mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  Helm release values取得タスク
+#
+---
+
+# helm get valuesに必要な実行環境, release名, namespace, kubeconfig,
+# 時間制限・再試行制御値及び--all使用有無を取得開始前に検証する。
+- name: Validate Helm get values operation inputs
+  ansible.builtin.include_tasks: validate.yml
+  vars:
+    k8s_helm_validation_requirements:
+      - runtime
+      - release
+      - namespace
+      - kubeconfig
+      - timing
+      - get_values
+
+# helm get valuesは既存releaseのvaluesをYAML形式で取得する読み取り処理であるため,
+# changed=falseとし, check modeでも後続処理が取得結果を利用できるようcheck_mode=falseで実行する。
+# k8s_helm_get_values_all=trueの場合だけ--allを追加し,
+# falseの場合はreleaseへ利用者が設定したvaluesだけを取得する。
+# 一時的なKubernetes API通信失敗を考慮して状態確認要求間隔で再試行する。
+- name: Get Helm release values
+  ansible.builtin.command:
+    argv: >-
+      {{
+        [
+          'sudo',
+          '-u',
+          k8s_runtime_helm_operator_user | string | trim,
+          'timeout',
+          (k8s_helm_operation_timeout_seconds | int | string) ~ 's',
+          'helm',
+          'get',
+          'values',
+          k8s_helm_release_name | string | trim,
+          '--namespace',
+          k8s_helm_namespace | string | trim,
+          '--kubeconfig',
+          k8s_helm_kubeconfig_path | string | trim,
+          '--output',
+          'yaml'
+        ]
+        +
+        (
+          ['--all']
+          if (k8s_helm_get_values_all | bool)
+          else []
+        )
+      }}
+  register: k8s_helm_get_values_result
+  changed_when: false
+  check_mode: false
+  become: true
+  until: k8s_helm_get_values_result.rc | default(1) | int == 0
+  retries: "{{ k8s_helm_operation_retries | int }}"
+  delay: "{{ k8s_helm_operation_request_interval_seconds | int }}"
+
+# 呼出元がcommand結果の内部構造へ依存せずYAML文字列を再利用できるよう,
+# 取得結果stdoutを共通factとして公開する。
+- name: Set Helm release values fact
+  ansible.builtin.set_fact:
+    k8s_helm_release_values_yaml: >-
+      {{
+        k8s_helm_get_values_result.stdout
+        | default('', true)
+        | string
+      }}

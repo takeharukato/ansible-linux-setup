@@ -1,0 +1,250 @@
+#  -*- coding:utf-8-unix mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  Helm release状態取得タスク
+#
+---
+
+# release状態取得に必要な実行環境, release名, namespace, kubeconfig,
+# 時間制限と再試行制御値を状態取得開始前に検証する。
+- name: Validate Helm status operation inputs
+  ansible.builtin.include_tasks: validate.yml
+  vars:
+    k8s_helm_validation_requirements:
+      - runtime
+      - release
+      - namespace
+      - kubeconfig
+      - timing
+
+# Helm 3では全状態のreleaseを一覧へ含めるため--allが必要であり,
+# Helm 4では既定で全状態を表示して--allが廃止されているため,
+# 導入版数を推測せずlistサブコマンドのhelpから利用可能なオプションを確認する。
+# check modeでも後続の機能判定にhelp出力が必要なためcheck_mode=falseで実行する。
+- name: Get Helm list command help
+  ansible.builtin.command:
+    argv:
+      - sudo
+      - -u
+      - "{{ k8s_runtime_helm_operator_user | string | trim }}"
+      - timeout
+      - "{{ (k8s_helm_operation_timeout_seconds | int | string) ~ 's' }}"
+      - helm
+      - list
+      - --help
+  register: k8s_helm_list_help_result
+  changed_when: false
+  check_mode: false
+  become: true
+
+# Helm 3とHelm 4の一覧動作差異をhelp出力から判定し,
+# Helm 3の場合だけ--allを後続argvへ追加できるようにする。
+# 判定の対応関係: help出力中に'--all'が含まれることを確認する
+# ('--all' in (k8s_helm_list_help_result.stdout | default('', true) | string))。
+- name: Resolve Helm list command capabilities
+  ansible.builtin.set_fact:
+    k8s_helm_list_all_supported: >-
+      {{
+        '--all'
+        in (k8s_helm_list_help_result.stdout | default('', true) | string)
+      }}
+
+# release名全体だけに一致する正規表現を生成し,
+# helm listで同じ文字列を部分一致する別releaseを取得しないようにする。
+# 正規表現'^<release>$'は先頭'^'と末尾'$'で文字列全体を対象にし,
+# release名中の正規表現メタ文字はregex_escapeで通常文字として扱う。
+# 例としてrelease名'elastic-agent-k8s'から'^elastic-agent-k8s$'を生成する。
+# 対応するjinja2式:
+# ('^' ~ (k8s_helm_release_name | string | trim | regex_escape) ~ '$')。
+- name: Build Helm release name filter
+  ansible.builtin.set_fact:
+    k8s_helm_release_name_filter: >-
+      {{
+        '^'
+        ~ (k8s_helm_release_name | string | trim | regex_escape)
+        ~ '$'
+      }}
+
+# helm statusのエラー文字列からrelease不存在を推測せず,
+# helm listのJSON出力から対象releaseの存在状態を取得する。
+# Helm 3では--allを追加してpendingやuninstalledを含む全状態を検索し,
+# Helm 4では既定の全状態一覧を使用する。
+# 一覧取得は状態を変更しないためchanged=falseとし,
+# check modeでもrelease存在状態を後続処理へ渡す必要があるためcheck_mode=falseで実行する。
+# 一時的なKubernetes API通信失敗を考慮して状態確認要求間隔で再試行する。
+# argv構築の対応関係:
+# 1. sudo -u, timeout, helm list, namespace, kubeconfigを基本引数列にする。
+# 2. release名全体に一致するfilterとJSON出力指定を追加する。
+# 3. list helpで--all対応を確認できた場合だけ['--all']を追加する。
+# 対応するjinja2式: 基本引数list + (['--all'] if 対応 else [])。
+- name: Get matching Helm release list
+  ansible.builtin.command:
+    argv: >-
+      {{
+        [
+          'sudo',
+          '-u',
+          k8s_runtime_helm_operator_user | string | trim,
+          'timeout',
+          (k8s_helm_operation_timeout_seconds | int | string) ~ 's',
+          'helm',
+          'list',
+          '--namespace',
+          k8s_helm_namespace | string | trim,
+          '--kubeconfig',
+          k8s_helm_kubeconfig_path | string | trim,
+          '--filter',
+          k8s_helm_release_name_filter,
+          '--output',
+          'json'
+        ]
+        + (
+            ['--all']
+            if (k8s_helm_list_all_supported | bool)
+            else []
+          )
+      }}
+  register: k8s_helm_release_list_result
+  changed_when: false
+  check_mode: false
+  become: true
+  until: k8s_helm_release_list_result.rc | default(1) | int == 0
+  retries: "{{ k8s_helm_operation_retries | int }}"
+  delay: "{{ k8s_helm_operation_request_interval_seconds | int }}"
+
+# helm listのJSON出力をrelease一覧へ変換し,
+# 対象が存在しない場合の空出力も空リストとして扱えるようにする。
+# 処理ロジックの対応関係:
+# 1. stdoutが空の場合は文字列'[]'へ正規化する。
+# 2. from_jsonでAnsibleのリストへ変換する。
+# 対応するjinja2式:
+# (k8s_helm_release_list_result.stdout | default('[]', true) | from_json)。
+- name: Parse matching Helm release list
+  ansible.builtin.set_fact:
+    k8s_helm_release_list_entries: >-
+      {{
+        k8s_helm_release_list_result.stdout
+        | default('[]', true)
+        | from_json
+      }}
+
+# JSON出力形式が想定外の場合にstatus取得へ進まず停止する。
+# release名全体に一致するfilterを使用しているため,
+# 正常時の対象件数は0件又は1件であることを確認する。
+- name: Validate matching Helm release list
+  ansible.builtin.assert:
+    that:
+      - k8s_helm_release_list_entries is sequence
+      - k8s_helm_release_list_entries is not string
+      - k8s_helm_release_list_entries is not mapping
+      - (k8s_helm_release_list_entries | length) <= 1
+    fail_msg: >-
+      Helm release list output is invalid or contains duplicate release entries.
+
+# release不存在をHelmの正式なrelease状態と混同しないように,
+# 存在有無を専用booleanへ格納し, 不存在時の共通状態を'absent'とする。
+# revisionはrelease不存在時に有効なHelm revisionがないため0へ初期化する。
+# 存在判定の対応関係: 一覧件数が1であることを確認する
+# ((k8s_helm_release_list_entries | length) == 1)。
+- name: Initialize Helm release status facts
+  ansible.builtin.set_fact:
+    k8s_helm_release_exists: >-
+      {{ (k8s_helm_release_list_entries | length) == 1 }}
+    k8s_helm_release_state: "absent"
+    k8s_helm_release_revision: 0
+    k8s_helm_status_result: {}
+
+# 対象releaseが存在する場合だけhelm statusをJSON形式で取得する。
+# check modeでもrelease状態を後続処理へ渡す必要があるためcheck_mode=falseで実行する。
+# helm status自体にはプロセス全体の時間制限がないためGNU timeoutを使用し,
+# 一時的なKubernetes API通信失敗を考慮して状態確認要求間隔で再試行する。
+- name: Get Helm release status
+  ansible.builtin.command:
+    argv:
+      - sudo
+      - -u
+      - "{{ k8s_runtime_helm_operator_user | string | trim }}"
+      - timeout
+      - "{{ (k8s_helm_operation_timeout_seconds | int | string) ~ 's' }}"
+      - helm
+      - status
+      - "{{ k8s_helm_release_name | string | trim }}"
+      - --namespace
+      - "{{ k8s_helm_namespace | string | trim }}"
+      - --kubeconfig
+      - "{{ k8s_helm_kubeconfig_path | string | trim }}"
+      - --output
+      - json
+  register: k8s_helm_status_result
+  changed_when: false
+  check_mode: false
+  become: true
+  until: k8s_helm_status_result.rc | default(1) | int == 0
+  retries: "{{ k8s_helm_operation_retries | int }}"
+  delay: "{{ k8s_helm_operation_request_interval_seconds | int }}"
+  when: k8s_helm_release_exists | bool
+
+# status出力はHelm releaseオブジェクトのJSONであるため,
+# 対象releaseが存在する場合だけ辞書へ変換して後続検証で使用する。
+- name: Parse Helm release status
+  ansible.builtin.set_fact:
+    k8s_helm_status_data: >-
+      {{ k8s_helm_status_result.stdout | from_json }}
+  when: k8s_helm_release_exists | bool
+
+# Helm公式状態一覧以外の値や対象releaseとの不一致を検出し,
+# 製品固有recovery処理へ不正な状態情報を渡さないようにする。
+# revisionはstatus JSONのversionフィールドに格納されるため,
+# 正規表現'^[1-9][0-9]*$'で1以上の10進整数表記であることを確認する。
+# 例として'1', '27'に一致し, '0', '-1', 'abc'には一致しない。
+- name: Validate Helm release status data
+  ansible.builtin.assert:
+    that:
+      - k8s_helm_status_data is mapping
+      - >-
+        (k8s_helm_status_data.name | default('', true) | string | trim)
+        == (k8s_helm_release_name | string | trim)
+      - >-
+        (k8s_helm_status_data.namespace | default('', true) | string | trim)
+        == (k8s_helm_namespace | string | trim)
+      - k8s_helm_status_data.info | default({}) is mapping
+      - >-
+        (
+          k8s_helm_status_data.info.status
+          | default('', true)
+          | string
+          | lower
+        )
+        in k8s_helm_release_allowed_states
+      - >-
+        (k8s_helm_status_data.version | default('') | string | trim)
+        is regex('^[1-9][0-9]*$')
+    fail_msg: >-
+      Helm release status output is invalid or contains an unsupported release state.
+  vars:
+    k8s_helm_release_allowed_states:
+      - unknown
+      - deployed
+      - uninstalled
+      - superseded
+      - failed
+      - uninstalling
+      - pending-install
+      - pending-upgrade
+      - pending-rollback
+  when: k8s_helm_release_exists | bool
+
+# 検証済みstatus JSONから共通状態とrevisionを設定し,
+# 呼出元がHelm出力文字列を再解析せず製品固有recovery判断に利用できるようにする。
+- name: Set Helm release status facts
+  ansible.builtin.set_fact:
+    k8s_helm_release_state: >-
+      {{
+        k8s_helm_status_data.info.status
+        | string
+        | lower
+      }}
+    k8s_helm_release_revision: >-
+      {{ k8s_helm_status_data.version | int }}
+  when: k8s_helm_release_exists | bool

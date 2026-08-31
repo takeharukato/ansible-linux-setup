@@ -1,0 +1,68 @@
+#  -*- coding:utf-8-unix mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  Helm releaseロールバックタスク
+#
+---
+
+# Helm rollbackに必要な実行環境, release名, namespace, kubeconfig,
+# 時間制限と再試行制御値を変更操作開始前に検証する。
+- name: Validate Helm rollback operation inputs
+  ansible.builtin.include_tasks: validate.yml
+  vars:
+    k8s_helm_validation_requirements:
+      - runtime
+      - release
+      - namespace
+      - kubeconfig
+      - timing
+
+# rollback対象revisionを明示指定させ, Helmのrevision省略又は0指定による
+# 「直前revisionを自動選択する」動作へ依存しないようにする。
+# 正規表現'^[1-9][0-9]*$'は1以上の10進整数表記に一致し,
+# 例として'1', '27'に一致し, '0', '-1', 'abc', 'True'には一致しない。
+# 判定の対応関係: 入力を文字列化してtrimした値が正規表現に一致することを確認する
+# ((k8s_helm_rollback_revision | default('') | string | trim)
+#  is regex('^[1-9][0-9]*$'))。
+- name: Validate Helm rollback revision input
+  ansible.builtin.assert:
+    that:
+      - k8s_helm_rollback_revision is defined
+      - >-
+        (k8s_helm_rollback_revision | default('') | string | trim)
+        is regex('^[1-9][0-9]*$')
+    fail_msg: >-
+      Invalid Helm rollback revision. Set k8s_helm_rollback_revision to an integer greater than zero.
+
+# helm rollbackは成功時に新しいrelease revisionを作成する変更操作であるため,
+# check modeでは実行しない。
+# 外側のGNU timeoutはHelmプロセス自体の停止を防止し,
+# Helmの--timeoutはKubernetes資源の待機時間を制限するため両方を指定する。
+# rollbackは応答断等で成否が不確定な状態のまま自動再実行すると同じ対象revisionへの
+# rollback revisionを複数作成する可能性があるため, 本タスクでは自動再試行しない。
+# 失敗時はタスクを失敗させ, status/history等の診断後に明示的な再実行可否を判断する。
+# --cleanup-on-failは製品固有lifecycleへ影響するため共通オプションとして追加しない。
+- name: Roll back Helm release to specified revision
+  ansible.builtin.command:
+    argv:
+      - sudo
+      - -u
+      - "{{ k8s_runtime_helm_operator_user | string | trim }}"
+      - timeout
+      - "{{ (k8s_helm_operation_timeout_seconds | int | string) ~ 's' }}"
+      - helm
+      - rollback
+      - "{{ k8s_helm_release_name | string | trim }}"
+      - "{{ k8s_helm_rollback_revision | int | string }}"
+      - --namespace
+      - "{{ k8s_helm_namespace | string | trim }}"
+      - --kubeconfig
+      - "{{ k8s_helm_kubeconfig_path | string | trim }}"
+      - --wait
+      - --timeout
+      - "{{ (k8s_helm_operation_timeout_seconds | int | string) ~ 's' }}"
+  register: k8s_helm_rollback_result
+  changed_when: k8s_helm_rollback_result.rc | default(1) | int == 0
+  become: true
+  when: not ansible_check_mode

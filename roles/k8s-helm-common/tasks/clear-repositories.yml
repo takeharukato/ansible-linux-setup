@@ -1,0 +1,273 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  Helmリポジトリ全削除タスク
+#  留意事項:
+#    k8s-ctrlplaneロールで使用することを想定したタスク
+---
+
+# 全repository削除は通常のrepository設定処理から明示的に分離して使用する操作であるため,
+# 対象OSユーザ一覧と時間制限・再試行制御値だけを検証する。
+- name: Validate Helm repository clear operation inputs
+  ansible.builtin.include_tasks: validate.yml
+  vars:
+    k8s_helm_validation_requirements:
+      - repository_users
+      - timing
+
+# 各OSユーザについて実際のsudo -u経路でHelm CLIとtimeoutを確認し,
+# repository削除開始前にユーザ固有の実行環境不備を検出する。
+# repository用ループ変数を共通runtime検証のruntime検証対象ユーザへ対応付ける
+# (k8s_helm_validation_runtime_user: k8s_helm_repository_user)。
+- name: Validate Helm runtime for repository clear users
+  ansible.builtin.include_tasks: validate.yml
+  vars:
+    k8s_helm_validation_runtime_user: "{{ k8s_helm_repository_user }}"
+    k8s_helm_validation_requirements:
+      - runtime
+      - timing
+  loop: "{{ k8s_helm_repository_users | default([], true) }}"
+  loop_control:
+    loop_var: k8s_helm_repository_user
+    label: "{{ k8s_helm_repository_user | default('', true) | string | trim }}"
+
+# 各OSユーザのrepository一覧を取得し, 削除対象を現在状態から確定する。
+# repositoryが1件もない状態だけは正常な空一覧として扱い,
+# timeoutやその他の一覧取得失敗は再試行後に別タスクで停止させる。
+# check modeでも削除対象の現在状態を判定する必要があるためcheck_mode=falseで取得する。
+- name: Get Helm repository lists before clear
+  ansible.builtin.command:
+    argv:
+      - sudo
+      - -u
+      - "{{ k8s_helm_repository_user | string | trim }}"
+      - timeout
+      - "{{ (k8s_helm_operation_timeout_seconds | int | string) ~ 's' }}"
+      - helm
+      - repo
+      - list
+      - --output
+      - yaml
+  loop: "{{ k8s_helm_repository_users | default([], true) }}"
+  loop_control:
+    loop_var: k8s_helm_repository_user
+    label: "{{ k8s_helm_repository_user | string | trim }}"
+  register: k8s_helm_repository_clear_list_results
+  changed_when: false
+  failed_when: false
+  check_mode: false
+  become: true
+  until: >-
+    (k8s_helm_repository_clear_list_results.rc | int == 0)
+    or
+    (
+      k8s_helm_repository_clear_list_results.rc | int == 1
+      and
+      'no repositories to show'
+      in (k8s_helm_repository_clear_list_results.stderr | default('', true) | string)
+    )
+  retries: "{{ k8s_helm_operation_retries | int }}"
+  delay: "{{ k8s_helm_operation_request_interval_seconds | int }}"
+
+# 各ユーザの一覧取得結果を明示評価し, repository未登録以外のエラーが
+# 残っている場合は削除処理を開始せず停止する。
+- name: Assert Helm repository lists before clear are valid
+  ansible.builtin.assert:
+    that:
+      - >-
+        (k8s_helm_repository_clear_list_result.rc | int == 0)
+        or
+        (
+          k8s_helm_repository_clear_list_result.rc | int == 1
+          and
+          'no repositories to show'
+          in
+          (
+            k8s_helm_repository_clear_list_result.stderr
+            | default('', true)
+            | string
+          )
+        )
+    fail_msg: >-
+      Failed to get Helm repository list before clearing repositories.
+  loop: "{{ k8s_helm_repository_clear_list_results.results | default([], true) }}"
+  loop_control:
+    loop_var: k8s_helm_repository_clear_list_result
+    label: >-
+      {{
+        k8s_helm_repository_clear_list_result.k8s_helm_repository_user
+        | default('', true)
+        | string
+        | trim
+      }}
+
+# 削除対象をユーザ単位の辞書リストへ変換する前に空リストへ初期化し,
+# 後続のsubelements処理でrepositoryがないユーザも安全に扱えるようにする。
+- name: Initialize Helm repository clear user states
+  ansible.builtin.set_fact:
+    k8s_helm_repository_clear_user_states: []
+
+# 一覧取得結果をユーザ名とrepository一覧の組へ変換し,
+# repository未登録を表すrc=1の場合はrepositoriesを空リストとして保持する。
+# 処理ロジックの対応関係:
+# 1. 現在までの状態一覧を保持する。
+# 2. 現在resultのOSユーザ名をuserへ格納する。
+# 3. rcが0ならstdoutをfrom_yamlで解析し, 空なら[]へ正規化する。
+# 4. rcが1ならrepositoriesへ[]を設定する。
+# 対応するjinja2式:
+# (k8s_helm_repository_clear_user_states
+#  + [{'user': ..., 'repositories': ((stdout | from_yaml | default([], true))
+#     if rc == 0 else [])}])。
+- name: Build Helm repository clear user states
+  ansible.builtin.set_fact:
+    k8s_helm_repository_clear_user_states: >-
+      {{
+        k8s_helm_repository_clear_user_states
+        + [
+            {
+              'user': (
+                k8s_helm_repository_clear_list_result.k8s_helm_repository_user
+                | string
+                | trim
+              ),
+              'repositories': (
+                k8s_helm_repository_clear_list_result.stdout
+                | from_yaml
+                | default([], true)
+              )
+              if (k8s_helm_repository_clear_list_result.rc | int == 0)
+              else []
+            }
+          ]
+      }}
+  loop: "{{ k8s_helm_repository_clear_list_results.results | default([], true) }}"
+  loop_control:
+    loop_var: k8s_helm_repository_clear_list_result
+    label: >-
+      {{
+        k8s_helm_repository_clear_list_result.k8s_helm_repository_user
+        | default('', true)
+        | string
+        | trim
+      }}
+
+# repository削除は通常処理とは異なる明示的な破壊操作であり,
+# check modeではHelm設定を変更しないためrepository削除を実行しない。
+# helm repo removeにはignore-not-found相当の再実行安全なオプションがないため自動再試行しない。
+# failed_when=falseで終了コードだけを握りつぶすのではなく,
+# 後続のrepository一覧再取得によって最終状態を確認して成功可否を判定する。
+# subelementsは各user辞書のrepositoriesを展開し, item.0.userとitem.1.nameを組にする
+# (k8s_helm_repository_clear_user_states | subelements('repositories'))。
+- name: Remove configured Helm repositories
+  ansible.builtin.command:
+    argv:
+      - sudo
+      - -u
+      - "{{ k8s_helm_repository_clear_target.0.user | string | trim }}"
+      - timeout
+      - "{{ (k8s_helm_operation_timeout_seconds | int | string) ~ 's' }}"
+      - helm
+      - repo
+      - remove
+      - "{{ k8s_helm_repository_clear_target.1.name | string | trim }}"
+  loop: >-
+    {{
+      k8s_helm_repository_clear_user_states
+      | subelements('repositories')
+    }}
+  loop_control:
+    loop_var: k8s_helm_repository_clear_target
+    label: >-
+      {{
+        (k8s_helm_repository_clear_target.0.user | string | trim)
+        ~ ':'
+        ~ (k8s_helm_repository_clear_target.1.name | string | trim)
+      }}
+  register: k8s_helm_repository_remove_results
+  changed_when: k8s_helm_repository_remove_results.rc == 0
+  failed_when: false
+  become: true
+  when: not ansible_check_mode
+
+# 削除後に各ユーザのrepository一覧を再取得し,
+# check modeでは削除処理自体を実行しないため削除後確認も実行しない。
+# removeコマンドの終了コードではなく実際の最終状態を基準に全削除完了を判定する。
+# repositoryが0件になった場合の'no repositories to show'は正常状態として扱う。
+- name: Get Helm repository lists after clear
+  ansible.builtin.command:
+    argv:
+      - sudo
+      - -u
+      - "{{ k8s_helm_repository_user | string | trim }}"
+      - timeout
+      - "{{ (k8s_helm_operation_timeout_seconds | int | string) ~ 's' }}"
+      - helm
+      - repo
+      - list
+      - --output
+      - yaml
+  loop: "{{ k8s_helm_repository_users | default([], true) }}"
+  loop_control:
+    loop_var: k8s_helm_repository_user
+    label: "{{ k8s_helm_repository_user | string | trim }}"
+  register: k8s_helm_repository_clear_verify_results
+  changed_when: false
+  failed_when: false
+  become: true
+  until: >-
+    (k8s_helm_repository_clear_verify_results.rc | int == 0)
+    or
+    (
+      k8s_helm_repository_clear_verify_results.rc | int == 1
+      and
+      'no repositories to show'
+      in (k8s_helm_repository_clear_verify_results.stderr | default('', true) | string)
+    )
+  retries: "{{ k8s_helm_operation_retries | int }}"
+  delay: "{{ k8s_helm_operation_request_interval_seconds | int }}"
+  when: not ansible_check_mode
+
+# 削除後の一覧取得が成功し, YAML出力が空リストであるか,
+# repository未登録を表す状態になっていることを各OSユーザについて確認する。
+# rcが0の場合はstdoutをfrom_yamlで解析した要素数が0であることを確認する
+# ((stdout | from_yaml | default([], true) | length) == 0)。
+- name: Assert all Helm repositories were cleared
+  ansible.builtin.assert:
+    that:
+      - >-
+        (
+          k8s_helm_repository_clear_verify_result.rc | int == 1
+          and
+          'no repositories to show'
+          in
+          (
+            k8s_helm_repository_clear_verify_result.stderr
+            | default('', true)
+            | string
+          )
+        )
+        or
+        (
+          k8s_helm_repository_clear_verify_result.rc | int == 0
+          and
+          (
+            k8s_helm_repository_clear_verify_result.stdout
+            | from_yaml
+            | default([], true)
+            | length
+          ) == 0
+        )
+    fail_msg: >-
+      Helm repositories remain after the repository clear operation.
+  loop: "{{ k8s_helm_repository_clear_verify_results.results | default([], true) }}"
+  loop_control:
+    loop_var: k8s_helm_repository_clear_verify_result
+    label: >-
+      {{
+        k8s_helm_repository_clear_verify_result.k8s_helm_repository_user
+        | default('', true)
+        | string
+        | trim
+      }}
+  when: not ansible_check_mode
