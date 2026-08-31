@@ -386,7 +386,7 @@ Kubernetes ワーカーノード上に FRR (Free Range Routing) を導入し, �
 実行者は制御ホストで以下のコマンドを実行します。
 
 ```bash
-ansible-playbook -i inventory/hosts site.yml --tags "k8s-worker-frr"
+make run_k8s_worker_frr
 ```
 
 ## 主要変数
@@ -4105,7 +4105,7 @@ k8s_worker_frr:
 **2. ロールを再実行**:
 
 ```bash
-ansible-playbook -i inventory/hosts k8s-worker.yml --tags k8s-worker-frr
+make run_k8s_worker_frr
 ```
 
 **3. BGP セッション再確認**:
@@ -4151,7 +4151,7 @@ sudo vtysh -c "show bgp ipv6 unicast summary"
 **3. ロールを再実行**:
 
 ```bash
-ansible-playbook -i inventory/hosts k8s-worker.yml --tags k8s-worker-frr
+make run_k8s_worker_frr
 ```
 
 #### 2.3 RFC 5549 構成の場合
@@ -4193,7 +4193,7 @@ sudo vtysh -c "show bgp ipv6 neighbors fd69:6684:61a:2::42" | grep "Extended nex
 **3. ロールを再実行**:
 
 ```bash
-ansible-playbook -i inventory/hosts k8s-worker.yml --tags k8s-worker-frr
+make run_k8s_worker_frr
 ```
 
 ### 3. 経路が広告されない, またはホストルートのみ広告される場合

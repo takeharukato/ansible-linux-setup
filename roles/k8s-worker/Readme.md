@@ -242,18 +242,6 @@ Kubernetes ワーカーノードを Kubernetes クラスタへ参加させるた
 make run_k8s_worker
 ```
 
-または,
-
-```bash
-ansible-playbook -i inventory/hosts k8s-worker.yml --tags "k8s-worker"
-```
-
-または,
-
-```
-ansible-playbook -i inventory/hosts site.yml --tags "k8s-worker"
-```
-
 ## 主要変数
 
 ### API 待機設定
@@ -666,7 +654,7 @@ sudo: ufw: コマンドが見つかりません
 
 ```bash
 grep -nE '^(k8s_ctrlplane_endpoint|k8s_ctrlplane_host):' vars/all-config.yml host_vars/*.yml
-ansible-playbook -i inventory/hosts k8s-worker.yml --tags "k8s-worker" --list-tasks
+ansible-playbook -i inventory/hosts site.yml --tags "k8s-worker" --list-tasks
 ```
 
 **確認ポイント**:

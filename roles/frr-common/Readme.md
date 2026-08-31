@@ -172,17 +172,19 @@
 本ロールは `frr-basic` または `k8s-worker-frr` から `include_role` で呼び出される内部ロールであるため, 原則として単体実行しません。
 制御ホストで呼び出し元ロールのタグを指定して実行します。
 
-FRR 専用ノード向け (`frr.yml`) の例:
+FRR 専用ノード向けの実行例:
 
 ```bash
-ansible-playbook -i inventory/hosts frr.yml --tags "frr-basic"
+make run_frr_basic
 ```
 
-Kubernetes ワーカーノード向け (`k8s-worker.yml`) の例:
+Kubernetes ワーカーノード向けの実行例:
 
 ```bash
-ansible-playbook -i inventory/hosts k8s-worker.yml --tags "k8s-worker-frr"
+make run_k8s_worker_frr
 ```
+
+いずれも呼び出し元ロールから `frr-common` を実行する正規の再適用経路です。
 
 ## 主要変数
 
@@ -384,15 +386,14 @@ routing state through standard SNMP MIBs.
 **実行するコマンド**:
 
 ```bash
-ansible-playbook -i inventory/hosts devel.yml --tags "frr-common" -vv
-ansible-playbook -i inventory/hosts devel.yml --tags "frr-basic" -vv
-ansible-playbook -i inventory/hosts devel.yml --tags "k8s-worker-frr" -vv
+make run_frr_basic
+make run_k8s_worker_frr
 ```
 
 **確認ポイント**:
 
-- `frr-common` が内部ロールであり, `--tags "frr-common"` 単体では実行対象にならないこと。
-- FRR ノードは `--tags "frr-basic"`, Kubernetes ワーカーノードは `--tags "k8s-worker-frr"` を指定して再実行していること。
+- `frr-common` が内部ロールであり, 単独実行しないこと。
+- FRR ノードは `make run_frr_basic`, Kubernetes ワーカーノードは `make run_k8s_worker_frr` から再実行していること。
 
 ### 2. 対応外 OS でソースビルド指定を行い停止する場合
 

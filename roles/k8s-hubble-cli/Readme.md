@@ -12,8 +12,6 @@
   - [前提条件](#前提条件)
   - [実行方法](#実行方法)
     - [単独実行](#単独実行)
-    - [他のロールと組み合わせて実行](#他のロールと組み合わせて実行)
-    - [特定ホストに限定](#特定ホストに限定)
   - [主要変数](#主要変数)
     - [バージョン, リポジトリ設定](#バージョン-リポジトリ設定)
     - [インストール設定](#インストール設定)
@@ -218,21 +216,13 @@ Cilium Hubble の観測, デバッグ用 CLI ツールを Kubernetes ノード�
 
 ### 単独実行
 
-```bash
-ansible-playbook -i inventory/hosts k8s-ctrl-plane.yml --tags k8s-hubble-cli
-```
-
-### 他のロールと組み合わせて実行
+本ロールを実行する場合は以下のコマンドを実行します:
 
 ```bash
-ansible-playbook -i inventory/hosts k8s-ctrl-plane.yml --tags k8s-common,k8s-hubble-cli
+make run_k8s_hubble_cli
 ```
 
-### 特定ホストに限定
-
-```bash
-ansible-playbook -i inventory/hosts k8s-ctrl-plane.yml --limit k8sctrlplane01.local --tags k8s-hubble-cli
-```
+上記により, hubble_cliおよびhubble_cli実行に必要となるk8s-commonロールを実行します。
 
 ## 主要変数
 

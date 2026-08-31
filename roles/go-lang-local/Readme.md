@@ -32,7 +32,6 @@
     - [5. No go deb/rpm file found in both host and localhost scopes で停止する場合](#5-no-go-debrpm-file-found-in-both-host-and-localhost-scopes-で停止する場合)
     - [6. Fetched go deb/rpm package is missing on controller で停止する場合](#6-fetched-go-debrpm-package-is-missing-on-controller-で停止する場合)
     - [7. Installed Go version mismatch で停止する場合](#7-installed-go-version-mismatch-で停止する場合)
-    - [8. チェックモードで導入確認が進まない場合](#8-チェックモードで導入確認が進まない場合)
   - [注意事項](#注意事項)
   - [参考資料](#参考資料)
     - [公式ドキュメント](#公式ドキュメント)
@@ -194,7 +193,7 @@ Go 言語版 Kubernetes client のローカルパッケージ配布は本ロー�
 制御ホストで以下のコマンドを実行します。
 
 ```bash
-ansible-playbook -i inventory/hosts site.yml --tags "go-lang-local"
+make run_go_lang_local
 ```
 
 ## 主要変数
@@ -499,27 +498,11 @@ go version
 - `which go` の参照先が意図した導入先であること。
 - 旧版が優先参照される場合は `go_lang_remove_existing_package: true` で再実行して解消できること。
 
-### 8. チェックモードで導入確認が進まない場合
-
-**実施対象ホスト**: 制御ホスト
-
-**実行するコマンド**:
-
-```bash
-ansible-playbook -i inventory/hosts devel.yml --tags go-lang-local --check -vv
-```
-
-**確認ポイント**:
-
-- `--check` 実行時は仕様としてビルド/導入処理をスキップすること。
-- 成果物生成, 導入, 版数一致確認を行う場合は `--check` を外して通常実行していること。
-
 ## 注意事項
 
 - ソースビルドは `go_build_host` で指定した構築ホスト上でコンテナランタイム(Docker)が利用可能であることを前提とします。
 - 本ロールから構築したパッケージに対する署名付与は行わない。
 - `go_lang_version` を指定する場合, 制御ノードから `go_versions_api` で指定したへGo 公式サイト (`https://go.dev/dl/`) へのネットワークアクセスが必須となる。
-- `--check` 実行時は版数解決のみ行い, ビルド/導入はスキップします。
 
 ## 参考資料
 

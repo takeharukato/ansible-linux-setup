@@ -399,19 +399,6 @@ etcd の永続ストレージを有効にする場合 (`vcinstances_etcd_storage
 make run_k8s_virtual_cluster
 ```
 
-または,
-
-```bash
-# k8s-management.yml を実行
-ansible-playbook k8s-management.yml
-
-# 特定ホストのみ対象
-ansible-playbook k8s-management.yml -l k8sctrlplane01.local
-
-# 仮想クラスタ タスクのみ実行
-ansible-playbook k8s-management.yml -t k8s-virtual-cluster
-```
-
 ## 主要変数
 
 Kubernetes API Server の待機条件は [k8s-common ロール](../k8s-common/Readme.md) の共通内部設定を使用します。
@@ -2663,7 +2650,8 @@ ssh {{ virtualcluster_build_host }} "cd {{ virtualcluster_source_dir }} && patch
 
 ```bash
 # virtualcluster_clean_build: true でロールを実行
-ansible-playbook k8s-management.yml -t k8s-virtual-cluster -e "virtualcluster_clean_build=true"
+make run_k8s_virtual_cluster \
+  ANSIBLE_PLAYBOOK_EXTRA_OPTS='-e virtualcluster_clean_build=true'
 ```
 
 これにより, ローカル変更が破棄され, クリーンなソースに対してパッチが適用されます。

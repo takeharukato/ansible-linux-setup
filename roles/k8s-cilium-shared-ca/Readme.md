@@ -11,9 +11,6 @@
   - [前提条件](#前提条件)
   - [実行方法](#実行方法)
     - [Makefile を使用](#makefile-を使用)
-    - [ansible-playbookコマンドを使用](#ansible-playbookコマンドを使用)
-      - [全対象ホストに適用](#全対象ホストに適用)
-      - [特定ホストのみ適用](#特定ホストのみ適用)
   - [主要変数](#主要変数)
     - [ロール制御変数](#ロール制御変数)
     - [CA管理変数](#ca管理変数)
@@ -243,36 +240,29 @@ Cilium Cluster Mesh で利用する `cilium-ca` は Kubernetes 上で機密情�
 - Cilium が Kubernetes クラスタにインストール済み, またはインストール予定であること
   - 本ロールは Cilium が参照する Secret を準備するが, Cilium 本体のインストールは別途必要
 - **k8s-shared-ca ロールとの依存関係**
-  - `k8s_cilium_shared_ca_reuse_k8s_ca: true` を設定する場合, 事前に `k8s-shared-ca` ロールを適用する必要がある
-  - k8s-shared-ca ロールが生成した共通CA (`k8s_shared_ca_cert_path`, `k8s_shared_ca_key_path`) を参照するため
-  - k8s-shared-ca ロールを適用していない状態で `reuse_k8s_ca: true` にするとタスクが失敗する
-  - 同一の共通CAを複数のKubernetesクラスタで共有する場合, 全クラスタで k8s-shared-ca ロールを先に適用してから本ロールを実行すること
+  - `k8s_cilium_shared_ca_reuse_k8s_ca: true` を設定する場合, `k8s-shared-ca` が設定する共通CAパス (`k8s_shared_ca_cert_path`, `k8s_shared_ca_key_path`) を同一実行内で引き継ぐ必要がある
+  - 専用の再適用では `make run_cilium_shared_ca` を使用し, `k8s-shared-ca` を先行してから本ロールを実行する
+  - 同一の共通CAを複数のKubernetesクラスタで共有する場合も, 各クラスタで `make run_cilium_shared_ca` を使用して依存関係を満たすこと
 
 ## 実行方法
 
 ### Makefile を使用
 
+コントロールプレーン全体の構成時は以下を実行します。
+
 ```bash
 make run_k8s_ctrl_plane
 ```
 
-コントロールプレーンノード向けプレイブックを実行すると, 本ロールも含まれます。
+構築済みクラスタへ共有CA関連処理だけを再適用する場合は以下を実行します。
 
-### ansible-playbookコマンドを使用
-
-#### 全対象ホストに適用
-以下のコマンドを実行します:
 ```bash
-ansible-playbook -i inventory/hosts k8s-ctrl-plane.yml --tags k8s-cilium-shared-ca
+make run_cilium_shared_ca
 ```
 
-#### 特定ホストのみ適用
-以下のコマンドを実行します:
-```bash
-ansible-playbook -i inventory/hosts k8s-ctrl-plane.yml --tags k8s-cilium-shared-ca --limit <hostname>
-```
+`run_cilium_shared_ca` は `k8s-shared-ca` と `k8s-cilium-shared-ca` のタグを同一実行で指定し, `k8s-shared-ca` を先行して共有CAパスを設定した後に本ロールを実行します。
 
-本ロールは通常, k8s-ctrl-plane プレイブックに含まれます。タグで絞り込み実行することで, 本ロール単独での適用も可能です。
+特定ホストのみを対象とする場合は, `inventory/hosts` の `k8s_ctrl_plane` グループで対象ホストを限定したうえで `make run_cilium_shared_ca` を実行します。
 
 ## 主要変数
 
@@ -430,7 +420,7 @@ kubectl --context <context> -n kube-system get secret {{ k8s_cilium_clustermesh_
     -o go-template='{{ range $k, $v := .data }}{{$k}}{{"\t"}}{{ $v | base64decode }}{{"\n"}}{{ end }}'
 ```
 
-TLS 資材の再発行が必要な場合は, 対象ファイルを一時退避または削除したうえで `ansible-playbook -i inventory/hosts k8s-ctrl-plane.yml --limit <hostname> -t k8s-cilium-shared-ca` を再実行してください。ロールは欠落している証明書や秘密鍵のみを生成し, 既存の共通CAを再利用します。証明書の SAN を変更したい場合は `k8s_cilium_clustermesh_tls_san_dns` を更新してから同じ手順で Secret を再生成します。
+TLS 資材の再発行が必要な場合は, 対象ファイルを一時退避または削除したうえで 本ロールを再実行してください。ロールは欠落している証明書や秘密鍵のみを生成し, 既存の共通CAを再利用します。証明書の SAN を変更したい場合は `k8s_cilium_clustermesh_tls_san_dns` を更新してから同じ手順で Secret を再生成します。
 
 ## 設定例
 
@@ -556,14 +546,6 @@ k8s_cilium_clustermesh_tls_san_dns:
 8. **サービス設定** (`service.yml`, `config.yml`): サービス関連の設定を行います (該当する場合)。
 
 ## 検証ポイント
-
-実行者は以下の検証コマンドを実行し, 構文検査が成功することを確認します。
-
-```bash
-ansible-playbook -i inventory/hosts site.yml --syntax-check
-```
-
-期待結果: エラーが出力されず, syntax check が成功します。
 
 ### 検証方法の概要
 
@@ -984,7 +966,7 @@ total 8.0K
     kubectl --context <context> -n kube-system get secret cilium-ca -o jsonpath='{.data.ca\.crt}' | base64 -d | sha256sum
     ```
 
-    ハッシュが揃わない場合は, 一致していないKubernetesクラスタ側で `kubectl delete secret cilium-ca` を実行した後に, `ansible-playbook -i inventory/hosts k8s-ctrl-plane.yml --limit <hostname> -t k8s-shared-ca,k8s-cilium-shared-ca` を実行して 機密情報保持リソース(`Secret`) を再生成してください。
+    ハッシュが揃わない場合は, 一致していないKubernetesクラスタ側で `kubectl delete secret cilium-ca` を実行した後に, 本ロールを再実行して 機密情報保持リソース(`Secret`) を再生成してください。
 
 3. 機密情報保持リソース(`Secret`) を更新した後は, 両Kubernetesクラスタで Cilium DaemonSet を再起動し, 新しい CA を読み込ませます。
 
@@ -1000,7 +982,7 @@ total 8.0K
     kubectl --context <context> -n kube-system get secret cilium-clustermesh -o jsonpath='{.data.{{ k8s_cilium_clustermesh_secret_tls_cert_key }}{"\n"}}{.data.{{ k8s_cilium_clustermesh_secret_tls_key_key }}{"\n"}}{.data.{{ k8s_cilium_clustermesh_secret_cert_key }}{"\n"}}'
     ```
 
-    各キーの値が空 (`""`) の場合は Secret が正しく適用されていないため, `ansible-playbook -i inventory/hosts k8s-ctrl-plane.yml --limit <hostname> -t k8s-cilium-shared-ca` を再実行して Cluster Mesh 用 TLS 資材を再生成してください。
+    各キーの値が空 (`""`) の場合は Secret が正しく適用されていないため, 本ロールを再実行して Cluster Mesh 用 TLS 資材を再生成してください。
 
 6. Cluster Mesh 接続が確立しない場合は, `cilium clustermesh connectivity test` を実行して TLS 証明書検証エラーや Service 名の不一致などを確認します。Subject Alternative Name (`SAN`) の DNS 名がKubernetesクラスタの Service 名と一致しない場合は, `k8s_cilium_clustermesh_tls_san_dns` を調整した上で再度 Secret の再生成を実施してください。
 
@@ -1052,7 +1034,7 @@ KubernetesのSecretはデフォルトではetcdに平文で保存されます。
 
 `cilium-ca` および `cilium-clustermesh` Secretを手動で削除すると, Cilium がCA証明書やTLS証明書を読み込めなくなり, Cluster Mesh接続が切断されます。Secret を再生成する場合は, 以下の手順を推奨します。
 
-1. **Ansible経由の再適用**: `kubectl delete secret` を実行せず, `ansible-playbook -i inventory/hosts k8s-ctrl-plane.yml --limit <hostname> -t k8s-cilium-shared-ca` を実行します。本ロールは既存のSecretを検出して更新 (`kubectl apply`) するため, ダウンタイムを最小化できます。
+1. **Ansible経由の再適用**: `kubectl delete secret` を実行せず, 本ロールを実行します。本ロールは既存のSecretを検出して更新 (`kubectl apply`) するため, ダウンタイムを最小化できます。
 2. **やむを得ず削除する場合**: Secretを削除した場合は, 直ちにAnsibleプレイブックを再実行してSecretを再作成します。削除から再作成までの間, CiliumはCA証明書を読み込めないため, Cluster Mesh接続が一時的に切断されます。
 3. **バックアップの取得**: Secret削除前に `kubectl get secret cilium-ca -o yaml > cilium-ca-backup.yaml` でバックアップを取得しておくと, 誤削除時に迅速に復旧できます。
 

@@ -39,6 +39,12 @@
       tags: k8s-devel
     - role: k8s-shared-ca
       tags: k8s-shared-ca
+    # 構築済みクラスタへCilium共有CAだけを再適用する場合に専用タグで本ロールを直接実行する。
+    # 通常実行ではneverタグにより処理せず, Kubernetes CAを再利用する構成では同じ実行内でk8s-shared-caを先行実行する。
+    - role: k8s-cilium-shared-ca
+      tags:
+        - never
+        - k8s-cilium-shared-ca
     - role: k8s-ctrlplane
       tags: k8s-ctrlplane
       # k8s-kubeconfigの呼び出し条件を満たしたタイミングで実行

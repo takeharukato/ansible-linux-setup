@@ -10,8 +10,6 @@
   - [概要](#概要)
   - [前提条件](#前提条件)
   - [実行方法](#実行方法)
-    - [Makefile を使用](#makefile-を使用)
-    - [Ansible コマンド直接実行](#ansible-コマンド直接実行)
   - [主要変数](#主要変数)
     - [ロール固有変数](#ロール固有変数)
     - [OS 差異吸収変数](#os-差異吸収変数)
@@ -117,7 +115,6 @@
 | RSA/SHA-1 | RSASHA1 | RSA と SHA-1 を組み合わせた署名方式。 |
 | Section | SECTION | データ表示を用途別に分割した区画。 |
 | Secure Hash Algorithm 1 | SHA-1 | Secure Hash Algorithm 1 ( SHA-1 ) に基づくハッシュ方式。 |
-| ansible-playbookコマンド | - | Ansible Playbook を実行して自動構成処理を適用するコマンド。 |
 | `cat` | - | ファイル内容を標準出力へ表示するコマンド。 |
 | `chmod` | - | ファイルやディレクトリのアクセス権を変更するコマンド。 |
 | `chown` | - | ファイルやディレクトリの所有者, 所有グループを変更するコマンド。 |
@@ -158,26 +155,11 @@ BIND を用いた権威兼キャッシュ DNS サーバーを構成するロー�
 
 ## 実行方法
 
-### Makefile を使用
+以下のコマンドを実行します。
 
 ```bash
 make run_dns_server
 ```
-
-### Ansible コマンド直接実行
-
-```bash
-# 全対象ホストに適用
-ansible-playbook -i inventory/hosts server.yml --tags dns-server
-
-# 特定ホストのみ適用
-ansible-playbook -i inventory/hosts server.yml --tags dns-server -l <hostname>
-
-# Firewall 設定をスキップ
-ansible-playbook -i inventory/hosts server.yml --tags dns-server --skip-tags config-firewall
-```
-
-対象プレイブックでこのロールが含まれていればタグ省略でも適用されます。
 
 ## 主要変数
 
@@ -558,7 +540,7 @@ RHEL 系では以下の専用処理を実施します:
 以下の検証コマンドを実行し, 構文検査が成功することを確認します。
 
 ```bash
-ansible-playbook -i inventory/hosts site.yml --syntax-check
+make ansible-syntax-check
 ```
 
 期待結果: エラーが出力されず, syntax check が成功します。

@@ -4,14 +4,14 @@
 #
 top=.
 .PHONY: clean distclean run run_common run_user_settings run_create_users \
-	run_post_user_create run_devel_packages cloc mk_arc mk_role_arc ansible-lint \
+	run_post_user_create run_devel_packages cloc mk_arc mk_role_arc ansible-lint ansible-syntax-check \
 	run_docker_ce run_ntp_server run_ntp_client run_nfs_server \
 	run_logging_backend \
 	run_elasticsearch run_logstash run_kibana run_fleet_server run_fleet_bootstrap \
 	run_logging_collector \
 	run_elastic_agent run_elastic_agent_k8s run_elastic_agent_k8s_audit run_elastic_agent_all \
-	run_ldap_server run_redmine_server run_yq run_jd \
-	run_k8s_common run_k8s_ctrl_plane run_k8s_multus run_k8s_whereabouts \
+	run_ldap_server run_redmine_server run_yq run_jd run_go_lang_local \
+	run_k8s_common run_k8s_hubble_cli run_k8s_ctrl_plane run_cilium_shared_ca run_k8s_multus run_k8s_whereabouts \
 	run_k8s_worker run_k8s_devel run_netgauge run_netshoot_no_portscan \
 	run_k8s_vc_tenant_dns \
 	run_k8s_worker_frr run_k8s_hubble_ui run_k8s_virtual_cluster \
@@ -29,6 +29,8 @@ INVENTORY=inventory/hosts
 TOP_PLAYBOOK=site.yml
 # 共通オプション
 OPT_COMMON=${VERBOSE} -i ${INVENTORY} ${TOP_PLAYBOOK}
+# 追加オプション
+ANSIBLE_PLAYBOOK_EXTRA_OPTS=
 
 # cloc の言語指定オプション
 CLOC_LANG_OPT=--force-lang=YAML,j2
@@ -64,6 +66,9 @@ ARCHIVE_DIRS_OR_ARGS := $(if $(strip ${ARGS}),${ARGS},${BASE_ARCHIVE_DIRS} roles
 
 # ansible-lint の対象 (引数未指定時はカレントディレクトリ)
 ANSIBLE_LINT_TARGETS := $(if $(strip ${ARGS}),${ARGS},.)
+
+# ansible syntax check の対象 (引数未指定時は site.yml)
+ANSIBLE_SYNTAXCHECK_TARGETS := $(if $(strip ${ARGS}),${ARGS}, site.yml)
 
 # 追加ゴールを .PHONY + 空レシピで潰す
 # 追加ゴールはユーザ指定の生値(末尾スラッシュ等あり)と正規化後の両方を対象にする
@@ -139,163 +144,172 @@ mk_role_arc:
 	'
 
 run:
-	ansible-playbook ${OPT_COMMON} 2>&1 |tee build.log
+	ansible-playbook ${OPT_COMMON} ${ANSIBLE_PLAYBOOK_EXTRA_OPTS} 2>&1 |tee build.log
 
 run_selinux:
-	ansible-playbook --tags "selinux" ${OPT_COMMON} 2>&1 |tee build-selinux.log
+	ansible-playbook --tags "selinux" ${OPT_COMMON} ${ANSIBLE_PLAYBOOK_EXTRA_OPTS} 2>&1 |tee build-selinux.log
 
 run_common:
-	ansible-playbook --tags "common" ${OPT_COMMON} 2>&1 |tee build-common.log
+	ansible-playbook --tags "apt-update-guard,common" ${OPT_COMMON} ${ANSIBLE_PLAYBOOK_EXTRA_OPTS} 2>&1 |tee build-common.log
 
 run_user_settings:
-	ansible-playbook --tags "user-settings" ${OPT_COMMON} 2>&1 |tee build-user-settings.log
+	ansible-playbook --tags "user-settings" ${OPT_COMMON} ${ANSIBLE_PLAYBOOK_EXTRA_OPTS} 2>&1 |tee build-user-settings.log
 
 run_create_users:
-	ansible-playbook --tags "create-users" ${OPT_COMMON} 2>&1 |tee build-create-users.log
+	ansible-playbook --tags "create-users" ${OPT_COMMON} ${ANSIBLE_PLAYBOOK_EXTRA_OPTS} 2>&1 |tee build-create-users.log
 
 run_post_user_create:
-	ansible-playbook --tags "post-user-create" ${OPT_COMMON} 2>&1 |tee build-post-user-create.log
+	ansible-playbook --tags "post-user-create" ${OPT_COMMON} ${ANSIBLE_PLAYBOOK_EXTRA_OPTS} 2>&1 |tee build-post-user-create.log
 
 run_devel_packages:
-	ansible-playbook --tags "devel-packages" ${OPT_COMMON} 2>&1 |tee build-devel.log
+	ansible-playbook --tags "devel-packages" ${OPT_COMMON} ${ANSIBLE_PLAYBOOK_EXTRA_OPTS} 2>&1 |tee build-devel.log
 
 run_docker_ce:
-	ansible-playbook --tags "docker-ce" ${OPT_COMMON} 2>&1 |tee build-docker-ce.log
+	ansible-playbook --tags "docker-ce" ${OPT_COMMON} ${ANSIBLE_PLAYBOOK_EXTRA_OPTS} 2>&1 |tee build-docker-ce.log
 
 run_logging_backend:
-	ansible-playbook --tags "docker-network-elastic-stack,elasticsearch,logstash,kibana,fleet-server,fleet-bootstrap" ${OPT_COMMON} 2>&1 |tee build-logging-backend.log
+	ansible-playbook --tags "docker-network-elastic-stack,elasticsearch,logstash,kibana,fleet-server,fleet-bootstrap" ${OPT_COMMON} ${ANSIBLE_PLAYBOOK_EXTRA_OPTS} 2>&1 |tee build-logging-backend.log
 
 run_elasticsearch:
-	ansible-playbook --tags "docker-network-elastic-stack,elasticsearch" ${OPT_COMMON} 2>&1 |tee build-elasticsearch.log
+	ansible-playbook --tags "docker-network-elastic-stack,elasticsearch" ${OPT_COMMON} ${ANSIBLE_PLAYBOOK_EXTRA_OPTS} 2>&1 |tee build-elasticsearch.log
 
 run_logstash:
-	ansible-playbook --tags "docker-network-elastic-stack,logstash" ${OPT_COMMON} 2>&1 |tee build-logstash.log
+	ansible-playbook --tags "docker-network-elastic-stack,logstash" ${OPT_COMMON} ${ANSIBLE_PLAYBOOK_EXTRA_OPTS} 2>&1 |tee build-logstash.log
 
 run_kibana:
-	ansible-playbook --tags "docker-network-elastic-stack,kibana" ${OPT_COMMON} 2>&1 |tee build-kibana.log
+	ansible-playbook --tags "docker-network-elastic-stack,kibana" ${OPT_COMMON} ${ANSIBLE_PLAYBOOK_EXTRA_OPTS} 2>&1 |tee build-kibana.log
 
 run_fleet_server:
-	ansible-playbook --tags "docker-network-elastic-stack,fleet-server" ${OPT_COMMON} 2>&1 |tee build-fleet-server.log
+	ansible-playbook --tags "docker-network-elastic-stack,fleet-server" ${OPT_COMMON} ${ANSIBLE_PLAYBOOK_EXTRA_OPTS} 2>&1 |tee build-fleet-server.log
 
 run_fleet_bootstrap:
-	ansible-playbook --tags "docker-network-elastic-stack,fleet-server,fleet-bootstrap" ${OPT_COMMON} 2>&1 |tee build-fleet-bootstrap.log
+	ansible-playbook --tags "docker-network-elastic-stack,fleet-server,fleet-bootstrap" ${OPT_COMMON} ${ANSIBLE_PLAYBOOK_EXTRA_OPTS} 2>&1 |tee build-fleet-bootstrap.log
 
 run_logging_collector:
-	ansible-playbook --tags "elastic-agent,elastic-agent-k8s,elastic-agent-k8s-audit" ${OPT_COMMON} 2>&1 |tee build-logging-collector.log
+	ansible-playbook --tags "elastic-agent,elastic-agent-k8s,elastic-agent-k8s-audit" ${OPT_COMMON} ${ANSIBLE_PLAYBOOK_EXTRA_OPTS} 2>&1 |tee build-logging-collector.log
 
 run_elastic_agent:
-	ansible-playbook --tags "elastic-agent" ${OPT_COMMON} 2>&1 |tee build-elastic-agent.log
+	ansible-playbook --tags "elastic-agent" ${OPT_COMMON} ${ANSIBLE_PLAYBOOK_EXTRA_OPTS} 2>&1 |tee build-elastic-agent.log
 
 run_elastic_agent_k8s:
-	ansible-playbook --tags "elastic-agent-k8s" ${OPT_COMMON} 2>&1 |tee build-elastic-agent-k8s.log
+	ansible-playbook --tags "elastic-agent-k8s" ${OPT_COMMON} ${ANSIBLE_PLAYBOOK_EXTRA_OPTS} 2>&1 |tee build-elastic-agent-k8s.log
 
 run_elastic_agent_k8s_audit:
-	ansible-playbook --tags "elastic-agent-k8s-audit" ${OPT_COMMON} 2>&1 |tee build-elastic-agent-k8s-audit.log
+	ansible-playbook --tags "elastic-agent-k8s-audit" ${OPT_COMMON} ${ANSIBLE_PLAYBOOK_EXTRA_OPTS} 2>&1 |tee build-elastic-agent-k8s-audit.log
 
 run_elastic_agent_all:
-	ansible-playbook --tags "elastic-agent,elastic-agent-k8s,elastic-agent-k8s-audit" ${OPT_COMMON} 2>&1 |tee build-elastic-agent-all.log
+	ansible-playbook --tags "elastic-agent,elastic-agent-k8s,elastic-agent-k8s-audit" ${OPT_COMMON} ${ANSIBLE_PLAYBOOK_EXTRA_OPTS} 2>&1 |tee build-elastic-agent-all.log
 
 run_ntp_server:
-	ansible-playbook --tags "ntp-server" ${OPT_COMMON} 2>&1 |tee build-ntp-server.log
+	ansible-playbook --tags "ntp-server" ${OPT_COMMON} ${ANSIBLE_PLAYBOOK_EXTRA_OPTS} 2>&1 |tee build-ntp-server.log
 
 run_ntp_client:
-	ansible-playbook --tags "ntp-client" ${OPT_COMMON} 2>&1 |tee build-ntp-client.log
+	ansible-playbook --tags "ntp-client" ${OPT_COMMON} ${ANSIBLE_PLAYBOOK_EXTRA_OPTS} 2>&1 |tee build-ntp-client.log
 
 run_nfs_server:
-	ansible-playbook --tags "nfs-server" ${OPT_COMMON} 2>&1 |tee build-nfs-server.log
+	ansible-playbook --tags "nfs-server" ${OPT_COMMON} ${ANSIBLE_PLAYBOOK_EXTRA_OPTS} 2>&1 |tee build-nfs-server.log
 
 run_dns_server:
-	ansible-playbook --tags "dns-server" ${OPT_COMMON} 2>&1 |tee build-dns-server.log
+	ansible-playbook --tags "dns-server" ${OPT_COMMON} ${ANSIBLE_PLAYBOOK_EXTRA_OPTS} 2>&1 |tee build-dns-server.log
 
 run_ldap_server:
-	ansible-playbook --tags "ldap-server" ${OPT_COMMON} 2>&1 |tee build-ldap-server.log
+	ansible-playbook --tags "ldap-server" ${OPT_COMMON} ${ANSIBLE_PLAYBOOK_EXTRA_OPTS} 2>&1 |tee build-ldap-server.log
 
 run_redmine_server:
-	ansible-playbook --tags "redmine-server" ${OPT_COMMON} 2>&1 |tee build-redmine-server.log
+	ansible-playbook --tags "redmine-server" ${OPT_COMMON} ${ANSIBLE_PLAYBOOK_EXTRA_OPTS} 2>&1 |tee build-redmine-server.log
 
 run_yq:
-	ansible-playbook --tags "yq" ${OPT_COMMON} 2>&1 |tee build-yq.log
+	ansible-playbook --tags "yq" ${OPT_COMMON} ${ANSIBLE_PLAYBOOK_EXTRA_OPTS} 2>&1 |tee build-yq.log
 
 run_jd:
-	ansible-playbook --tags "jd" ${OPT_COMMON} 2>&1 |tee build-jd.log
+	ansible-playbook --tags "jd" ${OPT_COMMON} ${ANSIBLE_PLAYBOOK_EXTRA_OPTS} 2>&1 |tee build-jd.log
+
+run_go_lang_local:
+	ansible-playbook --tags "go-lang-local" ${OPT_COMMON} ${ANSIBLE_PLAYBOOK_EXTRA_OPTS} 2>&1 |tee build-go-lang-local.log
 
 run_k8s_common:
-	ansible-playbook --tags "k8s-common" ${OPT_COMMON} 2>&1 |tee build-k8s-common.log
+	ansible-playbook --tags "k8s-common" ${OPT_COMMON} ${ANSIBLE_PLAYBOOK_EXTRA_OPTS} 2>&1 |tee build-k8s-common.log
+
+run_k8s_hubble_cli:
+	ansible-playbook --tags "k8s-common,k8s-hubble-cli" ${OPT_COMMON} ${ANSIBLE_PLAYBOOK_EXTRA_OPTS} 2>&1 |tee build-k8s-hubble-cli.log
 
 run_k8s_ctrl_plane:
-	ansible-playbook --tags "k8s-ctrlplane" ${OPT_COMMON} 2>&1 |tee build-k8s-ctrlplane.log
+	ansible-playbook --tags "k8s-ctrlplane" ${OPT_COMMON} ${ANSIBLE_PLAYBOOK_EXTRA_OPTS} 2>&1 |tee build-k8s-ctrlplane.log
+
+run_cilium_shared_ca:
+	ansible-playbook --tags "k8s-shared-ca,k8s-cilium-shared-ca" ${OPT_COMMON} ${ANSIBLE_PLAYBOOK_EXTRA_OPTS} 2>&1 |tee build-cilium-shared-ca.log
 
 run_k8s_multus:
-	ansible-playbook --tags "k8s-multus" ${OPT_COMMON} 2>&1 |tee build-k8s-multus.log
+	ansible-playbook --tags "k8s-multus" ${OPT_COMMON} ${ANSIBLE_PLAYBOOK_EXTRA_OPTS} 2>&1 |tee build-k8s-multus.log
 
 run_k8s_whereabouts:
-	ansible-playbook --tags "k8s-whereabouts" ${OPT_COMMON} 2>&1 |tee build-k8s-whereabouts.log
+	ansible-playbook --tags "k8s-whereabouts" ${OPT_COMMON} ${ANSIBLE_PLAYBOOK_EXTRA_OPTS} 2>&1 |tee build-k8s-whereabouts.log
 
 run_k8s_worker:
-	ansible-playbook --tags "k8s-worker" ${OPT_COMMON} 2>&1 |tee build-k8s-worker.log
+	ansible-playbook --tags "k8s-worker" ${OPT_COMMON} ${ANSIBLE_PLAYBOOK_EXTRA_OPTS} 2>&1 |tee build-k8s-worker.log
 
 run_k8s_worker_frr:
-	ansible-playbook --tags "k8s-worker-frr" ${OPT_COMMON} 2>&1 |tee build-k8s-worker-frr.log
+	ansible-playbook --tags "k8s-worker-frr" ${OPT_COMMON} ${ANSIBLE_PLAYBOOK_EXTRA_OPTS} 2>&1 |tee build-k8s-worker-frr.log
 
 run_k8s_hubble_ui:
-	ansible-playbook --tags "k8s-hubble-ui" ${OPT_COMMON} 2>&1 |tee build-k8s-hubble-ui.log
+	ansible-playbook --tags "k8s-hubble-ui" ${OPT_COMMON} ${ANSIBLE_PLAYBOOK_EXTRA_OPTS} 2>&1 |tee build-k8s-hubble-ui.log
 
 run_k8s_virtual_cluster:
-	ansible-playbook --tags "k8s-virtual-cluster" ${OPT_COMMON} 2>&1 |tee build-k8s-virtual-cluster.log
+	ansible-playbook --tags "k8s-virtual-cluster" ${OPT_COMMON} ${ANSIBLE_PLAYBOOK_EXTRA_OPTS} 2>&1 |tee build-k8s-virtual-cluster.log
 
 run_k8s_vc_instances:
-	ansible-playbook --tags "k8s-vc-instances" ${OPT_COMMON} 2>&1 |tee build-k8s-vc-instances.log
+	ansible-playbook --tags "k8s-vc-instances" ${OPT_COMMON} ${ANSIBLE_PLAYBOOK_EXTRA_OPTS} 2>&1 |tee build-k8s-vc-instances.log
 
 run_k8s_devel:
-	ansible-playbook --tags "k8s-devel" ${OPT_COMMON} 2>&1 |tee build-k8s-devel.log
+	ansible-playbook --tags "k8s-devel" ${OPT_COMMON} ${ANSIBLE_PLAYBOOK_EXTRA_OPTS} 2>&1 |tee build-k8s-devel.log
 
 run_netgauge:
-	ansible-playbook --tags "netgauge" ${OPT_COMMON} 2>&1 |tee build-netgauge.log
+	ansible-playbook --tags "netgauge" ${OPT_COMMON} ${ANSIBLE_PLAYBOOK_EXTRA_OPTS} 2>&1 |tee build-netgauge.log
 
 run_frr_basic:
-	ansible-playbook --tags "frr-basic" ${OPT_COMMON} 2>&1 |tee build-frr-basic.log
+	ansible-playbook --tags "frr-basic" ${OPT_COMMON} ${ANSIBLE_PLAYBOOK_EXTRA_OPTS} 2>&1 |tee build-frr-basic.log
 
 run_gitlab_server:
-	ansible-playbook --tags "gitlab-server" ${OPT_COMMON} 2>&1 |tee build-gitlab-server.log
+	ansible-playbook --tags "gitlab-server" ${OPT_COMMON} ${ANSIBLE_PLAYBOOK_EXTRA_OPTS} 2>&1 |tee build-gitlab-server.log
 
 run_opengrok_server:
-	ansible-playbook --tags "opengrok-server" ${OPT_COMMON} 2>&1 |tee build-opengrok-server.log
+	ansible-playbook --tags "opengrok-server" ${OPT_COMMON} ${ANSIBLE_PLAYBOOK_EXTRA_OPTS} 2>&1 |tee build-opengrok-server.log
 
 run_aide:
-	ansible-playbook --tags "aide" ${OPT_COMMON} 2>&1 |tee build-aide.log
+	ansible-playbook --tags "aide" ${OPT_COMMON} ${ANSIBLE_PLAYBOOK_EXTRA_OPTS} 2>&1 |tee build-aide.log
 
 run_skopeo:
-	ansible-playbook --tags "skopeo" ${OPT_COMMON} 2>&1 |tee build-skopeo.log
+	ansible-playbook --tags "skopeo" ${OPT_COMMON} ${ANSIBLE_PLAYBOOK_EXTRA_OPTS} 2>&1 |tee build-skopeo.log
 
 run_sbom:
-	ansible-playbook --tags "sbom" ${OPT_COMMON} --extra-vars=sbom_enabled=true 2>&1 |tee build-sbom.log
+	ansible-playbook --tags "sbom" ${OPT_COMMON} ${ANSIBLE_PLAYBOOK_EXTRA_OPTS} --extra-vars=sbom_enabled=true 2>&1 |tee build-sbom.log
 
 run_terraform:
-	ansible-playbook --tags "terraform" ${OPT_COMMON} 2>&1 |tee build-terraform.log
+	ansible-playbook --tags "terraform" ${OPT_COMMON} ${ANSIBLE_PLAYBOOK_EXTRA_OPTS} 2>&1 |tee build-terraform.log
 
 run_kea_dhcp:
-	ansible-playbook --tags "kea-dhcp" ${OPT_COMMON} 2>&1 |tee build-kea-dhcp.log
+	ansible-playbook --tags "kea-dhcp" ${OPT_COMMON} ${ANSIBLE_PLAYBOOK_EXTRA_OPTS} 2>&1 |tee build-kea-dhcp.log
 
 run_radvd:
-	ansible-playbook --tags "radvd" ${OPT_COMMON} 2>&1 |tee build-radvd.log
+	ansible-playbook --tags "radvd" ${OPT_COMMON} ${ANSIBLE_PLAYBOOK_EXTRA_OPTS} 2>&1 |tee build-radvd.log
 
 run_router_config:
-	ansible-playbook --tags "router-config" ${OPT_COMMON} 2>&1 |tee build-router-config.log
+	ansible-playbook --tags "router-config" ${OPT_COMMON} ${ANSIBLE_PLAYBOOK_EXTRA_OPTS} 2>&1 |tee build-router-config.log
 
 run_router_clear_rules:
-	ansible-playbook ${VERBOSE} -i ${INVENTORY} router-clear-rules.yml 2>&1 |tee build-router-clear-rules.log
+	ansible-playbook ${VERBOSE} -i ${INVENTORY} router-clear-rules.yml ${ANSIBLE_PLAYBOOK_EXTRA_OPTS} 2>&1 |tee build-router-clear-rules.log
 
 run_netshoot_no_portscan:
-	ansible-playbook --tags "netshoot-no-portscan" ${OPT_COMMON} 2>&1 |tee build-netshoot-no-portscan.log
+	ansible-playbook --tags "netshoot-no-portscan" ${OPT_COMMON} ${ANSIBLE_PLAYBOOK_EXTRA_OPTS} 2>&1 |tee build-netshoot-no-portscan.log
 
 run_k8s_vc_tenant_dns:
-	ansible-playbook --tags "k8s-vc-tenant-dns" ${OPT_COMMON} 2>&1 |tee build-k8s-vc-tenant-dns.log
+	ansible-playbook --tags "k8s-vc-tenant-dns" ${OPT_COMMON} ${ANSIBLE_PLAYBOOK_EXTRA_OPTS} 2>&1 |tee build-k8s-vc-tenant-dns.log
 
 update-ctrlplane-kubeconfig:
-	ansible-playbook -i inventory/hosts k8s-ctrl-plane.yml --tags k8s-kubeconfig 2>&1 |tee build-update-ctrlplane-kubeconfig.log
+	ansible-playbook -i inventory/hosts k8s-ctrl-plane.yml --tags apt-update-guard,k8s-kubeconfig ${ANSIBLE_PLAYBOOK_EXTRA_OPTS} 2>&1 |tee build-update-ctrlplane-kubeconfig.log
 
 update-worker-kubeconfig:
-	ansible-playbook -i inventory/hosts k8s-worker.yml --tags k8s-kubeconfig 2>&1 |tee build-update-worker-kubeconfig.log
+	ansible-playbook -i inventory/hosts k8s-worker.yml --tags apt-update-guard,k8s-kubeconfig ${ANSIBLE_PLAYBOOK_EXTRA_OPTS} 2>&1 |tee build-update-worker-kubeconfig.log
 
 ansible-lint:
 	@if ! command -v ansible-lint >/dev/null 2>&1; then \
@@ -307,8 +321,11 @@ ansible-lint:
 	    CONFIG_OPTION=""; \
 	  fi; \
 	  echo "Running ansible-lint $${CONFIG_OPTION} ${ANSIBLE_LINT_TARGETS}"; \
-	  ansible-lint $${CONFIG_OPTION} ${ANSIBLE_LINT_TARGETS}; \
+	  ansible-lint $${CONFIG_OPTION} ${ANSIBLE_LINT_TARGETS} 2>&1 | tee build-ansible-lint.log; \
 	fi
+
+ansible-syntax-check:
+	ansible-playbook -i inventory/hosts --syntax-check ${ANSIBLE_SYNTAXCHECK_TARGETS} ${ANSIBLE_PLAYBOOK_EXTRA_OPTS} 2>&1 | tee build-ansible-syntax-check.log
 
 audit_readme_term_coverage:
 	tools/audit-readme/audit-readme-term-coverage.sh --allow-issues

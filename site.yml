@@ -7,6 +7,14 @@
   remote_user: '{{ ansible_user }}'
   become: true
   gather_facts: true
+  roles:
+    # 後続の構築処理中にAPT自動更新が割り込まないように,
+    # 全ホストのfacts取得直後にDebian系ホストのAPT update guardを有効化する。
+    - role: apt-update-guard
+      tags: apt-update-guard
+      when: ansible_facts.os_family == "Debian"
+      vars:
+        apt_update_guard_state: "active"
 
 - name: Basic host configuration
   import_playbook: basic.yml
@@ -34,3 +42,18 @@
   import_playbook: logging-collector.yml
 - name: Configure Rancher hosts
   import_playbook: rancher.yml
+
+# 全構築処理と各play内のforce-reboot完了後までAPT自動更新抑止を維持し,
+# 正常完了時だけディストリビューション既定のAPT自動更新状態へ戻す。
+- name: Restore automatic APT update operation
+  hosts: all
+  remote_user: '{{ ansible_user }}'
+  become: true
+  gather_facts: false
+  roles:
+    # 構築処理完了後にDebian系ホストのAPT update guardを解除する。
+    - role: apt-update-guard
+      tags: apt-update-guard
+      when: ansible_facts.os_family == "Debian"
+      vars:
+        apt_update_guard_state: "inactive"

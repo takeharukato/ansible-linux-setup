@@ -192,11 +192,7 @@
 make run_frr_basic
 ```
 
-または,
-
-```bash
-ansible-playbook -i inventory/hosts site.yml --tags "frr-basic"
-```
+このターゲットから `frr-basic` が実行され, FRR パッケージ処理では内部ロール `frr-common` も呼び出されます。
 
 ## 主要変数
 
@@ -344,7 +340,8 @@ ls -l /etc/frr/frr.conf /etc/frr/daemons
 
 ```bash
 grep -n "frr_basic_enabled" vars/all-config.yml host_vars/*/main.yml
-ansible-playbook -i inventory/hosts site.yml --tags "frr-basic" -vv | grep -Ei "frr-basic|skipping|ok|changed"
+make run_frr_basic
+grep -Ei "frr-basic|skipping|ok|changed" build-frr-basic.log
 ```
 
 **確認ポイント**:
@@ -398,7 +395,7 @@ nc -6 -vz <peer_ipv6> 179
 ```bash
 ls -1 build-*.log
 grep -n "FAILED\|fatal" build-*.log
-ansible-playbook -i inventory/hosts site.yml --tags "frr-basic" -vv
+make run_frr_basic
 ```
 
 **確認ポイント**:

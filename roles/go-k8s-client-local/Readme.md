@@ -21,7 +21,6 @@
     - [4. No go k8s client deb/rpm file found ... または Fetched ... package is missing on controller で失敗する場合](#4-no-go-k8s-client-debrpm-file-found--または-fetched--package-is-missing-on-controller-で失敗する場合)
     - [5. 導入後の go.mod / go.sum / vendor 存在確認で失敗する場合](#5-導入後の-gomod--gosum--vendor-存在確認で失敗する場合)
     - [6. Installed client-go module version mismatch で失敗する場合](#6-installed-client-go-module-version-mismatch-で失敗する場合)
-    - [7. --check 実行で成果物が作成されない場合](#7---check-実行で成果物が作成されない場合)
   - [注意事項](#注意事項)
   - [参考資料](#参考資料)
     - [公式ドキュメント](#公式ドキュメント)
@@ -132,10 +131,6 @@
 制御ホストで以下のコマンドを実行します:
 ```bash
 make run_k8s_devel
-```
-または,
-```bash
-ansible-playbook -i inventory/hosts site.yml --tags "go-k8s-client-local"
 ```
 
 ## 主要変数
@@ -318,26 +313,9 @@ grep -n "go_k8s_client_version" vars/all-config.yml host_vars/*/main.yml
 - `go list -m k8s.io/client-go` の結果が `go_k8s_client_version` と一致していること。
 - 不一致時は `go_k8s_client_version` の指定値または既存導入物の影響を見直して再実行していること。
 
-### 7. --check 実行で成果物が作成されない場合
-
-**実施対象ホスト**: 制御ホスト
-
-**実行するコマンド**:
-
-```bash
-ansible-playbook -i inventory/hosts devel.yml --tags go-k8s-client-local --check -vv
-```
-
-**確認ポイント**:
-
-- チェックモードでは仕様として構築/導入処理をスキップすること。
-- 成果物生成や導入確認を行う場合は通常実行 (check モードなし) を使用していること。
-
-
 ## 注意事項
 
 - 本ロールは client-go の導入ロジックのみを扱う。Go 本体の導入ロジックは `go-lang-local` ロールで扱う。
-- `--check` 実行時は, パッケージ構築/導入処理をスキップします。
 
 ## 参考資料
 
