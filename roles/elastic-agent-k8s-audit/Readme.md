@@ -17,6 +17,7 @@
       - [`vars/all-config.yml`への設定例](#varsall-configymlへの設定例)
       - [Kubernetesコントロールプレーンノードの`host_vars`への設定例](#kubernetesコントロールプレーンノードのhost_varsへの設定例)
   - [テンプレートと生成ファイル](#テンプレートと生成ファイル)
+  - [実行フロー](#実行フロー)
   - [検証ポイント](#検証ポイント)
     - [検証の前提条件](#検証の前提条件)
     - [検証環境の設定](#検証環境の設定)
@@ -28,9 +29,11 @@
     - [5. Data Streamと監査イベント](#5-data-streamと監査イベント)
   - [トラブルシューティング](#トラブルシューティング)
     - [1. Enrollment Tokenを取得できない場合](#1-enrollment-tokenを取得できない場合)
-    - [2. DaemonSetが配置されない又はReadyにならない場合](#2-daemonsetが配置されない又はreadyにならない場合)
-    - [3. `audit.log`をPodから読めない場合](#3-auditlogをpodから読めない場合)
-    - [4. Data Streamが作成されない又は更新されない場合](#4-data-streamが作成されない又は更新されない場合)
+    - [2. Helm template検証で停止する場合](#2-helm-template検証で停止する場合)
+    - [3. Helm導入識別名の更新で停止する場合](#3-helm導入識別名の更新で停止する場合)
+    - [4. DaemonSetが配置されない又はReadyにならない場合](#4-daemonsetが配置されない又はreadyにならない場合)
+    - [5. `audit.log`をPodから読めない場合](#5-auditlogをpodから読めない場合)
+    - [6. Data Streamが作成されない又は更新されない場合](#6-data-streamが作成されない又は更新されない場合)
   - [注意事項](#注意事項)
   - [参考資料](#参考資料)
     - [公式ドキュメント](#公式ドキュメント)
@@ -183,7 +186,7 @@
 | プロセス | - | 実行中のプログラムを管理する単位。 |
 | 名前空間 ( namespace ) | - | Kubernetes内部でリソースを論理的に分離する単位。 |
 | サービスアカウント (Service Account) | - | 自動処理中でサービスを呼び出す側のプログラムを識別するための識別情報。 |
-| Elastic Agentポリシー構成種別 | - | Fleet Bootstrap ロールの `fleet_bootstrap_agent_policy_profiles` で管理する `host`, `k8s_system`, `k8s_workload`, `k8s_cluster` の4種類を指す, Elastic Stack固有の分類単位。 |
+| Elastic Agentポリシー構成種別 | - | Fleet Bootstrap ロールの `fleet_bootstrap_agent_policy_profiles` で管理する `host`, `k8s_system`, `k8s_workload`, `k8s_cluster`, `k8s_audit`の5種類を指す,Elastic Stack固有の分類単位。 |
 | 統合パッケージ | - | Elastic Agentへデータの収集方法と収集項目を追加するためのパッケージ。 |
 | Docker Compose | - | 複数のコンテナ定義をまとめて作成, 起動, 停止, 更新する仕組み。 |
 | Docker Compose 定義ファイル | - | Docker Compose が参照するコンテナ構成の定義ファイル。 |
@@ -217,19 +220,34 @@
 
 本ロールが導入するElastic Agentは, 通常のKubernetesクラスタ状態情報を収集する`elastic-agent-k8s`ロールとは別のHelm導入識別名`elastic-agent-k8s-audit`で管理します。Fleet Bootstrapが作成する`k8s_audit`構成種別のElastic Agentポリシーへ登録し, Kubernetes統合の`audit-logs-filestream`入力から`kubernetes.audit_logs`データ集合を収集します。
 
-監査ログの収集経路は次のとおりです。
+監査ログの収集経路は次のとおりです。なお, 以下の図では, 実行時に動作するコンポーネントを四角形で記載し, ファイル及び保存データを円柱形で記載しています:
 
-```text
-kube-apiserver
-  -> /var/log/kubernetes/audit/audit.log
-  -> hostPath
-  -> elastic-agent-k8s-audit DaemonSet
-  -> Fleet Serverから配布されるk8s_audit Elastic Agentポリシー
-  -> Kubernetes統合 audit-logs-filestream
-  -> Logstash Fleet Output
-  -> Elasticsearch
-  -> logs-kubernetes.audit_logs-k8s_system
-  -> Kibana Discover
+```mermaid
+flowchart LR
+  APISERVER[kube-apiserver]
+  AUDIT_LOG[("/var/log/kubernetes/audit/audit.log")]
+
+  AGENT["elastic-agent-k8s-audit<br/>Elastic Agent"]
+  FLEET[Fleet Server]
+  LOGSTASH[Logstash]
+  ES[Elasticsearch]
+  DATA_STREAM[("logs-kubernetes.audit_logs-k8s_system")]
+  KIBANA["Kibana<br/>Discover"]
+
+  APISERVER -- Kubernetes API監査イベントを書き込み --> AUDIT_LOG
+
+  AUDIT_LOG -.->|hostPathを介して監査ログを参照| AGENT
+
+  FLEET -- k8s_audit Elastic Agentポリシー<br/>Kubernetes audit-logs-filestream設定を配布 --> AGENT
+
+  AGENT -- Kubernetes API監査ログイベント --> LOGSTASH
+
+  LOGSTASH -- data_stream情報を付与した監査ログイベント --> ES
+
+  ES -- Kubernetes API監査ログイベントを保存 --> DATA_STREAM
+
+  KIBANA -- Discoverから監査ログを検索 --> ES
+  DATA_STREAM -.->|検索対象| ES
 ```
 
 本ロールの主な処理は次のとおりです。
@@ -238,13 +256,14 @@ kube-apiserver
 - `elastic-agent-k8s`ロールと同じHelmリポジトリ, Helm Chart版数, Kubernetes名前空間及びkubeconfig設定を継承します。
 - Fleet Server接続先をElastic Stack共通設定から解決します。
 - Fleet Bootstrapが制御ホスト上へ保存したEnrollment Token共有ファイルから`k8s_audit`構成種別のEnrollment Tokenを取得します。
-- Helm valuesを生成し, `preset: perNode`, `mode: daemonset`としてElastic Agentを配置します。
+- Helm valuesファイルをKubernetes共通設定で決定されたHelm実行ユーザのホームディレクトリ配下へ生成し, `preset: perNode`, `mode: daemonset`としてElastic Agentを配置します。
 - 既定では`node-role.kubernetes.io/control-plane`ラベルを持つLinuxノードだけへPodを配置します。
 - `/var/log/kubernetes/audit`を`/hostfs/var/log/kubernetes/audit`へread-onlyのhostPathとしてマウントします。
 - Kubernetes統合, System統合及びkube-state-metricsをHelm Chart側では無効化し, 実際の収集設定はFleet Bootstrapが作成するPackage Policyから配布します。
-- `helm template`で, hostNetworkが有効化されていないこと, kube-state-metricsが生成されないこと, DaemonSetと監査ログ用volumeMountが生成されることを事前検証します。
-- Helm releaseが`pending-*`又は`uninstalled`等の不整合状態にある場合は, 必要なクリーンアップ後に`helm upgrade --install`を再実行します。
-- 導入後はHelm release, 監査ログ用DaemonSet, 対応Pod, control-plane配置及びPod内からの`audit.log`読み取り可否を検証します。
+- Helmリポジトリ登録・更新, `helm template`, 通常時の`helm upgrade --install`, Helm導入識別名の`deployed`状態確認は`k8s-helm-common`ロールへ委譲します。
+- `helm template`の生成結果については本ロールで, hostNetworkが有効化されていないこと, kube-state-metricsが生成されないこと, DaemonSetと監査ログ用read-only volumeMountが生成されることを検証します。
+- 更新前又は通常時の`helm upgrade --install`失敗後は, 本ロール固有の障害復旧処理で`uninstalling`, `pending-install`, `pending-upgrade`, `pending-rollback`, `uninstalled`を判定し, 必要な状態解消後に再試行します。
+- 導入後はHelm導入識別名, 監査ログ用DaemonSet, 対応Pod, control-plane配置及びPod内からの`audit.log`読み取り可否を検証します。
 
 ### 導入するElastic Agentの導入仕様
 
@@ -278,8 +297,8 @@ kube-apiserver
 - `audit.log`がJSON Lines形式のKubernetes Audit Eventとして出力されていること。
 - 対象ホストがKubernetesのコントロールプレーンノードの場合, `host_vars`で`elastic_agent_k8s_audit_enabled: true`を設定していること。
 - 監査ログ収集対象外ホストでは`elastic_agent_k8s_audit_enabled`を`false`にするか未定義とすること。
-- 対象ホストで`helm`及び`kubectl`コマンドを実行できること。
-- Helm実行ユーザがKubernetes API操作に使用するkubeconfigを読み取れること。
+- Kubernetes共通設定で決定されたHelm実行ユーザで`helm`及び`kubectl`コマンドを実行できること。
+- Kubernetes共通設定で決定されたHelm実行ユーザがKubernetes API操作に使用するkubeconfigを読み取れること。
 - Fleet Serverが起動済みであり, KubernetesクラスタからFleet Server接続先へ到達できること。
 - Fleet Bootstrapが`k8s_audit`構成種別のElastic Agentポリシー, Kubernetes統合Package Policy及びEnrollment Tokenを作成済みであること。
 - 現行Fleet Bootstrap実装ではKubernetes統合パッケージの明示導入条件が`include_k8s_cluster: true`であるため, 既定の`k8s_cluster`構成種別を維持した状態でFleet Bootstrapを実行すること。
@@ -344,10 +363,10 @@ Fleet Bootstrap側の設定を変更した場合は, 先にlogging backend又は
 
 | 変数名 | 意味 | 既定値 |
 | --- | --- | --- |
-| `elastic_agent_k8s_audit_helm_timeout_seconds` | Helm操作のタイムアウト秒数。 | `300` |
-| `elastic_agent_k8s_audit_helm_retries` | Helm操作の再試行回数。 | `3` |
-| `elastic_agent_k8s_audit_helm_retry_interval_seconds` | Helm操作の再試行間隔秒数。 | `5` |
-| `elastic_agent_k8s_audit_helm_request_interval_seconds` | Kubernetes API及びHelm状態確認の実行間隔秒数。 | `5` |
+| `elastic_agent_k8s_audit_helm_timeout_seconds` | Helm実行タイムアウト秒数。 | `300` |
+| `elastic_agent_k8s_audit_helm_retries` | Helmリポジトリ処理, `helm template`, Helm状態確認及び障害復旧後の再試行で使用する再試行回数。通常時の初回`helm upgrade --install`自体は自動再試行しない。 | `3` |
+| `elastic_agent_k8s_audit_helm_retry_interval_seconds` | Helm関連処理を再試行する際の待機秒数。 | `5` |
+| `elastic_agent_k8s_audit_helm_request_interval_seconds` | Kubernetes API及びHelm状態確認のリクエスト発行間隔。 | `5` |
 | `elastic_agent_k8s_audit_verify_request_timeout_seconds` | Kubernetes API監査ログ収集用DaemonSet状態確認の1回あたり要求タイムアウト秒数。 | `10` |
 | `elastic_agent_k8s_audit_verify_retry_interval_seconds` | Kubernetes API監査ログ収集用DaemonSet状態確認の再試行間隔秒数。 | `5` |
 | `elastic_agent_k8s_audit_verify_retries` | Kubernetes API監査ログ収集用DaemonSet状態確認の再試行回数。 | `60` |
@@ -415,9 +434,13 @@ elastic_agent_k8s_audit_tolerations:
 
 ## テンプレートと生成ファイル
 
-| テンプレート | 生成ファイル | 用途 |
+| 入力 | 出力 ( 既定 ) | 目的 |
 | --- | --- | --- |
-| `templates/values.yaml.j2` | `{{ k8s_kubeadm_config_store }}/elastic-agent-k8s-audit/values.yaml` | Audit用Elastic AgentのHelm valuesを生成します。 |
+| `templates/values.yaml.j2` | `<Helm実行ユーザのホームディレクトリ>/kubeadm/elastic-agent-k8s-audit/values.yaml` | Audit用Elastic AgentのHelm valuesファイルを生成し, `preset: perNode`, 監査ログ用hostPath, resources, nodeSelector及びtolerationsを適用します。 |
+
+Helm実行ユーザは, `vars/k8s-config-common.yml`のKubernetes共通設定で決定された`k8s_runtime_helm_operator_user` (既定: `ansible`) を使用します。values.yamlファイルの出力先は, 同じHelm実行ユーザのホームディレクトリ (既定: `/home/ansible`) を基準に決定します。既定では`/home/ansible/kubeadm/elastic-agent-k8s-audit/values.yaml`を使用します。
+
+kubeconfigは`elastic_agent_k8s_kubeconfig_path`の明示指定値がある場合はその値を継承し, 未指定時は同じHelm実行ユーザのホームディレクトリ配下にある`.kube/ca-embedded-admin.conf`を使用します。既定では`/home/ansible/.kube/ca-embedded-admin.conf`です。
 
 Fleet Bootstrap側では, `k8s_audit`構成種別用Package Policyに次の収集設定を作成します。
 
@@ -433,6 +456,22 @@ audit-logs-filestream:
 ```
 
 同じPackage Policy内のkube-state-metrics, Kubernetes event, kubelet, kube-apiserver, kube-proxy, kube-scheduler, kube-controller-manager, container logs及び各クラウドAudit入力は無効化し, Kubernetes API監査ログだけを収集します。
+
+## 実行フロー
+
+1. [tasks/load-params.yml](tasks/load-params.yml)で共通変数を読み込みます。
+2. [tasks/resolve-runtime-vars.yml](tasks/resolve-runtime-vars.yml)でHelm実行ユーザ, kubeconfig, valuesファイル配置先, Helm Chart参照先, Fleet Server接続先, timeout/retry値などの実行時変数を解決します。
+3. [tasks/load-enrollment-token.yml](tasks/load-enrollment-token.yml)でFleet Bootstrapが共有した`k8s_audit`構成種別のEnrollment Tokenを読み込みます。
+4. [tasks/validate.yml](tasks/validate.yml)でChart版数形式, Kubernetes名前空間, kubeconfigパス, Enrollment Token, Helm実行ユーザ, 監査ログパス, resources, Pod配置条件及び再試行値を検証します。
+5. [tasks/package.yml](tasks/package.yml)でHelm実行対象ユーザの`helm`コマンド利用可否と, Helm実行ユーザの`kubectl`コマンド利用可否を確認します。
+6. [tasks/helm-repository.yml](tasks/helm-repository.yml)から`k8s-helm-common`の`repository.yml`を呼び出し, Helm実行対象ユーザごとにElastic Helmリポジトリの存在, URL整合及びindex更新を確認します。
+7. [tasks/render-values.yml](tasks/render-values.yml)でHelm実行ユーザのホームディレクトリ配下へvaluesファイル用ディレクトリを作成し, `templates/values.yaml.j2`からvaluesファイルを生成します。
+8. [tasks/config.yml](tasks/config.yml)から`k8s-helm-common`の`template.yml`を呼び出して`helm template`を実行し, 本ロールでhostNetwork, kube-state-metrics, DaemonSet及び監査ログ用read-only volumeMountを検証します。
+9. [tasks/config.yml](tasks/config.yml)で既存Helm導入識別名の状態を確認し, `uninstalling`, `pending-*`, `uninstalled`の場合は本ロール固有の障害復旧処理で更新前状態を整えます。
+10. [tasks/config.yml](tasks/config.yml)から`k8s-helm-common`の`upgrade.yml`を呼び出し, 通常時の`helm upgrade --install --wait --timeout`を1回実行します。初回更新が失敗した場合だけ, 本ロール固有の状態確認と必要な障害復旧処理を行った後, 同一入力で更新を再試行します。
+11. [tasks/config.yml](tasks/config.yml)から`k8s-helm-common`の`wait-release.yml`を呼び出し, 最終的なHelm導入識別名が`deployed`状態であることを確認します。
+12. [tasks/verify.yml](tasks/verify.yml)でHelm導入識別名状態と監査ログ用DaemonSetの存在を確認し, DaemonSetの最新状態をKubernetes APIから再取得して全配置対象Podが更新済みかつReady/Availableになるまで上限付きで待機します。
+13. [tasks/verify.yml](tasks/verify.yml)で対象DaemonSetに属するPodを確認し, Podがcontrol-planeノードへ配置されていること及びPod内から`/hostfs/var/log/kubernetes/audit/audit.log`を読み取り可能であることを検証します。
 
 ## 検証ポイント
 
@@ -1011,7 +1050,61 @@ ment-token.yml
 
 - ファイルのアクセス権が不正な場合や共有ファイル内に`k8s_audit`キーが存在しない場合は, 当該ファイルのアクセス権を適切に設定, または, 削除して, Fleet Bootstrapロールを再実行します。
 
-### 2. DaemonSetが配置されない又はReadyにならない場合
+### 2. Helm template検証で停止する場合
+
+**実施対象ホスト**: Kubernetes API監査ログ収集対象のコントロールプレーンノード
+
+**実行するコマンド**:
+
+Kubernetes共通設定で決定されたHelm実行ユーザ (既定: `ansible`) で実行します。`${HOME}`は同じHelm実行ユーザのホームディレクトリ (既定: `/home/ansible`) を指します。
+
+```bash
+helm template elastic-agent-k8s-audit elastic/elastic-agent \
+  --namespace kube-system \
+  --version 8.19.19 \
+  --kubeconfig "${HOME}/.kube/ca-embedded-admin.conf" \
+  -f "${HOME}/kubeadm/elastic-agent-k8s-audit/values.yaml" > /tmp/elastic-agent-k8s-audit.yaml
+
+grep -nE '^[[:space:]]*hostNetwork:[[:space:]]*true[[:space:]]*$' /tmp/elastic-agent-k8s-audit.yaml
+grep -n 'kube-state-metrics' /tmp/elastic-agent-k8s-audit.yaml
+grep -nE '^kind:[[:space:]]*DaemonSet[[:space:]]*$' /tmp/elastic-agent-k8s-audit.yaml
+grep -n -A 3 -B 1 '/hostfs/var/log/kubernetes/audit' /tmp/elastic-agent-k8s-audit.yaml
+```
+
+**確認ポイント**:
+
+- `hostNetwork: true`が出力されないことを確認します。
+- `kube-state-metrics`を含むリソースが出力されないことを確認します。
+- `kind: DaemonSet`が出力されることを確認します。
+- `/hostfs/var/log/kubernetes/audit`のvolumeMountが存在し, `readOnly: true`であることを確認します。
+- 条件が一致しない場合は, `${HOME}/kubeadm/elastic-agent-k8s-audit/values.yaml`と使用中のChart版数を確認してください。
+
+### 3. Helm導入識別名の更新で停止する場合
+
+**実施対象ホスト**: Kubernetes API監査ログ収集対象のコントロールプレーンノード
+
+**実行するコマンド**:
+
+Kubernetes共通設定で決定されたHelm実行ユーザ (既定: `ansible`) で実行します。
+
+```bash
+helm status elastic-agent-k8s-audit --namespace kube-system --output json |
+jq '{status: .info.status, revision: .version, description: .info.description}'
+helm history elastic-agent-k8s-audit --namespace kube-system
+```
+
+**確認ポイント**:
+
+- `deployed`以外の場合は, `helm status`と`helm history`で現在状態と直前の操作履歴を確認します。
+- 本ロールは更新前又は初回更新失敗後に`uninstalling`, `pending-install`, `pending-upgrade`, `pending-rollback`, `uninstalled`を判定し, 必要な場合だけ状態解消処理を実行します。
+- `uninstalling`の場合は, 設定された再試行回数と状態確認間隔の範囲で状態遷移完了を待機します。
+- `pending-*`状態では, 本ロールが対象revisionのHelm導入識別名Secretを削除して進行中状態を解消する場合があります。
+- `uninstalled`状態では, 残存するHelm導入識別名情報を`helm uninstall --ignore-not-found`で削除して再導入可能な状態へ戻します。
+- 通常時の初回`helm upgrade --install`が成功した場合は, 障害復旧後の再試行処理は実行しません。
+- 初回更新が失敗した場合だけ, 状態確認と必要な状態解消後に同一入力で`helm upgrade --install`を再試行します。
+- 手動でHelm導入識別名Secretを削除する前に, `build-elastic-agent-k8s-audit.log`, `helm status`, `helm history`を確認し, Playbookによる復旧処理の結果を確認してください。
+
+### 4. DaemonSetが配置されない又はReadyにならない場合
 
 PlaybookはDaemonSetの`desiredNumberScheduled`が1以上であることを確認した後,全配置対象Podが更新済みかつReadyになるまで上限付きで待機します。既定値では5秒間隔で最大60回再試行します。
 
@@ -1124,7 +1217,7 @@ jq '.items[] | {
 
 DaemonSetの`DESIRED`,`CURRENT`,`UP-TO-DATE`が一致していても`READY`が未達の場合は,Pod起動途中の可能性があります。`elastic_agent_k8s_audit_verify_retries`と`elastic_agent_k8s_audit_verify_retry_interval_seconds`で定めた待機上限内でReadyへ遷移するかを確認し,上限到達時はPod状態とEventから原因を切り分けてください。
 
-### 3. `audit.log`をPodから読めない場合
+### 5. `audit.log`をPodから読めない場合
 
 **実施対象ホスト**: 対象ホスト
 
@@ -1157,7 +1250,7 @@ $ sudo tail -n 1 /var/log/kubernetes/audit/audit.log
 - 監査ログファイル(`audit.log`)のホスト側のファイルパスとHelm valuesファイル中のhostPath設定が一致していること
 - 監査ログファイル(`audit.log`)にログが書き込まれていること
 
-### 4. Data Streamが作成されない又は更新されない場合
+### 6. Data Streamが作成されない又は更新されない場合
 
 **実施対象ホスト**:
 
@@ -1196,6 +1289,8 @@ agent-pernode-elastic-agent-k8s-audit-57jlb
 - 本ロールはKubernetes API監査機能自体を有効化しません。kube-apiserver側のAudit Policy及び監査ログ出力設定はKubernetes構築ロール側で管理します。
 - Audit Policyの内容は本ロールの管理対象外です。
 - 本ロールは通常の`elastic-agent-k8s`とは別Helm releaseとして導入します。
+- 本ロールは`helm template`と通常時の`helm upgrade --install`を`k8s-helm-common`経由で同一valuesファイルを使用して実行します。
+- `helm upgrade --install`失敗時の`uninstalling`, `pending-*`, `uninstalled`判定, Helm導入識別名Secret削除, uninstall及び障害復旧後の再試行はAudit用Elastic Agent固有処理として本ロール内で実行します。障害発生時に手動でHelm導入識別名Secretを削除する前に, Playbookログと`helm status`の状態を確認してください。
 - 監査ログ収集用Podは既定ではcontrol-planeノードだけへ配置します。
 - `audit.log`の内容をAnsibleの検証出力へ表示せず, 読み取り可否だけを確認します。
 - Fleet Bootstrapが設定する監査ログの収集パスと, 本ロールがマウントするコンテナ側パスを一致させてください。
@@ -1212,6 +1307,9 @@ agent-pernode-elastic-agent-k8s-audit-57jlb
 - [Kubernetes volumes hostPath](https://kubernetes.io/docs/concepts/storage/volumes/#hostpath)
 - [kubectlコマンド](https://kubernetes.io/docs/reference/kubectl/)
 - [Helm](https://helm.sh/docs/)
+- [helm template](https://helm.sh/docs/helm/helm_template/)
+- [helm upgrade](https://helm.sh/docs/helm/helm_upgrade/)
+- [helm status](https://helm.sh/docs/helm/helm_status/)
 - [Elastic Agent for Kubernetes](https://www.elastic.co/guide/en/fleet/current/running-on-kubernetes-managed-by-fleet.html)
 - [Kubernetes integration](https://www.elastic.co/docs/reference/integrations/kubernetes/)
 - [Kubernetes Audit Logs integration](https://www.elastic.co/docs/reference/integrations/kubernetes/audit-logs)
@@ -1223,6 +1321,7 @@ agent-pernode-elastic-agent-k8s-audit-57jlb
 
 ### 関連ロール
 
+- [roles/k8s-helm-common/Readme.md](../k8s-helm-common/Readme.md) Helmリポジトリ操作, 事前描画, 導入・更新, Helm導入識別名状態確認の共通処理を記載しています。
 - [roles/k8s-ctrlplane/Readme.md](../k8s-ctrlplane/Readme.md)
 - [roles/elasticsearch/Readme.md](../elasticsearch/Readme.md)
 - [roles/logstash/Readme.md](../logstash/Readme.md)

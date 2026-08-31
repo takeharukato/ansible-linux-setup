@@ -1,0 +1,30 @@
+#  -*- coding:utf-8-unix mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  Helm values生成タスク
+#
+---
+
+# valuesファイルの親ディレクトリをHelm代表実行ユーザへ所有させ,
+# Helm template/upgradeから同じvaluesファイルを参照できるようにする。
+- name: Create elastic-agent-k8s-audit Helm values directory
+  ansible.builtin.file:
+    path: "{{ elastic_agent_k8s_audit_runtime_values_file_path | dirname }}"
+    state: directory
+    owner: "{{ elastic_agent_k8s_audit_runtime_operator_user }}"
+    group: "{{ elastic_agent_k8s_audit_runtime_operator_user }}"
+    mode: "0755"
+  become: true
+
+# Kubernetes API監査ログ収集用Elastic Agent固有のFleet設定と監査ログ入力設定をvaluesへ描画し,
+# Helm共通処理へ製品固有設定を持ち込まないようにする。
+- name: Render elastic-agent-k8s-audit Helm values file
+  ansible.builtin.template:
+    src: values.yaml.j2
+    dest: "{{ elastic_agent_k8s_audit_runtime_values_file_path }}"
+    owner: "{{ elastic_agent_k8s_audit_runtime_operator_user }}"
+    group: "{{ elastic_agent_k8s_audit_runtime_operator_user }}"
+    mode: "0600"
+    backup: false
+  become: true

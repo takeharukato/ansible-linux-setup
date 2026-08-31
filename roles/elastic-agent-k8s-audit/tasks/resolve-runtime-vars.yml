@@ -20,6 +20,8 @@
 #   Helm Chart版数。既存Kubernetes Elastic Agentの設定を継承する。
 # - elastic_agent_k8s_audit_runtime_namespace:
 #   配置先Kubernetes名前空間。既存Kubernetes Elastic Agentの設定を継承する。
+# - elastic_agent_k8s_audit_runtime_operator_user:
+#   Helm操作を実行するOSユーザ。
 # - elastic_agent_k8s_audit_runtime_config_dir:
 #   Helm valuesファイルを配置するディレクトリ。
 # - elastic_agent_k8s_audit_runtime_values_file_path:
@@ -72,15 +74,12 @@
         | string
         | trim
       }}
-    elastic_agent_k8s_audit_runtime_config_dir: >-
+    elastic_agent_k8s_audit_runtime_operator_user: >-
       {{
-        k8s_kubeadm_config_store
-        ~ '/elastic-agent-k8s-audit'
-      }}
-    elastic_agent_k8s_audit_runtime_values_file_path: >-
-      {{
-        k8s_kubeadm_config_store
-        ~ '/elastic-agent-k8s-audit/values.yaml'
+        k8s_runtime_helm_operator_user
+        | default('', true)
+        | string
+        | trim
       }}
     elastic_agent_k8s_audit_runtime_helm_timeout_seconds: >-
       {{
@@ -186,7 +185,7 @@
 - name: Resolve home directory for elastic-agent-k8s-audit Helm operator user
   ansible.builtin.getent:
     database: passwd
-    key: "{{ k8s_runtime_helm_operator_user }}"
+    key: "{{ elastic_agent_k8s_audit_runtime_operator_user }}"
   register: elastic_agent_k8s_audit_helm_operator_user_getent
   changed_when: false
 
@@ -195,7 +194,7 @@
   ansible.builtin.assert:
     that:
       - >-
-        k8s_runtime_helm_operator_user
+        elastic_agent_k8s_audit_runtime_operator_user
         in (
           elastic_agent_k8s_audit_helm_operator_user_getent
           .ansible_facts
@@ -203,14 +202,22 @@
           | default({})
         )
     fail_msg: >-
-      Helm operator user {{ k8s_runtime_helm_operator_user }} was not found.
+      Helm operator user {{ elastic_agent_k8s_audit_runtime_operator_user }} was not found.
 
-# Kubernetes API操作に使用するkubeconfigを解決する。
-# 既存Kubernetes Elastic Agent用の明示指定値が存在する場合はその値を継承し,
+# Kubernetes API操作に使用するkubeconfigとvalues配置先を,
+# Helm代表実行ユーザの実ホーム基準で決定する。
+# kubeconfigは既存Kubernetes Elastic Agent用の明示指定値が存在する場合はその値を継承し,
 # 未指定の場合はHelm代表実行ユーザのホームディレクトリ配下にある
 # ca-embedded-admin.confを使用する。
-- name: Resolve elastic-agent-k8s-audit runtime kubeconfig path
+- name: Resolve elastic-agent-k8s-audit runtime paths
   ansible.builtin.set_fact:
+    elastic_agent_k8s_audit_runtime_config_dir: >-
+      {{
+        elastic_agent_k8s_audit_helm_operator_user_getent
+        .ansible_facts
+        .getent_passwd[elastic_agent_k8s_audit_runtime_operator_user][4]
+        ~ '/kubeadm/elastic-agent-k8s-audit'
+      }}
     elastic_agent_k8s_audit_runtime_kubeconfig_path: >-
       {{
         (
@@ -231,9 +238,16 @@
         else (
           elastic_agent_k8s_audit_helm_operator_user_getent
           .ansible_facts
-          .getent_passwd[k8s_runtime_helm_operator_user][4]
+          .getent_passwd[elastic_agent_k8s_audit_runtime_operator_user][4]
           ~ '/.kube/ca-embedded-admin.conf'
         )
+      }}
+    elastic_agent_k8s_audit_runtime_values_file_path: >-
+      {{
+        elastic_agent_k8s_audit_helm_operator_user_getent
+        .ansible_facts
+        .getent_passwd[elastic_agent_k8s_audit_runtime_operator_user][4]
+        ~ '/kubeadm/elastic-agent-k8s-audit/values.yaml'
       }}
 
 # Helmで使用するChart参照名を"<repository>/<chart>"形式で構成する。

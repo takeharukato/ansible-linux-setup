@@ -6,13 +6,23 @@
 #
 ---
 
-# Kubernetes API監査ログ収集用Elastic Agentで使用するHelmリポジトリを,
-# Helm実行ユーザごとに登録する。
-# k8s_runtime_helm_execution_usersは, verify.ymlで事前検証済みではあるが,
-# 念のため, default([], true)で未定義時は空リストを設定するようにしている。
-- name: Add Helm repository for elastic-agent-k8s-audit
-  ansible.builtin.include_tasks: helm-add-repository.yml
-  loop: "{{ k8s_runtime_helm_execution_users | default([], true) }}"
-  loop_control:
-    loop_var: user
-    label: "{{ user | default('', true) | string | trim }}"
+# Kubernetes API監査ログ収集用Elastic Agentで使用するrepository情報と対象ユーザ一覧だけを
+# 共通Helm処理へ渡し, repositoryの存在確認, URL整合, index更新をk8s-helm-commonへ委譲する。
+- name: Reconcile Helm repository for elastic-agent-k8s-audit
+  vars:
+    k8s_helm_repository_name: "{{ elastic_agent_k8s_audit_runtime_helm_repo_name }}"
+    k8s_helm_repository_url: "{{ elastic_agent_k8s_audit_runtime_helm_repo_url }}"
+    k8s_helm_repository_users: "{{ k8s_runtime_helm_execution_users }}"
+    k8s_helm_operation_timeout_seconds: >-
+      {{ elastic_agent_k8s_audit_runtime_helm_timeout_seconds }}
+    k8s_helm_operation_retries: >-
+      {{ elastic_agent_k8s_audit_runtime_helm_retries }}
+    k8s_helm_operation_retry_interval_seconds: >-
+      {{ elastic_agent_k8s_audit_runtime_helm_retry_interval_seconds }}
+    k8s_helm_operation_request_interval_seconds: >-
+      {{ elastic_agent_k8s_audit_runtime_helm_request_interval_seconds }}
+  block:
+    - name: Reconcile Helm repository with common role
+      ansible.builtin.include_role:
+        name: k8s-helm-common
+        tasks_from: repository.yml
