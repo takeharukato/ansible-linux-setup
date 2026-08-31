@@ -61,23 +61,23 @@
 # - backup_users: バックアップ対象ユーザのリストを表す文字列 (例: "user1 user2")
 
 # netcatコマンド
-NC="{{ nc_command }}"
+NC="{{ nc_command|default('nc', true) }}"
 
 # 最大保存世代数
-rotate="{{ user_settings_backup_home_rotation }}"
+rotate="{{ user_settings_backup_home_rotation|default(7, true) }}"
 
 # NFSサーバ
-nfs_server="{{ user_settings_backup_home_nfs_server }}"
+nfs_server="{{ user_settings_backup_home_nfs_server|default('nfs.example.org', true) }}"
 # NFSサーバの共有ディレクトリ
-nfs_share="{{ user_settings_backup_home_nfs_dir }}"
+nfs_share="{{ user_settings_backup_home_nfs_dir|default('/export/backups', true) }}"
 # NASのnfsディレクトリ
 nfs_dir="${nfs_server}:${nfs_share}"
 #マウントポイント
-mnt_point="{{ user_settings_backup_home_mount_point }}"
+mnt_point="{{ user_settings_backup_home_mount_point|default('/mnt/backups', true) }}"
 # バックアップディレクトリ
-backup_dir="{{ user_settings_backup_output_dir }}"
+backup_dir="{{ user_settings_backup_output_dir|default('/mnt/backups/home', true) }}"
 # ユーザ一覧
-backup_users="{{ user_settings_backup_users_list| join(" ") }}"
+backup_users="{{ user_settings_backup_users_list|default([], true) | join(" ") }}"
 
 main(){
     local day

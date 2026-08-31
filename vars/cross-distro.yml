@@ -63,7 +63,9 @@ ansible_url_module_health_probe_enabled: true
 
 # OS 固有の設定ファイル配置ディレクトリ
 # /etc/default or /etc/sysconfig
-etc_default_dir: "{{ ((ansible_facts.os_family | default('RedHat')) == 'Debian') | ternary('/etc/default', '/etc/sysconfig') }}"
+etc_default_dir_rhel: "/etc/sysconfig"
+etc_default_dir_debian: "/etc/default"
+etc_default_dir: "{{ (ansible_facts.os_family == 'Debian') | ternary(etc_default_dir_debian, etc_default_dir_rhel) }}"
 
 # GRUB 設定ファイルパス
 grub_default_cfg_path_rhel: "/etc/default/grub"

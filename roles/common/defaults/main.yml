@@ -68,9 +68,6 @@ common_selinux_state: "permissive"
 # cronメールを無効にする
 common_disable_cron_mails: false
 
-# 環境ファイルの格納ディレクトリ ( OSで切替 )
-common_envdir: "{{ etc_default_dir | default((ansible_facts.os_family | default('RedHat')) == 'Debian' | ternary('/etc/default', '/etc/sysconfig')) }}"
-
 # DNSサーバに登録しないIF名の正規表現
 common_iface_deny_regex: "^(docker|br-|veth|virbr|vboxnet|vmnet|vnet|tun|tap|wg|tailscale|zt|lo)"
 
@@ -164,7 +161,7 @@ ddns_client_update_sh_dest_dir: "/usr/local/sbin"
 # ddns-client-update.sh のパス
 ddns_client_update_sh_path: "{{ ddns_client_update_sh_dest_dir }}/{{ ddns_client_update_sh_basename }}"
 # 環境ファイルの格納パス
-ddns_client_update_sh_sysconfig_path: "{{ common_envdir }}/{{ ddns_client_update_base }}"
+ddns_client_update_sh_sysconfig_path: "{{ etc_default_dir }}/{{ ddns_client_update_base }}"
 
 #
 # DNS サーバ関連変数 (Dynamic DNS nsupdate 関連)
@@ -199,7 +196,7 @@ nm_ra_addr_watch_iface_deny_regex: "{{ common_iface_deny_regex }}"
 # nm-ra-addr-watch のデバウンス時間(ミリ秒)
 nm_ra_addr_watch_debounce_ms: 800
 # 環境ファイルのパス
-nm_ra_addr_watch_sysconfig_path: "{{ common_envdir }}/{{ nm_ra_addr_watch_basename }}"
+nm_ra_addr_watch_sysconfig_path: "{{ etc_default_dir }}/{{ nm_ra_addr_watch_basename }}"
 # NetworkManager dispatcher スクリプトのパス
 #  NetworkManager dispatcher は /etc/NetworkManager/dispatcher.d 直下のスクリプトを
 #  1本ずつ実行キューに積むことで排他を実現している。
@@ -220,7 +217,7 @@ nm_ns_update_basename: "{{ nm_ns_update_num }}-{{ nm_ns_update_base }}"
 # 90-nm-ns-update のパス
 nm_ns_update_path: "{{ nm_dispatcher_path }}/{{ nm_ns_update_basename }}"
 # 90-nm-ns-update 環境ファイルのパス
-nm_ns_update_sysconfig_path: "{{ common_envdir }}/{{ nm_ns_update_base }}"
+nm_ns_update_sysconfig_path: "{{ etc_default_dir }}/{{ nm_ns_update_base }}"
 # 90-nm-ns-update 用 IF フィルタ
 nm_ns_update_iface_allow_regex: "^{{ _common_network_iface }}$"
 nm_ns_update_iface_deny_regex: "{{ common_iface_deny_regex }}"

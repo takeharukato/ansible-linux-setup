@@ -9,6 +9,8 @@
 #
 # NFSサーバ
 #
+# NFSサーバの有効化
+nfs_server_enabled: false
 
 # NFSで公開するディレクトリ
 nfs_export_directory: "/home/nfsshare"

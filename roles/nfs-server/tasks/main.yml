@@ -9,12 +9,15 @@
   ansible.builtin.include_tasks: load-params.yml
 
 #
-# 必須変数がすべて定義済みかつ空文字ではない場合のみ, NFS構成タスクを実行
+# nfs_server_enabledがtrueの場合, かつ,
+# 必須変数がすべて定義済み, かつ,
+# 空文字ではない場合のみ, NFS構成タスクを実行
 #
 
 - name: "Package"
   ansible.builtin.include_tasks: package.yml
   when:
+    - nfs_server_enabled | default(false) | bool
     - (nfs_export_directory | default('', true) | string | trim | length) > 0
     - (dns_domain | default('', true) | string | trim | length) > 0
     - (nfs_network | default('', true) | string | trim | length) > 0
@@ -22,6 +25,7 @@
 - name: "Directory"
   ansible.builtin.include_tasks: directory.yml
   when:
+    - nfs_server_enabled | default(false) | bool
     - (nfs_export_directory | default('', true) | string | trim | length) > 0
     - (dns_domain | default('', true) | string | trim | length) > 0
     - (nfs_network | default('', true) | string | trim | length) > 0
@@ -29,6 +33,7 @@
 - name: "User Group"
   ansible.builtin.include_tasks: user_group.yml
   when:
+    - nfs_server_enabled | default(false) | bool
     - (nfs_export_directory | default('', true) | string | trim | length) > 0
     - (dns_domain | default('', true) | string | trim | length) > 0
     - (nfs_network | default('', true) | string | trim | length) > 0
@@ -36,6 +41,7 @@
 - name: "Service"
   ansible.builtin.include_tasks: service.yml
   when:
+    - nfs_server_enabled | default(false) | bool
     - (nfs_export_directory | default('', true) | string | trim | length) > 0
     - (dns_domain | default('', true) | string | trim | length) > 0
     - (nfs_network | default('', true) | string | trim | length) > 0
@@ -43,6 +49,7 @@
 - name: "Config"
   ansible.builtin.include_tasks: config.yml
   when:
+    - nfs_server_enabled | default(false) | bool
     - (nfs_export_directory | default('', true) | string | trim | length) > 0
     - (dns_domain | default('', true) | string | trim | length) > 0
     - (nfs_network | default('', true) | string | trim | length) > 0

@@ -24,7 +24,7 @@
     - [その他の生成ファイル](#その他の生成ファイル)
   - [実行フロー](#実行フロー)
     - [ハンドラ](#ハンドラ)
-      - [bastion\_config\_reload\_sysctl (`handlers/reload-sysctl.yml`)](#bastion_config_reload_sysctl-handlersreload-sysctlyml)
+      - [router\_config\_reload\_sysctl (`handlers/reload-sysctl.yml`)](#router_config_reload_sysctl-handlersreload-sysctlyml)
     - [OS差異](#os差異)
   - [検証ポイント](#検証ポイント)
     - [1. ネットワーク構成とルータホストの役割](#1-ネットワーク構成とルータホストの役割)
@@ -325,7 +325,7 @@ ansible-playbook -i inventory/hosts router-clear-rules.yml
 
 6. **Config Sysctl** (`tasks/config-sysctl.yml`)
 - `templates/95-ipfoward.j2` を `/etc/sysctl.d/95-ipfoward.conf` に配置します。
-- 変更時はハンドラ `bastion_config_reload_sysctl` を通知します。
+- 変更時はハンドラ `router_config_reload_sysctl` を通知します。
 
 7. **Config Clear Rules** (`tasks/config-clear-rules.yml`)
 - `router_forwarding_enabled`, `router_nat_enabled`, `additional_network_routes` のいずれかが有効な場合に既存ルールを削除します。
@@ -346,9 +346,9 @@ ansible-playbook -i inventory/hosts router-clear-rules.yml
 
 ### ハンドラ
 
-#### bastion_config_reload_sysctl (`handlers/reload-sysctl.yml`)
+#### router_config_reload_sysctl (`handlers/reload-sysctl.yml`)
 
-- `listen`: `bastion_config_reload_sysctl`
+- `listen`: `router_config_reload_sysctl`
 - 実行コマンド: `sysctl --system`
 - 起動条件: `config-sysctl.yml` でテンプレート更新が発生した場合
 

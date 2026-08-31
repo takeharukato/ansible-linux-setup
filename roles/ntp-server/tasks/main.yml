@@ -10,13 +10,33 @@
 # 最初に変数設定を読み直す ( role単独で実行可能とするため )
 - name: "Load Params"
   ansible.builtin.include_tasks: load-params.yml
+
+# パッケージの導入
 - name: "Package"
   ansible.builtin.include_tasks: package.yml
+  when:
+    - ntp_server_enabled | default(false) | bool
+
+# ディレクトリ作成
 - name: "Directory"
   ansible.builtin.include_tasks: directory.yml
+  when:
+    - ntp_server_enabled | default(false) | bool
+
+# ユーザグループ作成
 - name: "User Group"
   ansible.builtin.include_tasks: user_group.yml
+  when:
+    - ntp_server_enabled | default(false) | bool
+
+# サービス起動処理
 - name: "Service"
   ansible.builtin.include_tasks: service.yml
+  when:
+    - ntp_server_enabled | default(false) | bool
+
+# 設定ファイル作成
 - name: "Config"
   ansible.builtin.include_tasks: config.yml
+  when:
+    - ntp_server_enabled | default(false) | bool
