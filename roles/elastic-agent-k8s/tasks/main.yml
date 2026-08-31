@@ -42,6 +42,12 @@
   when:
     - elastic_agent_k8s_enabled | default(false) | bool
 
+# Helm実行ユーザ向けvaluesファイル生成処理
+- name: "Render Helm Values"
+  ansible.builtin.include_tasks: render-values.yml
+  when:
+    - elastic_agent_k8s_enabled | default(false) | bool
+
 # ディレクトリ関連処理
 - name: "Directory"
   ansible.builtin.include_tasks: directory.yml

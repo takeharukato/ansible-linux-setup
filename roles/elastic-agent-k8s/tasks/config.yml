@@ -6,31 +6,36 @@
 #
 ---
 
-# Helmテンプレート描画を先に実行し, Chartとvaluesの整合性を導入前に確認する。
+# Helmテンプレート描画は共通Helm処理へ委譲し,
+# Chartとvaluesの整合性を導入前に同じ実行条件で確認する。
 - name: Render elastic-agent-k8s Helm template
-  ansible.builtin.command:
-    argv:
-      - sudo
-      - -u
-      - "{{ k8s_runtime_helm_operator_user }}"
-      - helm
-      - template
-      - "{{ elastic_agent_k8s_runtime_release_name }}"
-      - "{{ elastic_agent_k8s_runtime_chart_ref }}"
-      - --namespace
-      - "{{ elastic_agent_k8s_runtime_namespace }}"
-      - --version
-      - "{{ elastic_agent_k8s_runtime_chart_version }}"
-      - --kubeconfig
-      - "{{ elastic_agent_k8s_runtime_kubeconfig_path }}"
-      - -f
+  vars:
+    k8s_helm_release_name: "{{ elastic_agent_k8s_runtime_release_name }}"
+    k8s_helm_namespace: "{{ elastic_agent_k8s_runtime_namespace }}"
+    k8s_helm_chart_ref: "{{ elastic_agent_k8s_runtime_chart_ref }}"
+    k8s_helm_chart_version: "{{ elastic_agent_k8s_runtime_chart_version }}"
+    k8s_helm_kubeconfig_path: "{{ elastic_agent_k8s_runtime_kubeconfig_path }}"
+    k8s_helm_values_files:
       - "{{ elastic_agent_k8s_runtime_values_file_path }}"
-  register: elastic_agent_k8s_helm_template_result
-  changed_when: false
-  become: true
-  until: elastic_agent_k8s_helm_template_result.rc == 0
-  retries: "{{ elastic_agent_k8s_runtime_helm_retries | int }}"
-  delay: "{{ elastic_agent_k8s_runtime_helm_retry_interval_seconds | int }}"
+    k8s_helm_operation_timeout_seconds: >-
+      {{ elastic_agent_k8s_runtime_helm_timeout_seconds }}
+    k8s_helm_operation_retries: >-
+      {{ elastic_agent_k8s_runtime_helm_retries }}
+    k8s_helm_operation_retry_interval_seconds: >-
+      {{ elastic_agent_k8s_runtime_helm_retry_interval_seconds }}
+    k8s_helm_operation_request_interval_seconds: >-
+      {{ elastic_agent_k8s_runtime_helm_request_interval_seconds }}
+  block:
+    - name: Render elastic-agent-k8s Helm template with common role
+      ansible.builtin.include_role:
+        name: k8s-helm-common
+        tasks_from: template.yml
+
+# Elastic Agent固有のrender結果検証は既存変数名を維持し,
+# 共通Helm処理の出力を直後の固有検証だけへ引き渡す。
+- name: Preserve elastic-agent-k8s Helm template result
+  ansible.builtin.set_fact:
+    elastic_agent_k8s_helm_template_result: "{{ k8s_helm_template_result }}"
 
 # 不要なHostPathを生成していないことを検証し, ホスト依存のボリューム定義混入を防止する。
 # 正規表現'^\s*hostPath\s*:'は, 行頭空白を許容しつつhostPathキー定義行を検出する。
@@ -225,39 +230,37 @@
       Helm release is still in pending state after cleanup.
       Resolve in-progress install/upgrade/rollback before retrying upgrade.
 
-# 検証済みテンプレートと同一入力で導入し, まず初回適用結果を取得する。
+# 検証済みテンプレートと同一入力で行う通常の初回upgradeだけを共通Helm処理へ委譲する。
+# 共通upgradeは失敗結果を返して自動再試行しないため,
+# 非0終了時は後続のElastic Agent固有recovery処理へ従来どおり接続する。
 - name: Install or upgrade elastic-agent-k8s via Helm (first attempt)
-  ansible.builtin.command:
-    argv:
-      - sudo
-      - -u
-      - "{{ k8s_runtime_helm_operator_user }}"
-      - helm
-      - upgrade
-      - --install
-      - "{{ elastic_agent_k8s_runtime_release_name }}"
-      - "{{ elastic_agent_k8s_runtime_chart_ref }}"
-      - --namespace
-      - "{{ elastic_agent_k8s_runtime_namespace }}"
-      - --create-namespace
-      - --version
-      - "{{ elastic_agent_k8s_runtime_chart_version }}"
-      - --kubeconfig
-      - "{{ elastic_agent_k8s_runtime_kubeconfig_path }}"
-      - --wait
-      - --timeout
-      - "{{ elastic_agent_k8s_runtime_helm_timeout_seconds | int }}s"
-      - -f
+  vars:
+    k8s_helm_release_name: "{{ elastic_agent_k8s_runtime_release_name }}"
+    k8s_helm_namespace: "{{ elastic_agent_k8s_runtime_namespace }}"
+    k8s_helm_chart_ref: "{{ elastic_agent_k8s_runtime_chart_ref }}"
+    k8s_helm_chart_version: "{{ elastic_agent_k8s_runtime_chart_version }}"
+    k8s_helm_kubeconfig_path: "{{ elastic_agent_k8s_runtime_kubeconfig_path }}"
+    k8s_helm_values_files:
       - "{{ elastic_agent_k8s_runtime_values_file_path }}"
-  register: elastic_agent_k8s_helm_upgrade_first_result
-  failed_when: false
-  become: true
-  changed_when: >-
-    (
-      'STATUS: deployed' in (elastic_agent_k8s_helm_upgrade_first_result.stdout | default('', true))
-    ) or (
-      'STATUS: upgraded' in (elastic_agent_k8s_helm_upgrade_first_result.stdout | default('', true))
-    )
+    k8s_helm_create_namespace: true
+    k8s_helm_operation_timeout_seconds: >-
+      {{ elastic_agent_k8s_runtime_helm_timeout_seconds }}
+    k8s_helm_operation_retries: >-
+      {{ elastic_agent_k8s_runtime_helm_retries }}
+    k8s_helm_operation_retry_interval_seconds: >-
+      {{ elastic_agent_k8s_runtime_helm_retry_interval_seconds }}
+    k8s_helm_operation_request_interval_seconds: >-
+      {{ elastic_agent_k8s_runtime_helm_request_interval_seconds }}
+  block:
+    - name: Install or upgrade elastic-agent-k8s with common role
+      ansible.builtin.include_role:
+        name: k8s-helm-common
+        tasks_from: upgrade.yml
+
+# 初回upgradeの共通結果をElastic Agent固有recovery処理で使用する既存変数へ保存する。
+- name: Preserve elastic-agent-k8s first Helm upgrade result
+  ansible.builtin.set_fact:
+    elastic_agent_k8s_helm_upgrade_first_result: "{{ k8s_helm_upgrade_result }}"
 
 # 初回失敗時は現在のrelease状態を再取得し, 再試行前の解消処理要否を判断する。
 - name: Get elastic-agent-k8s Helm release status after failed first attempt
@@ -505,3 +508,25 @@
     fail_msg: >-
       Helm upgrade failed for elastic-agent-k8s.
       stderr={{ elastic_agent_k8s_helm_upgrade_result.stderr | default('', true) }}
+
+
+# 最終upgrade成功後のHelm post-conditionとしてreleaseがdeployed状態であることを確認する。
+# Deployment等のElastic Agent固有readinessはverify.ymlで従来どおり確認する。
+- name: Wait for elastic-agent-k8s Helm release
+  vars:
+    k8s_helm_release_name: "{{ elastic_agent_k8s_runtime_release_name }}"
+    k8s_helm_namespace: "{{ elastic_agent_k8s_runtime_namespace }}"
+    k8s_helm_kubeconfig_path: "{{ elastic_agent_k8s_runtime_kubeconfig_path }}"
+    k8s_helm_operation_timeout_seconds: >-
+      {{ elastic_agent_k8s_runtime_helm_timeout_seconds }}
+    k8s_helm_operation_retries: >-
+      {{ elastic_agent_k8s_runtime_helm_retries }}
+    k8s_helm_operation_retry_interval_seconds: >-
+      {{ elastic_agent_k8s_runtime_helm_retry_interval_seconds }}
+    k8s_helm_operation_request_interval_seconds: >-
+      {{ elastic_agent_k8s_runtime_helm_request_interval_seconds }}
+  block:
+    - name: Wait for elastic-agent-k8s Helm release with common role
+      ansible.builtin.include_role:
+        name: k8s-helm-common
+        tasks_from: wait-release.yml

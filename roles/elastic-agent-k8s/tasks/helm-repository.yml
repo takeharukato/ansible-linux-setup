@@ -6,53 +6,23 @@
 #
 ---
 
-# Helmリポジトリを登録する
-- name: Add Helm repository for elastic-agent-k8s
-  ansible.builtin.include_tasks: helm-add-repository.yml
-  loop: "{{ k8s_runtime_helm_execution_users }}"
-  loop_control:
-    loop_var: user
-    label: "{{ user | default('', true) | string | trim }}"
-
-# 後続のHelm templateとupgradeが代表実行ユーザ自身のvaluesファイルを使用するため, 実ホーム配下の配置先を再設定する。
-# passwd 配列のユーザ名を除く5番目の要素はホームディレクトリであり, その配下へ kubeadm/elastic-agent-k8s/values.yaml を連結する (elastic_agent_k8s_helm_operator_user_getent.ansible_facts.getent_passwd[k8s_runtime_helm_operator_user][4] ~ '/kubeadm/elastic-agent-k8s/values.yaml')。
-- name: Resolve elastic-agent-k8s runtime values file path for Helm operator user
-  ansible.builtin.set_fact:
-    elastic_agent_k8s_runtime_values_file_path: >-
-      {{
-        elastic_agent_k8s_helm_operator_user_getent.ansible_facts.getent_passwd[k8s_runtime_helm_operator_user][4]
-        ~ '/kubeadm/elastic-agent-k8s/values.yaml'
-      }}
-  changed_when: false
-
-# Helm実行ユーザの参照先へ対象リポジトリが登録済みであることを確認し, 後続のtemplate失敗を事前に防止する。
-- name: Verify Helm Repository for elastic-agent-k8s is visible to Helm operator user
-  ansible.builtin.command:
-    argv:
-      - sudo
-      - -u
-      - "{{ k8s_runtime_helm_operator_user }}"
-      - helm
-      - repo
-      - list
-      - -o
-      - yaml
-  register: elastic_agent_k8s_helm_repo_list_result
-  changed_when: false
-  become: true
-
-# 後続のHelm template/upgradeで同一ユーザ視点のリポジトリ参照失敗を防ぐため, 対象別名の存在を明示判定する。
-- name: Assert Helm Repository for elastic-agent-k8s is available to Helm operator user
-  ansible.builtin.assert:
-    that:
-      - >-
-        (
-          elastic_agent_k8s_helm_repo_list_result.stdout
-          | from_yaml
-          | selectattr('name', 'equalto', elastic_agent_k8s_runtime_helm_repo_name)
-          | list
-          | length
-        ) > 0
-    fail_msg: >-
-      Helm repository '{{ elastic_agent_k8s_runtime_helm_repo_name }}' is not visible to
-      user '{{ k8s_runtime_helm_operator_user }}'.
+# Elastic Agentで使用するrepository情報と対象ユーザ一覧だけを共通Helm処理へ渡し,
+# repositoryの存在確認, URL整合, index更新をk8s-helm-commonへ委譲する。
+- name: Reconcile Helm repository for elastic-agent-k8s
+  vars:
+    k8s_helm_repository_name: "{{ elastic_agent_k8s_runtime_helm_repo_name }}"
+    k8s_helm_repository_url: "{{ elastic_agent_k8s_runtime_helm_repo_url }}"
+    k8s_helm_repository_users: "{{ k8s_runtime_helm_execution_users }}"
+    k8s_helm_operation_timeout_seconds: >-
+      {{ elastic_agent_k8s_runtime_helm_timeout_seconds }}
+    k8s_helm_operation_retries: >-
+      {{ elastic_agent_k8s_runtime_helm_retries }}
+    k8s_helm_operation_retry_interval_seconds: >-
+      {{ elastic_agent_k8s_runtime_helm_retry_interval_seconds }}
+    k8s_helm_operation_request_interval_seconds: >-
+      {{ elastic_agent_k8s_runtime_helm_request_interval_seconds }}
+  block:
+    - name: Reconcile Helm repository with common role
+      ansible.builtin.include_role:
+        name: k8s-helm-common
+        tasks_from: repository.yml

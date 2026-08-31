@@ -31,7 +31,8 @@
       - [3. kube-state-metrics 設定確認](#3-kube-state-metrics-設定確認)
   - [トラブルシューティング](#トラブルシューティング)
     - [1. Helm template 検証で停止する場合](#1-helm-template-検証で停止する場合)
-    - [2. Deployment の稼働待機で停止する場合](#2-deployment-の稼働待機で停止する場合)
+    - [2. Helm導入識別名の更新で停止する場合](#2-helm導入識別名の更新で停止する場合)
+    - [3. Deployment の稼働待機で停止する場合](#3-deployment-の稼働待機で停止する場合)
   - [注意事項](#注意事項)
   - [参考資料](#参考資料)
     - [公式ドキュメント](#公式ドキュメント)
@@ -220,11 +221,12 @@
 - `elastic_agent_k8s_enabled` が `true` の場合のみ, 導入処理を実行します。
 - `elastic_agent_k8s_fleet_server_url_explicit` が未設定の場合は, 共通設定値から Fleet Server 接続先 URL を組み立てます。
 - `elastic_agent_k8s_enrollment_token` が未設定の場合は, Fleet Bootstrap が共有した Enrollment Token を利用します。
-- Helm values ファイルをテンプレートから生成し, `preset: clusterWide` と `kube-state-metrics.enabled: true` を明示して適用します。
-- Elastic Agent の clusterWide 構成, perNode 構成及び kube-state-metrics 構成の resources を辞書型変数で指定できるようにします。
+- Helm values ファイルをKubernetes共通設定で決定されたHelm実行ユーザのホームディレクトリ配下へ生成し, `preset: clusterWide` と `kube-state-metrics.enabled: true` を明示して適用します。
+- Elastic Agent の clusterWide 構成及び kube-state-metrics 構成の resources を辞書型変数で指定できるようにします。
 - DiskPressure 発生時の資源判定を安定化するため, Elastic Agent の resources で ephemeral-storage の要求値と上限値を明示します。
-- `helm template` で導入前検証を実施し, `hostPath` 定義の混入がないことを確認します。
-- `helm upgrade --install` を待機付きで実行し, 再試行条件を満たすまで適用を試みます。
+- Helmリポジトリ登録・更新, `helm template`, 通常時の `helm upgrade --install`, Helm導入識別名の `deployed` 状態確認は `k8s-helm-common` ロールへ委譲します。
+- `helm template` の生成結果については本ロールで `hostPath` 定義の混入がないことを確認します。
+- 通常時の `helm upgrade --install` が失敗した場合は, 本ロール固有の障害復旧処理で `uninstalling`, `pending-install`, `pending-upgrade`, `pending-rollback`, `uninstalled` を判定し, 必要な状態解消後に再試行します。
 - 導入後は, Helm導入識別名状態, 名前空間上の関連リソース, Deployment 稼働状態を検証します。DeploymentはKubernetes APIから最新状態を一定間隔で再取得し, 全要求Podが更新済みかつReady/Availableになるまで上限付きで待機します。
 
 ### Kubernetes API監査ログ収集用Elastic Agentとの役割分担
@@ -243,17 +245,27 @@
 
 ## 実行方法
 
-制御ホストで次のいずれかを実行します。
+制御ホストで本ロールだけを実行する場合は, 次のMakefileターゲットを使用します。
+
+```bash
+make run_elastic_agent_k8s
+```
+
+`run_elastic_agent_k8s` は `site.yml` に対して `elastic-agent-k8s` タグを指定して実行し, 実行ログを `build-elastic-agent-k8s.log` へ保存します。対象ホストは inventory の `logging_collector` グループから選択されます。
+
+ホスト向けElastic Agent, Kubernetesクラスタ監視用Elastic Agent, Kubernetes API監査ログ収集用Elastic Agentをまとめて実行する場合は, 次を使用します。
 
 ```bash
 make run_logging_collector
 ```
 
+または,
+
 ```bash
 ansible-playbook -i inventory/hosts logging-collector.yml
 ```
 
-本ロール単独で確認する場合は, 対象ホストに `elastic_agent_k8s_enabled: true` を設定した上で, 本ロールを呼び出すPlaybookだけを実行する構成としてください。
+本ロール単独で確認する場合は, `logging_collector` グループに対象のKubernetesコントロールプレーンノードを指定し, 対象ホストの `host_vars` で `elastic_agent_k8s_enabled: true` を設定してください。
 
 ## 主要変数
 
@@ -275,8 +287,8 @@ ansible-playbook -i inventory/hosts logging-collector.yml
 | --- | --- | --- | --- |
 | `elastic_agent_k8s_enabled` | ロール実行可否を指定するフラグ変数。 | `false` | `true` |
 | `elastic_agent_k8s_helm_timeout_seconds` | Helm 実行タイムアウト秒数。 | `300` | `300` |
-| `elastic_agent_k8s_helm_retries` | Helm 実行再試行回数。 | `3` | `3` |
-| `elastic_agent_k8s_helm_retry_interval_seconds` | Helm 実行再試行周期。 | `5` | `5` |
+| `elastic_agent_k8s_helm_retries` | Helmリポジトリ処理, `helm template`, Helm状態確認及び障害復旧後の再試行で使用する再試行回数。通常時の初回 `helm upgrade --install` 自体は自動再試行しない。 | `3` | `3` |
+| `elastic_agent_k8s_helm_retry_interval_seconds` | Helm関連処理を再試行する際の待機秒数。 | `5` | `5` |
 | `elastic_agent_k8s_helm_request_interval_seconds` | Kubernetes API 及び Helm 状態確認のリクエスト発行間隔。 | `5` | `5` |
 | `elastic_agent_k8s_verify_request_timeout_seconds` | 導入後検証の1回あたり要求タイムアウト秒数。 | `10` | `10` |
 | `elastic_agent_k8s_verify_retry_interval_seconds` | 導入後検証の再試行間隔秒数。 | `5` | `5` |
@@ -293,7 +305,7 @@ ansible-playbook -i inventory/hosts logging-collector.yml
 | 辞書のキー | 設定する内容 | 既定値 | 設定例 |
 | --- | --- | --- | --- |
 | `limits.ephemeral-storage` | Pod が使用できる一時領域の上限値を指定します。 | `2Gi` | `3Gi` |
-| `limits.memory` | Pod が使用できるメモリの上限値を指定します。 | `800Mi` | `1200Mi` |
+| `limits.memory` | Pod が使用できるメモリの上限値を指定します。 | `1Gi` | `1200Mi` |
 | `requests.cpu` | Pod が要求する CPU の下限値を指定します。 | `100m` | `200m` |
 | `requests.ephemeral-storage` | Pod が要求する一時領域の下限値を指定します。 | `512Mi` | `1Gi` |
 | `requests.memory` | Pod が要求するメモリの下限値を指定します。 | `400Mi` | `600Mi` |
@@ -340,7 +352,7 @@ ansible-playbook -i inventory/hosts logging-collector.yml
 | 行番号 | 設定値 | 有効になる動作 | 設定背景(未設定時/誤設定時の問題と防止理由) |
 | --- | --- | --- | --- |
 | 1 | `elastic_agent_k8s_enabled: true` | 本ロールの導入処理を実行します。 | `false` のままでは導入処理が実行されないためです。 |
-| 2-5 | Helm処理のタイムアウト値, 再試行回数, 再試行周期, リクエスト発行間隔 | Helm導入処理の一時的な失敗時に, 指定した条件で再試行します。 | 値が不適切な場合は早期失敗又は過剰待機が発生するためです。 |
+| 2-5 | Helm処理のタイムアウト値, 再試行回数, 再試行周期, リクエスト発行間隔 | Helmリポジトリ処理, 事前描画, 状態確認及び障害復旧後の再試行に使用します。通常時の初回 `helm upgrade --install` は1回実行し, 失敗時は状態確認と必要な復旧処理を行ってから再試行します。 | 状態を確認せずに更新系処理だけを反復すると, 処理中のHelm導入識別名と競合する可能性があるためです。 |
 | 6-8 | 導入後検証の要求タイムアウト値, 再試行間隔, 再試行回数 | Helm状態確認及びKubernetes APIによるDeployment状態確認を上限付きで再試行します。 | Kubernetesリソースが起動途中である過渡状態を即時失敗とせず, 一時的な通信失敗にも対応するためです。 |
 | 9-10 | Fleet Server接続先URL, 証明書検証省略フラグ | Fleet Server 登録先と接続方式を指定します。 | URL不整合又は検証設定不整合で登録処理が失敗するためです。 |
 | 11-18 | `elastic_agent_k8s_clusterwide_resources` | clusterWide 構成の Elastic Agent Pod が使用する CPU, メモリ, 一時領域の要求値及び上限値を指定します。 | 値が未指定又は不適切な場合は, Pod の資源割当が不足し, 稼働が不安定になるためです。 |
@@ -350,24 +362,27 @@ ansible-playbook -i inventory/hosts logging-collector.yml
 
 | 入力 | 出力 ( 既定 ) | 目的 |
 | --- | --- | --- |
-| `templates/values.yaml.j2` | `/home/kube/kubeadm/elastic-agent-k8s/values.yaml` など | Helm values ファイルを生成し, `preset: clusterWide`, `agent.presets.clusterWide.resources`, `agent.presets.perNode.resources`, `kube-state-metrics.enabled` 及び任意指定の `kube-state-metrics.resources` を適用する。 |
+| `templates/values.yaml.j2` | `<Helm実行ユーザのホームディレクトリ>/kubeadm/elastic-agent-k8s/values.yaml` | Helm values ファイルを生成し, `preset: clusterWide`, `agent.presets.clusterWide.resources`, `kube-state-metrics.enabled` 及び任意指定の `kube-state-metrics.resources` を適用する。 |
 
-values.yamlファイルは, Helm 実行ユーザに合わせて実行時に決定されます。
-接続ユーザのホーム配下を指すパスが指定された場合は, 接続ユーザと Helm 実行ユーザの実ホームディレクトリを参照して, Helm 実行ユーザ側のホーム配下へ自動変換します。
+Helm実行ユーザは, Kubernetes共通設定で決定されたHelm実行ユーザ (既定: `ansible`) を使用します。values.yamlファイルの出力先は, Kubernetes共通設定で決定されたHelm実行ユーザのホームディレクトリ (既定: `/home/ansible`) を基準に決定します。既定では `/home/ansible/kubeadm/elastic-agent-k8s/values.yaml` を使用します。
+
+kubeconfigは明示指定値がある場合はその値を使用し, 未指定時は同じHelm実行ユーザのホームディレクトリ配下にある `.kube/ca-embedded-admin.conf` を使用します。既定では `/home/ansible/.kube/ca-embedded-admin.conf` です。
 
 ## 実行フロー
 
 1. [tasks/load-params.yml](tasks/load-params.yml) で共通変数を読み込みます。
-2. [tasks/resolve-runtime-vars.yml](tasks/resolve-runtime-vars.yml) で導入に必要な実行時変数を解決します。
+2. [tasks/resolve-runtime-vars.yml](tasks/resolve-runtime-vars.yml) でHelm実行ユーザ, kubeconfig, valuesファイル配置先, Helm Chart参照先, timeout/retry値などの実行時変数を解決します。
 3. [tasks/load-enrollment-token.yml](tasks/load-enrollment-token.yml) で Enrollment Token を明示値優先で解決し, 未設定時は Fleet Bootstrap 連携の共有情報を利用します。
-4. [tasks/validate.yml](tasks/validate.yml) で Chart版数形式, 名前空間, kubeconfig パス, Enrollment Token, 再試行値を検証します。
-5. [tasks/package.yml](tasks/package.yml) で helmコマンドとkubectlコマンドの利用可否を確認します。
-6. [tasks/config.yml](tasks/config.yml) で values ファイルをテンプレートから生成します。
-7. [tasks/config.yml](tasks/config.yml) で `helm template` を実行し, `hostPath` 定義の非生成を検証します。
-8. [tasks/config.yml](tasks/config.yml) で `helm upgrade --install` を実行し, 待機付き導入が失敗した場合は release 状態を再確認して `pending-*` 又は `uninstalling` を解消した後に再試行します。
-9. [tasks/verify.yml](tasks/verify.yml) で `helm status` により release 状態を確認します。
-10. [tasks/verify.yml](tasks/verify.yml) で名前空間上の関連リソース存在を確認します。
-11. [tasks/verify.yml](tasks/verify.yml) で各Deploymentの最新状態をKubernetes APIから再取得し, `observedGeneration`, `replicas`, `updatedReplicas`, `readyReplicas`, `availableReplicas`, `unavailableReplicas`を確認して稼働完了まで上限付きで待機します。
+4. [tasks/validate.yml](tasks/validate.yml) で Chart版数形式, 名前空間, kubeconfig パス, Enrollment Token, Helm実行ユーザ及び再試行値を検証します。
+5. [tasks/package.yml](tasks/package.yml) で Helm実行対象ユーザの `helm` コマンド利用可否と, Helm実行ユーザの `kubectl` コマンド利用可否を確認します。
+6. [tasks/helm-repository.yml](tasks/helm-repository.yml) から `k8s-helm-common` の `repository.yml` を呼び出し, Helm実行対象ユーザごとにElastic Helmリポジトリの存在, URL整合及びindex更新を確認します。
+7. [tasks/render-values.yml](tasks/render-values.yml) でHelm実行ユーザのホームディレクトリ配下にvaluesファイル用ディレクトリを作成し, `templates/values.yaml.j2` からvaluesファイルを生成します。
+8. [tasks/config.yml](tasks/config.yml) から `k8s-helm-common` の `template.yml` を呼び出して `helm template` を実行し, 本ロールで生成結果に `hostPath` 定義が含まれないことを検証します。
+9. [tasks/config.yml](tasks/config.yml) で既存Helm導入識別名の状態を確認し, `uninstalling`, `pending-*`, `uninstalled` の場合は既存のElastic Agent固有障害復旧処理で更新前状態を整えます。
+10. [tasks/config.yml](tasks/config.yml) から `k8s-helm-common` の `upgrade.yml` を呼び出し, 通常時の `helm upgrade --install --wait --timeout` を1回実行します。初回更新が失敗した場合だけ, 本ロール固有の状態確認と必要な障害復旧処理を行った後, 同一入力で更新を再試行します。
+11. [tasks/config.yml](tasks/config.yml) から `k8s-helm-common` の `wait-release.yml` を呼び出し, 最終的なHelm導入識別名が `deployed` 状態であることを確認します。
+12. [tasks/verify.yml](tasks/verify.yml) でHelm導入識別名状態と名前空間上の関連リソース存在を確認します。
+13. [tasks/verify.yml](tasks/verify.yml) で各Deploymentの最新状態をKubernetes APIから再取得し, `observedGeneration`, `replicas`, `updatedReplicas`, `readyReplicas`, `availableReplicas`, `unavailableReplicas`を確認して稼働完了まで上限付きで待機します。
 
 ## 検証ポイント
 
@@ -433,7 +448,7 @@ deployed
 
 **実行するコマンド**:
 
-Kubernetes 共通設定で解決された Helm 実行ユーザを使用し, 共通設定が未指定の場合は `k8s_operator_user`変数で指定されたユーザ(既定:`kube`)を使用します。`${HOME}` は実行ユーザのホームディレクトリを指します。
+Kubernetes共通設定で決定されたHelm実行ユーザ (既定: `ansible`) で実行します。`${HOME}` はKubernetes共通設定で決定されたHelm実行ユーザのホームディレクトリ (既定: `/home/ansible`) を指します。
 
 ```bash
 kubectl --kubeconfig "${HOME}/.kube/ca-embedded-admin.conf" -n kube-system get deployment -l app.kubernetes.io/instance=elastic-agent-k8s
@@ -463,7 +478,7 @@ $ kubectl --kubeconfig "${HOME}/.kube/ca-embedded-admin.conf" -n kube-system get
 
 - `AVAILABLE` 列が `1` 以上であることを確認することで, 対象のKubernetesクラスタに属するノード全体に対するDeploymentが稼働していることを確認します。
 - `status.observedGeneration` が `metadata.generation` 以上であり, `status.replicas`, `status.updatedReplicas`, `status.readyReplicas`, `status.availableReplicas` が `spec.replicas` と一致し, `status.unavailableReplicas` が `0`又は未設定であることを確認します。
-- Playbook内では1回のKubernetes API要求を既定10秒でタイムアウトし, 5秒間隔で最大60回再試行します。最大待機時間は約15分です。
+- Playbook内では1回のKubernetes API要求を既定10秒でタイムアウトし, 5秒間隔で最大60回再試行します。再試行間隔だけで約5分の待機予算を持ち, 各要求の処理時間が加算されます。
 
 #### 3. kube-state-metrics 設定確認
 
@@ -516,13 +531,33 @@ $
 - 出力に一致行がある場合は, values ファイル又は Chart 版数の組み合わせにより不要なボリューム定義が混入していることを確認します。
 - 出力に一致行がない場合は, テンプレート検証失敗の原因が `hostPath` 混入でないことを確認します。
 
-### 2. Deployment の稼働待機で停止する場合
+### 2. Helm導入識別名の更新で停止する場合
 
 **実施対象ホスト**: logging_collector グループに属する対象ホスト (K8sのコントロールプレーンノード)
 
 **実行するコマンド**:
 
-Kubernetes 共通設定で解決された Helm 実行ユーザを使用し, 共通設定が未指定の場合は `k8s_operator_user`変数で指定されたユーザ(既定:`kube`)を使用します。`${HOME}` は実行ユーザのホームディレクトリを指します。
+Kubernetes共通設定で決定されたHelm実行ユーザ (既定: `ansible`) で実行します。
+
+```bash
+helm status elastic-agent-k8s --namespace kube-system --output json | jq '{status: .info.status, revision: .version, description: .info.description}'
+helm history elastic-agent-k8s --namespace kube-system
+```
+
+**確認ポイント**:
+
+- `deployed` 以外の場合は, `helm status` と `helm history` で現在状態と直前の操作履歴を確認します。
+- 本ロールは更新前又は初回更新失敗後に `uninstalling`, `pending-install`, `pending-upgrade`, `pending-rollback`, `uninstalled` を判定し, 必要な場合だけ状態解消処理を実行します。
+- 初回 `helm upgrade --install` が成功した場合は, 障害復旧後の再試行処理は実行しません。
+- `pending-*` 状態では本ロールが対象revisionのHelm導入識別名Secretを削除する場合があります。手動でSecretを削除する前に `build-elastic-agent-k8s.log`, `helm status`, `helm history` を確認し, Playbookによる復旧処理の結果を確認してください。
+
+### 3. Deployment の稼働待機で停止する場合
+
+**実施対象ホスト**: logging_collector グループに属する対象ホスト (K8sのコントロールプレーンノード)
+
+**実行するコマンド**:
+
+Kubernetes共通設定で決定されたHelm実行ユーザ (既定: `ansible`) で実行します。`${HOME}` はKubernetes共通設定で決定されたHelm実行ユーザのホームディレクトリ (既定: `/home/ansible`) を指します。
 
 ```bash
 kubectl --kubeconfig "${HOME}/.kube/ca-embedded-admin.conf" -n kube-system get deployment -l app.kubernetes.io/instance=elastic-agent-k8s -o wide
@@ -608,7 +643,8 @@ $ kubectl --kubeconfig "${HOME}/.kube/ca-embedded-admin.conf" -n kube-system get
 - 本ロールは `elastic_agent_k8s_enabled` が `true` の場合だけ導入処理を実行します。
 - Enrollment Token を `vars/all-config.yml` や版管理対象ファイルへ保存しないでください。
 - `elastic_agent_k8s_insecure: true` は検証環境を前提とした設定です。本番運用では HTTPS と証明書検証を使用してください。
-- 本ロールは `helm template` と `helm upgrade --install` を同一 values で実行します。適用前後で入力値を変更しない運用としてください。
+- 本ロールは `helm template` と通常時の `helm upgrade --install` を `k8s-helm-common` 経由で同一valuesファイルを使用して実行します。
+- `helm upgrade --install` 失敗時の `uninstalling`, `pending-*`, `uninstalled` 判定, Helm導入識別名Secret削除, uninstall及び障害復旧後の再試行はElastic Agent固有処理として本ロール内で実行します。障害発生時に手動でHelm導入識別名Secretを削除する前に, Playbookログと `helm status` の状態を確認してください。
 
 ## 参考資料
 
@@ -631,6 +667,8 @@ $ kubectl --kubeconfig "${HOME}/.kube/ca-embedded-admin.conf" -n kube-system get
 - [Kubernetes DaemonSet](https://kubernetes.io/docs/concepts/workloads/controllers/daemonset/)
 
 ### 関連ロール
+
+- [roles/k8s-helm-common/Readme.md](../k8s-helm-common/Readme.md) Helmリポジトリ操作, 事前描画, 導入・更新, Helm導入識別名状態確認の共通処理を記載しています。
 
 - [roles/elastic-agent-k8s-audit/Readme.md](../elastic-agent-k8s-audit/Readme.md) Kubernetes API監査ログ収集用Elastic Agentの導入仕様を記載しています。
 

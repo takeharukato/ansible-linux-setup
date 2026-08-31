@@ -14,6 +14,7 @@
 # - elastic_agent_k8s_runtime_chart_name: Helm Chart名。
 # - elastic_agent_k8s_runtime_chart_version: Helm Chart版数。
 # - elastic_agent_k8s_runtime_namespace: 配置先Kubernetes名前空間。
+# - elastic_agent_k8s_runtime_operator_user: Helm操作を実行するOSユーザ。
 # - elastic_agent_k8s_runtime_kubeconfig_path: Kubernetes API操作で使うkubeconfigファイルのパス。
 #   明示値が空の場合は, Helm実行ユーザのホーム配下にある
 #   ca-embedded-admin.conf を使用する。
@@ -33,7 +34,7 @@
     elastic_agent_k8s_runtime_chart_name: "{{ elastic_agent_k8s_chart_name | string | trim }}"
     elastic_agent_k8s_runtime_chart_version: "{{ elastic_agent_k8s_chart_version | string | trim }}"
     elastic_agent_k8s_runtime_namespace: "{{ elastic_agent_k8s_namespace | string | trim }}"
-    elastic_agent_k8s_runtime_values_file_path: "{{ elastic_agent_k8s_values_file_path | string | trim }}"
+    elastic_agent_k8s_runtime_operator_user: "{{ k8s_runtime_helm_operator_user | default('', true) | string | trim }}"
     elastic_agent_k8s_runtime_helm_timeout_seconds: "{{ elastic_agent_k8s_helm_timeout_seconds | int }}"
     elastic_agent_k8s_runtime_helm_retries: "{{ elastic_agent_k8s_helm_retries | int }}"
     elastic_agent_k8s_runtime_helm_retry_interval_seconds: >-
@@ -69,21 +70,29 @@
 - name: Resolve home directory for elastic-agent-k8s Helm operator user
   ansible.builtin.getent:
     database: passwd
-    key: "{{ k8s_runtime_helm_operator_user }}"
+    key: "{{ elastic_agent_k8s_runtime_operator_user }}"
   register: elastic_agent_k8s_helm_operator_user_getent
   changed_when: false
 
-# 実行時kubeconfig参照先を, 明示値優先かつ実ユーザホーム基準で決定する。
-- name: Resolve elastic-agent-k8s runtime kubeconfig path
+# 実行時kubeconfig参照先とvalues配置先を,
+# Helm代表実行ユーザの実ホーム基準で決定する。
+# kubeconfigは明示値が設定されている場合だけその値を優先し,
+# valuesは従来の実効配置先である<home>/kubeadm/elastic-agent-k8s/values.yamlを使用する。
+- name: Resolve elastic-agent-k8s runtime paths
   ansible.builtin.set_fact:
     elastic_agent_k8s_runtime_kubeconfig_path: >-
       {{
         (elastic_agent_k8s_kubeconfig_path | default('', true) | string | trim)
         if ((elastic_agent_k8s_kubeconfig_path | default('', true) | string | trim | length) > 0)
         else (
-          elastic_agent_k8s_helm_operator_user_getent.ansible_facts.getent_passwd[k8s_runtime_helm_operator_user][4]
+          elastic_agent_k8s_helm_operator_user_getent.ansible_facts.getent_passwd[elastic_agent_k8s_runtime_operator_user][4]
           ~ '/.kube/ca-embedded-admin.conf'
         )
+      }}
+    elastic_agent_k8s_runtime_values_file_path: >-
+      {{
+        elastic_agent_k8s_helm_operator_user_getent.ansible_facts.getent_passwd[elastic_agent_k8s_runtime_operator_user][4]
+        ~ '/kubeadm/elastic-agent-k8s/values.yaml'
       }}
 
 # Helmで使うChart参照名は, リポジトリ名の後ろに"/"を入れてChart名をつなげた文字列である。
