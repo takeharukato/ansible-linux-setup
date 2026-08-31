@@ -15,6 +15,10 @@
   ansible.builtin.include_tasks: validate.yml
   when:
     - k8s_hubble_ui_enabled | default(false) | bool
+- name: "Resolve Runtime Vars"
+  ansible.builtin.include_tasks: resolve-runtime-vars.yml
+  when:
+    - k8s_hubble_ui_enabled | default(false) | bool
 - name: "Package"
   ansible.builtin.include_tasks: package.yml
   when:
@@ -33,5 +37,12 @@
     - k8s_hubble_ui_enabled | default(false) | bool
 - name: "Config"
   ansible.builtin.include_tasks: config.yml
+  when:
+    - k8s_hubble_ui_enabled | default(false) | bool
+
+# Helm更新後にHubble UI Deploymentの全ReplicaがReady/Availableであることを確認し,
+# UIを部分起動状態のまま正常終了させない。
+- name: "Verify"
+  ansible.builtin.include_tasks: verify.yml
   when:
     - k8s_hubble_ui_enabled | default(false) | bool

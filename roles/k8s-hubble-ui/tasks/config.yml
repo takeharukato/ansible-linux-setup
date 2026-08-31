@@ -64,23 +64,29 @@
     backup: false
   become: true
 
-# 既存の Helm values を取得 (マージモード時)
-- name: Get existing Cilium Helm values
-  ansible.builtin.shell: |
-    set -o pipefail
-    helm get values cilium -n kube-system -o yaml
-  args:
-    executable: /bin/bash
-  register: helm_get_values_result
-  failed_when: false
-  changed_when: false
-  become: true
+# 既存Cilium releaseの利用者設定valuesを共通Helm代表ユーザで取得し,
+# Hubble UI設定をマージして既存Cilium設定を保持する。
+- name: Get existing Cilium Helm values via k8s-helm-common
+  vars:
+    k8s_helm_release_name: "{{ k8s_hubble_ui_runtime_release_name }}"
+    k8s_helm_namespace: "{{ k8s_hubble_ui_runtime_namespace }}"
+    k8s_helm_kubeconfig_path: "{{ k8s_hubble_ui_runtime_kubeconfig_path }}"
+    k8s_helm_get_values_all: false
+    k8s_helm_operation_timeout_seconds: "{{ k8s_hubble_ui_runtime_helm_timeout_seconds }}"
+    k8s_helm_operation_retries: "{{ k8s_hubble_ui_runtime_helm_retries }}"
+    k8s_helm_operation_retry_interval_seconds: "{{ k8s_hubble_ui_runtime_helm_retry_interval_seconds }}"
+    k8s_helm_operation_request_interval_seconds: "{{ k8s_hubble_ui_runtime_helm_request_interval_seconds }}"
   when: hubble_ui_merge_existing_values | default(false)
+  block:
+    - name: Get Cilium Helm values with common role
+      ansible.builtin.include_role:
+        name: k8s-helm-common
+        tasks_from: get-values.yml
 
 # 既存 values を一時ファイルに保存 (取得成功かつ空でない場合)
 - name: Save existing values to file
   ansible.builtin.copy:
-    content: "{{ helm_get_values_result.stdout }}"
+    content: "{{ k8s_helm_release_values_yaml }}"
     dest: "{{ k8s_hubble_ui_config_dir }}/cilium-existing-values.yml"
     owner: root
     group: root
@@ -88,8 +94,8 @@
   become: true
   when:
     - hubble_ui_merge_existing_values | default(false)
-    - helm_get_values_result.rc == 0
-    - helm_get_values_result.stdout | length > 0
+    - k8s_helm_get_values_result.rc == 0
+    - k8s_helm_release_values_yaml | length > 0
 
 # 既存値と新規値をマージ (yq使用)
 # 新規値（Hubble UI設定）を優先するため、右側（fileIndex==1）を後にマージ
@@ -108,8 +114,8 @@
   become: true
   when:
     - hubble_ui_merge_existing_values | default(false)
-    - helm_get_values_result.rc == 0
-    - helm_get_values_result.stdout | length > 0
+    - k8s_helm_get_values_result.rc == 0
+    - k8s_helm_release_values_yaml | length > 0
 
 # マージ結果をデバッグ表示
 - name: Display yq merge result
@@ -117,8 +123,8 @@
     var: yq_merge_result
   when:
     - hubble_ui_merge_existing_values | default(false)
-    - helm_get_values_result.rc == 0
-    - helm_get_values_result.stdout | length > 0
+    - k8s_helm_get_values_result.rc == 0
+    - k8s_helm_release_values_yaml | length > 0
 
 # マージ結果を確認
 - name: Check merged values file
@@ -128,8 +134,8 @@
   become: true
   when:
     - hubble_ui_merge_existing_values | default(false)
-    - helm_get_values_result.rc == 0
-    - helm_get_values_result.stdout | length > 0
+    - k8s_helm_get_values_result.rc == 0
+    - k8s_helm_release_values_yaml | length > 0
 
 # マージファイルが空の場合は警告を表示
 - name: Warn if merged file is empty
@@ -137,8 +143,8 @@
     msg: "WARNING: Merged values file is empty. Will use hubble-ui-values.yml instead."
   when:
     - hubble_ui_merge_existing_values | default(false)
-    - helm_get_values_result.rc == 0
-    - helm_get_values_result.stdout | length > 0
+    - k8s_helm_get_values_result.rc == 0
+    - k8s_helm_release_values_yaml | length > 0
     - merged_file_stat.stat.exists
     - merged_file_stat.stat.size == 0
 
@@ -148,8 +154,8 @@
     hubble_ui_helm_values_file: >-
       {{
         (hubble_ui_merge_existing_values | default(false) and
-         helm_get_values_result.rc == 0 and
-         helm_get_values_result.stdout | length > 0 and
+         k8s_helm_get_values_result.rc == 0 and
+         k8s_helm_release_values_yaml | length > 0 and
          merged_file_stat.stat.exists and
          merged_file_stat.stat.size > 0)
         | ternary(
@@ -159,21 +165,42 @@
       }}
   changed_when: false
 
-# Helm upgrade で Hubble UI を有効化
-- name: Enable Hubble UI via Helm upgrade
-  ansible.builtin.shell: |
-    helm upgrade --install cilium cilium/cilium \
-      --namespace kube-system \
-      --version {{ hubble_ui_version }} \
-      -f {{ hubble_ui_helm_values_file }} \
-      --wait \
-      --timeout 10m
-  become: true
-  register: _result
-  changed_when: _result.rc == 0
+# Cilium初期導入と同じ共通Helm代表ユーザで同一releaseを更新し,
+# Hubble UI有効化後もrepository設定とrelease所有操作の実行ユーザを統一する。
+- name: Enable Hubble UI via k8s-helm-common
+  vars:
+    k8s_helm_release_name: "{{ k8s_hubble_ui_runtime_release_name }}"
+    k8s_helm_namespace: "{{ k8s_hubble_ui_runtime_namespace }}"
+    k8s_helm_chart_ref: "{{ k8s_hubble_ui_runtime_chart_ref }}"
+    k8s_helm_chart_version: "{{ k8s_hubble_ui_runtime_chart_version }}"
+    k8s_helm_kubeconfig_path: "{{ k8s_hubble_ui_runtime_kubeconfig_path }}"
+    k8s_helm_values_files:
+      - "{{ hubble_ui_helm_values_file }}"
+    k8s_helm_create_namespace: false
+    k8s_helm_wait: true
+    k8s_helm_operation_timeout_seconds: "{{ k8s_hubble_ui_runtime_helm_timeout_seconds }}"
+    k8s_helm_operation_retries: "{{ k8s_hubble_ui_runtime_helm_retries }}"
+    k8s_helm_operation_retry_interval_seconds: "{{ k8s_hubble_ui_runtime_helm_retry_interval_seconds }}"
+    k8s_helm_operation_request_interval_seconds: "{{ k8s_hubble_ui_runtime_helm_request_interval_seconds }}"
+  block:
+    - name: Install or upgrade Cilium Helm release for Hubble UI
+      ansible.builtin.include_role:
+        name: k8s-helm-common
+        tasks_from: upgrade.yml
 
-# Hubble UI Deployment の起動を待機
-- name: Wait for Hubble UI Deployment to be available
-  ansible.builtin.command: kubectl --kubeconfig {{ k8s_admin_kubeconfig_path }} wait deployment/hubble-ui -n kube-system --for=condition=Available --timeout=5m
-  become: true
-  changed_when: false
+    # 共通upgrade処理は失敗結果を呼出元へ返すため,
+    # 従来のhelm upgradeと同様に非0終了時はHubble UI設定を停止する。
+    - name: Validate Hubble UI Helm upgrade result
+      ansible.builtin.assert:
+        that:
+          - k8s_helm_upgrade_result.rc | default(1) | int == 0
+        fail_msg: >-
+          Hubble UI Helm upgrade failed.
+          rc={{ k8s_helm_upgrade_result.rc | default('unknown') }},
+          stderr={{ k8s_helm_upgrade_result.stderr | default('', true) }}
+
+    # --wait完了後もrelease自身がdeployed状態であることを共通post-conditionで確認する。
+    - name: Wait for Cilium Helm release after Hubble UI update
+      ansible.builtin.include_role:
+        name: k8s-helm-common
+        tasks_from: wait-release.yml

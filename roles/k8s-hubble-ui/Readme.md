@@ -194,12 +194,12 @@
 Cilium Hubble UI を Kubernetes クラスタへ導入するロールです。
 
 主な機能:
-- **Helm チャート統合**: 既存の Cilium Helm リリースを `helm upgrade --install` でアップグレードし, `hubble.ui.enabled: true` を追加設定します。
+- **Helm チャート統合**: `k8s-helm-common` を介して既存の Cilium Helm リリースを `helm upgrade --install` で更新し, `hubble.ui.enabled: true` を追加設定します。
 - **既存設定保護 (マージ機能)**: デフォルトで有効な `yq` ベースのマージ機能により, 既存 Cilium 設定を完全に保護しながら Hubble UI 設定を追加できます。
 - **CRD 確認と待ち合わせ**: デプロイ前に Cilium CRD の存在確認と kube-apiserver の起動待ち合わせを自動実行します。
 - **Service 公開方法の選択**: NodePort/LoadBalancer/ClusterIP を変数で切り替え, 運用環境に応じたアクセス方法を提供します。
 - **Hubble Relay 依存性確認**: Hubble UI 動作に必須の Hubble Relay 有効化を事前確認し, 問題を早期に検出します。
-- **Deployment 起動確認**: Helm upgrade 後, Hubble UI Deployment が正常に Ready 状態になるまで待ち合わせます。
+- **Deployment 起動確認**: Helm upgrade 後, Hubble UI Deploymentの指定レプリカ数, generation, 更新済みレプリカ数, Readyレプリカ数, Availableレプリカ数をKubernetes APIから取得し, すべての条件を満たすまで上限付きで再試行します。
 
 ## 前提条件
 
@@ -207,7 +207,9 @@ Cilium Hubble UI を Kubernetes クラスタへ導入するロールです。
 - Cilium が Helm 経由でインストール済みであること (`k8s-ctrlplane` ロール実行済み)
 - Hubble Relay が有効化されていること - Hubble UI は Hubble Relay に依存します (`hubble.relay.enabled: true` を確認)
 - `kubectl` コマンドが利用可能であること (Kubernetes リソース操作用)
-- `helm` コマンドが利用可能であること (Cilium Helm リリース管理用)
+- Cilium 初期導入時と同じ共通 Helm 操作ユーザ (`k8s_runtime_helm_operator_user`) が利用可能であること
+- 共通 Helm 操作ユーザのホームディレクトリへ `k8s-kubeconfig` ロールが `~/.kube/ca-embedded-admin.conf` を配布済みであること
+- 共通 Helm 操作ユーザから `helm` コマンドを利用可能であること (Cilium Helm リリース管理用)
 - `yq` コマンドが利用可能であること - マージ機能使用時に必須 (既存設定保護)
 - Ansible 実行ホストから kube-apiserver へのネットワークアクセスが可能であること
 
@@ -219,11 +221,7 @@ Cilium Hubble UI を Kubernetes クラスタへ導入するロールです。
 make run_k8s_hubble_ui
 ```
 
-または,
-
-```bash
-ansible-playbook -i inventory/hosts site.yml --tags "k8s-hubble-ui"
-```
+本 Make ターゲットは `site.yml` を `k8s-hubble-ui` タグで実行します。Helm 操作は本ロールから `k8s-helm-common` へ委譲し, Cilium 初期導入時と同じ共通 Helm 操作ユーザを使用します。
 
 ## 主要変数
 
@@ -243,6 +241,9 @@ Kubernetes API Server の待ち合わせ条件は [k8s-common ロール](../k8s-
 | `hubble_ui_service_type` | `"NodePort"` | Service 公開方法 (NodePort/LoadBalancer/ClusterIP)。 |
 | `hubble_ui_nodeport` | `31234` | NodePort 使用時のポート番号。 |
 | `hubble_ui_replicas` | `1` | Hubble UI Deployment レプリカ数。 |
+| `k8s_hubble_ui_verify_request_timeout_seconds` | `10` | Hubble UI Deployment状態確認のKubernetes API要求1回のtimeout秒数。 |
+| `k8s_hubble_ui_verify_retry_interval_seconds` | `5` | Hubble UI Deployment状態確認の再試行間隔秒数。 |
+| `k8s_hubble_ui_verify_retries` | `60` | Hubble UI Deployment状態確認の最大再試行回数。 |
 
 ### マージ・ネットワーク・Ingress 設定
 
@@ -350,30 +351,69 @@ kubectl --kubeconfig /etc/kubernetes/admin.conf port-forward -n kube-system svc/
 
 | テンプレートファイル名 | 出力先パス | 説明 |
 | --- | --- | --- |
-| `テンプレート未使用 (ランタイム生成: hubble-ui-values.yml)` | `/home/ansible/kubeadm/hubble-ui/hubble-ui-values.yml` | Hubble UI 設定のみを含む Helm values ファイルです。`hubble.ui` セクションのみを上書きする最小限の構成です。 |
+| `templates/hubble-ui-values.yml.j2` | `/home/ansible/kubeadm/hubble-ui/hubble-ui-values.yml` | Hubble UI 設定のみを含む Helm values ファイルです。`hubble.ui` セクションのみを上書きする最小限の構成です。 |
 | `テンプレート未使用 (ランタイム生成: hubble-ui-values-merged.yml)` | `/home/ansible/kubeadm/hubble-ui/hubble-ui-values-merged.yml` | `hubble_ui_merge_existing_values: true` の場合にのみ生成されます。既存 Cilium Helm values と `hubble-ui-values.yml` を `yq` でマージした結果を格納します。 |
-| `テンプレート未使用 (ランタイム生成: cilium-existing-values.yml)` | `/home/ansible/kubeadm/hubble-ui/cilium-existing-values.yml` | `hubble_ui_merge_existing_values: true` の場合にのみ生成されます。`helm get values cilium -n kube-system` で取得した既存値を一時保存します。 |
+| `テンプレート未使用 (ランタイム生成: cilium-existing-values.yml)` | `/home/ansible/kubeadm/hubble-ui/cilium-existing-values.yml` | `hubble_ui_merge_existing_values: true` の場合にのみ生成されます。`k8s-helm-common/get-values.yml` を介して取得した既存 Cilium values を一時保存します。 |
 
 **既定の動作ではマージ機能が有効**になっており, `hubble-ui-values-merged.yml` が Helm upgrade に使用されます。これにより既存の Cilium 設定が保護されます。マージ機能を無効にした場合 (`hubble_ui_merge_existing_values: false`) は `hubble-ui-values.yml` のみが生成されるが, **既存の Cilium 設定が失われる可能性があるため推奨しない**。
 
 ## 実行フロー
 
-本ロールは以下の順序で処理を実行します:
+本ロールは Hubble UI 固有の設定生成と検証を担当し, Helm release の取得, 更新, 状態確認は `k8s-helm-common` へ委譲します。`k8s-hubble-ui` は Helm CLI 操作を独自実装せず, Cilium 初期導入時と同じ共通 Helm 操作ユーザと kubeconfig を使用します。
 
-1. **パラメータ読み込み** (`load-params.yml`): OS 別パッケージ定義 (`vars/packages-ubuntu.yml`, `vars/packages-rhel.yml`), クロスディストロ変数 (`vars/cross-distro.yml`), 共通変数 (`vars/all-config.yml`, `vars/k8s-api-address.yml`) を読み込みます。
+ロール間の責務分界を以下に示します。
 
-2. **変数検証** (`validate.yml`): `k8s_hubble_ui_enabled` の型チェック (true/false のいずれか), `hubble_ui_version` が空文字列の場合は `k8s_cilium_version` に自動設定します。
+| ロール | 責務 |
+| --- | --- |
+| `k8s-hubble-ui` | Hubble UI 固有パラメータの検証, Helm 実行時変数の解決, Hubble UI values 生成, 既存 Cilium values とのマージ, Hubble Relay/Cilium CRD確認, Hubble UI Deployment の起動確認 |
+| `k8s-helm-common` | 共通 Helm 操作ユーザによる Helm CLI 実行, `helm get values`, `helm upgrade --install`, release 待ち合わせ・状態確認, timeout/retry制御 |
 
-3. **パッケージ・ディレクトリ・ユーザ・サービス準備** (`package.yml`, `directory.yml`, `user_group.yml`, `service.yml`): 現在プレースホルダ (実処理なし)。
+処理フローと各ロールの担当範囲を以下に示します。
 
-4. **メイン処理: 設定生成と Helm upgrade** (`config.yml`): 以下の処理を実行します:
-   - **kube-apiserver 待ち合わせ**: `k8s_api_wait_*` パラメータで接続確認 (タイムアウト: 600秒デフォルト)
-   - **Cilium CRD 確認**: Cilium が正常にインストールされていることを確認 (最大 30回リトライ, 10秒間隔)
-   - **Hubble Relay Deployment 確認**: Hubble Relay が有効化されていることを確認 (無効時は警告表示)
-  - **Hubble UI values ファイル生成**: `hubble-ui-values.yml.j2` テンプレートを展開し, `/home/ansible/kubeadm/hubble-ui/hubble-ui-values.yml` を生成
-   - **既存設定マージ (オプション)**: `hubble_ui_merge_existing_values: true` の場合, `helm get values cilium -n kube-system` で既存値を取得し, `yq` で新規設定とマージ（既存設定保護）
-   - **Helm upgrade 実行**: `helm upgrade --install cilium <chart> -n kube-system -f <values-file>` を実行
-   - **Deployment 起動確認**: `kubectl wait --for=condition=available` で Hubble UI Deployment が Ready 状態になるまで待機
+```mermaid
+flowchart TD
+    subgraph HUBBLE["k8s-hubble-ui"]
+        A[パラメータ読み込み・検証]
+        B[Helm実行時変数とkubeconfigを解決]
+        C[kube-apiserver / Cilium CRD / Hubble Relay確認]
+        D[Hubble UI values生成]
+        E[既存Cilium values取得を要求]
+        F[既存valuesとHubble UI valuesをマージ]
+        G[使用するvaluesファイルを決定]
+        H[Cilium release更新を要求]
+        I[Hubble UI Deployment起動確認]
+    end
+
+    subgraph HELM["k8s-helm-common"]
+        J[共通Helm操作ユーザで helm get values]
+        K[共通Helm操作ユーザで helm upgrade --install]
+        L[Cilium releaseのdeployed状態を確認]
+    end
+
+    A --> B
+    B --> C
+    C --> D
+    D --> E
+    E --> J
+    J --> F
+    F --> G
+    G --> H
+    H --> K
+    K --> L
+    L --> I
+```
+
+処理の詳細は以下の通りです。
+
+1. **パラメータ読み込み・検証** (`load-params.yml`, `validate.yml`): OS別変数と共通変数を読み込み, `k8s_hubble_ui_enabled` および `hubble_ui_version` を検証します。
+2. **Helm実行時変数解決** (`resolve-runtime-vars.yml`): Cilium release名, namespace, Chart, 共通Helm操作ユーザ, timeout/retry設定を解決します。共通Helm操作ユーザのホームディレクトリから `~/.kube/ca-embedded-admin.conf` を実行用kubeconfigとして解決します。
+3. **事前状態確認** (`config.yml`): kube-apiserverの起動, Cilium CRD, Hubble Relay Deploymentを確認します。
+4. **Hubble UI values生成** (`config.yml`): `templates/hubble-ui-values.yml.j2` から `hubble-ui-values.yml` を生成します。
+5. **既存Cilium values取得** (`config.yml` → `k8s-helm-common/get-values.yml`): `hubble_ui_merge_existing_values: true` の場合, 共通Helm操作ユーザで既存Cilium releaseの利用者設定valuesを取得します。
+6. **valuesマージ** (`config.yml`): 取得した既存valuesとHubble UI用valuesを `yq` でマージし, `hubble-ui-values-merged.yml` を生成します。取得結果が空の場合などは `hubble-ui-values.yml` を使用します。
+7. **Cilium release更新** (`config.yml` → `k8s-helm-common/upgrade.yml`): 共通Helm操作ユーザで `helm upgrade --install` を実行し, Hubble UI設定を既存Cilium releaseへ適用します。
+8. **release状態確認** (`config.yml` → `k8s-helm-common/wait-release.yml`): Helm更新完了後, Cilium releaseが `deployed` 状態であることを確認します。
+9. **Hubble UI実行時検証** (`verify.yml`): Kubernetes APIからHubble UI Deploymentを取得し, `spec.replicas`が`hubble_ui_replicas`と一致し, `observedGeneration`が最新generation以上, `updatedReplicas`, `readyReplicas`, `availableReplicas`が指定レプリカ数と一致し, `unavailableReplicas`が0になるまでtimeoutとretryを適用して再確認します。
 
 ## 検証ポイント
 
@@ -506,29 +546,36 @@ kubectl --kubeconfig /etc/kubernetes/admin.conf get nodes -o wide | head -n 2
 
 **コマンド:**
 
-以下のコマンドを実行します:
+既定の共通 Helm 操作ユーザが `ansible` の場合, 以下のコマンドを実行します。
 
 ```bash
-helm get values cilium -n kube-system | grep -A 10 "^ui:"
+sudo -u ansible helm get values cilium \
+  --namespace kube-system \
+  --kubeconfig /home/ansible/.kube/ca-embedded-admin.conf \
+  --output yaml | grep -A 15 "^hubble:"
 ```
 
 **期待される出力:**
 
 ```plaintext
-ui:
-  enabled: true
-  replicas: 1
-  service:
-    type: NodePort
-    nodePort: 31234
-    ipFamilyPolicy: PreferDualStack
+hubble:
+  relay:
+    enabled: true
+  ui:
+    enabled: true
+    replicas: 1
+    service:
+      type: NodePort
+      nodePort: 31234
+      ipFamilyPolicy: PreferDualStack
 ```
 
 **確認ポイント:**
-- `ui.enabled: true` が設定されていること
-- `ui.replicas` が `vars/all-config.yml` の `hubble_ui_replicas` 値と一致していること
-- `ui.service.type` が `hubble_ui_service_type` と一致していること
-- NodePort 利用時は `ui.service.nodePort` が設定値と一致していること
+- `hubble.ui.enabled: true` が設定されていること
+- `hubble.relay.enabled: true` が設定されていること
+- `hubble.ui.replicas` が `vars/all-config.yml` の `hubble_ui_replicas` 値と一致していること
+- `hubble.ui.service.type` が `hubble_ui_service_type` と一致していること
+- NodePort 利用時は `hubble.ui.service.nodePort` が設定値と一致していること
 
 ## トラブルシューティング
 
@@ -562,25 +609,40 @@ ui:
 
 ### Helm upgrade が失敗する
 
-1. Cilium Helm リリースが存在することを確認します:
+以下は, 共通 Helm 操作ユーザが既定の `ansible` の場合の確認例です。共通 Helm 操作ユーザを変更している場合は, `k8s_runtime_helm_operator_user` と対応するホームディレクトリへ読み替えてください。
+
+1. 共通 Helm 操作ユーザから Cilium Helm release を参照できることを確認します:
 
    ```bash
-   helm list -n kube-system
+   sudo -u ansible helm status cilium \
+     --namespace kube-system \
+     --kubeconfig /home/ansible/.kube/ca-embedded-admin.conf
    ```
 
-2. `hubble_ui_merge_existing_values: false` に設定して, マージ機能を無効化してから再実行します。
-
-3. 既存の Helm values に構文エラーがないことを確認します:
+2. 共通 Helm 操作ユーザから既存 Cilium values を取得できることを確認します:
 
    ```bash
-   helm get values cilium -n kube-system -o yaml
+   sudo -u ansible helm get values cilium \
+     --namespace kube-system \
+     --kubeconfig /home/ansible/.kube/ca-embedded-admin.conf \
+     --output yaml
    ```
+
+3. `k8s_runtime_helm_operator_user` に設定されたユーザが存在し, そのホームディレクトリに `.kube/ca-embedded-admin.conf` が配布されていることを確認します。
+
+4. `hubble-ui-values.yml` と, マージ機能が有効な場合は `cilium-existing-values.yml` および `hubble-ui-values-merged.yml` の内容を確認します。
+
+`hubble_ui_merge_existing_values: false` への変更は既存 Cilium 設定を失う可能性があるため, Helm upgrade失敗時の一般的な回避策としては使用しません。
 
 ## 注意事項
 
+### Hubble UI Deployment検証について
+
+Hubble UI Deploymentの導入後検証では, 単一のAvailable条件だけではなく, 指定レプリカ数, 最新generationへの反映, 更新済みレプリカ数, Readyレプリカ数, Availableレプリカ数, unavailableレプリカ数をまとめて確認します。Kubernetes API要求のtimeout, retry間隔, retry回数は`k8s_hubble_ui_verify_request_timeout_seconds`, `k8s_hubble_ui_verify_retry_interval_seconds`, `k8s_hubble_ui_verify_retries`で変更できます。
+
 ### Cilium Pod の再起動について
 
-**このロールは `helm upgrade` を実行するため, 既存 Cilium Pod が再起動される可能性があります。** Cilium DaemonSet や Operator の再起動により, 一時的なネットワーク断が発生する場合があります。本番環境での実行時は適切なメンテナンスウィンドウを設定してください。
+**このロールは `k8s-helm-common` を介して `helm upgrade` を実行するため, 既存 Cilium Pod が再起動される可能性があります。** Cilium DaemonSet や Operator の再起動により, 一時的なネットワーク断が発生する場合があります。本番環境での実行時は適切なメンテナンスウィンドウを設定してください。
 
 ### Helm values ファイルの永続化
 
@@ -590,16 +652,16 @@ ui:
 
 **このロールはデフォルトでマージ機能が有効**になっています (`hubble_ui_merge_existing_values: true`)。マージ機能では以下の処理が実行されます:
 
-1. `helm get values cilium -n kube-system` で現在の Helm values を取得
-2. 取得した値と `hubble-ui-values.yml` を `yq eval-all 'select(fileIndex==0) * select(fileIndex==1)'` でマージ
+1. `k8s-helm-common/get-values.yml` を介して, 共通 Helm 操作ユーザで現在の Cilium Helm values を取得
+2. 取得した値と `hubble-ui-values.yml` を `yq` でマージ
 3. マージ結果を `hubble-ui-values-merged.yml` に保存
-4. Helm upgrade 時にマージ結果を使用
+4. `k8s-helm-common/upgrade.yml` を介した Helm upgrade 時にマージ結果を使用
 
 既存の Cilium Helm リリースが存在しない場合や `helm get values` が失敗した場合は, マージ処理をスキップして `hubble-ui-values.yml` のみを使用します。
 
 ### Helm upgrade と既存設定の保持について
 
-このロールは `helm upgrade --install` コマンドを使用して Hubble UI を有効化します。Helm の `upgrade` コマンドは `--reuse-values` フラグを指定しない限り, **values ファイルに記載されていない設定は Cilium Helm Chart のデフォルト値に戻ります**。
+このロールは `k8s-helm-common/upgrade.yml` を介して `helm upgrade --install` コマンドを実行し, Hubble UI を有効化します。Helm の `upgrade` コマンドは `--reuse-values` フラグを指定しない限り, **values ファイルに記載されていない設定は Cilium Helm Chart のデフォルト値に戻ります**。
 
 これは Hubble UI に限らず, Cilium 全体の設定に影響します。例えば:
 
@@ -642,3 +704,4 @@ Hubble UI は Hubble Relay を経由してKubernetesクラスタ内のフロー�
 ### 公式ドキュメント
 
 - [Cilium Hubble UI](https://docs.cilium.io/en/stable/observability/hubble/setup/#hubble-ui)
+- [Kubernetes - Deployment](https://kubernetes.io/docs/concepts/workloads/controllers/deployment/)

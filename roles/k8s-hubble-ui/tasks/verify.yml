@@ -1,0 +1,115 @@
+#  -*- coding:utf-8-unix mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  Hubble UI実行結果検証タスク
+#
+---
+
+# チェックモードではKubernetesクラスタの実行時状態を検証できないため,
+# Hubble UI Deploymentの実行時検証を明示的にスキップする。
+- name: Skip Hubble UI runtime verification in check mode
+  ansible.builtin.debug:
+    msg: >-
+      Check mode: skipping runtime verification for Hubble UI.
+  when: ansible_check_mode | bool
+
+# Deployment検証で使用する待機条件を外部コマンド実行前に検証し,
+# 無効なタイムアウト値や再試行回数による即時失敗を防止する。
+- name: Validate Hubble UI runtime verification timing inputs
+  ansible.builtin.assert:
+    that:
+      - k8s_hubble_ui_verify_request_timeout_seconds | int > 0
+      - k8s_hubble_ui_verify_retry_interval_seconds | int >= 0
+      - k8s_hubble_ui_verify_retries | int > 0
+      - hubble_ui_replicas | int > 0
+    fail_msg: >-
+      Hubble UI runtime verification timing values or replica count are invalid.
+  when: not (ansible_check_mode | bool)
+
+# Hubble UI Deploymentの最新状態をKubernetes APIから取得し,
+# 指定Replica数が最新generationで更新済みかつ全てReady/Availableになるまで上限付きで再確認する。
+- name: Wait for Hubble UI Deployment readiness
+  ansible.builtin.command:
+    argv:
+      - kubectl
+      - --kubeconfig
+      - "{{ k8s_admin_kubeconfig_path }}"
+      - --namespace
+      - kube-system
+      - "--request-timeout={{ k8s_hubble_ui_verify_request_timeout_seconds | int }}s"
+      - get
+      - deployment
+      - hubble-ui
+      - --output=json
+  register: k8s_hubble_ui_verify_deployment_result
+  changed_when: false
+  become: true
+  until:
+    - k8s_hubble_ui_verify_deployment_result.rc | default(1) | int == 0
+    - >-
+      (
+        (
+          k8s_hubble_ui_verify_deployment_result.stdout
+          | default('{}', true)
+          | from_json
+        ).get('spec', {}).get('replicas', 0)
+        | int
+      ) == (hubble_ui_replicas | int)
+    - >-
+      (
+        (
+          k8s_hubble_ui_verify_deployment_result.stdout
+          | default('{}', true)
+          | from_json
+        ).get('status', {}).get('observedGeneration', 0)
+        | int
+      )
+      >=
+      (
+        (
+          k8s_hubble_ui_verify_deployment_result.stdout
+          | default('{}', true)
+          | from_json
+        ).get('metadata', {}).get('generation', 0)
+        | int
+      )
+    - >-
+      (
+        (
+          k8s_hubble_ui_verify_deployment_result.stdout
+          | default('{}', true)
+          | from_json
+        ).get('status', {}).get('updatedReplicas', 0)
+        | int
+      ) == (hubble_ui_replicas | int)
+    - >-
+      (
+        (
+          k8s_hubble_ui_verify_deployment_result.stdout
+          | default('{}', true)
+          | from_json
+        ).get('status', {}).get('readyReplicas', 0)
+        | int
+      ) == (hubble_ui_replicas | int)
+    - >-
+      (
+        (
+          k8s_hubble_ui_verify_deployment_result.stdout
+          | default('{}', true)
+          | from_json
+        ).get('status', {}).get('availableReplicas', 0)
+        | int
+      ) == (hubble_ui_replicas | int)
+    - >-
+      (
+        (
+          k8s_hubble_ui_verify_deployment_result.stdout
+          | default('{}', true)
+          | from_json
+        ).get('status', {}).get('unavailableReplicas', 0)
+        | int
+      ) == 0
+  retries: "{{ k8s_hubble_ui_verify_retries | int }}"
+  delay: "{{ k8s_hubble_ui_verify_retry_interval_seconds | int }}"
+  when: not (ansible_check_mode | bool)

@@ -43,6 +43,14 @@ hubble_ui_service_ipFamilies:
 # 将来的に可用性要件に応じて変更可能とするために明示的に変数化した
 hubble_ui_replicas: 1
 
+# Hubble UI Deployment検証のKubernetes API要求タイムアウト値 (単位: 秒)
+k8s_hubble_ui_verify_request_timeout_seconds: 10
+# Hubble UI Deployment検証の再試行間隔 (単位: 秒)
+k8s_hubble_ui_verify_retry_interval_seconds: 5
+# Hubble UI Deployment検証の再試行回数 (単位: 回)
+# Worker Node参加後のPod起動時間を考慮し, 最大約5分の待機予算を確保する。
+k8s_hubble_ui_verify_retries: 60
+
 # 既存の Cilium Helm values とマージするかどうか
 # true の場合, helm get values で取得した既存値と新規設定をマージします
 # 既定値: true
