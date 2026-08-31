@@ -32,6 +32,14 @@
   ansible.builtin.include_tasks: config-k8sctrlplane-firewall.yml
   when: enable_firewall | default(false,true)
 
+# Helm CLI導入
+- name: "Install Helm"
+  ansible.builtin.include_tasks: install-helm.yml
+
+# Cilium CLI導入
+- name: "Install Cilium CLI"
+  ansible.builtin.include_tasks: install-cilium-cli.yml
+
 # Helm設定
 - name: "Config Helm"
   ansible.builtin.include_tasks: config-helm.yml

@@ -1,0 +1,284 @@
+#  -*- coding:utf-8-unix; mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  Cilium実行結果検証タスク
+#
+---
+
+# チェックモードではKubernetes APIおよびHubble Relayへの実通信を行わない。
+- name: Skip Cilium runtime verification in check mode
+  ansible.builtin.debug:
+    msg: >-
+      Check mode: skipping runtime verification for Cilium and Hubble Relay.
+  when: ansible_check_mode | bool
+
+# 外部コマンド実行前にパスと待機条件を検証し,
+# 無効な入力値による即時失敗や意図しないファイル参照を防止する。
+- name: Validate Cilium runtime verification inputs
+  ansible.builtin.assert:
+    that:
+      - k8s_cilium_verify_kubeconfig_path | string | trim | length > 0
+      - k8s_cilium_verify_hubble_binary_path | string | trim | length > 0
+      - k8s_cilium_verify_request_timeout_seconds | int > 0
+      - k8s_cilium_verify_retry_interval_seconds | int >= 0
+      - k8s_cilium_verify_retries | int > 0
+      - k8s_cilium_verify_hubble_timeout_seconds | int > 0
+    fail_msg: >-
+      Cilium runtime verification inputs are invalid.
+  when: not (ansible_check_mode | bool)
+
+# 管理者kubeconfigが存在することを確認し,
+# Kubernetes API検証を認証情報不足の状態で開始しないようにする。
+- name: Check Cilium verification kubeconfig
+  ansible.builtin.stat:
+    path: "{{ k8s_cilium_verify_kubeconfig_path }}"
+  register: k8s_cilium_verify_kubeconfig_stat
+  become: true
+  when: not (ansible_check_mode | bool)
+
+# kubeconfigが通常ファイルとして存在することを検証する。
+- name: Assert Cilium verification kubeconfig exists
+  ansible.builtin.assert:
+    that:
+      - k8s_cilium_verify_kubeconfig_stat.stat.exists | default(false) | bool
+      - k8s_cilium_verify_kubeconfig_stat.stat.isreg | default(false) | bool
+    fail_msg: >-
+      Cilium verification kubeconfig does not exist.
+      path={{ k8s_cilium_verify_kubeconfig_path }}
+  when: not (ansible_check_mode | bool)
+
+# Cilium DaemonSetの最新状態をKubernetes APIから取得し,
+# 全配置対象Podが最新generationでReady/Availableになるまで上限付きで再確認する。
+- name: Wait for Cilium DaemonSet readiness
+  ansible.builtin.command:
+    argv:
+      - kubectl
+      - --kubeconfig
+      - "{{ k8s_cilium_verify_kubeconfig_path }}"
+      - --namespace
+      - kube-system
+      - "--request-timeout={{ k8s_cilium_verify_request_timeout_seconds | int }}s"
+      - get
+      - daemonset
+      - cilium
+      - --output=json
+  register: k8s_cilium_verify_daemonset_result
+  changed_when: false
+  become: true
+  until:
+    - k8s_cilium_verify_daemonset_result.rc | default(1) | int == 0
+    - >-
+      (
+        (
+          k8s_cilium_verify_daemonset_result.stdout
+          | default('{}', true)
+          | from_json
+        ).get('status', {}).get('desiredNumberScheduled', 0)
+        | int
+      ) > 0
+    - >-
+      (
+        (
+          k8s_cilium_verify_daemonset_result.stdout
+          | default('{}', true)
+          | from_json
+        ).get('status', {}).get('observedGeneration', 0)
+        | int
+      )
+      >=
+      (
+        (
+          k8s_cilium_verify_daemonset_result.stdout
+          | default('{}', true)
+          | from_json
+        ).get('metadata', {}).get('generation', 0)
+        | int
+      )
+    - >-
+      (
+        (
+          k8s_cilium_verify_daemonset_result.stdout
+          | default('{}', true)
+          | from_json
+        ).get('status', {}).get('currentNumberScheduled', 0)
+        | int
+      )
+      ==
+      (
+        (
+          k8s_cilium_verify_daemonset_result.stdout
+          | default('{}', true)
+          | from_json
+        ).get('status', {}).get('desiredNumberScheduled', 0)
+        | int
+      )
+    - >-
+      (
+        (
+          k8s_cilium_verify_daemonset_result.stdout
+          | default('{}', true)
+          | from_json
+        ).get('status', {}).get('updatedNumberScheduled', 0)
+        | int
+      )
+      ==
+      (
+        (
+          k8s_cilium_verify_daemonset_result.stdout
+          | default('{}', true)
+          | from_json
+        ).get('status', {}).get('desiredNumberScheduled', 0)
+        | int
+      )
+    - >-
+      (
+        (
+          k8s_cilium_verify_daemonset_result.stdout
+          | default('{}', true)
+          | from_json
+        ).get('status', {}).get('numberReady', 0)
+        | int
+      )
+      ==
+      (
+        (
+          k8s_cilium_verify_daemonset_result.stdout
+          | default('{}', true)
+          | from_json
+        ).get('status', {}).get('desiredNumberScheduled', 0)
+        | int
+      )
+    - >-
+      (
+        (
+          k8s_cilium_verify_daemonset_result.stdout
+          | default('{}', true)
+          | from_json
+        ).get('status', {}).get('numberAvailable', 0)
+        | int
+      )
+      ==
+      (
+        (
+          k8s_cilium_verify_daemonset_result.stdout
+          | default('{}', true)
+          | from_json
+        ).get('status', {}).get('desiredNumberScheduled', 0)
+        | int
+      )
+    - >-
+      (
+        (
+          k8s_cilium_verify_daemonset_result.stdout
+          | default('{}', true)
+          | from_json
+        ).get('status', {}).get('numberUnavailable', 0)
+        | int
+      ) == 0
+  retries: "{{ k8s_cilium_verify_retries | int }}"
+  delay: "{{ k8s_cilium_verify_retry_interval_seconds | int }}"
+  when: not (ansible_check_mode | bool)
+
+# Cilium OperatorとHubble RelayはどちらもDeploymentとして配置されるため,
+# 同一のreadiness条件を共通タスクへ渡して重複実装を防止する。
+- name: Verify Cilium related Deployments
+  ansible.builtin.include_tasks: verify-deployment.yml
+  loop:
+    - cilium-operator
+    - hubble-relay
+  loop_control:
+    loop_var: k8s_cilium_verify_deployment_name
+    label: "{{ k8s_cilium_verify_deployment_name }}"
+  when: not (ansible_check_mode | bool)
+
+# Hubble CLIが存在することを確認し,
+# Relay API機能確認をCLI未導入の状態で開始しないようにする。
+- name: Check Hubble CLI binary
+  ansible.builtin.stat:
+    path: "{{ k8s_cilium_verify_hubble_binary_path }}"
+  register: k8s_cilium_verify_hubble_binary_stat
+  become: true
+  when: not (ansible_check_mode | bool)
+
+# Hubble CLIが実行可能な通常ファイルとして存在することを検証する。
+- name: Assert Hubble CLI binary exists
+  ansible.builtin.assert:
+    that:
+      - k8s_cilium_verify_hubble_binary_stat.stat.exists | default(false) | bool
+      - k8s_cilium_verify_hubble_binary_stat.stat.isreg | default(false) | bool
+      - k8s_cilium_verify_hubble_binary_stat.stat.executable | default(false) | bool
+    fail_msg: >-
+      Hubble CLI binary is not executable.
+      path={{ k8s_cilium_verify_hubble_binary_path }}
+  when: not (ansible_check_mode | bool)
+
+# Cilium公式ドキュメントがHubble RelayのAPI到達確認に推奨するhubble status -Pを実行し,
+# port-forwardを含むRelay経由のHealthcheckとノード接続状態を取得する。
+# 正規表現'Healthcheck .*: Ok'でHealthcheck成功を確認する。
+# 正規表現'Connected Nodes: +[1-9][0-9]*/[1-9][0-9]*'では,
+# 接続済みノード数と総ノード数が1件以上の形式で出力されていることを確認する。
+- name: Verify Hubble Relay API access
+  ansible.builtin.command:
+    argv:
+      - env
+      - "KUBECONFIG={{ k8s_cilium_verify_kubeconfig_path }}"
+      - timeout
+      - "{{ k8s_cilium_verify_hubble_timeout_seconds | int }}s"
+      - "{{ k8s_cilium_verify_hubble_binary_path }}"
+      - status
+      - --port-forward
+  register: k8s_cilium_verify_hubble_status_result
+  changed_when: false
+  become: true
+  until:
+    - k8s_cilium_verify_hubble_status_result.rc | default(1) | int == 0
+    - >-
+      (
+        k8s_cilium_verify_hubble_status_result.stdout
+        | default('', true)
+        | regex_search('Healthcheck .*: Ok')
+      ) is not none
+    - >-
+      (
+        k8s_cilium_verify_hubble_status_result.stdout
+        | default('', true)
+        | regex_search('Connected Nodes: +[1-9][0-9]*/[1-9][0-9]*')
+      ) is not none
+  retries: "{{ k8s_cilium_verify_retries | int }}"
+  delay: "{{ k8s_cilium_verify_retry_interval_seconds | int }}"
+  when: not (ansible_check_mode | bool)
+
+# 正規表現'Connected Nodes: +([0-9]+)/([0-9]+)'は,
+# hubble status出力の接続済みノード数と総ノード数を2個の数値として抽出する。
+# Healthcheck成功だけでなくRelayが全Ciliumノードへ接続済みかを検証するために使用する。
+- name: Resolve Hubble Relay status values
+  ansible.builtin.set_fact:
+    k8s_cilium_verify_hubble_connected_nodes: >-
+      {{
+        k8s_cilium_verify_hubble_status_result.stdout
+        | default('', true)
+        | regex_findall('Connected Nodes: +([0-9]+)/([0-9]+)')
+      }}
+  when: not (ansible_check_mode | bool)
+
+# 正規表現'Healthcheck .*: Ok'は公式例のHealthcheck成功行を検出する。
+# Connected Nodesが1件以上かつ接続数と総数が一致することも同時に確認する。
+- name: Assert Hubble Relay API status is healthy
+  ansible.builtin.assert:
+    that:
+      - >-
+        (
+          k8s_cilium_verify_hubble_status_result.stdout
+          | default('', true)
+          | regex_search('Healthcheck .*: Ok')
+        ) is not none
+      - k8s_cilium_verify_hubble_connected_nodes | length == 1
+      - k8s_cilium_verify_hubble_connected_nodes[0][1] | int > 0
+      - >-
+        (k8s_cilium_verify_hubble_connected_nodes[0][0] | int)
+        == (k8s_cilium_verify_hubble_connected_nodes[0][1] | int)
+    fail_msg: >-
+      Hubble Relay API verification failed.
+      {{ k8s_cilium_verify_hubble_status_result.stdout | default('', true) }}
+  when: not (ansible_check_mode | bool)

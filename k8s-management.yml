@@ -11,6 +11,18 @@
   remote_user: '{{ ansible_user }}'
   become: true
   roles:
+    # クラスタ全体へコンポーネントを導入する前に, Worker NodeがReadyであることを保証する。
+    - role: k8s-cluster-ready
+      tags: k8s-cluster-ready
+    # MultusはWorker Nodeへ配置するため, k8s-cluster-readyによるReady確認後に導入する。
+    - role: k8s-multus
+      tags: k8s-multus
+    # WhereaboutsはMultusと組み合わせて利用するため, Multus導入後に導入する。
+    - role: k8s-whereabouts
+      tags: k8s-whereabouts
+    # MultusとWhereaboutsの再構築後にCilium, Operator, Hubble Relayの稼働状態を検証する。
+    - role: k8s-cilium-verify
+      tags: k8s-cilium-verify
     - role: k8s-hubble-ui
       tags: k8s-hubble-ui
     - role: k8s-virtual-cluster

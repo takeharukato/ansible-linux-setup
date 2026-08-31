@@ -8,8 +8,6 @@
 # 再起動後の応答待ちのタイムアウト時間 (秒)
 reboot_timeout_sec: 600
 
-
-
 # Kubernetes コントロールプレインノード使用ポート
 k8s_control_plane_ports:
   - "6443/tcp"        # kube-apiserver
@@ -28,7 +26,9 @@ k8s_helm_checksum_download_url: "{{ k8s_helm_download_url }}.sha256sum"
 k8s_helm_install_script_url: "https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3"
 # Helm用のコマンド補完設定を有効化する
 k8s_helm_cli_completion_enabled: true
-
+# Control Plane再構築時に既存Helmリポジトリを全削除する互換動作を有効化する
+# 既定値falseでは既存リポジトリを保持し, Ciliumリポジトリだけを登録・更新する。
+k8s_ctrlplane_helm_clear_repositories_enabled: false
 
 # 共通CAで Kubernetes のルートCAを置き換えるか
 k8s_shared_ca_replace_kube_ca: false
@@ -42,7 +42,6 @@ k8s_cilium_cli_checksum_url: "{{ k8s_cilium_cli_download_url }}.sha256sum"
 
 # Cilium CNIのバージョン
 k8s_cilium_version: "1.18.9"
-
 # Cilium Helm Chartのバージョン
 k8s_cilium_helm_chart_version: "{{ k8s_cilium_version }}"
 # Ciliumコンテナイメージのバージョン

@@ -53,10 +53,6 @@
       # - k8s-ctrlplane で kubeadm まわりの設定・スクリプト展開が完了した後に実行。
     - role: k8s-kubeconfig
       tags: k8s-kubeconfig
-    - role: k8s-multus
-      tags: k8s-multus
-    - role: k8s-whereabouts
-      tags: k8s-whereabouts
     - role: k8s-hubble-cli
       tags: k8s-hubble-cli
     - role: netgauge

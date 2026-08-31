@@ -11,7 +11,7 @@ top=.
 	run_logging_collector \
 	run_elastic_agent run_elastic_agent_k8s run_elastic_agent_k8s_audit run_elastic_agent_all \
 	run_ldap_server run_redmine_server run_yq run_jd run_go_lang_local \
-	run_k8s_common run_k8s_hubble_cli run_k8s_ctrl_plane run_cilium_shared_ca run_k8s_multus run_k8s_whereabouts \
+	run_k8s_common run_k8s_hubble_cli run_k8s_ctrl_plane run_cilium_shared_ca run_k8s_cilium_verify run_k8s_multus run_k8s_whereabouts \
 	run_k8s_worker run_k8s_devel run_netgauge run_netshoot_no_portscan \
 	run_k8s_vc_tenant_dns \
 	run_k8s_worker_frr run_k8s_hubble_ui run_k8s_virtual_cluster \
@@ -234,10 +234,14 @@ run_k8s_hubble_cli:
 	ansible-playbook --tags "k8s-common,k8s-hubble-cli" ${OPT_COMMON} ${ANSIBLE_PLAYBOOK_EXTRA_OPTS} 2>&1 |tee build-k8s-hubble-cli.log
 
 run_k8s_ctrl_plane:
-	ansible-playbook --tags "k8s-ctrlplane" ${OPT_COMMON} ${ANSIBLE_PLAYBOOK_EXTRA_OPTS} 2>&1 |tee build-k8s-ctrlplane.log
+	ansible-playbook --tags "k8s-shared-ca,k8s-ctrlplane" ${OPT_COMMON} ${ANSIBLE_PLAYBOOK_EXTRA_OPTS} 2>&1 |tee build-k8s-ctrlplane.log
 
 run_cilium_shared_ca:
 	ansible-playbook --tags "k8s-shared-ca,k8s-cilium-shared-ca" ${OPT_COMMON} ${ANSIBLE_PLAYBOOK_EXTRA_OPTS} 2>&1 |tee build-cilium-shared-ca.log
+
+# Multus/Whereabouts構築済みクラスタに対してCilium/Hubble Relayを再検証する。
+run_k8s_cilium_verify:
+	ansible-playbook --tags "k8s-cilium-verify" ${OPT_COMMON} ${ANSIBLE_PLAYBOOK_EXTRA_OPTS} 2>&1 |tee build-k8s-cilium-verify.log
 
 run_k8s_multus:
 	ansible-playbook --tags "k8s-multus" ${OPT_COMMON} ${ANSIBLE_PLAYBOOK_EXTRA_OPTS} 2>&1 |tee build-k8s-multus.log

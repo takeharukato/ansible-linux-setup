@@ -12,10 +12,6 @@
   - [前提条件](#前提条件)
   - [実行方法](#実行方法)
     - [Makeターゲットを使用する場合](#makeターゲットを使用する場合)
-    - [ansible-playbook コマンドを使用する場合](#ansible-playbook-コマンドを使用する場合)
-      - [すべての対象ホストに適用](#すべての対象ホストに適用)
-      - [特定ホストだけ実行](#特定ホストだけ実行)
-      - [主要タグのみ実行](#主要タグのみ実行)
   - [主要変数](#主要変数)
     - [API待機・kubeadm関連](#api待機kubeadm関連)
     - [Kubernetes API監査関連](#kubernetes-api監査関連)
@@ -30,6 +26,7 @@
     - [パターン 4: Cilium BGP Control Plane を有効化](#パターン-4-cilium-bgp-control-plane-を有効化)
   - [テンプレートと生成ファイル](#テンプレートと生成ファイル)
   - [実行フロー](#実行フロー)
+    - [Helm操作の責務分界](#helm操作の責務分界)
     - [ステップ1: 変数読み込み](#ステップ1-変数読み込み)
     - [ステップ2: ディレクトリ準備](#ステップ2-ディレクトリ準備)
     - [ステップ3: 予約タスク読み込み](#ステップ3-予約タスク読み込み)
@@ -162,6 +159,9 @@
 | Container Network Interface | CNI | コンテナ間のネットワーク接続を標準化するプラグイン仕様。 |
 | Kubernetes API監査機能 ( Kubernetes API Audit )| - | Kubernetesクラスター内の一連の行動を記録するセキュリティに関連した時系列の記録を提供する機能。 |
 | Cilium | - | eBPFを活用した高性能なCNIプラグイン。ネットワークポリシーやサービスメッシュ機能を提供します。 |
+| Hubble | - | Ciliumが処理するネットワーク通信の状態を観測する機能。 |
+| Hubble Relay | - | 各ノードのHubble情報を集約し, Hubble CLIなどから参照できるようにする構成要素。 |
+| Hubble UI | - | Hubbleが収集した通信情報をWebブラウザで参照するための利用者画面。 |
 | Extended Berkeley Packet Filter | eBPF | Linux カーネル内で安全にプログラムを実行する仕組み。高性能なパケット処理や観測機能の実装に利用される。 |
 | Serviceエンドポイント ( Service Endpoint ) | - | Serviceのバックエンドとして通信を受けるPod, または, 当該の通信を受けるPodに加え, 当該の通信を受けるPodへ通信を届けるためのネットワーク上の転送先情報全体を指す。 |
 | Serviceエンドポイント情報 ( Service Endpoint Information ) | - | Serviceエンドポイントを特定して転送先を決めるための情報。主にバックエンドPodのIPアドレス, ポート番号, プロトコル, 所属クラスタ名(またはクラスタ識別子)で構成される。 |
@@ -228,30 +228,14 @@ Kubernetes コントロールプレーンノードを構築するロールです
 ## 実行方法
 
 ### Makeターゲットを使用する場合
-以下のコマンドを実行します:
+
+以下のコマンドを実行します。
+
 ```bash
-make run_k8s_ctrlplane
+make run_k8s_ctrl_plane
 ```
 
-### ansible-playbook コマンドを使用する場合
-
-#### すべての対象ホストに適用
-以下のコマンドを実行します:
-```bash
-ansible-playbook -i inventory/hosts k8s-ctrl-plane.yml
-```
-
-#### 特定ホストだけ実行
-以下のコマンドを実行します:
-```bash
-ansible-playbook -i inventory/hosts k8s-ctrl-plane.yml --limit <hostname>
-```
-
-#### 主要タグのみ実行
-以下のコマンドを実行します:
-```bash
-ansible-playbook -i inventory/hosts k8s-ctrl-plane.yml -t k8s-ctrlplane
-```
+本ターゲットは, Kubernetesコントロールプレーン構築用playbookを既定のインベントリと実行オプションで実行します。
 
 ## 主要変数
 
@@ -319,6 +303,7 @@ k8s_audit_log_max_size: 200
 | --- | --- | --- |
 | `k8s_helm_version` | 未定義 | 未定義または `latest` で最新版を導入。 |
 | `k8s_helm_cli_completion_enabled` | `true` | Helm 補完の生成有効化。 |
+| `k8s_ctrlplane_helm_clear_repositories_enabled` | `false` | `true`の場合はCilium repositoryの登録前に共通Helm操作ユーザの全repositoryを削除します。既定値`false`では既存repositoryを保持します。 |
 | `k8s_cilium_version` | 必須 | Cilium ベースバージョン。 |
 | `k8s_cilium_helm_chart_version` | `1.18.9` | Cilium Helm Chart バージョン。 |
 | `k8s_cilium_image_version` | `v1.18.9` | Cilium イメージタグ。 |
@@ -434,6 +419,48 @@ k8s_bgp:
 
 ## 実行フロー
 
+### Helm操作の責務分界
+
+本ロールはCilium固有の設定生成と導入順序を管理し, Helm repository操作とHelm release操作そのものは`k8s-helm-common`へ委譲します。`k8s-helm-common`はパッケージ固有のvaluesやCilium固有の復旧判断を持たず, 共通Helm操作だけを担当します。
+
+通常動作では`k8s_ctrlplane_helm_clear_repositories_enabled: false`を使用し, Cilium repositoryだけを指定URLへ整合化します。クラスタ再構築時に旧環境のHelm repositoryをすべて削除してから再登録する互換動作が必要な場合だけ, `k8s_ctrlplane_helm_clear_repositories_enabled: true`を明示的に設定します。
+
+| ロール | 責務 |
+| --- | --- |
+| `k8s-ctrlplane` | Helm/Cilium CLI導入, Cilium repository操作要求, Cilium固有values生成, kube-proxy削除, Cilium release更新要求, Cilium固有結果検証 |
+| `k8s-helm-common` | 指定repositoryの整合化, 共通Helm操作ユーザでの`helm upgrade --install`, timeout/retry制御, Helm release状態待機・確認 |
+
+```mermaid
+flowchart TD
+    subgraph CTRL["k8s-ctrlplane"]
+        A[Helm CLIを導入]
+        B[Cilium CLIを導入]
+        C[Cilium repository設定を要求]
+        D[kubeadmでControl Planeを初期化]
+        E[kube-proxyを削除]
+        F[Cilium固有valuesを生成]
+        G[Cilium release更新を要求]
+        H[Cilium Helm実行結果を検証]
+    end
+
+    subgraph HELM["k8s-helm-common"]
+        I[Cilium repositoryを整合化]
+        J[helm upgrade --installを実行]
+        K[releaseがdeployedになるまで待機]
+    end
+
+    A --> B
+    B --> C
+    C --> I
+    I --> D
+    D --> E
+    E --> F
+    F --> G
+    G --> J
+    J --> H
+    H --> K
+```
+
 ### ステップ1: 変数読み込み
 
 1. `load-params.yml` が OS別パッケージ変数 (`vars/packages-*.yml`) と共通変数 (`vars/cross-distro.yml`, `vars/all-config.yml`, `vars/k8s-api-address.yml`) を読み込みます。
@@ -452,34 +479,37 @@ k8s_bgp:
 
 ### ステップ5: Helm/Cilium CLI と補完構成
 
-5. `config-helm.yml` が Helm と Cilium CLI を導入します。`k8s_helm_version` が未定義または `latest` なら公式スクリプト経由, 明示バージョン指定時はアーカイブを取得して配置します。
-6. 同タスクで既存 Helm リポジトリを全削除し, `cilium` リポジトリを root と `k8s_operator_user` の双方に再登録します。
-7. `config-k8s-helm-shell-completion.yml` が `k8s_helm_cli_completion_enabled: true` のとき Helm 補完を配置します。
-8. `config-k8s-cilium-shell-completion.yml` が `k8s_cilium_cli_completion_enabled: true` のとき Cilium CLI 補完を配置します。
+5. `install-helm.yml` が Helm CLI を導入します。`k8s_helm_version` が未定義または `latest` なら公式スクリプト経由, 明示バージョン指定時はアーカイブを取得して配置します。
+6. `install-cilium-cli.yml` が Cilium CLI のアーカイブとチェックサムを取得し, 検証後にCLIを配置します。
+7. `config-helm.yml` が`k8s-helm-common`の`repository.yml`を呼び出し, `k8s_runtime_helm_execution_users`で指定された共通Helm実行ユーザの設定に対して`cilium` repositoryだけを指定URLへ整合化します。他componentが登録したrepositoryは削除しません。
+8. `config-k8s-helm-shell-completion.yml` が `k8s_helm_cli_completion_enabled: true` のとき Helm 補完を配置します。
+9. `config-k8s-cilium-shell-completion.yml` が `k8s_cilium_cli_completion_enabled: true` のとき Cilium CLI 補完を配置します。
 
 ### ステップ6: kubeadm 初期化
 
-9. `k8s_audit_enabled: true` の場合, `config-k8s-audit.yml` が Kubernetes API監査ポリシーファイルと監査ログ格納ディレクトリを作成します。
-10. `config.yml` が API ファミリ (IPv4/IPv6) を判定し, Pod/Service CIDR を API ファミリ順に並べ替えて `ctrlplane-kubeadm.config.yml` を生成します。
-11. 同タスクが `kubeadm reset -f` 後に `kubelet` 停止, `/etc/kubernetes/manifests` 削除, `/var/lib/kubelet/cpu_manager_state` 削除を実行します。
-12. `k8s_shared_ca_*` 変数が定義されている場合は共有CAを復元し, `k8s_shared_ca_replace_kube_ca: true` のとき `/etc/kubernetes/pki/ca.crt` と `/etc/kubernetes/pki/ca.key` を置換します。
-13. `kubeadm init --config ...` を実行し, containerd/kubelet を有効化します。その後 `admin.conf` を root, ansible, `k8s_operator_user` に配布して再起動します。
+10. `k8s_audit_enabled: true` の場合, `config-k8s-audit.yml` が Kubernetes API監査ポリシーファイルと監査ログ格納ディレクトリを作成します。
+11. `config.yml` が API ファミリ (IPv4/IPv6) を判定し, Pod/Service CIDR を API ファミリ順に並べ替えて `ctrlplane-kubeadm.config.yml` を生成します。
+12. 同タスクが `kubeadm reset -f` 後に `kubelet` 停止, `/etc/kubernetes/manifests` 削除, `/var/lib/kubelet/cpu_manager_state` 削除を実行します。
+13. `k8s_shared_ca_*` 変数が定義されている場合は共有CAを復元し, `k8s_shared_ca_replace_kube_ca: true` のとき `/etc/kubernetes/pki/ca.crt` と `/etc/kubernetes/pki/ca.key` を置換します。
+14. `kubeadm init --config ...` を実行し, containerd/kubelet を有効化します。その後 `admin.conf` を root, ansible, `k8s_operator_user` に配布して再起動します。
 
 ### ステップ7: Cilium 導入
 
-14. `config-cilium.yml` が API サーバ起動を待機し, `kubernetes-admin` へ cluster-admin 権限を付与します。
-15. 同タスクが kube-proxy のデーモンセット/コンフィグマップと関連 iptables ルールを削除し, `cilium-install.yml` を生成して `helm install cilium` を実行します。
-16. `k8s_cilium_shared_ca_enabled: true` の場合は `k8s-cilium-shared-ca` ロールを実行して Cluster Mesh 用 Secret を整備します。
+15. `config-cilium.yml` が API サーバ起動を待機し, `kubernetes-admin` へ cluster-admin 権限を付与します。
+16. 同タスクが kube-proxy のDaemonSet/ConfigMapと関連iptablesルールを削除します。
+17. `k8s_cilium_shared_ca_enabled: true` の場合は `k8s-cilium-shared-ca` ロールを実行してCilium用共有CA Secretを整備します。
+18. `cilium-install.yml` を生成し, HubbleとHubble Relayを有効化し, Hubble UIを無効化した初期Cilium valuesを設定します。Hubble UIはworker参加後の`k8s-hubble-ui`ロールで有効化します。
+19. `k8s-helm-common`の`upgrade.yml`へCilium release更新を委譲します。初回Control Plane構築ではworker参加前でもrelease作成を完了できるようHelm readiness待機を無効化し, `upgrade.yml`成功後に`wait-release.yml`でreleaseが`deployed`になったことを確認します。
 
 ### ステップ8: Cilium BGP Control Plane (任意)
 
-17. `config-cilium-bgp-cplane.yml` は `k8s_bgp.enabled: true` のホストだけで実行されます。
-18. 同タスクは `k8s-common/templates/cilium-bgp-resources.yml.j2` を参照してマニフェストを生成し, Cilium BGP関連CRD (Advertisement/PeerConfig/ClusterConfig) の出現を待ってから `kubectl apply` します。
+20. `config-cilium-bgp-cplane.yml` は `k8s_bgp.enabled: true` のホストだけで実行されます。
+21. 同タスクは `k8s-common/templates/cilium-bgp-resources.yml.j2` を参照してマニフェストを生成し, Cilium BGP関連CRD (Advertisement/PeerConfig/ClusterConfig) の出現を待ってから `kubectl apply` します。
 
 ### ステップ9: Cluster Mesh ツール配布
 
-19. `config-cluster-mesh-tools.yml` が `create-embedded-kubeconfig.py` と手順書を配布します。
-20. `k8s_cilium_cm_cluster_name` と `k8s_cilium_cm_cluster_id` が有効な場合, 共有CAファイルの存在を確認し, 埋め込み kubeconfig を生成して所有者を `k8s_operator_user` に調整します。
+22. `config-cluster-mesh-tools.yml` が `create-embedded-kubeconfig.py` と手順書を配布します。
+23. `k8s_cilium_cm_cluster_name` と `k8s_cilium_cm_cluster_id` が有効な場合, 共有CAファイルの存在を確認し, 埋め込み kubeconfig を生成して所有者を `k8s_operator_user` に調整します。
 
 ### デフォルト動作
 
@@ -506,14 +536,6 @@ k8s_bgp:
 | `etc_default_dir` | `/etc/default` | `/etc/sysconfig` |
 
 ## 検証ポイント
-
-以下の検証コマンドを実行し, 構文検査が成功することを確認します。
-
-```bash
-ansible-playbook -i inventory/hosts site.yml --syntax-check
-```
-
-期待結果: エラーが出力されず, syntax check が成功します。
 
 ### パターン A: 基本構成
 
@@ -686,13 +708,15 @@ cat /home/ansible/kubeadm/ctrlplane-kubeadm.config.yml
 kubectl -n kube-system get pods -l k8s-app=cilium
 kubectl -n kube-system logs ds/cilium --tail=200
 cat /home/ansible/kubeadm/cilium/cilium-install.yml
+sudo -u ansible helm status cilium -n kube-system \
+  --kubeconfig /home/ansible/.kube/config
 ```
 
 **確認ポイント**:
 
 - 症状: `kubectl -n kube-system get pods` で cilium Pod が `CrashLoopBackOff` になっていること。
 - 原因: `k8sServiceHost`, native routing CIDR, kube-proxy 削除順序の不整合があること。
-- 対処: values 設定と API 到達性を確認し, 必要に応じて `helm delete cilium -n kube-system` 実施後にロールを再実行すること。
+- 対処: values設定, API到達性, Helm release状態を確認し, 原因を修正してからロールを再実行すること。Cilium releaseは`k8s-helm-common`の`upgrade.yml`により`helm upgrade --install`で整合化されるため, 通常の再実行で事前にreleaseを削除する必要はありません。
 
 ### 3. firewall 設定が反映されない場合
 
@@ -751,9 +775,11 @@ kubectl get crd ciliumbgpclusterconfigs.cilium.io
 ## 注意事項
 
 - **破壊的操作**: `config.yml` は `kubeadm reset` を実行します。既存クラスタ適用時は必ず停止計画を立ててください。
-- **Helm リポジトリの再構成**: `config-helm.yml` は既存 Helm リポジトリを全削除して `cilium` を再登録します。既存運用がある場合は事前に退避してください。
-- **再実行時の Cilium**: `helm install cilium` は同名リリースが残っていると失敗します。必要に応じて `helm delete cilium -n kube-system` を実施してください。
-- **ロール依存**: 本ロールは `k8s-common` 実行後を前提にしています。
+- **Helm repository操作**: `config-helm.yml` は`k8s-helm-common`へ処理を委譲し, `k8s_ctrlplane_helm_clear_repositories_enabled: false`の既定動作では`cilium` repositoryだけを指定URLへ整合化します。他componentが登録したrepositoryは削除しません。
+- **全repository削除互換オプション**: `k8s_ctrlplane_helm_clear_repositories_enabled`の既定値は`false`です。通常運用では既存repositoryを保持します。クラスタ再構築時に旧環境のHelm repositoryをすべて削除する互換動作が必要な場合だけ, `host_vars`または`vars/all-config.yml`で`true`を明示的に設定してください。`true`にすると共通Helm操作ユーザに登録されたCilium以外のrepositoryも削除対象になるため, 通常運用では有効化しません。
+- **Hubble初期設定**: Cilium初期導入ではHubbleとHubble Relayを有効化し, Hubble UIは無効化します。Hubble Relayの実行時状態はMultus/Whereabouts構築後の`k8s-cilium-verify`で検証し, Hubble UIは後続の`k8s-hubble-ui`で有効化します。
+- **再実行時の Cilium**: Cilium releaseは`k8s-helm-common`の`upgrade.yml`を介して`helm upgrade --install`で整合化します。同名releaseが存在することだけを理由に事前削除する必要はありません。
+- **ロール依存**: 本ロールは `k8s-common` 実行後を前提とし, Helm repository/release操作では`k8s-helm-common`を利用します。
 - **テンプレート依存**: Cilium BGP Control Plane のマニフェスト生成は, `k8s-common/templates/cilium-bgp-resources.yml.j2` を参照する実装です。`k8s-ctrlplane` 側実装は `k8s-common` 側テンプレートに依存しています。
 - **共有CA依存**: `k8s_cilium_shared_ca_enabled: true` の場合, `k8s-cilium-shared-ca` の実行結果が前提になります。
 - **補完無効化**: `k8s_helm_cli_completion_enabled: false` または `k8s_cilium_cli_completion_enabled: false` でシェル用補完ファイル生成をスキップできます。
@@ -765,3 +791,4 @@ kubectl get crd ciliumbgpclusterconfigs.cilium.io
 - [Kubernetes](https://kubernetes.io/docs/home/)
 - [kubeadm](https://kubernetes.io/docs/reference/setup-tools/kubeadm/)
 - [Kubernetes API監査機能](https://kubernetes.io/docs/tasks/debug/debug-cluster/audit/)
+- [Cilium - Setting up Hubble Observability](https://docs.cilium.io/en/stable/observability/hubble/setup/)

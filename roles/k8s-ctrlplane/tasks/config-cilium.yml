@@ -126,8 +126,9 @@
 #   exclusive: false
 # enable-ipv6-masquerade: false
 # hubble:
+#   enabled: true
 #   relay:
-#     enabled: false
+#     enabled: true
 #   ui:
 #     enabled: false
 # image:
@@ -155,8 +156,11 @@
 # --version {{ k8s_cilium_version }}
 #   バージョンを明示する
 #
-# --set hubble.relay.enabled=false
-#   hubble relayを無効にする
+# --set hubble.enabled=true
+#   Hubbleを有効にする
+#
+# --set hubble.relay.enabled=true
+#   Hubble Relayを有効にする
 #
 # --set hubble.ui.enabled=false
 #   HubbleのGUIを導入しない
@@ -213,14 +217,46 @@
 #   一つのPodに複数のCNIを生成する
 #   Cilium中で実施する他のCNIの設定値の削除処理を抑止する
 #
-- name: Install Cilium
-  ansible.builtin.shell: |
-    helm install cilium cilium/cilium \
-    --namespace kube-system \
-    --version {{ k8s_cilium_helm_chart_version }} \
-    -f {{ k8s_cilium_config_dir }}/cilium-install.yml
-  register: _result
-  changed_when: _result.rc == 0
+# Ciliumはworker参加前に導入し, Hubble Relay等が一時的にPendingでも初回release作成を完了させる必要があるため,
+# k8s-helm-commonのupgrade処理を使用しつつreadiness待機は無効化して従来のhelm installと同じ待機動作を維持する。
+- name: Install Cilium Helm release via k8s-helm-common
+  vars:
+    k8s_helm_release_name: "cilium"
+    k8s_helm_namespace: "kube-system"
+    k8s_helm_chart_ref: "cilium/cilium"
+    k8s_helm_chart_version: "{{ k8s_cilium_helm_chart_version }}"
+    k8s_helm_kubeconfig_path: "{{ ansible_home_dir }}/.kube/config"
+    k8s_helm_values_files:
+      - "{{ k8s_cilium_config_dir }}/cilium-install.yml"
+    k8s_helm_create_namespace: false
+    k8s_helm_wait: false
+    k8s_helm_operation_timeout_seconds: "{{ k8s_helm_timeout_seconds }}"
+    k8s_helm_operation_retries: "{{ k8s_helm_retries }}"
+    k8s_helm_operation_retry_interval_seconds: "{{ k8s_helm_retry_interval_seconds }}"
+    k8s_helm_operation_request_interval_seconds: "{{ k8s_helm_request_interval_seconds }}"
+  block:
+    - name: Install or upgrade Cilium Helm release
+      ansible.builtin.include_role:
+        name: k8s-helm-common
+        tasks_from: upgrade.yml
+
+    # 共通upgrade処理は失敗結果を呼出元へ返すため,
+    # Cilium固有のrecoveryを追加せず従来どおり非0終了時に初回構築を停止する。
+    - name: Validate Cilium Helm upgrade result
+      ansible.builtin.assert:
+        that:
+          - k8s_helm_upgrade_result.rc | default(1) | int == 0
+        fail_msg: >-
+          Cilium Helm upgrade failed.
+          rc={{ k8s_helm_upgrade_result.rc | default('unknown') }},
+          stderr={{ k8s_helm_upgrade_result.stderr | default('', true) }}
+
+    # --waitを無効化した初回導入でもHelm release自体がdeployedになったことは確認し,
+    # Pod/Deploymentのreadinessはworker参加後の既存検証へ委ねる。
+    - name: Wait for Cilium Helm release
+      ansible.builtin.include_role:
+        name: k8s-helm-common
+        tasks_from: wait-release.yml
 
 # マシンをリブートする
 - name: Reboot host gracefully

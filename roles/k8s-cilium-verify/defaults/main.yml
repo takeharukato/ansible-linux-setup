@@ -1,0 +1,20 @@
+#  -*- coding:utf-8-unix; mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  ロール固有変数のデフォルト値
+#  group_vars/all/all.yml やhost_varsで上書き可能とするため,
+#  ロール名/defaults/main.yml に定義している
+
+# Cilium検証で使用する管理者kubeconfigファイル。
+k8s_cilium_verify_kubeconfig_path: "/etc/kubernetes/admin.conf"
+# Hubble Relay API検証で使用するHubble CLIのパス。
+k8s_cilium_verify_hubble_binary_path: "/usr/local/bin/hubble"
+# Kubernetes API要求の1回あたりのタイムアウト秒数。
+k8s_cilium_verify_request_timeout_seconds: 10
+# Cilium関連リソースおよびHubble Relay機能確認の再試行間隔秒数。
+k8s_cilium_verify_retry_interval_seconds: 5
+# Worker参加直後のPod起動を待機するための最大再試行回数。
+k8s_cilium_verify_retries: 60
+# Hubble Relay API機能確認の1回あたりのタイムアウト秒数。
+k8s_cilium_verify_hubble_timeout_seconds: 30

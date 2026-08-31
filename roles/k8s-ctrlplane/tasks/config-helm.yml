@@ -2,91 +2,53 @@
 #  Ansible playbook
 #  Copyright 2020 Takeharu KATO All Rights Reserved.
 #
-#  設定関連タスク
+#  Helmリポジトリ設定タスク
 #
 
-#
-# Helm導入
-#
+# 全repository削除は既存Helm設定を削除する互換操作であるため,
+# 暗黙の型変換を許可せずboolean値だけを受け付ける。
+- name: Validate Helm repository clear compatibility setting
+  ansible.builtin.assert:
+    that:
+      - k8s_ctrlplane_helm_clear_repositories_enabled is boolean
+    fail_msg: >-
+      Invalid Helm repository clear compatibility setting.
+      Set k8s_ctrlplane_helm_clear_repositories_enabled to a boolean value.
 
-- name: Install Helm latest version
-  ansible.builtin.shell: |
-    set -o pipefail
-    curl {{ curl_common_opts }} -fsSL {{ k8s_helm_install_script_url }} | bash
-  args:
-    executable: /bin/bash
-  become: true
-  when: k8s_helm_version is not defined or k8s_helm_version == 'latest'
-  register: _result
-  changed_when: _result.rc == 0
+# Control Plane再構築時に既存Helm設定を引き継がない互換動作が
+# 明示された場合だけ, Cilium repository登録前に全repositoryを削除する。
+- name: Clear Helm repositories via k8s-helm-common
+  vars:
+    k8s_helm_repository_users: "{{ k8s_runtime_helm_execution_users }}"
+    k8s_helm_operation_timeout_seconds: "{{ k8s_helm_timeout_seconds }}"
+    k8s_helm_operation_retries: "{{ k8s_helm_retries }}"
+    k8s_helm_operation_retry_interval_seconds: "{{ k8s_helm_retry_interval_seconds }}"
+    k8s_helm_operation_request_interval_seconds: "{{ k8s_helm_request_interval_seconds }}"
+  when: k8s_ctrlplane_helm_clear_repositories_enabled
+  block:
+    # 全repository削除処理はk8s-helm-commonへ委譲し,
+    # k8s-ctrlplane内で同じ削除処理を重複実装しない。
+    - name: Clear Helm repositories with common role
+      ansible.builtin.include_role:
+        name: k8s-helm-common
+        tasks_from: clear-repositories.yml
 
-- name: Debug Helm version installation
-  ansible.builtin.debug:
-    msg: "Installing Helm version: {{ k8s_helm_version }}"
-  when:
-    - k8s_helm_version is defined
-    - k8s_helm_version != 'latest'
-
-- name: Install Helm  # noqa command-instead-of-module
-  ansible.builtin.shell: |
-    curl {{ curl_common_opts }} -fsSL -o /tmp/helm.tar.gz "{{ k8s_helm_download_url }}"
-    curl {{ curl_common_opts }} -fsSL -o /tmp/helm.tar.gz.sha256sum "{{ k8s_helm_checksum_download_url }}"
-    tar -zxvf /tmp/helm.tar.gz -C /tmp linux-amd64/helm
-    mv /tmp/linux-amd64/helm /usr/local/bin/helm
-    chmod +x /usr/local/bin/helm
-    helm version
-  become: true
-  when:
-    - k8s_helm_version is defined
-    - k8s_helm_version != 'latest'
-  changed_when: false
-
-- name: Install CiliumCLI  # noqa command-instead-of-module
-  ansible.builtin.shell: |
-    curl {{ curl_common_opts }} -fsSL --remote-name {{ k8s_cilium_cli_download_url }}
-    curl {{ curl_common_opts }} -fsSL --remote-name {{ k8s_cilium_cli_checksum_url }}
-    sha256sum --check {{ k8s_cilium_cli_archive_name }}.sha256sum
-    tar xzvfC {{ k8s_cilium_cli_archive_name }} /usr/local/bin
-    rm {{ k8s_cilium_cli_archive_name }} {{ k8s_cilium_cli_archive_name }}.sha256sum
-    cilium version
-  become: true
-  changed_when: false
-
-#
-# リポジトリの追加
-#
-
-# 既存のリポジトリのリストを取得する
-- name: List repositories before clear
-  ansible.builtin.command: helm repo list -o yaml
-  register: _helm_repo_list
-  changed_when: false
-
-# 既存のリポジトリを全て削除する
-- name: Clear all repositories
-  ansible.builtin.shell: |
-    set -o pipefail
-    echo '{{ _helm_repo_list.stdout }}' | yq '.[].name' | xargs -r -n1 helm repo remove
-  args:
-    executable: /bin/bash
-  ignore_errors: true
-  register: _result
-  changed_when: _result.rc == 0
-  when: (_helm_repo_list.stdout | from_yaml | length) > 0
-
-# Ciliumリポジトリの追加
-- name: Add Cilium Repository
-  ansible.builtin.shell: |
-    helm repo add cilium {{ k8s_cilium_helm_repo_url }}
-    helm repo update cilium
-  register: _result
-  changed_when: _result.rc == 0
-
-# Ciliumリポジトリの追加（k8s_operator_user権限で実行）
-- name: Add Cilium Repository for "{{ k8s_operator_user }}"
-  ansible.builtin.shell: |
-    sudo -u "{{ k8s_operator_user }}" helm repo add cilium {{ k8s_cilium_helm_repo_url }}
-    sudo -u "{{ k8s_operator_user }}" helm repo update cilium
-  become: true
-  register: _result
-  changed_when: _result.rc == 0
+# Cilium releaseは共通Helm代表ユーザで操作するため,
+# 同じ実行ユーザ一覧のHelm設定へCilium repositoryを登録する。
+# 全削除を実行しない場合は他componentのrepositoryを保持し,
+# 対象repositoryだけを指定URLへ設定する。
+- name: Configure Cilium Helm repository via k8s-helm-common
+  vars:
+    k8s_helm_repository_name: "cilium"
+    k8s_helm_repository_url: "{{ k8s_cilium_helm_repo_url }}"
+    k8s_helm_repository_users: "{{ k8s_runtime_helm_execution_users }}"
+    k8s_helm_operation_timeout_seconds: "{{ k8s_helm_timeout_seconds }}"
+    k8s_helm_operation_retries: "{{ k8s_helm_retries }}"
+    k8s_helm_operation_retry_interval_seconds: "{{ k8s_helm_retry_interval_seconds }}"
+    k8s_helm_operation_request_interval_seconds: "{{ k8s_helm_request_interval_seconds }}"
+  block:
+    # 共通ロール側で対象repositoryの現在状態を判定して必要な変更だけを実行する。
+    - name: Reconcile Cilium Helm repository with common role
+      ansible.builtin.include_role:
+        name: k8s-helm-common
+        tasks_from: repository.yml

@@ -1,0 +1,17 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  Cilium CLI導入タスク
+#
+
+- name: Install CiliumCLI  # noqa command-instead-of-module
+  ansible.builtin.shell: |
+    curl {{ curl_common_opts }} -fsSL --remote-name {{ k8s_cilium_cli_download_url }}
+    curl {{ curl_common_opts }} -fsSL --remote-name {{ k8s_cilium_cli_checksum_url }}
+    sha256sum --check {{ k8s_cilium_cli_archive_name }}.sha256sum
+    tar xzvfC {{ k8s_cilium_cli_archive_name }} /usr/local/bin
+    rm {{ k8s_cilium_cli_archive_name }} {{ k8s_cilium_cli_archive_name }}.sha256sum
+    cilium version
+  become: true
+  changed_when: false

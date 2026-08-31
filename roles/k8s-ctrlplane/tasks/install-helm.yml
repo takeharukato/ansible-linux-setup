@@ -1,0 +1,42 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  Helm CLI導入タスク
+#
+
+#
+# Helm導入
+#
+
+- name: Install Helm latest version
+  ansible.builtin.shell: |
+    set -o pipefail
+    curl {{ curl_common_opts }} -fsSL {{ k8s_helm_install_script_url }} | bash
+  args:
+    executable: /bin/bash
+  become: true
+  when: k8s_helm_version is not defined or k8s_helm_version == 'latest'
+  register: _result
+  changed_when: _result.rc == 0
+
+- name: Debug Helm version installation
+  ansible.builtin.debug:
+    msg: "Installing Helm version: {{ k8s_helm_version }}"
+  when:
+    - k8s_helm_version is defined
+    - k8s_helm_version != 'latest'
+
+- name: Install Helm  # noqa command-instead-of-module
+  ansible.builtin.shell: |
+    curl {{ curl_common_opts }} -fsSL -o /tmp/helm.tar.gz "{{ k8s_helm_download_url }}"
+    curl {{ curl_common_opts }} -fsSL -o /tmp/helm.tar.gz.sha256sum "{{ k8s_helm_checksum_download_url }}"
+    tar -zxvf /tmp/helm.tar.gz -C /tmp linux-amd64/helm
+    mv /tmp/linux-amd64/helm /usr/local/bin/helm
+    chmod +x /usr/local/bin/helm
+    helm version
+  become: true
+  when:
+    - k8s_helm_version is defined
+    - k8s_helm_version != 'latest'
+  changed_when: false

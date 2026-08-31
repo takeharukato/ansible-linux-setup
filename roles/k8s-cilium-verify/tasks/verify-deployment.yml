@@ -1,0 +1,120 @@
+#  -*- coding:utf-8-unix; mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  Cilium関連Deployment実行結果検証タスク
+#
+---
+
+# 対象Deploymentの最新状態をKubernetes APIから取得し,
+# 全要求Podが更新済みかつReady/Availableになるまで上限付きで再確認する。
+- name: "Wait for {{ k8s_cilium_verify_deployment_name }} Deployment readiness"
+  ansible.builtin.command:
+    argv:
+      - kubectl
+      - --kubeconfig
+      - "{{ k8s_cilium_verify_kubeconfig_path }}"
+      - --namespace
+      - kube-system
+      - "--request-timeout={{ k8s_cilium_verify_request_timeout_seconds | int }}s"
+      - get
+      - deployment
+      - "{{ k8s_cilium_verify_deployment_name }}"
+      - --output=json
+  register: k8s_cilium_verify_deployment_result
+  changed_when: false
+  become: true
+  until:
+    - k8s_cilium_verify_deployment_result.rc | default(1) | int == 0
+    - >-
+      (
+        (
+          k8s_cilium_verify_deployment_result.stdout
+          | default('{}', true)
+          | from_json
+        ).get('spec', {}).get('replicas', 0)
+        | int
+      ) > 0
+    - >-
+      (
+        (
+          k8s_cilium_verify_deployment_result.stdout
+          | default('{}', true)
+          | from_json
+        ).get('status', {}).get('observedGeneration', 0)
+        | int
+      )
+      >=
+      (
+        (
+          k8s_cilium_verify_deployment_result.stdout
+          | default('{}', true)
+          | from_json
+        ).get('metadata', {}).get('generation', 0)
+        | int
+      )
+    - >-
+      (
+        (
+          k8s_cilium_verify_deployment_result.stdout
+          | default('{}', true)
+          | from_json
+        ).get('status', {}).get('updatedReplicas', 0)
+        | int
+      )
+      ==
+      (
+        (
+          k8s_cilium_verify_deployment_result.stdout
+          | default('{}', true)
+          | from_json
+        ).get('spec', {}).get('replicas', 0)
+        | int
+      )
+    - >-
+      (
+        (
+          k8s_cilium_verify_deployment_result.stdout
+          | default('{}', true)
+          | from_json
+        ).get('status', {}).get('readyReplicas', 0)
+        | int
+      )
+      ==
+      (
+        (
+          k8s_cilium_verify_deployment_result.stdout
+          | default('{}', true)
+          | from_json
+        ).get('spec', {}).get('replicas', 0)
+        | int
+      )
+    - >-
+      (
+        (
+          k8s_cilium_verify_deployment_result.stdout
+          | default('{}', true)
+          | from_json
+        ).get('status', {}).get('availableReplicas', 0)
+        | int
+      )
+      ==
+      (
+        (
+          k8s_cilium_verify_deployment_result.stdout
+          | default('{}', true)
+          | from_json
+        ).get('spec', {}).get('replicas', 0)
+        | int
+      )
+    - >-
+      (
+        (
+          k8s_cilium_verify_deployment_result.stdout
+          | default('{}', true)
+          | from_json
+        ).get('status', {}).get('unavailableReplicas', 0)
+        | int
+      ) == 0
+  retries: "{{ k8s_cilium_verify_retries | int }}"
+  delay: "{{ k8s_cilium_verify_retry_interval_seconds | int }}"
