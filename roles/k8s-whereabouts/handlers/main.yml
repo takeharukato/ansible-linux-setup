@@ -1,6 +1,7 @@
-#  -*- coding:utf-8 mode:yaml -*-
+#  -*- coding:utf-8-unix mode:yaml -*-
 #  Ansible playbook
 #  Copyright 2020 Takeharu KATO All Rights Reserved.
 #
-- name: "Reboot Node"
-  ansible.builtin.import_tasks: reboot-node.yml
+#  サービス起動ハンドラ
+#
+---

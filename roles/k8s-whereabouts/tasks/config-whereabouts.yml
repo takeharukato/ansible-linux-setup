@@ -1,4 +1,4 @@
-#  -*- coding:utf-8 mode:yaml -*-
+#  -*- coding:utf-8-unix mode:yaml -*-
 #  Ansible playbook
 #  Copyright 2020 Takeharu KATO All Rights Reserved.
 #
@@ -20,47 +20,85 @@
   retries: "{{ k8s_api_wait_retries | default(5) }}"
   delay: "{{ k8s_api_wait_sleep }}"
 
-# Whereaboutsのインストール
-- name: Install Whereabouts
-  ansible.builtin.shell: |
-    helm upgrade --install whereabouts {{ k8s_whereabouts_chart_url }} \
-    --namespace kube-system \
-    --version {{ k8s_whereabouts_helm_chart_version }}
-  environment:
-    KUBECONFIG: "{{ k8s_admin_kubeconfig_path }}"
+# Kubernetes API操作もHelmと同じ代表実行ユーザで実行するため,
+# sudo -u経路でkubectlが利用可能であることを事前に確認する。
+# kubectl version --client=trueは変更を伴わないため, チェックモードでも実行する。
+- name: Validate kubectl command availability for Whereabouts operator
+  ansible.builtin.command:
+    argv:
+      - sudo
+      - -u
+      - "{{ k8s_whereabouts_runtime_operator_user }}"
+      - kubectl
+      - version
+      - --client=true
+      - --request-timeout={{ k8s_whereabouts_runtime_helm_timeout_seconds | int }}s
+      - --output=yaml
+  register: k8s_whereabouts_kubectl_version_result
+  changed_when: false
+  check_mode: false
   become: true
-  register: _result
-  changed_when: _result.rc == 0
+  until: k8s_whereabouts_kubectl_version_result.rc | default(1) | int == 0
+  retries: "{{ k8s_whereabouts_runtime_helm_retries | int }}"
+  delay: "{{ k8s_whereabouts_runtime_helm_request_interval_seconds | int }}"
+
+# WhereaboutsのHelm release操作をk8s-helm-commonへ委譲し,
+# 本ロールではWhereabouts固有設定とNAD操作に責務を限定する。
+- name: Install Whereabouts via Helm
+  ansible.builtin.include_tasks: helm.yml
 
 # NetworkAttachmentDefinition (NAD)設定ファイル生成
 - name: Setup whereabouts NetworkAttachmentDefinition (NAD) file
   ansible.builtin.template:
     src: ipvlan-wb-nad.yml.j2
     dest: "{{ k8s_whereabouts_config_dir }}/ipvlan-wb-nad.yml"
-    owner: root
-    group: root
+    owner: "{{ k8s_whereabouts_runtime_operator_user }}"
+    group: "{{ k8s_whereabouts_runtime_operator_gid }}"
     mode: '0644'
     backup: false
+  when: k8s_whereabouts_runtime_nad_enabled | default(false) | bool
 
-# 旧設定(default namespace)のNADが残っている場合は削除し, 期待状態(kube-system)へ収束させる
+# 旧設定(default namespace)のNADが残っている場合は削除し,
+# Helmと同じ代表実行ユーザとkubeconfigで期待状態(kube-system)へ設定する。
 - name: Delete legacy whereabouts NetworkAttachmentDefinition (NAD) in default namespace
-  ansible.builtin.shell: |
-    kubectl delete network-attachment-definitions.k8s.cni.cncf.io ipvlan-wb \
-      -n default --ignore-not-found
-  environment:
-    KUBECONFIG: "{{ k8s_admin_kubeconfig_path }}"
+  ansible.builtin.command:
+    argv:
+      - sudo
+      - -u
+      - "{{ k8s_whereabouts_runtime_operator_user }}"
+      - kubectl
+      - --kubeconfig
+      - "{{ k8s_whereabouts_runtime_kubeconfig_path }}"
+      - --request-timeout={{ k8s_whereabouts_runtime_helm_timeout_seconds | int }}s
+      - delete
+      - network-attachment-definitions.k8s.cni.cncf.io
+      - ipvlan-wb
+      - --namespace
+      - default
+      - --ignore-not-found=true
   become: true
-  register: _nad_cleanup_result
-  changed_when: '"deleted" in (_nad_cleanup_result.stdout | lower)'
-
-# NetworkAttachmentDefinition (NAD)適用
-- name: Apply NetworkAttachmentDefinition (NAD)
-  ansible.builtin.shell: |
-    kubectl apply -f "{{ k8s_whereabouts_config_dir }}/ipvlan-wb-nad.yml"
-  environment:
-    KUBECONFIG: "{{ k8s_admin_kubeconfig_path }}"
-  become: true
-  register: _result
+  register: k8s_whereabouts_legacy_nad_delete_result
   changed_when: >-
-    ' created' in (_result.stdout | lower)
-    or ' configured' in (_result.stdout | lower)
+    'deleted' in (k8s_whereabouts_legacy_nad_delete_result.stdout | lower)
+  when: k8s_whereabouts_runtime_nad_enabled | default(false) | bool
+
+# NetworkAttachmentDefinition (NAD)もHelmと同じ代表実行ユーザとkubeconfigで適用する。
+- name: Apply NetworkAttachmentDefinition (NAD)
+  ansible.builtin.command:
+    argv:
+      - sudo
+      - -u
+      - "{{ k8s_whereabouts_runtime_operator_user }}"
+      - kubectl
+      - --kubeconfig
+      - "{{ k8s_whereabouts_runtime_kubeconfig_path }}"
+      - --request-timeout={{ k8s_whereabouts_runtime_helm_timeout_seconds | int }}s
+      - apply
+      - -f
+      - "{{ k8s_whereabouts_config_dir }}/ipvlan-wb-nad.yml"
+  become: true
+  register: k8s_whereabouts_nad_apply_result
+  changed_when: >-
+    ' created' in (k8s_whereabouts_nad_apply_result.stdout | lower)
+    or ' configured' in (k8s_whereabouts_nad_apply_result.stdout | lower)
+  when: k8s_whereabouts_runtime_nad_enabled | default(false) | bool

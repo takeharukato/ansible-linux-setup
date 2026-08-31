@@ -90,9 +90,9 @@ netif_list:
     dns_search: "example.org"
 
 # セカンダリネットワークのアドレスレンジ開始アドレス(IPv4)
-k8s_whereabouts_ipv4_range_start: "192.168.30.100"
+k8s_whereabouts_ipv4_range_start: "192.168.40.100"
 # セカンダリネットワークのアドレスレンジ終了アドレス(IPv4)
-k8s_whereabouts_ipv4_range_end: "192.168.30.254"
+k8s_whereabouts_ipv4_range_end: "192.168.40.254"
 # セカンダリネットワークのアドレスレンジ開始アドレス(IPv6)
 k8s_whereabouts_ipv6_range_start: "fd69:6684:61a:2::100"
 # セカンダリネットワークのアドレスレンジ終了アドレス(IPv6)

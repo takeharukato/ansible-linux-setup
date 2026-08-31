@@ -597,8 +597,7 @@ k8s_operator_github_key_list:
   - { github: 'sampleuser' }
 ```
 
-その他, Kubernetes API監査機能, Cilium CNI, Multus メタCNI, Whereabouts IPアドレスマネージャの
-バージョン, Helmのチャートバージョン, イメージバージョンなどを指定できます。
+その他, Kubernetes API監査機能, Cilium CNI, Multus メタCNI, Whereabouts IPアドレスマネージャなどの設定を指定できます。
 
 ##### Kubernetes API監査関連設定
 
@@ -710,14 +709,8 @@ Whereabouts IPアドレスマネージャ関連の設定を以下に記載しま
 
 |変数名|意味|設定値の例|
 |---|---|---|
-|k8s_whereabouts_enabled|Whereabouts関連タスクを実行するかどうか。`true` で Whereabouts を導入する|`false`|
+|k8s_whereabouts_enabled|Whereabouts関連タスクを実行するよう指示する。`true` で Whereabouts を導入する|`false`|
 |k8s_whereabouts_version|Whereabouts CNIのバージョン|"0.9.2"|
-|k8s_whereabouts_helm_chart_version|Whereabouts Helm Chartのバージョン|"{{ k8s_whereabouts_version }}"|
-|k8s_whereabouts_image_version|Whereaboutsコンテナイメージのバージョン|"{{ k8s_whereabouts_version }}"|
-|k8s_whereabouts_ipv4_range_start|セカンダリネットワークのIPv4アドレス範囲の開始アドレス|"172.22.0.10"|
-|k8s_whereabouts_ipv4_range_end|セカンダリネットワークのIPv4アドレス範囲の終了アドレス|"172.22.0.50"|
-|k8s_whereabouts_ipv6_range_start|セカンダリネットワークのIPv6アドレス範囲の開始アドレス (IPv6 を利用する場合)|"fd00:100::10"|
-|k8s_whereabouts_ipv6_range_end|セカンダリネットワークのIPv6アドレス範囲の終了アドレス (IPv6 を利用する場合)|"fd00:100::50"|
 
 ##### 複数コントロールプレインの操作
 

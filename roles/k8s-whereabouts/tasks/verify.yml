@@ -1,0 +1,454 @@
+#  -*- coding:utf-8-unix mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  実行結果検証タスク
+#
+---
+
+# チェックモードでは実行時検証を行わない。
+- name: Skip Whereabouts runtime verification in check mode
+  ansible.builtin.debug:
+    msg: >-
+      Check mode: skipping runtime verification for Whereabouts.
+  when: ansible_check_mode | bool
+
+# 導入後検証の待機条件を外部コマンド実行前に検証し,
+# 無効なタイムアウト値や再試行回数による即時失敗を防止する。
+- name: Validate Whereabouts runtime verification timing inputs
+  ansible.builtin.assert:
+    that:
+      - k8s_whereabouts_verify_request_timeout_seconds | int > 0
+      - k8s_whereabouts_verify_retry_interval_seconds | int >= 0
+      - k8s_whereabouts_verify_retries | int > 0
+    fail_msg: >-
+      Whereabouts runtime verification timing values are invalid.
+  when: not (ansible_check_mode | bool)
+
+# Helm release状態取得はk8s-helm-commonへ委譲し,
+# Whereaboutsロール内でHelm操作方法を重複実装しない。
+# k8s-helm-commonの公開入力APIは意図的にk8s_helm_*で定義しているため,
+# include先ロール名に由来するvar-naming[no-role-prefix]をこのタスクだけ除外する。
+- name: Get Whereabouts Helm release status  # noqa: var-naming[no-role-prefix]
+  ansible.builtin.include_role:
+    name: k8s-helm-common
+    tasks_from: status.yml
+  vars:
+    k8s_helm_release_name: "{{ k8s_whereabouts_runtime_release_name }}"
+    k8s_helm_namespace: "{{ k8s_whereabouts_runtime_namespace }}"
+    k8s_helm_kubeconfig_path: "{{ k8s_whereabouts_runtime_kubeconfig_path }}"
+    k8s_helm_operation_timeout_seconds: "{{ k8s_whereabouts_runtime_helm_timeout_seconds }}"
+    k8s_helm_operation_retries: "{{ k8s_whereabouts_runtime_helm_retries }}"
+    k8s_helm_operation_retry_interval_seconds: >-
+      {{ k8s_whereabouts_runtime_helm_retry_interval_seconds }}
+    k8s_helm_operation_request_interval_seconds: >-
+      {{ k8s_whereabouts_runtime_helm_request_interval_seconds }}
+  when: not (ansible_check_mode | bool)
+
+# WhereaboutsのHelm releaseが存在し,deployed状態であることを確認し,
+# 部分適用状態のままロールを正常終了させない。
+- name: Assert Whereabouts Helm release is deployed
+  ansible.builtin.assert:
+    that:
+      - k8s_helm_release_exists | default(false) | bool
+      - >-
+        (k8s_helm_release_state | default('', true) | string | lower)
+        == 'deployed'
+    fail_msg: >-
+      Whereabouts Helm release is not deployed.
+      release={{ k8s_whereabouts_runtime_release_name }}
+      namespace={{ k8s_whereabouts_runtime_namespace }}
+  when: not (ansible_check_mode | bool)
+
+# Helm releaseに属するDaemonSetを取得し,
+# Whereaboutsのノード常駐Podの配置状態を検証できるようにする。
+- name: Get Whereabouts DaemonSets
+  ansible.builtin.command:
+    argv:
+      - sudo
+      - -u
+      - "{{ k8s_whereabouts_runtime_operator_user }}"
+      - kubectl
+      - --kubeconfig
+      - "{{ k8s_whereabouts_runtime_kubeconfig_path }}"
+      - --namespace
+      - "{{ k8s_whereabouts_runtime_namespace }}"
+      - "--request-timeout={{ k8s_whereabouts_verify_request_timeout_seconds | int }}s"
+      - get
+      - daemonset
+      - "--selector=app.kubernetes.io/instance={{ k8s_whereabouts_runtime_release_name }}"
+      - --output=json
+  register: k8s_whereabouts_verify_daemonsets_result
+  changed_when: false
+  become: true
+  until: k8s_whereabouts_verify_daemonsets_result.rc | default(1) | int == 0
+  retries: "{{ k8s_whereabouts_verify_retries | int }}"
+  delay: "{{ k8s_whereabouts_verify_retry_interval_seconds | int }}"
+  when: not (ansible_check_mode | bool)
+
+# WhereaboutsのDaemonSetが少なくとも1個存在することを確認する。
+- name: Assert Whereabouts DaemonSet exists
+  ansible.builtin.assert:
+    that:
+      - >-
+        (
+          (k8s_whereabouts_verify_daemonsets_result.stdout | from_json)
+          .get('items', [])
+          | default([], true)
+          | length
+        ) > 0
+    fail_msg: >-
+      No Whereabouts DaemonSet was found.
+      namespace={{ k8s_whereabouts_runtime_namespace }}
+      release={{ k8s_whereabouts_runtime_release_name }}
+  when: not (ansible_check_mode | bool)
+
+# 各DaemonSetで少なくとも1個以上のPodが配置対象になっていることを確認し,
+# nodeSelector等の設定不整合により配置対象が0件となる状態を早期に検出する。
+- name: Validate Whereabouts DaemonSet desired count
+  ansible.builtin.assert:
+    that:
+      - item.status.desiredNumberScheduled | default(0) | int > 0
+    fail_msg: >-
+      Whereabouts DaemonSet {{ item.metadata.name }} has no desired Pods.
+  loop: >-
+    {{
+      (k8s_whereabouts_verify_daemonsets_result.stdout | from_json)
+      .get('items', [])
+      | default([], true)
+    }}
+  loop_control:
+    label: "{{ item.metadata.name }}"
+  when: not (ansible_check_mode | bool)
+
+# 各DaemonSetの最新状態をKubernetes APIから取得し,
+# 全配置対象Podが最新generationで更新済みかつReady/Availableになるまで上限付きで再確認する。
+- name: Wait for Whereabouts DaemonSet readiness
+  ansible.builtin.command:
+    argv:
+      - sudo
+      - -u
+      - "{{ k8s_whereabouts_runtime_operator_user }}"
+      - kubectl
+      - --kubeconfig
+      - "{{ k8s_whereabouts_runtime_kubeconfig_path }}"
+      - --namespace
+      - "{{ k8s_whereabouts_runtime_namespace }}"
+      - "--request-timeout={{ k8s_whereabouts_verify_request_timeout_seconds | int }}s"
+      - get
+      - daemonset
+      - "{{ item.metadata.name }}"
+      - --output=json
+  register: k8s_whereabouts_verify_daemonset_ready_result
+  changed_when: false
+  become: true
+  until:
+    - k8s_whereabouts_verify_daemonset_ready_result.rc | default(1) | int == 0
+    - >-
+      (
+        (
+          k8s_whereabouts_verify_daemonset_ready_result.stdout
+          | default('{}', true)
+          | from_json
+        ).get('status', {}).get('desiredNumberScheduled', 0)
+        | int
+      ) > 0
+    - >-
+      (
+        (
+          k8s_whereabouts_verify_daemonset_ready_result.stdout
+          | default('{}', true)
+          | from_json
+        ).get('status', {}).get('observedGeneration', 0)
+        | int
+      )
+      >=
+      (
+        (
+          k8s_whereabouts_verify_daemonset_ready_result.stdout
+          | default('{}', true)
+          | from_json
+        ).get('metadata', {}).get('generation', 0)
+        | int
+      )
+    - >-
+      (
+        (
+          k8s_whereabouts_verify_daemonset_ready_result.stdout
+          | default('{}', true)
+          | from_json
+        ).get('status', {}).get('currentNumberScheduled', 0)
+        | int
+      )
+      ==
+      (
+        (
+          k8s_whereabouts_verify_daemonset_ready_result.stdout
+          | default('{}', true)
+          | from_json
+        ).get('status', {}).get('desiredNumberScheduled', 0)
+        | int
+      )
+    - >-
+      (
+        (
+          k8s_whereabouts_verify_daemonset_ready_result.stdout
+          | default('{}', true)
+          | from_json
+        ).get('status', {}).get('updatedNumberScheduled', 0)
+        | int
+      )
+      ==
+      (
+        (
+          k8s_whereabouts_verify_daemonset_ready_result.stdout
+          | default('{}', true)
+          | from_json
+        ).get('status', {}).get('desiredNumberScheduled', 0)
+        | int
+      )
+    - >-
+      (
+        (
+          k8s_whereabouts_verify_daemonset_ready_result.stdout
+          | default('{}', true)
+          | from_json
+        ).get('status', {}).get('numberReady', 0)
+        | int
+      )
+      ==
+      (
+        (
+          k8s_whereabouts_verify_daemonset_ready_result.stdout
+          | default('{}', true)
+          | from_json
+        ).get('status', {}).get('desiredNumberScheduled', 0)
+        | int
+      )
+    - >-
+      (
+        (
+          k8s_whereabouts_verify_daemonset_ready_result.stdout
+          | default('{}', true)
+          | from_json
+        ).get('status', {}).get('numberAvailable', 0)
+        | int
+      )
+      ==
+      (
+        (
+          k8s_whereabouts_verify_daemonset_ready_result.stdout
+          | default('{}', true)
+          | from_json
+        ).get('status', {}).get('desiredNumberScheduled', 0)
+        | int
+      )
+    - >-
+      (
+        (
+          k8s_whereabouts_verify_daemonset_ready_result.stdout
+          | default('{}', true)
+          | from_json
+        ).get('status', {}).get('numberUnavailable', 0)
+        | int
+      ) == 0
+  retries: "{{ k8s_whereabouts_verify_retries | int }}"
+  delay: "{{ k8s_whereabouts_verify_retry_interval_seconds | int }}"
+  loop: >-
+    {{
+      (k8s_whereabouts_verify_daemonsets_result.stdout | from_json)
+      .get('items', [])
+      | default([], true)
+    }}
+  loop_control:
+    label: "{{ item.metadata.name }}"
+  when: not (ansible_check_mode | bool)
+
+# DaemonSet配下PodをownerReferencesで特定するため,
+# WhereaboutsのDaemonSet UID一覧を生成する。
+- name: Resolve Whereabouts DaemonSet UIDs
+  ansible.builtin.set_fact:
+    k8s_whereabouts_verify_daemonset_uids: >-
+      {{
+        (k8s_whereabouts_verify_daemonsets_result.stdout | from_json)
+        .get('items', [])
+        | default([], true)
+        | map(attribute='metadata.uid')
+        | list
+      }}
+  when: not (ansible_check_mode | bool)
+
+# ownerReferencesからWhereaboutsのDaemonSet配下Podを特定するため,
+# 対象namespace内のPod一覧を取得する。
+- name: Get Pods in Whereabouts namespace
+  ansible.builtin.command:
+    argv:
+      - sudo
+      - -u
+      - "{{ k8s_whereabouts_runtime_operator_user }}"
+      - kubectl
+      - --kubeconfig
+      - "{{ k8s_whereabouts_runtime_kubeconfig_path }}"
+      - --namespace
+      - "{{ k8s_whereabouts_runtime_namespace }}"
+      - "--request-timeout={{ k8s_whereabouts_verify_request_timeout_seconds | int }}s"
+      - get
+      - pods
+      - --output=json
+  register: k8s_whereabouts_verify_namespace_pods_result
+  changed_when: false
+  become: true
+  until: k8s_whereabouts_verify_namespace_pods_result.rc | default(1) | int == 0
+  retries: "{{ k8s_whereabouts_verify_retries | int }}"
+  delay: "{{ k8s_whereabouts_verify_retry_interval_seconds | int }}"
+  when: not (ansible_check_mode | bool)
+
+# Whereabouts DaemonSet配下Podの格納先を初期化する。
+- name: Initialize Whereabouts DaemonSet Pod list
+  ansible.builtin.set_fact:
+    k8s_whereabouts_verify_daemonset_pods: []
+  when: not (ansible_check_mode | bool)
+
+# ラベル値を固定前提にせず,ownerReferencesがWhereaboutsのDaemonSetを
+# 指しているPodだけを実行状態検証対象として抽出する。
+- name: Resolve Whereabouts DaemonSet Pods
+  ansible.builtin.set_fact:
+    k8s_whereabouts_verify_daemonset_pods: >-
+      {{ k8s_whereabouts_verify_daemonset_pods + [item] }}
+  when:
+    - not (ansible_check_mode | bool)
+    - >-
+      (
+        (
+          item.metadata.ownerReferences
+          | default([])
+          | selectattr('kind', 'equalto', 'DaemonSet')
+          | map(attribute='uid')
+          | list
+        )
+        | intersect(k8s_whereabouts_verify_daemonset_uids)
+        | length
+      ) > 0
+  loop: >-
+    {{
+      (k8s_whereabouts_verify_namespace_pods_result.stdout | from_json)
+      .get('items', [])
+      | default([], true)
+    }}
+  loop_control:
+    label: "{{ item.metadata.name }}"
+
+# DaemonSet配下Podが存在することを確認する。
+- name: Assert Whereabouts DaemonSet Pods exist
+  ansible.builtin.assert:
+    that:
+      - k8s_whereabouts_verify_daemonset_pods | default([], true) | length > 0
+    fail_msg: >-
+      No Pods owned by the Whereabouts DaemonSet were found.
+  when: not (ansible_check_mode | bool)
+
+# 各Whereabouts DaemonSet PodがRunning状態であり,
+# 削除処理中ではなく全コンテナがReadyであることを確認する。
+- name: Validate Whereabouts DaemonSet Pods
+  ansible.builtin.assert:
+    that:
+      - (item.status.phase | default('', true)) == 'Running'
+      - item.metadata.deletionTimestamp is not defined
+      - item.status.containerStatuses | default([], true) | length > 0
+      - >-
+        (
+          item.status.containerStatuses
+          | default([], true)
+          | selectattr('ready', 'equalto', true)
+          | list
+          | length
+        )
+        ==
+        (item.status.containerStatuses | default([], true) | length)
+    fail_msg: >-
+      Whereabouts DaemonSet Pod {{ item.metadata.name }} is not ready.
+  loop: "{{ k8s_whereabouts_verify_daemonset_pods | default([], true) }}"
+  loop_control:
+    label: "{{ item.metadata.name }}"
+  when: not (ansible_check_mode | bool)
+
+# NAD設定の有効化状態はresolve-runtime-vars.ymlで一度だけ解決し,
+# 設定処理と検証処理で同じ判定結果を使用する。
+# NAD設定が有効な場合だけ期待namespaceのNAD存在を確認し,
+# DaemonSetが正常でも指定済みセカンダリネットワーク定義が欠落した状態を検出する。
+- name: Get Whereabouts NetworkAttachmentDefinition
+  ansible.builtin.command:
+    argv:
+      - sudo
+      - -u
+      - "{{ k8s_whereabouts_runtime_operator_user }}"
+      - kubectl
+      - --kubeconfig
+      - "{{ k8s_whereabouts_runtime_kubeconfig_path }}"
+      - --namespace
+      - "{{ k8s_whereabouts_runtime_namespace }}"
+      - "--request-timeout={{ k8s_whereabouts_verify_request_timeout_seconds | int }}s"
+      - get
+      - network-attachment-definitions.k8s.cni.cncf.io
+      - ipvlan-wb
+      - --output=name
+  register: k8s_whereabouts_verify_nad_result
+  changed_when: false
+  become: true
+  until: k8s_whereabouts_verify_nad_result.rc | default(1) | int == 0
+  retries: "{{ k8s_whereabouts_verify_retries | int }}"
+  delay: "{{ k8s_whereabouts_verify_retry_interval_seconds | int }}"
+  when:
+    - not (ansible_check_mode | bool)
+    - k8s_whereabouts_runtime_nad_enabled | default(false) | bool
+
+# NAD設定が有効な場合だけ旧default namespaceのNADが残っていないことを確認し,
+# 旧設定と現行設定が同時に存在する状態を防止する。
+- name: Get legacy Whereabouts NetworkAttachmentDefinition
+  ansible.builtin.command:
+    argv:
+      - sudo
+      - -u
+      - "{{ k8s_whereabouts_runtime_operator_user }}"
+      - kubectl
+      - --kubeconfig
+      - "{{ k8s_whereabouts_runtime_kubeconfig_path }}"
+      - --namespace
+      - default
+      - "--request-timeout={{ k8s_whereabouts_verify_request_timeout_seconds | int }}s"
+      - get
+      - network-attachment-definitions.k8s.cni.cncf.io
+      - ipvlan-wb
+      - --ignore-not-found=true
+      - --output=name
+  register: k8s_whereabouts_verify_legacy_nad_result
+  changed_when: false
+  become: true
+  until: k8s_whereabouts_verify_legacy_nad_result.rc | default(1) | int == 0
+  retries: "{{ k8s_whereabouts_verify_retries | int }}"
+  delay: "{{ k8s_whereabouts_verify_retry_interval_seconds | int }}"
+  when:
+    - not (ansible_check_mode | bool)
+    - k8s_whereabouts_runtime_nad_enabled | default(false) | bool
+
+# NAD設定が有効な場合だけ現行NADが取得でき,旧default namespaceのNADが存在しないことを確認する。
+- name: Assert Whereabouts NetworkAttachmentDefinition state
+  ansible.builtin.assert:
+    that:
+      - >-
+        k8s_whereabouts_verify_nad_result.stdout
+        | default('', true)
+        | string
+        | trim
+        | length > 0
+      - >-
+        k8s_whereabouts_verify_legacy_nad_result.stdout
+        | default('', true)
+        | string
+        | trim
+        | length == 0
+    fail_msg: >-
+      Whereabouts NetworkAttachmentDefinition state is invalid.
+  when:
+    - not (ansible_check_mode | bool)
+    - k8s_whereabouts_runtime_nad_enabled | default(false) | bool

@@ -1,15 +1,315 @@
-#  -*- coding:utf-8 mode:yaml -*-
+#  -*- coding:utf-8-unix mode:yaml -*-
 #  Ansible playbook
 #  Copyright 2020 Takeharu KATO All Rights Reserved.
 #
 #  実行時変数解決タスク
 #
 
-# vars/k8s-config-common.ymlの計算済みCIDR値を本ロール専用のランタイム変数へ複製し,
-# 以後のタスクとテンプレートは複製後の変数のみを参照することで, 共有変数の直接消費による
-# 他ロールとの暗黙的な結合を避ける。
-- name: Resolve runtime network CIDR values for Whereabouts
+# 本ロールが生成する検証用NADはKubernetesネットワーク側NICへ接続する。
+# k8s_nicが未設定の環境ではWhereabouts本体の導入を継続し, 検証用NADだけを生成しない。
+# k8s_nicが空文字列の場合にnetif_list中の空のnetif属性と誤一致することを防ぐため,
+# k8s_nicが空でない場合だけ候補NICを抽出し, 空の場合は候補を空listにする。
+# 候補抽出処理の対応関係: k8s_nicを文字列化して前後の空白を除去し, 長さが0より大きい場合は,
+# netif_listをlistとして扱い, netif属性を持つ項目に限定してk8s_nicと同名の項目だけを抽出する。
+# k8s_nicの長さが0の場合はelse節で空listを返す
+# ((netif_list | default([], true) | selectattr('netif', 'defined')
+#   | selectattr('netif', 'equalto', k8s_nic | default('', true) | string | trim) | list)
+#  if (k8s_nic | default('', true) | string | trim | length) > 0 else [])。
+- name: Resolve Whereabouts NAD network interface candidates
   ansible.builtin.set_fact:
-    k8s_network_ipv4_cidr_runtime: "{{ k8s_network_ipv4_cidr_base | default('', true) }}"
-    k8s_network_ipv6_cidr_runtime: "{{ k8s_network_ipv6_cidr_base | default('', true) }}"
+    k8s_whereabouts_runtime_nad_nic_name: >-
+      {{ k8s_nic | default('', true) | string | trim }}
+    k8s_whereabouts_runtime_nad_nic_candidates: >-
+      {{
+        (
+          netif_list
+          | default([], true)
+          | selectattr('netif', 'defined')
+          | selectattr(
+              'netif',
+              'equalto',
+              k8s_nic | default('', true) | string | trim
+            )
+          | list
+        )
+        if (
+          k8s_nic
+          | default('', true)
+          | string
+          | trim
+          | length
+        ) > 0
+        else []
+      }}
+  changed_when: false
+
+# k8s_nicが未設定の場合でもWhereabouts本体の導入は継続し,
+# 検証用NADだけを生成しないことを実行ログで明示する。
+- name: Warn when Whereabouts NAD network interface is not configured
+  ansible.builtin.debug:
+    msg: >-
+      WARNING: k8s_nic is not configured.
+      Skipping creation and verification of the Whereabouts test NAD.
+  when: >-
+    (
+      k8s_whereabouts_runtime_nad_nic_name
+      | default('', true)
+      | string
+      | trim
+      | length
+    ) == 0
+
+# k8s_nicが設定されていてもnetif_listに対応するNIC定義がない場合は,
+# Whereabouts本体の導入を継続し, 検証用NADだけを生成しないことと原因を実行ログで明示する。
+# k8s_nicが空でないことと候補NICが0件であることを組み合わせ,
+# k8s_nic未設定時の警告と重複しないようにする。
+- name: Warn when Whereabouts NAD network interface is not found
+  ansible.builtin.debug:
+    msg: >-
+      WARNING: No netif_list entry matches k8s_nic
+      '{{ k8s_whereabouts_runtime_nad_nic_name }}'.
+      Skipping creation and verification of the Whereabouts test NAD.
+  when:
+    - >-
+      (
+        k8s_whereabouts_runtime_nad_nic_name
+        | default('', true)
+        | string
+        | trim
+        | length
+      ) > 0
+    - >-
+      (
+        k8s_whereabouts_runtime_nad_nic_candidates
+        | default([], true)
+        | length
+      ) == 0
+
+# k8s_nicに対応する設定が存在する場合は先頭の設定を使用し,
+# k8s_nicが未設定またはnetif_listに該当項目がない場合は空の辞書として扱う。
+- name: Resolve Whereabouts NAD network interface settings
+  ansible.builtin.set_fact:
+    k8s_whereabouts_runtime_nad_nic_config: >-
+      {{
+        k8s_whereabouts_runtime_nad_nic_candidates
+        | first
+        | default({})
+      }}
+  changed_when: false
+
+# 検証用NADのIPv4/IPv6 CIDRはk8s_nicに対応するnetif_listの
+# 静的IPアドレスとプレフィックス長から生成する。
+# IPアドレスまたはプレフィックス長が未設定の場合は空文字列とし,
+# 後続のNAD有効判定で該当アドレスファミリを使用しない。
+# IPv4生成処理の対応関係: static_ipv4_addr + '/' + network_ipv4_prefix_len
+# (k8s_whereabouts_runtime_nad_nic_config.static_ipv4_addr ~ '/'
+#  ~ k8s_whereabouts_runtime_nad_nic_config.network_ipv4_prefix_len)。
+# IPv6生成処理の対応関係: static_ipv6_addr + '/' + network_ipv6_prefix_len
+# (k8s_whereabouts_runtime_nad_nic_config.static_ipv6_addr ~ '/'
+#  ~ k8s_whereabouts_runtime_nad_nic_config.network_ipv6_prefix_len)。
+- name: Resolve runtime network CIDR values for Whereabouts NAD
+  ansible.builtin.set_fact:
+    k8s_whereabouts_runtime_ipv4_cidr: >-
+      {{
+        (
+          k8s_whereabouts_runtime_nad_nic_config.static_ipv4_addr
+          | string
+          | trim
+        )
+        ~ '/'
+        ~ (
+          k8s_whereabouts_runtime_nad_nic_config.network_ipv4_prefix_len
+          | string
+          | trim
+        )
+        if (
+          (
+            k8s_whereabouts_runtime_nad_nic_config.static_ipv4_addr
+            | default('', true)
+            | string
+            | trim
+            | length
+          ) > 0
+          and (
+            k8s_whereabouts_runtime_nad_nic_config.network_ipv4_prefix_len
+            | default('')
+            | string
+            | trim
+            | length
+          ) > 0
+        )
+        else ''
+      }}
+    k8s_whereabouts_runtime_ipv6_cidr: >-
+      {{
+        (
+          k8s_whereabouts_runtime_nad_nic_config.static_ipv6_addr
+          | string
+          | trim
+        )
+        ~ '/'
+        ~ (
+          k8s_whereabouts_runtime_nad_nic_config.network_ipv6_prefix_len
+          | string
+          | trim
+        )
+        if (
+          (
+            k8s_whereabouts_runtime_nad_nic_config.static_ipv6_addr
+            | default('', true)
+            | string
+            | trim
+            | length
+          ) > 0
+          and (
+            k8s_whereabouts_runtime_nad_nic_config.network_ipv6_prefix_len
+            | default('')
+            | string
+            | trim
+            | length
+          ) > 0
+        )
+        else ''
+      }}
+  changed_when: false
+
+# NADはk8s_nicのIPv4またはIPv6 CIDRと割当範囲が揃った場合だけ生成するため,
+# 後続の設定処理と検証処理で共通使用する有効化状態をここで解決する。
+- name: Resolve Whereabouts runtime NAD requirement
+  ansible.builtin.set_fact:
+    k8s_whereabouts_runtime_nad_enabled: >-
+      {{
+        (
+          (k8s_whereabouts_runtime_ipv4_cidr | default('', true) | string | length) > 0
+          and (k8s_whereabouts_ipv4_range_start | default('', true) | string | length) > 0
+          and (k8s_whereabouts_ipv4_range_end | default('', true) | string | length) > 0
+        )
+        or
+        (
+          (k8s_whereabouts_runtime_ipv6_cidr | default('', true) | string | length) > 0
+          and (k8s_whereabouts_ipv6_range_start | default('', true) | string | length) > 0
+          and (k8s_whereabouts_ipv6_range_end | default('', true) | string | length) > 0
+        )
+      }}
+  changed_when: false
+
+# WhereaboutsのHelm操作とKubernetes API操作で使用する値を
+# 本ロール専用のランタイム変数へ複製する。
+# release名とnamespaceは既存実装で指定していた値を維持し,
+# Chart参照先は公式OCI Chartを固定使用する。Chart版数は運用者が指定する
+# Whereabouts版数から内部的に決定し, image tagはChart側の定義に委ねる。
+# Helm操作とkubectl操作は同じ代表実行ユーザとkubeconfigを使用する。
+# 時間制限と再試行制御値はvars/k8s-config-common.ymlのHelm共通値を使用する。
+- name: Resolve runtime Helm values for Whereabouts
+  ansible.builtin.set_fact:
+    k8s_whereabouts_runtime_release_name: "whereabouts"
+    k8s_whereabouts_runtime_namespace: "kube-system"
+    k8s_whereabouts_runtime_operator_user: >-
+      {{ k8s_runtime_helm_operator_user | string | trim }}
+    k8s_whereabouts_runtime_chart_ref: >-
+      oci://ghcr.io/k8snetworkplumbingwg/whereabouts-chart
+    k8s_whereabouts_runtime_chart_version: >-
+      {{ k8s_whereabouts_version | string | trim }}
+    k8s_whereabouts_runtime_helm_timeout_seconds: >-
+      {{ k8s_helm_timeout_seconds | int }}
+    k8s_whereabouts_runtime_helm_retries: >-
+      {{ k8s_helm_retries | int }}
+    k8s_whereabouts_runtime_helm_retry_interval_seconds: >-
+      {{ k8s_helm_retry_interval_seconds | int }}
+    k8s_whereabouts_runtime_helm_request_interval_seconds: >-
+      {{ k8s_helm_request_interval_seconds | int }}
+  changed_when: false
+
+# kubeconfig参照先を解決する前提として,
+# Whereabouts代表実行ユーザ名が空でないことを確認する。
+- name: Validate Whereabouts operator user input
+  ansible.builtin.assert:
+    that:
+      - >-
+        k8s_whereabouts_runtime_operator_user
+        | default('', true)
+        | string
+        | trim
+        | length > 0
+    fail_msg: >-
+      Kubernetes operator user is not configured for Whereabouts.
+
+# Whereabouts代表実行ユーザの実ホームディレクトリを取得し,
+# /home固定前提によるkubeconfig参照先の誤りを防止する。
+# ユーザが存在しない場合は後続assertで原因を明示するため, getent自身では失敗させない。
+- name: Resolve home directory for Whereabouts operator user
+  ansible.builtin.getent:
+    database: passwd
+    key: "{{ k8s_whereabouts_runtime_operator_user | string | trim }}"
+    fail_key: false
+  register: k8s_whereabouts_operator_user_getent
+  changed_when: false
+
+# getent結果からWhereabouts代表実行ユーザのpasswdエントリを安全に取り出し,
+# ユーザ不存在時も後続assertで原因を明示できるように空listへ正規化する。
+- name: Resolve Whereabouts operator passwd entry
+  ansible.builtin.set_fact:
+    k8s_whereabouts_operator_user_passwd_entry: >-
+      {{
+        (
+          k8s_whereabouts_operator_user_getent
+          .ansible_facts
+          .getent_passwd
+          | default({})
+        ).get(
+          k8s_whereabouts_runtime_operator_user | string | trim,
+          []
+        )
+        | default([], true)
+      }}
+  changed_when: false
+
+# Whereabouts代表実行ユーザのpasswd情報, primary GID, ホームディレクトリが
+# 取得できたことを確認し, 不完全なpasswd情報を参照する前に明示的に停止する。
+- name: Validate Whereabouts operator user
+  ansible.builtin.assert:
+    that:
+      - k8s_whereabouts_operator_user_passwd_entry | length > 4
+      - >-
+        (
+          (
+            k8s_whereabouts_operator_user_passwd_entry
+            + ['', '', '']
+          )[2]
+          | default('', true)
+          | string
+          | trim
+          | length
+        ) > 0
+      - >-
+        (
+          (
+            k8s_whereabouts_operator_user_passwd_entry
+            + ['', '', '', '', '']
+          )[4]
+          | default('', true)
+          | string
+          | trim
+          | length
+        ) > 0
+    fail_msg: >-
+      Kubernetes operator user {{ k8s_whereabouts_runtime_operator_user }} does not have valid passwd information.
+
+# NAD設定ファイルを代表実行ユーザのprimary group所有にするため,
+# passwdエントリのprimary GIDを本ロール専用のランタイム変数へ設定する。
+- name: Resolve Whereabouts runtime operator group ID
+  ansible.builtin.set_fact:
+    k8s_whereabouts_runtime_operator_gid: >-
+      {{ k8s_whereabouts_operator_user_passwd_entry[2] | string | trim }}
+  changed_when: false
+
+# k8s-kubeconfigロールがHelm実行候補ユーザへ配布するca-embedded-admin.confを
+# WhereaboutsのHelm操作とKubernetes API操作で共通使用する。
+- name: Resolve Whereabouts runtime kubeconfig path
+  ansible.builtin.set_fact:
+    k8s_whereabouts_runtime_kubeconfig_path: >-
+      {{
+        k8s_whereabouts_operator_user_passwd_entry[4]
+        ~ '/.kube/ca-embedded-admin.conf'
+      }}
   changed_when: false

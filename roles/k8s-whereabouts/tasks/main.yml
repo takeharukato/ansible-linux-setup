@@ -1,4 +1,4 @@
-#  -*- coding:utf-8 mode:yaml -*-
+#  -*- coding:utf-8-unix mode:yaml -*-
 #  Ansible playbook
 #  Copyright 2020 Takeharu KATO All Rights Reserved.
 #
@@ -11,7 +11,7 @@
 - name: "Load Params"
   ansible.builtin.include_tasks: load-params.yml
 
-# k8s-config-common.ymlの計算済みCIDR値をロール専用のランタイム変数へ複製する
+# Whereabouts本体の導入と検証用NADの生成条件を分離するため, 実行時設定を先に解決する。
 - name: "Resolve Runtime Vars"
   ansible.builtin.include_tasks: resolve-runtime-vars.yml
   when:
@@ -46,36 +46,19 @@
     - k8s_multus_enabled | default(false)
     - k8s_whereabouts_enabled | default(false)
 
-# Whereaboutsの設定処理
-# 以下の変数が定義されている場合にのみ実行する。
-# - k8s_multus_enabled が真であること
-# - k8s_whereabouts_enabled が真であること
-# - k8s_network_ipv4_cidr_runtime が定義され, 空でない
-# - k8s_whereabouts_ipv4_range_start が定義され, 空でない
-# - k8s_whereabouts_ipv4_range_end が定義され, 空でない
-# - k8s_network_ipv6_cidr_runtime が定義され, 空でない
-# - k8s_whereabouts_ipv6_range_start が定義され, 空でない
-# - k8s_whereabouts_ipv6_range_end が定義され, 空でない
+# Whereaboutsの導入処理
+# Whereabouts本体のHelm導入はNAD設定の有無に依存させず,
+# MultusとWhereaboutsが有効な場合に実行する。
 - name: "Config Whereabouts"
   ansible.builtin.include_tasks: config-whereabouts.yml
   when:
-    - k8s_multus_enabled | default(false)
-    - k8s_whereabouts_enabled | default(false)
-    - >-
-      (
-        k8s_network_ipv4_cidr_runtime is defined
-        and (k8s_network_ipv4_cidr_runtime | string | length) > 0
-        and k8s_whereabouts_ipv4_range_start is defined
-        and (k8s_whereabouts_ipv4_range_start | string | length) > 0
-        and k8s_whereabouts_ipv4_range_end is defined
-        and (k8s_whereabouts_ipv4_range_end | string | length) > 0
-      )
-      or
-      (
-        k8s_network_ipv6_cidr_runtime is defined
-        and (k8s_network_ipv6_cidr_runtime | string | length) > 0
-        and k8s_whereabouts_ipv6_range_start is defined
-        and (k8s_whereabouts_ipv6_range_start | string | length) > 0
-        and k8s_whereabouts_ipv6_range_end is defined
-        and (k8s_whereabouts_ipv6_range_end | string | length) > 0
-      )
+    - k8s_multus_enabled | default(false) | bool
+    - k8s_whereabouts_enabled | default(false) | bool
+
+# 導入後の状態を検証し,WhereaboutsのDaemonSet,Podが正常であることを確認する。
+# NAD設定が有効な場合だけNetworkAttachmentDefinitionも検証対象とする。
+- name: "Verify"
+  ansible.builtin.include_tasks: verify.yml
+  when:
+    - k8s_multus_enabled | default(false) | bool
+    - k8s_whereabouts_enabled | default(false) | bool

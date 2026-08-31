@@ -1,6 +1,6 @@
 # k8s-whereabouts ロール
 
-本ロールは, Kubernetes コントロールプレーンノード上に Whereabouts を導入し, Network Attachment Definition (NAD) を適用するロールです。
+本ロールは, Kubernetes コントロールプレーンノードから Whereabouts を導入し, 検証用の Network Attachment Definition (NAD) を適用するロールです。
 
 ## 目次
 
@@ -9,52 +9,36 @@
   - [用語](#用語)
   - [概要](#概要)
     - [主な役割](#主な役割)
-    - [依存ロール](#依存ロール)
-    - [有効化条件](#有効化条件)
-  - [主な処理](#主な処理)
   - [前提条件](#前提条件)
+    - [Whereabouts 本体の導入, および, 検証用 NAD 有効化条件](#whereabouts-本体の導入-および-検証用-nad-有効化条件)
     - [実行順序](#実行順序)
   - [実行方法](#実行方法)
   - [主要変数](#主要変数)
-    - [Kubernetes API 接続設定](#kubernetes-api-接続設定)
-    - [有効化フラグ](#有効化フラグ)
-    - [ディレクトリパス設定](#ディレクトリパス設定)
-    - [Whereabouts Helm チャート設定](#whereabouts-helm-チャート設定)
-    - [ネットワーク範囲設定 (NAD 生成用)](#ネットワーク範囲設定-nad-生成用)
-    - [ネットワークおよびインタフェース設定](#ネットワークおよびインタフェース設定)
-  - [設定例](#設定例)
-    - [IPv6 範囲を有効化する手順](#ipv6-範囲を有効化する手順)
-    - [NAD の 名前空間 ( namespace ) を変更する手順](#nad-の-名前空間--namespace--を変更する手順)
+    - [各ロール固有の利用者入力値](#各ロール固有の利用者入力値)
+    - [設定例](#設定例)
+      - [NAD の名前空間を変更する手順](#nad-の名前空間を変更する手順)
   - [テンプレートと生成ファイル](#テンプレートと生成ファイル)
   - [実行フロー](#実行フロー)
-    - [パラメータおよび設定情報の読み込み](#パラメータおよび設定情報の読み込み)
-    - [実行時変数の解決](#実行時変数の解決)
-    - [パッケージの確認](#パッケージの確認)
-    - [ディレクトリ構造の作成](#ディレクトリ構造の作成)
-    - [ユーザ・グループおよびサービス設定](#ユーザグループおよびサービス設定)
-    - [Whereabouts 導入と NAD 適用](#whereabouts-導入と-nad-適用)
-      - [NAD テンプレート生成](#nad-テンプレート生成)
   - [検証ポイント](#検証ポイント)
-    - [必須確認事項](#必須確認事項)
-      - [1. Whereabouts Helm チャートのインストール確認](#1-whereabouts-helm-チャートのインストール確認)
-      - [2. Whereabouts デプロイメントの動作確認](#2-whereabouts-デプロイメントの動作確認)
-      - [3. NAD 登録確認](#3-nad-登録確認)
-      - [4. NAD 設定ファイルの存在確認](#4-nad-設定ファイルの存在確認)
-    - [オプション確認事項](#オプション確認事項)
-      - [5. Whereabouts Pod の詳細確認](#5-whereabouts-pod-の詳細確認)
-      - [6. NAD の詳細内容確認](#6-nad-の詳細内容確認)
-      - [7. ログの確認](#7-ログの確認)
-      - [8. Pod 間通信の確認 (実通信)](#8-pod-間通信の確認-実通信)
+    - [検証の前提条件](#検証の前提条件)
+    - [検証環境の設定](#検証環境の設定)
+    - [検証コマンドと期待結果](#検証コマンドと期待結果)
+      - [1. NAD 設定内容の確認](#1-nad-設定内容の確認)
+      - [2. 検証用 Pod の生成と配置確認](#2-検証用-pod-の生成と配置確認)
+      - [3. IPv4/IPv6 アドレス割り当て確認](#3-ipv4ipv6-アドレス割り当て確認)
+      - [4. IPv4 双方向通信確認](#4-ipv4-双方向通信確認)
+      - [5. IPv6 双方向通信確認](#5-ipv6-双方向通信確認)
+      - [6. IP アドレス割り当て状態確認](#6-ip-アドレス割り当て状態確認)
+      - [7. Pod 削除後の IP アドレス解放確認](#7-pod-削除後の-ip-アドレス解放確認)
   - [トラブルシューティング](#トラブルシューティング)
-    - [問題 1: Helm チャート導入失敗 - OCI URL にアクセスできない](#問題-1-helm-チャート導入失敗---oci-url-にアクセスできない)
-    - [問題 2: `config-whereabouts.yml` が実行されない](#問題-2-config-whereaboutsyml-が実行されない)
-    - [問題 3: NAD の IP プール範囲が不正](#問題-3-nad-の-ip-プール範囲が不正)
-    - [問題 4: kube-apiserver 待機がタイムアウト](#問題-4-kube-apiserver-待機がタイムアウト)
-    - [問題 5: NAD 名前空間が不正](#問題-5-nad-名前空間が不正)
+    - [1. Whereabouts が導入されない場合](#1-whereabouts-が導入されない場合)
+    - [2. Whereabouts は導入されるが検証用 NAD が生成されない場合](#2-whereabouts-は導入されるが検証用-nad-が生成されない場合)
+    - [3. `net1` に IPv4 または IPv6 アドレスが設定されない場合](#3-net1-に-ipv4-または-ipv6-アドレスが設定されない場合)
+    - [4. Pod 間通信に失敗する場合](#4-pod-間通信に失敗する場合)
   - [注意事項](#注意事項)
-    - [必須設定項目](#必須設定項目)
   - [参考資料](#参考資料)
     - [公式ドキュメント](#公式ドキュメント)
+    - [関連ロール](#関連ロール)
 
 ## 用語
 
@@ -166,7 +150,7 @@
 | Container Runtime Interface | CRI | Kubernetesがコンテナランタイムと通信するための標準インターフェース。 |
 | containerd | - | Dockerから分離された軽量なコンテナランタイム。 |
 | kubeadm | - | Kubernetesクラスタの初期構築と管理を支援する公式ツール。 |
-| kubectl | - | Kubernetesクラスタを操作するためのコマンドラインツール。 |
+| kubectlコマンド | kubectl | Kubernetes API と通信してリソースを操作, 参照するコマンド。 |
 | Helm | - | Kubernetesアプリケーションのパッケージ管理ツール。Chart形式でアプリケーションを配布, インストールします。 |
 | Chart | - | Helmで管理されるアプリケーションパッケージの単位。Kubernetes Manifestのテンプレート集。 |
 | Operator | - | アプリケーション固有の運用知識をコードで自動化するKubernetesの拡張パターン。 |
@@ -200,76 +184,75 @@
 | `ls` | - | ファイルやディレクトリの一覧を表示するコマンド。 |
 | `ping` | - | 対象への到達性と往復遅延を確認するコマンド。 |
 | `systemctl` | - | systemd 管理下のサービスを起動, 停止, 状態確認するコマンド。 |
+| jqコマンド | jq | JSON 形式のデータから必要な項目だけを抽出して表示するコマンド。 |
+| ipコマンド | - | ネットワーク設定や経路情報の確認, 変更を行うコマンド。 |
+| helmコマンド | helm | Kubernetes向けパッケージの導入, 更新, 状態確認を実施するコマンド。 |
+| IPPool | - | Whereabouts がネットワークごとの IP アドレス割り当て状態を記録する Kubernetes リソース。 |
+| BusyBox | - | 基本的なコマンドを小さな実行環境へまとめて提供するソフトウェア。 |
 | アドレス | - | 宛先や所在を識別するための情報。 |
 | サービス | - | 機能を利用者や他システムへ提供する仕組み。 |
 | システム | - | 複数の要素が連携して目的を実現する仕組み全体。 |
-| リモートノード | - | ネットワーク越しに管理対象となる別ホストのノード。 |
 | 制御ホスト | - | Playbook を実行し, 他ホストへの処理指示を行う管理用ホスト。 |
+| 対象ホスト | - | Playbook による設定変更や導入処理の適用先となるホスト。 |
 
 ## 概要
 
-Kubernetes コントロールプレーンノード上に Whereabouts を導入し, Network Attachment Definition (NAD) を適用するロールです。`k8s-common`, `k8s-ctrlplane`, `k8s-multus` で整えた共通前提の上に, Whereabouts の Helm チャート導入と NAD の適用を行います。再実行にも対応するよう設計されています。
+本ロールは, Multus が導入された Kubernetes クラスタへ Whereabouts を導入します。Whereabouts の Helm による導入, 更新, 状態確認に必要な共通処理は `k8s-helm-common` ロールへ委譲し, 本ロールでは Whereabouts 固有の設定解決, 導入後検証, および検証用 Network Attachment Definition (NAD) `ipvlan-wb` の生成と適用を担当します。
 
-本ロールは, Kubernetes クラスタに対して複数ネットワークインタフェースを提供するために必要な IPAM (IP Address Management) プラグインである **Whereabouts** をコントロールプレーンノード上に Helm チャートで導入し, 関連設定を適用します。
-
-なお, 本文中の`~` は ansible ログインユーザ (`ansible_user` 変数, 既定: `"ansible"`) のホームディレクトリ(規定: `"/home/ansible"`)を表します。
+検証用 NAD は, `k8s_nic` に対応するネットワークインタフェースの設定と Whereabouts の IP アドレス割り当て範囲が利用可能な場合だけ生成します。検証用 NAD の生成条件を満たさない場合でも, Whereabouts 本体の導入は継続します。
 
 ### 主な役割
 
-- **Whereabouts Helm チャートの導入**: `oci://ghcr.io/k8snetworkplumbingwg/whereabouts-chart` から OCI 形式で Helm チャートを取得し, `kubectl` で鎖ラスタに導入します。
-- **Network Attachment Definition (NAD) の生成・適用**: Jinja2 テンプレートから IPv4/IPv6 デュアルスタック対応の NAD `ipvlan-wb` を生成し, `kubectl apply` で適用します。
-- **再実行対応**: ロールの再実行時に既存ファイルを再利用し, 冪等性を確保しています。
+- Whereabouts の導入に必要な設定値を解決します。
+- Helm による Whereabouts の導入, 更新, 状態確認を `k8s-helm-common` ロールへ委譲します。
+- Whereabouts の DaemonSet と Pod が利用可能な状態であることを確認します。
+- 条件を満たす場合に, IPvLAN を使用する検証用 NAD `ipvlan-wb` を生成して `kube-system` 名前空間へ適用します。
+- 検証用 NAD では, Whereabouts の `ipRanges` に IPv4 と IPv6 の割り当て範囲を設定できます。
 
-### 依存ロール
-
-このロールは以下のロールが事前に完了していることを前提とします。
-
-- **k8s-common**: 基本的なシステム設定
-- **k8s-ctrlplane**: Kubernetes コントロールプレーン構築
-- **k8s-multus**: Multus CNI メタプラグイン導入
-
-Whereabouts は Multus を通じて複数ネットワーク機能を提供するため, `k8s_multus_enabled: true` と `k8s_whereabouts_enabled: true` の両方が必要です。
-
-### 有効化条件
-
-本ロールのコア処理 (`config-whereabouts.yml`) は以下の条件をすべて満たす場合にのみ実行されます。
-
-1. `k8s_multus_enabled: true` (Multus が有効)
-2. `k8s_whereabouts_enabled: true` (Whereabouts が有効)
-3. IPv4 範囲 (`k8s_whereabouts_ipv4_range_start` および `k8s_whereabouts_ipv4_range_end`) が定義されている, または
-4. IPv6 範囲 (`k8s_whereabouts_ipv6_range_start` および `k8s_whereabouts_ipv6_range_end`) が定義されている
-
-すべての条件が満たされない場合, 本ロールは初期化のみを実行し, Whereabouts の導入は実施されません。
-
-## 主な処理
-
-本ロールは tasks/main.yml から task 群を呼び出し, 設定適用と検証を実施します。
 
 ## 前提条件
 
-本ロールは以下の条件下で動作します。
+本ロールを実行する前に, 次の条件が満たされていることを確認します。
 
-- **対象 OS**: Ubuntu 24.04, RHEL 9 系 (AlmaLinux 9.6 を想定)
-- **Ansible**: 2.15 以降
-- **Kubernetes**: 1.27 以降 (k8s-ctrlplane で構築されたクラスタ)
-- **Helm**: 3.10 以降 (ターゲットノードに導入済みまたはコントロール側から実行可能)
-- **kubectl**: 対象クラスタへのアクセス権限
-- **Multus**: `k8s_multus_enabled: true` で事前導入済み
-- **IPv4/IPv6 範囲**: NAD に適用する IP アドレス範囲が事前に `host_vars` または `group_vars` で定義されていること
+- Multus を導入する設定となっていること (`vars/all-config.yml`で, `k8s_multus_enabled`変数が`true`となっていること)。
+- 対象 Kubernetes クラスタが構築済みであること。本ロールは, 次のロールが事前に完了していることを前提とします。
+  - `k8s-common`: Kubernetes 共通設定を構成します。
+  - `k8s-ctrlplane`: Kubernetes コントロールプレーンを構成します。
+  - `k8s-multus`: Multus を導入します。
+- Helm 操作用のユーザから対象 Kubernetes クラスタへアクセスできること。
+- 検証用 NAD を生成する場合は, Kubernetesコントロールプレーンノードの `host_vars` 内に, `k8s_nic` に対応する `netif_list` のネットワーク設定が存在すること。
+- 検証用 NAD で IPv4 を使用する場合は, IPv4 の開始アドレスと終了アドレスが設定されていること。
+- 検証用 NAD で IPv6 を使用する場合は, IPv6 の開始アドレスと終了アドレスが設定されていること。
+
+### Whereabouts 本体の導入, および, 検証用 NAD 有効化条件
+
+Whereabouts 本体は, 次の両方を設定した場合に導入します。
+
+- `k8s_multus_enabled: true`
+- `k8s_whereabouts_enabled: true`
+
+検証用 NAD `ipvlan-wb` は, Whereabouts 本体の有効化条件に加えて, `k8s_nic` に対応する `netif_list` の設定が存在し, IPv4 または IPv6 のネットワーク情報と対応する IP アドレス割り当て範囲が利用可能な場合に生成します。
+
+検証用 NAD の生成条件を満たさない場合, 実行ログへ警告を出力して NAD の生成と検証だけを省略し, Whereabouts 本体の導入と検証は継続します。
 
 ### 実行順序
 
-本ロールは以下のロールが事前に実行されていることを前提とします。
+本ロールは, 次の順序で関連ロールが実行されていることを前提とします。
 
-1. `k8s-common`: 基本的なシステム設定 (パッケージインストール, ネットワーク設定など)
-2. `k8s-ctrlplane`: Kubernetes コントロールプレーン構築 (kubeadm による初期化)
-3. `k8s-multus`: Multus CNI メタプラグイン導入
-
-これらが完了した後, 本ロール (`k8s-whereabouts`) を実行してください。
+1. `k8s-common`
+2. `k8s-ctrlplane`
+3. `k8s-multus`
+4. `k8s-whereabouts`
 
 ## 実行方法
 
-制御ホストで以下のコマンドを実行します。
+制御ホストで次のコマンドを実行します。
+
+```bash
+make run_k8s_whereabouts
+```
+
+または,
 
 ```bash
 ansible-playbook -i inventory/hosts site.yml --tags "k8s-whereabouts"
@@ -277,646 +260,781 @@ ansible-playbook -i inventory/hosts site.yml --tags "k8s-whereabouts"
 
 ## 主要変数
 
-本ロールで利用される主要な変数を以下のカテゴリに分類します。
+### 各ロール固有の利用者入力値
 
-### Kubernetes API 接続設定
+本節では, 利用者が Whereabouts の有効化, 版数, および検証用 NAD の IP アドレス割り当て範囲を設定するために使用する主要変数を示します。Helm 共通処理へ渡す内部変数と実行時に算出する変数は記載しません。
 
-Kubernetes API Server の待ち合わせ条件は [k8s-common ロール](../k8s-common/Readme.md) の共通内部設定を使用します。
+| 変数名 | 意味 | 既定値 | 設定例 |
+| --- | --- | --- | --- |
+| `k8s_whereabouts_enabled` | Whereabouts の導入を有効にします。 | `false` | `true` |
+| `k8s_whereabouts_version` | 導入する Whereabouts の版数を指定します。Helm Chart の版数は本値から内部的に決定します。 | `"0.9.2"` | `"0.9.2"` |
+| `k8s_whereabouts_ipv4_range_start` | 検証用 NAD で払い出す IPv4 アドレス範囲の開始アドレスを指定します。 | `""` | `"192.168.40.100"` |
+| `k8s_whereabouts_ipv4_range_end` | 検証用 NAD で払い出す IPv4 アドレス範囲の終了アドレスを指定します。 | `""` | `"192.168.40.254"` |
+| `k8s_whereabouts_ipv6_range_start` | 検証用 NAD で払い出す IPv6 アドレス範囲の開始アドレスを指定します。 | `""` | `"fd69:6684:61a:2::100"` |
+| `k8s_whereabouts_ipv6_range_end` | 検証用 NAD で払い出す IPv6 アドレス範囲の終了アドレスを指定します。 | `""` | `"fd69:6684:61a:2::ffff"` |
 
-これらの変数は kube-apiserver の起動待機処理で使用されます。
+検証用 NAD の接続先ネットワークは, 共通ネットワーク設定の `k8s_nic` と, `k8s_nic` に対応する `netif_list` の静的 IP アドレスおよびプレフィックス長から決定します。
 
-| 変数名 | 既定値 | 説明 |
-| --- | --- | --- |
-| `k8s_ctrlplane_endpoint` | 各ホストの `host_vars` で指定 | Control Plane API の広告アドレス (IPv4/IPv6)。待機処理で使用。|
+### 設定例
 
-### 有効化フラグ
-
-| 変数名 | 既定値 | 説明 |
-| --- | --- | --- |
-| `k8s_multus_enabled` | `false` | Multus が有効な場合のみ Whereabouts を導入します。 |
-| `k8s_whereabouts_enabled` | `false` | Whereabouts のすべてのタスク実行を制御します。 |
-
-### ディレクトリパス設定
-
-| 変数名 | 既定値 | 説明 |
-| --- | --- | --- |
-| `k8s_kubeadm_config_store` | `{{ ansible_home_dir }}/kubeadm` | Whereabouts 設定ファイルのルートディレクトリ。`{{ ansible_home_dir }}` は ansible ログインユーザ (`ansible_user` 変数, 既定: `"ansible"`) の home ディレクトリを展開したパス。 |
-| `k8s_whereabouts_config_dir` | `{{ k8s_kubeadm_config_store }}/whereabouts` | NAD 設定ファイルの生成先ディレクトリ。 |
-
-### Whereabouts Helm チャート設定
-
-| 変数名 | 既定値 | 説明 |
-| --- | --- | --- |
-| `k8s_whereabouts_version` | `0.9.2` | Whereabouts のベースバージョン。 |
-| `k8s_whereabouts_helm_chart_version` | `{{ k8s_whereabouts_version }}` | Whereabouts Helm チャートバージョン。 |
-| `k8s_whereabouts_image_version` | `{{ k8s_whereabouts_version }}` | Whereabouts コンテナイメージのタグ。テンプレート内で参照。 |
-| `k8s_whereabouts_chart_url` | `oci://ghcr.io/k8snetworkplumbingwg/whereabouts-chart` | Whereabouts Helm チャートの OCI URL。 |
-
-### ネットワーク範囲設定 (NAD 生成用)
-
-| 変数名 | 既定値 | 説明 |
-| --- | --- | --- |
-| `k8s_whereabouts_ipv4_range_start` | `""` | NAD で使用する IPv4 プール範囲の開始アドレス。設定必須 (IPv4 使用時)。 |
-| `k8s_whereabouts_ipv4_range_end` | `""` | NAD で使用する IPv4 プール範囲の終了アドレス。設定必須 (IPv4 使用時)。 |
-| `k8s_whereabouts_ipv6_range_start` | `""` | NAD で使用する IPv6 プール範囲の開始アドレス。設定必須 (IPv6 使用時)。 |
-| `k8s_whereabouts_ipv6_range_end` | `""` | NAD で使用する IPv6 プール範囲の終了アドレス。設定必須 (IPv6 使用時)。 |
-
-### ネットワークおよびインタフェース設定
-
-以下の変数はネットワーク設定から自動算出される値, 又は `group_vars/all/all.yml` から読み込まれ, NAD テンプレート生成に利用されます。IPv6 を使用しない場合は `network_ipv6_network_address` の設定は不要です。
-
-| 変数名 | 由来 | 説明 |
-| --- | --- | --- |
-| `k8s_network_ipv4_cidr_runtime` | `vars/k8s-config-common.yml`(`network_ipv4_network_address`/`network_ipv4_prefix_len`から自動算出) | NAD で使用する IPv4 CIDR (例: `10.0.0.0/16`)。`tasks/resolve-runtime-vars.yml`がランタイム変数として設定する。 |
-| `k8s_network_ipv6_cidr_runtime` | `network_ipv6_network_address` / `network_ipv6_prefix_len` から自動算出 | NAD で使用する IPv6 CIDR (例: `fd00::/64`)。IPv6 を使用しない場合は空文字列として扱い, IPv6 用の設定を生成しない。 |
-| `mgmt_nic` | `group_vars/all/all.yml` | NAD の `master` インタフェース名。既定: `ens160` |
-
-## 設定例
-
-### IPv6 範囲を有効化する手順
-
-IPv6 対応のネットワークを構築する場合, 以下の手順に従います。
-
-1. **変数設定**: 以下の変数を設定ファイル (`host_vars`, `group_vars`) に追加します。
+IPv4 と IPv6 の両方を使用する場合の設定例を示します。
 
 ```yaml
-k8s_whereabouts_ipv6_range_start: "<IPv6の開始アドレス>"
-k8s_whereabouts_ipv6_range_end: "<IPv6の終了アドレス>"
+1: k8s_whereabouts_enabled: true
+2: k8s_whereabouts_version: "0.9.2"
+3: k8s_whereabouts_ipv4_range_start: "192.168.40.100"
+4: k8s_whereabouts_ipv4_range_end: "192.168.40.254"
+5: k8s_whereabouts_ipv6_range_start: "fd69:6684:61a:2::100"
+6: k8s_whereabouts_ipv6_range_end: "fd69:6684:61a:2::ffff"
 ```
 
-例:
-```yaml
-k8s_whereabouts_ipv6_range_start: "fd00:100::1"
-k8s_whereabouts_ipv6_range_end: "fd00:100::ff"
-```
+| 行番号 | 設定値 | 有効になる動作 | 設定背景(未設定時/誤設定時の問題と防止理由) |
+| --- | --- | --- | --- |
+| 1 | `k8s_whereabouts_enabled: true` | Whereabouts の導入を有効にします。 | `false` の場合は本ロールの Whereabouts 導入処理を実行しないためです。 |
+| 2 | `k8s_whereabouts_version: "0.9.2"` | 指定した版数の Whereabouts を導入します。 | 対象環境で使用する Whereabouts の版数を明示し, 意図しない版数の導入を防ぐためです。 |
+| 3-4 | IPv4 の開始アドレスと終了アドレス | 検証用 NAD から IPv4 アドレスを払い出せるようにします。 | 範囲が未設定の場合は IPv4 を検証用 NAD の払い出し対象にできず, 既存機器のアドレス範囲と重複する値を設定した場合はアドレス競合が発生するためです。 |
+| 5-6 | IPv6 の開始アドレスと終了アドレス | 検証用 NAD から IPv6 アドレスを払い出せるようにします。 | 範囲が未設定の場合は IPv6 を検証用 NAD の払い出し対象にできず, 既存機器のアドレス範囲と重複する値を設定した場合はアドレス競合が発生するためです。 |
 
-2. **ロール再実行**: ロールを再実行して NAD を再生成・再適用します。
+#### NAD の名前空間を変更する手順
 
-```bash
-ansible-playbook -i inventory/hosts site.yml --tags=k8s-whereabouts
-```
+検証用 NAD `ipvlan-wb` は `kube-system` 名前空間へ生成します。名前空間を変更する場合は, `templates/ipvlan-wb-nad.yml.j2` の `metadata.namespace` だけでなく, NAD 名と名前空間を参照するロール内の処理および利用側 Pod の `k8s.v1.cni.cncf.io/networks` Annotation も同時に変更する必要があります。
 
-3. **検証**: IPv6 アドレスが付与されていることを確認します。
-
-```bash
-kubectl get networkattachmentdefinition ipvlan-wb -o yaml
-kubectl run test-pod --image=busybox -- sleep 3600
-kubectl exec test-pod -- ip -6 addr
-```
-
-### NAD の 名前空間 ( namespace ) を変更する手順
-
-デフォルトでは NAD は `kube-system` 名前空間に新規作成されます。これを別の名前空間に変更する場合, 以下の手順に従います。
-
-1. **テンプレート確認**: テンプレートの現在の namespace を確認します。
-
-```bash
-grep "namespace:" roles/k8s-whereabouts/templates/ipvlan-wb-nad.yml.j2
-```
-
-2. **編集**: テンプレート内の `metadata.namespace` を変更します。
-
-例: `default` に変更する場合
+別の名前空間にある NAD を Pod から参照する場合は, `名前空間/NAD名` の形式で指定します。例えば, `kube-system` 名前空間の `ipvlan-wb` を `default` 名前空間の Pod から参照する場合は, 次のように指定します。
 
 ```yaml
-metadata:
-  name: ipvlan-wb
-  namespace: default
+1: metadata:
+2:   annotations:
+3:     k8s.v1.cni.cncf.io/networks: kube-system/ipvlan-wb
 ```
 
-3. **既存 NAD 削除**: 旧 namespace の NAD を削除します (必要に応じて)。
-
-```bash
-kubectl delete networkattachmentdefinition ipvlan-wb -n kube-system
-```
-
-4. **ロール再実行**: NAD を再生成・再適用します。
-
-```bash
-ansible-playbook -i inventory/hosts site.yml --tags=k8s-whereabouts
-```
-
-5. **参照側更新**: Pod や Deployment の `k8s.v1.cni.cncf.io/networks` アノテーションが namespace 指定を含む場合は,合わせて更新します。
-
-```yaml
-metadata:
-  annotations:
-    k8s.v1.cni.cncf.io/networks: "default/ipvlan-wb"  # namespace/nad-name
-```
+| 行番号 | 設定値 | 有効になる動作 | 設定背景(未設定時/誤設定時の問題と防止理由) |
+| --- | --- | --- | --- |
+| 1-3 | `k8s.v1.cni.cncf.io/networks: kube-system/ipvlan-wb` | `default` 名前空間の Pod から `kube-system` 名前空間の NAD `ipvlan-wb` を参照します。 | 別名前空間の NAD を参照する場合に名前空間を省略すると, Pod と同じ名前空間の NAD を参照するためです。 |
 
 ## テンプレートと生成ファイル
 
 | テンプレートファイル名 | 出力先パス | 説明 |
 | --- | --- | --- |
-| `templates/ipvlan-wb-nad.yml.j2` | `{{ k8s_whereabouts_config_dir }}/ipvlan-wb-nad.yml` (既定: `~/kubeadm/whereabouts/ipvlan-wb-nad.yml`) | Whereabouts + IPvLAN 用 Network Attachment Definition。 |
+| `templates/ipvlan-wb-nad.yml.j2` | `{{ k8s_whereabouts_config_dir }}/ipvlan-wb-nad.yml` (既定: `/home/ansible/kubeadm/whereabouts/ipvlan-wb-nad.yml`) | IPvLAN と Whereabouts を使用する検証用 NAD を生成します。`ipRanges` に IPv4 と IPv6 の割り当て範囲を設定できます。 |
 
 ## 実行フロー
 
-本ロールは以下の順序で処理を実行します:
+本ロールは次の順序で処理を実行します。
 
-1. **パラメータおよび設定情報の読み込み** (`load-params.yml`): OS 別パッケージ定義, Kubernetes クラスタ共通変数, ホスト固有変数を読み込みます。
-2. **実行時変数の解決** (`resolve-runtime-vars.yml`): `vars/k8s-config-common.yml`で自動算出されたIPv4/IPv6 CIDR値をロール専用のランタイム変数へ複製します。
-3. **パッケージの確認** (`package.yml`): 将来の拡張用プレースホルダです。
-4. **ディレクトリ構造の作成** (`directory.yml`): Whereabouts 用の設定ディレクトリを作成します。
-5. **ユーザ・グループおよびサービス設定** (`user_group.yml`, `service.yml`): 将来の拡張用プレースホルダです。
-6. **Whereabouts 導入と NAD 適用** (`config-whereabouts.yml`): kube-apiserver 待機後, Helm チャート導入と NAD を適用します。
+1. `load-params.yml` で共通設定を読み込みます。
+2. `resolve-runtime-vars.yml` で検証用 NAD の接続先ネットワークと Whereabouts の導入情報を解決します。
+3. `package.yml`, `directory.yml`, `user_group.yml`, `service.yml` を実行します。
+4. `config-whereabouts.yml` で Kubernetes API が利用可能になるまで待機します。
+5. `helm.yml` から `k8s-helm-common` ロールを呼び出し, Whereabouts の Helm Chart を事前描画した後, 導入または更新し, Helm release が `deployed` 状態になるまで確認します。
+6. 検証用 NAD の生成条件を満たす場合は, `ipvlan-wb-nad.yml.j2` から NAD 設定ファイルを生成し, `kube-system` 名前空間へ適用します。
+7. `verify.yml` で Whereabouts の Helm release, DaemonSet, Pod, および生成条件を満たす場合は NAD を検証します。
 
-### パラメータおよび設定情報の読み込み
-
-`load-params.yml` を実行し, 以下の情報を読み込みます。
-
-- **OS 別パッケージ定義**: `vars/packages-ubuntu.yml`, `vars/packages-rhel.yml`
-- **Kubernetes クラスタ共通変数**: `vars/cross-distro.yml`, `vars/k8s-config-common.yml`, `vars/all-config.yml`, `vars/k8s-api-address.yml`
-- **ホスト固有変数**: `host_vars/` からの読み込み
-
-これらの変数は以降の処理で NAD テンプレート生成やネットワーク設定に利用されます。
-
-### 実行時変数の解決
-
-`resolve-runtime-vars.yml` が, `vars/k8s-config-common.yml`で`network_ipv4_network_address`/`network_ipv4_prefix_len`(及びIPv6版)から自動算出された`k8s_network_ipv4_cidr_base`/`k8s_network_ipv6_cidr_base`を, ロール専用のランタイム変数`k8s_network_ipv4_cidr_runtime`/`k8s_network_ipv6_cidr_runtime`へ複製します。以降のタスクとテンプレートはこのランタイム変数のみを参照します。
-
-### パッケージの確認
-
-`package.yml` を読み込みます。現状ではプレースホルダであり, 必要なパッケージは `k8s-common` で既にインストール済みです。
-
-### ディレクトリ構造の作成
-
-`directory.yml` が以下のディレクトリを作成します。
-
-- **メインディレクトリ**: `{{ k8s_kubeadm_config_store }}/whereabouts` (既定: `~/kubeadm/whereabouts` )
-- **NAD 設定ファイルの保存先**: `{{ k8s_whereabouts_config_dir }}/` (既定: `~/kubeadm/whereabouts/`)
-
-### ユーザ・グループおよびサービス設定
-
-`user_group.yml` および `service.yml` を読み込みます。現状ではプレースホルダですが, 今後の拡張で Whereabouts 専用ユーザやサービス単位の管理に対応する予定です。
-
-### Whereabouts 導入と NAD 適用
-
-本処理は以下の条件をすべて満たす場合に実行されます。
-
-**実行条件:**
-- `k8s_multus_enabled: true` (Multus が有効)
-- `k8s_whereabouts_enabled: true` (Whereabouts が有効)
-- IPアドレス範囲が定義されている場合:
-  - IPv4 範囲 (`k8s_whereabouts_ipv4_range_start` および `k8s_whereabouts_ipv4_range_end`) が定義されている, または,
-  - IPv6 範囲 (`k8s_whereabouts_ipv6_range_start` および `k8s_whereabouts_ipv6_range_end`) が定義されている
-
-**処理手順:**
-
-1. **kube-apiserver 待機**: 変数 `k8s_ctrlplane_endpoint`, `k8s_api_wait_port` などを使って, Kubernetes API サーバの起動を確認します。
-2. **Helm チャート導入**: `helm upgrade --install` コマンドで OCI URL `oci://ghcr.io/k8snetworkplumbingwg/whereabouts-chart` から Whereabouts Helm チャート (版: `{{ k8s_whereabouts_helm_chart_version }}`) をクラスタに導入します。
-3. **NAD テンプレート生成**: Jinja2 テンプレート `templates/ipvlan-wb-nad.yml.j2` を変数で展開し, ファイル `{{ k8s_whereabouts_config_dir }}/ipvlan-wb-nad.yml` (規定値: `~/kubeadm/whereabouts/ipvlan-wb-nad.yml`) を生成します。
-4. **NAD 適用**: 生成した YAML ファイルを `kubectl apply -f` で Kubernetes クラスタに適用します。
-
-すべての条件が満たされない場合, 本処理はスキップされ, 1～4 の初期化のみが実行されます。
-
-#### NAD テンプレート生成
-
-テンプレート `templates/ipvlan-wb-nad.yml.j2` は以下の情報から NAD を生成します。
-
-- **IPAM プラグイン**: `whereabouts`
-- **マスタインタフェース**: `{{ mgmt_nic }}` (既定: `ens160`)
-- **ネットワーク**: `{{ k8s_network_ipv4_cidr_runtime }}`, `{{ k8s_network_ipv6_cidr_runtime }}` (`vars/k8s-config-common.yml`で自動算出しresolve-runtime-vars.ymlが設定)
-- **IPv4 プール**: `{{ k8s_whereabouts_ipv4_range_start }}`～`{{ k8s_whereabouts_ipv4_range_end }}`
-- **IPv6 プール**: `{{ k8s_whereabouts_ipv6_range_start }}`～`{{ k8s_whereabouts_ipv6_range_end }}` (IPv6 有効時)
-- **デバイス種別**: IPvLAN (L3 モード)
+検証用 NAD の生成条件を満たさない場合は, NAD の生成と検証だけを省略し, Whereabouts 本体の導入と検証は継続します。
 
 ## 検証ポイント
 
-本ロール実行後に Whereabouts が正しく導入されたことを確認するための検証ポイントを以下に示します。
+### 検証の前提条件
 
-### 必須確認事項
+検証を始める前に, 次の条件が満たされていることを確認します。
 
-#### 1. Whereabouts Helm チャートのインストール確認
+- `k8s-whereabouts` ロールの実行が正常終了していること。
+- `kube-system` 名前空間に NAD `ipvlan-wb` が存在すること。
+- `k8sworker0101` と `k8sworker0102` に `k8s_nic` に対応するネットワークインタフェース(本節の例では, `ens192`を例として使用)が存在し, 同一の IPv4/IPv6 ネットワークへ接続されていること。
+- 対象ホストとなるKubernetesのコントロールプレーンノードから `kubectl` コマンドで対象 Kubernetes クラスタを操作できること。
+- 対象ホストとなるKubernetesのコントロールプレーンノードで `jq` コマンドを使用できること。
+
+### 検証環境の設定
+
+本節では, 検証用の設定内容について説明します。
+
+検証用 Pod は `default` 名前空間へ作成し, `kube-system` 名前空間の NAD `ipvlan-wb` を使用します。2 個の Pod を異なるワーカノードへ配置することで, IPvLAN の追加ネットワークを使用したノード間通信を確認します。
+
+`/tmp/whereabouts-test.yaml` を次の内容で作成します。
+
+```yaml
+1: apiVersion: v1
+2: kind: Pod
+3: metadata:
+4:   name: whereabouts-test-1
+5:   namespace: default
+6:   annotations:
+7:     k8s.v1.cni.cncf.io/networks: kube-system/ipvlan-wb
+8: spec:
+9:   nodeName: k8sworker0101
+10:   containers:
+11:     - name: test
+12:       image: busybox:1.36
+13:       command:
+14:         - /bin/sh
+15:         - -c
+16:         - sleep infinity
+17: ---
+18: apiVersion: v1
+19: kind: Pod
+20: metadata:
+21:   name: whereabouts-test-2
+22:   namespace: default
+23:   annotations:
+24:     k8s.v1.cni.cncf.io/networks: kube-system/ipvlan-wb
+25: spec:
+26:   nodeName: k8sworker0102
+27:   containers:
+28:     - name: test
+29:       image: busybox:1.36
+30:       command:
+31:         - /bin/sh
+32:         - -c
+33:         - sleep infinity
+```
+
+| 行番号 | 設定値 | 有効になる動作 | 設定背景(未設定時/誤設定時の問題と防止理由) |
+| --- | --- | --- | --- |
+| 4-7 | `whereabouts-test-1`, `default`, `kube-system/ipvlan-wb` | 1 個目の検証用 Pod を `default` 名前空間へ作成し, `kube-system` 名前空間の NAD を使用します。 | Pod と NAD の名前空間が異なるため, NAD の名前空間を含めて指定する必要があります。 |
+| 9 | `nodeName: k8sworker0101` | 1 個目の Pod を `k8sworker0101` へ配置します。 | 2 個の Pod を異なるノードへ配置し, ノード間通信を確認するためです。 |
+| 11-16 | `busybox:1.36` と `sleep infinity` | 通信確認に使用できる Pod を継続して実行します。 | 検証中に Pod が終了すると通信確認を実施できないためです。 |
+| 21-24 | `whereabouts-test-2`, `default`, `kube-system/ipvlan-wb` | 2 個目の検証用 Pod を `default` 名前空間へ作成し, `kube-system` 名前空間の NAD を使用します。 | 1 個目と同じ追加ネットワークへ接続して相互通信を確認するためです。 |
+| 26 | `nodeName: k8sworker0102` | 2 個目の Pod を `k8sworker0102` へ配置します。 | 1 個目と異なるノードへ配置し, ノード間通信を確認するためです。 |
+| 28-33 | `busybox:1.36` と `sleep infinity` | 2 個目の通信確認用 Pod を継続して実行します。 | 検証中に Pod が終了すると通信確認を実施できないためです。 |
+
+実際にファイルを作成する場合は, 次のコマンドを使用できます。
 
 ```bash
-helm list -n kube-system
-```
-
-**期待される出力例:**
-
-```
-NAME          NAMESPACE    REVISION    UPDATED                                 STATUS      CHART
-whereabouts   kube-system  1           2025-03-07 10:00:00 +0900 JST          deployed    whereabouts-0.9.2
-```
-
-- `NAME` 列に `whereabouts` が存在することを確認します。
-- `NAMESPACE` 列が `kube-system` であることを確認します。
-- `STATUS` 列が `deployed` であることを確認します。
-- `CHART` 列のバージョンが設定値 (`k8s_whereabouts_helm_chart_version`) と一致することを確認します。
-
-#### 2. Whereabouts デプロイメントの動作確認
-
-```bash
-kubectl get deployment -n kube-system whereabouts
-```
-
-**期待される出力例:**
-
-```
-NAME          READY   UP-TO-DATE   AVAILABLE   AGE
-whereabouts   1/1     1            1           2d
-```
-
-- `READY` 列が `1/1` であること (Pod が起動していること) を確認します。
-- `UP-TO-DATE` 列と `AVAILABLE` 列が `1` であることを確認します。
-
-#### 3. NAD 登録確認
-
-```bash
-kubectl get networkattachmentdefinition -A
-```
-
-**期待される出力例:**
-
-```
-NAMESPACE      NAME           AGE
-kube-system    ipvlan-wb      2d
-```
-
-または詳細確認:
-
-```bash
-kubectl get networkattachmentdefinition ipvlan-wb -o yaml
-```
-
-NAD の詳細設定 (IPAM, マスタインタフェース, IP プール範囲など) を確認します。
-
-#### 4. NAD 設定ファイルの存在確認
-
-コントロールプレーンノード上で以下を確認します。
-
-```bash
-ls -la "{{ k8s_whereabouts_config_dir }}/ipvlan-wb-nad.yml"
-# 例: ~/kubeadm/whereabouts/ipvlan-wb-nad.yml
-```
-
-**期待される出力例:**
-
-```text
--rw-r--r-- 1 ansible ansible 1240 Mar  7 10:05 /home/ansible/kubeadm/whereabouts/ipvlan-wb-nad.yml
-```
-
-確認項目:
-- 先頭が `-` であり, 通常ファイルとして作成されていること。
-- ファイルパスが `.../kubeadm/whereabouts/ipvlan-wb-nad.yml` であること。
-- 所有者/グループが `ansible:ansible` (または運用で想定した実行ユーザ) であること。
-
-続けて, 内容を確認します。
-
-```bash
-grep -E '"type":\s*"whereabouts"|"range_start"|"range_end"|"master"' "{{ k8s_whereabouts_config_dir }}/ipvlan-wb-nad.yml"
-```
-
-**期待される出力例 (抜粋):**
-
-```text
-"master": "ens160",
-"type": "whereabouts",
-"range_start": "10.100.1.0",
-"range_end": "10.100.254.255"
-```
-
-確認項目:
-- `"type": "whereabouts"` が含まれること。
-- `"master"` が想定インタフェース (例: `ens160`) と一致すること。
-- `"range_start"`/`"range_end"` が設定値と一致すること。
-
-### オプション確認事項
-
-#### 5. Whereabouts Pod の詳細確認
-
-```bash
-kubectl describe pod -n kube-system -l app=whereabouts
-```
-
-`kubectl describe pod` の出力に含まれる `Limits`/`Requests`, `Environment`, `Mounts`, `Events` を確認します。
-
-**期待される出力例 (抜粋):**
-
-```text
-Name:           whereabouts-7d9c7f8b9c-abcde
-Namespace:      kube-system
-Containers:
-  whereabouts:
-    Limits:
-      cpu:     100m
-      memory:  128Mi
-    Requests:
-      cpu:      50m
-      memory:   64Mi
-    Environment:
-      KUBERNETES_SERVICE_HOST: 10.96.0.1
-    Mounts:
-      /etc/cni/net.d from cni-net-dir (rw)
-Events:
-  Type    Reason     Age   From               Message
-  Normal  Pulled     2m    kubelet            Container image already present on machine
-```
-
-確認項目:
-- `Namespace` が `kube-system` であること。
-- `Environment` セクションに環境変数が表示されること。
-- `Mounts` セクションにマウント先パス (例: `/etc/cni/net.d`) が表示されること。
-- `Events` に継続的な `Warning` が出ていないこと。
-
-必要に応じて, 以下のコマンドでコンテナ定義の環境変数とボリュームマウントを直接確認します。
-
-```bash
-kubectl get pod -n kube-system -l app=whereabouts -o jsonpath='{range .items[*]}{.metadata.name}{"\n"}{.spec.containers[*].env[*].name}{"\n"}{.spec.containers[*].volumeMounts[*].mountPath}{"\n\n"}{end}'
-```
-
-**期待される出力例:**
-
-```text
-whereabouts-7d9c7f8b9c-abcde
-KUBERNETES_SERVICE_HOST KUBERNETES_SERVICE_PORT
-/etc/cni/net.d /var/run/secrets/kubernetes.io/serviceaccount
-```
-
-確認項目:
-- 1行目に Pod 名が表示されること。
-- 2行目に環境変数名が表示されること。
-- 3行目にマウントパスが表示されること。
-
-#### 6. NAD の詳細内容確認
-
-```bash
-kubectl get networkattachmentdefinition ipvlan-wb -n kube-system -o jsonpath='{.spec}'
-```
-
-確認項目:
-- `type` が `ipvlan` であること。
-- `ipam.type` が `whereabouts` であること。
-- `master` が期待のインタフェース (例: `ens160`) であること。
-
-#### 7. ログの確認
-
-```bash
-kubectl logs -n kube-system -l app=whereabouts --tail=20
-```
-
-エラーログがないことを確認します。
-
-#### 8. Pod 間通信の確認 (実通信)
-
-NAD (`ipvlan-wb`) を付与した 2 つの Pod を起動し, 追加ネットワーク経由で疎通確認を行います。
-
-```bash
-kubectl apply -f - <<'EOF'
+cat <<'EOF' > /tmp/whereabouts-test.yaml
 apiVersion: v1
 kind: Pod
 metadata:
-  name: wb-test-a
+  name: whereabouts-test-1
+  namespace: default
   annotations:
     k8s.v1.cni.cncf.io/networks: kube-system/ipvlan-wb
 spec:
+  nodeName: k8sworker0101
   containers:
-    - name: toolbox
-      image: alpine:latest
-      command: ["/bin/sh", "-c", "apk add --no-cache iproute2 && sleep infinity"]
+    - name: test
+      image: busybox:1.36
+      command:
+        - /bin/sh
+        - -c
+        - sleep infinity
 ---
 apiVersion: v1
 kind: Pod
 metadata:
-  name: wb-test-b
+  name: whereabouts-test-2
+  namespace: default
   annotations:
     k8s.v1.cni.cncf.io/networks: kube-system/ipvlan-wb
 spec:
+  nodeName: k8sworker0102
   containers:
-    - name: toolbox
-      image: alpine:latest
-      command: ["/bin/sh", "-c", "apk add --no-cache iproute2 && sleep infinity"]
+    - name: test
+      image: busybox:1.36
+      command:
+        - /bin/sh
+        - -c
+        - sleep infinity
 EOF
 ```
 
-```bash
-kubectl wait --for=condition=Ready pod/wb-test-a pod/wb-test-b --timeout=180s
-```
+### 検証コマンドと期待結果
 
-**期待される出力例:**
+#### 1. NAD 設定内容の確認
 
-```text
-pod/wb-test-a condition met
-pod/wb-test-b condition met
-```
+**実施対象ホスト**: 対象ホストとなるKubernetesのコントロールプレーンノード
 
-確認項目:
-- 両 Pod について `condition met` と表示されること。
-
-次に, `wb-test-b` の `net1` アドレスを取得し, `wb-test-a` から ping します。
-
-**IPv4 疎通確認:**
+**実行するコマンド**:
 
 ```bash
-WB_TEST_B_IP=$(kubectl exec wb-test-b -- sh -c "ip -o -4 addr show dev net1 | awk '{print \$4}' | cut -d/ -f1")
-echo "wb-test-b IPv4 address: $WB_TEST_B_IP"
-kubectl exec wb-test-a -- ping -c 3 "$WB_TEST_B_IP"
+kubectl -n kube-system \
+  get network-attachment-definition ipvlan-wb \
+  -o jsonpath='{.spec.config}' \
+  | jq .
 ```
 
-**期待される出力例:**
+**期待される出力**:
+
+```json
+{
+  "cniVersion": "0.3.1",
+  "type": "ipvlan",
+  "master": "ens192",
+  "mode": "l2",
+  "ipam": {
+    "type": "whereabouts",
+    "ipRanges": [
+      {
+        "range": "192.168.40.41/24",
+        "range_start": "192.168.40.100",
+        "range_end": "192.168.40.254"
+      },
+      {
+        "range": "fd69:6684:61a:2::41/64",
+        "range_start": "fd69:6684:61a:2::100",
+        "range_end": "fd69:6684:61a:2::ffff"
+      }
+    ]
+  }
+}
+```
+
+**実行結果の例**:
+
+```bash
+$ kubectl -n kube-system \
+    get network-attachment-definition ipvlan-wb \
+    -o jsonpath='{.spec.config}' \
+    | jq .
+{
+  "cniVersion": "0.3.1",
+  "type": "ipvlan",
+  "master": "ens192",
+  "mode": "l2",
+  "ipam": {
+    "type": "whereabouts",
+    "ipRanges": [
+      {
+        "range": "192.168.40.41/24",
+        "range_start": "192.168.40.100",
+        "range_end": "192.168.40.254"
+      },
+      {
+        "range": "fd69:6684:61a:2::41/64",
+        "range_start": "fd69:6684:61a:2::100",
+        "range_end": "fd69:6684:61a:2::ffff"
+      }
+    ],
+    "log_file": "/var/log/whereabouts.log",
+    "log_level": "info"
+  }
+}
+```
+
+**確認ポイント**:
+
+- `mode` が `l2` であることを確認することで, 検証用 NAD が IPvLAN の L2 動作を使用する設定であることを確認します。
+- `ipam.type` が `whereabouts` であることを確認することで, Whereabouts が IP アドレス割り当てに使用されることを確認します。
+- `ipRanges` に IPv4 と IPv6 の 2 個の範囲が存在することを確認することで, IPv4/IPv6 の両方を払い出す設定であることを確認します。
+
+#### 2. 検証用 Pod の生成と配置確認
+
+**実施対象ホスト**: 対象ホストとなるKubernetesのコントロールプレーンノード
+
+**実行するコマンド**:
+
+```bash
+kubectl apply -f /tmp/whereabouts-test.yaml
+kubectl -n default \
+  get pod \
+  whereabouts-test-1 whereabouts-test-2 \
+  -o wide
+```
+
+**期待される出力**:
 
 ```text
-wb-test-b IPv4 address: 192.168.20.51
-PING 192.168.20.51 (192.168.20.51): 56 data bytes
-64 bytes from 192.168.20.51: seq=0 ttl=64 time=0.856 ms
-64 bytes from 192.168.20.51: seq=1 ttl=64 time=0.170 ms
-64 bytes from 192.168.20.51: seq=2 ttl=64 time=0.178 ms
+pod/whereabouts-test-1 created
+pod/whereabouts-test-2 created
+NAME                 READY   STATUS    RESTARTS   AGE   IP                         NODE
+whereabouts-test-1   1/1     Running   0          ...   ...                        k8sworker0101
+whereabouts-test-2   1/1     Running   0          ...   ...                        k8sworker0102
+```
 
---- 192.168.20.51 ping statistics ---
+**実行結果の例**:
+
+```bash
+$ kubectl apply -f /tmp/whereabouts-test.yaml
+pod/whereabouts-test-1 created
+pod/whereabouts-test-2 created
+$ kubectl -n default \
+    get pod \
+    whereabouts-test-1 whereabouts-test-2 \
+    -o wide
+NAME                 READY   STATUS    RESTARTS   AGE   IP                         NODE            NOMINATED NODE   READINESS GATES
+whereabouts-test-1   1/1     Running   0          26s   fdb6:6e92:3cfb:201::923    k8sworker0101   <none>           <none>
+whereabouts-test-2   1/1     Running   0          26s   fdb6:6e92:3cfb:202::43b8   k8sworker0102   <none>           <none>
+```
+
+**確認ポイント**:
+
+- `STATUS` が両 Pod とも `Running` であることを確認することで, 検証用 Pod が正常に起動したことを確認します。
+- `NODE` が `whereabouts-test-1` では `k8sworker0101`, `whereabouts-test-2` では `k8sworker0102` であることを確認することで, 異なるワーカノードへ配置されたことを確認します。
+
+#### 3. IPv4/IPv6 アドレス割り当て確認
+
+**実施対象ホスト**: 対象ホストとなるKubernetesのコントロールプレーンノード
+
+**実行するコマンド**:
+
+```bash
+kubectl -n default \
+  get pod whereabouts-test-1 \
+  -o jsonpath='{.metadata.annotations.k8s\.v1\.cni\.cncf\.io/network-status}' \
+  | jq .
+kubectl -n default \
+  get pod whereabouts-test-2 \
+  -o jsonpath='{.metadata.annotations.k8s\.v1\.cni\.cncf\.io/network-status}' \
+  | jq .
+kubectl -n default \
+  exec whereabouts-test-1 -- \
+  ip addr show dev net1
+kubectl -n default \
+  exec whereabouts-test-2 -- \
+  ip addr show dev net1
+```
+
+**期待される出力**:
+
+`network-status` の `kube-system/ipvlan-wb` に対応する `ips` に IPv4 と IPv6 の両方が表示され, `ip addr show dev net1` に同じ IPv4/IPv6 アドレスが表示されます。
+
+**実行結果の例**:
+
+```bash
+$ kubectl -n default \
+    get pod whereabouts-test-1 \
+    -o jsonpath='{.metadata.annotations.k8s\.v1\.cni\.cncf\.io/network-status}' \
+    | jq .
+[
+  {
+    "name": "cilium",
+    "interface": "eth0",
+    "ips": [
+      "fdb6:6e92:3cfb:201::923",
+      "10.244.1.182"
+    ],
+    "mac": "e6:11:8a:fd:4d:05",
+    "default": true,
+    "dns": {},
+    "gateway": [
+      "fdb6:6e92:3cfb:201::1d83",
+      "10.244.1.13"
+    ]
+  },
+  {
+    "name": "kube-system/ipvlan-wb",
+    "interface": "net1",
+    "ips": [
+      "192.168.40.101",
+      "fd69:6684:61a:2::101"
+    ],
+    "mac": "00:50:56:00:7b:7b",
+    "dns": {}
+  }
+]
+$ kubectl -n default \
+    get pod whereabouts-test-2 \
+    -o jsonpath='{.metadata.annotations.k8s\.v1\.cni\.cncf\.io/network-status}' \
+    | jq .
+[
+  {
+    "name": "cilium",
+    "interface": "eth0",
+    "ips": [
+      "fdb6:6e92:3cfb:202::43b8",
+      "10.244.2.98"
+    ],
+    "mac": "4e:de:0d:82:69:70",
+    "default": true,
+    "dns": {},
+    "gateway": [
+      "fdb6:6e92:3cfb:202::54ac",
+      "10.244.2.194"
+    ]
+  },
+  {
+    "name": "kube-system/ipvlan-wb",
+    "interface": "net1",
+    "ips": [
+      "192.168.40.100",
+      "fd69:6684:61a:2::100"
+    ],
+    "mac": "00:50:56:00:bf:7b",
+    "dns": {}
+  }
+]
+$ kubectl -n default \
+    exec whereabouts-test-1 -- \
+    ip addr show dev net1
+2: net1@if3: <BROADCAST,MULTICAST,UP,LOWER_UP,M-DOWN> mtu 1500 qdisc noqueue
+    link/ether 00:50:56:00:7b:7b brd ff:ff:ff:ff:ff:ff
+    inet 192.168.40.101/24 brd 192.168.40.255 scope global net1
+       valid_lft forever preferred_lft forever
+    inet6 fd69:6684:61a:2::101/64 scope global
+       valid_lft forever preferred_lft forever
+    inet6 fe80::50:5600:100:7b7b/64 scope link
+       valid_lft forever preferred_lft forever
+$ kubectl -n default \
+    exec whereabouts-test-2 -- \
+    ip addr show dev net1
+2: net1@if3: <BROADCAST,MULTICAST,UP,LOWER_UP,M-DOWN> mtu 1500 qdisc noqueue
+    link/ether 00:50:56:00:bf:7b brd ff:ff:ff:ff:ff:ff
+    inet 192.168.40.100/24 brd 192.168.40.255 scope global net1
+       valid_lft forever preferred_lft forever
+    inet6 fd69:6684:61a:2::100/64 scope global
+       valid_lft forever preferred_lft forever
+    inet6 fe80::50:5600:100:bf7b/64 scope link
+       valid_lft forever preferred_lft forever
+```
+**確認ポイント**:
+
+- `kube-system/ipvlan-wb` の `interface` が `net1` であることを確認することで, 検証用 NAD による追加ネットワークが生成されたことを確認します。
+- `whereabouts-test-1` の `net1` に IPv4アドレス (`192.168.40.101`) と IPv6アドレス (`fd69:6684:61a:2::101`) が設定されていることを確認します。
+- `whereabouts-test-2` の `net1` に IPv4アドレス (`192.168.40.100`) と IPv6アドレス ( `fd69:6684:61a:2::100`) が設定されていることを確認します。
+
+#### 4. IPv4 双方向通信確認
+
+**実施対象ホスト**: 対象ホストとなるKubernetesのコントロールプレーンノード
+
+**実行するコマンド**:
+
+```bash
+kubectl -n default \
+  exec whereabouts-test-1 -- \
+  ping -c 3 192.168.40.100
+kubectl -n default \
+  exec whereabouts-test-2 -- \
+  ping -c 3 192.168.40.101
+```
+
+**期待される出力**:
+
+両方向の `ping` コマンドで `3 packets transmitted, 3 packets received, 0% packet loss` と表示されます。
+
+**実行結果の例**:
+
+```bash
+$ kubectl -n default exec whereabouts-test-1 -- ping -c 3 192.168.40.100
+PING 192.168.40.100 (192.168.40.100): 56 data bytes
+64 bytes from 192.168.40.100: seq=0 ttl=64 time=0.692 ms
+64 bytes from 192.168.40.100: seq=1 ttl=64 time=0.210 ms
+64 bytes from 192.168.40.100: seq=2 ttl=64 time=0.517 ms
+
+--- 192.168.40.100 ping statistics ---
 3 packets transmitted, 3 packets received, 0% packet loss
-round-trip min/avg/max = 0.170/0.401/0.856 ms
-```
+round-trip min/avg/max = 0.210/0.473/0.692 ms
+$ kubectl -n default exec whereabouts-test-2 -- ping -c 3 192.168.40.101
+PING 192.168.40.101 (192.168.40.101): 56 data bytes
+64 bytes from 192.168.40.101: seq=0 ttl=64 time=0.327 ms
+64 bytes from 192.168.40.101: seq=1 ttl=64 time=0.176 ms
+64 bytes from 192.168.40.101: seq=2 ttl=64 time=0.201 ms
 
-確認項目:
-- 1行目に `wb-test-b IPv4 address:` の後にIPv4アドレス（例: `192.168.20.51`）が表示されること。
-- `ping statistics` で `0% packet loss` と表示されること。
-- `64 bytes from` の後に `wb-test-b` の `net1` IPv4アドレスが表示されること。
-
-**IPv6 疎通確認:**
-
-```bash
-WB_TEST_B_IPV6=$(kubectl exec wb-test-b -- sh -c "ip -o -6 addr show dev net1 scope global | awk '{print \$4}' | cut -d/ -f1")
-echo "wb-test-b IPv6 address: $WB_TEST_B_IPV6"
-kubectl exec wb-test-a -- ping -c 3 "$WB_TEST_B_IPV6"
-```
-
-**期待される出力例:**
-
-```text
-wb-test-b IPv6 address: fdad:ba50:248b:1:50:5600:100:7b1c
-PING fdad:ba50:248b:1:50:5600:100:7b1c (fdad:ba50:248b:1:50:5600:100:7b1c): 56 data bytes
-64 bytes from fdad:ba50:248b:1:50:5600:100:7b1c: seq=0 ttl=64 time=0.667 ms
-64 bytes from fdad:ba50:248b:1:50:5600:100:7b1c: seq=1 ttl=64 time=0.182 ms
-64 bytes from fdad:ba50:248b:1:50:5600:100:7b1c: seq=2 ttl=64 time=0.166 ms
-
---- fdad:ba50:248b:1:50:5600:100:7b1c ping statistics ---
+--- 192.168.40.101 ping statistics ---
 3 packets transmitted, 3 packets received, 0% packet loss
-round-trip min/avg/max = 0.166/0.338/0.667 ms
+round-trip min/avg/max = 0.176/0.234/0.327 ms
 ```
 
-確認項目:
-- 1行目に `wb-test-b IPv6 address:` の後にIPv6アドレス（例: `fdad:ba50:248b:1:50:5600:100:7b1c`）が表示されること。
-- `ping statistics` で `0% packet loss` と表示されること。
-- `64 bytes from` の後に `wb-test-b` の `net1` IPv6アドレスが表示されること。
+**確認ポイント**:
 
-検証後はテスト Pod を削除します。
+- 両方向で `0% packet loss` と表示されることを確認することで, 異なるワーカノード上の Pod 間で IPv4 通信が成立していることを確認します。
+
+#### 5. IPv6 双方向通信確認
+
+**実施対象ホスト**: 対象ホストとなるKubernetesのコントロールプレーンノード
+
+**実行するコマンド**:
 
 ```bash
-kubectl delete pod wb-test-a wb-test-b --ignore-not-found
+kubectl -n default \
+  exec whereabouts-test-1 -- \
+  ping -6 -c 3 fd69:6684:61a:2::100
+kubectl -n default \
+  exec whereabouts-test-2 -- \
+  ping -6 -c 3 fd69:6684:61a:2::101
 ```
+
+**期待される出力**:
+
+両方向の `ping` コマンドで `3 packets transmitted, 3 packets received, 0% packet loss` と表示されます。
+
+**実行結果の例**:
+
+```bash
+$ kubectl -n default exec whereabouts-test-1 -- ping -6 -c 3 fd69:6684:61a:2::100
+PING fd69:6684:61a:2::100 (fd69:6684:61a:2::100): 56 data bytes
+64 bytes from fd69:6684:61a:2::100: seq=0 ttl=64 time=0.603 ms
+64 bytes from fd69:6684:61a:2::100: seq=1 ttl=64 time=0.210 ms
+64 bytes from fd69:6684:61a:2::100: seq=2 ttl=64 time=0.146 ms
+
+--- fd69:6684:61a:2::100 ping statistics ---
+3 packets transmitted, 3 packets received, 0% packet loss
+round-trip min/avg/max = 0.146/0.319/0.603 ms
+$ kubectl -n default exec whereabouts-test-2 -- ping -6 -c 3 fd69:6684:61a:2::101
+PING fd69:6684:61a:2::101 (fd69:6684:61a:2::101): 56 data bytes
+64 bytes from fd69:6684:61a:2::101: seq=0 ttl=64 time=0.263 ms
+64 bytes from fd69:6684:61a:2::101: seq=1 ttl=64 time=0.203 ms
+64 bytes from fd69:6684:61a:2::101: seq=2 ttl=64 time=0.170 ms
+
+--- fd69:6684:61a:2::101 ping statistics ---
+3 packets transmitted, 3 packets received, 0% packet loss
+round-trip min/avg/max = 0.170/0.212/0.263 ms
+```
+
+**確認ポイント**:
+
+- 両方向で `0% packet loss` と表示されることを確認することで, 異なるワーカノード上の Pod 間で IPv6 通信が成立していることを確認します。
+
+#### 6. IP アドレス割り当て状態確認
+
+**実施対象ホスト**: 対象ホストとなるKubernetesのコントロールプレーンノード
+
+**実行するコマンド**:
+
+```bash
+kubectl get ippools.whereabouts.cni.cncf.io \
+  -A \
+  -o yaml
+```
+
+**期待される出力**:
+
+IPv4 と IPv6 の IPPool の `spec.allocations` に `default/whereabouts-test-1` と `default/whereabouts-test-2` が表示されます。
+
+**実行結果の例**:
+
+```yaml
+$ kubectl get ippools.whereabouts.cni.cncf.io \
+    -A \
+    -o yaml
+apiVersion: v1
+items:
+- apiVersion: whereabouts.cni.cncf.io/v1alpha1
+  kind: IPPool
+  metadata:
+    creationTimestamp: "2026-08-26T10:49:10Z"
+    generation: 11
+    name: 192.168.40.0-24
+    namespace: kube-system
+    resourceVersion: "2325073"
+    uid: 07d54d36-5328-4407-a664-51bf8b2a2315
+  spec:
+    allocations:
+      "100":
+        id: c451f9c9febef58007dd3ff8945350da924f7b2340d176acb2eb3fb32555f35e
+        ifname: net1
+        podref: default/whereabouts-test-2
+      "101":
+        id: edd5acc52e3065665d37a1e9df857fc728fa76db4e1351a5a371b5e65738deef
+        ifname: net1
+        podref: default/whereabouts-test-1
+    range: 192.168.40.0/24
+- apiVersion: whereabouts.cni.cncf.io/v1alpha1
+  kind: IPPool
+  metadata:
+    creationTimestamp: "2026-08-26T11:16:01Z"
+    generation: 7
+    name: fd69-6684-61a-2---64
+    namespace: kube-system
+    resourceVersion: "2325075"
+    uid: 1238ffe4-5539-46d4-b640-c2f5f9e33564
+  spec:
+    allocations:
+      "256":
+        id: c451f9c9febef58007dd3ff8945350da924f7b2340d176acb2eb3fb32555f35e
+        ifname: net1
+        podref: default/whereabouts-test-2
+      "257":
+        id: edd5acc52e3065665d37a1e9df857fc728fa76db4e1351a5a371b5e65738deef
+        ifname: net1
+        podref: default/whereabouts-test-1
+    range: fd69:6684:61a:2::/64
+kind: List
+metadata:
+  resourceVersion: ""
+```
+
+**確認ポイント**:
+
+- IPv4 の IPPool に `default/whereabouts-test-1` と `default/whereabouts-test-2` が存在することを確認することで, IPv4 アドレスの割り当て状態が記録されていることを確認します。
+- IPv6 の IPPool に同じ 2 Pod が存在することを確認することで, IPv6 アドレスの割り当て状態が記録されていることを確認します。
+
+#### 7. Pod 削除後の IP アドレス解放確認
+
+**実施対象ホスト**: 対象ホストとなるKubernetesのコントロールプレーンノード
+
+**実行するコマンド**:
+
+```bash
+kubectl -n default \
+  delete pod whereabouts-test-1 whereabouts-test-2
+kubectl -n default \
+  get pod whereabouts-test-1 whereabouts-test-2
+kubectl get ippools.whereabouts.cni.cncf.io \
+  -n kube-system \
+  192.168.40.0-24 \
+  -o yaml
+kubectl get ippools.whereabouts.cni.cncf.io \
+  -n kube-system \
+  fd69-6684-61a-2---64 \
+  -o yaml
+```
+
+**期待される出力**:
+
+Pod 削除後は 2 Pod が `NotFound` となり, IPv4 と IPv6 の両方の IPPool で `spec.allocations: {}` と表示されます。
+
+**実行結果の例**:
+
+```bash
+$ kubectl -n default \
+    delete pod whereabouts-test-1 whereabouts-test-2
+pod "whereabouts-test-1" deleted
+pod "whereabouts-test-2" deleted
+$ kubectl -n default \
+    get pod whereabouts-test-1 whereabouts-test-2
+Error from server (NotFound): pods "whereabouts-test-1" not found
+Error from server (NotFound): pods "whereabouts-test-2" not found
+$ kubectl get ippools.whereabouts.cni.cncf.io \
+    -n kube-system \
+    192.168.40.0-24 \
+    -o yaml
+apiVersion: whereabouts.cni.cncf.io/v1alpha1
+kind: IPPool
+metadata:
+  creationTimestamp: "2026-08-26T10:49:10Z"
+  generation: 13
+  name: 192.168.40.0-24
+  namespace: kube-system
+  resourceVersion: "2327277"
+  uid: 07d54d36-5328-4407-a664-51bf8b2a2315
+spec:
+  allocations: {}
+  range: 192.168.40.0/24
+$ kubectl get ippools.whereabouts.cni.cncf.io \
+    -n kube-system \
+    fd69-6684-61a-2---64 \
+    -o yaml
+apiVersion: whereabouts.cni.cncf.io/v1alpha1
+kind: IPPool
+metadata:
+  creationTimestamp: "2026-08-26T11:16:01Z"
+  generation: 9
+  name: fd69-6684-61a-2---64
+  namespace: kube-system
+  resourceVersion: "2327280"
+  uid: 1238ffe4-5539-46d4-b640-c2f5f9e33564
+spec:
+  allocations: {}
+  range: fd69:6684:61a:2::/64
+```
+
+**確認ポイント**:
+
+- `kubectl get pod` の実行結果で 2 Pod が `NotFound` となることを確認することで, 検証用 Pod が削除されたことを確認します。
+- IPv4 と IPv6 の両方の IPPool で `allocations: {}` と表示されることを確認することで, Pod に割り当てられていた IP アドレスが解放されたことを確認します。
 
 ## トラブルシューティング
 
-本ロール実行時に問題が発生した場合の対応を示します。
+### 1. Whereabouts が導入されない場合
 
-### 問題 1: Helm チャート導入失敗 - OCI URL にアクセスできない
+**実施対象ホスト**: 制御ホスト
 
-**症状:**
-```
-Error: failed to fetch "oci://ghcr.io/k8snetworkplumbingwg/whereabouts-chart"
-```
+**実行するコマンド**:
 
-**原因:**
-- インターネット接続がない, または ghcr.io (GitHub Container Registry) にアクセスできない。
-- プロキシ設定が不正。
 
-**対応:**
-1. インターネット接続を確認します。
-2. 次のコマンドでレジストリへのアクセスを確認します。
+1. 必須変数の定義を確認
+    ```bash
+    grep -E 'k8s_(multus|whereabouts)_enabled' host_vars/*.yml vars/all-config.yml
+    ```
+2. 本ロールの再実行
+    ```bash
+    make run_k8s_whereabouts
+    ```
 
-```bash
-curl -I https://ghcr.io
-```
+    または,
 
-3. プロキシが必要な場合は, `helm upgrade --install` コマンドに認証設定を指定します。
+    ```bash
+    ansible-playbook -i inventory/hosts site.yml --tags "k8s-whereabouts"
+    ```
 
-### 問題 2: `config-whereabouts.yml` が実行されない
+**確認ポイント**:
 
-**症状:**
-- Whereabouts が導入されない。
-- ロール実行時の出力に `config-whereabouts.yml` に関するタスクが表示されない。
+- `k8s_multus_enabled` と `k8s_whereabouts_enabled` がともに `true` であることを確認することで, Whereabouts 本体の実行条件が満たされていることを確認します。
+- Playbook の実行結果に Whereabouts の Helm 導入失敗がないことを確認します。
 
-**原因:**
-- `k8s_multus_enabled: false` または `k8s_whereabouts_enabled: false`
-- IPv4/IPv6 範囲が定義されていない。
+### 2. Whereabouts は導入されるが検証用 NAD が生成されない場合
 
-**対応:**
-1. 変数設定を確認します。
+**実施対象ホスト**: 制御ホスト
+
+**実行するコマンド**:
 
 ```bash
-grep -E "k8s_(multus|whereabouts)_enabled" host_vars/*.yml group_vars/all/all.yml
+ansible-playbook -i inventory/hosts site.yml --tags "k8s-whereabouts"
 ```
 
-2. 有効化フラグを `true` に設定し, IPv4/IPv6 範囲を定義します。
+**実施対象ホスト**: 対象ホストとなるKubernetesのコントロールプレーンノード
 
-```yaml
-# host_vars/k8sctrlplane01.local (例)
-k8s_multus_enabled: true
-k8s_whereabouts_enabled: true
-k8s_whereabouts_ipv4_range_start: "10.100.0.0"
-k8s_whereabouts_ipv4_range_end: "10.100.255.255"
-```
-
-3. ロールを再実行します。
-
-### 問題 3: NAD の IP プール範囲が不正
-
-**症状:**
-```
-kubectl get networkattachmentdefinition ipvlan-wb -o yaml
-# ipam.range が空, または形式が不正
-```
-
-**原因:**
-- `k8s_whereabouts_ipv4_range_start` または `k8s_whereabouts_ipv4_range_end` が IP アドレス形式でない。
-- `vars/all-config.yml`の`network_ipv4_prefix_len`又は`network_ipv4_network_address`が未定義, または不正な値である(これらから`k8s_network_ipv4_cidr_runtime`が自動算出されるため)。
-
-**対応:**
-1. テンプレート生成前に変数を確認します。
+**実行するコマンド**:
 
 ```bash
-ansible-playbook -i inventory/hosts roles/k8s-whereabouts/main.yml -e "ansible_connection=local" --check
+kubectl -n kube-system get network-attachment-definition ipvlan-wb
 ```
 
-2. 変数を修正します。
-`vars/all-config.yml`に記載:
-```yaml
-network_ipv4_network_address: "10.100.0.0"
-network_ipv4_prefix_len: 16
-```
+**確認ポイント**:
 
-コントロールプレーンノードの`host_vars` ( `host_vars/k8sctrlplane01.local` など)に記載:
-```yaml
-k8s_whereabouts_ipv4_range_start: "10.100.1.0"
-k8s_whereabouts_ipv4_range_end: "10.100.254.255"
-```
+- Playbook の実行結果に `k8s_nic is not configured` または `No netif_list entry matches k8s_nic` の警告が表示されていないことを確認することで, NAD の接続先ネットワークが解決されていることを確認します。
+- IPv4 または IPv6 のネットワーク情報と対応する開始アドレス, 終了アドレスが設定されていることを確認します。
 
-### 問題 4: kube-apiserver 待機がタイムアウト
+### 3. `net1` に IPv4 または IPv6 アドレスが設定されない場合
 
-**症状:**
-```
-FAILED - RETRYING [config-whereabouts : Wait for kube-apiserver]
-```
+**実施対象ホスト**: 対象ホストとなるKubernetesのコントロールプレーンノード
 
-**原因:**
-- kube-apiserver が起動していない。
-- `k8s_ctrlplane_endpoint` が不正。
-- ファイアウォール設定により通信が遮断されている。
-
-**対応:**
-1. kube-apiserver の状態を確認します。
+**実行するコマンド**:
 
 ```bash
-kubectl get nodes
-```
-または, リモートノード上で,
-```bash
-systemctl status kubelet
-```
-
-2. API エンドポイントへの疎通を確認します。
-
-```bash
-curl -k https://k8s_ctrlplane_endpoint:6443/api/v1
+kubectl -n kube-system \
+  get network-attachment-definition ipvlan-wb \
+  -o jsonpath='{.spec.config}' \
+  | jq .
+kubectl -n default \
+  get pod whereabouts-test-1 \
+  -o jsonpath='{.metadata.annotations.k8s\.v1\.cni\.cncf\.io/network-status}' \
+  | jq .
 ```
 
-3. 待機タイムアウト値を増加させます。
+**確認ポイント**:
 
-```yaml
-k8s_api_wait_timeout: 1200  # デフォルト 600 から増加
-```
+- NAD の `ipRanges` に使用するアドレス種別の `range`, `range_start`, `range_end` が存在することを確認することで, Whereabouts へ払い出し範囲が渡されていることを確認します。
+- `network-status` の `kube-system/ipvlan-wb` に対応する `ips` に必要な IPv4/IPv6 アドレスが存在することを確認します。
 
-### 問題 5: NAD 名前空間が不正
+### 4. Pod 間通信に失敗する場合
 
-**症状:**
-- NAD が異なる名前空間に登録される (例: `default` など)。
+**実施対象ホスト**: 対象ホストとなるKubernetesのコントロールプレーンノード
 
-**原因:**
-- テンプレート `templates/ipvlan-wb-nad.yml.j2` の `metadata.namespace` が不正。
-
-**対応:**
-
-テンプレートを確認し, 名前空間を修正します。
+**実行するコマンド**:
 
 ```bash
-cat roles/k8s-whereabouts/templates/ipvlan-wb-nad.yml.j2 | grep -A2 "metadata:"
+kubectl -n default exec whereabouts-test-1 -- ip addr show dev net1
+kubectl -n default exec whereabouts-test-2 -- ip addr show dev net1
+kubectl -n default exec whereabouts-test-1 -- ping -c 3 192.168.40.100
+kubectl -n default exec whereabouts-test-1 -- ping -6 -c 3 fd69:6684:61a:2::100
 ```
 
-編集内容は[NAD の 名前空間 ( namespace ) を変更する手順](#nad-の-名前空間--namespace--を変更する手順)を参照してください。
+**確認ポイント**:
+
+- 両 Pod の `net1` に同じ IPv4/IPv6 ネットワークの異なるアドレスが設定されていることを確認します。
+- `ping` コマンドで応答がない場合は, `k8s_nic` に対応するネットワークインタフェースが両ワーカノードで同じネットワークへ接続されていることを確認します。
 
 ## 注意事項
 
-### 必須設定項目
-
-- `k8s_multus_enabled: true` と `k8s_whereabouts_enabled: true` の両方が必要です。
-- `k8s_whereabouts_ipv4_range_start` / `k8s_whereabouts_ipv4_range_end` を事前に設定してください (IPv4 を使う場合)。
-- `k8s_whereabouts_ipv6_range_start` / `k8s_whereabouts_ipv6_range_end` を事前に設定してください (IPv6 を使う場合)。
-- IPv4/IPv6 のいずれかが揃っていない場合, `config-whereabouts.yml` は実行されません。
+- `k8s_multus_enabled: true` と `k8s_whereabouts_enabled: true` の両方を設定した場合に Whereabouts 本体を導入します。
+- 検証用 NAD `ipvlan-wb` は, Whereabouts 本体の導入条件とは別に, `k8s_nic` に対応するネットワーク設定と IPv4 または IPv6 の割り当て範囲が利用可能な場合だけ生成します。
+- 検証用 NAD の生成条件を満たさない場合でも, Whereabouts 本体の導入と検証は継続します。
+- IPv4/IPv6 の割り当て範囲は, 対象ネットワークで他の機器が使用するアドレスと重複しない値を指定してください。
+- `ipvlan-wb` は本ロールの動作確認に使用する NAD です。利用環境のアプリケーション用 NAD は, 利用目的に合わせて別途定義してください。
 
 ## 参考資料
 
 ### 公式ドキュメント
 
-- [Whereabouts CNI](https://github.com/k8snetworkplumbingwg/whereabouts)
-- [Multus CNI](https://github.com/k8snetworkplumbingwg/multus-cni)
+- [Whereabouts](https://github.com/k8snetworkplumbingwg/whereabouts)
+- [Multus](https://github.com/k8snetworkplumbingwg/multus-cni)
+- [Multus NetworkAttachmentDefinition configuration](https://github.com/k8snetworkplumbingwg/multus-cni/blob/master/docs/configuration.md)
+- [kubectlコマンド](https://kubernetes.io/docs/concepts/overview/kubectl/)
+- [Helm Commands](https://helm.sh/docs/v3/helm/)
+- [helm list](https://helm.sh/docs/v3/helm/helm_list/)
+- [jq Manual](https://jqlang.org/manual/)
+- [BusyBox](https://busybox.net/BusyBox.html)
+- [ipコマンド](https://man7.org/linux/man-pages/man8/ip.8.html)
+
+### 関連ロール
+
+- [roles/k8s-multus/Readme.md](../k8s-multus/Readme.md) Multus の導入仕様と追加ネットワーク設定を記載しています。
