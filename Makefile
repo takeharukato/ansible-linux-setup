@@ -42,7 +42,7 @@ normalize = $(patsubst ./%,%,$(1))
 strip_trail = $(patsubst %/,%,$(1))
 
 # アーカイブ対象ファイル
-BASE_ARCHIVE_DIRS := docs group_vars host_vars inventory vars
+BASE_ARCHIVE_DIRS := docs group_vars host_vars inventory vars tools
 # その他
 EXTRA_ARCHIVE_DIRS := kitting
 ANSIBLE_CFG	      := $(wildcard ${top}/*.cfg) $(wildcard ${top}/*.yml)

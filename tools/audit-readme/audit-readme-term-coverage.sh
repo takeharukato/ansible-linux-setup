@@ -13,7 +13,7 @@
 set -euo pipefail
 
 readonly SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-readonly REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
+readonly REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 
 OUT_REPORT="${REPO_ROOT}/docs/glossary-body-term-coverage-audit.tsv"
 ALLOW_ISSUES=0
