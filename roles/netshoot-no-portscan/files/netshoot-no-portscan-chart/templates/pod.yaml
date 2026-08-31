@@ -1,0 +1,22 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: {{ .Values.pod.name }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "netshoot-no-portscan.labels" . | nindent 4 }}
+    app: {{ .Values.pod.name }}
+spec:
+  containers:
+    - name: netshoot
+      image: {{ .Values.image.reference }}
+      imagePullPolicy: {{ .Values.image.pullPolicy }}
+      command:
+        {{- toYaml .Values.command | nindent 8 }}
+      securityContext:
+        {{- toYaml .Values.securityContext | nindent 8 }}
+      resources:
+        {{- toYaml .Values.resources | nindent 8 }}
+  restartPolicy: {{ .Values.restartPolicy }}
+  hostNetwork: {{ .Values.hostNetwork }}
+  dnsPolicy: {{ .Values.dnsPolicy }}

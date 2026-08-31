@@ -1,0 +1,141 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  netshoot Helm実行時変数解決処理
+#
+---
+
+# 共通Helm処理へ渡す識別子, Namespace, Helm実行ユーザおよび時間制御値を
+# ロール入力値から正規化し, 後続タスクで同じ値を使用する。
+- name: Resolve netshoot Helm basic runtime variables
+  ansible.builtin.set_fact:
+    netshoot_runtime_release_name: >-
+      {{
+        netshoot_no_portscan_release_name
+        | default('netshoot-no-portscan', true)
+        | string
+        | trim
+      }}
+    netshoot_runtime_namespace: >-
+      {{
+        netshoot_k8s_namespace
+        | default('default', true)
+        | string
+        | trim
+      }}
+    netshoot_runtime_operator_user: >-
+      {{
+        k8s_runtime_helm_operator_user
+        | default('', true)
+        | string
+        | trim
+      }}
+    netshoot_runtime_helm_timeout_seconds: >-
+      {{ netshoot_no_portscan_helm_timeout_seconds | int }}
+    netshoot_runtime_helm_retries: >-
+      {{ netshoot_no_portscan_helm_retries | int }}
+    netshoot_runtime_helm_retry_interval_seconds: >-
+      {{ netshoot_no_portscan_helm_retry_interval_seconds | int }}
+    netshoot_runtime_helm_request_interval_seconds: >-
+      {{ netshoot_no_portscan_helm_request_interval_seconds | int }}
+
+# Helm実行ユーザの実ホームディレクトリを取得し, /home固定前提による
+# kubeconfigおよびHelm作業ディレクトリの参照誤りを防止する。
+- name: Resolve home directory for netshoot Helm operator user
+  ansible.builtin.getent:
+    database: passwd
+    key: "{{ netshoot_runtime_operator_user }}"
+  register: netshoot_helm_operator_user_getent
+  changed_when: false
+
+# getent結果を後続で添字参照する前に対象ユーザが取得できたことを明示的に確認する。
+- name: Validate netshoot Helm operator user
+  ansible.builtin.assert:
+    that:
+      - >-
+        netshoot_runtime_operator_user
+        in (
+          netshoot_helm_operator_user_getent
+          .ansible_facts
+          .getent_passwd
+          | default({})
+        )
+    fail_msg: >-
+      Helm operator user {{ netshoot_runtime_operator_user }} was not found.
+
+# kubeconfig, ローカルChart, valuesの配置先をHelm実行ユーザの実ホーム基準で決定する。
+- name: Resolve netshoot Helm runtime paths
+  ansible.builtin.set_fact:
+    netshoot_runtime_config_dir: >-
+      {{
+        netshoot_helm_operator_user_getent
+        .ansible_facts
+        .getent_passwd[netshoot_runtime_operator_user][4]
+        ~ '/kubeadm/netshoot-no-portscan'
+      }}
+    netshoot_runtime_chart_dir: >-
+      {{
+        netshoot_helm_operator_user_getent
+        .ansible_facts
+        .getent_passwd[netshoot_runtime_operator_user][4]
+        ~ '/kubeadm/netshoot-no-portscan/chart'
+      }}
+    netshoot_runtime_values_file_path: >-
+      {{
+        netshoot_helm_operator_user_getent
+        .ansible_facts
+        .getent_passwd[netshoot_runtime_operator_user][4]
+        ~ '/kubeadm/netshoot-no-portscan/values.yaml'
+      }}
+    netshoot_runtime_kubeconfig_path: >-
+      {{
+        netshoot_helm_operator_user_getent
+        .ansible_facts
+        .getent_passwd[netshoot_runtime_operator_user][4]
+        ~ '/.kube/ca-embedded-admin.conf'
+      }}
+
+# レジストリ指定の有無に応じて, 現行マニフェストと同じ
+# イメージ参照先およびimagePullPolicyをHelm values用に解決する。
+- name: Resolve netshoot Helm image runtime variables
+  ansible.builtin.set_fact:
+    netshoot_runtime_image: >-
+      {{
+        (
+          netshoot_image_registry
+          | default('', true)
+          | string
+          | trim
+        )
+        ~ ':'
+        ~ (netshoot_no_portscan_version | string | trim)
+        if (
+          (
+            netshoot_image_registry
+            | default('', true)
+            | string
+            | trim
+            | length
+          ) > 0
+        )
+        else (
+          netshoot_no_portscan_image
+          | string
+          | trim
+        )
+      }}
+    netshoot_runtime_image_pull_policy: >-
+      {{
+        'IfNotPresent'
+        if (
+          (
+            netshoot_image_registry
+            | default('', true)
+            | string
+            | trim
+            | length
+          ) > 0
+        )
+        else 'Never'
+      }}

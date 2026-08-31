@@ -1,6 +1,6 @@
 # netshoot-no-portscan ロール
 
-本ロールは, [nicolaka/netshoot](https://github.com/nicolaka/netshoot) をベースに, ポートスキャンツール などの悪用される恐れのあるツール群を除去したネットワーク診断用コンテナイメージを構築し, Kubernetes クラスタに配布するロールです。
+本ロールは, [nicolaka/netshoot](https://github.com/nicolaka/netshoot)を基に, ポートスキャンなどに使用されるツール群を除去したネットワーク診断用コンテナイメージを構築します。構築したコンテナイメージをKubernetesクラスタで利用可能にし, ロール内に保持するHelm Chartを`k8s-helm-common`ロール経由で適用して`netshoot` Podを導入します。
 
 ## 目次
 
@@ -11,32 +11,31 @@
     - [標準のnicolaka/netshootとの相違](#標準のnicolakanetshootとの相違)
     - [ポートスキャンツール除去の仕組み](#ポートスキャンツール除去の仕組み)
     - [主な処理](#主な処理)
-      - [コンテナイメージ構築処理 (`build-netshoot.yml`)](#コンテナイメージ構築処理-build-netshootyml)
-      - [containerd 直接登録による配布処理 (`distribute-netshoot.yml`)](#containerd-直接登録による配布処理-distribute-netshootyml)
-      - [ローカルレジストリ登録処理 (`register-netshoot.yml`)](#ローカルレジストリ登録処理-register-netshootyml)
-      - [マニフェスト作成処理 (`create-manifest.yml`)](#マニフェスト作成処理-create-manifestyml)
   - [前提条件](#前提条件)
   - [実行方法](#実行方法)
-    - [コンテナイメージの展開(デプロイ)方法](#コンテナイメージの展開デプロイ方法)
   - [主要変数](#主要変数)
+    - [設定例](#設定例)
   - [テンプレートと生成ファイル](#テンプレートと生成ファイル)
-    - [コンテナイメージをK8sクラスタに展開するためのマニフェストの生成](#コンテナイメージをk8sクラスタに展開するためのマニフェストの生成)
-      - [生成されるマニュフェストの仕様](#生成されるマニュフェストの仕様)
-      - [`netshoot_image_registry` 変数によるイメージ参照先とpullポリシーの切り替え](#netshoot_image_registry-変数によるイメージ参照先とpullポリシーの切り替え)
   - [実行フロー](#実行フロー)
-    - [コンテナイメージの構築と配布の流れ](#コンテナイメージの構築と配布の流れ)
-    - [イメージ配布モードの選択](#イメージ配布モードの選択)
-      - [containerd 直接登録モード](#containerd-直接登録モード)
-      - [ローカルレジストリ登録モード](#ローカルレジストリ登録モード)
   - [検証ポイント](#検証ポイント)
+    - [検証の前提条件](#検証の前提条件)
+    - [検証環境の設定](#検証環境の設定)
+    - [検証コマンドと期待結果](#検証コマンドと期待結果)
+      - [1. Helm導入識別名状態](#1-helm導入識別名状態)
+      - [2. netshoot Pod状態](#2-netshoot-pod状態)
+      - [3. ローカルレジストリ上のコンテナイメージ](#3-ローカルレジストリ上のコンテナイメージ)
+      - [4. containerd直接登録方式のコンテナイメージ](#4-containerd直接登録方式のコンテナイメージ)
+      - [5. Pod内のネットワーク診断コマンド](#5-pod内のネットワーク診断コマンド)
   - [トラブルシューティング](#トラブルシューティング)
-    - [1. Docker ビルドが失敗する場合](#1-docker-ビルドが失敗する場合)
-    - [2. containerd へのイメージ登録が失敗する場合](#2-containerd-へのイメージ登録が失敗する場合)
-    - [3. ローカルレジストリへの push が失敗する場合](#3-ローカルレジストリへの-push-が失敗する場合)
-    - [4. Pod が起動しない場合](#4-pod-が起動しない場合)
+    - [1. コンテナイメージの構築が失敗する場合](#1-コンテナイメージの構築が失敗する場合)
+    - [2. containerdへのコンテナイメージ登録が失敗する場合](#2-containerdへのコンテナイメージ登録が失敗する場合)
+    - [3. ローカルレジストリへのコンテナイメージ登録が失敗する場合](#3-ローカルレジストリへのコンテナイメージ登録が失敗する場合)
+    - [4. Helm導入又は更新が失敗する場合](#4-helm導入又は更新が失敗する場合)
+    - [5. netshoot Podが起動しない場合](#5-netshoot-podが起動しない場合)
   - [注意事項](#注意事項)
   - [参考資料](#参考資料)
     - [公式ドキュメント](#公式ドキュメント)
+    - [関連ロール](#関連ロール)
 
 ## 用語
 
@@ -124,7 +123,7 @@
 | マニフェスト ( Manifest ) | - | Kubernetes のリソース ( Pod, Deployment など ) を YAML 形式で定義したファイル。`kubectl apply` コマンドでクラスタに適用することで, 定義されたリソースが作成される。 |
 | 名前空間 ( namespace ) | - | Kubernetes内部でリソースを論理的に分離する単位。 |
 | 制御ホスト | - | Playbook を実行し, 他ホストへの処理指示を行う管理用ホスト。 |
-| 構築ホスト | - | パッケージや実行資材を生成するビルド処理を担当するホスト。 |
+| 構築ホスト | - | パッケージや実行資材を生成する構築処理を担当するホスト。 |
 | Docker | - | コンテナイメージやコンテナの作成, 実行, 管理を行うコマンド。 |
 | nmap | - | ネットワーク上のホストやポートを探索 ( スキャン ) するツール。本ロールでは, セキュリティポリシー上 nmap 等のポートスキャンツールを搭載できない環境での使用を想定し, nmap関連ツールをコンテナイメージから除去している。 |
 | nicolaka/netshoot | netshoot | ネットワーク診断ツールを多数搭載した公開コンテナイメージ。 詳細は, [netshootのGithub](https://github.com/nicolaka/netshoot)を参照。 |
@@ -161,478 +160,465 @@
 | ローカルレジストリ | - | 実行中ホストまたは同一環境内で運用する成果物保管先。 |
 | 対象ホスト | - | Playbook による設定変更や導入処理の適用先となるホスト。 |
 | sudoコマンド | sudo | 一時的に管理者権限でコマンドを実行するためのコマンド。 |
+| Helm | - | Kubernetes向けパッケージを導入, 更新, 削除するコマンド。 |
+| Helm Chart | - | Helmで導入するKubernetesリソース定義のまとまり。 |
+| Helm導入識別名 ( Helm release ) | - | Helm が管理する導入単位を識別する名前。 |
+| values ファイル | - | Helm Chartへ渡す設定値を定義したYAMLファイル。 |
+| helmコマンド | helm | Kubernetes向けパッケージの導入, 更新, 状態確認を実施するコマンド。 |
+| timeoutコマンド | timeout | 指定した時間を上限として別のコマンドを実行するコマンド。 |
+| crictlコマンド | crictl | Kubernetesノード上のコンテナランタイムへ問い合わせてコンテナイメージなどを確認するコマンド。 |
+| grepコマンド | grep | テキストの中から条件に一致する行を抽出して表示するコマンド。 |
+| pingコマンド | ping | 指定した宛先への通信到達性を確認するコマンド。 |
+| kubectlコマンド | kubectl | Kubernetes API と通信してリソースを操作, 参照するコマンド。 |
+| journalctlコマンド | journalctl | systemd ジャーナルのログを参照するコマンド。 |
+| getentコマンド | getent | システムの名前解決データベースを参照するコマンド。 |
+| dockerコマンド | docker | コンテナイメージやコンテナの作成, 実行, 管理を行うコマンド。 |
+| curlコマンド | curl | URL を指定して通信結果を取得するコマンド。 |
 
 ## 概要
 
-[nicolaka/netshoot](https://github.com/nicolaka/netshoot) をベースに, ポートスキャンツール などの悪用される恐れのあるツール群を除去したネットワーク診断用コンテナイメージを構築し, Kubernetes クラスタに配布するロールです。本ロールは, セキュリティポリシー上 nmap 等のポートスキャンツールを搭載できない環境においても, tcpdump, ping, curl 等のネットワーク検証ツールを Pod として使用可能にします。
-本ロールは, `inventory/hosts`内の`k8s_management`グループに記載されたノード(Kubernetesコントロールプレインノード)の構築処理の一環として実行されます。
+本ロールは, [nicolaka/netshoot](https://github.com/nicolaka/netshoot)のソースコードを取得し, `files/netshoot-no-portscan.patch`を適用して, ポートスキャンや大量パケット送信などに使用されるツール群を除去したコンテナイメージを構築します。
 
-このロールは以下の手順でコンテナイメージを構築し, Kubernetes クラスタへ配布します。
+本ロールは, `inventory/hosts`の`k8s_management`グループに登録したKubernetesコントロールプレーンノードの構築処理の一部として実行します。本リポジトリでは, 1つのKubernetesクラスタにつき1つのコントロールプレーンノードを構成する前提で使用します。
 
-1. [nicolaka/netshoot](https://github.com/nicolaka/netshoot) のソースコードを GitHub から取得する
-2. `netshoot-no-portscan.patch` を Dockerfile に適用して nmap 系パッケージを除去する
-3. Docker を使用してコンテナイメージをビルドし, tar ファイルとして保存する
-4. 構築したイメージを以下のいずれかの方法で Kubernetes ノードへ配布する
-   - containerd 直接登録モード: `k8s-register-image` ロールを使用してコントロールプレーン/ワーカノードの containerd に直接インポートする
-   - ローカルレジストリ登録モード: Docker でローカルレジストリへ push する
-5. Kubernetes 向けのデバッグ用 Pod マニフェストファイルを生成する
+構築したコンテナイメージの配布方法は, `netshoot_image_registry`の設定値により次の2方式から選択します。
+
+- `netshoot_image_registry`が空文字列の場合は, `k8s-register-image`ロールを使用して各Kubernetesノードのcontainerdへコンテナイメージを直接登録します。
+- `netshoot_image_registry`が空文字列でない場合は, 制御ホストからローカルレジストリへコンテナイメージを登録し, Kubernetesノードから取得可能にします。
+
+コンテナイメージの配布後は, `files/netshoot-no-portscan-chart/`に保持するHelm Chartと, `templates/netshoot-values.yml.j2`から生成するvalues ファイルを使用します。`helm template`, `helm upgrade --install`, Helm導入識別名の`deployed`状態確認は`k8s-helm-common`ロールへ委譲します。
+
+本ロールのHelm Chartは`netshoot`を単体Podとして管理します。Podでは`imagePullPolicy`など一部のフィールドを作成後に変更できないため, `tasks/recreate-pod.yml`で既存Podを削除し, Podが存在しないことを確認してから`helm upgrade --install`を実行します。これにより, `netshoot_image_registry`の設定変更によって`imagePullPolicy`が`Never`と`IfNotPresent`の間で切り替わる場合もPodを再作成して設定を反映します。
+
+Helm導入識別名は既定で`netshoot-no-portscan`, Kubernetes名前空間は既定で`default`, Pod名は既定で`netshoot`です。再実行時は既存Podを削除してから`helm upgrade --install`を実行し, 最終的にHelm導入識別名が`deployed`状態であることを確認します。本ロールでは, 厳密な意味でのAnsibleの冪等性を独立した品質要件とはせず, 安定した再実行性, エラー時の検出性, タイムアウトと再試行, 最終状態の検証を重視します。
 
 ### 標準のnicolaka/netshootとの相違
 
-ポートスキャン, フラッディング攻撃, DoS攻撃などに悪用される恐れがある以下のツール群を除去しています。
+ポートスキャン, フラッディング攻撃, DoS攻撃などに使用される可能性がある次のツール群を除去します。
 
-|ツール|機能概要|参考サイト|
-|---|---|---|
-|nmap,nmap-nping,nmap-scripts|ポートスキャンツール|[nmap公式サイト](https://nmap.org/)|
-|bird|BGP/OSPF routing デーモン|[The BIRD Internet Routing Daemon](https://bird.network.cz/)|
-|fping|並列ping|[fping公式サイト](https://fping.org/)|
-|scapy|パケット生成ライブラリ|[scapy公式サイト](https://scapy.net/)|
-|swaks|SMTPテストツール|[Swaks - Swiss Army Knife for SMTP](https://github.com/jetmore/swaks)|
-|fortio|マイクロサービス(HTTP,gRPC)用ロードテストツール|[Fortio公式サイト](https://fortio.org/)|
+| ツール | 機能概要 | 参考資料 |
+| --- | --- | --- |
+| nmap, nmap-nping, nmap-scripts | ポートスキャンに使用するツール群です。 | [nmap公式サイト](https://nmap.org/) |
+| bird | BGP及びOSPFを扱う経路制御ソフトウェアです。 | [The BIRD Internet Routing Daemon](https://bird.network.cz/) |
+| fping | 複数宛先へ並行して到達性を確認するツールです。 | [fping公式サイト](https://fping.org/) |
+| scapy | 任意のパケットを生成, 送受信するためのプログラム部品です。 | [scapy公式サイト](https://scapy.net/) |
+| swaks | SMTP通信を確認するツールです。 | [Swaks - Swiss Army Knife for SMTP](https://github.com/jetmore/swaks) |
+| fortio | HTTPなどの通信負荷を生成するツールです。 | [Fortio公式サイト](https://fortio.org/) |
 
 ### ポートスキャンツール除去の仕組み
 
-`files/netshoot-no-portscan.patch` を [nicolaka/netshoot](https://github.com/nicolaka/netshoot) の Dockerfile に適用することで, 以下のパッケージの Alpine Linux `apk` インストール行を削除します。
+`files/netshoot-no-portscan.patch`を[nicolaka/netshoot](https://github.com/nicolaka/netshoot)のDockerfileへ適用し, nmap関連パッケージなどの導入処理とfortioの導入処理を削除します。
 
-```
-- nmap
-- nmap-nping
-- nmap-scripts
-- bird
-- fping
-- scapy
-- swaks
-```
+対象は次のとおりです。
 
-また, コンテナ生成時の, `fortio`の導入処理を削除しています。
+```text
+nmap
+nmap-nping
+nmap-scripts
+bird
+fping
+scapy
+swaks
+fortio
+```
 
 ### 主な処理
 
-#### コンテナイメージ構築処理 (`build-netshoot.yml`)
+本ロールの主な処理は次のとおりです。
 
-`run_once: true` で指定されており, 複数ホストへの並列実行時でも1回のみ実行されます。
-
-1. 作業ディレクトリ (`netshoot_work_dir`) を削除して再作成する
-2. GitHub から netshoot ソースコードを `git clone` する
-3. `netshoot-no-portscan.patch` を Dockerfile に適用して nmap 系パッケージを除去する
-4. `build-netshoot.sh.j2` テンプレートからシェルスクリプトを生成する
-5. シェルスクリプトを実行して `docker build` と `docker save` を行う
-6. 生成された tar ファイルを制御ホストの `netshoot_output_dir_on_control_host` に転送する
-
-#### containerd 直接登録による配布処理 (`distribute-netshoot.yml`)
-
-`netshoot_image_registry` が未設定の場合に実行されます。`k8s-register-image` ロールを使用します。
-
-1. コントロールプレーンノードへの登録:
-   - インベントリの `k8s_ctrlplane` グループからコントロールプレーンホスト一覧を自動解決する
-   - 制御ホストから各コントロールプレーンノードへ tar ファイルを転送し, containerd にインポートする
-2. ワーカノードの自動検出:
-   - `netshoot_kubeconfig_path` に指定した kubeconfig を参照し, `kubectl` でワーカノード一覧を取得する
-   - 検出したワーカノードを動的インベントリに追加する
-3. ワーカノードへの登録:
-   - 動的インベントリのワーカノードへ tar ファイルを転送し, containerd にインポートする
-   - `netshoot_cleanup_remote_tar` が `true` の場合, インポート後に一時 tar ファイルを削除する
-
-#### ローカルレジストリ登録処理 (`register-netshoot.yml`)
-
-`netshoot_image_registry` が設定されている場合に実行されます。全タスクが `delegate_to: localhost` と `run_once: true` で制御ホスト上で1回のみ実行されます。
-
-1. `docker load` で制御ホスト上の tar ファイルからイメージをロードする
-2. `docker tag` で `{{ netshoot_image_registry }}:{{ netshoot_no_portscan_version }}` のタグを付与する
-3. `docker push` でローカルレジストリへ push する
-
-#### マニフェスト作成処理 (`create-manifest.yml`)
-
-マニフェスト格納先ディレクトリを作成し, `netshoot-no-portscan.yml.j2` テンプレートからマニフェストファイルを生成します。このタスクは配布モードに関わらず常に実行されます。
+1. `tasks/build-netshoot.yml`で作業ディレクトリを再作成し, nicolaka/netshootのソースコードを取得します。
+2. `files/netshoot-no-portscan.patch`をDockerfileへ適用し, `templates/build-netshoot.sh.j2`からコンテナイメージ構築用シェルスクリプトを生成します。
+3. 構築ホストでコンテナイメージを構築し, tar形式のファイルを制御ホストへ転送します。
+4. `netshoot_image_registry`が空文字列の場合は, `tasks/distribute-netshoot.yml`から`k8s-register-image`ロールを呼び出して各Kubernetesノードのcontainerdへコンテナイメージを登録します。
+5. `netshoot_image_registry`が空文字列でない場合は, `tasks/register-netshoot.yml`でローカルレジストリへコンテナイメージを登録します。
+6. `tasks/resolve-runtime-vars.yml`でHelm実行ユーザ, Helm導入識別名, Kubernetes名前空間, kubeconfig, values ファイル配置先, Helm操作時間に関する値, コンテナイメージ参照先を解決します。
+7. `tasks/prepare-helm.yml`でロール内のHelm ChartをHelm実行ユーザのホームディレクトリ配下へ配置します。
+8. `tasks/render-values.yml`で`templates/netshoot-values.yml.j2`からvalues ファイルを生成します。
+9. `tasks/helm-template.yml`から`k8s-helm-common`ロールの`template.yml`を呼び出し, Helm Chartを事前描画します。
+10. `tasks/recreate-pod.yml`で既存の`netshoot` Podを削除し, Kubernetes APIでPodが存在しないことを確認します。初回導入時にPodが存在しない場合は削除済みとして処理を継続します。
+11. `tasks/helm-upgrade.yml`から`k8s-helm-common`ロールの`upgrade.yml`を呼び出し, `helm upgrade --install`で`netshoot` Podを導入又は更新します。
+12. `tasks/helm-wait.yml`から`k8s-helm-common`ロールの`wait-release.yml`を呼び出し, Helm導入識別名が`deployed`状態であることを確認します。
 
 ## 前提条件
 
-- 制御ホストと構築ホスト上に Docker がインストールされていること
-- 制御ホストから Kubernetes クラスタの各ノードへ SSH 接続可能であること
-- `k8s-register-image` ロールが同一リポジトリ内に存在すること (containerd 直接登録モードで必要)
-- ローカルレジストリ登録モードを使用する場合は, 制御ホストの `/etc/docker/daemon.json` に `insecure-registries` が設定されていること (詳細は, `[roles/docker-ce/Readme.md](../roles/docker-ce/Readme.md)参照)
-- Kubernetes コントロールプレイン/ワーカノードの containerdのレジストリ設定 ( `/etc/containerd/certs.d/<レジストリ名>/hosts.toml` )が, ローカルレジストリを参照可能なように設定されていること (詳細は, `[roles/k8s-common/Readme.md](../roles/k8s-common/Readme.md)参照)
+本ロールを実行する前に, 次の条件が満たされていることを確認します。
+
+- 制御ホスト及び`netshoot_build_host`で指定した構築ホストからDockerを実行可能であること。
+- `k8s_management`グループの各対象ホストからKubernetes APIへ接続可能であること。
+- `k8s_runtime_helm_operator_user`で指定されたHelm実行ユーザからhelmコマンドとtimeoutコマンドを実行可能であること。
+- Helm実行ユーザのホームディレクトリ配下に`.kube/ca-embedded-admin.conf`が存在し, Helm実行ユーザから読み取り可能であること。
+- containerd直接登録方式を使用する場合は, `k8s-register-image`ロールが同一リポジトリ内に存在し, 制御ホストからKubernetesノードへSSH接続可能であること。
+- ローカルレジストリ方式を使用する場合は, 制御ホストから`netshoot_image_registry`で指定したローカルレジストリへ接続可能であること。
+- ローカルレジストリ方式を使用する場合は, Kubernetesノードのcontainerdが当該ローカルレジストリからコンテナイメージを取得可能であること。
 
 ## 実行方法
 
-`vars/all-config.yml`, または, K8sコントロールプレインノードのhost_varsファイル内で, `netshoot_no_portscan_enabled` を `true` に設定したうえで, 本ロールを実行します。本ロールの実行手順は以下の通りです:
+`vars/all-config.yml`又はKubernetesコントロールプレーンノードの`host_vars`で`netshoot_no_portscan_enabled: true`を設定します。
 
-1. site.yml 経由で実行する:
-    ```bash
-    ansible-playbook -i inventory/hosts site.yml
-    ```
-2. ロールを単独で対象ホストに実行する:
-    ```bash
-    ansible-playbook -i inventory/hosts site.yml --tags netshoot-no-portscan
-    ```
-3. makeターゲットで本ロールの実行を指示する:
-    ```bash
-    make run_netshoot_no_portscan
-    ```
-
-### コンテナイメージの展開(デプロイ)方法
-
-本ロール実行後, コントロールプレーンノードで以下のコマンドでマニフェストを適用することで, 本ロールで作成したコンテナイメージをK8sクラスタに展開します:
+本ロールだけを対象として実行する場合は, 制御ホストで次のmakeコマンドを実行します。
 
 ```bash
-kubectl apply -f /opt/maintenance/netshoot/manifests/netshoot-no-portscan.yml
-kubectl get pod netshoot
+make run_netshoot_no_portscan
 ```
+
+本ロールはHelm Chartの配置, values ファイル生成, `helm template`, 既存`netshoot` Podの削除と削除完了確認, `helm upgrade --install`, Helm導入識別名の状態確認まで自動的に実行します。旧方式のように, ロール実行後にマニフェストを手動で適用する操作は不要です。
 
 ## 主要変数
 
-| 変数名 | 既定値 | 説明 |
-| --- | --- | --- |
-| `netshoot_no_portscan_enabled` | `false` | `true` に設定するとロールの処理が有効になる。 |
-| `netshoot_no_portscan_version` | `"v0.16"` | 使用する netshoot のバージョン。 使用する版数に応じて設定することを想定。|
-| `netshoot_no_portscan_image` | `"nicolaka/netshoot:v0.16"` | ビルドするコンテナイメージ名。 `netshoot_no_portscan_version`変数に基づいて設定される内部変数であり変更しないこと。|
-| `netshoot_no_portscan_image_file` | `"nicolaka-netshoot-v0.16.tar"` | tar 形式で保存するコンテナイメージファイル名。 `netshoot_no_portscan_version`変数に基づいて設定される内部変数であり変更しないこと。|
-| `netshoot_src_url` | `"https://github.com/nicolaka/netshoot"` | netshoot ソースコードの取得元 URL。 |
-| `netshoot_build_host` | `"localhost"` | コンテナイメージをビルドするホスト。 |
-| `netshoot_work_dir` | `"/tmp/netshoot-work"` | ビルドホスト上の作業ディレクトリ。 |
-| `netshoot_build_dir` | `"{{ netshoot_work_dir }}/build"` | Dockerfile が配置されるディレクトリ。 |
-| `netshoot_output_dir` | `"{{ netshoot_work_dir }}/output"` | ビルドホスト上のイメージ出力先ディレクトリ。 |
-| `netshoot_output_dir_on_control_host` | `"{{ netshoot_work_dir }}/artifacts"` | 制御ホスト上のイメージ保管先ディレクトリ。 |
-| `netshoot_docker_build_network` | `"host"` | `docker build` 時のネットワークモード。`host` を指定するとビルドコンテナがホストの DNS 設定を引き継ぎ, `apk` の名前解決失敗を防ぐ。 |
-| `netshoot_unqualified_image_registry` | `"registry01.local"` | 未修飾名イメージ参照時に補完するレジストリ名。 |
-| `netshoot_remote_cache_dir` | `"/tmp/netshoot-register"` | 各 K8s ノード上のイメージ転送先一時ディレクトリ。 |
-| `netshoot_kubeconfig_path` | `"/etc/kubernetes/admin.conf"` | ワーカノード自動検出に使用する kubeconfig のパス。 |
-| `netshoot_registry_wait_timeout` | `120` | ローカルレジストリエンドポイント待機のタイムアウト時間(単位: 秒)。 |
-| `netshoot_registry_wait_delay` | `2` | ローカルレジストリエンドポイント待機の開始遅延時間(単位: 秒)。 |
-| `netshoot_registry_wait_sleep` | `2` | ローカルレジストリエンドポイント待機の再試行間隔(単位: 秒)。 |
-| `netshoot_registry_wait_connect_timeout` | `3` | ローカルレジストリエンドポイント待機時の接続タイムアウト時間(単位: 秒)。 |
-| `netshoot_registry_wait_delegate_to` | `"localhost"` | ローカルレジストリエンドポイント待機を実行する接続元ホスト名またはIPアドレス。 |
-| `netshoot_registry_wait_retries` | `5` | ローカルレジストリエンドポイント待機の再試行回数。 |
-| `netshoot_image_registry` | `""` | ローカルレジストリ登録モードで使用するレジストリの URL。未設定の場合は containerd 直接登録モードを使用します。設定例: `"registry01.local:5000/netshoot"` `vars/all-config.yml`, または, K8sコントロールプレインのhost_varsファイルで設定することを想定しています。|
-| `netshoot_k8s_manifest_dir` | `"/opt/maintenance/netshoot/manifests"` | K8sコントロールノード上のマニフェストファイルの格納先ディレクトリ。 |
-| `netshoot_manifest_file_path` | `"{{ netshoot_k8s_manifest_dir }}/netshoot-no-portscan.yml"` | 生成されるマニフェストファイルのパス。 |
-| `netshoot_k8s_namespace` | `"default"` | Pod を展開する Kubernetes の名前空間 ( namespace )。 |
-| `netshoot_k8s_pod_name` | `"netshoot"` | 展開する Pod の名前。 |
+| 変数名 | 意味 | 既定値 | 設定例 |
+| --- | --- | --- | --- |
+| `netshoot_no_portscan_enabled` | 本ロールの処理を有効化します。 | `false` | `true` |
+| `netshoot_no_portscan_version` | 使用するnicolaka/netshootの版数を指定します。 | `"v0.16"` | `"v0.16"` |
+| `netshoot_no_portscan_helm_timeout_seconds` | helmコマンド全体及びHelmの待機処理に使用するタイムアウト時間を秒単位で指定します。 | `300` | `300` |
+| `netshoot_no_portscan_helm_retries` | Helm操作失敗時に共通Helm処理で使用する再試行回数を指定します。 | `3` | `3` |
+| `netshoot_no_portscan_helm_retry_interval_seconds` | Helm操作を再試行するまでの待機時間を秒単位で指定します。 | `5` | `5` |
+| `netshoot_no_portscan_helm_request_interval_seconds` | Kubernetes API及びHelm状態を繰り返し確認する際の実行間隔を秒単位で指定します。 | `5` | `5` |
+| `netshoot_no_portscan_image` | 構築するコンテナイメージ名です。`netshoot_no_portscan_version`から決定する内部変数です。 | `"nicolaka/netshoot:v0.16"` | 変更しません。 |
+| `netshoot_no_portscan_image_file` | 制御ホストへ保存するtar形式のコンテナイメージファイル名です。 | `"nicolaka-netshoot-v0.16.tar"` | 変更しません。 |
+| `netshoot_src_url` | nicolaka/netshootのソースコード取得先を指定します。 | `"https://github.com/nicolaka/netshoot"` | `"https://github.com/nicolaka/netshoot"` |
+| `netshoot_build_host` | コンテナイメージを構築するホストを指定します。 | `"localhost"` | `"localhost"` |
+| `netshoot_work_dir` | 構築作業用ディレクトリを指定します。 | `"/tmp/netshoot-work"` | `"/tmp/netshoot-work"` |
+| `netshoot_build_dir` | nicolaka/netshootのソースコードを配置するディレクトリを指定します。 | `"{{ netshoot_work_dir }}/build"` | `"{{ netshoot_work_dir }}/build"` |
+| `netshoot_output_dir` | 構築ホスト上のコンテナイメージ出力先を指定します。 | `"{{ netshoot_work_dir }}/output"` | `"{{ netshoot_work_dir }}/output"` |
+| `netshoot_output_dir_on_control_host` | 制御ホスト上のコンテナイメージ保存先を指定します。 | `"{{ netshoot_work_dir }}/artifacts"` | `"{{ netshoot_work_dir }}/artifacts"` |
+| `netshoot_docker_build_network` | コンテナイメージ構築時にDockerへ渡すネットワーク指定を設定します。 | `"host"` | `"host"` |
+| `netshoot_unqualified_image_registry` | 未修飾コンテナイメージ名へ補完するレジストリ名を指定します。 | `"registry01.local"` | `"registry01.local"` |
+| `netshoot_remote_cache_dir` | Kubernetesノードへコンテナイメージファイルを一時配置するディレクトリを指定します。 | `"/tmp/netshoot-register"` | `"/tmp/netshoot-register"` |
+| `netshoot_kubeconfig_path` | containerd直接登録方式でワーカノードを検出する際に使用するkubeconfigを指定します。 | `"/etc/kubernetes/admin.conf"` | `"/etc/kubernetes/admin.conf"` |
+| `netshoot_registry_wait_timeout` | ローカルレジストリエンドポイント確認処理のタイムアウト時間を秒単位で指定します。 | `120` | `120` |
+| `netshoot_registry_wait_delay` | ローカルレジストリエンドポイント確認開始までの待機時間を秒単位で指定します。 | `2` | `2` |
+| `netshoot_registry_wait_sleep` | ローカルレジストリエンドポイント確認処理の再試行間隔を秒単位で指定します。 | `2` | `2` |
+| `netshoot_registry_wait_connect_timeout` | ローカルレジストリエンドポイントへの1回の接続処理のタイムアウト時間を秒単位で指定します。 | `3` | `3` |
+| `netshoot_registry_wait_delegate_to` | ローカルレジストリエンドポイント確認処理を実行するホストを指定します。 | `"localhost"` | `"localhost"` |
+| `netshoot_registry_wait_retries` | ローカルレジストリエンドポイント確認処理の再試行回数を指定します。 | `5` | `5` |
+| `netshoot_image_registry` | 空文字列の場合はcontainerd直接登録方式を使用し, 値を設定した場合はローカルレジストリ方式を使用します。 | `""` | `"registry01.local:5000/netshoot"` |
+| `netshoot_k8s_namespace` | Helm Chartで`netshoot` Podを導入するKubernetes名前空間を指定します。 | `"default"` | `"default"` |
+| `netshoot_k8s_pod_name` | Helm Chartで作成するPod名を指定します。 | `"netshoot"` | `"netshoot"` |
+
+### 設定例
+
+ローカルレジストリ方式で本ロールを有効化する設定例を示します。
+
+```yaml
+1: netshoot_no_portscan_enabled: true
+2: netshoot_image_registry: "registry01.local:5000/netshoot"
+3: netshoot_k8s_namespace: "default"
+4: netshoot_k8s_pod_name: "netshoot"
+5: netshoot_no_portscan_helm_timeout_seconds: 300
+6: netshoot_no_portscan_helm_retries: 3
+7: netshoot_no_portscan_helm_retry_interval_seconds: 5
+8: netshoot_no_portscan_helm_request_interval_seconds: 5
+```
+
+| 行番号 | 設定値 | 有効になる動作 | 設定背景(未設定時/誤設定時の問題と防止理由) |
+| --- | --- | --- | --- |
+| 1 | `netshoot_no_portscan_enabled: true` | netshoot-no-portscanロールの処理を実行します。 | `false`の場合は本ロールの処理を実行しないため, 検証対象のPodを導入できません。 |
+| 2 | `netshoot_image_registry: "registry01.local:5000/netshoot"` | 構築したコンテナイメージをローカルレジストリへ登録し, Helm Chartから`IfNotPresent`で参照します。 | 接続不能なレジストリを指定すると, コンテナイメージ登録又はPod起動時の取得処理が失敗するため, Kubernetesノードから到達可能な接続先を指定します。 |
+| 3 | `netshoot_k8s_namespace: "default"` | `default`名前空間へHelm導入識別名とPodを配置します。 | 異なる名前空間を指定すると, 検証コマンドの対象と実際の配置先が一致しなくなるためです。 |
+| 4 | `netshoot_k8s_pod_name: "netshoot"` | Pod名を`netshoot`に設定します。 | 異なるPod名を指定すると, 検証コマンドと実際のPod名が一致しなくなるためです。 |
+| 5 | `netshoot_no_portscan_helm_timeout_seconds: 300` | Helm操作の最大実行時間を300秒に設定します。 | 短すぎる値では正常処理を途中で失敗と判定し, 長すぎる値では停止状態の検出が遅れるため, 実行環境に応じて設定します。 |
+| 6 | `netshoot_no_portscan_helm_retries: 3` | 一時的なHelm操作失敗に対する再試行回数を3回に設定します。 | 再試行回数が不足すると一時的な障害から復旧できず, 過大な値では恒久障害の検出が遅れるためです。 |
+| 7 | `netshoot_no_portscan_helm_retry_interval_seconds: 5` | Helm操作失敗後の再試行間隔を5秒に設定します。 | 間隔が短すぎると障害中の操作を連続実行し, 長すぎると一時的な障害からの復旧確認が遅れるためです。 |
+| 8 | `netshoot_no_portscan_helm_request_interval_seconds: 5` | Kubernetes API及びHelm状態確認の実行間隔を5秒に設定します。 | 間隔が短すぎると不要な問い合わせが増え, 長すぎると状態変化の検出が遅れるためです。 |
+
+この設定例は, 「検証コマンドと期待結果」のHelm導入識別名, Pod及びローカルレジストリ確認で使用できます。
 
 ## テンプレートと生成ファイル
 
-| テンプレートファイル名 | 出力先パス | 説明 |
+| 入力 | 出力又は配置先 | 目的 |
 | --- | --- | --- |
-| `templates/netshoot-no-portscan.yml.j2` | `{{ netshoot_manifest_file_path }}` (既定: `{{ netshoot_manifest_file_path }}`) | netshoot Pod のマニフェストファイル。`imagePullPolicy` と参照イメージを自動選択します。 |
-| `templates/build-netshoot.sh.j2` | `{{ netshoot_build_dir }}/build-netshoot.sh` (既定: `{{ netshoot_build_dir }}/build-netshoot.sh`) | `docker build` と `docker save` を実行するシェルスクリプト。 |
+| `templates/build-netshoot.sh.j2` | `{{ netshoot_build_dir }}/build-netshoot.sh` | nicolaka/netshootのコンテナイメージを構築し, tar形式で保存するシェルスクリプトを生成します。 |
+| `templates/netshoot-values.yml.j2` | `<Helm実行ユーザのホームディレクトリ>/kubeadm/netshoot-no-portscan/values.yaml` | Helm Chartへ渡すコンテナイメージ参照先, imagePullPolicy及びPod名を設定します。 |
+| `files/netshoot-no-portscan-chart/Chart.yaml` | `<Helm実行ユーザのホームディレクトリ>/kubeadm/netshoot-no-portscan/chart/Chart.yaml` | ローカルHelm Chartの名前と版数を定義します。 |
+| `files/netshoot-no-portscan-chart/values.yaml` | `<Helm実行ユーザのホームディレクトリ>/kubeadm/netshoot-no-portscan/chart/values.yaml` | Helm Chartの既定値を定義します。 |
+| `files/netshoot-no-portscan-chart/templates/_helpers.tpl` | `<Helm実行ユーザのホームディレクトリ>/kubeadm/netshoot-no-portscan/chart/templates/_helpers.tpl` | Helm管理用ラベルを生成します。 |
+| `files/netshoot-no-portscan-chart/templates/pod.yaml` | `<Helm実行ユーザのホームディレクトリ>/kubeadm/netshoot-no-portscan/chart/templates/pod.yaml` | `netshoot` PodのKubernetesリソース定義を生成します。 |
 
-### コンテナイメージをK8sクラスタに展開するためのマニフェストの生成
+Helm実行ユーザはKubernetes共通設定の`k8s_runtime_helm_operator_user` (既定値:`ansible`)を使用します。既定では, values ファイル, Helm Chartは以下の通り配置されます:
 
-本ロールでは, 生成したコンテナイメージを投入するためのマニュフェストファイルをコントロールプレイン上に保存します。本マニュフェストは,
-`templates/netshoot-no-portscan.yml.j2` テンプレートファイルから生成されます。
+- values ファイル: `/home/ansible/kubeadm/netshoot-no-portscan/values.yaml`
+- Helm Chart : `/home/ansible/kubeadm/netshoot-no-portscan/chart`
 
-#### 生成されるマニュフェストの仕様
+既定では, `kubectl` 実行時の `kubeconfig` ファイルとして, `/home/ansible/.kube/ca-embedded-admin.conf`を使用します。
 
-生成されるマニフェストの Pod 仕様は以下の通りです。
+Helm Chartが生成するPodの主な仕様は次のとおりです:
 
-- `NET_ADMIN`, `NET_RAW` ケーパビリティを付与し, `ip`, `tcpdump` 等のネットワークツールが使用可能
-- コマンドは `sleep infinity` で Pod を起動し続け, `kubectl exec` で接続して使用する
-- `restartPolicy: Never` で自動再起動しない
-- `hostNetwork: false`, `dnsPolicy: ClusterFirst` で Pod 間通信のデバッグに適した設定
-
-マニュフェストの適用例, [nicolaka/netshoot](https://github.com/nicolaka/netshoot)のPodに接続するコマンドの例を以下に示します:
-
-```yaml
-# マニフェスト適用例
-kubectl apply -f /opt/maintenance/netshoot/manifests/netshoot-no-portscan.yml
-
-# Pod に接続してネットワーク診断を実行する例
-kubectl exec -it netshoot -- /bin/bash
-```
-
-#### `netshoot_image_registry` 変数によるイメージ参照先とpullポリシーの切り替え
-
-本ロールでは, `netshoot_image_registry`変数の定義に基づいてイメージ参照先とイメージ取得方法(`imagePullPolicy`)を以下のように出力します:
-
-| 条件 | イメージ参照先 (既定: イメージ参照先) | imagePullPolicy |
-| --- | --- | --- |
-| `netshoot_image_registry` が定義されており, かつ, 空文字列でない | ローカルレジストリからイメージを取得(pull)するよう設定(`{{ netshoot_image_registry }}:{{ netshoot_no_portscan_version }}`) (既定: ローカルレジストリからイメージを取得(pull)するよう設定(`{{ netshoot_image_registry }}:{{ netshoot_no_portscan_version }}`)) | `IfNotPresent` |
-| `netshoot_image_registry` が未定義, または, 空文字列 | 各K8sノードのCRI内に登録されるイメージ名を設定(`{{ netshoot_no_portscan_image }}`) (既定: 各K8sノードのCRI内に登録されるイメージ名を設定(`{{ netshoot_no_portscan_image }}`)) | `Never` |
+- Pod名は`netshoot_k8s_pod_name`で指定します。
+- `NET_ADMIN`及び`NET_RAW`を追加します。
+- コンテナ内では`/bin/bash -c 'trap : TERM INT; sleep infinity & wait'`を実行し, Podを継続して起動します。
+- CPU要求値は`100m`, CPU上限値は`500m`です。
+- メモリ要求値は`128Mi`, メモリ上限値は`512Mi`です。
+- `restartPolicy`は`Never`です。
+- `hostNetwork`は`false`です。
+- `dnsPolicy`は`ClusterFirst`です。
+- `netshoot_image_registry`が空文字列の場合は`imagePullPolicy: Never`を使用します。
+- `netshoot_image_registry`が空文字列でない場合は`imagePullPolicy: IfNotPresent`を使用します。
 
 ## 実行フロー
 
-### コンテナイメージの構築と配布の流れ
-
 ```mermaid
 flowchart TD
-    A[開始] --> B[package.yml]
-    B --> B1[build-netshoot.yml\nrun_once: true で1回のみ実行]
-    B1 --> C{netshoot_image_registry\n設定あり?}
-    C -- いいえ --> D[distribute-netshoot.yml\ncontainerd 直接登録モード]
-    C -- はい --> E[register-netshoot.yml\nローカルレジストリ登録モード]
-    D --> F[create-manifest.yml]
-    E --> F
-    F --> G[終了]
+    START[開始]
+
+    subgraph NETSHOOT["netshoot-no-portscan ロール"]
+        BUILD[build-netshoot.yml]
+        SELECT{netshoot_image_registry}
+        DIST[distribute-netshoot.yml]
+        REG[register-netshoot.yml]
+        HELM[helm.yml]
+        RESOLVE[resolve-runtime-vars.yml]
+        PREPARE[prepare-helm.yml]
+        VALUES[render-values.yml]
+        TEMPLATE_CALL[helm-template.yml]
+        RECREATE[recreate-pod.yml\n既存Pod削除と不存在確認]
+        UPGRADE_CALL[helm-upgrade.yml]
+        WAIT_CALL[helm-wait.yml]
+    end
+
+    subgraph REGISTER["k8s-register-image ロール"]
+        REGISTER_IMAGE[各Kubernetesノードのcontainerdへ\nコンテナイメージを登録]
+    end
+
+    subgraph HELM_COMMON["k8s-helm-common ロール"]
+        TEMPLATE[template.yml\nhelm template]
+        UPGRADE[upgrade.yml\nhelm upgrade --install]
+        WAIT[wait-release.yml\nHelm導入識別名の状態確認]
+    end
+
+    END[終了]
+
+    START --> BUILD
+    BUILD --> SELECT
+    SELECT -- 空文字列, または, 未定義 --> DIST
+    SELECT -- 値あり --> REG
+
+    DIST --> REGISTER_IMAGE
+    REGISTER_IMAGE --> HELM
+    REG --> HELM
+
+    HELM --> RESOLVE
+    RESOLVE --> PREPARE
+    PREPARE --> VALUES
+    VALUES --> TEMPLATE_CALL
+    TEMPLATE_CALL --> TEMPLATE
+    TEMPLATE --> RECREATE
+    RECREATE --> UPGRADE_CALL
+    UPGRADE_CALL --> UPGRADE
+    UPGRADE --> WAIT_CALL
+    WAIT_CALL --> WAIT
+    WAIT --> END
 ```
 
-`tasks/package.yml`を起点に, コンテナイメージファイルの作成からK8sノード上のCRIへのコンテナイメージ登録, または, ローカルレジストリへのコンテナイメージ登録を実施します。
-
-|ファイル|機能|
-|---|---|
-|`tasks/package.yml`|コンテナイメージの構築からローカルレジストリへの登録, または, 各K8sノード上のCRIへのコンテナイメージ登録までの処理フローを定義|
-|`tasks/build-netshoot.yml`|[nicolaka/netshoot](https://github.com/nicolaka/netshoot) のコンテナイメージファイルを作成する処理を定義。 本処理は, 複数ホストへの並列実行時でも構築ホスト上でのビルドが1回だけ実行されるよう`run_once: true`を指定して実行される。|
-|`tasks/distribute-netshoot.yml`|`tasks/build-netshoot.yml`で作成したコンテナイメージをK8sノード(コントロールプレイン/ワーカノード)上で動作しているCRIに登録する処理を定義。`netshoot_image_registry`変数が未定義, または, 空文字列の場合に実行される。|
-|`tasks/register-netshoot.yml`|`tasks/build-netshoot.yml`で作成したコンテナイメージをローカルレジストリに登録する処理を定義。`netshoot_image_registry`変数が定義されており, かつ, 空文字列でない場合に実行される。|
-|`tasks/create-manifest.yml`|[nicolaka/netshoot](https://github.com/nicolaka/netshoot) のコンテナをK8sクラスタに展開(デプロイ)するためのサンプルマニュフェストファイルを生成する処理を定義。|
-
-### イメージ配布モードの選択
-
-`netshoot_image_registry` の設定有無によって配布モードが自動的に選択されます。
-
-- `containerd 直接登録モード` `netshoot_image_registry` が未定義または空文字の場合に選択されるモードです。K8sクラスタを構成するノード(コントロールプレイン/ワーカーノード)上のCRIにコンテナイメージを登録します。
-- `ローカルレジストリ登録モード` `netshoot_image_registry` が定義され, かつ, 空文字列でない場合に選択されるモードです。ローカルレジストリにコンテナイメージを登録します。
-
-#### containerd 直接登録モード
-
-`netshoot_image_registry` が未設定または空文字の場合に選択されます。`k8s-register-image` ロールを使用して, 制御ホスト上の tar ファイルを SSH 経由で各ノードに転送し, `ctr` コマンドで containerd に直接登録(インポート)します。
-
-コントロールプレーンノードへの登録後, `kubectl` でワーカノード一覧を自動検出し, 各ワーカノードにも同様に登録します。
-
-生成されるマニフェストの `imagePullPolicy` は `Never` となり, ノード上にキャッシュ済みのイメージを使用します。
-
-#### ローカルレジストリ登録モード
-
-`netshoot_image_registry` に値が設定されている場合に選択されます。制御ホスト上で, dockerコマンド( `docker load`, `docker tag`, `docker push` )を実行することで, `netshoot_image_registry`で指定されたローカルレジストリにコンテナイメージを登録します。
-
-`netshoot_image_registry`の設定例は以下の通り:
-
-```yaml
-netshoot_image_registry: "registry01.local:5000/netshoot"
-```
-
-上記設定の場合, 本ロールで作成されたコンテナイメージは, `registry01.local:5000/netshoot:v0.16` としてレジストリに登録されます。なお, `v0.16`部分は, `netshoot_no_portscan_version`変数の値に応じて設定されます。
-
-生成されるマニフェストの `imagePullPolicy` は `IfNotPresent` となり, ローカルレジストリからのイメージ取得を行います。
+`tasks/package.yml`は, コンテナイメージの構築及び配布処理の後に`tasks/helm.yml`を呼び出します。`tasks/helm.yml`はHelm固有処理を順番に呼び出し, 同じHelm Chart, values ファイル, Kubernetes名前空間及びkubeconfigを`helm template`, 既存Podの削除, `helm upgrade --install`, 最終状態確認で使用します。`recreate-pod.yml`は`netshoot-no-portscan`ロール自身の処理であり, Helm Chartの事前描画後, `k8s-helm-common`ロールのupgrade処理を呼び出す前に実行します。
 
 ## 検証ポイント
 
-**コンテナイメージのビルド確認**
+### 検証の前提条件
 
-playbook実行に成果物であるコンテナイメージtarファイルが作成されていることを確認するためのコマンド例を以下に示します:
+検証を始める前に, 次の条件が満たされていることを確認します。
+
+- `make run_netshoot_no_portscan`が`failed=0`及び`unreachable=0`で終了していること。
+- Helm実行ユーザからhelmコマンドを実行可能であること。
+- Helm実行ユーザから`/home/ansible/.kube/ca-embedded-admin.conf`を読み取り可能であること。
+- ローカルレジストリ方式を使用する場合は, `netshoot_image_registry`で指定した接続先へ制御ホスト及びKubernetesノードから接続可能であること。
+- containerd直接登録方式を使用する場合は, 対象Kubernetesノードのcontainerdへ`netshoot`コンテナイメージが登録されていること。
+
+### 検証環境の設定
+
+本節では, 検証用の設定内容について説明します。
+
+**検証用の vars/all-config.yml**:
+
+```yaml
+1: netshoot_no_portscan_enabled: true
+2: netshoot_image_registry: "registry01.local:5000/netshoot"
+3: netshoot_k8s_namespace: "default"
+4: netshoot_k8s_pod_name: "netshoot"
+5: netshoot_no_portscan_helm_timeout_seconds: 300
+6: netshoot_no_portscan_helm_retries: 3
+7: netshoot_no_portscan_helm_retry_interval_seconds: 5
+8: netshoot_no_portscan_helm_request_interval_seconds: 5
+```
+
+| 行番号 | 設定値 | 有効になる動作 | 設定背景(未設定時/誤設定時の問題と防止理由) |
+| --- | --- | --- | --- |
+| 1 | `netshoot_no_portscan_enabled: true` | 本ロールを実行します。 | `false`の場合は検証対象を導入できないためです。 |
+| 2 | `netshoot_image_registry: "registry01.local:5000/netshoot"` | ローカルレジストリ方式を使用し, Podの`imagePullPolicy`を`IfNotPresent`に設定します。 | 接続不能な値ではコンテナイメージ登録又は取得に失敗するためです。 |
+| 3 | `netshoot_k8s_namespace: "default"` | `default`名前空間を使用します。 | 検証コマンドの名前空間と実際の配置先を一致させるためです。 |
+| 4 | `netshoot_k8s_pod_name: "netshoot"` | `netshoot`というPod名を使用します。 | 検証コマンドのPod名と実際のPod名を一致させるためです。 |
+| 5-8 | Helm操作時間に関する4変数 | タイムアウト, 再試行回数, 再試行間隔及び状態確認間隔を設定します。 | 一時的な障害への耐性と恒久障害の早期検出を両立するためです。 |
+
+containerd直接登録方式を検証する場合は, 上記設定の2行目だけを次のように変更します。
+
+```yaml
+2: netshoot_image_registry: ""
+```
+
+この場合は`k8s-register-image`ロールを使用して各Kubernetesノードのcontainerdへコンテナイメージを直接登録し, Podのコンテナイメージ参照先を`nicolaka/netshoot:v0.16`, `imagePullPolicy`を`Never`に設定します。ローカルレジストリ方式とcontainerd直接登録方式を切り替えて再実行する場合も, 既存Podを削除してから新しい設定で再作成します。
+
+### 検証コマンドと期待結果
+
+#### 1. Helm導入識別名状態
+
+**実施対象ホスト**: 対象ホスト
+
+**実行するコマンド**:
 
 ```bash
-# 制御ホスト上で tar ファイルが生成されたことを確認する
-ls -la /tmp/netshoot-work/output/
-ls -la /tmp/netshoot-work/artifacts/
+helm status netshoot-no-portscan --namespace default --kubeconfig /home/ansible/.kube/ca-embedded-admin.conf
 ```
 
-実行結果の例:
+**期待される出力**:
+
+```text
+NAME: netshoot-no-portscan
+NAMESPACE: default
+STATUS: deployed
+REVISION: <実行時のrevision>
+```
+
+Helm導入識別名のrevisionは実行回数により増加するため, 特定の値への一致は要求しません。
+
+**実行結果の例**:
+
 ```bash
-$ ls -la /tmp/netshoot-work/output/
-合計 207072
-drwxr-xr-x 2 root root      4096  7月 12 14:33 .
-drwxr-xr-x 5 root root      4096  7月 12 14:33 ..
--rw-r--r-- 1 root root 212026880  7月 12 14:33 nicolaka-netshoot-v0.16.tar
-$ ls -la /tmp/netshoot-work/artifacts/
-合計 207072
-drwxrwxrwx 2 root root      4096  7月 12 14:33 .
-drwxr-xr-x 5 root root      4096  7月 12 14:33 ..
--rw-r--r-- 1 root root 212026880  7月 12 14:33 nicolaka-netshoot-v0.16.tar
-
+$ helm status netshoot-no-portscan --namespace default --kubeconfig /home/ansible/.kube/ca-embedded-admin.conf
+NAME: netshoot-no-portscan
+NAMESPACE: default
+STATUS: deployed
+REVISION: 6
 ```
 
-**ローカルレジストリへの登録確認 (ローカルレジストリ登録モードの場合)**
+**確認ポイント**:
 
-ローカルレジストリのエンドポイントが`http://registry01.local:5000`の場合の例を以下に示します:
+- helmコマンドの出力結果中のHelm導入識別名が`netshoot-no-portscan`であることを確認することで, 対象のHelm導入識別名を参照していることを確認します。
+- helmコマンドの出力結果中の状態が`deployed`であることを確認することで, Helmによる導入又は更新が完了していることを確認します。
+- 再実行後も`deployed`であることを確認することで, 同じ処理を繰り返しても安定して運用可能であることを確認します。
+- `netshoot_image_registry`を空文字列とローカルレジストリ指定の間で切り替えた場合も`deployed`であることを確認することで, `imagePullPolicy`変更を伴うPod再作成が正常に完了していることを確認します。
 
-レジストリ上のリポジトリ一覧を確認するコマンド例は以下の通り:
+#### 2. netshoot Pod状態
+
+**実施対象ホスト**: 対象ホスト
+
+**実行するコマンド**:
+
 ```bash
-curl http://registry01.local:5000/v2/_catalog
+kubectl --kubeconfig /home/ansible/.kube/ca-embedded-admin.conf --namespace default get pod netshoot -o wide
+kubectl --kubeconfig /home/ansible/.kube/ca-embedded-admin.conf --namespace default describe pod netshoot
 ```
 
-期待される出力("repositories"のリストに"netshoot"が含まれること):
-```json
-{"repositories":["netshoot"]}
+**期待される出力**:
+
+```text
+NAME       READY   STATUS
+netshoot   1/1     Running
 ```
 
-レジストリ上のnetshoot のタグ一覧を確認するコマンド例は以下の通り:
+`kubectl describe`の出力では, `Image`が設定したコンテナイメージ参照先と一致し, CPU要求値`100m`, CPU上限値`500m`, メモリ要求値`128Mi`, メモリ上限値`512Mi`であることを確認します。
+
+**実行結果の例**:
+
+```bash
+$ kubectl --kubeconfig /home/ansible/.kube/ca-embedded-admin.conf --namespace default get pod netshoot
+NAME       READY   STATUS    RESTARTS   AGE
+netshoot   1/1     Running   0          5m
+```
+
+**確認ポイント**:
+
+- kubectlコマンドの出力結果中の`READY`が`1/1`であることを確認することで, コンテナが利用可能な状態であることを確認します。
+- kubectlコマンドの出力結果中の`STATUS`が`Running`であることを確認することで, Podが起動中であることを確認します。
+- `kubectl describe`の出力結果中のコンテナイメージ参照先及びリソース設定がHelm Chartの設定値と一致することを確認することで, values ファイルとHelm Chartが意図したPodを生成していることを確認します。
+- ローカルレジストリ方式では`Image`が`registry01.local:5000/netshoot:v0.16`, `Image Pull Policy`が`IfNotPresent`であることを確認します。
+- containerd直接登録方式では`Image`が`nicolaka/netshoot:v0.16`, `Image Pull Policy`が`Never`であることを確認します。
+
+#### 3. ローカルレジストリ上のコンテナイメージ
+
+**実施対象ホスト**: 制御ホスト
+
+**実行するコマンド**:
+
 ```bash
 curl http://registry01.local:5000/v2/netshoot/tags/list
 ```
 
-期待される出力:
+**期待される出力**:
+
 ```json
 {"name":"netshoot","tags":["v0.16"]}
 ```
 
-実行結果の例:
+**実行結果の例**:
+
 ```bash
-$ curl http://registry01.local:5000/v2/_catalog
-{"repositories":["netshoot"]}
 $ curl http://registry01.local:5000/v2/netshoot/tags/list
 {"name":"netshoot","tags":["v0.16"]}
 ```
 
-**containerd への登録確認 (containerd 直接登録モードの場合)**
+**確認ポイント**:
 
-containerdへのコンテナイメージ登録が正常に行われていることを
-K8sのコントロールプレーンノードとワーカーノードで確認するためのコマンド例を以下に示します:
+- curlコマンドの出力結果中の`name`が`netshoot`であることを確認することで, 対象コンテナイメージの保管先を参照していることを確認します。
+- curlコマンドの出力結果中の`tags`に`netshoot_no_portscan_version`で指定した`v0.16`が含まれることを確認することで, 対象版数のコンテナイメージが登録済みであることを確認します。
+
+#### 4. containerd直接登録方式のコンテナイメージ
+
+**実施対象ホスト**: 対象ホスト
+
+**実行するコマンド**:
 
 ```bash
 sudo crictl images | grep netshoot
 ```
 
-コントロールプレーンノードで確認する
-```bash
+**期待される出力**:
 
-ssh ansible@k8sctrlplane01 "sudo crictl images | grep netshoot"
-
-# ワーカノードで確認する
-ssh ansible@k8sworker0101 "sudo crictl images | grep netshoot"
+```text
+docker.io/nicolaka/netshoot                v0.16
 ```
 
-期待される出力の例:
-```bash
-docker.io/nicolaka/netshoot                v0.16               c52d5254f8d9f       212MB
-registry01.local/nicolaka/netshoot          v0.16               c52d5254f8d9f       212MB
-```
-以下の点を確認します:
-- nicolaka/netshootを含むエントリが出力されること(上記の場合, `docker.io/nicolaka/netshoot`, `registry01.local/nicolaka/netshoot`の2件のエントリ)
-- コンテナイメージの版数が`netshoot_no_portscan_version`変数で指定した版数と一致すること(上記の場合, `v0.16`)
-- `netshoot_unqualified_image_registry`変数で指定したエンドポイントと一致するエントリが含まれること(上記の場合, `docker.io/nicolaka/netshoot`で始まるエントリ)
-- レジストリのエンドポイントが`netshoot_image_registry`変数で指定したエンドポイントと一致するエントリが含まれること(上記の場合, `registry01.local/nicolaka/netshoot`で始まるエントリ)
+**実行結果の例**:
 
-実行結果の例:
 ```bash
 $ sudo crictl images | grep netshoot
 docker.io/nicolaka/netshoot                v0.16               c52d5254f8d9f       212MB
-registry01.local/nicolaka/netshoot          v0.16               c52d5254f8d9f       212MB
 ```
 
-**マニフェストの適用と Pod の起動確認**
+**確認ポイント**:
 
-コントロールプレインノード上で, 本ロールにより配置されたマニュフェスト(規定では, `/opt/maintenance/netshoot/manifests/netshoot-no-portscan.yml`)を用いて, Podの展開(デプロイ)から起動までを確認する手順を以下に示します(括弧内はコマンド例):
+- crictlコマンドの出力結果中に`nicolaka/netshoot`が含まれることを確認することで, 対象ホストのコンテナランタイムへコンテナイメージが登録されていることを確認します。
+- crictlコマンドの出力結果中の版数が`netshoot_no_portscan_version`と一致することを確認することで, Podが参照する版数を利用可能であることを確認します。
 
-1. Podを展開し, `pod/netshoot configured`と表示されること(`kubectl apply -f /opt/maintenance/netshoot/manifests/netshoot-no-portscan.yml`)
-2. Podの状態を確認し, STATUSが`Running`と表示されること(`kubectl get pod netshoot -o wide`)
-3. Podの詳細情報を確認し, エラーメッセージが出ていないこと(`kubectl describe pod netshoot`)
+#### 5. Pod内のネットワーク診断コマンド
 
-上記のコマンド例をまとめると以下のようになります:
+**実施対象ホスト**: 対象ホスト
+
+**実行するコマンド**:
+
 ```bash
-kubectl apply -f /opt/maintenance/netshoot/manifests/netshoot-no-portscan.yml
-kubectl get pod netshoot -o wide
-kubectl describe pod netshoot
+kubectl --kubeconfig /home/ansible/.kube/ca-embedded-admin.conf --namespace default exec netshoot -- ping -c 3 8.8.8.8
 ```
 
-実行結果の例:
+**期待される出力**:
+
+```text
+3 packets transmitted, 3 received, 0% packet loss
+```
+
+**実行結果の例**:
+
 ```bash
-$ kubectl apply -f /opt/maintenance/netshoot/manifests/netshoot-no-portscan.yml
-pod/netshoot configured
-$ kubectl get pod netshoot -o wide
-NAME       READY   STATUS    RESTARTS   AGE   IP                         NODE            NOMINATED NODE   READINESS GATES
-netshoot   1/1     Running   0          8h    fdb6:6e92:3cfb:208::4862   k8sworker0101   <none>           <none>
-$ kubectl describe pod netshoot
-Name:             netshoot
-Namespace:        default
-Priority:         0
-Service Account:  default
-Node:             k8sworker0101/fdad:ba50:248b:1::42
-Start Time:       Sun, 12 Jul 2026 17:12:52 +0900
-Labels:           app=netshoot
-Annotations:      k8s.v1.cni.cncf.io/network-status:
-                    [{
-                        "name": "cilium",
-                        "interface": "eth0",
-                        "ips": [
-                            "fdb6:6e92:3cfb:208::4862",
-                            "10.244.8.40"
-                        ],
-                        "mac": "22:30:80:e9:fd:bd",
-                        "default": true,
-                        "dns": {},
-                        "gateway": [
-                            "fdb6:6e92:3cfb:208::fa41",
-                            "10.244.8.153"
-                        ]
-                    }]
-Status:           Running
-IP:               fdb6:6e92:3cfb:208::4862
-IPs:
-  IP:  fdb6:6e92:3cfb:208::4862
-  IP:  10.244.8.40
-Containers:
-  netshoot:
-    Container ID:  containerd://20def482111801c80f65d7a0fc701328de62b688b4202e22b33a5c939c270955
-    Image:         registry01.local:5000/netshoot:v0.16
-    Image ID:      registry01.local:5000/netshoot@sha256:8a7b3c33919b02ed46e5448b2bab1b870a0ef59e8435b3b2cb2855e8c96e4cc9
-    Port:          <none>
-    Host Port:     <none>
-    Command:
-      /bin/bash
-      -c
-      trap : TERM INT; sleep infinity & wait
-    State:          Running
-      Started:      Sun, 12 Jul 2026 17:13:31 +0900
-    Ready:          True
-    Restart Count:  0
-    Limits:
-      cpu:     500m
-      memory:  512Mi
-    Requests:
-      cpu:        100m
-      memory:     128Mi
-    Environment:  <none>
-    Mounts:
-      /var/run/secrets/kubernetes.io/serviceaccount from kube-api-access-gp65z (ro)
-Conditions:
-  Type                        Status
-  PodReadyToStartContainers   True
-  Initialized                 True
-  Ready                       True
-  ContainersReady             True
-  PodScheduled                True
-Volumes:
-  kube-api-access-gp65z:
-    Type:                    Projected (a volume that contains injected data from multiple sources)
-    TokenExpirationSeconds:  3607
-    ConfigMapName:           kube-root-ca.crt
-    ConfigMapOptional:       <nil>
-    DownwardAPI:             true
-QoS Class:                   Burstable
-Node-Selectors:              <none>
-Tolerations:                 node.kubernetes.io/not-ready:NoExecute op=Exists for 300s
-                             node.kubernetes.io/unreachable:NoExecute op=Exists for 300s
-Events:                      <none>
+$ kubectl --kubeconfig /home/ansible/.kube/ca-embedded-admin.conf --namespace default exec netshoot -- ping -c 3 8.8.8.8
+3 packets transmitted, 3 received, 0% packet loss
 ```
 
-**[nicolaka/netshoot](https://github.com/nicolaka/netshoot)をPod内でネットワークツールが使用可能であることの確認方法**
+**確認ポイント**:
 
-Pod に接続してネットワークツールが使用可能であることを確認するためには, コンテナイメージ名(`netshoot`)を指定して, `kubectl exec -it`コマンドにより, コンテナ内に入り, [nicolaka/netshoot](https://github.com/nicolaka/netshoot)同梱のコマンド(pingなど)を実行します。
-
-コマンド例を以下に示します:
-```bash
-kubectl exec -it netshoot -- ping -c 3 8.8.8.8
-kubectl exec -it netshoot -- curl -I https://example.org
-```
-
-実行結果の例:
-```bash
-$ kubectl exec -it netshoot -- ping -c 3 8.8.8.8
-
-PING 8.8.8.8 (8.8.8.8) 56(84) bytes of data.
-64 bytes from 8.8.8.8: icmp_seq=1 ttl=115 time=6.35 ms
-64 bytes from 8.8.8.8: icmp_seq=2 ttl=115 time=4.55 ms
-64 bytes from 8.8.8.8: icmp_seq=3 ttl=115 time=5.10 ms
-
---- 8.8.8.8 ping statistics ---
-3 packets transmitted, 3 received, 0% packet loss, time 2003ms
-rtt min/avg/max/mdev = 4.553/5.334/6.353/0.753 ms
-$ kubectl exec -it netshoot -- curl -I https://example.org
-HTTP/2 200
-date: Sun, 12 Jul 2026 17:11:40 GMT
-content-type: text/html
-server: cloudflare
-last-modified: Wed, 01 Jul 2026 17:50:18 GMT
-allow: GET, HEAD
-accept-ranges: bytes
-age: 5
-cf-cache-status: HIT
-cf-ray: a1a1ab1f891f264a-NRT
-```
+- pingコマンドの出力結果中で送信数と受信数が一致することを確認することで, netshoot Podから指定した宛先へ通信可能であることを確認します。
+- `0% packet loss`と表示されることを確認することで, 検証時点の3回の送信でパケット損失が発生していないことを確認します。
 
 ## トラブルシューティング
 
-### 1. Docker ビルドが失敗する場合
+### 1. コンテナイメージの構築が失敗する場合
 
 **実施対象ホスト**: 制御ホスト, 構築ホスト
 
@@ -640,19 +626,17 @@ cf-ray: a1a1ab1f891f264a-NRT
 
 ```bash
 getent hosts dl-cdn.alpinelinux.org
-dig dl-cdn.alpinelinux.org
-grep -n 'netshoot_docker_build_network' vars/all-config.yml host_vars/*.yml
+docker info
 ```
 
 **確認ポイント**:
 
-- DNS 名前解決が成功すること。
-- netshoot_docker_build_network が host に設定されていること。
-- apk update の名前解決失敗が継続する場合は, 構築ホスト側 DNS 設定を確認すること。
+- getentコマンドの出力結果にIPアドレスが表示されることを確認することで, nicolaka/netshootのコンテナイメージ構築時に必要な名前解決を実行可能であることを確認します。
+- dockerコマンドが正常終了することを確認することで, 構築ホストからDockerを操作可能であることを確認します。
 
-### 2. containerd へのイメージ登録が失敗する場合
+### 2. containerdへのコンテナイメージ登録が失敗する場合
 
-**実施対象ホスト**: Kubernetes のコントロールプレーンノード, ワーカノード
+**実施対象ホスト**: Kubernetesコントロールプレーンノード, ワーカノード
 
 **実行するコマンド**:
 
@@ -663,61 +647,91 @@ sudo journalctl -u containerd -n 50 --no-pager
 
 **確認ポイント**:
 
-- 各ノードで netshoot イメージが一覧に表示されること。
-- containerd ログに import 失敗のエラーが出ていないこと。
+- crictlコマンドの出力結果に`netshoot`が含まれることを確認することで, containerdへのコンテナイメージ登録結果を確認します。
+- journalctlコマンドの出力結果にコンテナイメージの読み込み失敗を示すメッセージがないことを確認することで, containerd側の障害有無を確認します。
 
-### 3. ローカルレジストリへの push が失敗する場合
+### 3. ローカルレジストリへのコンテナイメージ登録が失敗する場合
 
 **実施対象ホスト**: 制御ホスト
 
 **実行するコマンド**:
 
 ```bash
-cat /etc/docker/daemon.json
-docker info | grep -A5 "Insecure Registries"
+curl http://registry01.local:5000/v2/
+docker info
 ```
 
 **確認ポイント**:
 
-- insecure-registries に netshoot_image_registry のエンドポイントが含まれること。
-- HTTP レジストリ利用時に Docker が HTTPS 接続を試行していないこと。
-- 修正後は sudo systemctl restart docker で設定を反映すること。
+- curlコマンドが正常終了することを確認することで, 制御ホストからローカルレジストリエンドポイントへ通信可能であることを確認します。
+- dockerコマンドの出力結果に対象ローカルレジストリの設定が反映されていることを確認することで, Dockerから当該接続先を利用可能であることを確認します。
 
-### 4. Pod が起動しない場合
+### 4. Helm導入又は更新が失敗する場合
 
-**実施対象ホスト**: コントロールプレーンノード, ワーカノード
+**実施対象ホスト**: 対象ホスト
 
 **実行するコマンド**:
 
 ```bash
-kubectl get pod netshoot -o wide
-kubectl describe pod netshoot
-cat /etc/containerd/certs.d/<ローカルレジストリのエンドポイント>/hosts.toml
-sudo crictl images | grep netshoot
+helm status netshoot-no-portscan --namespace default --kubeconfig /home/ansible/.kube/ca-embedded-admin.conf
+helm template netshoot-no-portscan /home/ansible/kubeadm/netshoot-no-portscan/chart --namespace default --kubeconfig /home/ansible/.kube/ca-embedded-admin.conf -f /home/ansible/kubeadm/netshoot-no-portscan/values.yaml
 ```
 
 **確認ポイント**:
 
-- Pod の状態が ErrImagePull 又は ImagePullBackOff の場合, レジストリ接続設定を優先確認すること。
-- hosts.toml の capabilities に pull が含まれ, skip_verify が運用方針どおりであること。
-- imagePullPolicy が Never の場合, Pod 配置ノードに netshoot イメージが存在すること。
-- 設定修正後は containerd 再起動と Pod 再作成で反映を確認すること。
+- helmコマンドの状態確認結果からHelm導入識別名の現在状態を確認することで, 導入処理が完了済み又は失敗状態であることを確認します。
+- `helm template`が正常終了することを確認することで, 配置済みHelm Chartとvalues ファイルの組み合わせを描画可能であることを確認します。
+- `tasks/recreate-pod.yml`の削除処理又はPod不存在確認で停止している場合は, kubectlコマンドの出力とKubernetes APIへの接続状態を確認します。
+- 原因を確定できない場合はHelm導入識別名やPodを手動で削除せず, Playbookログとhelmコマンド及びkubectlコマンドの出力結果から原因を確定します。
+
+### 5. netshoot Podが起動しない場合
+
+**実施対象ホスト**: 対象ホスト
+
+**実行するコマンド**:
+
+```bash
+kubectl --kubeconfig /home/ansible/.kube/ca-embedded-admin.conf --namespace default get pod netshoot -o wide
+kubectl --kubeconfig /home/ansible/.kube/ca-embedded-admin.conf --namespace default describe pod netshoot
+```
+
+**確認ポイント**:
+
+- kubectlコマンドの出力結果中のPod状態を確認することで, コンテナイメージ取得失敗, 配置失敗又はコンテナ起動失敗のいずれであるかを確認します。
+- `ErrImagePull`又は`ImagePullBackOff`の場合は, `netshoot_image_registry`とKubernetesノードのcontainerd側ローカルレジストリ設定が一致することを確認します。
+- `imagePullPolicy: Never`を使用する場合は, Podが配置されたノードのcontainerdへ対象コンテナイメージが登録済みであることを確認します。
 
 ## 注意事項
 
-- コンテナイメージファイルの生成は, `netshoot_build_host`変数で指定された構築ホスト(規定は, Ansibleの制御ホスト(`localhost`))上で実施します。コンテナイメージファイルの生成処理中で, dockerコマンドを使用するため, 構築ホストに Docker がインストールされていない場合はビルドに失敗します。
-- 複数ホストに同時に Playbook を適用した場合でも, ビルドおよびレジストリへの 登録(`push`) は1回のみ実行されます(playbook中で, `run_once: true` を指定することで, 代表となるノードでのみ実施),。
-- マニュフェスト中のイメージ取得方式指定に, `imagePullPolicy: Never` が指定されている場合, イメージが各ノードの containerd に登録されていることが前提となります。新しいノードを追加した場合は, ロールを再実行して登録してください。
-- マニュフェスト中のイメージ取得方式指定に, `imagePullPolicy: IfNotPresent` が指定されている場合, ローカルレジストリからk8sノードへのコンテナイメージをダウンロード可能となっていることが前提となります。Podの展開対象となる各K8sノードからローカルレジストリへアクセスできることを確認してください。
+- 本ロールは, コンテナイメージ構築処理だけを`run_once: true`で実行します。Helm操作は`k8s_management`グループの各対象ホストで実行します。本リポジトリでは, 各対象ホストが別々のKubernetesクラスタを管理する構成を前提とします。
+- 本ロールのHelm Chartは外部Helmリポジトリから取得せず, `roles/netshoot-no-portscan/files/netshoot-no-portscan-chart/`に保持します。
+- `netshoot_image_registry`が空文字列の場合は`imagePullPolicy: Never`となるため, Podが配置されるノードのcontainerdへ対象コンテナイメージが登録済みであることが必要です。
+- `netshoot_image_registry`が空文字列でない場合は`imagePullPolicy: IfNotPresent`となるため, Kubernetesノードから指定したローカルレジストリへ接続可能であることが必要です。
+- 再実行時は`helm upgrade --install`が実行され, Helm導入識別名のrevisionが増加する場合があります。revisionの増加自体を異常とは判定せず, 最終的なHelm導入識別名が`deployed`状態であることを確認します。
+- `netshoot`は単体PodとしてHelm管理するため, 本ロールはHelm upgrade前に既存Podを削除して再作成します。このため, 再実行中は`netshoot` Podを利用できない時間が発生します。
+- Pod削除処理では`--ignore-not-found=true`を使用するため, 初回導入時にPodが存在しない場合も同じ実行フローを使用します。
 
 ## 参考資料
 
 ### 公式ドキュメント
 
-- netshoot: https://github.com/nicolaka/netshoot
+- [nicolaka/netshoot](https://github.com/nicolaka/netshoot) - `nicolaka/netshoot`のソースコード及び利用方法です。
+- [Helm Documentation](https://helm.sh/docs/v3/) - Helmの公式文書です。
+- [Helm Chart](https://helm.sh/docs/v3/topics/charts/) - Helm Chartの構成を説明する公式文書です。
+- [Helm Values Files](https://helm.sh/docs/v3/chart_template_guide/values_files/) - values ファイルとHelm Chartへの設定値の渡し方を説明する公式文書です。
+- [helm template](https://helm.sh/docs/v3/helm/helm_template/) - Helm ChartをKubernetesへ適用せずに描画するhelmコマンドの公式文書です。
+- [helm upgrade](https://helm.sh/docs/v3/helm/helm_upgrade/) - Helm導入識別名を導入又は更新するhelmコマンドの公式文書です。
+- [helm status](https://helm.sh/docs/v3/helm/helm_status/) - Helm導入識別名の状態を確認するhelmコマンドの公式文書です。
+- [Kubernetes kubeconfig](https://kubernetes.io/docs/concepts/configuration/organize-cluster-access-kubeconfig/) - kubeconfigの公式文書です。
+- [kubectl get](https://kubernetes.io/docs/reference/kubectl/generated/kubectl_get/) - Kubernetesリソースを参照するkubectlコマンドの公式文書です。
+- [kubectl describe](https://kubernetes.io/docs/reference/kubectl/generated/kubectl_describe/) - Kubernetesリソースの詳細情報を参照するkubectlコマンドの公式文書です。
+- [kubectl exec](https://kubernetes.io/docs/reference/kubectl/generated/kubectl_exec/) - Pod内でコマンドを実行するkubectlコマンドの公式文書です。
+- [containerd hosts configuration](https://github.com/containerd/containerd/blob/main/docs/hosts.md) - containerdのローカルレジストリ設定に関する公式文書です。
+- [Docker command-line reference](https://docs.docker.com/reference/cli/docker/) - dockerコマンドの公式文書です。
+- [GNU Coreutils timeout](https://www.gnu.org/software/coreutils/manual/html_node/timeout-invocation.html) - timeoutコマンドの公式文書です。
 
-- [nicolaka/netshoot](https://github.com/nicolaka/netshoot) - ネットワーク診断コンテナイメージ, 本ロールでは, [nicolaka/netshoot](https://github.com/nicolaka/netshoot) から提供されるコンテナイメージ中に含まれるポートスキャン系ツールを除去したコンテナイメージファイルを生成します。
-- [containerd hosts configuration](https://github.com/containerd/containerd/blob/main/docs/hosts.md) - containerd のレジストリ設定マニュアル
-- [kubectl exec](https://kubernetes.io/docs/reference/kubectl/generated/kubectl_exec/) - Pod への接続コマンドマニュアル
-- [roles/docker-ce/Readme.md](../roles/docker-ce/Readme.md) - 本playbook中のローカルレジストリの設定について記載した文書
-- [roles/k8s-common/Readme.md](../roles/k8s-common/Readme.md) - 本playbook中のローカルレジストリをK8sのノードから使用するための設定について記載した文書
+### 関連ロール
+
+- [roles/docker-ce/Readme.md](../docker-ce/Readme.md) - 本リポジトリ内のDocker設定を説明する文書です。
+- [roles/k8s-common/Readme.md](../k8s-common/Readme.md) - Kubernetesノードからローカルレジストリを利用する設定を説明する文書です。
+- [roles/k8s-helm-common/Readme.md](../k8s-helm-common/Readme.md) - 本ロールが利用する共通Helm操作を説明する文書です。

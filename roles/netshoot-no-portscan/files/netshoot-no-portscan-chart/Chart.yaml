@@ -1,0 +1,5 @@
+apiVersion: v2
+name: netshoot-no-portscan
+description: Helm chart for the netshoot image without port scanning tools
+type: application
+version: 0.1.0

@@ -1,0 +1,29 @@
+image:
+  reference: nicolaka/netshoot:v0.16
+  pullPolicy: Never
+
+pod:
+  name: netshoot
+
+command:
+  - /bin/bash
+  - -c
+  - "trap : TERM INT; sleep infinity & wait"
+
+securityContext:
+  capabilities:
+    add:
+      - NET_ADMIN
+      - NET_RAW
+
+resources:
+  requests:
+    cpu: "100m"
+    memory: "128Mi"
+  limits:
+    cpu: "500m"
+    memory: "512Mi"
+
+restartPolicy: Never
+hostNetwork: false
+dnsPolicy: ClusterFirst

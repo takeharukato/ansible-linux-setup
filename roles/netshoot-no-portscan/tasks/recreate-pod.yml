@@ -1,0 +1,95 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  netshoot Pod再作成前処理
+#
+---
+
+# netshootは単体PodとしてHelm管理しており, imagePullPolicyなどPodの変更禁止フィールドを
+# 更新できないため, upgrade前に既存Podを削除してHelmによる再作成を可能にする。
+# --ignore-not-found=trueにより初回導入時は成功扱いとし, --wait=trueで削除完了まで待機する。
+- name: Delete existing netshoot Pod before Helm upgrade
+  ansible.builtin.command:
+    argv:
+      - sudo
+      - -u
+      - "{{ netshoot_runtime_operator_user }}"
+      - timeout
+      - "{{ netshoot_runtime_helm_timeout_seconds | int }}s"
+      - kubectl
+      - --kubeconfig
+      - "{{ netshoot_runtime_kubeconfig_path }}"
+      - "--request-timeout={{ netshoot_runtime_helm_timeout_seconds | int }}s"
+      - --namespace
+      - "{{ netshoot_runtime_namespace }}"
+      - delete
+      - pod
+      - "{{ netshoot_k8s_pod_name }}"
+      - --ignore-not-found=true
+      - --wait=true
+      - "--timeout={{ netshoot_runtime_helm_timeout_seconds | int }}s"
+  register: netshoot_pod_delete_result
+  changed_when: >-
+    'deleted' in (netshoot_pod_delete_result.stdout | default('', true) | lower)
+  failed_when: false
+  become: true
+  until: netshoot_pod_delete_result.rc | default(1) | int == 0
+  retries: "{{ netshoot_runtime_helm_retries | int }}"
+  delay: "{{ netshoot_runtime_helm_retry_interval_seconds | int }}"
+  when: not ansible_check_mode
+
+# 削除処理成功後にPodが存在しないことをKubernetes APIから確認し,
+# 旧Podが残存した状態でHelm upgradeへ進むことを防止する。
+- name: Verify netshoot Pod is absent before Helm upgrade
+  ansible.builtin.command:
+    argv:
+      - sudo
+      - -u
+      - "{{ netshoot_runtime_operator_user }}"
+      - timeout
+      - "{{ netshoot_runtime_helm_timeout_seconds | int }}s"
+      - kubectl
+      - --kubeconfig
+      - "{{ netshoot_runtime_kubeconfig_path }}"
+      - "--request-timeout={{ netshoot_runtime_helm_timeout_seconds | int }}s"
+      - --namespace
+      - "{{ netshoot_runtime_namespace }}"
+      - get
+      - pod
+      - "{{ netshoot_k8s_pod_name }}"
+      - --ignore-not-found=true
+      - -o
+      - name
+  register: netshoot_pod_absent_result
+  changed_when: false
+  failed_when: false
+  become: true
+  until: >-
+    (netshoot_pod_absent_result.rc | default(1) | int == 0)
+    and
+    (netshoot_pod_absent_result.stdout | default('', true) | trim | length == 0)
+  retries: >-
+    {{
+      [
+        1,
+        (
+          netshoot_runtime_helm_timeout_seconds | int
+          // netshoot_runtime_helm_request_interval_seconds | int
+        )
+      ] | max
+    }}
+  delay: "{{ netshoot_runtime_helm_request_interval_seconds | int }}"
+  when: not ansible_check_mode
+
+# 削除後検証でPod名が残っている場合はHelm upgradeを実行せず停止する。
+- name: Assert netshoot Pod is absent before Helm upgrade
+  ansible.builtin.assert:
+    that:
+      - netshoot_pod_absent_result.rc | default(1) | int == 0
+      - (netshoot_pod_absent_result.stdout | default('', true) | trim | length) == 0
+    fail_msg: >-
+      netshoot Pod still exists before Helm upgrade.
+      stdout={{ netshoot_pod_absent_result.stdout | default('', true) }}
+      stderr={{ netshoot_pod_absent_result.stderr | default('', true) }}
+  when: not ansible_check_mode

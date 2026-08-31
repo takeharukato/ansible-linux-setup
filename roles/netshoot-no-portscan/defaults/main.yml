@@ -8,6 +8,15 @@
 
 # nicolaka/netshootを構築する場合は, trueに設定する。
 netshoot_no_portscan_enabled: false
+
+# Helm操作タイムアウト値 (単位: 秒)。
+netshoot_no_portscan_helm_timeout_seconds: 300
+# Helm操作の再試行回数 (単位: 回)。
+netshoot_no_portscan_helm_retries: 3
+# Helm操作の再試行間隔 (単位: 秒)。
+netshoot_no_portscan_helm_retry_interval_seconds: 5
+# Kubernetes APIおよびHelm状態確認の実行間隔 (単位: 秒)。
+netshoot_no_portscan_helm_request_interval_seconds: 5
 # netshootのバージョン
 netshoot_no_portscan_version: "v0.16"
 # nicolaka/netshootのイメージ名 (内部変数)
@@ -58,11 +67,6 @@ netshoot_registry_wait_retries: 5
 #
 # Kubernetes関連設定
 #
-
-# manifestファイルの格納先ディレクトリ
-netshoot_k8s_manifest_dir: "/opt/maintenance/netshoot/manifests"
-# manifestファイルパス
-netshoot_manifest_file_path: "{{ netshoot_k8s_manifest_dir }}/netshoot-no-portscan.yml"
 
 # マニフェストで使用するイメージ参照先
 # 設定した場合はローカルレジストリを参照する。未設定の場合は containerd に

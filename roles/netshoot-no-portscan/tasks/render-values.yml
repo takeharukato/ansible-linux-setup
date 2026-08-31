@@ -1,0 +1,16 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  netshoot Helm values生成処理
+#
+---
+
+# 現行のイメージ参照先, pull policyおよびPod名をHelm valuesへ反映する。
+- name: Render netshoot Helm values file
+  ansible.builtin.template:
+    src: netshoot-values.yml.j2
+    dest: "{{ netshoot_runtime_values_file_path }}"
+    owner: root
+    group: root
+    mode: "0644"

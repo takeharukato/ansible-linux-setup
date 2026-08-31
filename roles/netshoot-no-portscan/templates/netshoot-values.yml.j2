@@ -1,0 +1,8 @@
+# netshoot-no-portscan Helm values
+---
+image:
+  reference: {{ netshoot_runtime_image | to_json }}
+  pullPolicy: {{ netshoot_runtime_image_pull_policy | to_json }}
+
+pod:
+  name: {{ netshoot_k8s_pod_name | to_json }}

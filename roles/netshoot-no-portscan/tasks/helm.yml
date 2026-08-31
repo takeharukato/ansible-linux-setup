@@ -1,0 +1,35 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  netshoot Helm導入処理
+#
+---
+
+# Helm操作で使用する実行時変数を最初に解決し, 後続タスクの入力を統一する。
+- name: Resolve netshoot Helm runtime variables
+  ansible.builtin.include_tasks: resolve-runtime-vars.yml
+
+# ローカルHelm ChartをHelm実行対象ホストへ配置する。
+- name: Prepare netshoot Helm chart
+  ansible.builtin.include_tasks: prepare-helm.yml
+
+# イメージ配布方式を反映したHelm valuesファイルを生成する。
+- name: Render netshoot Helm values
+  ansible.builtin.include_tasks: render-values.yml
+
+# 実導入前にChartとvaluesの組み合わせをhelm templateで検証する。
+- name: Render netshoot Helm template
+  ansible.builtin.include_tasks: helm-template.yml
+
+# 単体Podの変更禁止フィールド変更に備え, 既存netshoot Podを削除して再作成可能な状態にする。
+- name: Recreate netshoot Pod before Helm upgrade
+  ansible.builtin.include_tasks: recreate-pod.yml
+
+# 検証済み入力を使用してnetshootのHelm releaseを導入又は更新する。
+- name: Install or upgrade netshoot Helm release
+  ansible.builtin.include_tasks: helm-upgrade.yml
+
+# Helm releaseが最終的にdeployed状態になるまで上限付きで確認する。
+- name: Wait for netshoot Helm release
+  ansible.builtin.include_tasks: helm-wait.yml

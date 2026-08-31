@@ -51,13 +51,21 @@
     force: true
   delegate_to: "{{ netshoot_build_host }}"
 
-# netshootのDockerfileにportscanを無効化するパッチを適用する
+# netshootのDockerfileにportscanを無効化するパッチを適用する。
+# 作業ディレクトリは毎回削除後にgit cloneしているため, 同一パッチの再適用状態は発生しない。
+# Ansible Collectionへ依存せず, patchコマンドへ引数を明示して適用する。
 - name: "Apply patch to Dockerfile to disable portscan functions"
-  ansible.builtin.patch:
-    src: "{{ role_path }}/files/netshoot-no-portscan.patch"
-    dest: "{{ netshoot_build_dir }}/Dockerfile"
-    strip: 0
+  ansible.builtin.command:
+    argv:
+      - patch
+      - --directory
+      - "{{ netshoot_build_dir }}"
+      - --strip
+      - "0"
+      - --input
+      - "{{ role_path }}/files/netshoot-no-portscan.patch"
   delegate_to: "{{ netshoot_build_host }}"
+  changed_when: true
 
 # netshootのDockerイメージを構築するシェルスクリプトを展開する
 - name: "Render netshoot image build script"

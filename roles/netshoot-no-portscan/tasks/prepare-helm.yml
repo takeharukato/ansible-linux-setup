@@ -1,0 +1,26 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  netshoot Helm Chart配置処理
+#
+---
+
+# Helm実行ユーザがChartとvaluesを読み取れるように設定ディレクトリを作成する。
+- name: Create netshoot Helm configuration directory
+  ansible.builtin.file:
+    path: "{{ netshoot_runtime_config_dir }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+# リポジトリ管理下のローカルChartを実行時ディレクトリへ同期する。
+- name: Copy netshoot Helm chart
+  ansible.builtin.copy:
+    src: netshoot-no-portscan-chart/
+    dest: "{{ netshoot_runtime_chart_dir }}/"
+    owner: root
+    group: root
+    directory_mode: "0755"
+    mode: "0644"

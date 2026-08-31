@@ -1,0 +1,30 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  netshoot Helm release完了待機処理
+#
+---
+
+# Helm releaseの最終post-conditionとしてdeployed状態を共通処理で確認する。
+# k8s-helm-commonの入力変数は外側blockで定義し,
+# 呼出先ロールの変数名をnetshootロール自身の変数として扱わせない。
+- name: Wait for netshoot Helm release
+  vars:
+    k8s_helm_release_name: "{{ netshoot_runtime_release_name }}"
+    k8s_helm_namespace: "{{ netshoot_runtime_namespace }}"
+    k8s_helm_kubeconfig_path: "{{ netshoot_runtime_kubeconfig_path }}"
+    k8s_helm_operation_timeout_seconds: >-
+      {{ netshoot_runtime_helm_timeout_seconds }}
+    k8s_helm_operation_retries: >-
+      {{ netshoot_runtime_helm_retries }}
+    k8s_helm_operation_retry_interval_seconds: >-
+      {{ netshoot_runtime_helm_retry_interval_seconds }}
+    k8s_helm_operation_request_interval_seconds: >-
+      {{ netshoot_runtime_helm_request_interval_seconds }}
+  block:
+    # k8s-helm-commonのrelease待機処理へ検証済みHelm入力値を引き渡す。
+    - name: Wait for netshoot Helm release with common role
+      ansible.builtin.include_role:
+        name: k8s-helm-common
+        tasks_from: wait-release.yml

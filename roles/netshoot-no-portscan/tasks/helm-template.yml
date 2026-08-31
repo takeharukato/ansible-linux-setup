@@ -1,0 +1,35 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2020 Takeharu KATO All Rights Reserved.
+#
+#  netshoot Helm template検証処理
+#
+---
+
+# 共通Helm処理へ導入時と同一のChart, Namespace, kubeconfigおよびvaluesを渡し,
+# 実導入前にhelm templateが成功することを確認する。
+# k8s-helm-commonの入力変数は外側blockで定義し,
+# 呼出先ロールの変数名をnetshootロール自身の変数として扱わせない。
+- name: Render netshoot Helm template
+  vars:
+    k8s_helm_release_name: "{{ netshoot_runtime_release_name }}"
+    k8s_helm_namespace: "{{ netshoot_runtime_namespace }}"
+    k8s_helm_chart_ref: "{{ netshoot_runtime_chart_dir }}"
+    k8s_helm_chart_version: ""
+    k8s_helm_kubeconfig_path: "{{ netshoot_runtime_kubeconfig_path }}"
+    k8s_helm_values_files:
+      - "{{ netshoot_runtime_values_file_path }}"
+    k8s_helm_operation_timeout_seconds: >-
+      {{ netshoot_runtime_helm_timeout_seconds }}
+    k8s_helm_operation_retries: >-
+      {{ netshoot_runtime_helm_retries }}
+    k8s_helm_operation_retry_interval_seconds: >-
+      {{ netshoot_runtime_helm_retry_interval_seconds }}
+    k8s_helm_operation_request_interval_seconds: >-
+      {{ netshoot_runtime_helm_request_interval_seconds }}
+  block:
+    # k8s-helm-commonのtemplate処理へ検証対象のHelm入力値を引き渡す。
+    - name: Render netshoot Helm template with common role
+      ansible.builtin.include_role:
+        name: k8s-helm-common
+        tasks_from: template.yml

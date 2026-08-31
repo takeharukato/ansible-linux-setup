@@ -20,7 +20,7 @@
 # Kubernetesクラスタのノードにnetshootイメージを配布する
 # 留意事項:
 #   netshoot_image_registry が設定されていない場合のみ実行する
-- name : "Distribute netshoot image to kubernetes cluster nodes"
+- name: "Distribute netshoot image to kubernetes cluster nodes"
   ansible.builtin.include_tasks: distribute-netshoot.yml
   when:
     - (netshoot_image_registry | default('', true) | length) == 0
@@ -33,6 +33,6 @@
   when:
     - (netshoot_image_registry | default('', true) | length) > 0
 
-# マニュフェストを作成する
-- name: "Create manifest for netshoot"
-  ansible.builtin.include_tasks: create-manifest.yml
+# netshootをHelm ChartとしてKubernetesクラスタへ導入する
+- name: "Deploy netshoot via Helm"
+  ansible.builtin.include_tasks: helm.yml
