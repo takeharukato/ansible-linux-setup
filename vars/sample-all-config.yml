@@ -4,12 +4,12 @@
 #
 
 # ======================================================
-# グローバル設定 ( 推奨 )
+# グローバル設定 ( 設定することを推奨 )
 # ======================================================
-
+#
 # システムタイムゾーン
 common_timezone: "Asia/Tokyo"
-
+#
 # SELinux (Security-Enhanced Linux, 強制アクセス制御の仕組み) の状態
 # 指定可能な値: 'enforcing' (強制), 'permissive' (許可的), 'disabled' (無効)
 common_selinux_state: "permissive"
@@ -17,23 +17,31 @@ common_selinux_state: "permissive"
 # ======================================================
 # 基本設定 / 仮想化基盤関連設定 (オプション)
 # ======================================================
-
+#
 # cron (定期的にコマンドやスクリプトを実行するスケジューラデーモン) からのメール送信を無効化する場合は true に設定する
 # common_disable_cron_mails: true
-
+#
 # ノード設定後に再起動する場合は true に設定する
 # force_reboot: false
 
-# VMWare (仮想化基盤) を使用する場合は true に設定する (open-vm-tools をインストール)
+# ======================================================
+# VMWare設定 (条件的必須: VMWare利用時)
+# ======================================================
+# VMWare (仮想化基盤) を使用する場合は true に設定する
+# (open-vm-tools をインストール)
 # use_vmware: false
 
-# xcp-ng (Xen Cloud Platform next generation, 仮想化基盤) を使用する場合は true に設定する (xe-guest-utilities をインストール)
+# ===================================================================
+# xcp-ng設定 (条件的必須: xcp-ng利用時)
+# ===================================================================
+# xcp-ng (Xen Cloud Platform next generation, 仮想化基盤) を
+# 使用する場合は true に設定する (xe-guest-utilities をインストール)
 # use_xcpng: false
 
 # ======================================================
 # Firewall設定 (オプション)
 # ======================================================
-
+#
 # ファイアウォール (通信を制御する仕組み) 有効化フラグ
 # false の場合は firewalld (RHEL系) または UFW (Debian系) を停止、無効化する
 # enable_firewall: false
@@ -71,6 +79,8 @@ common_selinux_state: "permissive"
 #     comment: 'Sample User'
 #     email: "user1@example.org"
 #     github: 'githubuser'
+#
+# users_list: []
 
 # ======================================================
 # 公開鍵追加設定 (オプション)
@@ -78,10 +88,10 @@ common_selinux_state: "permissive"
 # 場合は, host_vars側で設定し,
 # vars/all-config.ymlには設定しないこと
 # ======================================================
-
+#
 # ユーザが存在しない場合に自動作成するか
 # auto_user_add_for_users_authorized_keys: false
-
+#
 # ユーザごとの追加公開鍵リスト
 #
 # users_listへのユーザ登録の有無に依らず, users_authorized_keysに記載された公開鍵が
@@ -100,28 +110,30 @@ common_selinux_state: "permissive"
 #   "bob":
 #     - "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIExampleKeyForBobOne bob@example"
 #     - "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQDBExampleKeyForBobTwo bob@workstation"
-
+#
+# users_authorized_keys:{}
 
 # ======================================================
 # sudoers設定 (オプション)
 # ======================================================
-
+#
 # パスワード無しでsudo実行可能なユーザのリスト
 # sudo_nopasswd_users: ['user1']
-
+#
 # パスワード無しでsudo実行可能なユーザを参加させるグループ
 # sudo_nopasswd_groups_extra: ['adm', 'cdrom', 'sudo', 'dip', 'plugdev', 'lxd', 'systemd-journal']
-
+#
 # パスワード無しでsudo実行可能なユーザを参加させるグループを自動検出する場合は, trueに設定する
 # sudo_nopasswd_groups_autodetect: true
-
+#
 # 生成ではなく削除 ( ロールバック )したい場合は trueに設定する
 # sudo_nopasswd_absent: false
 
 # ======================================================
-# 基本ネットワーク設定 (条件的必須: dns-server/nfs-server/ntp-server利用時)
+# 基本ネットワーク設定
+# (条件的必須: dns-server/nfs-server/ntp-server利用時)
 # ======================================================
-
+#
 # 基本ネットワークアドレスとプレフィックス定義
 # DNS サーバー (dns_network, dns_network_ipv4_prefix), NFS サーバー (nfs_network), NTP サーバー (ntp_allow) で使用される
 #
@@ -144,7 +156,7 @@ common_selinux_state: "permissive"
 # 仮想環境管理ネットワーク設定
 # (条件的必須: kea-dhcp/router-config利用時)
 # ======================================================
-
+#
 # 仮想環境内部管理ネットワークを構築する場合に定義する
 # kea-dhcp ロール (DHCP サーバー) と router-config ロール (NAT, フォワーディング設定) で使用される
 #
@@ -169,7 +181,7 @@ common_selinux_state: "permissive"
 # ======================================================
 # 追加ネットワーク設定 (条件的必須: dns-server利用時)
 # ======================================================
-
+#
 # DNS 逆引き (IP アドレスからドメイン名を検索する方向の名前解決) レコード用内部ネットワーク定義のリスト
 # dns-server ロールで追加ネットワークの逆引きゾーンを生成する場合に定義する
 # 複数ネットワーク逆引きゾーン対応: 追加ネットワークのリスト。各要素は { ipv4: "...", ipv6: "..." } 形式
@@ -210,7 +222,7 @@ common_selinux_state: "permissive"
 # DNSクライアント設定
 # (条件的必須: クライアントの使用DNSサーバ明示的指定時)
 # =======================================================
-
+#
 # IPv4 DNS サーバ 1
 # ipv4_name_server1: "192.168.20.11"
 #
@@ -229,7 +241,7 @@ common_selinux_state: "permissive"
 # ======================================================
 # DNSレコード設定 (オプション)
 # ======================================================
-
+#
 # 順引き (ドメイン名から IP アドレスを検索する方向の名前解決) /逆引き (IP アドレスからドメイン名を検索する方向の名前解決) レコードを生成するためのホスト定義リスト
 # 各要素は { name: "ホスト名", ipv4_addr: 'IPv4アドレスの最終オクテット', ipv6_addr: 'IPv6アドレスのホスト部' } 形式
 # ipv4_addr と ipv6_addr は共にオプションで, 少なくとも一方を指定するとレコードが生成されます。
@@ -243,7 +255,7 @@ common_selinux_state: "permissive"
 # ======================================================
 # mDNS設定 (オプション)
 # ======================================================
-
+#
 # Avahi マルチキャスト DNS (mDNS, 同一ネットワーク内の名前解決方式) サービスを導入する場合は true に設定する
 # mdns_enabled: false
 #
@@ -260,76 +272,12 @@ common_selinux_state: "permissive"
 # ========================================================
 # NTPクライアント設定 (条件的必須: NTPクライアント利用時)
 # ========================================================
-
+#
 # 時刻同期先 NTP サーバ一覧
 # 空要素, 空文字, 重複はテンプレートで除去される
 # ntp_servers_list:
 #   - "192.168.20.11"
 #   - "ntp.nict.jp"
-
-# ======================================================
-# DNSサーバ導入設定 (条件的必須: DNSサーバ機能利用時)
-# 以下は, host_vars側で設定する
-# ======================================================
-#
-# DNSサーバ(bind)を導入する
-# dns_dns_server_enabled: true
-#
-# SOA (Start of Authority, 権威開始レコード) ホスト名 (FQDN, 完全修飾ドメイン名)
-# dns_server: "mgmt-server.example.org"
-#
-# IPv4 ACL (Access Control List, アクセス制御リスト) とゾーン内 A レコードのベースアドレス
-# dns_network: "192.168.20.0"
-#
-# IPv4 ネットワークプレフィックス (ネットワークアドレスの先頭部分)
-# dns_network_ipv4_prefix: "192.168.20"
-#
-# IPv4 ネットワークプレフィクス長
-# dns_network_ipv4_prefix_len: "24"
-#
-# IPv6 ACL や逆引きゾーンの生成に使用するプレフィックス
-# dns_network_ipv6_prefix: "fd69:6684:61a:1::"
-#
-# IPv6 ネットワークプレフィックス長
-# dns_network_ipv6_prefix_len: "64"
-#
-# IPv6 逆引きゾーンファイル名用プレフィックス (ハイフン区切り)
-# dns_network_ipv6_prefix_filename: "fd69-6684-61a-1"
-#
-# IPv4 逆引きゾーン名 (例: "20.168.192" => "20.168.192.in-addr.arpa")
-# dns_ipv4_reverse: "20.168.192"
-#
-# IPv6 逆引きゾーン名 (ニブル形式, 4ビット単位で逆順に並べる)
-# dns_ipv6_reverse: "1.0.0.0.a.1.6.0.4.8.6.6.9.6.d.f"
-#
-
-# ======================================================
-# NFSサーバ設定 (条件的必須: NFS利用時)
-# ======================================================
-
-# NFS (Network File System, ネットワーク越しにファイル共有を行う仕組み) で公開するディレクトリ
-# nfs_export_directory: "/home/nfsshare"
-#
-# NFS公開を許可するクライアント側ネットワーク (CIDR 形式)
-# nfs_network: "192.168.20.0/24"
-#
-# /etc/exports へ書き込む NFS 公開オプション
-# rw: 読み書き可能, no_root_squash: クライアント側 root 権限を制限しない,
-# sync: 同期書き込み, no_subtree_check: サブツリーチェックを無効化, no_wdelay: 書き込み遅延を無効化
-# nfs_options: "rw,no_root_squash,sync,no_subtree_check,no_wdelay"
-
-# ======================================================
-# NTPサーバ設定 (条件的必須: NTPサーバ利用時)
-# ======================================================
-
-# 上位 NTP (Network Time Protocol, 時刻同期の仕組み) サーバ一覧
-# 空要素, 空文字, 重複はテンプレートで除去されます
-# external_ntp_servers_list:
-#   - jp.pool.ntp.org
-#   - time.google.com
-#
-# NTP クライアントアクセスを許可するネットワーク (CIDR 形式)
-# ntp_allow: "192.168.20.0/24"
 
 # ======================================================
 # プロキシ設定 (条件的必須: プロキシ利用時)
@@ -349,51 +297,6 @@ common_selinux_state: "permissive"
 #
 # プロキシ経由させないホスト/ドメインの一覧 (カンマ区切り)
 # no_proxy: "localhost,127.0.0.1"
-
-# ======================================================
-# Rancher設定 (条件的必須: 全6個を定義)
-# ======================================================
-
-# Rancher ホスト名
-# rancher_host: "rancher01"
-#
-# Rancher 証明書のドメイン名
-# rancher_cert_domain_name: "example.org"
-#
-# Rancher 証明書の国名 (2文字の ISO 3166-1 国コード)
-# rancher_cert_subject_country: "JP"
-#
-# Rancher 証明書の都道府県名
-# rancher_cert_subject_state: "Tokyo"
-#
-# Rancher 証明書の市区町村名
-# rancher_cert_subject_locality: "Chiyoda-ku"
-#
-# Rancher 証明書の組織名
-# rancher_cert_subject_org: "MyOrganization"
-
-# ======================================================
-# ローカルコンテナレジストリ設定 (条件的必須: docker-ce/k8s利用時)
-# ======================================================
-#
-# docker-ce/k8s で共有するレジストリエンドポイント一覧
-#
-# 書式: 辞書のリスト
-#   - endpoint: "<ホスト名, または, IPアドレス>:<ポート番号>"
-#     scheme: "http" または "https"
-#     skip_verify: true または false
-#
-# 例:
-# container_registry_endpoints:
-#   - endpoint: "registry01.local:5000"
-#     scheme: "http"
-#     skip_verify: true
-#   - endpoint: "registry02.local:5000"
-#     scheme: "http"
-#     skip_verify: true
-#   - endpoint: "mgmt-server.example.org:5050"
-#     scheme: "https"
-#     skip_verify: true
 
 # ======================================================================================================================================================
 # skopeo (コンテナイメージのコピー・検証・署名ツール) 設定 (条件的必須: skopeo利用時)
@@ -424,17 +327,20 @@ common_selinux_state: "permissive"
 #
 # デイリーバックアップ時のNFSマウントポイント
 # skopeo_backup_mount_point: "/mnt"
+#
 # デイリーバックアップ時のNFSマウントポイント配下のバックアップ配置先ディレクトリ
 # skopeo_backup_dir_on_nfs: "/Linux/skopeo-backup"
+#
 # デイリーバックアップ用NFSサーバホスト名
 # skopeo_backup_nfs_server: "nas.example.org"
+#
 # デイリーバックアップ用NFS共有ディレクトリ
 # skopeo_backup_nfs_dir: "/share"
 
 # ======================================================
 # Docker Community Edition (オプション)
 # ======================================================
-
+#
 # docker グループへ追加する利用者一覧を定義する
 #
 # 書式: ユーザ名文字列のリスト
@@ -473,7 +379,7 @@ common_selinux_state: "permissive"
 # 各ホストごとに生成指示を変えたい場合は, host_vars側で
 # 設定し, vars/all-config.ymlには設定しないこと
 # ======================================================
-
+#
 # Bash (シェル, コマンド入力環境) 用の設定ファイルを作成する場合は true を指定する
 # user_settings_create_bash_skel: false
 #
@@ -518,7 +424,7 @@ common_selinux_state: "permissive"
 # 各ホストごとに生成指示を変えたい場合は, host_vars側で
 # 設定し, vars/all-config.ymlには設定しないこと
 # ======================================================
-
+#
 # ユーザ作成後に .gitconfig (ユーザ固有の Git 設定ファイル) を配置する場合は true を指定する
 # post_user_create_gitconfig_enabled: true
 #
@@ -530,7 +436,7 @@ common_selinux_state: "permissive"
 # 各ホストごとに指示を変えたい場合は, host_vars側で
 # 設定し, vars/all-config.ymlには設定しないこと
 # ======================================================
-
+#
 # ホームディレクトリのバックアップスクリプトを作成する場合は true を指定する
 # user_settings_backup_home_script_enabled: false
 #
@@ -553,12 +459,12 @@ common_selinux_state: "permissive"
 # user_settings_backup_users_list:
 #   - user1
 
-# ======================================================
+# =================================================
 # Emacsパッケージ設定 (オプション)
 # 各ホストごとに指示を変えたい場合は, host_vars側で
 # 設定し, vars/all-config.ymlには設定しないこと
-# ======================================================
-
+# =================================================
+#
 # Emacs (テキスト編集機能が豊富な高機能テキストエディタ) パッケージを自動インストールするパッケージ名のリスト
 #
 # 書式: Emacs パッケージ名 (例: docker, rust-mode, yaml-mode など)をリストで指定する
@@ -571,94 +477,247 @@ common_selinux_state: "permissive"
 #   - rust-mode
 #   - yaml-mode
 
-# ======================================================
-# LDAP設定 (条件的必須: 全4個を定義)
-# ======================================================
-
-# LDAPサーバを導入する場合は, trueに設定する
+# ================================================================
+# DNSサーバ導入設定 (条件的必須: DNSサーバ機能利用時)
 # host_vars側で設定し, vars/all-config.ymlには設定しないことを推奨
-# ldap_enabled: true
+# =================================================================
+#
+# DNSサーバ(bind)を導入する
+# dns_dns_server_enabled: true
+#
+# SOA (Start of Authority, 権威開始レコード) ホスト名 (FQDN, 完全修飾ドメイン名)
+# dns_server: "mgmt-server.example.org"
+#
+# IPv4 ACL (Access Control List, アクセス制御リスト) とゾーン内 A レコードのベースアドレス
+# dns_network: "192.168.20.0"
+#
+# IPv4 ネットワークプレフィックス (ネットワークアドレスの先頭部分)
+# dns_network_ipv4_prefix: "192.168.20"
+#
+# IPv4 ネットワークプレフィクス長
+# dns_network_ipv4_prefix_len: "24"
+#
+# IPv6 ACL や逆引きゾーンの生成に使用するプレフィックス
+# dns_network_ipv6_prefix: "fd69:6684:61a:1::"
+#
+# IPv6 ネットワークプレフィックス長
+# dns_network_ipv6_prefix_len: "64"
+#
+# IPv6 逆引きゾーンファイル名用プレフィックス (ハイフン区切り)
+# dns_network_ipv6_prefix_filename: "fd69-6684-61a-1"
+#
+# IPv4 逆引きゾーン名 (例: "20.168.192" => "20.168.192.in-addr.arpa")
+# dns_ipv4_reverse: "20.168.192"
+#
+# IPv6 逆引きゾーン名 (ニブル形式, 4ビット単位で逆順に並べる)
+# dns_ipv6_reverse: "1.0.0.0.a.1.6.0.4.8.6.6.9.6.d.f"
+#
 
+# ======================================================
+# NFSサーバ設定 (条件的必須: NFS利用時)
+# host_vars側で設定し, vars/all-config.ymlには設定しないことを推奨
+# ======================================================
+# NFS (Network File System, ネットワーク越しにファイル共有を行う仕組み) サーバを導入する場合は true に設定する
+# nfs_server_enabled: true
+#
+# NFS (Network File System) で公開するディレクトリ
+# nfs_export_directory: "/home/nfsshare"
+#
+# NFS公開を許可するクライアント側ネットワーク (CIDR 形式)
+# nfs_network: "192.168.20.0/24"
+#
+# /etc/exports へ書き込む NFS 公開オプション
+# rw: 読み書き可能, no_root_squash: クライアント側 root 権限を制限しない,
+# sync: 同期書き込み, no_subtree_check: サブツリーチェックを無効化, no_wdelay: 書き込み遅延を無効化
+# nfs_options: "rw,no_root_squash,sync,no_subtree_check,no_wdelay"
+
+# =================================================================
+# NTPサーバ設定 (条件的必須: NTPサーバ利用時)
+# host_vars側で設定し, vars/all-config.ymlには設定しないことを推奨
+# =================================================================
+#
+# NTPサーバの有効化, NTPサーバを導入する場合は true に設定する
+# ntp_server_enabled: true
+# 上位 NTP (Network Time Protocol, 時刻同期の仕組み) サーバ一覧
+# 空要素, 空文字, 重複はテンプレートで除去されます
+# 例:
+# external_ntp_servers_list:
+#   - jp.pool.ntp.org
+#   - time.google.com
+#
+# external_ntp_servers_list: []
+#
+# NTP クライアントアクセスを許可するネットワーク (CIDR 形式)
+# 例:
+# ntp_allow: "192.168.20.0/24"
+#
+# ntp_allow: ""
+
+# ================================================================
+# LDAP設定 (条件的必須: Lightweight Directory Access Protocol,
+# 階層型ディレクトリサービスへのアクセスプロトコル利用時)
+#
+# 以下の全4個を全て設定する:
+#
+# - ldap_organization
+# - ldap_domain
+# - ldap_admin_password
+# - ldap_admin_port
+#
+# host_vars側で設定し, vars/all-config.ymlには設定しないことを推奨
+# ================================================================
+#
+# LDAPサーバを導入する場合は, trueに設定する
+# ldap_enabled: true
+#
 # LDAP (Lightweight Directory Access Protocol, 階層型ディレクトリサービスへのアクセスプロトコル) 組織名
 # OpenLDAP コンテナの LDAP_ORGANISATION 環境変数として設定される
-# 未定義または空文字列の場合, ロール実行時に fail で停止する
 # ldap_organization: "MyOrganization"
-
+#
 # LDAP ドメイン名
-# OpenLDAP コンテナの LDAP_DOMAIN 環境変数として設定され, DC (Domain Component, DNSドメインをディレクトリツリーに対応付ける構成要素) 構成要素に使用されます
-# 未定義または空文字列の場合, ロール実行時に fail で停止する
+# OpenLDAP コンテナの LDAP_DOMAIN 環境変数として設定され,
+# DC (Domain Component, DNSドメインをディレクトリツリーに対応付ける構成要素)
+# 構成要素に使用される (例: "example.org" => DC=example,DC=org)
 # ldap_domain: "ldap.example.org"
-
+#
 # LDAP 管理者 (cn=admin) のパスワード
-# OpenLDAP コンテナの LDAP_ADMIN_PASSWORD 環境変数として設定される
+# OpenLDAP コンテナの LDAP_ADMIN_PASSWORD 環境変数として設定される。
 # ldap_admin_password: "secure_password"
-
+#
 # phpLDAPadmin (Webベースの管理画面) Web UI の HTTPS 公開ポート番号
 # ldap_admin_port: 10443
 
 # ======================================================
-# Redmine設定 (オプション)
+# Rancher設定 (条件的必須: Rancher利用時, 全6個を定義)
+# host_vars側で設定し, vars/all-config.ymlには設定しない
+# ことを推奨
 # ======================================================
+#
+# Rancher ホスト名
+# rancher_host: "rancher01"
+#
+# Rancher 証明書のドメイン名
+# rancher_cert_domain_name: "example.org"
+#
+# Rancher 証明書の国名 (2文字の ISO 3166-1 国コード)
+# rancher_cert_subject_country: "JP"
+#
+# Rancher 証明書の都道府県名
+# rancher_cert_subject_state: "Tokyo"
+#
+# Rancher 証明書の市区町村名
+# rancher_cert_subject_locality: "Chiyoda-ku"
+#
+# Rancher 証明書の組織名
+# rancher_cert_subject_org: "MyOrganization"
 
+# =======================================================================
+# ローカルコンテナレジストリ設定 (条件的必須: docker-ce/kubernetes利用時)
+# host_vars側で設定し, vars/all-config.ymlには設定しないことを推奨
+# =======================================================================
+#
+# docker-ce/k8s で共有するレジストリエンドポイント一覧
+#
+# 書式: 辞書のリスト
+#   - endpoint: "<ホスト名, または, IPアドレス>:<ポート番号>"
+#     scheme: "http" または "https"
+#     skip_verify: true または false
+#
+# 例:
+# container_registry_endpoints:
+#   - endpoint: "registry01.local:5000"
+#     scheme: "http"
+#     skip_verify: true
+#   - endpoint: "registry02.local:5000"
+#     scheme: "http"
+#     skip_verify: true
+#   - endpoint: "mgmt-server.example.org:5050"
+#     scheme: "https"
+#     skip_verify: true
+
+# ======================================================
+# Redmine設定 (オプション)
+# host_vars側で設定し, vars/all-config.ymlには設定しない
+# ことを推奨
+# ======================================================
+#
 # Redmineサーバを導入する場合は, trueに設定する
 # host_vars側で設定し, vars/all-config.ymlには設定しないことを推奨
 # redmine_enabled: true
-
+#
 # Redmine (プロジェクト管理ソフトウェア) バックアップスクリプトを生成する場合は true を指定する
 # redmine_enable_backup_script: true
-
-
+#
 # バックアップ世代数 (日数)
 # redmine_backup_rotation: 7
-
+#
 # NFS (Network File System, ネットワーク越しにファイル共有を行う仕組み) サーバー名
 # redmine_backup_nfs_server: "nas.example.org"
-
+#
 # NFS 側の共有ディレクトリ
 # redmine_backup_nfs_dir: "/share"
-
+#
 # NFS マウントポイント (ローカルホスト上で NFS をマウントするディレクトリ)
 # redmine_backup_mount_point: "/mnt"
-
+#
 # NFS マウントポイント配下の保存ディレクトリ
 # redmine_backup_dir_on_nfs: "/Linux/Redmine"
 
 # ======================================================
 # Gitlab設定 (オプション)
+# host_vars側で設定し, vars/all-config.ymlには設定しない
+# ことを推奨
 # ======================================================
-
+#
 # GitLabを導入する場合は, trueに設定する
-# host_vars側で設定し, vars/all-config.ymlには設定しないことを推奨
 # gitlab_enabled: true
-
+#
+# GitLabのホスト名
+# gitlab_hostname: "mgmt-server.example.org"
+#
 # GitLab (バージョン管理システムとDevOpsプラットフォーム) バックアップスクリプトを生成する場合は true を指定する
 # gitlab_enable_backup_script: false
-
+#
 # GitLab Container Registry の認証を必須にする場合は true を指定する
 # false の場合は認証不要で利用する
 # gitlab_registry_require_auth: false
-
+#
 # バックアップ世代数 (日数)
 # gitlab_backup_rotation: 7
-
+#
 # NFS (Network File System, ネットワーク越しにファイル共有を行う仕組み) サーバー名
 # gitlab_backup_nfs_server: "nas.example.org"
-
+#
 # NFS 側の共有ディレクトリ
 # gitlab_backup_nfs_dir: "/share"
-
+#
 # NFS マウントポイント (ローカルホスト上で NFS をマウントするディレクトリ)
 # gitlab_backup_mount_point: "/mnt"
-
+#
 # NFS マウントポイント配下の保存ディレクトリ
 # gitlab_backup_dir_on_nfs: "/Linux/Gitlab"
+
+# ================================================================
+# OpenGrok設定 (条件的必須: ソースコード検索サーバを構築する場合)
+# 各ホストごとに指示を変えたい場合は, host_vars側で
+# 設定し, vars/all-config.ymlには設定しないこと
+# ================================================================
+# OpenGrok サーバを導入する
+# host_vars側で設定し, vars/all-config.ymlには設定しない
+# ことを推奨する
+# opengrok_enabled: true
+#
+# ソース同期処理ユーザ
+# ホスト共通で設定するため, vars/all-config.ymlに設定
+# することを推奨する
+# opengrok_sync_user_list: []
 
 # ======================================================
 # Terraform 設定 (オプション)
 # 各ホストごとに指示を変えたい場合は, host_vars側で
 # 設定し, vars/all-config.ymlには設定しないこと
 # ======================================================
-
+#
 # Terraform (インフラストラクチャをコードで管理するツール) を導入する場合は true を指定する
 # terraform_enabled: false
 
@@ -667,7 +726,7 @@ common_selinux_state: "permissive"
 # 各ホストごとに指示を変えたい場合は, host_vars側で
 # 設定し, vars/all-config.ymlには設定しないこと
 # ======================================================
-
+#
 # Go 言語 (プログラミング言語) のバージョン
 # go_lang_version: "1.25"
 
@@ -694,14 +753,14 @@ common_selinux_state: "permissive"
 # ==================================================================================
 # Free Range Routing (FRR) 設定 (条件的必須: Broad Gateway Protocolによる経路交換時)
 # ==================================================================================
-
+#
 # Free Range Routing 版数
 # frr_version: "10.4.1"
 
 # ======================================================
 # Kubernetes設定 (条件的必須: Kubernetes 利用時)
 # ======================================================
-
+#
 # Kubernetes (コンテナオーケストレーションプラットフォーム) のメジャー.マイナーバージョン (例: "1.31")
 # k8s_major_minor: "1.31"
 #
@@ -728,13 +787,14 @@ common_selinux_state: "permissive"
 #
 # Kubernetes 標準 CA を共通 CA で置き換える場合は true を指定する
 # k8s_shared_ca_replace_kube_ca: true
-#
 
 # =============================================================
 # Kubernetes API監査設定 (Kubernetes利用時のオプション)
 # Kubernetes API ServerのAudit機能に関する設定
 # Kubernetes API ServerのAudit機能:
 #   https://kubernetes.io/docs/tasks/debug/debug-cluster/audit/
+# 原則として, **コントロールプレーンノードのhost_vars側**で
+# 各ホストの仕様に基づいて設定することを推奨する
 # =============================================================
 # Kubernetes API監査機能を有効にする場合は true を指定する
 # k8s_audit_enabled: true
@@ -758,11 +818,11 @@ common_selinux_state: "permissive"
 # k8s_audit_log_max_size: 200
 #
 
-# =======================================================
+# =========================================================
 # Cilium CNI (eBPFを活用した高性能なCNIプラグイン) 設定
 # (条件的必須: Kubernetes利用時)
-# =======================================================
-
+# ==========================================================
+#
 # Cilium CNI (Container Network Interface, Kubernetes のネットワークプラグイン仕様, eBPFを活用した高性能なCNIプラグイン) のバージョン
 # k8s_cilium_version: "1.18.9"
 #
@@ -804,67 +864,105 @@ common_selinux_state: "permissive"
 # k8s_worker_nodeport_range: "30000-32767"
 #
 # Kubernetes オペレータユーザの GitHub アカウントから公開鍵を取得するリスト
-#
 # https://github.com/<アカウント名>.keys から鍵を取得し, authorized_keys に追記する
-
 # 書式: キーに, 'github', 値に,  `GitHubアカウント名`指定した辞書
 #      ( { github: 'GitHubアカウント名' } 形式 ) のリスト
-#
 # 例:
-#
 # k8s_operator_github_key_list:
 #   - { github: 'githubuser' }
 #
-# Kubernetes オペレータユーザの追加で登録したい公開鍵のリスト
+# k8s_operator_github_key_list: []
 #
+# Kubernetes オペレータユーザの追加で登録したい公開鍵のリスト
 # 書式:
 #   公開鍵文字列(例: "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIExampleKeyForOperator operator@example")のリスト
-#
 # 例:
 # k8s_operator_authorized_key_list:
 #   - "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIExampleKeyForOperator operator@example"
 #
 # k8s_operator_authorized_key_list: []
-#
+
 # ======================================================
 # Helm設定 (Kubernetes利用時のオプション)
 # ======================================================
-
+#
 # Helm (Kubernetesアプリケーションのパッケージ管理ツール) のバージョン
 # k8s_helm_version: "3.19.0"
 
-# ======================================================
+# =========================================================
 # Multus CNI設定 (Kubernetes利用時のオプション)
-# ======================================================
-
+# 原則として, **コントロールプレーンノードのhost_vars側**で
+# 各ホストの仕様に基づいて設定することを推奨する
+# ==========================================================
+#
 # Multus CNI (複数のCNIプラグインを同時に使用できるようにするメタCNIプラグイン) を導入する場合は true を指定する
 # k8s_multus_enabled: true
 #
 # Multus CNI のバージョン
 # k8s_multus_version: "v4.2.3"
 
-# ======================================================
+# ==========================================================
 # Whereabouts CNI設定 (Kubernetes利用時のオプション)
-# ======================================================
-
+# 原則として, **コントロールプレーンノードのhost_vars側**で
+# 各ホストの仕様に基づいて設定することを推奨する
+# ==========================================================
+#
 # Whereabouts CNI (IP アドレス管理を行う CNI IPAM, IP Address Management, IPアドレス管理, プラグイン) を導入する場合は true を指定する
 # k8s_whereabouts_enabled: true
 #
 # Whereabouts CNI のバージョン
 # k8s_whereabouts_version: "0.9.2"
 
+# ==========================================================================
+# Whereabouts セカンダリネットワーク設定 (Whereabouts CNI利用時のオプション)
+# whereabouts CNI の検証用Network AttachmentDefinition
+# (Kubernetesのネットワークアタッチメント定義) を作成する場合に指定する
+# kubernetes内部ネットワークのアドレスを元に設定する。
+# 原則として, **コントロールプレーンノードのhost_vars側**で
+# 各ホストの仕様に基づいて設定することを推奨する
+# ===========================================================================
+#
+# セカンダリネットワークのアドレスレンジ開始アドレス(IPv4)
+# 例:
+#   k8s_whereabouts_ipv4_range_start: "192.168.40.100"
+#
+# k8s_whereabouts_ipv4_range_start: ""
+#
+# セカンダリネットワークのアドレスレンジ終了アドレス(IPv4)
+# 例:
+#   k8s_whereabouts_ipv4_range_end: "192.168.40.254"
+#
+# k8s_whereabouts_ipv4_range_end: ""
+#
+# セカンダリネットワークのアドレスレンジ開始アドレス(IPv6)
+# 例:
+#   k8s_whereabouts_ipv6_range_start: "fd69:6684:61a:2::100"
+#
+# k8s_whereabouts_ipv6_range_start: ""
+#
+# セカンダリネットワークのアドレスレンジ終了アドレス(IPv6)
+# 例:
+#   k8s_whereabouts_ipv6_range_end: "fd69:6684:61a:2::ffff"
+#
+# k8s_whereabouts_ipv6_range_end: ""
+
+
 # ======================================================
 # Kubernetes Clientライブラリ (Kubernetes利用時のオプション)
 # 各ホストごとに指示を変えたい場合は, host_vars側で
 # 設定し, vars/all-config.ymlには設定しないこと
 # ======================================================
-
-# Kubernetes Python クライアントライブラリ (Python から Kubernetes API を操作するライブラリ) を導入する場合は true を指定する
+#
+# Kubernetes Python クライアントライブラリ
+# (Python から Kubernetes API を操作するライブラリ) を
+# 導入する場合は true を指定する
 # k8s_devel_python_client_enabled: false
 #
-# Kubernetes Go クライアントライブラリ (Go 言語から Kubernetes API を操作するライブラリ) を導入する場合は true を指定する
+# Kubernetes Go クライアントライブラリ
+# (Go 言語から Kubernetes API を操作するライブラリ) を
+# 導入する場合は true を指定する
 # k8s_devel_go_client_enabled: false
-#
+
 
 # ======================================================
 # Netgauge設定 (Kubernetes利用時のオプション)
@@ -891,83 +989,94 @@ common_selinux_state: "permissive"
 # を用いた仮想クラスタの設定
 # 各ホストごとに指示を変えたい場合は, host_vars側で設定し, vars/all-config.ymlには設定しないこと
 # ======================================================================================================================================================
-
+#
 # Virtual Cluster機能を導入する場合は, trueに設定する
 # k8s_virtualcluster_enabled: true
-
+#
 # vc-managerのイメージtarファイルパス
 # virtualcluster_manager_image_tar_path: "/opt/virtual-cluster/binary/manager-amd64.tar"
+#
 # syncerのイメージtarファイルパス
 # virtualcluster_syncer_image_tar_path: "/opt/virtual-cluster/binary/syncer-amd64.tar"
+#
 # vn-agentのイメージtarファイルパス
 # virtualcluster_vn_agent_image_tar_path: "/opt/virtual-cluster/binary/vn-agent-amd64.tar"
-
+#
 # vc-managerのコマンド実行パス
 # virtualcluster_manager_cmd_path: "/app"
+#
 # syncerのコマンド実行パス
 # virtualcluster_syncer_cmd_path: "/app"
+#
 # vn-agentのコマンド実行パス
 # virtualcluster_vn_agent_cmd_path: "/app"
-
+#
 # ======================================================================================================================================================
-# Virtual Cluster インスタンスの設定 (Kubernetes利用時のオプション)
+# Virtual Cluster インスタンスの設定 (Virtual cluster利用時のオプション)
 # [VirtualCluster - Enabling Kubernetes Hard Multi-tenancy](https://github.com/kubernetes-retired/cluster-api-provider-nested/tree/main/virtualcluster)
 # を用いた仮想クラスタの設定
 # 各ホストごとに指示を変えたい場合は, host_vars側で設定し, vars/all-config.ymlには設定しないこと
 # ======================================================================================================================================================
-
+#
 # Virtual Cluster インスタンス機能を導入する場合は, trueに設定する
 # k8s_vcinstances_enabled: true
-
 #
-# etcd 永続ストレージ設定
-#
-
 # 各仮想クラスタ(テナント)ごとに動作するetcdの記憶領域を
 # 永続ストレージ上に作成する場合は, trueに設定する
 # vcinstances_etcd_storage_enabled: true
-
+#
 # PersistentVolumeClaim の要求ストレージサイズ (例: "10Gi", "100Mi")
 # vcinstances_etcd_storage_size: "10Gi"
+#
 # StorageClass 名
 # vcinstances_etcd_storage_class: "default-sc"
-
+#
 # Virtual ClusterのClusterVersion 定義
-# vcinstances_clusterversions:
-#  - name: "cv-k8s-1-31-tenant-alpha"
-#  - name: "cv-k8s-1-31-tenant-beta"
-
+# 例:
+#   vcinstances_clusterversions:
+#    - name: "cv-k8s-1-31-tenant-alpha"
+#    - name: "cv-k8s-1-31-tenant-beta"
+#
+# vcinstances_clusterversions: []
+#
 # VirtualCluster インスタンス定義
-# vcinstances_virtualclusters:
-#  - name: "tenant-alpha"
-#    namespace: "vc-manager"
-#    clusterVersionName: "cv-k8s-1-31-tenant-alpha"
-#    clusterDomain: "tenant-alpha.vc.local"
-#    kubeConfigSecretName: "tenant-alpha-kubeconfig"
-#    transparentMetaPrefixes:
-#      - "k8s.v1.cni.cncf.io"
-#    opaqueMetaPrefixes: []
-#  - name: "tenant-beta"
-#    namespace: "vc-manager"
-#    clusterVersionName: "cv-k8s-1-31-tenant-beta"
-#    clusterDomain: "tenant-beta.vc.local"
-#    kubeConfigSecretName: "tenant-beta-kubeconfig"
-#    transparentMetaPrefixes:
-#      - "k8s.v1.cni.cncf.io"
-#    opaqueMetaPrefixes: []
-
+# 例:
+#   vcinstances_virtualclusters:
+#    - name: "tenant-alpha"
+#      namespace: "vc-manager"
+#      clusterVersionName: "cv-k8s-1-31-tenant-alpha"
+#      clusterDomain: "tenant-alpha.vc.local"
+#      kubeConfigSecretName: "tenant-alpha-kubeconfig"
+#      transparentMetaPrefixes:
+#        - "k8s.v1.cni.cncf.io"
+#      opaqueMetaPrefixes: []
+#    - name: "tenant-beta"
+#      namespace: "vc-manager"
+#      clusterVersionName: "cv-k8s-1-31-tenant-beta"
+#      clusterDomain: "tenant-beta.vc.local"
+#      kubeConfigSecretName: "tenant-beta-kubeconfig"
+#      transparentMetaPrefixes:
+#        - "k8s.v1.cni.cncf.io"
+#      opaqueMetaPrefixes: []
 #
+# vcinstances_virtualclusters: []
+#
+# ===============================================================================
 # virtual cluster用CoreDNSコンテナイメージ/マニュフェストファイルの生成
+# (virtual cluster利用時, かつ, Virtual Cluster インスタンスの設定時のオプション)
+# ===============================================================================
 #
-
 # virtual cluster用CoreDNSを構築する場合は, k8s_vc_tenant_dns_enabledをtrueに設定する。
 # k8s_vc_tenant_dns_enabledがtrueの場合, かつ,
 # VirtualCluster インスタンス定義(vcinstances_virtualclusters変数(リスト))が空でない場合に,
 # テナント用CoreDNSコンテナイメージ/マニュフェストファイルの生成処理を実施する
 # k8s_vc_tenant_dns_enabled: true
-
+#
 # テナント内用CoreDNSイメージの登録先ローカルレジストリ
-# k8s_vc_tenant_dns_image_registry: "registry01.local:5000/vc-tenant-dns"
+# 例:
+#   k8s_vc_tenant_dns_image_registry: "registry01.local:5000/vc-tenant-dns"
+#
+# k8s_vc_tenant_dns_image_registry: ""
 
 # ====================================================================================
 # Elastic Stack の設定 (条件的必須: Elasticsearch/Logstash/Kibana/Fleet Server利用時)
@@ -1048,10 +1157,10 @@ common_selinux_state: "permissive"
 # logging_backend_elastic_agent_k8s_audit_monitoring_metrics_enabled: true
 
 
-# =======================================================================
+# ===========================================================================
 # Elastic Agent関連ロールの必須入力値
-# 原則として, **host_vars側で**各ホストの仕様に基づいて設定すること
-# =======================================================================
+# 原則として, **host_vars側で**各ホストの仕様に基づいて設定することを推奨する
+# ===========================================================================
 # ホスト監視用Elastic Agent を導入する場合にtrueを指定する有効化フラグ。
 # logging_elastic_agent_host_enabled: true
 #
