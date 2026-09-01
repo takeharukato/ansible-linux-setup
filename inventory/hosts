@@ -5,7 +5,6 @@
 # mgmt-server.local
 # rhel-server.local
 # ubuntu-server.local
-# devserver.local
 # observer01.local
 # observer02.local
 [router]
