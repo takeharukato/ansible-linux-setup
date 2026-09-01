@@ -26,7 +26,7 @@ gpm_mgmt_nic: "ens192"
 # ネットワークIFリスト
 netif_list:
   - netif: "{{mgmt_nic}}"
-    mac: "00:50:56:00:dd:88"
+    mac: "00:50:56:00:dd:71"
     static_ipv4_addr: "{{ubuntu_server_ipv4_address}}"
     network_ipv4_prefix_len: "{{network_ipv4_prefix_len}}"
     static_ipv6_addr: "{{ubuntu_server_ipv6_address}}"
@@ -39,9 +39,9 @@ netif_list:
     name_server_ipv4_2: "{{ipv4_name_server2}}"
     name_server_ipv6_1: "{{ipv6_name_server1}}"
     name_server_ipv6_2: "{{ipv6_name_server2}}"
-    dns_search: "example.org"
+    dns_search: "{{ dns_search }}"
   - netif: "{{gpm_mgmt_nic}}"
-    mac: "00:50:56:00:dd:7c"
+    mac: "00:50:56:00:dd:7b"
     static_ipv4_addr: "{{gpm_mgmt_ubuntu_server_ipv4_address}}"
     network_ipv4_prefix_len: "{{network_ipv4_prefix_len}}"
     static_ipv6_addr: "{{gpm_mgmt_ubuntu_server_ipv6_address}}"
@@ -52,7 +52,7 @@ netif_list:
     name_server_ipv4_2: "{{ipv4_name_server2}}"
     name_server_ipv6_1: "{{ipv6_name_server1}}"
     name_server_ipv6_2: "{{ipv6_name_server2}}"
-    dns_search: "example.org"
+    dns_search: "{{ dns_search }}"
 
 # ======================================================
 # DNSサーバ導入設定 (条件的必須: DNSサーバ機能利用時)
@@ -62,7 +62,7 @@ netif_list:
 # DNSサーバ(bind)を導入する
 dns_dns_server_enabled: true
 # DNSサーバ名 (条件付き必須: dns-server roleが有効な場合に必須)
-dns_server: "ubuntu-server.example.org"
+dns_server: "ubuntu-server.{{ dns_domain }}"
 # namedのACLに設定するIPv4ネットワークアドレス
 dns_network: "{{ network_ipv4_network_address }}"
 # ネットワークプレフィクス(IPv4)
@@ -78,6 +78,45 @@ dns_network_ipv6_prefix: "{{ network_ipv6_network_address }}"
 dns_network_ipv6_prefix_len: "{{ network_ipv6_prefix_len }}"
 # IPv6逆引きファイル名
 dns_network_ipv6_prefix_filename: "fd69-6684-61a-1"
+
+# =================================================================
+# NTPサーバ設定 (条件的必須: NTPサーバ利用時)
+# host_vars側で設定し, vars/all-config.ymlには設定しないことを推奨
+# =================================================================
+#
+# NTPサーバの有効化, NTPサーバを導入する場合は true に設定する
+ntp_server_enabled: true
+# IPv4ネットワークアドレス(未設定時は空文字)
+external_ntp_servers_list:
+  - ntp.nict.jp
+  - jp.pool.ntp.org
+  - ntp.jst.mfeed.ad.jp
+  - ntp.ring.gr.jp
+  - time.google.com
+  - time.aws.com
+  - ats1.e-timing.ne.jp
+  - s2csntp.miz.nao.ac.jp
+# NTPクライアントからのアクセス許可ネットワーク
+ntp_allow: "{{ network_ipv4_network_address }}/{{ network_ipv4_prefix_len }}"
+
+# ======================================================
+# NFSサーバ設定 (条件的必須: NFS利用時)
+# host_vars側で設定し, vars/all-config.ymlには設定しないことを推奨
+# ======================================================
+#
+# NFS (Network File System, ネットワーク越しにファイル共有を行う仕組み) サーバを導入する場合は true に設定する
+nfs_server_enabled: true
+#
+# NFS (Network File System) で公開するディレクトリ
+nfs_export_directory: "/home/nfsshare"
+#
+# NFS公開を許可するクライアント側ネットワーク (CIDR 形式)
+nfs_network: "{{ network_ipv4_network_address }}/{{ network_ipv4_prefix_len }}"
+#
+# /etc/exports へ書き込む NFS 公開オプション
+# rw: 読み書き可能, no_root_squash: クライアント側 root 権限を制限しない,
+# sync: 同期書き込み, no_subtree_check: サブツリーチェックを無効化, no_wdelay: 書き込み遅延を無効化
+nfs_options: "rw,no_root_squash,sync,no_subtree_check,no_wdelay"
 
 #
 # LDAP設定
@@ -98,7 +137,7 @@ redmine_enabled: true
 # GitLabを導入する
 gitlab_enabled: true
 # GitLabサーバのWEB UI公開URLのホスト名
-gitlab_hostname: "ubuntu-server.example.org"
+gitlab_hostname: "ubuntu-server.{{ dns_domain }}"
 
 #
 # OpenGrok 設定

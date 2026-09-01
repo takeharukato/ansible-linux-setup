@@ -19,9 +19,9 @@ gpm_mgmt_registry2_ipv4_address: "{{gpm_mgmt_ipv4_prefix}}.{{ registry2_ipv4_add
 gpm_mgmt_registry2_ipv6_address: "{{gpm_mgmt_ipv6_prefix}}{{ registry2_ipv6_addr_field }}"
 
 # 管理ネットワークIF
-mgmt_nic: "enX0"
+mgmt_nic: "ens160"
 # 仮想環境内部管理ネットワークのvNIC
-gpm_mgmt_nic: "enX1"
+gpm_mgmt_nic: "ens192"
 
 # ネットワークIFリスト
 netif_list:
@@ -39,7 +39,7 @@ netif_list:
     name_server_ipv4_2: "{{ipv4_name_server2}}"
     name_server_ipv6_1: "{{ipv6_name_server1}}"
     name_server_ipv6_2: "{{ipv6_name_server2}}"
-    dns_search: "elliptic-curve.net"
+    dns_search: "{{ dns_search }}"
   - netif: "{{gpm_mgmt_nic}}"
     mac: "00:50:56:00:ce:7b"
     static_ipv4_addr: "{{gpm_mgmt_registry2_ipv4_address}}"
@@ -52,7 +52,7 @@ netif_list:
     name_server_ipv4_2: "{{ipv4_name_server2}}"
     name_server_ipv6_1: "{{ipv6_name_server1}}"
     name_server_ipv6_2: "{{ipv6_name_server2}}"
-    dns_search: "elliptic-curve.net"
+    dns_search: "{{ dns_search }}"
 
 # docker-ceロール適用ホストでレジストリを提供する場合はtrue
 # host_vars側で設定する場合は, vars/all-config.ymlには設定しないこと

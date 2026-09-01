@@ -6,6 +6,7 @@
 mgmt_nic: "ens160"
 netif_list:
   - netif: "ens160"
+    mac: "00:50:56:00:61:71"
     static_ipv4_addr: "192.168.20.61"
     network_ipv4_prefix_len: 24
     static_ipv6_addr: "fd69:6684:61a:1::61"
@@ -18,4 +19,4 @@ netif_list:
     name_server_ipv4_2: "{{ipv4_name_server2}}"
     name_server_ipv6_1: "{{ipv6_name_server1}}"
     name_server_ipv6_2: "{{ipv6_name_server2}}"
-    dns_search: "example.org"
+    dns_search: "{{ dns_search }}"

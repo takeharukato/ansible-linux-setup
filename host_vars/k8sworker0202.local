@@ -8,12 +8,24 @@ mgmt_nic: "ens160"
 # K8sネットワークのNIC
 k8s_nic: "ens192"
 
+# K8s Cluster02 ネットワーク IPv4プレフィクス
+k8s_net2_ipv4_prefix: "192.168.50"
+# K8s Cluster02 ネットワーク IPv6プレフィクス
+k8s_net2_ipv6_prefix: "fd69:6684:61a:3::"
+
+# K8s Cluster02のAS番号
+k8s_net2_asn: 65012
+
 # k8sworker0202のIPアドレス末尾
 k8sworker0202_ipv4_addr_octet: "53"
 k8sworker0202_ipv6_addr_field: "53"
 
 # K8sコントロールプレインのホスト名
-k8s_ctrlplane_host: "k8sctrlplane02.local"
+k8s_ctrlplane_host_base: "k8sctrlplane02"
+k8s_ctrlplane_host: "{{ k8s_ctrlplane_host_base }}.local"
+
+# K8sワーカーノードのホスト名
+k8s_worker_host_base: "k8sworker0202"
 
 # K8sコントロールプレインのAPI広告エンドポイントアドレス
 k8s_ctrlplane_endpoint: "{{gpm_mgmt_ipv4_prefix}}.51"
@@ -59,7 +71,7 @@ k8s_cilium_cm_cluster_id: 2
 # 実施される)
 netif_list:
   - netif: "{{mgmt_nic}}"
-    mac: "00:50:56:00:43:0d"
+    mac: "00:50:56:00:43:71"
     static_ipv4_addr: "{{gpm_mgmt_ipv4_prefix}}.{{k8sworker0202_ipv4_addr_octet}}"
     network_ipv4_prefix_len: 24
     static_ipv6_addr: "{{gpm_mgmt_ipv6_prefix}}{{k8sworker0202_ipv6_addr_field}}"
@@ -72,12 +84,12 @@ netif_list:
     name_server_ipv4_2: "{{ipv4_name_server2}}"
     name_server_ipv6_1: "{{ipv6_name_server1}}"
     name_server_ipv6_2: "{{ipv6_name_server2}}"
-    dns_search: "example.org"
+    dns_search: "{{ dns_search }}"
   - netif: "{{k8s_nic}}"
-    mac: "00:50:56:00:43:17"
-    static_ipv4_addr: "192.168.50.{{k8sworker0202_ipv4_addr_octet}}"
+    mac: "00:50:56:00:43:7b"
+    static_ipv4_addr: "{{ k8s_net2_ipv4_prefix }}.{{k8sworker0202_ipv4_addr_octet}}"
     network_ipv4_prefix_len: 24
-    static_ipv6_addr: "fd69:6684:61a:3::{{k8sworker0202_ipv6_addr_field}}"
+    static_ipv6_addr: "{{ k8s_net2_ipv6_prefix }}{{k8sworker0202_ipv6_addr_field}}"
     network_ipv6_prefix_len: 64
     ignore_auto_ipv4_dns: true
     ignore_auto_ipv6_dns: true
@@ -87,13 +99,13 @@ netif_list:
     name_server_ipv6_2: "{{ipv6_name_server2}}"
     route_metric_ipv4: 300
     route_metric_ipv6: 300
-    dns_search: "example.org"
+    dns_search: "{{ dns_search }}"
 
 # Cilium BGP Control Plane 設定
 k8s_bgp:
   enabled: false
-  node_name: "k8sworker0202"
-  local_asn: 65012
+  node_name: "{{ k8s_worker_host_base }}"
+  local_asn: "{{ k8s_net2_asn }}"
   kubeconfig: "/etc/kubernetes/admin.conf"
   export_pod_cidr: true
   advertise_services: false
@@ -101,8 +113,8 @@ k8s_bgp:
     - ipv4
     - ipv6
   neighbors:
-    - peer_address: "192.168.50.48/32"
-      peer_asn: 65012
+    - peer_address: "{{ k8s_net2_ipv4_prefix }}.48/32"
+      peer_asn: "{{ k8s_net2_asn }}"
       peer_port: 179
       hold_time_seconds: 90
       connect_retry_seconds: 15
@@ -114,7 +126,7 @@ k8s_worker_frr:
   enabled: true
 
   # BGP AS 番号 (cluster2 用、DC 代表 FRR と同一)
-  local_asn: 65012
+  local_asn: "{{ k8s_net2_asn }}"
 
   # RFC 5549 (IPv6 トランスポートで IPv4 NLRI を交換)
   rfc5549_enabled: false
@@ -123,23 +135,23 @@ k8s_worker_frr:
   ipv4_transport_ipv6_nlri_enabled: false
 
   # BGP Router ID (このワーカーノードの管理ネットワーク側 IPv4 アドレス)
-  router_id: "192.168.30.{{k8sworker0202_ipv4_addr_octet}}"
+  router_id: "{{ gpm_mgmt_ipv4_prefix }}.{{k8sworker0202_ipv4_addr_octet}}"
 
   # クラスタ名 (k8s_cilium_cm_cluster_name と一致させる)
-  cluster_name: "cluster2"
+  cluster_name: "{{ k8s_cilium_cm_cluster_name }}"
 
   # DC 代表 FRR ノードのリスニングアドレス (cluster2 用)
   # IPv4 BGP セッション用
   dc_frr_addresses:
-    frr02.local: "192.168.50.48"
+    frr02.local: "{{ k8s_net2_ipv4_prefix }}.48"
 
   # DC 代表 FRR ノードのリスニングアドレス (IPv6 BGP セッション用)
   dc_frr_addresses_v6:
-    frr02.local: "fd69:6684:61a:3::48"
+    frr02.local: "{{ k8s_net2_ipv6_prefix }}48"
 
   # ワーカーノード自身への到達性確保用ホストルート
-  advertise_host_route_ipv4: "192.168.50.{{k8sworker0202_ipv4_addr_octet}}/32"
-  advertise_host_route_ipv6: "fd69:6684:61a:3::{{k8sworker0202_ipv6_addr_field}}/128"
+  advertise_host_route_ipv4: "{{ k8s_net2_ipv4_prefix }}.{{k8sworker0202_ipv4_addr_octet}}/32"
+  advertise_host_route_ipv6: "{{ k8s_net2_ipv6_prefix }}{{k8sworker0202_ipv6_addr_field}}/128"
 
   # プレフィックス長フィルタ設定 (BGP 送信時のフィルタ)
   prefix_filter:

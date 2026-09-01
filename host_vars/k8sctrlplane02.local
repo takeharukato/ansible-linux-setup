@@ -8,12 +8,21 @@ mgmt_nic: "ens160"
 # K8sネットワークのNIC
 k8s_nic: "ens192"
 
+# K8s Cluster02 ネットワーク IPv4プレフィクス
+k8s_net2_ipv4_prefix: "192.168.50"
+# K8s Cluster02 ネットワーク IPv6プレフィクス
+k8s_net2_ipv6_prefix: "fd69:6684:61a:3::"
+
+# K8s Cluster02のAS番号
+k8s_net2_asn: 65012
+
 # k8sctrlplane02のIPアドレス末尾
 k8sctrlplane02_ipv4_addr_octet: "51"
 k8sctrlplane02_ipv6_addr_field: "51"
 
 # K8sコントロールプレインのホスト名
-k8s_ctrlplane_host: "k8sctrlplane02.local"
+k8s_ctrlplane_host_base: "k8sctrlplane02"
+k8s_ctrlplane_host: "{{ k8s_ctrlplane_host_base }}.local"
 
 # K8sコントロールプレインのAPI広告エンドポイントアドレス
 k8s_ctrlplane_endpoint: "{{gpm_mgmt_ipv4_prefix}}.{{k8sctrlplane02_ipv4_addr_octet}}"
@@ -59,7 +68,7 @@ k8s_cilium_cm_cluster_id: 2
 # 実施される)
 netif_list:
   - netif: "{{mgmt_nic}}"
-    mac: "00:50:56:00:1f:8b"
+    mac: "00:50:56:00:1f:71"
     static_ipv4_addr: "{{gpm_mgmt_ipv4_prefix}}.{{k8sctrlplane02_ipv4_addr_octet}}"
     network_ipv4_prefix_len: 24
     static_ipv6_addr: "{{gpm_mgmt_ipv6_prefix}}{{k8sctrlplane02_ipv6_addr_field}}"
@@ -72,12 +81,12 @@ netif_list:
     name_server_ipv4_2: "{{ipv4_name_server2}}"
     name_server_ipv6_1: "{{ipv6_name_server1}}"
     name_server_ipv6_2: "{{ipv6_name_server2}}"
-    dns_search: "example.org"
+    dns_search: "{{ dns_search }}"
   - netif: "{{k8s_nic}}"
-    mac: "00:50:56:00:1f:95"
-    static_ipv4_addr: "192.168.50.{{k8sctrlplane02_ipv4_addr_octet}}"
+    mac: "00:50:56:00:1f:7b"
+    static_ipv4_addr: "{{ k8s_net2_ipv4_prefix }}.{{k8sctrlplane02_ipv4_addr_octet}}"
     network_ipv4_prefix_len: 24
-    static_ipv6_addr: "fd69:6684:61a:3::{{k8sctrlplane02_ipv6_addr_field}}"
+    static_ipv6_addr: "{{ k8s_net2_ipv6_prefix }}{{k8sctrlplane02_ipv6_addr_field}}"
     network_ipv6_prefix_len: 64
     ignore_auto_ipv4_dns: true
     ignore_auto_ipv6_dns: true
@@ -87,22 +96,22 @@ netif_list:
     name_server_ipv6_2: "{{ipv6_name_server2}}"
     route_metric_ipv4: 300
     route_metric_ipv6: 300
-    dns_search: "example.org"
+    dns_search: "{{ dns_search }}"
 
 # セカンダリネットワークのアドレスレンジ開始アドレス(IPv4)
-k8s_whereabouts_ipv4_range_start: "192.168.50.100"
+k8s_whereabouts_ipv4_range_start: "{{ k8s_net2_ipv4_prefix }}.100"
 # セカンダリネットワークのアドレスレンジ終了アドレス(IPv4)
-k8s_whereabouts_ipv4_range_end: "192.168.50.254"
+k8s_whereabouts_ipv4_range_end: "{{ k8s_net2_ipv4_prefix }}.254"
 # セカンダリネットワークのアドレスレンジ開始アドレス(IPv6)
-k8s_whereabouts_ipv6_range_start: "fd69:6684:61a:3::100"
+k8s_whereabouts_ipv6_range_start: "{{ k8s_net2_ipv6_prefix }}100"
 # セカンダリネットワークのアドレスレンジ終了アドレス(IPv6)
-k8s_whereabouts_ipv6_range_end: "fd69:6684:61a:3::ffff"
+k8s_whereabouts_ipv6_range_end: "{{ k8s_net2_ipv6_prefix }}ffff"
 
 # Cilium BGP Control Plane 設定
 k8s_bgp:
   enabled: false
-  node_name: "k8sctrlplane02"
-  local_asn: 65012
+  node_name: "{{ k8s_ctrlplane_host_base }}"
+  local_asn: "{{ k8s_net2_asn }}"
   kubeconfig: "/etc/kubernetes/admin.conf"
   export_pod_cidr: true
   advertise_services: false
@@ -110,8 +119,8 @@ k8s_bgp:
     - ipv4
     - ipv6
   neighbors:
-    - peer_address: "192.168.50.59/32"
-      peer_asn: 65012
+    - peer_address: "{{ k8s_net2_ipv4_prefix }}.48/32"
+      peer_asn: "{{ k8s_net2_asn }}"
       peer_port: 179
       hold_time_seconds: 90
       connect_retry_seconds: 15
@@ -125,7 +134,7 @@ k8s_hubble_ui_enabled: true
 # Virtual Clusterの導入（実験環境用）
 #
 # Virtual Cluster機能を導入する場合は, trueに設定する
-k8s_virtualcluster_enabled: false
+k8s_virtualcluster_enabled: true
 
 #
 # etcd 永続ストレージ設定
@@ -141,7 +150,7 @@ vcinstances_etcd_storage_class: "default-sc"
 # Virtual Cluster インスタンスの導入（実験環境用）
 #
 # Virtual Cluster インスタンス機能を導入する場合は, trueに設定する
-k8s_vcinstances_enabled: false
+k8s_vcinstances_enabled: true
 
 vcinstances_clusterversions:
   - name: "cv-k8s-1-31-tenant-alpha"  # tenant-alpha専用

@@ -8,6 +8,12 @@ k8s_net1_ipv4_prefix: "192.168.40"
 # 疑似外部ネットワークIPv6プレフィクス
 k8s_net1_ipv6_prefix: "fd69:6684:61a:2::"
 
+# K8s Cluster01のAS番号
+k8s_net1_asn: 65011
+
+# 疑似外部ネットワークゲートウエイのAS番号
+extgw_net_asn: 65100
+
 # 疑似外部ネットワークIPv4プレフィクス
 external_net_ipv4_prefix: "192.168.255"
 # 疑似外部ネットワークIPv6プレフィクス
@@ -51,7 +57,7 @@ frr01_ipv6_addr_field: "49"
 # 実施される)
 netif_list:
   - netif: "{{mgmt_nic}}"
-    mac: "00:50:56:00:4a:12"
+    mac: "00:50:56:00:4a:71"
     static_ipv4_addr: "{{gpm_mgmt_ipv4_prefix}}.{{frr01_ipv4_addr_octet}}"
     network_ipv4_prefix_len: 24
     static_ipv6_addr: "{{gpm_mgmt_ipv6_prefix}}{{frr01_ipv6_addr_field}}"
@@ -64,9 +70,9 @@ netif_list:
     name_server_ipv4_2: "{{ipv4_name_server2}}"
     name_server_ipv6_1: "{{ipv6_name_server1}}"
     name_server_ipv6_2: "{{ipv6_name_server2}}"
-    dns_search: "example.org"
+    dns_search: "{{ dns_search }}"
   - netif: "{{gpm_mgmt_nic}}"
-    mac: "00:50:56:00:4a:1c"
+    mac: "00:50:56:00:4a:7b"
     static_ipv4_addr: "{{k8s_net1_ipv4_prefix}}.{{frr01_ipv4_addr_octet}}"
     network_ipv4_prefix_len: 24
     static_ipv6_addr: "{{k8s_net1_ipv6_prefix}}{{frr01_ipv6_addr_field}}"
@@ -79,9 +85,9 @@ netif_list:
     name_server_ipv6_2: "{{ipv6_name_server2}}"
     route_metric_ipv4: 300
     route_metric_ipv6: 300
-    dns_search: "example.org"
+    dns_search: "{{ dns_search }}"
   - netif: "{{external_net_nic}}"
-    mac: "00:50:56:00:4a:26"
+    mac: "00:50:56:00:4a:dc"
     static_ipv4_addr: "{{external_net_ipv4_prefix}}.{{frr01_ipv4_addr_octet}}"
     network_ipv4_prefix_len: 24
     static_ipv6_addr: "{{external_net_ipv6_prefix}}{{frr01_ipv6_addr_field}}"
@@ -94,36 +100,36 @@ netif_list:
     name_server_ipv6_2: "{{ipv6_name_server2}}"
     route_metric_ipv4: 300
     route_metric_ipv6: 300
-    dns_search: "example.org"
+    dns_search: "{{ dns_search }}"
 
 # ==== FRR/BGP (Cluster1 用) =================================
 
 # このノードのBGP AS番号と router-id
 # router-id は Cluster1 の K8s 側セグメント上アドレスに揃える
-frr_bgp_asn: 65011
+frr_bgp_asn: "{{ k8s_net1_asn }}"
 frr_bgp_router_id: "{{k8s_net1_ipv4_prefix}}.{{frr01_ipv4_addr_octet}}"
 
 # K8sノードとの iBGP ピア (IPv4セッション)
 # K8sネットワーク側アドレスを使用（DC接続側）
 frr_ibgp_neighbors:
-  - { addr: "{{k8s_net1_ipv4_prefix}}.41", asn: 65011, desc: "C1 control-plane" }
-  - { addr: "{{k8s_net1_ipv4_prefix}}.42", asn: 65011, desc: "C1 worker-1" }
-  - { addr: "{{k8s_net1_ipv4_prefix}}.43", asn: 65011, desc: "C1 worker-2" }
+  - { addr: "{{k8s_net1_ipv4_prefix}}.41", asn: "{{ k8s_net1_asn }}", desc: "C1 control-plane" }
+  - { addr: "{{k8s_net1_ipv4_prefix}}.42", asn: "{{ k8s_net1_asn }}", desc: "C1 worker-1" }
+  - { addr: "{{k8s_net1_ipv4_prefix}}.43", asn: "{{ k8s_net1_asn }}", desc: "C1 worker-2" }
 
 # K8sノードとの iBGP ピア (IPv6セッション)
 frr_ibgp_neighbors_v6:
-  - { addr: "{{k8s_net1_ipv6_prefix}}41", asn: 65011, desc: "C1 control-plane" }
-  - { addr: "{{k8s_net1_ipv6_prefix}}42", asn: 65011, desc: "C1 worker-1" }
-  - { addr: "{{k8s_net1_ipv6_prefix}}43", asn: 65011, desc: "C1 worker-2" }
+  - { addr: "{{k8s_net1_ipv6_prefix}}41", asn: "{{ k8s_net1_asn }}", desc: "C1 control-plane" }
+  - { addr: "{{k8s_net1_ipv6_prefix}}42", asn: "{{ k8s_net1_asn }}", desc: "C1 worker-1" }
+  - { addr: "{{k8s_net1_ipv6_prefix}}43", asn: "{{ k8s_net1_asn }}", desc: "C1 worker-2" }
 
 # 疑似外部ネットワーク側 eBGP ピア (IPv4セッション)
 # 外部GW (192.168.255.81, AS 65100) とIPv4トランスポートで接続
 frr_ebgp_neighbors:
-  - { addr: "{{external_net_ipv4_prefix}}.81", asn: 65100, desc: "External GW" }
+  - { addr: "{{external_net_ipv4_prefix}}.81", asn: "{{ extgw_net_asn }}", desc: "External GW" }
 
 # 疑似外部ネットワーク側 eBGP ピア (IPv6セッション)
 frr_ebgp_neighbors_v6:
-  - { addr: "{{external_net_ipv6_prefix}}81", asn: 65100, desc: "External GW" }
+  - { addr: "{{external_net_ipv6_prefix}}81", asn: "{{ extgw_net_asn }}", desc: "External GW" }
 
 # 広告したいプレフィックス (ラボ用)
 # 後で PodCIDR/ServiceCIDR に合わせて調整

@@ -40,10 +40,10 @@ gpm_mgmt_nic: "ens192"
 #   空文字列に設定されるため, 静的IPアドレス設定を行わないように動作する
 netif_list:
   - netif: "{{mgmt_nic}}"
-    mac: "00:50:56:00:46:51"
-    static_ipv4_addr: "{{ gpm_mgmt_internal_router_ipv4_address|default('',true) }}"
+    mac: "00:50:56:00:46:71"
+    static_ipv4_addr: "{{internal_router_ipv4_address}}"
     network_ipv4_prefix_len: "{{network_ipv4_prefix_len}}"
-    static_ipv6_addr: "{{ gpm_mgmt_internal_router_ipv6_address |default('',true) }}"
+    static_ipv6_addr: "{{internal_router_ipv6_address}}"
     network_ipv6_prefix_len: "{{network_ipv6_prefix_len}}"
     gateway4: "{{gateway4}}"
     gateway6: "{{gateway6}}"
@@ -53,12 +53,12 @@ netif_list:
     name_server_ipv4_2: "{{ipv4_name_server2}}"
     name_server_ipv6_1: "{{ipv6_name_server1}}"
     name_server_ipv6_2: "{{ipv6_name_server2}}"
-    dns_search: "example.org"
+    dns_search: "{{ dns_search }}"
   - netif: "{{ gpm_mgmt_nic }}"
-    mac: "00:50:56:00:46:7c"
-    static_ipv4_addr: "{{gpm_mgmt_internal_router_ipv4_address}}"
+    mac: "00:50:56:00:46:7b"
+    static_ipv4_addr: "{{gpm_mgmt_internal_router_ipv4_address}}" # vars/all-config.ymlで定義
     network_ipv4_prefix_len: "{{gpm_mgmt_ipv4_addr_prefix_len}}"
-    static_ipv6_addr: "{{gpm_mgmt_internal_router_ipv6_address}}"
+    static_ipv6_addr: "{{gpm_mgmt_internal_router_ipv6_address}}"  # vars/all-config.ymlで定義
     network_ipv6_prefix_len: "{{network_ipv6_prefix_len}}"
     ignore_auto_ipv4_dns: true
     ignore_auto_ipv6_dns: true
@@ -66,7 +66,7 @@ netif_list:
     name_server_ipv4_2: "{{ipv4_name_server2}}"
     name_server_ipv6_1: "{{ipv6_name_server1}}"
     name_server_ipv6_2: "{{ipv6_name_server2}}"
-    dns_search: "example.org"
+    dns_search: "{{ dns_search }}"
 
 #
 # ルーティング動作制御
@@ -84,20 +84,7 @@ netif_list:
 router_forwarding_enabled: false
 
 # Network Address Translation (NAT) 動作を有効化する場合は, trueに設定
-router_nat_enabled: false
-
-#
-# Router Advertise Daemonの設定
-#
-# ルータ広告するアドレスプレフィクス CIDR
-radvd_router_advertisement_prefix: "{{ gpm_mgmt_ipv6_prefix }}/{{ gpm_mgmt_ipv6_addr_prefix_len }}"
-# ルーター広告で配布されるDNSサーバアドレス情報
-radvd_dns_servers:
-  - "{{ ipv6_name_server1 }}"
-  - "{{ ipv6_name_server2 }}"
-# ルーター広告で配布されるDNSサーチドメイン
-radvd_search_domains:
-  - "{{ dns_domain }}"
+router_nat_enabled: true
 
 # コンテナバックアップ機能を使用しない
 build_docker_ce_backup_container_image: false
@@ -124,4 +111,4 @@ radvd_dns_servers:
 
 # radvd_search_domains: ルーター広告 (RA) で通知する DNS サーチドメイン一覧
 radvd_search_domains:
-  - "{{ dns_domain }}"  # ルーター広告 (RA) で通知する DNS サーチドメイン一覧
+  - "{{ dns_domain }}"
