@@ -127,10 +127,16 @@ playbook実行, アーカイブ作成用Makefileでは, 以下のターゲット
 
 1. vars/all-config.yml  広域設定ファイル
 2. host_vars/ ディレクトリ配下のホスト設定ファイル
-3. vars/packages-rhel.yml RedHat系(AlmaLinuxを想定)パッケージ名定義ファイル
-4. vars/packages-ubuntu.yml Debian系(Ubuntuを想定)パッケージ名定義ファイル
+3. inventory/ディレクトリ配下のホストファイル (inventory/hosts)
+4. vars/packages-rhel.yml RedHat系(AlmaLinuxを想定)パッケージ名定義ファイル
+5. vars/packages-ubuntu.yml Debian系(Ubuntuを想定)パッケージ名定義ファイル
 
-本稿では, 上記の内, 1., 2.について述べる。
+本リポジトリ中の`inventory/sample-hosts`に, 本playbookで使用するホストグループ定義を含む
+`inventory/hosts`の例が記載されています。本サンプルファイルを元に, 環境に合わせて, `inventory/hosts`を作成してください。
+
+本稿では, 上記の内, 1., 2.について説明します。
+
+広域設定ファイル(`vars/all-config.yml`)の記載例が, 本リポジトリ中の`vars/sample-all-config.yml`に配置されています。本稿の説明と`vars/sample-all-config.yml`の記載例を元に上記, 1., 2.の設定を行うことを推奨します。
 
 ### 広域設定ファイル (vars/all-config.yml) の設定値
 

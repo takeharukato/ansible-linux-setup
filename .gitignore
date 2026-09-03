@@ -42,6 +42,8 @@ log/
 
 # ユーザごとのローカル設定ファイル
 /vars/all-config.yml
+# ユーザごとのinventory/hostsファイル
+/inventory/hosts
 # 文書検証ツール出力
 /tools/docs
 
