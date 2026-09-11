@@ -995,7 +995,7 @@ spec:
           cpu: "200m"
           memory: "128Mi"
 EOF
-tkato@vmlinux3:~/linux-configs/ubuntu-setup/ansible$ vc-tenant-apply.sh tenant-alpha -f /tmp/busybox-demo.yaml
+$ vc-tenant-apply.sh tenant-alpha -f /tmp/busybox-demo.yaml
 コンテキスト: cluster1
 ユーザ: admin-cluster1
 テナント: tenant-alpha
@@ -1217,7 +1217,7 @@ spec:
             limits:
 EOF
 $ ls -la /tmp/nginx-deploy.yaml
--rw-rw-r-- 1 tkato tkato 503  6月 30 19:19 /tmp/nginx-deploy.yaml
+-rw-rw-r-- 1 xxxx xxxx 503  6月 30 19:19 /tmp/nginx-deploy.yaml
 ```
 
 **ステップB: Deployment をテナントに適用**
@@ -2880,7 +2880,7 @@ $ vc-tenant-kubeconfig.sh tenant-alpha -o ~/.kube/tenant-alpha.conf
 [INFO]   実行時namespace: vc-manager-fa7698-tenant-alpha
 [INFO]   クラスタドメイン: tenant-alpha.vc.local
 [INFO]   admin-kubeconfigシークレット: 取得済み
-[INFO] kubeconfig を出力: /home/tkato/.kube/tenant-alpha.conf
+[INFO] kubeconfig を出力: /home/xxxx/.kube/tenant-alpha.conf
 [INFO] kubeconfig生成完了
 [INFO] ====== 完了 ======
 $ sed -i "s|server: https://.*:6443|server: https://localhost:${LOCAL_PORT}|" ~/.kube/tenant-alpha.conf
