@@ -1,0 +1,103 @@
+#  -*- coding:utf-8-unix; mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2026 Takeharu KATO All Rights Reserved.
+#
+#  APT自動更新抑止状態検証タスク
+#
+---
+
+# service一覧とtimer一覧を連結し, 再起動を跨いでも全対象unitがmaskedであることを検証する
+# (apt_update_control_service_units + apt_update_control_timer_units)。
+- name: "Check masked APT automatic update unit load states"
+  ansible.builtin.command:
+    argv:
+      - timeout
+      - "{{ apt_update_control_command_timeout_seconds | string }}s"
+      - systemctl
+      - show
+      - --property=LoadState
+      - --value
+      - "{{ item }}"
+  loop: "{{ apt_update_control_service_units + apt_update_control_timer_units }}"
+  register: apt_update_control_active_load_state
+  changed_when: false
+  failed_when: apt_update_control_active_load_state.rc != 0
+  become: true
+
+# unitごとのLoadStateがmaskedでない場合は新規APT自動更新を防止できないため停止する。
+- name: "Assert APT automatic update units are masked"
+  ansible.builtin.assert:
+    that:
+      - item.stdout == 'masked'
+    fail_msg: >-
+      APT automatic update unit {{ item.item }} must be masked.
+      LoadState={{ item.stdout | default('', true) | string }}
+    success_msg: "APT automatic update unit {{ item.item }} is masked"
+  # systemctl showの各結果を個別検証し, 対象unit名とLoadStateを対応付ける
+  # (apt_update_control_active_load_state.results | default([], true))。
+  loop: "{{ apt_update_control_active_load_state.results | default([], true) }}"
+
+# serviceとtimerの実行状態を同じ方法で取得し, maskedでも既存処理が残存していないことを検証する
+# (apt_update_control_service_units + apt_update_control_timer_units)。
+- name: "Check inactive APT automatic update unit states"
+  ansible.builtin.command:
+    argv:
+      - timeout
+      - "{{ apt_update_control_command_timeout_seconds | string }}s"
+      - systemctl
+      - show
+      - --property=ActiveState
+      - --value
+      - "{{ item }}"
+  loop: "{{ apt_update_control_service_units + apt_update_control_timer_units }}"
+  register: apt_update_control_active_runtime_state
+  changed_when: false
+  failed_when: apt_update_control_active_runtime_state.rc != 0
+  become: true
+
+# mask後に既存実行が残っている状態をguard確立済みと扱わないためinactiveを必須とする。
+- name: "Assert APT automatic update units are inactive"
+  ansible.builtin.assert:
+    that:
+      - item.stdout == 'inactive'
+    fail_msg: >-
+      APT automatic update unit {{ item.item }} must be inactive while guarded.
+      ActiveState={{ item.stdout | default('', true) | string }}
+    success_msg: "APT automatic update unit {{ item.item }} is inactive"
+  # systemctl showの各結果を個別検証し, 対象unit名とActiveStateを対応付ける
+  # (apt_update_control_active_runtime_state.results | default([], true))。
+  loop: "{{ apt_update_control_active_runtime_state.results | default([], true) }}"
+
+# pgrepの通常の名前検索は15文字へ切り詰められるため, shutdown待機処理を更新処理と誤認しないようにする。
+# pgrep -fでコマンド行全体を検索し, '/usr/bin/unattended-upgrade'の後ろが空白又は行末となる
+# 通常の更新処理だけを対象にする (/usr/bin/unattended-upgrade([[:space:]]|$))。
+- name: "Check unattended-upgrade update process is absent"
+  ansible.builtin.command:
+    argv:
+      - timeout
+      - "{{ apt_update_control_command_timeout_seconds | string }}s"
+      - pgrep
+      - -f
+      - --
+      - '/usr/bin/unattended-upgrade([[:space:]]|$)'
+  register: apt_update_control_active_unattended_process
+  changed_when: false
+  failed_when: apt_update_control_active_unattended_process.rc not in [1]
+  become: true
+
+# pgrep -fはコマンド行全体を正規表現で検索するため,
+# '/usr/lib/apt/apt.systemd.daily'の後ろが空白又は行末となる実行だけを対象にする
+# (/usr/lib/apt/apt\.systemd\.daily([[:space:]]|$))。
+- name: "Check apt.systemd.daily process is absent"
+  ansible.builtin.command:
+    argv:
+      - timeout
+      - "{{ apt_update_control_command_timeout_seconds | string }}s"
+      - pgrep
+      - -f
+      - --
+      - '/usr/lib/apt/apt\.systemd\.daily([[:space:]]|$)'
+  register: apt_update_control_active_apt_systemd_daily_process
+  changed_when: false
+  failed_when: apt_update_control_active_apt_systemd_daily_process.rc not in [1]
+  become: true

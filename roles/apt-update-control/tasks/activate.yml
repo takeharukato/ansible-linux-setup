@@ -1,0 +1,83 @@
+#  -*- coding:utf-8-unix; mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2026 Takeharu KATO All Rights Reserved.
+#
+#  APT自動更新抑止タスク
+#
+---
+
+# mask対象unitが実際に提供されていることを先に確認し, 存在しないunit名をmaskとして新規作成しない。
+- name: "Check APT automatic update units before activation"
+  ansible.builtin.include_tasks: check-units.yml
+
+# timerのtrigger先serviceを先にmaskするとactiveなtimerがtrigger先を失ってfailedへ遷移するため,
+# serviceをmaskする前にtimerを停止して新しいAPT自動更新の起動要求を止める。
+- name: "Stop and disable APT automatic update timers"
+  ansible.builtin.systemd:
+    name: "{{ item }}"
+    state: stopped
+    enabled: false
+  loop: "{{ apt_update_control_timer_units }}"
+  become: true
+
+# timerが誤って再度有効化された場合でも過去の実行予定を即時補完しないように,
+# 本ロール専用drop-in配置先をtimerごとに用意する。
+- name: "Create APT timer drop-in directories"
+  ansible.builtin.file:
+    path: "/etc/systemd/system/{{ item }}.d"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+  loop: "{{ apt_update_control_timer_units }}"
+  become: true
+
+# 構築期間中だけtimerのcatch-up動作を停止し,
+# 本ロール以外が一時的にtimerを起動可能な状態へ戻した場合にも即時の補完実行を防止する。
+- name: "Disable persistent APT timer catch-up"
+  ansible.builtin.copy:
+    dest: >-
+      /etc/systemd/system/{{ item }}.d/{{ apt_update_control_persistent_dropin_name }}
+    owner: root
+    group: root
+    mode: "0644"
+    content: |
+      [Timer]
+      Persistent=false
+  loop: "{{ apt_update_control_timer_units }}"
+  become: true
+
+# timer停止後にdrop-inの変更を現在のsystemdへ認識させ,
+# trigger先serviceがまだ利用可能な状態でtimer設定の更新を完了させる。
+- name: "Reload systemd after configuring APT timer drop-ins"
+  ansible.builtin.systemd:
+    daemon_reload: true
+  become: true
+
+# 停止済みtimerを再起動後も起動できない状態に維持し,
+# Playbook異常終了時にも新しいAPT自動更新の起動要求を発行できないようにする。
+- name: "Mask stopped APT automatic update timers"
+  ansible.builtin.systemd:
+    name: "{{ item }}"
+    masked: true
+  loop: "{{ apt_update_control_timer_units }}"
+  become: true
+
+# timer停止後にserviceへmaskだけを設定することで新しいactivationを禁止し,
+# 既に開始済みのserviceにはstop要求を送らず現在の更新処理を自然終了させる。
+- name: "Mask APT automatic update services without stopping running jobs"
+  ansible.builtin.systemd:
+    name: "{{ item }}"
+    masked: true
+  loop: "{{ apt_update_control_service_units }}"
+  become: true
+
+# 既に開始済みのAPT自動更新は強制停止せず自然終了を待ち,
+# KillMode=processによる子プロセス残存を発生させない。
+- name: "Wait for running APT automatic update operation"
+  ansible.builtin.include_tasks: wait-running-update.yml
+
+# mask, inactive, 関連プロセス不在を再確認し,
+# 構築期間中のAPT自動更新抑止状態が確立していることを保証する。
+- name: "Verify active APT update control state"
+  ansible.builtin.include_tasks: verify-active-state.yml

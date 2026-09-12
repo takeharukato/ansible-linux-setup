@@ -6,46 +6,17 @@
 #
 ---
 
-# 一時drop-in削除中にtimerが起動しないように停止状態を保証する。
-- name: "Stop APT timers before removing guard"
-  ansible.builtin.systemd:
-    name: "{{ item }}"
-    state: stopped
-  loop: "{{ apt_update_guard_timers_to_restore }}"
-  become: true
-
-# 利用者独自のdrop-inを保持したまま, 本ロールが作成したPersistent=falseだけを削除する。
-- name: "Remove APT timer persistent guard files"
-  ansible.builtin.file:
-    path: >-
-      /etc/systemd/system/{{ item }}.d/{{ apt_update_guard_persistent_dropin_name }}
-    state: absent
-  loop: "{{ apt_update_guard_timers_to_restore }}"
-  become: true
-
-# 一時drop-in削除結果をsystemdへ反映してから通常timerを再起動する。
-- name: "Reload systemd after removing APT timer guard"
-  ansible.builtin.systemd:
-    daemon_reload: true
-  become: true
-
-# 既存実装と同じく, unattended-upgradesをディストリビューション既定の通常運用へ戻す。
-- name: "Restore unattended-upgrades to distro default operation"
-  ansible.builtin.systemd:
-    name: unattended-upgrades
-    state: started
-    enabled: true
-  become: true
-
-# service本体はtimerから必要時に起動されるため,
-# ディストリビューション既定運用へ戻す対象はtimerだけに限定する。
-- name: "Restore APT daily timers to distro default operation"
-  ansible.builtin.systemd:
-    name: "{{ item }}"
-    state: started
-    enabled: true
-  loop: "{{ apt_update_guard_timers_to_restore }}"
-  become: true
+# 呼び出し先ロールの公開変数をblockスコープで渡し, apt-update-guardの変数名前空間へ
+# apt-update-control固有の変数を直接定義せずに正常完了時の復旧処理を委譲する。
+- name: "Deactivate APT update control"
+  vars:
+    apt_update_control_state: "inactive"
+  block:
+    # site.ymlが最終playまで正常完了した場合だけ共通ロールへ復旧を委譲し,
+    # persistent maskを解除してディストリビューション既定のAPT timer運用へ戻す。
+    - name: "Run APT update control deactivation"
+      ansible.builtin.include_role:
+        name: apt-update-control
 
 # 同一Ansible実行中でも次のguardライフサイクル開始時には再起動できるように状態を初期化する。
 - name: "Clear APT update guard runtime facts"

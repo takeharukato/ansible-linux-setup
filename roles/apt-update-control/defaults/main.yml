@@ -1,0 +1,34 @@
+#  -*- coding:utf-8-unix; mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2026 Takeharu KATO All Rights Reserved.
+#
+#  ロール固有変数のデフォルト値
+#  group_vars/all/all.yml やhost_varsで上書き可能とするため,
+#  ロール名/defaults/main.yml に定義している
+#
+---
+
+# 呼び出し元でactive/inactiveを明示し, 意図しないAPT自動更新制御を防止する。
+apt_update_control_state: ""
+
+# APT自動更新処理の終了待ちで1回の状態確認に許容する最大時間を秒単位で指定する。
+apt_update_control_command_timeout_seconds: 10
+
+# APT自動更新処理の終了待ちで状態確認を再試行する回数を指定する。
+apt_update_control_wait_retry_count: 360
+
+# APT自動更新処理の終了待ちで状態確認を再試行する間隔を秒単位で指定する。
+apt_update_control_wait_retry_delay_seconds: 5
+
+# 実行中の場合は自然終了させ, 構築期間中の新規起動だけをmaskするAPT serviceを指定する。
+apt_update_control_service_units:
+  - apt-daily.service
+  - apt-daily-upgrade.service
+
+# 構築期間中に停止してmaskし, 通常運用復旧時に有効化して起動するAPT timerを指定する。
+apt_update_control_timer_units:
+  - apt-daily.timer
+  - apt-daily-upgrade.timer
+
+# 利用者独自のsystemd drop-inを変更しないように本ロール専用ファイル名を使用する。
+apt_update_control_persistent_dropin_name: "90-ansible-apt-update-guard.conf"

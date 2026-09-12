@@ -5,6 +5,7 @@
 top=.
 .PHONY: clean distclean run run_common run_user_settings run_create_users \
 	run_post_user_create run_devel_packages cloc mk_arc mk_role_arc ansible-lint ansible-syntax-check \
+	run_apt_update_control_activate run_apt_update_control_deactivate \
 	run_docker_ce run_ntp_server run_ntp_client run_nfs_server \
 	run_logging_backend \
 	run_elasticsearch run_logstash run_kibana run_fleet_server run_fleet_bootstrap \
@@ -151,6 +152,14 @@ run_selinux:
 
 run_common:
 	ansible-playbook --tags "apt-update-guard,common" ${OPT_COMMON} ${ANSIBLE_PLAYBOOK_EXTRA_OPTS} 2>&1 |tee build-common.log
+
+# 個別ロール適用前にAPT自動更新を抑止し, 実行中の自動更新が自然終了してから復帰する。
+run_apt_update_control_activate:
+	ansible-playbook ${VERBOSE} -i ${INVENTORY} apt-update-control.yml --extra-vars "apt_update_control_state=active" ${ANSIBLE_PLAYBOOK_EXTRA_OPTS} 2>&1 |tee build-apt-update-control-activate.log
+
+# 個別ロール適用完了後にAPT自動更新抑止を解除し, ディストリビューション既定のtimer運用へ戻す。
+run_apt_update_control_deactivate:
+	ansible-playbook ${VERBOSE} -i ${INVENTORY} apt-update-control.yml --extra-vars "apt_update_control_state=inactive" ${ANSIBLE_PLAYBOOK_EXTRA_OPTS} 2>&1 |tee build-apt-update-control-deactivate.log
 
 run_user_settings:
 	ansible-playbook --tags "user-settings" ${OPT_COMMON} ${ANSIBLE_PLAYBOOK_EXTRA_OPTS} 2>&1 |tee build-user-settings.log

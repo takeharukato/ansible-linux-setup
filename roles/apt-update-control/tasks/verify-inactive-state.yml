@@ -1,0 +1,96 @@
+#  -*- coding:utf-8-unix; mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2026 Takeharu KATO All Rights Reserved.
+#
+#  APT自動更新通常運用状態検証タスク
+#
+---
+
+# service一覧とtimer一覧を連結し, 通常運用復旧後にmaskが残っていないことを検証する
+# (apt_update_control_service_units + apt_update_control_timer_units)。
+- name: "Check restored APT automatic update unit load states"
+  ansible.builtin.command:
+    argv:
+      - timeout
+      - "{{ apt_update_control_command_timeout_seconds | string }}s"
+      - systemctl
+      - show
+      - --property=LoadState
+      - --value
+      - "{{ item }}"
+  loop: "{{ apt_update_control_service_units + apt_update_control_timer_units }}"
+  register: apt_update_control_inactive_load_state
+  changed_when: false
+  failed_when: apt_update_control_inactive_load_state.rc != 0
+  become: true
+
+# distro提供unitへ戻せていない状態で通常運用復旧済みと扱わないためloadedを必須とする。
+- name: "Assert APT automatic update units are unmasked"
+  ansible.builtin.assert:
+    that:
+      - item.stdout == 'loaded'
+    fail_msg: >-
+      APT automatic update unit {{ item.item }} must be unmasked.
+      LoadState={{ item.stdout | default('', true) | string }}
+    success_msg: "APT automatic update unit {{ item.item }} is unmasked"
+  # systemctl showの各結果を個別検証し, 対象unit名とLoadStateを対応付ける
+  # (apt_update_control_inactive_load_state.results | default([], true))。
+  loop: "{{ apt_update_control_inactive_load_state.results | default([], true) }}"
+
+# timerだけを通常運用時の自動起動対象とし, enable状態が復旧していることを確認する。
+- name: "Check APT automatic update timers are enabled"
+  ansible.builtin.command:
+    argv:
+      - timeout
+      - "{{ apt_update_control_command_timeout_seconds | string }}s"
+      - systemctl
+      - is-enabled
+      - "{{ item }}"
+  loop: "{{ apt_update_control_timer_units }}"
+  register: apt_update_control_inactive_timer_enabled_state
+  changed_when: false
+  failed_when: apt_update_control_inactive_timer_enabled_state.rc != 0
+  become: true
+
+# timerがenabledでない場合は再起動後のAPT自動更新が復旧しないため停止する。
+- name: "Assert APT automatic update timers are enabled"
+  ansible.builtin.assert:
+    that:
+      - item.stdout == 'enabled'
+    fail_msg: >-
+      APT automatic update timer {{ item.item }} must be enabled.
+      State={{ item.stdout | default('', true) | string }}
+    success_msg: "APT automatic update timer {{ item.item }} is enabled"
+  # systemctl is-enabledの各結果を個別検証し, 対象timer名とenable状態を対応付ける
+  # (apt_update_control_inactive_timer_enabled_state.results | default([], true))。
+  loop: "{{ apt_update_control_inactive_timer_enabled_state.results | default([], true) }}"
+
+# timerが実行中であることを確認し, ディストリビューション既定の定期起動経路を復旧する。
+- name: "Check APT automatic update timers are active"
+  ansible.builtin.command:
+    argv:
+      - timeout
+      - "{{ apt_update_control_command_timeout_seconds | string }}s"
+      - systemctl
+      - show
+      - --property=ActiveState
+      - --value
+      - "{{ item }}"
+  loop: "{{ apt_update_control_timer_units }}"
+  register: apt_update_control_inactive_timer_active_state
+  changed_when: false
+  failed_when: apt_update_control_inactive_timer_active_state.rc != 0
+  become: true
+
+# timerがactiveでない場合は通常の定期実行へ戻っていないため停止する。
+- name: "Assert APT automatic update timers are active"
+  ansible.builtin.assert:
+    that:
+      - item.stdout == 'active'
+    fail_msg: >-
+      APT automatic update timer {{ item.item }} must be active.
+      ActiveState={{ item.stdout | default('', true) | string }}
+    success_msg: "APT automatic update timer {{ item.item }} is active"
+  # systemctl showの各結果を個別検証し, 対象timer名とActiveStateを対応付ける
+  # (apt_update_control_inactive_timer_active_state.results | default([], true))。
+  loop: "{{ apt_update_control_inactive_timer_active_state.results | default([], true) }}"

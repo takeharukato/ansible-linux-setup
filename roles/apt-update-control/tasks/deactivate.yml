@@ -1,0 +1,62 @@
+#  -*- coding:utf-8-unix; mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2026 Takeharu KATO All Rights Reserved.
+#
+#  APT自動更新通常運用復旧タスク
+#
+---
+
+# 復旧対象unitが提供済み又は本ロールによるmask状態であることを確認し,
+# 誤ったunit名に対して通常運用復旧処理を実行しない。
+- name: "Check APT automatic update units before deactivation"
+  ansible.builtin.include_tasks: check-units.yml
+
+# 再実行時にtimerが既にunmaskされていてもdrop-in削除中に発火しないように停止する。
+- name: "Stop APT automatic update timers before restoring defaults"
+  ansible.builtin.systemd:
+    name: "{{ item }}"
+    state: stopped
+  loop: "{{ apt_update_control_timer_units }}"
+  become: true
+
+# 利用者独自のdrop-inを保持したまま,
+# 本ロールが構築期間中だけ配置したPersistent=false設定だけを削除する。
+- name: "Remove APT timer persistent guard files"
+  ansible.builtin.file:
+    path: >-
+      /etc/systemd/system/{{ item }}.d/{{ apt_update_control_persistent_dropin_name }}
+    state: absent
+  loop: "{{ apt_update_control_timer_units }}"
+  become: true
+
+# drop-in削除結果をsystemdへ反映してからunmaskし,
+# ディストリビューション提供のPersistent設定を通常運用へ戻す。
+- name: "Reload systemd before restoring APT automatic updates"
+  ansible.builtin.systemd:
+    daemon_reload: true
+  become: true
+
+# service本体はtimerから必要時に起動されるため起動せず,
+# 新しいactivationを許可するためmaskだけを解除する。
+- name: "Unmask APT automatic update services"
+  ansible.builtin.systemd:
+    name: "{{ item }}"
+    masked: false
+  loop: "{{ apt_update_control_service_units }}"
+  become: true
+
+# timerのmaskを解除してenableとstartを行い,
+# 正常完了後だけディストリビューション既定のAPT自動更新経路を復旧する。
+- name: "Unmask and start APT automatic update timers"
+  ansible.builtin.systemd:
+    name: "{{ item }}"
+    masked: false
+    enabled: true
+    state: started
+  loop: "{{ apt_update_control_timer_units }}"
+  become: true
+
+# mask解除とtimer起動を検証し,
+# 通常運用へ戻せていない状態で復旧処理を成功扱いにしない。
+- name: "Verify inactive APT update control state"
+  ansible.builtin.include_tasks: verify-inactive-state.yml

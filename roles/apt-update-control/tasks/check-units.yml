@@ -1,0 +1,38 @@
+#  -*- coding:utf-8-unix; mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2026 Takeharu KATO All Rights Reserved.
+#
+#  APT自動更新unit存在確認タスク
+#
+---
+
+# service一覧とtimer一覧を連結し, 同じ存在確認方法で全対象unitを検証する
+# (apt_update_control_service_units + apt_update_control_timer_units)。
+- name: "Check APT automatic update unit load states"
+  ansible.builtin.command:
+    argv:
+      - timeout
+      - "{{ apt_update_control_command_timeout_seconds | string }}s"
+      - systemctl
+      - show
+      - --property=LoadState
+      - --value
+      - "{{ item }}"
+  loop: "{{ apt_update_control_service_units + apt_update_control_timer_units }}"
+  register: apt_update_control_unit_load_state
+  changed_when: false
+  failed_when: apt_update_control_unit_load_state.rc != 0
+  become: true
+
+# 初回実行ではloaded, 再実行ではmaskedを許容し, unit未導入状態でmaskを新規作成しないようにする。
+- name: "Validate APT automatic update units exist"
+  ansible.builtin.assert:
+    that:
+      - item.stdout in ['loaded', 'masked']
+    fail_msg: >-
+      APT automatic update unit {{ item.item }} is not available.
+      LoadState={{ item.stdout | default('', true) | string }}
+    success_msg: "APT automatic update unit {{ item.item }} is available"
+  # systemctl showの各結果を個別検証し, 対象unit名とLoadStateを対応付ける
+  # (apt_update_control_unit_load_state.results | default([], true))。
+  loop: "{{ apt_update_control_unit_load_state.results | default([], true) }}"

@@ -8,25 +8,25 @@
   - [目次](#目次)
   - [用語](#用語)
   - [概要](#概要)
+    - [本ロール作成の背景](#本ロール作成の背景)
   - [前提条件](#前提条件)
   - [実行方法](#実行方法)
   - [主要変数](#主要変数)
+    - [vars/all-config.yml](#varsall-configyml)
+      - [既定値の利用を推奨する変数](#既定値の利用を推奨する変数)
   - [テンプレートと生成ファイル](#テンプレートと生成ファイル)
   - [実行フロー](#実行フロー)
     - [`active`時の処理](#active時の処理)
     - [`inactive`時の処理](#inactive時の処理)
-    - [mDNS自己登録問題との関係](#mdns自己登録問題との関係)
   - [検証ポイント](#検証ポイント)
     - [検証の前提条件](#検証の前提条件)
     - [検証環境の設定](#検証環境の設定)
     - [検証コマンドと期待結果](#検証コマンドと期待結果)
       - [1. `active`状態のAPT自動更新抑止確認](#1-active状態のapt自動更新抑止確認)
       - [2. `inactive`状態の通常運用復旧確認](#2-inactive状態の通常運用復旧確認)
-      - [3. RHEL系で本ロールが実行されないことの確認](#3-rhel系で本ロールが実行されないことの確認)
   - [トラブルシューティング](#トラブルシューティング)
-    - [1. Playbook失敗後にAPT自動更新が停止したままの場合](#1-playbook失敗後にapt自動更新が停止したままの場合)
-    - [2. unattended-upgrades終了待ちで停止する場合](#2-unattended-upgrades終了待ちで停止する場合)
-    - [3. APTロック解放待ちで停止する場合](#3-aptロック解放待ちで停止する場合)
+    - [1. Playbook失敗後にAPT自動更新が抑止されたままの場合](#1-playbook失敗後にapt自動更新が抑止されたままの場合)
+    - [2. APTロック解放待ちで停止する場合](#2-aptロック解放待ちで停止する場合)
   - [注意事項](#注意事項)
   - [参考資料](#参考資料)
     - [公式ドキュメント](#公式ドキュメント)
@@ -117,6 +117,8 @@
 | systemd | - | Linux システムの初期化とサービス管理を行う仕組み。 |
 | systemd unit | - | systemd が起動, 停止, 時刻指定実行などの対象として管理する設定単位。 |
 | systemd timer | - | systemd が時刻又は経過時間を条件として別の systemd unit を起動する仕組み。 |
+| systemd mask | - | systemd のサービスやターゲットを完全に起動できない状態へ設定する操作のこと。通常の disable が自動起動だけを無効にするのに対して, mask は手動起動や他サービスからの起動も防止する。 |
+| systemd unmask | - | systemd のサービスやターゲットを起動可能な状態へ設定する操作のこと。systemd mask によって, 手動起動や他サービスからの起動も防止された状態を解除するための操作。 |
 | drop-in ファイル | - | 既存の設定本体を直接変更せず, 追加の設定断片として読み込ませる補助設定ファイル。 |
 | Multicast DNS | mDNS | 同一ネットワーク内の名前解決方式。 |
 | Avahi | - | Linux で mDNS と DNS-SD を提供するソフトウェア。 |
@@ -133,175 +135,122 @@
 
 ## 概要
 
-`apt-update-guard`ロールは, `site.yml`から呼び出され, Ubuntu/Debian系ホストでAPT自動更新処理がAnsible Playbook実行中へ割り込むことを防止するための共通機能を提供します。
+`apt-update-guard`ロールは, `site.yml`全体の構築期間中にAPT自動更新が割り込むことを防止する高位制御を提供します。APT systemd unitのsystemd mask, APT timerの停止と復旧, 実行中APT自動更新の自然終了待ちは`apt-update-control`ロールへ委譲します。
 
-本ロールは利用者が単独でAPT運用を変更するための操作手順を提供することを主目的としません。`reboot-common`ロールと同様に, 複数のPlaybookとロールから構成される`site.yml`を安定して実行するための内部機能として使用します。
+`active`では`apt-update-control`を実行した後にAPTロック解放を確認し, `reboot-common`ロールへ再起動を委譲します。再起動後に`apt-update-control`を再適用してsystemd maskが維持されていることを確認します。`site.yml`が途中で異常終了した場合は最終`inactive`処理へ到達しないため, systemd maskを維持します。
 
-本ロールが直接担当する範囲はUbuntu/Debian系のAPT自動更新制御です。mDNS自己登録の安定化は本ロールだけで実現するものではなく, `common`ロールによる静的ネットワーク設定, `reboot-common`ロールによる再起動, `common`ロールのhandlerによるネットワーク設定反映後のAvahi再起動と組み合わせて実現します。
+`inactive`は`site.yml`が最終playまで正常完了した場合だけ実行し, `apt-update-control`へディストリビューション既定のAPT自動更新運用への復旧を委譲します。
 
-RHEL系ではAPTを使用しないため, `site.yml`は本ロールを実行せず通常のPlaybook処理へ進みます。これにより, Ubuntu/Debian系とRHEL系の双方で同じ`site.yml`を使用しながら, OS固有の処理だけを分岐させます。
+### 本ロール作成の背景
+
+実行中の`apt-daily-upgrade.service`へstop要求を送った後も`unattended-upgr`と`apt.systemd.daily`が残存し, systemd関連パッケージ更新に伴うsystemd再実行と`systemd-networkd`再起動が発生することがあります。この時, AvahiのmDNS名競合が発生し, ホスト名が`-2.local`へ変更されることがあります。
+
+本現象が発生すると, `inventory/hosts`に記載されたホスト名での接続が不可能となり, playbookが中断される問題が発生します。
+
+この問題を解決するために, 本ロールでは, `apt-update-control`ロールを用いて, APT serviceへstop要求を送らず, systemd maskで新しいactivationだけを禁止し, 既存APT自動更新を自然終了させます。
+
+上記処理終了後にAPTロック解放を確認してから再起動へ進むよう制御することで, 上記の問題が発生しないようするしています。
 
 ## 前提条件
 
 - `site.yml`が対象ホストのfactsを取得済みであること。
 - Ubuntu/Debian系ホストでsystemdが利用可能であること。
-- Ubuntu/Debian系ホストで`unattended-upgrades`, `apt-daily.timer`, `apt-daily-upgrade.timer`が利用可能であること。
+- `apt-update-control`ロールが利用可能であること。
 - `reboot-common`ロールが利用可能であること。
 - `apt_update_guard_state`は呼び出し元で`active`又は`inactive`のいずれかを明示すること。
 
 ## 実行方法
 
-本ロールは`site.yml`から次の2回呼び出します。
+本ロールは`site.yml`から2回呼び出します。
 
-1. `site.yml`開始時に全ホストのfactsを取得した後, Ubuntu/Debian系ホストへ`apt_update_guard_state: "active"`を指定して呼び出します。
-2. 全Playbook処理が正常完了した後, `site.yml`最終playからUbuntu/Debian系ホストへ`apt_update_guard_state: "inactive"`を指定して呼び出します。
+- `site.yml`開始時に`apt_update_guard_state: "active"`を指定し, 構築期間中のAPT自動更新抑止を確立します。
+- `site.yml`最終playで`apt_update_guard_state: "inactive"`を指定し, 全構築処理が正常完了した場合だけディストリビューション既定のAPT自動更新運用へ戻します。
 
-RHEL系ホストでは`ansible_facts.os_family == "Debian"`を満たさないため, 本ロールを実行しません。
+`site.yml`が途中で異常終了した場合は`inactive`を実行しません。原因を修正して`site.yml`を再実行すると, 冒頭の`active`で既存systemd maskを再適用し, 抑止状態を再確認します。
 
-Playbookが途中で失敗し, `site.yml`最終playへ到達しなかった場合は, APT自動更新抑止を解除しません。これは失敗後の調査又は再実行中にAPT自動更新が再介入することを防止するための意図した動作です。
+個別roleの再適用前後にAPT自動更新制御だけを操作する場合は, `apt-update-control`ロール用Makeターゲットを使用します。
+
+```bash
+make run_apt_update_control_activate
+make run_apt_update_control_deactivate
+```
 
 ## 主要変数
 
+### vars/all-config.yml
+
+#### 既定値の利用を推奨する変数
+
 | 変数名 | 意味 | 既定値 | 設定例 |
 | --- | --- | --- | --- |
-| `apt_update_guard_state` | 本ロールの動作状態を指定します。`active`はAPT自動更新抑止を確立し, `inactive`は通常運用へ復旧します。 | `""` | `"active"` |
-| `apt_update_guard_wait_timeout_seconds` | unattended-upgrades終了待ちとAPTロック解放待ちの最大時間を秒単位で指定します。 | `1800` | `1800` |
-| `apt_update_guard_wait_interval_seconds` | unattended-upgrades終了待ちとAPTロック解放待ちの確認間隔を秒単位で指定します。 | `5` | `5` |
-| `apt_update_guard_command_timeout_seconds` | `pgrep`と`fuser`の1回の実行時間上限を秒単位で指定します。 | `10` | `10` |
-| `apt_update_guard_units_to_stop` | `active`時に停止, 無効化するAPT自動更新用systemd unitを指定します。 | `apt-daily.service`, `apt-daily-upgrade.service`, `apt-daily.timer`, `apt-daily-upgrade.timer` | 既定値を使用 |
-| `apt_update_guard_timers_to_restore` | `inactive`時に通常運用へ復旧するsystemd timerを指定します。 | `apt-daily.timer`, `apt-daily-upgrade.timer` | 既定値を使用 |
-| `apt_update_guard_lock_files` | APTロック解放確認対象のファイルを指定します。 | `/var/lib/dpkg/lock-frontend`など4ファイル | 既定値を使用 |
-| `apt_update_guard_persistent_dropin_name` | APT timerの`Persistent`動作を一時抑止する本ロール専用drop-inファイル名を指定します。 | `"90-ansible-apt-update-guard.conf"` | `"90-ansible-apt-update-guard.conf"` |
+| `apt_update_guard_wait_timeout_seconds` | APTロック解放待ちの最大時間を秒単位で指定します。 | `1800` | `1800` |
+| `apt_update_guard_wait_interval_seconds` | APTロック解放待ちの確認間隔を秒単位で指定します。 | `5` | `5` |
+| `apt_update_guard_command_timeout_seconds` | `fuser`コマンド1回の実行時間を秒単位で制限します。 | `10` | `10` |
+| `apt_update_guard_lock_files` | APTロック解放確認対象を指定します。 | `/var/lib/dpkg/lock-frontend`, `/var/lib/dpkg/lock`, `/var/cache/apt/archives/lock`, `/var/lib/apt/lists/lock` | 既定値を使用 |
 | `apt_update_guard_reboot_timeout_seconds` | guard確立時に`reboot-common`へ渡す再起動完了待ち時間を秒単位で指定します。 | `reboot_timeout_sec`, 未定義又は空の場合`600` | `600` |
+
+典型的な環境では既定値を使用します。APTロック保持処理が長時間継続する環境では, `apt_update_guard_wait_timeout_seconds`を増やします。
+
+設定例を次に示します。
+
+```yaml
+1: apt_update_guard_wait_timeout_seconds: 1800
+2: apt_update_guard_wait_interval_seconds: 5
+3: apt_update_guard_command_timeout_seconds: 10
+4: apt_update_guard_reboot_timeout_seconds: 600
+```
+
+| 行番号 | 設定値 | 有効になる動作 | 補足事項 |
+| --- | --- | --- | --- |
+| 1 | `apt_update_guard_wait_timeout_seconds: 1800` | APTロック解放を最大1800秒の範囲で待機します。 | 小さ過ぎる値では正常なAPT処理の終了を待ち切れません。 |
+| 2 | `apt_update_guard_wait_interval_seconds: 5` | APTロック状態を5秒間隔で再確認します。 | 小さ過ぎる値では確認回数が増加します。 |
+| 3 | `apt_update_guard_command_timeout_seconds: 10` | `fuser`コマンド1回を10秒で打ち切ります。 | コマンドが復帰しない場合にPlaybook全体が停止することを防止します。 |
+| 4 | `apt_update_guard_reboot_timeout_seconds: 600` | guard確立用再起動を最大600秒待機します。 | 小さ過ぎる値では正常な再起動を待ち切れません。 |
+
+`apt-update-control`ロールの待機回数, 待機間隔, systemd unit一覧は`apt-update-control`ロールの主要変数を使用します。
 
 ## テンプレートと生成ファイル
 
-本ロールはJinja2テンプレートを使用しません。`active`時にsystemd timerごとに次のdrop-inファイルを生成し, `inactive`時に本ロールが生成したファイルだけを削除します。
-
-| 生成ファイル | 生成条件 | 内容 |
-| --- | --- | --- |
-| `/etc/systemd/system/apt-daily.timer.d/90-ansible-apt-update-guard.conf` | `apt_update_guard_state: "active"` | `[Timer]`の`Persistent=false`を設定します。 |
-| `/etc/systemd/system/apt-daily-upgrade.timer.d/90-ansible-apt-update-guard.conf` | `apt_update_guard_state: "active"` | `[Timer]`の`Persistent=false`を設定します。 |
-
-利用者が別目的で配置したdrop-inファイルは削除しません。本ロールは`apt_update_guard_persistent_dropin_name`で指定したファイルだけを管理します。
+本ロール自身はテンプレート, `files`ディレクトリ由来ファイル, systemd drop-in ファイルを生成しません。APT timer用drop-in ファイルは`apt-update-control`ロールが管理します。
 
 ## 実行フロー
 
-次の構成図は, mDNS自己登録の安定化を含む`site.yml`全体の流れと, 本ロール, `common`ロール, `reboot-common`ロール, `common`ロールのhandlerの責務境界を示します。
-
 ```mermaid
 flowchart TD
-    subgraph SITE["site.ymlが制御する範囲"]
-        S0["site.yml開始"]
-        S1["全ホストのfactsを取得"]
-        S2{"OS family"}
-        S3["basic.ymlでcommonを実行"]
-        S3B["basic.ymlの後続ロール群を実行"]
-        S4["後続Playbook群を実行"]
-        S5["site.yml最終play"]
-        S6["site.yml終了"]
-    end
-
-    subgraph GUARD["apt-update-guardが実施する範囲"]
-        A1["unattended-upgradesとAPT自動更新unitを停止"]
-        A2["unattended-upgrades終了待ち"]
-        A3["APT timerへPersistent=falseのdrop-inを配置"]
-        A4["systemd設定を再読込"]
-        A5["APTロック解放確認"]
-        A6["APT timerを停止"]
-        A7["本ロール管理drop-inを削除"]
-        A8["systemd設定を再読込"]
-        A9["unattended-upgradesとAPT timerを通常運用へ復旧"]
-    end
-
-    subgraph COMMON["commonが実施する範囲"]
-        C1["NetworkManager実行環境を準備"]
-        C2{"OS family"}
-        C3["Ubuntu/Debian: netplan静的ネットワーク設定を生成"]
-        C4["RHEL: NetworkManager静的ネットワーク設定を生成"]
-        C5["設定変更時にネットワーク反映handlerを予約"]
-        C6["静的設定を起動時から使用するためreboot-commonを呼び出す"]
-        C7["静的ネットワーク設定で再接続"]
-        C8["Avahiパッケージを導入"]
-        C9["パッケージ変更時にAvahi再起動handlerを予約"]
-    end
-
-    subgraph REBOOT["reboot-commonが実施する範囲"]
-        RG1["APT guard確立用に対象ホストを再起動"]
-        RG2["接続再確立を待機"]
-        RC1["静的ネットワーク設定反映用に対象ホストを再起動"]
-        RC2["接続再確立を待機"]
-    end
-
-    subgraph HANDLER["basic.ymlのplay終了時にcommonのhandlerが実施する範囲"]
-        H1{"予約済みネットワークhandler"}
-        H2["Ubuntu/Debian: netplan apply"]
-        H3["RHEL: NetworkManager接続を再読込, 必要な接続を有効化"]
-        H4{"Avahi再起動handlerが予約済み"}
-        H5["Avahiを再起動し, 確定したアドレスでmDNSを再登録"]
-        H6["Avahi handler処理なし"]
-    end
-
-    S0 --> S1 --> S2
-    S2 -- "Ubuntu/Debian" --> A1
-    A1 --> A2 --> A3 --> A4 --> AR["reboot-commonを呼び出す"]
-    AR --> RG1 --> RG2 --> A5 --> S3
-    S2 -- "RHEL: 本ロールは実行しない" --> S3
-
-    S3 --> C1 --> C2
-    C2 -- "Ubuntu/Debian" --> C3
-    C2 -- "RHEL" --> C4
-    C3 --> C5
-    C4 --> C5
-    C5 --> C6 --> RC1 --> RC2
-    RC2 --> CR["再起動時に既存Avahiも停止, 起動"]
-    CR --> C7 --> C8 --> C9
-
-    C9 --> S3B
-    S3B --> H1
-    H1 -- "Ubuntu/Debianのnetplan handlerが予約済み" --> H2
-    H1 -- "RHELのNetworkManager handlerが予約済み" --> H3
-    H1 -- "ネットワークhandler未予約" --> H4
-    H2 --> H4
-    H3 --> H4
-    H4 -- "Yes" --> H5
-    H4 -- "No" --> H6
-
-    H5 --> S4
-    H6 --> S4
-    S4 --> S5
-    S5 -- "Ubuntu/Debian" --> A6
-    A6 --> A7 --> A8 --> A9 --> S6
-    S5 -- "RHEL: 本ロールは実行しない" --> S6
+    S0["site.yml開始"] --> G1["apt-update-guard active"]
+    G1 --> C1["apt-update-control active"]
+    C1 --> L1["psmisc導入"]
+    L1 --> L2["APTロック解放待ち"]
+    L2 --> R1["reboot-common"]
+    R1 --> C2["apt-update-control activeを再適用"]
+    C2 --> B1["後続Playbook群"]
+    B1 --> S1{"site.yml正常完了"}
+    S1 -- "Yes" --> G2["apt-update-guard inactive"]
+    G2 --> C3["apt-update-control inactive"]
+    C3 --> S2["APT自動更新通常運用"]
+    S1 -- "No" --> M1["systemd maskを維持"]
+    M1 --> M2["原因修正後にsite.yml再実行"]
+    M2 --> G1
 ```
+
+- `tasks/activate.yml`は`apt-update-control`へAPT自動更新抑止を委譲し, APTロック解放確認, `reboot-common`, 再起動後の抑止再適用を実行します。
+- `tasks/deactivate.yml`は正常完了時のAPT自動更新復旧を`apt-update-control`へ委譲します。
+- `apt-update-control`ロールはsystemd maskとAPT timer停止, 実行中APT自動更新の自然終了待ち, 通常運用復旧を担当します。
+- `reboot-common`ロールはguard確立後の共通再起動と接続再確立を担当します。
 
 ### `active`時の処理
 
-1. `unattended-upgrades`とAPT自動更新用systemd unitを停止, 無効化します。
-2. 停止要求後も残っている`unattended-upgrades`プロセスの終了を待ちます。
-3. `apt-daily.timer`と`apt-daily-upgrade.timer`へ`Persistent=false`のdrop-inファイルを配置します。
-4. systemdへdrop-inファイルを再読込させます。
-5. `reboot-common`ロールへ再起動を委譲し, systemd又はudev更新後の状態から後続処理を開始できるようにします。同一Ansible実行中は1回だけ実行します。
-6. `fuser`を使用してAPTロックが解放されていることを確認します。
-7. `apt_update_guard_active: true`を実行時factとして記録します。
+1. `apt-update-control`ロールを`active`で実行し, APT自動更新unitのsystemd mask, APT timer停止, 実行中APT自動更新の自然終了待ちを実行します。
+2. `psmisc`を導入し, `fuser`でAPTロックが解放されていることを確認します。
+3. `reboot-common`ロールへ再起動を委譲します。同一Ansible実行中は1回だけ実行します。
+4. 再起動後に`apt-update-control`ロールを再度`active`で実行し, persistentなsystemd maskが維持されていることを確認します。
+5. `apt_update_guard_active: true`を実行時factとして記録します。
 
 ### `inactive`時の処理
 
-1. APT timerを停止します。
-2. 本ロールが作成した`90-ansible-apt-update-guard.conf`だけを削除します。
-3. systemdへdrop-in削除結果を再読込させます。
-4. `unattended-upgrades`, `apt-daily.timer`, `apt-daily-upgrade.timer`を通常運用へ復旧します。
-5. `apt_update_guard_active`と`apt_update_guard_reboot_done`を`false`へ戻します。
-
-### mDNS自己登録問題との関係
-
-Ubuntu/Debian系では, 起動直後のAPT自動更新によってsystemd又はudevが更新される処理と, ネットワーク設定変更, Avahiの起動又は再起動が重なると, Avahiが自ホストのmDNS名を競合相手として認識する可能性があります。本ロールはAPT自動更新の割り込みを抑止する部分を担当します。
-
-静的ネットワークアドレスへの切替とAvahiの処理順序は`common`ロールが担当します。初回構築では静的ネットワーク設定を生成した後に`reboot-common`で再起動し, 静的アドレスで再接続した後にAvahiパッケージを導入します。Avahiが既に導入済みの場合は, この再起動によってAvahiも停止, 起動され, 静的ネットワーク設定でmDNS登録を開始します。
-
-ネットワーク設定ファイルに変更がある場合は, `common`ロールがUbuntu/Debian系では`netplan_apply`, RHEL系では`nm_reload_and_activate`のhandlerを予約します。Avahiパッケージの導入又は更新によって`avahi_restarted_and_enabled`も予約された場合は, handler定義順によりネットワーク設定反映を先に完了し, その後にAvahiを再起動します。ネットワーク設定変更だけを理由としてAvahi handlerを直接予約する実装ではありません。
-
-RHEL系はAPT自動更新抑止の対象ではありませんが, 静的ネットワーク設定を生成した後に再起動して確定済みアドレスへ移行し, Avahi導入又は更新時にはネットワーク設定反映handlerをAvahi再起動handlerより先に実行する構造はUbuntu/Debian系と共通です。
+1. `apt-update-control`ロールを`inactive`で実行し, 本ロール群が設定したsystemd maskとdrop-in ファイルを解除します。
+2. `apt-daily.timer`と`apt-daily-upgrade.timer`を有効化して起動し, ディストリビューション既定のAPT自動更新経路へ戻します。
+3. `apt_update_guard_active`と`apt_update_guard_reboot_done`を`false`へ戻します。
 
 ## 検証ポイント
 
@@ -310,14 +259,14 @@ RHEL系はAPT自動更新抑止の対象ではありませんが, 静的ネッ�
 検証を始める前に, 次の条件が満たされていることを確認します。
 
 - `site.yml`を実行可能な制御ホストであること。
-- Ubuntu/Debian系対象ホストで`unattended-upgrades`とAPT timerが利用可能であること。
-- RHEL系対象ホストを同じ`site.yml`へ含める場合は, RHEL系ホストで本ロールがskipされることを確認可能であること。
+- Ubuntu/Debian系対象ホストで`apt-update-control`ロールの対象systemd unitが利用可能であること。
+- `reboot-common`ロールが利用可能であること。
 
 ### 検証環境の設定
 
 本節では, 検証用の設定内容について説明します。
 
-本ロールは`site.yml`から状態を指定して呼び出すため, 通常は利用者が追加の`host_vars`又は`vars/all-config.yml`を設定する必要はありません。待機時間を変更する必要がある場合だけ, 対象ホストの`host_vars`で`apt_update_guard_wait_timeout_seconds`などを上書きします。
+通常は既定値を使用するため, 検証用の`host_vars`又は`vars/all-config.yml`の追加設定は不要です。
 
 ### 検証コマンドと期待結果
 
@@ -328,41 +277,28 @@ RHEL系はAPT自動更新抑止の対象ではありませんが, 静的ネッ�
 **実行するコマンド**:
 
 ```bash
-systemctl is-enabled unattended-upgrades || true
-systemctl is-active unattended-upgrades || true
-systemctl is-enabled apt-daily.timer || true
-systemctl is-enabled apt-daily-upgrade.timer || true
-cat /etc/systemd/system/apt-daily.timer.d/90-ansible-apt-update-guard.conf
-cat /etc/systemd/system/apt-daily-upgrade.timer.d/90-ansible-apt-update-guard.conf
+systemctl show -p LoadState -p ActiveState apt-daily.service apt-daily-upgrade.service apt-daily.timer apt-daily-upgrade.timer
+pgrep -a unattended-upgr
+pgrep -af '/usr/lib/apt/apt\.systemd\.daily([[:space:]]|$)'
+fuser /var/lib/dpkg/lock-frontend /var/lib/dpkg/lock /var/cache/apt/archives/lock /var/lib/apt/lists/lock
 ```
 
 **期待される出力**:
 
-```text
-disabled
-inactive
-disabled
-disabled
-[Timer]
-Persistent=false
-[Timer]
-Persistent=false
-```
+4つのAPT systemd unitで`LoadState=masked`と`ActiveState=inactive`が表示されます。`pgrep`と`fuser`は対象を表示せず終了します。
 
 **実行結果の例**:
 
 ```bash
-$ systemctl is-active unattended-upgrades || true
-inactive
-$ cat /etc/systemd/system/apt-daily.timer.d/90-ansible-apt-update-guard.conf
-[Timer]
-Persistent=false
+$ systemctl show -p LoadState -p ActiveState apt-daily-upgrade.service
+LoadState=masked
+ActiveState=inactive
 ```
 
 **確認ポイント**:
 
-- `unattended-upgrades`とAPT timerが停止, 無効化されていることで, 後続Playbook実行中にAPT自動更新が再介入しない状態であることを確認します。
-- drop-inファイルの`Persistent=false`により, 再起動後に過去の実行予定を補完実行しない状態であることを確認します。
+- `LoadState=masked`と`ActiveState=inactive`により, APT自動更新が再起動を跨いでも起動不能であり, 既存更新処理も終了済みであることを確認します。
+- `pgrep`と`fuser`が対象を表示しないことで, APT自動更新プロセスとAPTロック保持者が残存していないことを確認します。
 
 #### 2. `inactive`状態の通常運用復旧確認
 
@@ -371,105 +307,50 @@ Persistent=false
 **実行するコマンド**:
 
 ```bash
-systemctl is-enabled unattended-upgrades
-systemctl is-active unattended-upgrades
+systemctl show -p LoadState apt-daily.service apt-daily-upgrade.service apt-daily.timer apt-daily-upgrade.timer
 systemctl is-enabled apt-daily.timer
 systemctl is-active apt-daily.timer
 systemctl is-enabled apt-daily-upgrade.timer
 systemctl is-active apt-daily-upgrade.timer
-test ! -e /etc/systemd/system/apt-daily.timer.d/90-ansible-apt-update-guard.conf
-test ! -e /etc/systemd/system/apt-daily-upgrade.timer.d/90-ansible-apt-update-guard.conf
 ```
 
 **期待される出力**:
 
-```text
-enabled
-active
-enabled
-active
-enabled
-active
-```
-
-`test`コマンドは両方とも終了状態0となります。
+4つのAPT systemd unitで`LoadState=loaded`が表示され, 2つのAPT timerで`enabled`と`active`が表示されます。
 
 **実行結果の例**:
 
 ```bash
-$ systemctl is-enabled apt-daily.timer
- enabled
-$ systemctl is-active apt-daily.timer
+$ systemctl is-enabled apt-daily-upgrade.timer
+enabled
+$ systemctl is-active apt-daily-upgrade.timer
 active
 ```
 
 **確認ポイント**:
 
-- `unattended-upgrades`とAPT timerが有効, 実行状態へ戻っていることで, `site.yml`正常完了後に通常のAPT自動更新運用へ復旧していることを確認します。
-- 本ロール管理drop-inファイルが存在しないことで, 一時的な`Persistent=false`設定が残存していないことを確認します。
-
-#### 3. RHEL系で本ロールが実行されないことの確認
-
-**実施対象ホスト**: 制御ホスト
-
-**実行するコマンド**:
-
-```bash
-grep -n -E 'apt-update-guard|false_condition.*os_family.*Debian' build.log
-```
-
-**期待される出力**:
-
-```text
-skipping: [<RHEL系ホスト>] ... false_condition ... ansible_facts.os_family == "Debian"
-```
-
-**実行結果の例**:
-
-```text
-skipping: [k8sctrlplane02.local] => {
-    "false_condition": "ansible_facts.os_family == \"Debian\""
-}
-```
-
-**確認ポイント**:
-
-- RHEL系ホストが`Debian`条件でskipされていることで, APT固有処理がRHEL系へ適用されていないことを確認します。
+- systemd maskが解除されていることで, 通常のAPT自動更新起動経路へ戻っていることを確認します。
+- APT timerが`enabled`かつ`active`であることで, 正常完了後の通常運用復旧を確認します。
 
 ## トラブルシューティング
 
-### 1. Playbook失敗後にAPT自動更新が停止したままの場合
+### 1. Playbook失敗後にAPT自動更新が抑止されたままの場合
 
 **実施対象ホスト**: 制御ホスト
 
 **実行するコマンド**:
 
 ```bash
-ansible-playbook -i inventory/hosts site.yml --tags apt-update-guard
+make run_apt_update_control_activate
 ```
 
 **確認ポイント**:
 
-- Playbook途中失敗時は`site.yml`最終playへ到達しないため, guardが`active`のまま残ることは意図した動作です。
-- 原因を解消して`site.yml`を再実行し, 最終playまで正常完了させることで`inactive`処理を実行します。
+- `site.yml`途中失敗時は最終`inactive`へ到達しないため, systemd maskが残ることは意図した動作です。
+- 原因修正後に`site.yml`を再実行する場合は, 冒頭の`active`がsystemd maskを再適用して状態を再確認します。
+- 個別roleだけを再適用する場合は, 作業前に`make run_apt_update_control_activate`を実行します。
 
-### 2. unattended-upgrades終了待ちで停止する場合
-
-**実施対象ホスト**: Ubuntu/Debian系対象ホスト
-
-**実行するコマンド**:
-
-```bash
-pgrep -a unattended-upgr
-journalctl -u unattended-upgrades -n 100 --no-pager
-```
-
-**確認ポイント**:
-
-- `pgrep`の出力に`unattended-upgr`が残っている場合は, 自動更新処理が終了していないことを確認します。
-- `journalctl`の出力から更新処理が停止している原因を確認します。
-
-### 3. APTロック解放待ちで停止する場合
+### 2. APTロック解放待ちで停止する場合
 
 **実施対象ホスト**: Ubuntu/Debian系対象ホスト
 
@@ -481,17 +362,16 @@ fuser /var/lib/dpkg/lock-frontend /var/lib/dpkg/lock /var/cache/apt/archives/loc
 
 **確認ポイント**:
 
-- `fuser`がプロセス番号を表示する場合は, 表示されたプロセスがAPTロックを保持していることを確認します。
-- ロック保持処理の終了を確認した後にPlaybookを再実行します。
+- `fuser`がプロセス番号を表示する場合は, APT自動更新以外のAPT又はdpkg処理を含むロック保持者が存在することを確認します。
+- ロック保持処理の原因を確認し, 強制終了せず正常終了後にPlaybookを再実行します。
 
 ## 注意事項
 
-- 本ロールはUbuntu/Debian系のAPT自動更新制御だけを担当します。RHEL系のパッケージ更新機能は変更しません。
-- 本ロールは`site.yml`の開始時と正常終了時に対で呼び出すことを前提とします。
-- `active`時の再起動は同一Ansible実行中に1回だけ実施し, `reboot-common`へ処理を委譲します。
-- `inactive`時は本ロールが作成したdrop-inファイルだけを削除し, 利用者が作成した別のdrop-inファイルは変更しません。
-- 本ロール専用drop-inファイルは`90-ansible-apt-update-guard.conf`を使用します。利用者又は緊急運用向けの後順位設定と衝突しないよう, 本ロールでは`99-`で始まる新規drop-inファイル名を使用しません。
-- mDNS自己登録の安定化では, 本ロールのAPT自動更新抑止だけでなく, `common`ロールと`reboot-common`ロールによる静的ネットワーク設定, 再起動, Avahi再起動順序も前提となります。
+- 本ロールは`site.yml`開始時と正常終了時に対で呼び出すことを前提とします。
+- `site.yml`途中失敗時にsystemd maskを解除する後処理は実行しません。異常終了後もAPT自動更新抑止を維持することが仕様です。
+- `active`時の再起動は同一Ansible実行中に1回だけ実施し, `reboot-common`へ処理を委譲します。`site.yml`を別のAnsible実行として再実行した場合は再度実行されます。
+- 個別role再適用時は`apt-update-control`用Makeターゲットを運用者が明示的に実行します。
+- mDNS自己登録問題への対処としてAvahi設定を変更しません。今回確認した原因であるAPT自動更新制御の方式だけを変更します。
 
 ## 参考資料
 
@@ -502,11 +382,12 @@ fuser /var/lib/dpkg/lock-frontend /var/lib/dpkg/lock /var/cache/apt/archives/loc
 - [Ansible systemd module](https://docs.ansible.com/ansible/latest/collections/ansible/builtin/systemd_module.html)
 - [Ansible reboot module](https://docs.ansible.com/ansible/latest/collections/ansible/builtin/reboot_module.html)
 - [Ubuntu自動セキュリティ更新](https://documentation.ubuntu.com/security/security-updates/)
+- [systemctl](https://www.freedesktop.org/software/systemd/man/latest/systemctl.html)
 - [systemd.timer](https://www.freedesktop.org/software/systemd/man/latest/systemd.timer.html)
 - [systemd.unit](https://www.freedesktop.org/software/systemd/man/latest/systemd.unit.html)
-- [Avahi](https://avahi.org/)
 
 ### 関連ロール
 
+- [apt-update-controlロール](../apt-update-control/Readme.md): APT systemd unitのsystemd mask, APT timer停止と復旧, 実行中APT自動更新の自然終了待ちを担当します。
 - [commonロール](../common/Readme.md): 静的ネットワーク設定, Avahi導入, ネットワーク設定反映とAvahi再起動順序を説明します。
-- [reboot-commonロール](../reboot-common/Readme.md): 本ロールと`common`ロールから委譲する共通再起動処理を説明します。
+- [reboot-commonロール](../reboot-common/Readme.md): 本ロールから委譲する共通再起動処理を説明します。

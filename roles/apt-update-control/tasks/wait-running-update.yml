@@ -1,0 +1,84 @@
+#  -*- coding:utf-8-unix; mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2026 Takeharu KATO All Rights Reserved.
+#
+#  実行中APT自動更新終了待機タスク
+#
+---
+
+# serviceへstop要求を送らず, active処理が自然終了してinactive又はfailedへ遷移するまで待つ。
+- name: "Wait for APT automatic update services to finish"
+  ansible.builtin.command:
+    argv:
+      - timeout
+      - "{{ apt_update_control_command_timeout_seconds | string }}s"
+      - systemctl
+      - show
+      - --property=ActiveState
+      - --value
+      - "{{ item }}"
+  loop: "{{ apt_update_control_service_units }}"
+  register: apt_update_control_service_state_wait
+  changed_when: false
+  failed_when: apt_update_control_service_state_wait.rc not in [0, 124]
+  until:
+    - apt_update_control_service_state_wait.rc == 0
+    - apt_update_control_service_state_wait.stdout in ['inactive', 'failed']
+  retries: "{{ apt_update_control_wait_retry_count }}"
+  delay: "{{ apt_update_control_wait_retry_delay_seconds }}"
+  become: true
+
+# pgrepの通常の名前検索は15文字へ切り詰められるため, shutdown待機処理を更新処理と誤認しないようにする。
+# pgrep -fでコマンド行全体を検索し, '/usr/bin/unattended-upgrade'の後ろが空白又は行末となる
+# 通常の更新処理だけを対象にする (/usr/bin/unattended-upgrade([[:space:]]|$))。
+- name: "Wait until unattended-upgrade update process exits"
+  ansible.builtin.command:
+    argv:
+      - timeout
+      - "{{ apt_update_control_command_timeout_seconds | string }}s"
+      - pgrep
+      - -f
+      - --
+      - '/usr/bin/unattended-upgrade([[:space:]]|$)'
+  register: apt_update_control_unattended_process_wait
+  changed_when: false
+  failed_when: apt_update_control_unattended_process_wait.rc not in [0, 1, 124]
+  until: apt_update_control_unattended_process_wait.rc == 1
+  retries: "{{ apt_update_control_wait_retry_count }}"
+  delay: "{{ apt_update_control_wait_retry_delay_seconds }}"
+  become: true
+
+# pgrep -fはコマンド行全体を正規表現で検索するため,
+# '/usr/lib/apt/apt.systemd.daily'の後ろが空白又は行末となる実行だけを対象にする
+# (/usr/lib/apt/apt\.systemd\.daily([[:space:]]|$))。
+- name: "Wait until apt.systemd.daily process exits"
+  ansible.builtin.command:
+    argv:
+      - timeout
+      - "{{ apt_update_control_command_timeout_seconds | string }}s"
+      - pgrep
+      - -f
+      - --
+      - '/usr/lib/apt/apt\.systemd\.daily([[:space:]]|$)'
+  register: apt_update_control_apt_systemd_daily_process_wait
+  changed_when: false
+  failed_when: apt_update_control_apt_systemd_daily_process_wait.rc not in [0, 1, 124]
+  until: apt_update_control_apt_systemd_daily_process_wait.rc == 1
+  retries: "{{ apt_update_control_wait_retry_count }}"
+  delay: "{{ apt_update_control_wait_retry_delay_seconds }}"
+  become: true
+
+# 以前の停止処理などでfailedが残っている場合だけ失敗状態を解除し,
+# 後続のinactive検証が過去の失敗状態に左右されないようにする。
+- name: "Reset failed APT automatic update service states"
+  ansible.builtin.command:
+    argv:
+      - systemctl
+      - reset-failed
+      - "{{ item.item }}"
+  # systemctl showの待機結果からfailedのserviceだけを選別する
+  # (apt_update_control_service_state_wait.results | default([], true))。
+  loop: "{{ apt_update_control_service_state_wait.results | default([], true) }}"
+  when: item.stdout == 'failed'
+  changed_when: true
+  become: true

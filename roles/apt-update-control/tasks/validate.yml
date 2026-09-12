@@ -1,0 +1,42 @@
+#  -*- coding:utf-8-unix; mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2026 Takeharu KATO All Rights Reserved.
+#
+#  入力値検証タスク
+#
+---
+
+# active/inactive以外を早期に拒否し, APT自動更新制御が途中まで実行されることを防止する
+# (apt_update_control_state in ['active', 'inactive'])。
+- name: "Validate APT update control state"
+  ansible.builtin.assert:
+    that:
+      - apt_update_control_state in ['active', 'inactive']
+    fail_msg: >-
+      apt_update_control_state must be either 'active' or 'inactive'.
+      Current value: {{ apt_update_control_state | default('', true) | string }}
+    success_msg: "APT update control state is valid"
+
+# コマンド待機時間, 再試行回数, 再試行間隔を正の値に限定し,
+# 待機処理が無期限又は無試行になることを防止する。
+- name: "Validate APT update control wait parameters"
+  ansible.builtin.assert:
+    that:
+      - apt_update_control_command_timeout_seconds | int > 0
+      - apt_update_control_wait_retry_count | int > 0
+      - apt_update_control_wait_retry_delay_seconds | int > 0
+    fail_msg: "APT update control timeout, retry count and retry delay must be greater than zero"
+    success_msg: "APT update control wait parameters are valid"
+
+# serviceとtimerの対象一覧が空の状態で抑止処理を成功扱いにしないようにする。
+- name: "Validate APT update control unit lists"
+  ansible.builtin.assert:
+    that:
+      # service一覧として未定義又は空値が渡された場合も空リストとして評価する
+      # (apt_update_control_service_units | default([], true) | length > 0)。
+      - apt_update_control_service_units | default([], true) | length > 0
+      # timer一覧として未定義又は空値が渡された場合も空リストとして評価する
+      # (apt_update_control_timer_units | default([], true) | length > 0)。
+      - apt_update_control_timer_units | default([], true) | length > 0
+    fail_msg: "APT update control service and timer unit lists must not be empty"
+    success_msg: "APT update control unit lists are valid"

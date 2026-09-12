@@ -1,0 +1,18 @@
+#  -*- coding:utf-8-unix; mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2026 Takeharu KATO All Rights Reserved.
+#
+#  APT自動更新制御ロール単独実行playbook
+#
+---
+
+- name: "Control automatic APT update operation"
+  hosts: all
+  remote_user: '{{ ansible_user }}'
+  become: true
+  gather_facts: true
+  roles:
+    # Debian系ホストだけを対象とし, Makeターゲットからactive/inactiveを明示して単独実行する。
+    - role: apt-update-control
+      tags: apt-update-control
+      when: ansible_facts.os_family == "Debian"

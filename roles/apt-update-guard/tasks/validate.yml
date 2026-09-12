@@ -17,7 +17,8 @@
       Current value: {{ apt_update_guard_state | default('', true) | string }}
     success_msg: "APT update guard state is valid"
 
-# 待機時間と確認間隔を正の値に限定し, 除算エラーや即時タイムアウトを防止する。
+# APTロック待機時間, 確認間隔, 1回のコマンド実行時間と再起動待機時間を正の値に限定し,
+# 除算エラーや即時タイムアウトを防止する。
 - name: "Validate APT update guard wait parameters"
   ansible.builtin.assert:
     that:
@@ -28,19 +29,12 @@
     fail_msg: "APT update guard timeout and interval values must be greater than zero"
     success_msg: "APT update guard timeout and interval values are valid"
 
-# 停止対象と復帰対象が空のままguardを開始しないようにし, APT自動更新の抑止漏れを防止する。
-- name: "Validate APT update guard unit lists"
-  ansible.builtin.assert:
-    that:
-      - apt_update_guard_units_to_stop | default([], true) | length > 0
-      - apt_update_guard_timers_to_restore | default([], true) | length > 0
-    fail_msg: "APT update guard unit and timer lists must not be empty"
-    success_msg: "APT update guard unit and timer lists are valid"
-
 # fuserによる解放確認対象が空の場合にguard確立済みと誤判定しないようにする。
 - name: "Validate APT update guard lock file list"
   ansible.builtin.assert:
     that:
+      # ロック一覧として未定義又は空値が渡された場合も空リストとして評価する
+      # (apt_update_guard_lock_files | default([], true) | length > 0)。
       - apt_update_guard_lock_files | default([], true) | length > 0
     fail_msg: "APT update guard lock file list must not be empty"
     success_msg: "APT update guard lock file list is valid"
