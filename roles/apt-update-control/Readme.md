@@ -192,7 +192,7 @@ make run_apt_update_control_deactivate
 | 1 | `apt_update_control_command_timeout_seconds: 10` | 1回の状態確認を10秒で打ち切ります。 | 外部コマンドが復帰しない場合にPlaybook全体が停止することを防止します。 |
 | 2 | `apt_update_control_wait_retry_count: 360` | 状態確認を最大360回実行します。 | 小さ過ぎる値では正常なAPT自動更新処理を待ち切れません。 |
 | 3 | `apt_update_control_wait_retry_delay_seconds: 5` | 再試行間隔を5秒に設定します。 | 小さ過ぎる値では対象ホストへの状態確認回数が増加します。 |
-| 4 | `apt_update_control_systemd_retries: 10` | APT timer停止時のsystemd unit操作を最大10回再試行します。 | systemd daemon-reexecなどによる一時的なunit状態取得失敗を吸収します。 |
+| 4 | `apt_update_control_systemd_retries: 10` | systemd unit状態確認とAPT timer停止操作を最大10回再試行します。 | systemd daemon-reexecなどによる一時的なD-Bus切断やunit状態取得失敗を吸収します。 |
 | 5 | `apt_update_control_systemd_retry_interval_seconds: 2` | systemd unit操作の再試行間隔を2秒に設定します。 | 一時的なsystemd操作失敗からの復帰待ちに使用します。 |
 
 ## テンプレートと生成ファイル
@@ -211,7 +211,8 @@ make run_apt_update_control_deactivate
 ```mermaid
 flowchart TD
     S0["apt-update-control開始"] --> S1{"apt_update_control_state"}
-    S1 -- "active" --> A1["APT timerをstop, disable\n一時失敗時は再試行"]
+    S1 -- "active" --> A0["APT unitのLoadStateを確認\n一時失敗時は再試行"]
+    A0 --> A1["APT timerをstop, disable\n一時失敗時は再試行"]
     A1 --> A2["Persistent=falseのdrop-inを配置"]
     A2 --> A3["systemd設定を再読込"]
     A3 --> A4["停止済みAPT timerをmask"]

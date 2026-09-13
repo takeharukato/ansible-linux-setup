@@ -6,8 +6,10 @@
 #
 ---
 
-# service一覧とtimer一覧を連結し, 同じ存在確認方法で全対象unitを検証する
-# (apt_update_control_service_units + apt_update_control_timer_units)。
+# service一覧とtimer一覧を連結し, 同じ存在確認方法で全対象unitを検証する。
+# APT更新中のsystemd daemon-reexecと競合するとsystemctl showのD-Bus通信が一時的に失敗するため,
+# unit状態確認が成功するまでsystemd操作用の再試行条件で待ち合わせる。
+# 対応するJinja2式: (apt_update_control_service_units + apt_update_control_timer_units)。
 - name: "Check APT automatic update unit load states"
   ansible.builtin.command:
     argv:
@@ -22,6 +24,10 @@
   register: apt_update_control_unit_load_state
   changed_when: false
   failed_when: apt_update_control_unit_load_state.rc != 0
+  until:
+    - apt_update_control_unit_load_state is succeeded
+  retries: "{{ apt_update_control_systemd_retries | int }}"
+  delay: "{{ apt_update_control_systemd_retry_interval_seconds | int }}"
   become: true
 
 # 初回実行ではloaded, 再実行ではmaskedを許容し, unit未導入状態でmaskを新規作成しないようにする。
