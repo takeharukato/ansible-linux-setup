@@ -20,6 +20,12 @@ apt_update_control_wait_retry_count: 360
 # APT自動更新処理の終了待ちで状態確認を再試行する間隔を秒単位で指定する。
 apt_update_control_wait_retry_delay_seconds: 5
 
+# systemdの一時的なunit操作失敗を再試行する回数を指定する。
+apt_update_control_systemd_retries: 10
+
+# systemdのunit操作を再試行する間隔を秒単位で指定する。
+apt_update_control_systemd_retry_interval_seconds: 2
+
 # 実行中の場合は自然終了させ, 構築期間中の新規起動だけをmaskするAPT serviceを指定する。
 apt_update_control_service_units:
   - apt-daily.service

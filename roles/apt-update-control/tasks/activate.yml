@@ -12,12 +12,19 @@
 
 # timerのtrigger先serviceを先にmaskするとactiveなtimerがtrigger先を失ってfailedへ遷移するため,
 # serviceをmaskする前にtimerを停止して新しいAPT自動更新の起動要求を止める。
+# APT更新中のsystemd daemon-reexecと競合した場合はunit状態を一時的に取得できないため,
+# systemd操作が成功するまで所定回数再試行する。
 - name: "Stop and disable APT automatic update timers"
   ansible.builtin.systemd:
     name: "{{ item }}"
     state: stopped
     enabled: false
   loop: "{{ apt_update_control_timer_units }}"
+  register: apt_update_control_timer_stop_result
+  until:
+    - apt_update_control_timer_stop_result is succeeded
+  retries: "{{ apt_update_control_systemd_retries | int }}"
+  delay: "{{ apt_update_control_systemd_retry_interval_seconds | int }}"
   become: true
 
 # timerが誤って再度有効化された場合でも過去の実行予定を即時補完しないように,
