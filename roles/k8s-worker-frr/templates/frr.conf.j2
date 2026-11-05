@@ -132,6 +132,10 @@ router bgp {{ local_asn }}
   ! FRR は再配送された静的経路の ORIGIN 属性を自動的に IGP に設定
   ! IGP は最も優先度が高く, 他ノードの経路選択で有利
   redistribute static
+  ! カーネル経路を BGP へ再配送
+  redistribute kernel
+  ! 接続済み経路を BGP へ再配送
+  redistribute connected
 {% else %}
 {% if advertise_host_route_ipv4 %}
   ! ワーカーノード自身への /32 ホストルート広告 (DC FRR への到達性確保)
