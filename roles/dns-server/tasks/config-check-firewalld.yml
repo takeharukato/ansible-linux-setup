@@ -1,0 +1,23 @@
+#  -*- coding:utf-8 mode:yaml -*-
+#  Ansible playbook
+#  Copyright 2026 Takeharu KATO All Rights Reserved.
+---
+
+# systemctl show firewalld.service -p ActiveState -p UnitFileStateを実行し,
+# ActiveState=inactiveかつUnitFileState=maskedであればfirewalld_maskedをtrueに設定する
+
+# firewalld のサービス状態を確認する
+- name: Get firewalld service status
+  ansible.builtin.command:
+    cmd: systemctl show firewalld.service -p ActiveState -p UnitFileState
+  register: firewalld_status
+  changed_when: false
+
+# firewalld_masked 変数を設定する
+- name: Set firewalld masked flag
+  ansible.builtin.set_fact:
+    firewalld_masked: >-
+      {{
+        'ActiveState=inactive' in firewalld_status.stdout_lines
+        and 'UnitFileState=masked' in firewalld_status.stdout_lines
+      }}

@@ -11,6 +11,9 @@
 - name: "Load Params"
   ansible.builtin.include_tasks: load-params.yml
 
+- name: "Config check firewalld status"
+  ansible.builtin.include_tasks: config-check-firewalld.yml
+
 # パッケージ導入処理
 - name: "Package"
   ansible.builtin.include_tasks: package.yml
@@ -30,7 +33,9 @@
 # Kubernetesコントロールプレーンのファイアウォール設定
 - name: "Config K8Sctrlplane Firewall"
   ansible.builtin.include_tasks: config-k8sctrlplane-firewall.yml
-  when: enable_firewall | default(false,true)
+  when:
+    - enable_firewall | default(false,true)
+    - not firewalld_masked | default(false,true)
 
 # Helm CLI導入
 - name: "Install Helm"

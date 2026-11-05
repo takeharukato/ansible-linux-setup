@@ -11,19 +11,31 @@
 - name: "Load Params"
   ansible.builtin.include_tasks: load-params.yml
 # config-common-kubeconfig-tools.yml より先に実行する必要がある
+
+- name: "Config check firewalld status"
+  ansible.builtin.include_tasks: config-check-firewalld.yml
+
 - name: "Directory"
   ansible.builtin.include_tasks: directory.yml
+
 - name: "Config Sudoer Path"
   ansible.builtin.include_tasks: config-sudoer-path.yml
+
 - name: "Package"
   ansible.builtin.include_tasks: package.yml
+
 - name: "Packages K8S Python"
   ansible.builtin.include_tasks: packages-k8s-python.yml
+
 - name: "Config K8S Shell Completion"
   ansible.builtin.include_tasks: config-k8s-shell-completion.yml
+
 - name: "Config Firewall Common"
   ansible.builtin.include_tasks: config-firewall-common.yml
-  when: enable_firewall | default(false,true)
+  when:
+    - enable_firewall | default(false,true)
+    - not firewalld_masked | default(false,true)
+
 - name: "Config Disable Swap"
   ansible.builtin.include_tasks: config-disable-swap.yml
 - name: "Config Kubelet"

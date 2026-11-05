@@ -8,6 +8,9 @@
 - name: "Load Params"
   ansible.builtin.include_tasks: load-params.yml
 
+- name: "Config check firewalld status"
+  ansible.builtin.include_tasks: config-check-firewalld.yml
+
 # パッケージ導入処理
 - name: "Package"
   ansible.builtin.include_tasks: package.yml
@@ -57,3 +60,4 @@
     - dns_dns_server_enabled | default(false) | bool
     - ( dns_server | default('', true) | length ) > 0
     - enable_firewall | default(false,true)
+    - not firewalld_masked | default(false,true)
