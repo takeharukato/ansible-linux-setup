@@ -195,7 +195,7 @@
     path: "{{ create_users_authorized_keys_home_map[item.item.key] }}/.ssh"
     state: directory
     owner: "{{ item.item.key }}"
-    group: "{{ item.item.key }}"
+    group: "{{ item.group | default(item.item.key, true) }}"
     mode: "0700"
   loop: "{{ authorized_keys_user_check.results | default([], true) }}"
   loop_control:
